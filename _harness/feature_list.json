@@ -92,7 +92,7 @@
   {
     "id": "F4.1", "name": "Sequence builder", "area": "Outreach", "milestone": "M4",
     "description": "Multi-step email sequences with delays, conditions, templates",
-    "dependencies": ["F1.3", "F7.1"], "passes": false, "attempts": 0, "completeness_target": 9
+    "dependencies": ["F1.3", "F7.1"], "passes": true, "attempts": 1, "completeness_target": 9
   },
   {
     "id": "F4.2", "name": "AI email writer", "area": "Outreach", "milestone": "M4",
