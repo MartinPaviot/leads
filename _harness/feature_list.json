@@ -102,7 +102,7 @@
   {
     "id": "F4.3", "name": "Autopilot enrollment", "area": "Outreach", "milestone": "M4",
     "description": "AI decides who to enroll in sequences, when, and with what messaging",
-    "dependencies": ["F4.1", "F4.2", "F3.4"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": ["F4.1", "F4.2", "F3.4"], "passes": true, "attempts": 1, "completeness_target": 8
   },
   {
     "id": "F4.4", "name": "Email sending infrastructure", "area": "Outreach", "milestone": "M4",
