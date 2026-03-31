@@ -2,6 +2,21 @@
 
 import { useState, useEffect, useCallback } from "react";
 
+interface Analytics {
+  totalDeals: number;
+  activeDeals: number;
+  totalPipelineValue: number;
+  wonValue: number;
+  wonCount: number;
+  lostCount: number;
+  winRate: number;
+  avgDealValue: number;
+  avgVelocityDays: number;
+  valueByStage: Record<string, { count: number; value: number }>;
+  funnel: Array<{ stage: string; count: number }>;
+  riskSummary: { high: number; medium: number; low: number; none: number };
+}
+
 const STAGES = [
   "lead",
   "qualification",
@@ -42,6 +57,20 @@ export default function OpportunitiesPage() {
   const [newValue, setNewValue] = useState("");
   const [creating, setCreating] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState(true);
+
+  const fetchAnalytics = useCallback(async () => {
+    try {
+      const res = await fetch("/api/pipeline/analytics");
+      if (res.ok) {
+        const data = await res.json();
+        setAnalytics(data);
+      }
+    } catch {
+      // Analytics are non-critical
+    }
+  }, []);
 
   const fetchDeals = useCallback(async () => {
     try {
@@ -59,7 +88,8 @@ export default function OpportunitiesPage() {
 
   useEffect(() => {
     fetchDeals();
-  }, [fetchDeals]);
+    fetchAnalytics();
+  }, [fetchDeals, fetchAnalytics]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -98,6 +128,7 @@ export default function OpportunitiesPage() {
       });
       if (res.ok) {
         await fetchDeals();
+        await fetchAnalytics();
       }
     } catch {
       console.error("Analysis failed");
@@ -197,6 +228,118 @@ export default function OpportunitiesPage() {
             Cancel
           </button>
         </form>
+      )}
+
+      {/* Analytics Panel */}
+      {analytics && showAnalytics && (
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-[#8b8ba0] uppercase tracking-wider">Pipeline Analytics</h2>
+            <button
+              onClick={() => setShowAnalytics(false)}
+              className="text-xs text-[#5a5a70] hover:text-[#8b8ba0]"
+            >
+              Hide
+            </button>
+          </div>
+
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
+            <div className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3">
+              <p className="text-[10px] uppercase tracking-wider text-[#5a5a70]">Pipeline Value</p>
+              <p className="mt-1 text-lg font-semibold text-[#e8e8ed]">
+                ${analytics.totalPipelineValue.toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3">
+              <p className="text-[10px] uppercase tracking-wider text-[#5a5a70]">Won</p>
+              <p className="mt-1 text-lg font-semibold text-[#22c55e]">
+                ${analytics.wonValue.toLocaleString()}
+              </p>
+              <p className="text-[10px] text-[#5a5a70]">{analytics.wonCount} deal{analytics.wonCount !== 1 ? "s" : ""}</p>
+            </div>
+            <div className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3">
+              <p className="text-[10px] uppercase tracking-wider text-[#5a5a70]">Win Rate</p>
+              <p className="mt-1 text-lg font-semibold text-[#e8e8ed]">
+                {analytics.winRate}%
+              </p>
+              <p className="text-[10px] text-[#5a5a70]">{analytics.wonCount}W / {analytics.lostCount}L</p>
+            </div>
+            <div className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3">
+              <p className="text-[10px] uppercase tracking-wider text-[#5a5a70]">Avg Deal</p>
+              <p className="mt-1 text-lg font-semibold text-[#e8e8ed]">
+                ${analytics.avgDealValue.toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3">
+              <p className="text-[10px] uppercase tracking-wider text-[#5a5a70]">Velocity</p>
+              <p className="mt-1 text-lg font-semibold text-[#e8e8ed]">
+                {analytics.avgVelocityDays}d
+              </p>
+              <p className="text-[10px] text-[#5a5a70]">avg to close</p>
+            </div>
+            <div className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3">
+              <p className="text-[10px] uppercase tracking-wider text-[#5a5a70]">At Risk</p>
+              <div className="mt-1 flex items-baseline gap-2">
+                {analytics.riskSummary.high > 0 && (
+                  <span className="text-lg font-semibold text-red-400">{analytics.riskSummary.high}</span>
+                )}
+                {analytics.riskSummary.medium > 0 && (
+                  <span className="text-lg font-semibold text-amber-400">{analytics.riskSummary.medium}</span>
+                )}
+                {analytics.riskSummary.high === 0 && analytics.riskSummary.medium === 0 && (
+                  <span className="text-lg font-semibold text-emerald-400">0</span>
+                )}
+              </div>
+              <p className="text-[10px] text-[#5a5a70]">
+                {analytics.riskSummary.high}H {analytics.riskSummary.medium}M {analytics.riskSummary.low}L
+              </p>
+            </div>
+          </div>
+
+          {/* Stage Value Bars */}
+          <div className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3">
+            <p className="text-[10px] uppercase tracking-wider text-[#5a5a70] mb-2">Value by Stage</p>
+            <div className="space-y-1.5">
+              {analytics.funnel.map((s) => {
+                const stageData = analytics.valueByStage[s.stage];
+                const maxValue = Math.max(
+                  ...Object.values(analytics.valueByStage).map((v) => v.value),
+                  1
+                );
+                const pct = stageData ? (stageData.value / maxValue) * 100 : 0;
+                return (
+                  <div key={s.stage} className="flex items-center gap-2">
+                    <span className="w-24 text-right text-[10px] text-[#8b8ba0]">
+                      {STAGE_LABELS[s.stage]}
+                    </span>
+                    <div className="flex-1 h-4 rounded bg-[#1e1f2a] overflow-hidden">
+                      <div
+                        className="h-full rounded bg-[#6366f1]"
+                        style={{ width: `${Math.max(pct, stageData && stageData.count > 0 ? 2 : 0)}%` }}
+                      />
+                    </div>
+                    <span className="w-20 text-[10px] text-[#8b8ba0]">
+                      {stageData ? `$${stageData.value.toLocaleString()}` : "$0"}
+                    </span>
+                    <span className="w-8 text-[10px] text-[#5a5a70]">
+                      {stageData?.count || 0}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!showAnalytics && analytics && (
+        <button
+          onClick={() => setShowAnalytics(true)}
+          className="mt-2 text-xs text-[#5a5a70] hover:text-[#8b8ba0]"
+        >
+          Show analytics
+        </button>
       )}
 
       {loading ? (
