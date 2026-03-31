@@ -72,7 +72,7 @@
   {
     "id": "F3.3", "name": "TAM builder", "area": "Prospecting", "milestone": "M3",
     "description": "Auto-build TAM from ICP description using data providers + AI",
-    "dependencies": ["F3.1", "F3.2", "F1.4"], "passes": false, "attempts": 0, "completeness_target": 9
+    "dependencies": ["F3.1", "F3.2", "F1.4"], "passes": true, "attempts": 1, "completeness_target": 9
   },
   {
     "id": "F3.4", "name": "ML scoring", "area": "Prospecting", "milestone": "M3",
