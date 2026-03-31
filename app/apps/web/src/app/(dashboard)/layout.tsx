@@ -12,6 +12,12 @@ const navSections = [
     ],
   },
   {
+    label: "Outreach",
+    items: [
+      { label: "Sequences", href: "/sequences" },
+    ],
+  },
+  {
     label: "Resources",
     items: [
       { label: "Tasks", href: "/tasks" },

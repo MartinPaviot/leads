@@ -346,3 +346,73 @@ export const chatMessages = pgTable(
     index("chat_messages_thread_id_idx").on(table.threadId),
   ]
 );
+
+// === SEQUENCE TABLES ===
+
+export const sequenceStatusEnum = pgEnum("sequence_status", [
+  "draft",
+  "active",
+  "paused",
+  "archived",
+]);
+
+export const enrollmentStatusEnum = pgEnum("enrollment_status", [
+  "active",
+  "paused",
+  "completed",
+  "replied",
+  "bounced",
+  "unsubscribed",
+]);
+
+export const sequences = pgTable(
+  "sequences",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    status: sequenceStatusEnum("status").default("draft"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("sequences_tenant_id_idx").on(table.tenantId),
+    index("sequences_status_idx").on(table.status),
+  ]
+);
+
+export const sequenceSteps = pgTable(
+  "sequence_steps",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    sequenceId: text("sequence_id").references(() => sequences.id, { onDelete: "cascade" }).notNull(),
+    stepNumber: integer("step_number").notNull(),
+    subjectTemplate: text("subject_template").notNull(),
+    bodyTemplate: text("body_template").notNull(),
+    delayDays: integer("delay_days").default(2),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("sequence_steps_sequence_id_idx").on(table.sequenceId),
+  ]
+);
+
+export const sequenceEnrollments = pgTable(
+  "sequence_enrollments",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    sequenceId: text("sequence_id").references(() => sequences.id, { onDelete: "cascade" }).notNull(),
+    contactId: text("contact_id").references(() => contacts.id).notNull(),
+    status: enrollmentStatusEnum("status").default("active"),
+    currentStep: integer("current_step").default(1),
+    enrolledAt: timestamp("enrolled_at", { withTimezone: true }).defaultNow(),
+    lastStepAt: timestamp("last_step_at", { withTimezone: true }),
+    nextStepAt: timestamp("next_step_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("enrollments_sequence_id_idx").on(table.sequenceId),
+    index("enrollments_contact_id_idx").on(table.contactId),
+    index("enrollments_next_step_idx").on(table.nextStepAt),
+  ]
+);
