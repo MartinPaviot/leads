@@ -29,6 +29,9 @@ export default function AccountsPage() {
   const [filter, setFilter] = useState<"all" | "tam" | "manual">("all");
   const [scoreAllRunning, setScoreAllRunning] = useState(false);
   const [detectingSignals, setDetectingSignals] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<string[] | null>(null);
+  const [searching, setSearching] = useState(false);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -170,6 +173,29 @@ export default function AccountsPage() {
     }
   }
 
+  async function handleSemanticSearch() {
+    if (!searchQuery.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    setSearching(true);
+    try {
+      const res = await fetch("/api/search/tam", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: searchQuery.trim(), entityType: "company", limit: 20 }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSearchResults(data.results.map((r: { entityId: string }) => r.entityId));
+      }
+    } catch {
+      console.error("Search failed");
+    } finally {
+      setSearching(false);
+    }
+  }
+
   function isEnriched(account: Account): boolean {
     return !!(account.industry && account.description);
   }
@@ -266,11 +292,31 @@ export default function AccountsPage() {
 
   const filteredAccounts = accounts
     .filter((a) => {
-      if (filter === "tam") return isTAM(a);
-      if (filter === "manual") return !isTAM(a);
+      // Source filter
+      if (filter === "tam" && !isTAM(a)) return false;
+      if (filter === "manual" && isTAM(a)) return false;
+      // Text search filter
+      if (searchQuery.trim() && !searchResults) {
+        const q = searchQuery.toLowerCase();
+        return (
+          a.name.toLowerCase().includes(q) ||
+          (a.domain?.toLowerCase().includes(q) ?? false) ||
+          (a.industry?.toLowerCase().includes(q) ?? false)
+        );
+      }
+      // Semantic search results
+      if (searchResults) {
+        return searchResults.includes(a.id);
+      }
       return true;
     })
-    .sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+    .sort((a, b) => {
+      // If semantic search, sort by search result order
+      if (searchResults) {
+        return searchResults.indexOf(a.id) - searchResults.indexOf(b.id);
+      }
+      return (b.score ?? -1) - (a.score ?? -1);
+    });
 
   const unenrichedCount = accounts.filter((a) => !isEnriched(a)).length;
   const tamCount = accounts.filter(isTAM).length;
@@ -321,8 +367,39 @@ export default function AccountsPage() {
         </div>
       </div>
 
+      {/* Search bar */}
+      <div className="mt-4 flex gap-2">
+        <input
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            if (!e.target.value.trim()) setSearchResults(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSemanticSearch();
+          }}
+          placeholder="Search accounts... (Enter for AI search)"
+          className="flex-1 rounded-lg border border-[#1e1f2a] bg-[#12131a] px-3 py-2 text-sm text-[#e8e8ed] placeholder-[#5a5a70] focus:border-[#6366f1] focus:outline-none"
+        />
+        <button
+          onClick={handleSemanticSearch}
+          disabled={searching || !searchQuery.trim()}
+          className="rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6] disabled:opacity-50"
+        >
+          {searching ? "Searching..." : "AI Search"}
+        </button>
+        {searchResults && (
+          <button
+            onClick={() => { setSearchResults(null); setSearchQuery(""); }}
+            className="rounded-lg border border-[#1e1f2a] px-3 py-2 text-sm text-[#8b8ba0] hover:text-[#e8e8ed]"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
       {/* Filter tabs */}
-      <div className="mt-4 flex gap-1">
+      <div className="mt-3 flex gap-1">
         {(["all", "tam", "manual"] as const).map((f) => (
           <button
             key={f}
