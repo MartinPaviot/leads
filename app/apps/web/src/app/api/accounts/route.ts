@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { auth } from "@/auth";
 import { eq } from "drizzle-orm";
+import { inngest } from "@/inngest/client";
 
 export async function GET() {
   const session = await auth();
@@ -44,6 +45,12 @@ export async function POST(req: Request) {
         tenantId: "default", // TODO: use real tenant from session
       })
       .returning();
+
+    // Fire enrichment event for background processing
+    await inngest.send({
+      name: "company/created",
+      data: { companyId: account.id, tenantId: "default" },
+    }).catch(console.warn);
 
     return Response.json({ account }, { status: 201 });
   } catch (error) {
