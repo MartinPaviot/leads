@@ -63,11 +63,22 @@
 - F6.3 Prioritized Actions: PASS — AI-generated actions dashboard ranked by impact
 **Tests**: 51 tests (2 new for actions API)
 
+## M7: Polish & Gaps — CHECKPOINT REACHED (checkpoint: true)
+**Date**: 2026-03-31
+**All 3 features pass first attempt**
+**Built**:
+- F5.5 Pipeline Analytics: PASS — KPI cards (pipeline value, won, win rate, avg deal, velocity, risk), value-by-stage horizontal bars
+- F6.4 Proactive Insights: PASS — Rule-based detection: stalling deals, high-risk alerts, win rate trends, pipeline bottlenecks, TAM coverage, unenriched accounts, orphan contacts
+- F4.6 Deliverability Monitoring: PASS — Health score 0-100, open/reply/bounce/spam rates, warnings, dedicated /deliverability page
+**Tests**: 64 unit tests across 15 test files, all passing
+**MCP**: Context7 + Rippletide Context Graph configured and connected
+
 ## FINAL STATUS
-**All 6 milestones complete. 22 features built. 51 tests passing.**
+**All 7 milestones complete. 25 features built. 64 tests passing.**
 - M1 Foundation: 6 features (auth, data model, chat, settings, sidebar, Inngest)
 - M2 Memory: 7 features (email sync, calendar, timeline, summarization, RAG, NL queries, CSV import)
 - M3 Prospecting: 6 features (company enrich, contact enrich, TAM, scoring, signals, semantic search)
-- M4 Outreach: 5 features (sequences, AI writer, autopilot, sending, reply detection)
-- M5 Pipeline: 4 features (deals, stage progression, risk detection, summaries)
-- M6 Intelligence: 2 features (CRO copilot, prioritized actions)
+- M4 Outreach: 6 features (sequences, AI writer, autopilot, sending, reply detection, deliverability)
+- M5 Pipeline: 5 features (deals, stage progression, risk detection, summaries, analytics)
+- M6 Intelligence: 3 features (CRO copilot, prioritized actions, proactive insights)
+- M7 Polish: MCP setup (Context7, Rippletide), CLAUDE.md + EVAL_RUBRIC.md updates

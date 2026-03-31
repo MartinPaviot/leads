@@ -145,6 +145,21 @@
     "dependencies": ["F6.1", "F5.3"], "passes": true, "attempts": 1, "completeness_target": 8
   },
   {
+    "id": "F4.6", "name": "Deliverability monitoring", "area": "Outreach", "milestone": "M4",
+    "description": "Health score, bounce/spam/open/reply rates, warnings, dedicated page",
+    "dependencies": ["F4.4"], "passes": true, "attempts": 1, "completeness_target": 8
+  },
+  {
+    "id": "F5.5", "name": "Pipeline analytics", "area": "Pipeline", "milestone": "M5",
+    "description": "KPI cards (value, win rate, avg deal, velocity), value-by-stage bars, risk summary",
+    "dependencies": ["F5.1"], "passes": true, "attempts": 1, "completeness_target": 8
+  },
+  {
+    "id": "F6.4", "name": "Proactive insights", "area": "Intelligence", "milestone": "M6",
+    "description": "Rule-based trend/alert/opportunity detection from pipeline data",
+    "dependencies": ["F5.1", "F3.4"], "passes": true, "attempts": 1, "completeness_target": 8
+  },
+  {
     "id": "F7.1", "name": "Background job system", "area": "Infrastructure", "milestone": "M1",
     "description": "BullMQ on Redis for async jobs: enrichment, email, sequences",
     "dependencies": [], "passes": false, "attempts": 0, "completeness_target": 9
