@@ -20,5 +20,18 @@
 **Blocked**: F2.1 email sync, F2.2 calendar sync need Google login completion
 **Status**: Continuing to M3 per Martin's instruction (no stops at checkpoints tonight)
 
-## M3: Prospecting — NEXT
-Starting: F3.1 Company enrichment, F3.3 TAM builder, F3.4 ML scoring
+## M3: Prospecting — CHECKPOINT REACHED (checkpoint: true)
+**Date**: 2026-03-31
+**All 6 features pass first attempt** (82% overall pass rate)
+**Built**:
+- F3.1 Company Enrichment: PASS (0.78) — Claude structured output, Inngest auto-enrich, re-embed
+- F3.2 Contact Enrichment: PASS (0.79) — Title, seniority, department, LinkedIn, company association
+- F3.3 TAM Builder: PASS (0.78) — ICP→30 companies, auto-score, TAM badges, duplicate detection
+- F3.4 ML Scoring: PASS (0.78) — Account + contact scoring 0-100, Score All button, explanations
+- F3.5 Signal Overlay: PASS (0.78) — 6 signal types, colored badges, tooltips, Detect Signals button
+- F3.6 AI Semantic Search: PASS (0.78) — pgvector search + entity hydration, dual-mode search bar
+**Tests**: 36 unit tests across 7 test files, all passing
+**Status**: Continuing to M4 per Martin's instruction (skip checkpoints tonight)
+
+## M4: Outreach — NEXT
+Starting: F4.1 Sequence builder, F4.2 AI email writer, F4.3 Autopilot enrollment
