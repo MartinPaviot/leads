@@ -27,9 +27,9 @@ export const enrichCompany = inngest.createFunction(
     id: "enrich-company",
     name: "Enrich Company Data",
     retries: 2,
+    triggers: [{ event: "company/created" }],
   },
-  { event: "company/created" },
-  async ({ event, step }) => {
+  async ({ event, step }: { event: { data: { companyId: string; tenantId: string } }; step: any }) => {
     const { companyId } = event.data as {
       companyId: string;
       tenantId: string;
@@ -104,9 +104,9 @@ export const sendSequenceStep = inngest.createFunction(
   {
     id: "send-sequence-step",
     name: "Send Sequence Step",
+    triggers: [{ event: "sequence/step-due" }],
   },
-  { event: "sequence/step-due" },
-  async ({ event, step }) => {
+  async ({ event, step }: { event: { data: { sequenceId: string; contactId: string; stepNumber: number } }; step: any }) => {
     const { sequenceId, contactId, stepNumber } = event.data as {
       sequenceId: string;
       contactId: string;
