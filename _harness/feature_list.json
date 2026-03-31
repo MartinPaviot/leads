@@ -62,7 +62,7 @@
   {
     "id": "F3.1", "name": "Company enrichment", "area": "Prospecting", "milestone": "M3",
     "description": "Firmographics, industry, size, tech stack from data providers",
-    "dependencies": ["F1.3", "F7.1"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": ["F1.3", "F7.1"], "passes": true, "attempts": 1, "completeness_target": 8
   },
   {
     "id": "F3.2", "name": "Contact enrichment", "area": "Prospecting", "milestone": "M3",

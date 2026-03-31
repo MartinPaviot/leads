@@ -1,12 +1,12 @@
 import { inngest } from "./client";
 import { db } from "@/db";
-import { companies } from "@/db/schema";
+import { companies, contacts } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { generateObject } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
-import { embedEntity, companyToText } from "@/lib/embeddings";
+import { embedEntity, companyToText, contactToText } from "@/lib/embeddings";
 
 const enrichmentSchema = z.object({
   industry: z.string().describe("Primary industry (e.g. Fintech, SaaS, AI/ML, Healthcare)"),
@@ -96,6 +96,110 @@ If you don't recognize the company, provide reasonable estimates based on the na
     });
 
     return { companyId, enriched: true };
+  }
+);
+
+const contactEnrichmentSchema = z.object({
+  title: z.string().describe("Job title"),
+  seniority: z.string().describe("Seniority: C-Suite, VP, Director, Manager, IC, Unknown"),
+  department: z.string().describe("Department: Engineering, Sales, Marketing, Product, Operations, Finance, HR, Other"),
+  linkedinUrl: z.string().nullable().describe("LinkedIn URL if identifiable, null otherwise"),
+  phone: z.string().nullable().describe("Phone if known, null otherwise"),
+  companyName: z.string().nullable().describe("Company name if identifiable"),
+});
+
+// Enrich a contact after creation
+export const enrichContact = inngest.createFunction(
+  {
+    id: "enrich-contact",
+    name: "Enrich Contact Data",
+    retries: 2,
+    triggers: [{ event: "contact/created" }],
+  },
+  async ({ event, step }: { event: { data: { contactId: string; tenantId: string } }; step: any }) => {
+    const { contactId } = event.data;
+
+    const model = getLLMModel();
+    if (!model) {
+      return { contactId, enriched: false, reason: "No LLM API key" };
+    }
+
+    const contact = await step.run("fetch-contact", async () => {
+      const [c] = await db
+        .select()
+        .from(contacts)
+        .where(eq(contacts.id, contactId))
+        .limit(1);
+      return c || null;
+    });
+
+    if (!contact) {
+      return { contactId, enriched: false, reason: "Contact not found" };
+    }
+
+    const props = contact.properties as Record<string, unknown> | null;
+    if (contact.title && (contact.linkedinUrl || props?.seniority)) {
+      return { contactId, enriched: false, reason: "Already enriched" };
+    }
+
+    const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
+
+    const enrichment = await step.run("enrich-from-llm", async () => {
+      const { object } = await generateObject({
+        model: model!,
+        schema: contactEnrichmentSchema,
+        prompt: `Research this professional contact and provide their details.
+Name: ${name || "Unknown"}
+Email: ${contact.email || "unknown"}
+Provide accurate professional data.`,
+      });
+      return object;
+    });
+
+    await step.run("update-contact", async () => {
+      let companyId = contact.companyId;
+      if (!companyId && enrichment.companyName) {
+        const [existing] = await db
+          .select()
+          .from(companies)
+          .where(eq(companies.name, enrichment.companyName))
+          .limit(1);
+        if (existing) companyId = existing.id;
+      }
+
+      await db
+        .update(contacts)
+        .set({
+          title: enrichment.title || contact.title,
+          linkedinUrl: enrichment.linkedinUrl || contact.linkedinUrl,
+          phone: enrichment.phone || contact.phone,
+          companyId: companyId || contact.companyId,
+          properties: {
+            ...(props || {}),
+            seniority: enrichment.seniority,
+            department: enrichment.department,
+            enrichedCompanyName: enrichment.companyName,
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(contacts.id, contactId));
+    });
+
+    await step.run("re-embed", async () => {
+      const text = contactToText({
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        title: enrichment.title,
+        email: contact.email,
+        phone: enrichment.phone,
+        companyName: enrichment.companyName,
+      });
+      if (text && process.env.OPENAI_API_KEY) {
+        await embedEntity("default", "contact", contactId, text);
+      }
+    });
+
+    return { contactId, enriched: true };
   }
 );
 
