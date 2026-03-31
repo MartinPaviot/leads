@@ -97,7 +97,7 @@
   {
     "id": "F4.2", "name": "AI email writer", "area": "Outreach", "milestone": "M4",
     "description": "Generate personalized emails from enrichment + signals + memory",
-    "dependencies": ["F3.1", "F2.6", "F1.4"], "passes": false, "attempts": 0, "completeness_target": 9
+    "dependencies": ["F3.1", "F2.6", "F1.4"], "passes": true, "attempts": 1, "completeness_target": 9
   },
   {
     "id": "F4.3", "name": "Autopilot enrollment", "area": "Outreach", "milestone": "M4",
