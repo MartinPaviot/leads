@@ -12,6 +12,7 @@ interface Account {
   description: string | null;
   score: number | null;
   scoreReasons: string[] | null;
+  properties: Record<string, unknown> | null;
 }
 
 type EnrichStatus = "idle" | "enriching" | "done" | "failed";
@@ -25,6 +26,7 @@ export default function AccountsPage() {
   const [creating, setCreating] = useState(false);
   const [enrichStatus, setEnrichStatus] = useState<Record<string, EnrichStatus>>({});
   const [enrichAllRunning, setEnrichAllRunning] = useState(false);
+  const [filter, setFilter] = useState<"all" | "tam" | "manual">("all");
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -179,7 +181,20 @@ export default function AccountsPage() {
     );
   }
 
+  function isTAM(account: Account): boolean {
+    return (account.properties as Record<string, unknown>)?.source === "tam";
+  }
+
+  const filteredAccounts = accounts
+    .filter((a) => {
+      if (filter === "tam") return isTAM(a);
+      if (filter === "manual") return !isTAM(a);
+      return true;
+    })
+    .sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+
   const unenrichedCount = accounts.filter((a) => !isEnriched(a)).length;
+  const tamCount = accounts.filter(isTAM).length;
 
   return (
     <div className="p-6">
@@ -188,6 +203,7 @@ export default function AccountsPage() {
           <h1 className="text-xl font-semibold">Accounts</h1>
           <p className="mt-1 text-sm text-[#5a5a70]">
             {accounts.length} account{accounts.length !== 1 ? "s" : ""}
+            {tamCount > 0 && ` · ${tamCount} TAM`}
             {unenrichedCount > 0 && ` · ${unenrichedCount} unenriched`}
           </p>
         </div>
@@ -208,6 +224,23 @@ export default function AccountsPage() {
             + Create account
           </button>
         </div>
+      </div>
+
+      {/* Filter tabs */}
+      <div className="mt-4 flex gap-1">
+        {(["all", "tam", "manual"] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
+              filter === f
+                ? "bg-[#6366f1]/15 text-[#6366f1]"
+                : "text-[#5a5a70] hover:text-[#8b8ba0]"
+            }`}
+          >
+            {f === "all" ? "All" : f === "tam" ? "TAM" : "Manual"}
+          </button>
+        ))}
       </div>
 
       {showCreate && (
@@ -272,13 +305,20 @@ export default function AccountsPage() {
                 </tr>
               </thead>
               <tbody>
-                {accounts.map((account) => (
+                {filteredAccounts.map((account) => (
                   <tr
                     key={account.id}
                     className="border-b border-[#1e1f2a] hover:bg-[#12131a]"
                   >
                     <td className="py-3 pr-4">
-                      {enrichmentIndicator(account)}
+                      <div className="flex flex-col gap-0.5">
+                        {enrichmentIndicator(account)}
+                        {isTAM(account) && (
+                          <span className="inline-flex w-fit items-center rounded bg-[#6366f1]/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-[#6366f1]">
+                            TAM
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 pr-4">
                       <div>

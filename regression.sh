@@ -37,7 +37,7 @@ check "TypeScript compiles" "cd app/apps/web && npx tsc --noEmit 2>&1"
 # --- Unit tests ---
 echo ""
 echo "[Unit Tests]"
-check "Vitest suite" "cd app/apps/web && npx vitest run 2>&1"
+check "Vitest suite" "cd app/apps/web && npx vitest run --config vitest.config.ts 2>&1"
 
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
