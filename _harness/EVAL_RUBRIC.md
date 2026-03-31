@@ -72,3 +72,29 @@ Anthropic's research: agents reliably approve their own mediocre work. When aske
 7. **PASS**: merge `feat/FEATURE_ID` → main, delete branch, set `passes: true` in feature_list.json, update `regression.sh`. Check milestones — if checkpoint → STOP for Martin.
 
 8. **FAIL**: delete branch, don't touch feature_list.json. Feedback must be specific enough to fix without questions.
+
+## Chat & AI response quality (for features involving AI responses)
+
+During SPEC phase: define expected Q&A pairs in requirements.md for every AI-facing criterion. Format: GIVEN [context] WHEN user asks [question] THEN response should contain [expected facts] and NOT contain [hallucinations].
+
+During BUILD phase: generate a qanda.json from the spec's acceptance criteria. Place in `_fixtures/FEATURE_ID/qanda.json`.
+
+During EVAL phase: run Rippletide eval against live chat endpoint. Score on three dimensions:
+- **Factual accuracy** — does the response match expected facts?
+- **Hallucination detection** — does it contain fabricated information?
+- **Completeness** — does it cover all key points from the expected answer?
+
+A feature involving AI responses needs BOTH code evaluation AND response quality evaluation to pass. Any hallucination = automatic FAIL.
+
+Save results to `_fixtures/FEATURE_ID/rippletide-eval.json`.
+
+## Rippletide integration patterns
+
+### Context Graph for persistent memory
+Before building any feature, use `get_context()` and `recall()` to check if prior decisions or context exist. After completing a feature, `remember()` key decisions and `relate()` entities.
+
+### Decision Runtime for deterministic agent behavior
+For customer-facing AI features (chat, email generation, deal coaching): structure knowledge as Q&A pairs + tags + actions. Use deterministic reasoning where guaranteed accuracy matters more than creative generation. Every agent decision should trace to a knowledge node.
+
+### Guardrails
+Define guardrails for AI-generated content: no hallucinated company data, no fabricated contact details, no invented metrics. Test guardrails during eval phase.
