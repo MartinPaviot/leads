@@ -117,22 +117,22 @@
   {
     "id": "F5.1", "name": "Deal management", "area": "Pipeline", "milestone": "M5",
     "description": "Kanban + list views, create/edit deals, drag-drop stages",
-    "dependencies": ["F1.3"], "passes": false, "attempts": 0, "completeness_target": 9
+    "dependencies": ["F1.3"], "passes": true, "attempts": 1, "completeness_target": 9
   },
   {
     "id": "F5.2", "name": "Signal-based stage progression", "area": "Pipeline", "milestone": "M5",
     "description": "Auto-progress deals based on email activity, meeting count, stakeholder engagement",
-    "dependencies": ["F5.1", "F2.4"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": ["F5.1", "F2.4"], "passes": true, "attempts": 1, "completeness_target": 8
   },
   {
     "id": "F5.3", "name": "Risk detection", "area": "Pipeline", "milestone": "M5",
     "description": "Flag ghosting, stalls, competitor mentions with reasons",
-    "dependencies": ["F5.1", "F2.4"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": ["F5.1", "F2.4"], "passes": true, "attempts": 1, "completeness_target": 8
   },
   {
     "id": "F5.4", "name": "Auto-generated deal summaries", "area": "Pipeline", "milestone": "M5",
     "description": "AI-written deal overview from all captured interactions",
-    "dependencies": ["F5.1", "F2.5", "F2.7"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": ["F5.1", "F2.5", "F2.7"], "passes": true, "attempts": 1, "completeness_target": 8
   },
   {
     "id": "F6.1", "name": "CRO Copilot", "area": "Intelligence", "milestone": "M6",
