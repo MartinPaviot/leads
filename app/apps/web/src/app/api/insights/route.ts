@@ -1,0 +1,203 @@
+import { auth } from "@/auth";
+import { db } from "@/db";
+import { deals, contacts, companies, activities, sequences, sequenceEnrollments } from "@/db/schema";
+import { sql } from "drizzle-orm";
+
+interface Insight {
+  id: string;
+  title: string;
+  description: string;
+  severity: "critical" | "high" | "medium" | "info";
+  category: "alert" | "trend" | "pattern" | "opportunity";
+  suggestedAction: string;
+}
+
+export async function GET() {
+  const session = await auth();
+  if (!session?.user) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const [allDeals, allContacts, allCompanies, allEnrollments] = await Promise.all([
+      db.select().from(deals),
+      db.select().from(contacts),
+      db.select().from(companies),
+      db.select().from(sequenceEnrollments),
+    ]);
+
+    const insights: Insight[] = [];
+    let insightId = 0;
+    const nextId = () => `insight-${++insightId}`;
+
+    const now = Date.now();
+    const dayMs = 86400000;
+
+    // === ALERTS ===
+
+    // Stalling deals: deals in active stages with updatedAt > 14 days ago
+    const activeStages = ["lead", "qualification", "demo", "trial", "proposal", "negotiation"];
+    const stallingDeals = allDeals.filter(
+      (d) =>
+        activeStages.includes(d.stage!) &&
+        d.updatedAt &&
+        now - new Date(d.updatedAt).getTime() > 14 * dayMs
+    );
+    if (stallingDeals.length > 0) {
+      insights.push({
+        id: nextId(),
+        title: `${stallingDeals.length} deal${stallingDeals.length > 1 ? "s" : ""} stalling`,
+        description: `${stallingDeals.map((d) => d.name).slice(0, 3).join(", ")}${stallingDeals.length > 3 ? ` and ${stallingDeals.length - 3} more` : ""} haven't progressed in 14+ days.`,
+        severity: stallingDeals.length >= 3 ? "critical" : "high",
+        category: "alert",
+        suggestedAction: "Review stalling deals and either advance, re-engage, or close them.",
+      });
+    }
+
+    // High-risk deals
+    const highRiskDeals = allDeals.filter(
+      (d) =>
+        activeStages.includes(d.stage!) &&
+        (d.properties as Record<string, unknown>)?.riskLevel === "high"
+    );
+    if (highRiskDeals.length > 0) {
+      insights.push({
+        id: nextId(),
+        title: `${highRiskDeals.length} high-risk deal${highRiskDeals.length > 1 ? "s" : ""}`,
+        description: `${highRiskDeals.map((d) => d.name).slice(0, 3).join(", ")} flagged as high risk.`,
+        severity: "high",
+        category: "alert",
+        suggestedAction: "Run pipeline analysis to identify specific risks and plan rescue actions.",
+      });
+    }
+
+    // Cold contacts: contacts with no recent activity
+    const contactsWithoutCompany = allContacts.filter((c) => !c.companyId);
+    if (contactsWithoutCompany.length >= 5) {
+      insights.push({
+        id: nextId(),
+        title: `${contactsWithoutCompany.length} orphan contacts`,
+        description: `Contacts without a linked company can't be enriched or scored properly.`,
+        severity: "medium",
+        category: "alert",
+        suggestedAction: "Associate orphan contacts with companies via CSV re-import or manual edit.",
+      });
+    }
+
+    // === TRENDS ===
+
+    // Win rate trend
+    const wonDeals = allDeals.filter((d) => d.stage === "won");
+    const lostDeals = allDeals.filter((d) => d.stage === "lost");
+    const closedCount = wonDeals.length + lostDeals.length;
+    if (closedCount >= 3) {
+      const winRate = Math.round((wonDeals.length / closedCount) * 100);
+      if (winRate >= 50) {
+        insights.push({
+          id: nextId(),
+          title: `Win rate at ${winRate}%`,
+          description: `${wonDeals.length} won vs ${lostDeals.length} lost. Strong conversion.`,
+          severity: "info",
+          category: "trend",
+          suggestedAction: "Analyze winning patterns to replicate across pipeline.",
+        });
+      } else {
+        insights.push({
+          id: nextId(),
+          title: `Win rate at ${winRate}%`,
+          description: `${wonDeals.length} won vs ${lostDeals.length} lost. Room for improvement.`,
+          severity: winRate < 25 ? "high" : "medium",
+          category: "trend",
+          suggestedAction: "Review lost deals for common objections and refine your approach.",
+        });
+      }
+    }
+
+    // Pipeline concentration
+    const stageDistribution = activeStages.map((stage) => ({
+      stage,
+      count: allDeals.filter((d) => d.stage === stage).length,
+    }));
+    const topStage = stageDistribution.reduce((a, b) => (b.count > a.count ? b : a), stageDistribution[0]);
+    const activeCount = allDeals.filter((d) => activeStages.includes(d.stage!)).length;
+    if (activeCount >= 5 && topStage.count > activeCount * 0.6) {
+      insights.push({
+        id: nextId(),
+        title: `Pipeline bottleneck at ${topStage.stage}`,
+        description: `${Math.round((topStage.count / activeCount) * 100)}% of active deals stuck in ${topStage.stage} stage.`,
+        severity: "medium",
+        category: "pattern",
+        suggestedAction: `Focus on moving ${topStage.stage} deals forward — review what's blocking progression.`,
+      });
+    }
+
+    // === OPPORTUNITIES ===
+
+    // High-scored accounts without sequences
+    const enrolledContactIds = new Set(allEnrollments.map((e) => e.contactId));
+    const highScoredCompanies = allCompanies.filter(
+      (c) => c.score && c.score >= 70
+    );
+    const highScoredContactsNoSequence = allContacts.filter(
+      (c) =>
+        c.companyId &&
+        highScoredCompanies.some((co) => co.id === c.companyId) &&
+        !enrolledContactIds.has(c.id)
+    );
+    if (highScoredContactsNoSequence.length >= 3) {
+      insights.push({
+        id: nextId(),
+        title: `${highScoredContactsNoSequence.length} high-value contacts not in sequences`,
+        description: `Contacts at top-scored companies have no active outreach.`,
+        severity: "high",
+        category: "opportunity",
+        suggestedAction: "Enroll these contacts in sequences using Autopilot or manual enrollment.",
+      });
+    }
+
+    // TAM coverage
+    const tamCompanies = allCompanies.filter(
+      (c) => (c.properties as Record<string, unknown>)?.source === "tam"
+    );
+    const tamWithDeals = tamCompanies.filter((c) =>
+      allDeals.some((d) => d.companyId === c.id)
+    );
+    if (tamCompanies.length >= 10) {
+      const coverage = Math.round((tamWithDeals.length / tamCompanies.length) * 100);
+      if (coverage < 30) {
+        insights.push({
+          id: nextId(),
+          title: `TAM coverage at ${coverage}%`,
+          description: `Only ${tamWithDeals.length} of ${tamCompanies.length} TAM companies have active deals.`,
+          severity: "medium",
+          category: "opportunity",
+          suggestedAction: "Create deals for top-scored TAM companies to expand pipeline coverage.",
+        });
+      }
+    }
+
+    // Unenriched accounts
+    const unenrichedCompanies = allCompanies.filter(
+      (c) => !(c.properties as Record<string, unknown>)?.enrichedAt
+    );
+    if (unenrichedCompanies.length >= 5) {
+      insights.push({
+        id: nextId(),
+        title: `${unenrichedCompanies.length} companies need enrichment`,
+        description: `Unenriched companies can't be properly scored or targeted.`,
+        severity: "medium",
+        category: "opportunity",
+        suggestedAction: "Run batch enrichment from the Accounts page.",
+      });
+    }
+
+    // Sort: critical first, then high, medium, info
+    const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, info: 3 };
+    insights.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+    return Response.json({ insights: insights.slice(0, 10) });
+  } catch (error) {
+    console.error("Insights generation failed:", error);
+    return Response.json({ error: "Failed to generate insights" }, { status: 500 });
+  }
+}

@@ -11,6 +11,15 @@ interface Action {
   category: string;
 }
 
+interface Insight {
+  id: string;
+  title: string;
+  description: string;
+  severity: "critical" | "high" | "medium" | "info";
+  category: "alert" | "trend" | "pattern" | "opportunity";
+  suggestedAction: string;
+}
+
 export default function UpNextPage() {
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -20,6 +29,14 @@ export default function UpNextPage() {
 
   const [actions, setActions] = useState<Action[]>([]);
   const [loadingActions, setLoadingActions] = useState(false);
+  const [insights, setInsights] = useState<Insight[]>([]);
+
+  useEffect(() => {
+    fetch("/api/insights")
+      .then((res) => (res.ok ? res.json() : { insights: [] }))
+      .then((data) => setInsights(data.insights || []))
+      .catch(() => {});
+  }, []);
 
   async function fetchActions() {
     setLoadingActions(true);
@@ -91,6 +108,59 @@ export default function UpNextPage() {
                   )}
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Proactive Insights */}
+        {insights.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-[#5a5a70]">
+              Insights
+            </h2>
+            <div className="mt-3 space-y-2">
+              {insights.slice(0, 5).map((insight) => {
+                const severityStyles: Record<string, string> = {
+                  critical: "border-l-red-500 bg-red-500/5",
+                  high: "border-l-amber-500 bg-amber-500/5",
+                  medium: "border-l-blue-500 bg-blue-500/5",
+                  info: "border-l-emerald-500 bg-emerald-500/5",
+                };
+                const categoryIcons: Record<string, string> = {
+                  alert: "!",
+                  trend: "~",
+                  pattern: "#",
+                  opportunity: "+",
+                };
+                const severityLabels: Record<string, string> = {
+                  critical: "text-red-400",
+                  high: "text-amber-400",
+                  medium: "text-blue-400",
+                  info: "text-emerald-400",
+                };
+                return (
+                  <div
+                    key={insight.id}
+                    className={`rounded-lg border border-[#1e1f2a] border-l-2 p-3 ${severityStyles[insight.severity] || ""}`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-[10px] font-bold text-[#8b8ba0] bg-[#1e1f2a]">
+                        {categoryIcons[insight.category] || "?"}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-medium text-[#e8e8ed]">{insight.title}</p>
+                          <span className={`whitespace-nowrap text-[10px] font-semibold uppercase ${severityLabels[insight.severity] || ""}`}>
+                            {insight.category}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-xs text-[#5a5a70]">{insight.description}</p>
+                        <p className="mt-1 text-xs text-[#6366f1]">{insight.suggestedAction}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
