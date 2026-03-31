@@ -27,6 +27,7 @@ export default function AccountsPage() {
   const [enrichStatus, setEnrichStatus] = useState<Record<string, EnrichStatus>>({});
   const [enrichAllRunning, setEnrichAllRunning] = useState(false);
   const [filter, setFilter] = useState<"all" | "tam" | "manual">("all");
+  const [scoreAllRunning, setScoreAllRunning] = useState(false);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -126,6 +127,27 @@ export default function AccountsPage() {
     }
   }
 
+  async function scoreAll() {
+    const unscoredIds = accounts.filter((a) => a.score == null).map((a) => a.id);
+    if (unscoredIds.length === 0) return;
+
+    setScoreAllRunning(true);
+    try {
+      const res = await fetch("/api/score", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyIds: unscoredIds }),
+      });
+      if (res.ok) {
+        await fetchAccounts();
+      }
+    } catch {
+      console.error("Scoring failed");
+    } finally {
+      setScoreAllRunning(false);
+    }
+  }
+
   function isEnriched(account: Account): boolean {
     return !!(account.industry && account.description);
   }
@@ -208,6 +230,15 @@ export default function AccountsPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          {accounts.some((a) => a.score == null) && (
+            <button
+              onClick={scoreAll}
+              disabled={scoreAllRunning}
+              className="rounded-lg border border-[#1e1f2a] px-4 py-2 text-sm font-medium text-[#e8e8ed] hover:bg-[#1e1f2a] disabled:opacity-50"
+            >
+              {scoreAllRunning ? "Scoring..." : "Score All"}
+            </button>
+          )}
           {unenrichedCount > 0 && (
             <button
               onClick={enrichAll}
