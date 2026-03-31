@@ -77,7 +77,7 @@
   {
     "id": "F3.4", "name": "ML scoring", "area": "Prospecting", "milestone": "M3",
     "description": "Account/contact scoring with explanations using enrichment + signals",
-    "dependencies": ["F3.1", "F3.3"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": ["F3.1", "F3.3"], "passes": true, "attempts": 1, "completeness_target": 8
   },
   {
     "id": "F3.5", "name": "Signal overlay", "area": "Prospecting", "milestone": "M3",

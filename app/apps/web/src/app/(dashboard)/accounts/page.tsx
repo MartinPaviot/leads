@@ -28,6 +28,7 @@ export default function AccountsPage() {
   const [enrichAllRunning, setEnrichAllRunning] = useState(false);
   const [filter, setFilter] = useState<"all" | "tam" | "manual">("all");
   const [scoreAllRunning, setScoreAllRunning] = useState(false);
+  const [detectingSignals, setDetectingSignals] = useState(false);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -148,6 +149,27 @@ export default function AccountsPage() {
     }
   }
 
+  async function detectSignals() {
+    const ids = accounts.filter((a) => isEnriched(a)).map((a) => a.id);
+    if (ids.length === 0) return;
+
+    setDetectingSignals(true);
+    try {
+      const res = await fetch("/api/signals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyIds: ids }),
+      });
+      if (res.ok) {
+        await fetchAccounts();
+      }
+    } catch {
+      console.error("Signal detection failed");
+    } finally {
+      setDetectingSignals(false);
+    }
+  }
+
   function isEnriched(account: Account): boolean {
     return !!(account.industry && account.description);
   }
@@ -203,6 +225,41 @@ export default function AccountsPage() {
     );
   }
 
+  const signalColors: Record<string, string> = {
+    hiring: "bg-blue-500/15 text-blue-400",
+    funding: "bg-emerald-500/15 text-emerald-400",
+    tech_change: "bg-purple-500/15 text-purple-400",
+    news: "bg-gray-500/15 text-gray-400",
+    expansion: "bg-amber-500/15 text-amber-400",
+    leadership_change: "bg-pink-500/15 text-pink-400",
+  };
+
+  function getSignals(account: Account): Array<{ type: string; title: string; description: string; relevance: string }> {
+    const props = account.properties as Record<string, unknown> | null;
+    return (props?.signals as Array<{ type: string; title: string; description: string; relevance: string }>) || [];
+  }
+
+  function signalBadges(account: Account) {
+    const signals = getSignals(account);
+    if (signals.length === 0) return <span className="text-xs text-[#5a5a70]">—</span>;
+    return (
+      <div className="flex flex-wrap gap-1">
+        {signals.slice(0, 3).map((signal, i) => (
+          <span
+            key={i}
+            className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-medium ${signalColors[signal.type] || signalColors.news}`}
+            title={`${signal.title}: ${signal.description}`}
+          >
+            {signal.type.replace("_", " ")}
+          </span>
+        ))}
+        {signals.length > 3 && (
+          <span className="text-[9px] text-[#5a5a70]">+{signals.length - 3}</span>
+        )}
+      </div>
+    );
+  }
+
   function isTAM(account: Account): boolean {
     return (account.properties as Record<string, unknown>)?.source === "tam";
   }
@@ -230,6 +287,13 @@ export default function AccountsPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={detectSignals}
+            disabled={detectingSignals}
+            className="rounded-lg border border-[#1e1f2a] px-4 py-2 text-sm font-medium text-[#e8e8ed] hover:bg-[#1e1f2a] disabled:opacity-50"
+          >
+            {detectingSignals ? "Detecting..." : "Detect Signals"}
+          </button>
           {accounts.some((a) => a.score == null) && (
             <button
               onClick={scoreAll}
@@ -332,6 +396,7 @@ export default function AccountsPage() {
                   <th className="pb-2 pr-4">Size</th>
                   <th className="pb-2 pr-4">Revenue</th>
                   <th className="pb-2 pr-4">Score</th>
+                  <th className="pb-2 pr-4">Signals</th>
                   <th className="pb-2 pr-4">Actions</th>
                 </tr>
               </thead>
@@ -375,6 +440,9 @@ export default function AccountsPage() {
                     </td>
                     <td className="py-3 pr-4">
                       {scoreDisplay(account)}
+                    </td>
+                    <td className="py-3 pr-4">
+                      {signalBadges(account)}
                     </td>
                     <td className="py-3 pr-4">
                       {!isEnriched(account) && enrichStatus[account.id] !== "enriching" && (
