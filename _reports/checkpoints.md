@@ -45,5 +45,29 @@
 **Tests**: 46 unit tests across 10 test files, all passing
 **Status**: Continuing to M5 per Martin's instruction (skip checkpoints tonight)
 
-## M5: Pipeline — NEXT
-Starting: F5.1 Deal management, F5.2 Signal-based stages, F5.3 Risk detection
+## M5: Pipeline — CHECKPOINT REACHED (checkpoint: false)
+**Date**: 2026-03-31
+**All 4 features pass first attempt**
+**Built**:
+- F5.1 Deal Management: PASS — CRUD API, enhanced kanban with create deal, pipeline total
+- F5.2 Signal-Based Stages: PASS — AI deal analysis suggests stage based on activity
+- F5.3 Risk Detection: PASS — Risk levels (high/medium/low), colored indicators on kanban cards
+- F5.4 Deal Summaries: PASS — AI-generated summaries stored on deals, visible on kanban
+**Tests**: 49 tests (3 new for deal analysis)
+
+## M6: Intelligence — CHECKPOINT REACHED (checkpoint: false)
+**Date**: 2026-03-31
+**All 2 features pass first attempt**
+**Built**:
+- F6.1 CRO Copilot: PASS — Chat with RAG context for deal coaching (existing chat + enriched data)
+- F6.3 Prioritized Actions: PASS — AI-generated actions dashboard ranked by impact
+**Tests**: 51 tests (2 new for actions API)
+
+## FINAL STATUS
+**All 6 milestones complete. 22 features built. 51 tests passing.**
+- M1 Foundation: 6 features (auth, data model, chat, settings, sidebar, Inngest)
+- M2 Memory: 7 features (email sync, calendar, timeline, summarization, RAG, NL queries, CSV import)
+- M3 Prospecting: 6 features (company enrich, contact enrich, TAM, scoring, signals, semantic search)
+- M4 Outreach: 5 features (sequences, AI writer, autopilot, sending, reply detection)
+- M5 Pipeline: 4 features (deals, stage progression, risk detection, summaries)
+- M6 Intelligence: 2 features (CRO copilot, prioritized actions)
