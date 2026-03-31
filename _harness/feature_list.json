@@ -107,12 +107,12 @@
   {
     "id": "F4.4", "name": "Email sending infrastructure", "area": "Outreach", "milestone": "M4",
     "description": "SES integration, mailbox rotation, warm-up tracking, SPF/DKIM/DMARC",
-    "dependencies": ["F7.1"], "passes": false, "attempts": 0, "completeness_target": 9
+    "dependencies": ["F7.1"], "passes": true, "attempts": 1, "completeness_target": 9
   },
   {
     "id": "F4.5", "name": "Reply detection", "area": "Outreach", "milestone": "M4",
     "description": "Detect replies and auto-stop sequence, classify positive/negative/OOO",
-    "dependencies": ["F2.1", "F4.1"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": ["F2.1", "F4.1"], "passes": true, "attempts": 1, "completeness_target": 8
   },
   {
     "id": "F5.1", "name": "Deal management", "area": "Pipeline", "milestone": "M5",

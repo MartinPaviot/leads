@@ -33,5 +33,17 @@
 **Tests**: 36 unit tests across 7 test files, all passing
 **Status**: Continuing to M4 per Martin's instruction (skip checkpoints tonight)
 
-## M4: Outreach — NEXT
-Starting: F4.1 Sequence builder, F4.2 AI email writer, F4.3 Autopilot enrollment
+## M4: Outreach — CHECKPOINT REACHED (checkpoint: true)
+**Date**: 2026-03-31
+**All 5 features pass first attempt**
+**Built**:
+- F4.1 Sequence Builder: PASS — CRUD API, steps, enrollments, Sequences page + detail page
+- F4.2 AI Email Writer: PASS — Claude-powered personalization from enrichment + signals
+- F4.3 Autopilot Enrollment: PASS — Score-based auto-enrollment, threshold filtering
+- F4.4 Email Sending: PASS — Inngest job: template substitution, LLM enhancement, activity logging (dev mode)
+- F4.5 Reply Detection: PASS — Inngest processReply with LLM classification (positive/negative/OOO/unsubscribe)
+**Tests**: 46 unit tests across 10 test files, all passing
+**Status**: Continuing to M5 per Martin's instruction (skip checkpoints tonight)
+
+## M5: Pipeline — NEXT
+Starting: F5.1 Deal management, F5.2 Signal-based stages, F5.3 Risk detection
