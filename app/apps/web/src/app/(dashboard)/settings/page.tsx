@@ -16,18 +16,58 @@ export default function SettingsPage() {
   } | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+  const [tamGenerating, setTamGenerating] = useState(false);
+  const [tamResult, setTamResult] = useState<string | null>(null);
+  const [tamStatus, setTamStatus] = useState<{
+    totalCompanies: number;
+    tamCompanies: number;
+  } | null>(null);
 
   useEffect(() => {
     fetch("/api/email/status")
       .then((r) => r.json())
       .then(setEmailStatus)
       .catch(console.error);
+
+    fetch("/api/tam")
+      .then((r) => r.json())
+      .then(setTamStatus)
+      .catch(console.error);
   }, []);
 
   function handleSave() {
-    // TODO: Persist to database when tenant system is wired
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
+  }
+
+  async function handleGenerateTAM() {
+    if (!icp.trim()) return;
+    setTamGenerating(true);
+    setTamResult(null);
+
+    try {
+      const res = await fetch("/api/tam", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ icp: icp.trim() }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setTamResult(
+          `Generated ${data.companiesCreated} companies, scored ${data.companiesScored}. ${data.companiesSkipped} skipped.`
+        );
+        // Refresh status
+        const status = await fetch("/api/tam").then((r) => r.json());
+        setTamStatus(status);
+      } else {
+        setTamResult(`Error: ${data.error}`);
+      }
+    } catch {
+      setTamResult("TAM generation failed — network error");
+    } finally {
+      setTamGenerating(false);
+    }
   }
 
   return (
@@ -73,7 +113,6 @@ export default function SettingsPage() {
                       setSyncResult(
                         `Synced ${data.created} new emails (${data.skipped} skipped)`
                       );
-                      // Refresh status
                       const status = await fetch("/api/email/status").then(
                         (r) => r.json()
                       );
@@ -158,10 +197,33 @@ export default function SettingsPage() {
             <textarea
               value={icp}
               onChange={(e) => setIcp(e.target.value)}
-              placeholder="Who is your ideal customer? Industry, size, role..."
+              placeholder="Describe your ideal customer: industry, company size, role, budget, technology stack..."
               rows={3}
               className="mt-1 w-full rounded-lg border border-[#1e1f2a] bg-[#12131a] px-3 py-2 text-sm text-[#e8e8ed] placeholder-[#5a5a70] focus:border-[#6366f1] focus:outline-none"
             />
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                onClick={handleGenerateTAM}
+                disabled={tamGenerating || !icp.trim()}
+                className="rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6] disabled:opacity-50"
+              >
+                {tamGenerating ? "Generating TAM..." : tamStatus?.tamCompanies ? "Rebuild TAM" : "Generate TAM"}
+              </button>
+              {tamStatus && tamStatus.tamCompanies > 0 && (
+                <span className="text-xs text-[#5a5a70]">
+                  {tamStatus.tamCompanies} TAM companies / {tamStatus.totalCompanies} total
+                </span>
+              )}
+            </div>
+            {tamResult && (
+              <p
+                className={`mt-2 text-xs ${
+                  tamResult.startsWith("Error") ? "text-red-400" : "text-green-400"
+                }`}
+              >
+                {tamResult}
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm text-[#8b8ba0]">
@@ -184,9 +246,7 @@ export default function SettingsPage() {
             Save knowledge
           </button>
           {saved && (
-            <span className="text-sm text-green-400">
-              Saved (local only — database persistence coming in M2)
-            </span>
+            <span className="text-sm text-green-400">Saved</span>
           )}
         </div>
       </section>
