@@ -1,0 +1,7 @@
+_credentials/
+node_modules/
+.env*
+.next/
+dist/
+harness/
+credentials/

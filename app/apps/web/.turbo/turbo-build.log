@@ -1,0 +1,55 @@
+
+> @leadsens/web@0.1.0 build C:\Users\marti\leads\app\apps\web
+> next build
+
+   ▲ Next.js 15.5.14
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 22.8s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/23) ...
+   Generating static pages (5/23) 
+   Generating static pages (11/23) 
+   Generating static pages (17/23) 
+ ✓ Generating static pages (23/23)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+┌ ƒ /                                      163 B         106 kB
+├ ○ /_not-found                            994 B         104 kB
+├ ƒ /accounts                            1.27 kB         104 kB
+├ ƒ /api/accounts                          160 B         103 kB
+├ ƒ /api/activities                        160 B         103 kB
+├ ƒ /api/auth/[...nextauth]                160 B         103 kB
+├ ƒ /api/chat                              160 B         103 kB
+├ ƒ /api/contacts                          160 B         103 kB
+├ ƒ /api/contacts/[id]                     160 B         103 kB
+├ ƒ /api/email/status                      160 B         103 kB
+├ ƒ /api/email/sync                        160 B         103 kB
+├ ƒ /api/embed                             160 B         103 kB
+├ ƒ /api/enrich                            160 B         103 kB
+├ ƒ /api/import                            160 B         103 kB
+├ ƒ /api/inngest                           160 B         103 kB
+├ ƒ /api/opportunities                     160 B         103 kB
+├ ƒ /api/search                            160 B         103 kB
+├ ƒ /api/tasks                             160 B         103 kB
+├ ƒ /chat                                91.8 kB         194 kB
+├ ƒ /contacts                            1.36 kB         104 kB
+├ ƒ /contacts/[id]                       1.33 kB         104 kB
+├ ƒ /opportunities                       1.01 kB         104 kB
+├ ƒ /settings                            4.14 kB         107 kB
+└ ○ /sign-in                               160 B         103 kB
++ First Load JS shared by all             103 kB
+  ├ chunks/3b75a83e-a603163c16247511.js  54.2 kB
+  ├ chunks/639-e6143651c64e0522.js       46.5 kB
+  └ other shared chunks (total)          1.97 kB
+
+
+ƒ Middleware                              139 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

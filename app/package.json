@@ -1,0 +1,16 @@
+{
+  "name": "leadsens",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "tsc": "turbo tsc"
+  },
+  "devDependencies": {
+    "turbo": "^2.9.0",
+    "typescript": "^5.8.0"
+  },
+  "packageManager": "pnpm@10.15.1"
+}

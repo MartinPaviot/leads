@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard</title>
+  <style>
+    body { font-family: Arial; margin: 20px; background: white; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { color: #333; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background: #4CAF50; color: white; }
+    .btn { background: #4CAF50; color: white; padding: 10px 20px; border: none; cursor: pointer; margin: 5px; }
+    .card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; }
+    .error { color: red; }
+    .status { display: inline-block; padding: 3px 8px; border-radius: 3px; }
+    .status-active { background: green; color: white; }
+    .status-inactive { background: red; color: white; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 AI Sales Dashboard</h1>
+    <p>Welcome to your AI-powered sales tool!</p>
+
+    <div class="card">
+      <h3>Quick Stats</h3>
+      <p>Total Leads: <b>Loading...</b></p>
+      <p>Emails Sent: <b>Loading...</b></p>
+      <p>Response Rate: <b>Loading...</b></p>
+    </div>
+
+    <button class="btn" onclick="alert('Not implemented')">+ Add Lead</button>
+    <button class="btn" onclick="alert('Not implemented')">Send Campaign</button>
+    <button class="btn" onclick="alert('Not implemented')">View Reports</button>
+
+    <table>
+      <tr>
+        <th>Name</th>
+        <th>Company</th>
+        <th>Email</th>
+        <th>Status</th>
+        <th>Score</th>
+        <th>Actions</th>
+      </tr>
+      <tr>
+        <td>John Doe</td>
+        <td>Test Company</td>
+        <td>john@test.com</td>
+        <td><span class="status status-active">Active</span></td>
+        <td>7/10</td>
+        <td><button class="btn" onclick="alert('TODO')">Edit</button></td>
+      </tr>
+      <tr>
+        <td>Jane Smith</td>
+        <td>Demo Corp</td>
+        <td>jane@demo.com</td>
+        <td><span class="status status-inactive">Inactive</span></td>
+        <td>3/10</td>
+        <td><button class="btn" onclick="alert('TODO')">Edit</button></td>
+      </tr>
+      <tr>
+        <td>Bob Wilson</td>
+        <td>Example LLC</td>
+        <td>bob@example.com</td>
+        <td><span class="status status-active">Active</span></td>
+        <td>5/10</td>
+        <td><button class="btn" onclick="alert('TODO')">Edit</button></td>
+      </tr>
+    </table>
+
+    <div class="card">
+      <h3>AI Insights</h3>
+      <p>🤖 No insights available yet. Add more leads to get started!</p>
+    </div>
+
+    <div class="card">
+      <h3>Recent Activity</h3>
+      <p class="error">Error: Could not load activity feed. Please try again later.</p>
+    </div>
+
+    <p style="color: #999; font-size: 12px; margin-top: 40px;">Powered by AI • Version 0.1.0</p>
+  </div>
+</body>
+</html>

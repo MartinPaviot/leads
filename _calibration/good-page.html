@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pipeline — LeadSens</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0a0a0f;
+      --surface: #13131a;
+      --border: #1e1e2a;
+      --text: #e8e8ed;
+      --muted: #6b6b80;
+      --accent: #6366f1;
+      --accent-soft: rgba(99,102,241,0.12);
+      --green: #22c55e;
+      --green-soft: rgba(34,197,94,0.12);
+      --amber: #f59e0b;
+      --amber-soft: rgba(245,158,11,0.12);
+      --red: #ef4444;
+      --red-soft: rgba(239,68,68,0.12);
+      --radius: 10px;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .layout { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+    .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 20px 12px; display: flex; flex-direction: column; gap: 4px; }
+    .logo { font-weight: 700; font-size: 18px; padding: 8px 12px 20px; color: var(--accent); letter-spacing: -0.5px; }
+    .nav-item { padding: 8px 12px; border-radius: 8px; font-size: 14px; color: var(--muted); cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 10px; }
+    .nav-item:hover { background: var(--accent-soft); color: var(--text); }
+    .nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+    .nav-icon { width: 18px; height: 18px; opacity: 0.6; }
+    .main { padding: 28px 32px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .header h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; }
+    .header-meta { font-size: 13px; color: var(--muted); }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+    .stat-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .stat-value { font-size: 24px; font-weight: 600; }
+    .stat-change { font-size: 12px; margin-top: 4px; }
+    .stat-change.up { color: var(--green); }
+    .stat-change.down { color: var(--red); }
+    .pipeline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .stage { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+    .stage-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .stage-name { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stage-count { font-size: 12px; color: var(--muted); background: var(--bg); padding: 2px 8px; border-radius: 12px; }
+    .stage-body { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+    .deal { padding: 12px; border-radius: 8px; background: var(--bg); border: 1px solid transparent; cursor: pointer; transition: all 0.15s; }
+    .deal:hover { border-color: var(--accent); }
+    .deal-name { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+    .deal-company { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+    .deal-meta { display: flex; justify-content: space-between; align-items: center; }
+    .deal-amount { font-size: 13px; font-weight: 600; color: var(--green); }
+    .deal-signal { font-size: 11px; padding: 2px 6px; border-radius: 4px; }
+    .signal-hot { background: var(--green-soft); color: var(--green); }
+    .signal-warm { background: var(--amber-soft); color: var(--amber); }
+    .signal-risk { background: var(--red-soft); color: var(--red); }
+    .risk-indicator { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--red); margin-top: 6px; }
+    .risk-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); }
+    .ai-insight { margin-top: 6px; font-size: 11px; color: var(--muted); font-style: italic; padding: 6px 8px; background: var(--accent-soft); border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="logo">LeadSens</div>
+      <div class="nav-item">📊 Dashboard</div>
+      <div class="nav-item active">🔄 Pipeline</div>
+      <div class="nav-item">🎯 TAM</div>
+      <div class="nav-item">📨 Sequences</div>
+      <div class="nav-item">👥 Contacts</div>
+      <div class="nav-item">💬 Ask AI</div>
+      <div class="nav-item">⚙️ Settings</div>
+    </nav>
+    <main class="main">
+      <div class="header">
+        <div>
+          <h1>Pipeline</h1>
+          <div class="header-meta">Last synced 2 min ago · 23 active deals</div>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-label">Pipeline Value</div>
+          <div class="stat-value">$847K</div>
+          <div class="stat-change up">↑ 12% vs last month</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Avg Deal Size</div>
+          <div class="stat-value">$36.8K</div>
+          <div class="stat-change up">↑ 8%</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Win Rate</div>
+          <div class="stat-value">34%</div>
+          <div class="stat-change down">↓ 2pts</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Avg Cycle</div>
+          <div class="stat-value">28d</div>
+          <div class="stat-change up">↑ 3d faster</div>
+        </div>
+      </div>
+
+      <div class="pipeline">
+        <div class="stage">
+          <div class="stage-header">
+            <span class="stage-name">Discovery</span>
+            <span class="stage-count">7</span>
+          </div>
+          <div class="stage-body">
+            <div class="deal">
+              <div class="deal-name">Sarah Chen</div>
+              <div class="deal-company">Meridian Labs · Series A</div>
+              <div class="deal-meta">
+                <span class="deal-amount">$42K ARR</span>
+                <span class="deal-signal signal-hot">Hot</span>
+              </div>
+              <div class="ai-insight">Replied within 4min to last email. Mentioned budget approval timeline.</div>
+            </div>
+            <div class="deal">
+              <div class="deal-name">James Park</div>
+              <div class="deal-company">NovaTech · Seed</div>
+              <div class="deal-meta">
+                <span class="deal-amount">$18K ARR</span>
+                <span class="deal-signal signal-warm">Warm</span>
+              </div>
+            </div>
+            <div class="deal">
+              <div class="deal-name">Ana Torres</div>
+              <div class="deal-company">Flux AI · Series B</div>
+              <div class="deal-meta">
+                <span class="deal-amount">$65K ARR</span>
+                <span class="deal-signal signal-hot">Hot</span>
+              </div>
+              <div class="ai-insight">Visiting pricing page 3x this week. CTO joined email thread.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stage">
+          <div class="stage-header">
+            <span class="stage-name">Evaluation</span>
+            <span class="stage-count">8</span>
+          </div>
+          <div class="stage-body">
+            <div class="deal">
+              <div class="deal-name">Michael Osei</div>
+              <div class="deal-company">DataForge · Series A</div>
+              <div class="deal-meta">
+                <span class="deal-amount">$55K ARR</span>
+                <span class="deal-signal signal-hot">Hot</span>
+              </div>
+              <div class="ai-insight">Asked for security questionnaire — buying signal. 3 stakeholders engaged.</div>
+            </div>
+            <div class="deal">
+              <div class="deal-name">Lisa Nakamura</div>
+              <div class="deal-company">Craft Health · Seed</div>
+              <div class="deal-meta">
+                <span class="deal-amount">$24K ARR</span>
+                <span class="deal-signal signal-risk">Risk</span>
+              </div>
+              <div class="risk-indicator"><span class="risk-dot"></span>No response in 9 days. Was weekly cadence.</div>
+            </div>
+            <div class="deal">
+              <div class="deal-name">Raj Patel</div>
+              <div class="deal-company">Zenith Cloud · Series A</div>
+              <div class="deal-meta">
+                <span class="deal-amount">$38K ARR</span>
+                <span class="deal-signal signal-warm">Warm</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stage">
+          <div class="stage-header">
+            <span class="stage-name">Negotiation</span>
+            <span class="stage-count">5</span>
+          </div>
+          <div class="stage-body">
+            <div class="deal">
+              <div class="deal-name">Emma Larsson</div>
+              <div class="deal-company">Vortex AI · Series B</div>
+              <div class="deal-meta">
+                <span class="deal-amount">$120K ARR</span>
+                <span class="deal-signal signal-hot">Hot</span>
+              </div>
+              <div class="ai-insight">Contract redlined — legal review in progress. Close ETA: 5 days.</div>
+            </div>
+            <div class="deal">
+              <div class="deal-name">Tom Reeves</div>
+              <div class="deal-company">StackPilot · Seed</div>
+              <div class="deal-meta">
+                <span class="deal-amount">$15K ARR</span>
+                <span class="deal-signal signal-risk">Risk</span>
+              </div>
+              <div class="risk-indicator"><span class="risk-dot"></span>Competitor mentioned in last call. Asking for discount.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stage">
+          <div class="stage-header">
+            <span class="stage-name">Closed Won</span>
+            <span class="stage-count">3</span>
+          </div>
+          <div class="stage-body">
+            <div class="deal">
+              <div class="deal-name">Wei Zhang</div>
+              <div class="deal-company">Pulsar Data · Series A</div>
+              <div class="deal-meta">
+                <span class="deal-amount">$48K ARR</span>
+                <span class="deal-signal signal-hot">Won</span>
+              </div>
+              <div class="ai-insight">Closed 6 days ahead of forecast. Upsell opportunity: API tier.</div>
+            </div>
+            <div class="deal">
+              <div class="deal-name">Maria Santos</div>
+              <div class="deal-company">Helio SaaS · Seed</div>
+              <div class="deal-meta">
+                <span class="deal-amount">$22K ARR</span>
+                <span class="deal-signal signal-hot">Won</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
