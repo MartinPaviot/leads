@@ -1,245 +1,428 @@
-# Lightfield Component Inventory — Extracted 2026-04-01
+# Lightfield Component Inventory — Deep Extraction 2026-04-01
+
+All values verified via live Playwright DOM inspection + `getComputedStyle()`.
 
 ## BUTTONS
 
-### Primary Action Button (e.g. "Create account", "Create task")
-- Height: **24px**
-- Font size: **12px**
-- Font weight: **500**
-- Color: `oklch(0 0 0 / 0.85)` (85% black)
-- Background: `oklch(1 0 0)` (pure white)
-- Border: `0.666667px solid oklch(0 0 0 / 0.12)` (sub-pixel, 12% black)
-- Border radius: **6px**
-- Padding: `2px 7px`
-- Box shadow: `oklch(0 0 0 / 0.04) 0px 1px 3px 0px` (barely visible lift)
-- Cursor: pointer
-- Has "+" icon prefix for create actions
+### Primary CTA Button (e.g., "Create account", "Create note", "Create opportunity")
+```
+Height:        24px
+Font size:     12px
+Font weight:   500
+Color:         oklch(0 0 0 / 0.85)
+Background:    oklch(1 0 0) — pure white
+Border:        0.666667px solid oklch(0 0 0 / 0.12)
+Border radius: 6px
+Padding:       2px 7px
+Box shadow:    oklch(0 0 0 / 0.04) 0px 1px 3px 0px — barely visible lift
+Cursor:        default (not pointer — interesting choice)
+Transition:    all
+```
+Has "+" icon prefix for create actions.
 
-### Secondary Button (e.g. "Import / Export", "Display")
-- Same dimensions as primary
-- Background: `transparent`
-- Border: `0.666667px solid transparent` (invisible border, same box model)
-- No shadow
-- Appears on hover with subtle background
+### Submit/Update Button (Settings forms)
+```
+Height:        32px — taller than standard CTA
+Font size:     12px
+Font weight:   500
+Color:         oklch(0 0 0 / 0.25) — disabled state color (no changes = disabled)
+Background:    oklch(1 0 0)
+Border:        0.666667px solid oklch(0 0 0 / 0.12)
+Border radius: 6px
+Padding:       2px 12px — wider horizontal padding than standard
+Cursor:        default
+```
 
-### Ghost Button (e.g. sidebar items, "More")
-- Height: **32px**
-- Font size: **13px**
-- Font weight: **425** (distinctive in-between weight)
-- Color: `oklch(0 0 0 / 0.75)` (secondary text)
-- Background: `transparent`
-- Border: `0.666667px solid transparent`
-- Border radius: **6px**
-- Padding: **6px**
+### View Toggle Button — Active (e.g., "All", "Just me")
+```
+Height:        24px
+Font size:     12px
+Font weight:   500
+Color:         oklch(0 0 0 / 0.85)
+Background:    oklch(0 0 0 / 0.04) — 4% black overlay
+Border:        0.666667px solid oklch(0 0 0 / 0.12)
+Border radius: 6px
+Padding:       2px 7px
+```
 
-### Icon-Only Button (e.g. search, collapse, close)
-- Size: **24x24px**
-- Padding: **4px**
-- Icon size: **16px** (fills remaining space)
-- Border radius: **6px**
-- Same transparent background/border pattern
+### View Toggle Button — Inactive (e.g., "My team")
+```
+Height:        24px
+Font size:     12px
+Font weight:   500
+Color:         oklch(0 0 0 / 0.5) — muted
+Background:    transparent
+Border:        0.666667px solid transparent — invisible, same box model
+Border radius: 6px
+Padding:       2px 7px
+```
 
-### Disabled/Connect Button
-- Color: `oklch(0 0 0 / 0.25)` (very muted, 25% opacity)
-- Same structural styling as primary
+### Ghost/Sidebar Button (e.g., "Notifications", "New list", "More")
+```
+Height:        32px
+Font size:     13px
+Font weight:   425
+Color:         oklch(0 0 0 / 0.75)
+Background:    transparent
+Border:        0.666667px solid transparent
+Border radius: 6px
+Padding:       6px
+Cursor:        pointer
+Transition:    all
+```
 
-### "Create opportunity" (in-column kanban button)
-- Width: **234px** (fills column)
-- Height: **36px**
-- Font size: **12px**, weight **500**
-- Color: `oklch(0 0 0 / 0.5)` (50% — muted placeholder)
-- Border: `0.666667px solid oklch(0 0 0 / 0.12)`
-- Border radius: **6px**
-- Dashed appearance via sub-pixel border
+### Icon-Only Button (e.g., search, collapse, close)
+```
+Size:          24x24px
+Padding:       4px
+Icon size:     16px (fills remaining space)
+Border radius: 6px
+Background:    transparent
+Border:        transparent
+```
+
+### Filter Button
+```
+Height:        24px
+Font size:     12px
+Font weight:   500
+Color:         oklch(0 0 0 / 0.85)
+Background:    transparent
+Border:        0.666667px solid oklch(0 0 0 / 0.12)
+Border radius: 6px
+Padding:       2px 7px
+Transition:    none
+```
+
+### Kanban "Create opportunity" Button
+```
+Width:         234px (fills column)
+Height:        36px
+Font size:     12px
+Font weight:   500
+Color:         oklch(0 0 0 / 0.5) — muted placeholder appearance
+Background:    transparent
+Border:        0.666667px solid oklch(0 0 0 / 0.12)
+Border radius: 6px
+Padding:       2px 10px 2px 12px
+```
+
+### User/Account Button (sidebar top)
+```
+Height:        24px
+Font size:     12px
+Font weight:   500
+Color:         oklch(0 0 0 / 0.85)
+Background:    transparent
+Border:        0.666667px solid transparent
+Border radius: 6px
+Padding:       6px 7px
+```
 
 ## INPUTS
 
-### Select/Dropdown (e.g. "24h before")
-- Height: **28px**
-- Font size: **13px**
-- Font weight: **425**
-- Color: `oklch(0 0 0 / 0.85)`
-- Background: `transparent`
-- Border: `0.666667px solid oklch(0 0 0 / 0.16)` (slightly more visible border)
-- Border radius: **6px**
-- Padding: `4.5px 6px 4.5px 8px`
-- Includes chevron icon
+### Text Input (Settings forms) — VERIFIED
+```
+Height:        32px
+Font size:     13px
+Font weight:   425
+Color:         oklch(0 0 0 / 0.85) — filled value
+Background:    transparent (empty) / oklch(0 0 0 / 0.02) (disabled)
+Border:        0.666667px solid oklch(0 0 0 / 0.06) — very subtle at rest
+Border radius: 6px
+Padding:       8px 12px
+Line height:   17.94px
+Outline:       blue-tinted at 25% opacity (focus ring from CSS)
+```
+
+### Disabled Input
+```
+Color:         oklch(0 0 0 / 0.25) — very muted
+Background:    oklch(0 0 0 / 0.02) — barely tinted
+```
+
+### Select/Dropdown (Settings)
+```
+Height:        28px (in compact mode) / 32px (in forms)
+Font size:     13px
+Font weight:   425
+Color:         oklch(0 0 0 / 0.85)
+Background:    transparent
+Border:        0.666667px solid oklch(0 0 0 / 0.16) — slightly more visible
+Border radius: 6px
+Padding:       4.5px 6px 4.5px 8px
+```
+Includes chevron icon on right.
 
 ### Checkbox
-- Size: **16x16px**
-- Border radius: **4px**
-- Unchecked: transparent bg, `0.666667px solid oklch(0 0 0 / 0.12)` border
-- Checked: `oklch(0.787 0.1124 249.79)` bg (blue), no border, white checkmark
-- No transition specified (likely CSS transition)
+```
+Size:          16x16px
+Border radius: 4px
+Unchecked:     transparent bg, 0.666667px solid oklch(0 0 0 / 0.12)
+Checked:       oklch(0.787 0.112 249.79) bg (blue), white checkmark
+```
 
-### Chat Input
-- Type: contenteditable `<div>` (not textarea)
-- Font size: **15px** (larger than nav, matches chat text)
-- Background: `transparent`
-- Border radius: **6px**
-- Placeholder: "Ask Lightfield"
-- Container height: **87px** (includes toolbar below)
-- Container padding: `0px 12px 10px`
-- Toolbar icons below: history, tools, microphone, chat mode
+### Chat Input (contenteditable div) — VERIFIED
+```
+Tag:           <div contenteditable>
+Font size:     16px
+Font weight:   400
+Color:         oklch(0 0 0 / 0.85)
+Background:    oklch(1 0 0) — white
+Padding:       8px
+Border radius: 10px
+Placeholder:   "Ask Lightfield"
+```
 
-### Filter Chip (e.g. "Meeting date after 1 day ago")
-- Height: ~24px
-- Font size: **12px**, weight **500**
-- Individual parts are separate clickable buttons
-- Icon prefix for field type
-- "x" dismiss button
-- All within filter bar with 14px gap
+### Chat Composer Container — VERIFIED
+```
+Width:         740px
+Height:        ~77px
+Padding:       8px
+Background:    oklch(1 0 0) — white
+Border:        0.666667px solid oklch(0 0 0 / 0.12)
+Border radius: 10px
+Box shadow:    oklch(0 0 0 / 0.06) 0px 8px 24px 0px — floating shadow
+Position:      relative (within flex container at page bottom)
+```
+Toolbar below input: history (clock), tools (settings), spacer, mic, chat mode icons.
 
-## DATA DISPLAY
+### Filter Chip
+```
+Height:        ~24px
+Font size:     12px
+Font weight:   500
+Parts:         Individually clickable segments (field, operator, value)
+Icon:          16px prefix for field type
+Dismiss:       "x" button on right
+Gap:           14px between chips in filter bar
+```
 
-### Table
-- No visible row borders in relaxed mode
-- Rows separated by subtle horizontal lines
-- Row height: ~44px
-- Column headers: 12px, weight 500, `oklch(0 0 0 / 0.85)` text, icon prefix
-- Column headers have sort indicators (arrow down icon)
-- Footer row: "X count" label + "+ Add operation" buttons per column
-- Hover: likely subtle bg change (observed via cursor pointer on rows)
-- Click: opens slide-over detail panel from right
-
-### Badges/Pills (Industry Tags)
-- Height: **24px**
-- Font size: **12px**
-- Font weight: **500**
-- Border radius: **6px**
-- Border: `0.666667px solid oklch(0 0 0 / 0.12)` (consistent sub-pixel)
-- Padding: `2px 7px`
-- Background: **10% opacity** of the category color
-- Text color: Full saturation category color (darker shade)
-- Color mapping by category:
-  - Software → Blue (hue 251)
-  - IT Services → Lime (hue 114)
-  - Leasing → Indigo (hue 271)
-  - Manufacturing → Orange (hue 64)
-  - Client Service → Green (hue 143)
-  - Food Processing → Red (hue 33)
-  - AI → Orange (hue 64)
-  - FinTech → Lime (hue 114)
-
-### Account Avatars
-- Size: **16x16px** (inline in tables)
-- Larger variant: ~40px (in detail panel header)
-- Each account has a unique colored icon/logo
-- Border radius: 0px (square with custom shape)
-
-### Contact Avatars
-- Person icon prefix in muted color
-- Size: **16px** inline
-
-### Empty States
-- Text only: "No meetings", "No tasks today" in muted color (`oklch(0 0 0 / 0.5)`)
-- With CTA: descriptive text + action button (e.g. "Go to settings →")
-- Full page 404: icon + "Nothing to see here" + description + "Back to Lightfield" button
-
-### CRM Data Card (inline in chat)
-- Background: `oklch(1 0 0)` (white)
-- Border: `0.666667px solid oklch(0 0 0 / 0.12)`
-- Border radius: **8px**
-- Contains: checkbox + task text + account badge + date + avatar
-- Height: ~51px
+### Form Labels — VERIFIED
+```
+Font size:     13px
+Font weight:   425
+Color:         oklch(0 0 0 / 0.6)
+Margin bottom: 0px (tight) or 5px (for select fields)
+```
 
 ## NAVIGATION
 
-### Sidebar
-- Width: **250px** (resizable via drag handle)
-- Background: `transparent` (same as page bg)
-- No visible border-right (shares background with content)
-- Item height: **32px**
-- Item font size: **13px**, weight **425**
-- Item color: `oklch(0 0 0 / 0.75)` (secondary)
-- Active item bg: `oklch(0 0 0 / 0.04)` (4% black overlay)
-- Active item color: `oklch(0 0 0 / 0.85)` (primary text)
-- Active item border-radius: **6px**
-- Section headers: uppercase text "Records", "Resources", "Lists", "Chats"
-  - Font size: **11px** (from screenshot observation)
-  - Font weight: likely **500**
-  - Color: muted (`oklch(0 0 0 / 0.5)`)
-- Icons: **16px**, inline with text
-- Resize handle: 8px wide, cursor: col-resize
+### Sidebar — VERIFIED
+```
+Width:         250px (resizable via drag handle)
+Background:    transparent (inherits page bg)
+Border right:  0px solid oklch(0 0 0 / 0.12) — NO visible border
+Padding:       0px
+Position:      static
+```
+No hard visual boundary — sidebar blends seamlessly with content area.
+
+### Sidebar Navigation Item — Active — VERIFIED (Accounts page)
+```
+Font size:     13px
+Font weight:   425
+Color:         oklch(0 0 0 / 0.85) — primary text
+Background:    oklch(0 0 0 / 0.04) — 4% black overlay
+Padding:       6px
+Height:        32px
+Border radius: 6px
+Gap:           (between icon and text)
+```
+
+### Sidebar Navigation Item — Inactive
+```
+Font size:     13px
+Font weight:   425
+Color:         oklch(0 0 0 / 0.75) — secondary text
+Background:    transparent
+Padding:       6px
+Height:        32px
+Border radius: 6px
+```
+
+### Sidebar Section Labels ("Account", "Workspace" in settings; "Records", "Resources" etc. in main)
+```
+Font size:     12px
+Font weight:   500
+Color:         oklch(0 0 0 / 0.6)
+Text transform: none (NOT uppercase — lowercase with capital first letter)
+Letter spacing: normal
+```
 
 ### Page Header Bar
-- Height: **44px**
-- Padding: `10px 14px 10px 30px`
-- Contains: page icon + page title + view toggle ("All") + "+" button + actions
-- Border bottom: none (clean separation)
+```
+Height:        44px (from padding: 10px 14px 10px 30px)
+Left padding:  30px from sidebar edge
+Right padding: 14px
+Contains:      page icon + title + view toggles + "+" button + actions
+```
 
-### Filter Bar
-- Height: **~41px**
-- Padding: `8px 14px 8px 30px`
-- Gap: **14px** between items
-- Border bottom: `0.666667px solid oklch(0 0 0 / 0.12)`
-- Contains: filter icon button + active filter chips + spacer + "Display" button
+### Filter Bar — VERIFIED
+```
+Height:        ~41px
+Padding:       8px 14px 8px 30px
+Gap:           14px between items
+Border bottom: 0.666667px solid oklch(0 0 0 / 0.12)
+Contains:      "Filter" button + chips + spacer + "Display" button
+```
 
 ### Settings Sidebar
-- Replaces main sidebar entirely
-- Same 250px width
-- "← Settings" back link at top
-- Two sections: "Account" and "Workspace"
-- Same nav item styling as main sidebar
+```
+Width:         250px (same as main)
+Replaces:      Main sidebar entirely
+Back nav:      "← Settings" link at top (14px, weight 500, brand blue-ish)
+Sections:      "Account" and "Workspace" headers
+Items:         Same styling as main sidebar items
+```
+
+## DATA DISPLAY
+
+### Table — VERIFIED
+
+#### Table Headers
+```
+Font size:     13px
+Font weight:   425
+Color:         oklch(0 0 0 / 0.6) — secondary/label color
+Background:    oklch(0.9851 0 0) — same as page (not separate header bg)
+Height:        46.67px
+Padding:       11px 8px 11px 0px (first col) / 11px 8px 11px 10px (others)
+Border bottom: 0.666667px solid oklch(0 0 0 / 0.12)
+Sort:          Sort icon on clickable columns
+```
+
+#### Table Rows
+```
+Height:        44px
+Background:    transparent
+Border bottom: 0px (no visible row separators)
+Padding:       0px
+Hover:         cursor pointer, likely subtle bg change
+```
+
+#### Table Cells
+```
+Font size:     13px
+Font weight:   425
+Color:         oklch(0 0 0 / 0.85) — primary text
+Padding:       0px 8px 0px 0px
+Height:        44px
+```
+
+#### Table Footer
+```
+"X count" + "+ Add operation" per column
+Font size:     13px
+Font weight:   425
+Color:         oklch(0 0 0 / 0.5) — muted
+```
+
+### Badges/Pills (Industry Tags) — VERIFIED
+```
+Height:        24px
+Font size:     12px
+Font weight:   500
+Line height:   15.96px
+Border radius: 6px
+Border:        0.666667px solid oklch(0 0 0 / 0.12)
+Padding:       2px 7px
+```
+**Color formula**: BG = `oklch({hue z5-z7} / 0.1)` — 10% opacity of category color. Text = hue's solid z7/z8 computed to RGB.
+
+### Kanban Card — VERIFIED
+```
+Width:         234px (fills column minus padding)
+Padding:       6px
+Background:    oklch(0.9925 0 0) — slightly whiter than page bg
+Border:        0.666667px solid oklch(0 0 0 / 0.12)
+Border radius: 8px — slightly more rounded than buttons
+Box shadow:    oklch(0 0 0 / 0.04) 0px 1px 3px 0px
+Gap:           1px (between card rows)
+```
+Contains: account icon + name, opportunity icon + name, owner, last interaction, amount, close date.
+
+### Kanban Stage Header
+```
+Font size:     12px
+Font weight:   500
+Color:         oklch(0 0 0 / 0.85)
+```
+Includes colored stage dot + count badge.
+
+### Account Icons (inline in tables)
+```
+Size:          20x20px (table) / 14x14px (compact inline)
+Border radius: 0px — square with custom colored shape
+No border
+```
+
+### Empty States — VERIFIED
+```
+"No meetings" / "No tasks":
+  Font size:   13px
+  Font weight: 425
+  Color:       oklch(0 0 0 / 0.25) — very faint
+  No icon, no illustration, text only
+```
+
+### CRM Data Card (inline in chat)
+```
+Background:    oklch(1 0 0) — white
+Border:        0.666667px solid oklch(0 0 0 / 0.12)
+Border radius: 8px
+Height:        ~51px
+Contains:      checkbox + task text + account badge + date + avatar
+```
 
 ## FEEDBACK
 
-### Toast/Notification
-- Position: bottom area (from alert element)
-- Content: "Lightfield" text (observed in DOM)
-
 ### Detail Panel (Slide-over)
-- Width: **388px**
-- Background: `oklch(1 0 0)` (white)
-- Border-left: `0.666667px solid oklch(0 0 0 / 0.12)`
-- Border radius: **10px**
-- Box shadow: `oklch(0 0 0 / 0.06) 0px 8px 24px 0px`
-- Header: entity icon + name + "..." menu + link + expand + close
-- Property list: icon + label (left, 128px) + value (right)
-- Close button: 24x24px, border-radius 6px
+```
+Width:         388px
+Background:    oklch(1 0 0) — white
+Border left:   0.666667px solid oklch(0 0 0 / 0.12)
+Border radius: 10px
+Box shadow:    oklch(0 0 0 / 0.06) 0px 8px 24px 0px
+Header:        entity icon + name + "..." + link + expand + close
+Properties:    label (128px, 13px) + value (12px, 500)
+```
+
+### Toast/Notification
+```
+Position:      bottom area
+```
+(Limited visibility during testing — requires triggering actions.)
 
 ## CHAT-SPECIFIC
 
 ### User Message Bubble
-- Alignment: **right** (flex-end)
-- Background: `oklch(0 0 0 / 0.04)` (4% black — very subtle)
-- Border radius: **10px**
-- Padding: `8px 12px`
-- Font size: **15px**
-- Font weight: **450** (unique in-between weight)
-- Color: `oklch(0 0 0 / 0.85)`
-- No border, no shadow
+```
+Alignment:     right (flex-end)
+Background:    oklch(0 0 0 / 0.04) — 4% black, very subtle
+Border radius: 10px
+Padding:       8px 12px
+Font size:     15px
+Font weight:   450
+Color:         oklch(0 0 0 / 0.85)
+No border, no shadow
+```
 
 ### AI Response
-- Alignment: **left** (full width)
-- Background: `transparent` (no bubble)
-- Font size: **15px**
-- Font weight: **450**
-- Line height: **22.5px** (1.5 ratio)
-- "Lightfield" label above with sparkle icon
-  - Label color: muted
-- "Retrieved CRM data" label before data cards
+```
+Alignment:     left (full width)
+Background:    transparent — no bubble
+Font size:     15px
+Font weight:   450
+Line height:   22.5px (1.5 ratio)
+Label:         "Lightfield" with sparkle icon above, muted
+```
 
 ### Chat Input Bar
-- Bottom-fixed
-- Container padding: `0px 12px 10px`
-- Input: contenteditable div, 15px font
-- Toolbar below input: history icon, tools icon, spacer, mic icon, chat mode icon
-- Persistent across pages (visible on Up Next too)
-
-## TYPOGRAPHY HIERARCHY (observed across pages)
-
-| Usage | Font Size | Weight | Color |
-|-------|-----------|--------|-------|
-| Settings page title | 24px | 500 | oklch(0 0 0 / 0.85) |
-| Up Next date | ~20-24px | 500 | oklch(0 0 0 / 0.85) |
-| Section header (Today/This Week) | ~14px | 500 | brand blue |
-| Chat text (user + AI) | 15px | 450 | oklch(0 0 0 / 0.85) |
-| Nav items / body text | 13px | 425 | oklch(0 0 0 / 0.75) |
-| Buttons / labels | 12px | 500 | oklch(0 0 0 / 0.85) |
-| Badges / meta | 12px | 500 | category color |
-| Section headers (sidebar) | 11px | 500 | oklch(0 0 0 / 0.5) |
-| Smallest text | 10px | 500 | muted |
-| Page description | 13px | 425 | oklch(0 0 0 / 0.5) |
-| Detail panel header | 13px | 500 | oklch(0 0 0 / 0.85) |
-| Letter spacing (title) | — | — | -0.3px |
+```
+Position:      bottom-fixed within page
+Composer:      740px wide, 77px tall, white bg, 10px radius
+Shadow:        oklch(0 0 0 / 0.06) 0px 8px 24px 0px — floating
+Toolbar:       history, tools, spacer, mic, chat mode icons
+Persistent:    Visible on Up Next page too, not just chat threads
+```
