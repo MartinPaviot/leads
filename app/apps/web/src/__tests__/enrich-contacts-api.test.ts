@@ -16,6 +16,11 @@ vi.mock("@/db/schema", () => ({
   companies: { name: "name" },
 }));
 
+vi.mock("@/lib/apollo-client", () => ({
+  enrichPerson: vi.fn(),
+  isApolloAvailable: vi.fn(() => false),
+}));
+
 vi.mock("ai", () => ({
   generateObject: vi.fn(),
 }));
@@ -156,7 +161,7 @@ describe("POST /api/enrich-contacts", () => {
       title: "CTO",
       linkedinUrl: "https://linkedin.com/in/sarahchen",
       companyId: "c1",
-      properties: { seniority: "C-Suite" },
+      properties: { enrichment_source: "apollo", seniority: "C-Suite" },
     };
 
     const limitFn = vi.fn().mockResolvedValue([mockContact]);
@@ -209,7 +214,7 @@ describe("POST /api/enrich-contacts", () => {
       lastName: "User",
       title: "CTO",
       linkedinUrl: "url",
-      properties: { seniority: "IC" },
+      properties: { enrichment_source: "apollo", seniority: "IC" },
     };
 
     const limitFn = vi.fn().mockResolvedValue([mockContact]);

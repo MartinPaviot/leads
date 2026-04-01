@@ -30,6 +30,10 @@ async function apolloFetch<T>(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    if (res.status === 403) {
+      // Free plan doesn't include this endpoint — expected, will fall back to LLM
+      console.info(`[apollo] ${path}: not available on current plan (403)`);
+    }
     throw new Error(`Apollo API ${path} failed: ${res.status} ${text}`);
   }
 

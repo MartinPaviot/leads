@@ -16,6 +16,13 @@ vi.mock("@/db/schema", () => ({
   companies: { id: "id" },
 }));
 
+vi.mock("@/lib/apollo-client", () => ({
+  enrichOrganization: vi.fn(),
+  employeeCountToRange: vi.fn((n: number) => n > 1000 ? "1000+" : "51-200"),
+  revenueToRange: vi.fn(() => "$100M+"),
+  isApolloAvailable: vi.fn(() => false),
+}));
+
 vi.mock("ai", () => ({
   generateObject: vi.fn(),
 }));
@@ -157,6 +164,7 @@ describe("POST /api/enrich", () => {
       description: "Already enriched",
       size: "1000+",
       revenue: "$100M+",
+      properties: { enrichment_source: "apollo" },
     };
 
     const limitFn = vi.fn().mockResolvedValue([mockCompany]);
