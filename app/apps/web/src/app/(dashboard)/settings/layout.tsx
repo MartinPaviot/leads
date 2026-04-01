@@ -2,29 +2,40 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  ArrowLeft,
+  User,
+  Bot,
+  Building,
+  Users,
+  BookOpen,
+  GitBranch,
+  Bell,
+  Mail,
+} from "lucide-react";
 
 const settingsNav = [
   {
     label: "Account",
     items: [
-      { label: "Profile", href: "/settings" },
-      { label: "Agent", href: "/settings/agent" },
+      { label: "Settings", href: "/settings", icon: User },
+      { label: "Agent", href: "/settings/agent", icon: Bot },
     ],
   },
   {
     label: "Workspace",
     items: [
-      { label: "General", href: "/settings/workspace" },
-      { label: "Members", href: "/settings/members" },
-      { label: "Knowledge", href: "/settings/knowledge" },
-      { label: "Opportunity Stages", href: "/settings/stages" },
-      { label: "Notifications", href: "/settings/notifications" },
+      { label: "General", href: "/settings/workspace", icon: Building },
+      { label: "Members", href: "/settings/members", icon: Users },
+      { label: "Knowledge", href: "/settings/knowledge", icon: BookOpen },
+      { label: "Opportunity Stages", href: "/settings/stages", icon: GitBranch },
+      { label: "Notifications", href: "/settings/notifications", icon: Bell },
     ],
   },
   {
     label: "Outbound",
     items: [
-      { label: "Mailboxes", href: "/settings/mailboxes" },
+      { label: "Mailboxes", href: "/settings/mailboxes", icon: Mail },
     ],
   },
 ];
@@ -34,43 +45,43 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
   return (
     <div className="flex h-full">
-      <aside className="w-[220px] flex-shrink-0 border-r border-[#1e1f2a] bg-[#12131a] p-4">
-        <Link
-          href="/"
-          className="mb-4 flex items-center gap-2 text-sm text-[#6366f1] hover:text-[#5558e6]"
-        >
-          <span>&larr;</span> Settings
+      {/* Settings sidebar */}
+      <aside className="flex w-[var(--sidebar-width)] flex-shrink-0 flex-col px-2 py-3"
+        style={{ borderRight: "0.5px solid var(--color-border-default)" }}>
+        <Link href="/" className="mb-3 flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] font-medium transition-colors"
+          style={{ color: "var(--color-accent)" }}>
+          <ArrowLeft size={14} /> Settings
         </Link>
 
         {settingsNav.map((section) => (
-          <div key={section.label} className="mb-4">
-            <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-[#5a5a70]">
+          <div key={section.label} className="mb-3">
+            <div className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider"
+              style={{ color: "var(--color-text-muted)" }}>
               {section.label}
             </div>
-            {section.items.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== "/settings" && pathname?.startsWith(item.href));
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`block rounded-lg px-2 py-1.5 text-sm ${
-                    isActive
-                      ? "bg-[rgba(99,102,241,0.12)] text-[#e8e8ed]"
-                      : "text-[#8b8ba0] hover:bg-[rgba(99,102,241,0.06)] hover:text-[#e8e8ed]"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
+            <div className="space-y-0.5">
+              {section.items.map((item) => {
+                const isActive = pathname === item.href || (item.href !== "/settings" && pathname?.startsWith(item.href));
+                const Icon = item.icon;
+                return (
+                  <Link key={item.href} href={item.href}
+                    className="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors"
+                    style={{
+                      background: isActive ? "var(--color-accent-soft)" : "transparent",
+                      color: isActive ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                    }}>
+                    <Icon size={15} className="shrink-0" style={{ opacity: isActive ? 0.9 : 0.5 }} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         ))}
       </aside>
 
       <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl p-8">{children}</div>
+        <div className="mx-auto max-w-2xl px-8 py-10">{children}</div>
       </main>
     </div>
   );

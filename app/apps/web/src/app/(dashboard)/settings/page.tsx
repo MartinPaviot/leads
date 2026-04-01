@@ -15,65 +15,68 @@ export default function ProfileSettingsPage() {
 
   return (
     <>
-      <h1 className="text-xl font-semibold">Profile</h1>
-      <p className="mt-1 text-sm text-[#8b8ba0]">
+      <h1 className="text-[24px] font-semibold" style={{ color: "var(--color-text-primary)", letterSpacing: "-0.3px" }}>
+        Profile
+      </h1>
+      <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
         Manage settings for your personal profile.
       </p>
 
-      <div className="mt-6 space-y-4">
+      <div className="mt-8 space-y-5">
         <div className="flex gap-4">
           <div className="flex-1">
-            <label className="block text-sm text-[#8b8ba0]">First name</label>
-            <input
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[#1e1f2a] bg-[#12131a] px-3 py-2 text-sm text-[#e8e8ed] focus:border-[#6366f1] focus:outline-none"
+            <label className="block text-[12px] font-medium" style={{ color: "var(--color-text-secondary)" }}>First name</label>
+            <input value={firstName} onChange={(e) => setFirstName(e.target.value)}
+              className="mt-1.5 h-8 w-full rounded-md px-3 text-[13px] outline-none transition-colors"
+              style={{ background: "var(--color-bg-surface)", border: "0.5px solid var(--color-border-moderate)", color: "var(--color-text-primary)" }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-accent)"; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-border-moderate)"; }}
             />
           </div>
           <div className="flex-1">
-            <label className="block text-sm text-[#8b8ba0]">Last name</label>
-            <input
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[#1e1f2a] bg-[#12131a] px-3 py-2 text-sm text-[#e8e8ed] focus:border-[#6366f1] focus:outline-none"
+            <label className="block text-[12px] font-medium" style={{ color: "var(--color-text-secondary)" }}>Last name</label>
+            <input value={lastName} onChange={(e) => setLastName(e.target.value)}
+              className="mt-1.5 h-8 w-full rounded-md px-3 text-[13px] outline-none transition-colors"
+              style={{ background: "var(--color-bg-surface)", border: "0.5px solid var(--color-border-moderate)", color: "var(--color-text-primary)" }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-accent)"; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-border-moderate)"; }}
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-sm text-[#8b8ba0]">Email</label>
-          <input
-            value="martin@leadsens.com"
-            disabled
-            className="mt-1 w-full rounded-lg border border-[#1e1f2a] bg-[#12131a] px-3 py-2 text-sm text-[#5a5a70]"
+          <label className="block text-[12px] font-medium" style={{ color: "var(--color-text-secondary)" }}>Email</label>
+          <input value="martin@leadsens.com" disabled
+            className="mt-1.5 h-8 w-full rounded-md px-3 text-[13px]"
+            style={{ background: "var(--color-bg-surface)", border: "0.5px solid var(--color-border-default)", color: "var(--color-text-muted)" }}
           />
         </div>
 
-        <button
-          onClick={handleSave}
-          className="rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6]"
-        >
-          Update
-        </button>
-        {saved && <span className="ml-2 text-sm text-green-400">Saved</span>}
+        <div className="flex items-center gap-2">
+          <button onClick={handleSave}
+            className="h-8 rounded-md px-4 text-[12px] font-medium text-white"
+            style={{ background: "var(--color-accent)" }}>
+            Update
+          </button>
+          {saved && <span className="text-[12px]" style={{ color: "var(--color-success)" }}>Saved</span>}
+        </div>
       </div>
 
       {/* Email & Calendar section */}
-      <section className="mt-10">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-[#5a5a70]">
+      <section className="mt-12">
+        <h2 className="text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
           Email & Calendar
         </h2>
-        <p className="mt-1 text-sm text-[#5a5a70]">
+        <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
           Connect your email to automatically capture all interactions.
         </p>
-        <div className="mt-4 rounded-lg border border-[#1e1f2a] bg-[#12131a] p-4">
-          <p className="text-sm text-[#8b8ba0]">
+        <div className="mt-4 rounded-lg p-4" style={{ background: "var(--color-bg-surface)", border: "0.5px solid var(--color-border-default)" }}>
+          <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
             Connect your Gmail to capture emails automatically.
           </p>
-          <button
-            onClick={() => signIn("google")}
-            className="mt-3 flex items-center gap-2 rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6]"
-          >
+          <button onClick={() => signIn("google")}
+            className="mt-3 flex items-center gap-2 rounded-md px-4 py-2 text-[12px] font-medium text-white"
+            style={{ background: "var(--color-accent)" }}>
             Connect Gmail
           </button>
         </div>

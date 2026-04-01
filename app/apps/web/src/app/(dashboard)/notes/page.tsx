@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FileText, Plus } from "lucide-react";
 
 interface Note {
   id: string;
@@ -14,63 +15,69 @@ export default function NotesPage() {
 
   function addNote() {
     if (!newNote.trim()) return;
-    setNotes([
-      {
-        id: crypto.randomUUID(),
-        content: newNote.trim(),
-        createdAt: new Date().toISOString(),
-      },
-      ...notes,
-    ]);
+    setNotes([{ id: crypto.randomUUID(), content: newNote.trim(), createdAt: new Date().toISOString() }, ...notes]);
     setNewNote("");
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-[#e8e8ed]">Notes</h1>
-        <p className="text-sm text-[#5a5a70]">{notes.length} notes</p>
+    <div className="flex h-full flex-col">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-6" style={{ height: "var(--header-height)", borderBottom: "0.5px solid var(--color-border-default)" }}>
+        <FileText size={16} style={{ color: "var(--color-text-tertiary)" }} />
+        <h1 className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>Notes</h1>
+        <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>{notes.length}</span>
+        <div className="ml-auto">
+          <button onClick={() => document.getElementById("note-input")?.focus()}
+            className="flex h-7 items-center gap-1 rounded-md px-2.5 text-[12px] font-medium text-white"
+            style={{ background: "var(--color-accent)" }}>
+            <Plus size={13} /> Create note
+          </button>
+        </div>
       </div>
 
-      <div className="mb-6">
+      {/* Note input */}
+      <div className="px-6 py-3" style={{ borderBottom: "0.5px solid var(--color-border-default)" }}>
         <textarea
+          id="note-input"
           value={newNote}
           onChange={(e) => setNewNote(e.target.value)}
           placeholder="Write a note..."
-          rows={3}
-          className="w-full rounded-lg border border-[#1e1f2a] bg-[#12131a] px-4 py-3 text-sm text-[#e8e8ed] placeholder-[#5a5a70] focus:border-[#6366f1] focus:outline-none"
+          rows={2}
+          className="w-full resize-none rounded-md px-3 py-2 text-[13px] outline-none"
+          style={{ background: "var(--color-bg-surface)", border: "0.5px solid var(--color-border-default)", color: "var(--color-text-primary)" }}
         />
-        <button
-          onClick={addNote}
-          disabled={!newNote.trim()}
-          className="mt-2 rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6] disabled:opacity-50"
-        >
-          Save note
-        </button>
+        {newNote.trim() && (
+          <button onClick={addNote} className="mt-1.5 rounded-md px-3 py-1 text-[12px] font-medium text-white"
+            style={{ background: "var(--color-accent)" }}>
+            Save note
+          </button>
+        )}
       </div>
 
-      {notes.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-sm font-medium text-[#8b8ba0]">No notes yet</p>
-          <p className="mt-1 text-xs text-[#5a5a70]">
-            Capture meeting notes, observations, and insights here.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {notes.map((note) => (
-            <div
-              key={note.id}
-              className="rounded-lg border border-[#1e1f2a] bg-[#12131a] px-4 py-3"
-            >
-              <p className="whitespace-pre-wrap text-sm text-[#e8e8ed]">{note.content}</p>
-              <p className="mt-2 text-[10px] text-[#5a5a70]">
-                {new Date(note.createdAt).toLocaleString()}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Notes list */}
+      <div className="flex-1 overflow-auto">
+        {notes.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <FileText size={32} style={{ color: "var(--color-text-muted)" }} />
+            <p className="mt-3 text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>No notes yet</p>
+            <p className="mt-1 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>Capture meeting notes, observations, and insights here.</p>
+          </div>
+        ) : (
+          <div>
+            {notes.map((note) => (
+              <div key={note.id} className="px-6 py-3 transition-colors"
+                style={{ borderBottom: "0.5px solid var(--color-border-default)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-muted)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                <p className="whitespace-pre-wrap text-[13px]" style={{ color: "var(--color-text-primary)" }}>{note.content}</p>
+                <p className="mt-1.5 text-[11px]" style={{ color: "var(--color-text-muted)" }}>
+                  {new Date(note.createdAt).toLocaleString()}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

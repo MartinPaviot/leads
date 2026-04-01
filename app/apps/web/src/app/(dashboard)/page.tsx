@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { Clock } from "lucide-react";
 import { EmailComposer } from "@/components/email-composer";
 
 interface Action {
@@ -86,18 +87,39 @@ export default function DashboardPage() {
     day: "numeric",
   });
 
-  const priorityColors: Record<string, string> = {
-    critical: "border-l-red-500 bg-red-500/5",
-    high: "border-l-amber-500 bg-amber-500/5",
-    medium: "border-l-blue-500 bg-blue-500/5",
-    low: "border-l-[#5a5a70] bg-[#1e1f2a]/30",
+  const priorityBorderColors: Record<string, string> = {
+    critical: "var(--color-error)",
+    high: "var(--color-warning)",
+    medium: "var(--color-info)",
+    low: "var(--color-text-tertiary)",
   };
 
-  const priorityLabels: Record<string, string> = {
-    critical: "text-red-400",
-    high: "text-amber-400",
-    medium: "text-blue-400",
-    low: "text-[#5a5a70]",
+  const prioritySoftBg: Record<string, string> = {
+    critical: "var(--color-error-soft)",
+    high: "var(--color-warning-soft)",
+    medium: "var(--color-info-soft)",
+    low: "var(--color-bg-muted)",
+  };
+
+  const priorityLabelColors: Record<string, string> = {
+    critical: "var(--color-error)",
+    high: "var(--color-warning)",
+    medium: "var(--color-info)",
+    low: "var(--color-text-tertiary)",
+  };
+
+  const severityBorderColors: Record<string, string> = {
+    critical: "var(--color-error)",
+    high: "var(--color-warning)",
+    medium: "var(--color-info)",
+    info: "var(--color-success)",
+  };
+
+  const severitySoftBg: Record<string, string> = {
+    critical: "var(--color-error-soft)",
+    high: "var(--color-warning-soft)",
+    medium: "var(--color-info-soft)",
+    info: "var(--color-success-soft)",
   };
 
   const ws = summary?.weekSummary;
@@ -105,31 +127,99 @@ export default function DashboardPage() {
 
   return (
     <div className="flex h-full flex-col">
+      {/* Page Header Bar */}
+      <div
+        className="flex items-center gap-2 px-8"
+        style={{
+          height: "var(--header-height)",
+          borderBottom: "0.5px solid var(--color-border-default)",
+          background: "var(--color-bg-surface)",
+        }}
+      >
+        <Clock
+          size={14}
+          style={{ color: "var(--color-text-secondary)" }}
+        />
+        <span
+          className="text-sm font-medium"
+          style={{ color: "var(--color-text-primary)" }}
+        >
+          Up next
+        </span>
+        <span
+          className="text-sm"
+          style={{ color: "var(--color-text-tertiary)" }}
+        >
+          {today}
+        </span>
+      </div>
+
       <div className="flex-1 overflow-auto p-8">
         {/* Greeting */}
         <div className="mb-2">
-          <h1 className="text-2xl font-semibold text-[#e8e8ed]">
+          <h1
+            className="text-2xl font-semibold"
+            style={{ color: "var(--color-text-primary)" }}
+          >
             {summary ? `${summary.greeting}, ${summary.firstName}` : "Welcome back"}
           </h1>
-          <p className="mt-1 text-sm text-[#5a5a70]">{today}</p>
+          <p
+            className="mt-1 text-sm"
+            style={{ color: "var(--color-text-tertiary)" }}
+          >
+            {today}
+          </p>
         </div>
 
         {/* Weekly Summary Banner */}
         {summary && (
-          <div className="mt-4 rounded-lg border border-[#1e1f2a] bg-[#12131a] p-4">
+          <div
+            className="mt-4 rounded-md p-4"
+            style={{
+              background: "var(--color-bg-surface)",
+              border: "0.5px solid var(--color-border-default)",
+              borderRadius: "6px",
+            }}
+          >
             {hasActivity ? (
-              <p className="text-sm text-[#8b8ba0]">
+              <p
+                className="text-sm"
+                style={{ color: "var(--color-text-secondary)" }}
+              >
                 This week, you&apos;ve launched{" "}
-                <span className="font-semibold text-[#e8e8ed]">{ws!.sequencesLaunched} sequences</span>,
+                <span
+                  className="font-semibold"
+                  style={{ color: "var(--color-text-primary)" }}
+                >
+                  {ws!.sequencesLaunched} sequences
+                </span>,
                 received{" "}
-                <span className="font-semibold text-[#e8e8ed]">{ws!.responsesReceived} responses</span>,
+                <span
+                  className="font-semibold"
+                  style={{ color: "var(--color-text-primary)" }}
+                >
+                  {ws!.responsesReceived} responses
+                </span>,
                 booked{" "}
-                <span className="font-semibold text-[#e8e8ed]">{ws!.meetingsBooked} meetings</span>,
+                <span
+                  className="font-semibold"
+                  style={{ color: "var(--color-text-primary)" }}
+                >
+                  {ws!.meetingsBooked} meetings
+                </span>,
                 and closed{" "}
-                <span className="font-semibold text-[#e8e8ed]">{ws!.opportunitiesClosed} opportunities</span>.
+                <span
+                  className="font-semibold"
+                  style={{ color: "var(--color-text-primary)" }}
+                >
+                  {ws!.opportunitiesClosed} opportunities
+                </span>.
               </p>
             ) : (
-              <p className="text-sm text-[#5a5a70]">
+              <p
+                className="text-sm"
+                style={{ color: "var(--color-text-tertiary)" }}
+              >
                 No activity this week yet. Let&apos;s change that.
               </p>
             )}
@@ -140,16 +230,34 @@ export default function DashboardPage() {
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-5">
           {/* Left Column — Actions (3/5 width) */}
           <div className="lg:col-span-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-[#5a5a70]">
+            <h2
+              className="font-semibold uppercase tracking-wider"
+              style={{
+                fontSize: "11px",
+                color: "var(--color-text-muted)",
+                letterSpacing: "0.05em",
+              }}
+            >
               Your priorities today
             </h2>
 
             {loadingActions ? (
               <div className="mt-3 space-y-2">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="animate-pulse rounded-lg border border-[#1e1f2a] p-4">
-                    <div className="h-4 w-3/4 rounded bg-[#1e1f2a]" />
-                    <div className="mt-2 h-3 w-1/2 rounded bg-[#1e1f2a]" />
+                  <div
+                    key={i}
+                    className="rounded-md p-4"
+                    style={{
+                      border: "0.5px solid var(--color-border-default)",
+                      borderRadius: "6px",
+                    }}
+                  >
+                    <div
+                      className="skeleton h-4 w-3/4 rounded"
+                    />
+                    <div
+                      className="skeleton mt-2 h-3 w-1/2 rounded"
+                    />
                   </div>
                 ))}
               </div>
@@ -158,7 +266,13 @@ export default function DashboardPage() {
                 {actions.slice(0, 5).map((action, i) => (
                   <div
                     key={i}
-                    className={`rounded-lg border border-[#1e1f2a] border-l-2 p-4 ${priorityColors[action.priority] || ""} ${action.stalledDays && action.stalledDays >= 3 ? "cursor-pointer hover:border-[#6366f1]/50" : ""}`}
+                    className={`rounded-md p-4 ${action.stalledDays && action.stalledDays >= 3 ? "cursor-pointer" : ""}`}
+                    style={{
+                      background: prioritySoftBg[action.priority] || "transparent",
+                      border: "0.5px solid var(--color-border-default)",
+                      borderLeft: `2px solid ${priorityBorderColors[action.priority] || "var(--color-border-default)"}`,
+                      borderRadius: "6px",
+                    }}
                     onClick={() => {
                       if (action.stalledDays && action.stalledDays >= 3 && action.dealName) {
                         setEmailComposer({
@@ -170,22 +284,48 @@ export default function DashboardPage() {
                     }}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium text-[#e8e8ed]">{action.action}</p>
+                      <p
+                        className="text-sm font-medium"
+                        style={{ color: "var(--color-text-primary)" }}
+                      >
+                        {action.action}
+                      </p>
                       <div className="flex items-center gap-2">
                         {action.stalledDays && action.stalledDays >= 3 && (
-                          <span className="whitespace-nowrap rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-red-400">
+                          <span
+                            className="whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                            style={{
+                              background: "var(--color-error-soft)",
+                              color: "var(--color-error)",
+                            }}
+                          >
                             Stalled {action.stalledDays}d
                           </span>
                         )}
-                        <span className={`whitespace-nowrap text-[10px] font-semibold uppercase ${priorityLabels[action.priority] || ""}`}>
+                        <span
+                          className="whitespace-nowrap text-[10px] font-semibold uppercase"
+                          style={{
+                            color: priorityLabelColors[action.priority] || "var(--color-text-tertiary)",
+                          }}
+                        >
                           {action.priority}
                         </span>
                       </div>
                     </div>
-                    <p className="mt-1 text-xs text-[#5a5a70]">{action.why}</p>
+                    <p
+                      className="mt-1 text-xs"
+                      style={{ color: "var(--color-text-tertiary)" }}
+                    >
+                      {action.why}
+                    </p>
                     {action.dealName && (
                       <div className="mt-1 flex items-center justify-between">
-                        <p className="text-xs text-[#6366f1]">{action.dealName}</p>
+                        <p
+                          className="text-xs"
+                          style={{ color: "var(--color-accent)" }}
+                        >
+                          {action.dealName}
+                        </p>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -195,7 +335,8 @@ export default function DashboardPage() {
                               body: `Hi,\n\n${action.action}\n\n${action.why}\n\nWould you have time for a quick call this week?\n\nBest regards`,
                             });
                           }}
-                          className="text-[10px] text-[#6366f1] hover:underline"
+                          className="text-[10px] hover:underline"
+                          style={{ color: "var(--color-accent)" }}
                         >
                           ✉️ Draft email
                         </button>
@@ -204,13 +345,30 @@ export default function DashboardPage() {
                   </div>
                 ))}
                 {actions.length > 5 && (
-                  <button className="w-full rounded-lg border border-[#1e1f2a] p-2 text-xs text-[#5a5a70] hover:bg-[#1e1f2a]">
+                  <button
+                    className="w-full rounded-md p-2 text-xs"
+                    style={{
+                      border: "0.5px solid var(--color-border-default)",
+                      borderRadius: "6px",
+                      color: "var(--color-text-tertiary)",
+                      background: "transparent",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background = "var(--color-bg-muted)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                    }}
+                  >
                     Show {actions.length - 5} more
                   </button>
                 )}
               </div>
             ) : (
-              <p className="mt-3 text-sm text-[#5a5a70]">
+              <p
+                className="mt-3 text-sm"
+                style={{ color: "var(--color-text-tertiary)" }}
+              >
                 No actions right now. Your pipeline is clear.
               </p>
             )}
@@ -218,28 +376,48 @@ export default function DashboardPage() {
             {/* Insights */}
             {insights.length > 0 && (
               <div className="mt-6">
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-[#5a5a70]">
+                <h2
+                  className="font-semibold uppercase tracking-wider"
+                  style={{
+                    fontSize: "11px",
+                    color: "var(--color-text-muted)",
+                    letterSpacing: "0.05em",
+                  }}
+                >
                   Insights
                 </h2>
                 <div className="mt-3 space-y-2">
-                  {insights.slice(0, 3).map((insight) => {
-                    const severityStyles: Record<string, string> = {
-                      critical: "border-l-red-500 bg-red-500/5",
-                      high: "border-l-amber-500 bg-amber-500/5",
-                      medium: "border-l-blue-500 bg-blue-500/5",
-                      info: "border-l-emerald-500 bg-emerald-500/5",
-                    };
-                    return (
-                      <div
-                        key={insight.id}
-                        className={`rounded-lg border border-[#1e1f2a] border-l-2 p-3 ${severityStyles[insight.severity] || ""}`}
+                  {insights.slice(0, 3).map((insight) => (
+                    <div
+                      key={insight.id}
+                      className="rounded-md p-3"
+                      style={{
+                        background: severitySoftBg[insight.severity] || "transparent",
+                        border: "0.5px solid var(--color-border-default)",
+                        borderLeft: `2px solid ${severityBorderColors[insight.severity] || "var(--color-border-default)"}`,
+                        borderRadius: "6px",
+                      }}
+                    >
+                      <p
+                        className="text-sm font-medium"
+                        style={{ color: "var(--color-text-primary)" }}
                       >
-                        <p className="text-sm font-medium text-[#e8e8ed]">{insight.title}</p>
-                        <p className="mt-0.5 text-xs text-[#5a5a70]">{insight.description}</p>
-                        <p className="mt-1 text-xs text-[#6366f1]">{insight.suggestedAction}</p>
-                      </div>
-                    );
-                  })}
+                        {insight.title}
+                      </p>
+                      <p
+                        className="mt-0.5 text-xs"
+                        style={{ color: "var(--color-text-tertiary)" }}
+                      >
+                        {insight.description}
+                      </p>
+                      <p
+                        className="mt-1 text-xs"
+                        style={{ color: "var(--color-accent)" }}
+                      >
+                        {insight.suggestedAction}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -249,56 +427,134 @@ export default function DashboardPage() {
           <div className="lg:col-span-2">
             {/* Today's Meetings */}
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-[#5a5a70]">
+              <h2
+                className="font-semibold uppercase tracking-wider"
+                style={{
+                  fontSize: "11px",
+                  color: "var(--color-text-muted)",
+                  letterSpacing: "0.05em",
+                }}
+              >
                 Today&apos;s meetings
               </h2>
               {loadingSummary ? (
-                <div className="mt-3 animate-pulse rounded-lg border border-[#1e1f2a] p-3">
-                  <div className="h-4 w-1/2 rounded bg-[#1e1f2a]" />
+                <div
+                  className="mt-3 rounded-md p-3"
+                  style={{
+                    border: "0.5px solid var(--color-border-default)",
+                    borderRadius: "6px",
+                  }}
+                >
+                  <div className="skeleton h-4 w-1/2 rounded" />
                 </div>
               ) : summary && summary.todayMeetings.length > 0 ? (
                 <div className="mt-3 space-y-2">
                   {summary.todayMeetings.map((meeting) => (
-                    <div key={meeting.id} className="rounded-lg border border-[#1e1f2a] p-3">
-                      <p className="text-sm font-medium text-[#e8e8ed]">{meeting.title}</p>
-                      <p className="mt-0.5 text-xs text-[#5a5a70]">{meeting.time}</p>
+                    <div
+                      key={meeting.id}
+                      className="rounded-md p-3"
+                      style={{
+                        border: "0.5px solid var(--color-border-default)",
+                        borderRadius: "6px",
+                        background: "var(--color-bg-surface)",
+                      }}
+                    >
+                      <p
+                        className="text-sm font-medium"
+                        style={{ color: "var(--color-text-primary)" }}
+                      >
+                        {meeting.title}
+                      </p>
+                      <p
+                        className="mt-0.5 text-xs"
+                        style={{ color: "var(--color-text-tertiary)" }}
+                      >
+                        {meeting.time}
+                      </p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="mt-3 text-sm text-[#5a5a70]">No meetings today</p>
+                <p
+                  className="mt-3 text-sm"
+                  style={{ color: "var(--color-text-tertiary)" }}
+                >
+                  No meetings today
+                </p>
               )}
             </div>
 
             {/* Today's Tasks */}
             <div className="mt-6">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-[#5a5a70]">
+              <h2
+                className="font-semibold uppercase tracking-wider"
+                style={{
+                  fontSize: "11px",
+                  color: "var(--color-text-muted)",
+                  letterSpacing: "0.05em",
+                }}
+              >
                 Tasks due
               </h2>
               {loadingSummary ? (
-                <div className="mt-3 animate-pulse rounded-lg border border-[#1e1f2a] p-3">
-                  <div className="h-4 w-1/2 rounded bg-[#1e1f2a]" />
+                <div
+                  className="mt-3 rounded-md p-3"
+                  style={{
+                    border: "0.5px solid var(--color-border-default)",
+                    borderRadius: "6px",
+                  }}
+                >
+                  <div className="skeleton h-4 w-1/2 rounded" />
                 </div>
               ) : summary && summary.todayTasks.length > 0 ? (
                 <div className="mt-3 space-y-2">
                   {summary.todayTasks.map((task) => (
-                    <div key={task.id} className="rounded-lg border border-[#1e1f2a] p-3">
+                    <div
+                      key={task.id}
+                      className="rounded-md p-3"
+                      style={{
+                        border: "0.5px solid var(--color-border-default)",
+                        borderRadius: "6px",
+                        background: "var(--color-bg-surface)",
+                      }}
+                    >
                       <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-medium text-[#e8e8ed]">{task.title}</p>
+                        <p
+                          className="text-sm font-medium"
+                          style={{ color: "var(--color-text-primary)" }}
+                        >
+                          {task.title}
+                        </p>
                         {task.overdue && (
-                          <span className="whitespace-nowrap rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-red-400">
+                          <span
+                            className="whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                            style={{
+                              background: "var(--color-error-soft)",
+                              color: "var(--color-error)",
+                            }}
+                          >
                             Overdue
                           </span>
                         )}
                       </div>
                       {task.account && (
-                        <p className="mt-0.5 text-xs text-[#6366f1]">{task.account}</p>
+                        <p
+                          className="mt-0.5 text-xs"
+                          style={{ color: "var(--color-accent)" }}
+                        >
+                          {task.account}
+                        </p>
                       )}
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="mt-3 text-sm text-[#5a5a70]">No tasks due today</p>
+                <p
+                  className="mt-3 text-sm"
+                  style={{ color: "var(--color-text-tertiary)" }}
+                >
+                  No tasks due today
+                </p>
               )}
             </div>
           </div>
@@ -306,10 +562,19 @@ export default function DashboardPage() {
       </div>
 
       {/* Bottom Chat Bar */}
-      <div className="border-t border-[#1e1f2a] p-4">
+      <div
+        className="p-4"
+        style={{ borderTop: "0.5px solid var(--color-border-default)" }}
+      >
         <Link
           href="/chat"
-          className="flex w-full items-center rounded-lg border border-[#1e1f2a] bg-[#12131a] px-4 py-2.5 text-sm text-[#5a5a70] hover:border-[#6366f1]"
+          className="flex w-full items-center rounded-md px-4 py-2.5 text-sm transition-colors"
+          style={{
+            border: "0.5px solid var(--color-border-default)",
+            borderRadius: "6px",
+            background: "var(--color-bg-surface)",
+            color: "var(--color-text-tertiary)",
+          }}
         >
           Ask LeadSens...
         </Link>

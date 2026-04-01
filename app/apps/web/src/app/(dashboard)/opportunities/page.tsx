@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { CircleDot, Plus, BarChart3, X, ChevronDown, ChevronUp } from "lucide-react";
 
 interface Analytics {
   totalDeals: number;
@@ -37,6 +38,17 @@ const STAGE_LABELS: Record<string, string> = {
   negotiation: "Negotiation",
   won: "Won",
   lost: "Lost",
+};
+
+const STAGE_DOT_COLORS: Record<string, string> = {
+  lead: "var(--color-text-muted)",
+  qualification: "var(--color-text-tertiary)",
+  demo: "#f97316",
+  trial: "#f59e0b",
+  proposal: "#f59e0b",
+  negotiation: "#22c55e",
+  won: "#3b82f6",
+  lost: "#ef4444",
 };
 
 interface Deal {
@@ -178,234 +190,433 @@ export default function OpportunitiesPage() {
   const totalValue = deals.reduce((sum, d) => sum + (d.value || 0), 0);
 
   return (
-    <div className="flex h-full flex-col p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Opportunities</h1>
-          <p className="mt-1 text-sm text-[#5a5a70]">
+    <div className="flex h-full flex-col" style={{ background: "var(--color-bg-surface)" }}>
+      {/* Page Header - 44px */}
+      <div
+        className="flex h-[44px] flex-shrink-0 items-center justify-between px-6"
+        style={{ borderBottom: "0.5px solid var(--color-border-default)" }}
+      >
+        <div className="flex items-center gap-3">
+          <CircleDot size={16} style={{ color: "var(--color-accent)" }} />
+          <h1 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
+            Opportunities
+          </h1>
+          <span className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>
             {deals.length} deal{deals.length !== 1 ? "s" : ""}
-            {totalValue > 0 && ` · $${totalValue.toLocaleString()} pipeline`}
-          </p>
+            {totalValue > 0 && ` \u00b7 $${totalValue.toLocaleString()} pipeline`}
+          </span>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {analytics && (
+            <button
+              onClick={() => setShowAnalytics(!showAnalytics)}
+              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
+              style={{
+                color: "var(--color-text-secondary)",
+                border: "0.5px solid var(--color-border-default)",
+              }}
+            >
+              <BarChart3 size={12} />
+              Analytics
+              {showAnalytics ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+            </button>
+          )}
           <button
             onClick={analyzeDeals}
             disabled={analyzing || deals.length === 0}
-            className="rounded-lg border border-[#1e1f2a] px-4 py-2 text-sm font-medium text-[#e8e8ed] hover:bg-[#1e1f2a] disabled:opacity-50"
+            className="rounded-md px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80 disabled:opacity-50"
+            style={{
+              color: "var(--color-text-primary)",
+              border: "0.5px solid var(--color-border-default)",
+            }}
           >
             {analyzing ? "Analyzing..." : "Analyze Pipeline"}
           </button>
           <button
             onClick={() => setShowCreate(true)}
-            className="rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6]"
+            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90"
+            style={{ background: "var(--color-accent)" }}
           >
-            + Create Deal
+            <Plus size={12} />
+            Create Deal
           </button>
         </div>
       </div>
 
-      {showCreate && (
-        <form onSubmit={handleCreate} className="mt-4 flex gap-2">
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Deal name"
-            autoFocus
-            className="flex-1 rounded-lg border border-[#1e1f2a] bg-[#12131a] px-3 py-2 text-sm text-[#e8e8ed] placeholder-[#5a5a70] focus:border-[#6366f1] focus:outline-none"
-          />
-          <input
-            value={newValue}
-            onChange={(e) => setNewValue(e.target.value)}
-            placeholder="Value ($)"
-            type="number"
-            className="w-32 rounded-lg border border-[#1e1f2a] bg-[#12131a] px-3 py-2 text-sm text-[#e8e8ed] placeholder-[#5a5a70] focus:border-[#6366f1] focus:outline-none"
-          />
-          <button
-            type="submit"
-            disabled={creating || !newName.trim()}
-            className="rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6] disabled:opacity-50"
-          >
-            {creating ? "Creating..." : "Create"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowCreate(false)}
-            className="rounded-lg border border-[#1e1f2a] px-4 py-2 text-sm text-[#8b8ba0]"
-          >
-            Cancel
-          </button>
-        </form>
-      )}
-
-      {/* Analytics Panel */}
-      {analytics && showAnalytics && (
-        <div className="mt-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-[#8b8ba0] uppercase tracking-wider">Pipeline Analytics</h2>
+      <div className="flex-1 overflow-hidden p-6">
+        {/* Create Deal Form */}
+        {showCreate && (
+          <form onSubmit={handleCreate} className="mb-4 flex gap-2">
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Deal name"
+              autoFocus
+              className="flex-1 rounded-md px-3 py-2 text-sm placeholder-opacity-50 focus:outline-none"
+              style={{
+                background: "var(--color-bg-surface)",
+                color: "var(--color-text-primary)",
+                border: "0.5px solid var(--color-border-default)",
+              }}
+            />
+            <input
+              value={newValue}
+              onChange={(e) => setNewValue(e.target.value)}
+              placeholder="Value ($)"
+              type="number"
+              className="w-32 rounded-md px-3 py-2 text-sm placeholder-opacity-50 focus:outline-none"
+              style={{
+                background: "var(--color-bg-surface)",
+                color: "var(--color-text-primary)",
+                border: "0.5px solid var(--color-border-default)",
+              }}
+            />
             <button
-              onClick={() => setShowAnalytics(false)}
-              className="text-xs text-[#5a5a70] hover:text-[#8b8ba0]"
+              type="submit"
+              disabled={creating || !newName.trim()}
+              className="rounded-md px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+              style={{ background: "var(--color-accent)" }}
             >
-              Hide
+              {creating ? "Creating..." : "Create"}
             </button>
-          </div>
-
-          {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
-            <div className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3">
-              <p className="text-[10px] uppercase tracking-wider text-[#5a5a70]">Pipeline Value</p>
-              <p className="mt-1 text-lg font-semibold text-[#e8e8ed]">
-                ${analytics.totalPipelineValue.toLocaleString()}
-              </p>
-            </div>
-            <div className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3">
-              <p className="text-[10px] uppercase tracking-wider text-[#5a5a70]">Won</p>
-              <p className="mt-1 text-lg font-semibold text-[#22c55e]">
-                ${analytics.wonValue.toLocaleString()}
-              </p>
-              <p className="text-[10px] text-[#5a5a70]">{analytics.wonCount} deal{analytics.wonCount !== 1 ? "s" : ""}</p>
-            </div>
-            <div className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3">
-              <p className="text-[10px] uppercase tracking-wider text-[#5a5a70]">Win Rate</p>
-              <p className="mt-1 text-lg font-semibold text-[#e8e8ed]">
-                {analytics.winRate}%
-              </p>
-              <p className="text-[10px] text-[#5a5a70]">{analytics.wonCount}W / {analytics.lostCount}L</p>
-            </div>
-            <div className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3">
-              <p className="text-[10px] uppercase tracking-wider text-[#5a5a70]">Avg Deal</p>
-              <p className="mt-1 text-lg font-semibold text-[#e8e8ed]">
-                ${analytics.avgDealValue.toLocaleString()}
-              </p>
-            </div>
-            <div className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3">
-              <p className="text-[10px] uppercase tracking-wider text-[#5a5a70]">Velocity</p>
-              <p className="mt-1 text-lg font-semibold text-[#e8e8ed]">
-                {analytics.avgVelocityDays}d
-              </p>
-              <p className="text-[10px] text-[#5a5a70]">avg to close</p>
-            </div>
-            <div className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3">
-              <p className="text-[10px] uppercase tracking-wider text-[#5a5a70]">At Risk</p>
-              <div className="mt-1 flex items-baseline gap-2">
-                {analytics.riskSummary.high > 0 && (
-                  <span className="text-lg font-semibold text-red-400">{analytics.riskSummary.high}</span>
-                )}
-                {analytics.riskSummary.medium > 0 && (
-                  <span className="text-lg font-semibold text-amber-400">{analytics.riskSummary.medium}</span>
-                )}
-                {analytics.riskSummary.high === 0 && analytics.riskSummary.medium === 0 && (
-                  <span className="text-lg font-semibold text-emerald-400">0</span>
-                )}
-              </div>
-              <p className="text-[10px] text-[#5a5a70]">
-                {analytics.riskSummary.high}H {analytics.riskSummary.medium}M {analytics.riskSummary.low}L
-              </p>
-            </div>
-          </div>
-
-          {/* Stage Value Bars */}
-          <div className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3">
-            <p className="text-[10px] uppercase tracking-wider text-[#5a5a70] mb-2">Value by Stage</p>
-            <div className="space-y-1.5">
-              {analytics.funnel.map((s) => {
-                const stageData = analytics.valueByStage[s.stage];
-                const maxValue = Math.max(
-                  ...Object.values(analytics.valueByStage).map((v) => v.value),
-                  1
-                );
-                const pct = stageData ? (stageData.value / maxValue) * 100 : 0;
-                return (
-                  <div key={s.stage} className="flex items-center gap-2">
-                    <span className="w-24 text-right text-[10px] text-[#8b8ba0]">
-                      {STAGE_LABELS[s.stage]}
-                    </span>
-                    <div className="flex-1 h-4 rounded bg-[#1e1f2a] overflow-hidden">
-                      <div
-                        className="h-full rounded bg-[#6366f1]"
-                        style={{ width: `${Math.max(pct, stageData && stageData.count > 0 ? 2 : 0)}%` }}
-                      />
-                    </div>
-                    <span className="w-20 text-[10px] text-[#8b8ba0]">
-                      {stageData ? `$${stageData.value.toLocaleString()}` : "$0"}
-                    </span>
-                    <span className="w-8 text-[10px] text-[#5a5a70]">
-                      {stageData?.count || 0}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {!showAnalytics && analytics && (
-        <button
-          onClick={() => setShowAnalytics(true)}
-          className="mt-2 text-xs text-[#5a5a70] hover:text-[#8b8ba0]"
-        >
-          Show analytics
-        </button>
-      )}
-
-      {loading ? (
-        <p className="mt-6 text-sm text-[#5a5a70]">Loading...</p>
-      ) : (
-        <div className="mt-6 flex flex-1 gap-3 overflow-x-auto">
-          {STAGES.map((stage) => (
-            <div
-              key={stage}
-              className="flex w-[220px] flex-shrink-0 flex-col rounded-lg border border-[#1e1f2a] bg-[#12131a]"
+            <button
+              type="button"
+              onClick={() => setShowCreate(false)}
+              className="flex items-center gap-1 rounded-md px-3 py-2 text-sm"
+              style={{
+                color: "var(--color-text-secondary)",
+                border: "0.5px solid var(--color-border-default)",
+              }}
             >
-              <div className="border-b border-[#1e1f2a] px-3 py-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-[#8b8ba0]">
-                    {STAGE_LABELS[stage]}
-                  </span>
-                  <span className="rounded-full bg-[#1e1f2a] px-2 py-0.5 text-xs text-[#5a5a70]">
-                    {dealsByStage[stage].length}
-                  </span>
-                </div>
-                {dealsByStage[stage].reduce((sum, d) => sum + (d.value || 0), 0) > 0 && (
-                  <p className="mt-0.5 text-[10px] text-[#22c55e]">
-                    ${dealsByStage[stage].reduce((sum, d) => sum + (d.value || 0), 0).toLocaleString()}
-                  </p>
-                )}
+              <X size={12} />
+              Cancel
+            </button>
+          </form>
+        )}
+
+        {/* Analytics Panel */}
+        {analytics && showAnalytics && (
+          <div className="mb-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2
+                className="text-[10px] font-semibold uppercase tracking-wider"
+                style={{ color: "var(--color-text-secondary)" }}
+              >
+                Pipeline Analytics
+              </h2>
+            </div>
+
+            {/* KPI Cards */}
+            <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
+              <div
+                className="rounded-md p-3"
+                style={{
+                  background: "var(--color-bg-muted)",
+                  border: "0.5px solid var(--color-border-default)",
+                }}
+              >
+                <p
+                  className="text-[10px] uppercase tracking-wider"
+                  style={{ color: "var(--color-text-tertiary)" }}
+                >
+                  Pipeline Value
+                </p>
+                <p
+                  className="mt-1 text-lg font-semibold"
+                  style={{ color: "var(--color-text-primary)" }}
+                >
+                  ${analytics.totalPipelineValue.toLocaleString()}
+                </p>
               </div>
-              <div className="flex-1 space-y-2 p-2">
-                {dealsByStage[stage].map((deal) => (
-                  <div
-                    key={deal.id}
-                    className={`rounded-lg border border-[#1e1f2a] border-l-2 bg-[#0a0b0f] p-3 ${getRiskColor(deal)}`}
-                  >
-                    <div className="flex items-start justify-between gap-1">
-                      <p className="text-sm font-medium text-[#e8e8ed]">
-                        {hasMomentum(deal) && <span title="High momentum">⚡</span>}
-                        {deal.name}
-                      </p>
-                      {getRiskBadge(deal)}
-                    </div>
-                    {deal.value != null && deal.value > 0 && (
-                      <p className="mt-1 text-xs text-[#22c55e]">
-                        ${deal.value.toLocaleString()}
-                      </p>
-                    )}
-                    {deal.summary && (
-                      <p className="mt-1 text-[10px] text-[#5a5a70] line-clamp-2">
-                        {deal.summary}
-                      </p>
-                    )}
-                  </div>
-                ))}
-                {dealsByStage[stage].length === 0 && (
-                  <p className="py-4 text-center text-xs text-[#5a5a70]">No deals</p>
-                )}
+              <div
+                className="rounded-md p-3"
+                style={{
+                  background: "var(--color-bg-muted)",
+                  border: "0.5px solid var(--color-border-default)",
+                }}
+              >
+                <p
+                  className="text-[10px] uppercase tracking-wider"
+                  style={{ color: "var(--color-text-tertiary)" }}
+                >
+                  Won
+                </p>
+                <p
+                  className="mt-1 text-lg font-semibold"
+                  style={{ color: "var(--color-success)" }}
+                >
+                  ${analytics.wonValue.toLocaleString()}
+                </p>
+                <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
+                  {analytics.wonCount} deal{analytics.wonCount !== 1 ? "s" : ""}
+                </p>
+              </div>
+              <div
+                className="rounded-md p-3"
+                style={{
+                  background: "var(--color-bg-muted)",
+                  border: "0.5px solid var(--color-border-default)",
+                }}
+              >
+                <p
+                  className="text-[10px] uppercase tracking-wider"
+                  style={{ color: "var(--color-text-tertiary)" }}
+                >
+                  Win Rate
+                </p>
+                <p
+                  className="mt-1 text-lg font-semibold"
+                  style={{ color: "var(--color-text-primary)" }}
+                >
+                  {analytics.winRate}%
+                </p>
+                <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
+                  {analytics.wonCount}W / {analytics.lostCount}L
+                </p>
+              </div>
+              <div
+                className="rounded-md p-3"
+                style={{
+                  background: "var(--color-bg-muted)",
+                  border: "0.5px solid var(--color-border-default)",
+                }}
+              >
+                <p
+                  className="text-[10px] uppercase tracking-wider"
+                  style={{ color: "var(--color-text-tertiary)" }}
+                >
+                  Avg Deal
+                </p>
+                <p
+                  className="mt-1 text-lg font-semibold"
+                  style={{ color: "var(--color-text-primary)" }}
+                >
+                  ${analytics.avgDealValue.toLocaleString()}
+                </p>
+              </div>
+              <div
+                className="rounded-md p-3"
+                style={{
+                  background: "var(--color-bg-muted)",
+                  border: "0.5px solid var(--color-border-default)",
+                }}
+              >
+                <p
+                  className="text-[10px] uppercase tracking-wider"
+                  style={{ color: "var(--color-text-tertiary)" }}
+                >
+                  Velocity
+                </p>
+                <p
+                  className="mt-1 text-lg font-semibold"
+                  style={{ color: "var(--color-text-primary)" }}
+                >
+                  {analytics.avgVelocityDays}d
+                </p>
+                <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
+                  avg to close
+                </p>
+              </div>
+              <div
+                className="rounded-md p-3"
+                style={{
+                  background: "var(--color-bg-muted)",
+                  border: "0.5px solid var(--color-border-default)",
+                }}
+              >
+                <p
+                  className="text-[10px] uppercase tracking-wider"
+                  style={{ color: "var(--color-text-tertiary)" }}
+                >
+                  At Risk
+                </p>
+                <div className="mt-1 flex items-baseline gap-2">
+                  {analytics.riskSummary.high > 0 && (
+                    <span className="text-lg font-semibold text-red-400">
+                      {analytics.riskSummary.high}
+                    </span>
+                  )}
+                  {analytics.riskSummary.medium > 0 && (
+                    <span className="text-lg font-semibold text-amber-400">
+                      {analytics.riskSummary.medium}
+                    </span>
+                  )}
+                  {analytics.riskSummary.high === 0 && analytics.riskSummary.medium === 0 && (
+                    <span className="text-lg font-semibold text-emerald-400">0</span>
+                  )}
+                </div>
+                <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
+                  {analytics.riskSummary.high}H {analytics.riskSummary.medium}M{" "}
+                  {analytics.riskSummary.low}L
+                </p>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+
+            {/* Stage Value Bars */}
+            <div
+              className="rounded-md p-3"
+              style={{
+                background: "var(--color-bg-muted)",
+                border: "0.5px solid var(--color-border-default)",
+              }}
+            >
+              <p
+                className="mb-2 text-[10px] uppercase tracking-wider"
+                style={{ color: "var(--color-text-tertiary)" }}
+              >
+                Value by Stage
+              </p>
+              <div className="space-y-1.5">
+                {analytics.funnel.map((s) => {
+                  const stageData = analytics.valueByStage[s.stage];
+                  const maxValue = Math.max(
+                    ...Object.values(analytics.valueByStage).map((v) => v.value),
+                    1
+                  );
+                  const pct = stageData ? (stageData.value / maxValue) * 100 : 0;
+                  return (
+                    <div key={s.stage} className="flex items-center gap-2">
+                      <span
+                        className="w-24 text-right text-[10px]"
+                        style={{ color: "var(--color-text-secondary)" }}
+                      >
+                        {STAGE_LABELS[s.stage]}
+                      </span>
+                      <div
+                        className="h-4 flex-1 overflow-hidden rounded"
+                        style={{ background: "var(--color-bg-surface)" }}
+                      >
+                        <div
+                          className="h-full rounded"
+                          style={{
+                            background: "var(--color-accent)",
+                            width: `${Math.max(pct, stageData && stageData.count > 0 ? 2 : 0)}%`,
+                          }}
+                        />
+                      </div>
+                      <span
+                        className="w-20 text-[10px]"
+                        style={{ color: "var(--color-text-secondary)" }}
+                      >
+                        {stageData ? `$${stageData.value.toLocaleString()}` : "$0"}
+                      </span>
+                      <span
+                        className="w-8 text-[10px]"
+                        style={{ color: "var(--color-text-tertiary)" }}
+                      >
+                        {stageData?.count || 0}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Kanban Board */}
+        {loading ? (
+          <p className="mt-6 text-sm" style={{ color: "var(--color-text-tertiary)" }}>
+            Loading...
+          </p>
+        ) : (
+          <div className="flex flex-1 gap-3 overflow-x-auto">
+            {STAGES.map((stage) => (
+              <div
+                key={stage}
+                className="flex flex-shrink-0 flex-col rounded-md"
+                style={{
+                  width: 260,
+                  background: "var(--color-bg-muted)",
+                  border: "0.5px solid var(--color-border-default)",
+                }}
+              >
+                <div
+                  className="px-3 py-2"
+                  style={{ borderBottom: "0.5px solid var(--color-border-default)" }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="inline-block h-2 w-2 rounded-full"
+                        style={{ background: STAGE_DOT_COLORS[stage] }}
+                      />
+                      <span
+                        className="text-xs font-semibold uppercase tracking-wider"
+                        style={{ color: "var(--color-text-secondary)" }}
+                      >
+                        {STAGE_LABELS[stage]}
+                      </span>
+                    </div>
+                    <span
+                      className="rounded-full px-2 py-0.5 text-xs"
+                      style={{
+                        background: "var(--color-bg-surface)",
+                        color: "var(--color-text-tertiary)",
+                      }}
+                    >
+                      {dealsByStage[stage].length}
+                    </span>
+                  </div>
+                  {dealsByStage[stage].reduce((sum, d) => sum + (d.value || 0), 0) > 0 && (
+                    <p className="mt-0.5 text-[10px]" style={{ color: "var(--color-success)" }}>
+                      $
+                      {dealsByStage[stage]
+                        .reduce((sum, d) => sum + (d.value || 0), 0)
+                        .toLocaleString()}
+                    </p>
+                  )}
+                </div>
+                <div className="flex-1 space-y-2 p-2">
+                  {dealsByStage[stage].map((deal) => (
+                    <div
+                      key={deal.id}
+                      className={`rounded-md border-l-2 p-3 ${getRiskColor(deal)}`}
+                      style={{
+                        background: "var(--color-bg-surface)",
+                        border: "0.5px solid var(--color-border-default)",
+                        borderLeftWidth: 2,
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-1">
+                        <p
+                          className="text-sm font-medium"
+                          style={{ color: "var(--color-text-primary)" }}
+                        >
+                          {hasMomentum(deal) && <span title="High momentum">&#x26A1;</span>}
+                          {deal.name}
+                        </p>
+                        {getRiskBadge(deal)}
+                      </div>
+                      {deal.value != null && deal.value > 0 && (
+                        <p className="mt-1 text-xs" style={{ color: "var(--color-success)" }}>
+                          ${deal.value.toLocaleString()}
+                        </p>
+                      )}
+                      {deal.summary && (
+                        <p
+                          className="mt-1 line-clamp-2 text-[10px]"
+                          style={{ color: "var(--color-text-tertiary)" }}
+                        >
+                          {deal.summary}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                  {dealsByStage[stage].length === 0 && (
+                    <p
+                      className="py-4 text-center text-xs"
+                      style={{ color: "var(--color-text-tertiary)" }}
+                    >
+                      No deals
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
