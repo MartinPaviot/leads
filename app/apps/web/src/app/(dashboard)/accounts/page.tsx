@@ -237,16 +237,29 @@ export default function AccountsPage() {
   function scoreDisplay(account: Account) {
     if (account.score == null) return "—";
     const s = Math.round(account.score);
-    let color = "text-[#5a5a70]";
-    if (s >= 80) color = "text-emerald-400";
-    else if (s >= 60) color = "text-amber-400";
-    else if (s >= 40) color = "text-orange-400";
-    else color = "text-red-400";
+
+    // Letter grade + heat indicator (Monaco-style)
+    let grade = "F";
+    let heat = "Cold";
+    let heatIcon = "❄️";
+    let gradeColor = "text-red-400";
+    let heatColor = "text-[#5a5a70]";
+
+    if (s >= 90) { grade = "A"; heat = "Burning"; heatIcon = "🔥"; gradeColor = "text-emerald-400"; heatColor = "text-orange-400"; }
+    else if (s >= 80) { grade = "A"; heat = "Hot"; heatIcon = "🔥"; gradeColor = "text-emerald-400"; heatColor = "text-orange-400"; }
+    else if (s >= 70) { grade = "B"; heat = "Warm"; heatIcon = "☀️"; gradeColor = "text-amber-400"; heatColor = "text-amber-400"; }
+    else if (s >= 60) { grade = "B"; heat = "Warm"; heatIcon = "☀️"; gradeColor = "text-amber-400"; heatColor = "text-amber-400"; }
+    else if (s >= 50) { grade = "C"; heat = "Cool"; heatIcon = ""; gradeColor = "text-orange-400"; heatColor = "text-[#5a5a70]"; }
+    else if (s >= 40) { grade = "C"; heat = "Cool"; heatIcon = ""; gradeColor = "text-orange-400"; heatColor = "text-[#5a5a70]"; }
+    else if (s >= 30) { grade = "D"; heat = "Cold"; heatIcon = "❄️"; gradeColor = "text-red-400"; heatColor = "text-blue-400"; }
+    else { grade = "F"; heat = "Cold"; heatIcon = "❄️"; gradeColor = "text-red-400"; heatColor = "text-blue-400"; }
 
     const reasons = account.scoreReasons;
     return (
-      <span className={`font-medium ${color}`} title={reasons?.join("; ") || ""}>
-        {s}
+      <span className="flex items-center gap-1.5" title={reasons?.join("; ") || ""}>
+        <span className={`font-bold ${gradeColor}`}>{grade}</span>
+        {heatIcon && <span className="text-xs">{heatIcon}</span>}
+        <span className={`text-xs ${heatColor}`}>{heat}</span>
       </span>
     );
   }
