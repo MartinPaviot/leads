@@ -7,6 +7,7 @@ interface Stage {
   name: string;
   description: string;
   category: "in_progress" | "done";
+  aiFillMode: "auto" | "suggest" | "off";
 }
 
 export default function StagesSettingsPage() {
@@ -27,7 +28,7 @@ export default function StagesSettingsPage() {
   }
 
   function addStage(category: "in_progress" | "done") {
-    setStages([...stages, { id: crypto.randomUUID(), name: "", description: "", category }]);
+    setStages([...stages, { id: crypto.randomUUID(), name: "", description: "", category, aiFillMode: "suggest" }]);
   }
 
   function removeStage(id: string) {
@@ -105,9 +106,25 @@ export default function StagesSettingsPage() {
                     <input
                       value={stage.description}
                       onChange={(e) => updateStage(stage.id, "description", e.target.value)}
-                      placeholder="Description (used by AI for auto-progression)"
+                      placeholder="Description (AI reads this for auto-progression)"
                       className="w-full bg-transparent text-xs text-[var(--color-text-tertiary)] placeholder-[var(--color-text-tertiary)] focus:outline-none"
                     />
+                    <div className="flex items-center gap-2 pt-1">
+                      <span className="text-[10px] font-medium" style={{ color: "var(--color-text-muted)" }}>AI:</span>
+                      {(["auto", "suggest", "off"] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          onClick={() => updateStage(stage.id, "aiFillMode", mode)}
+                          className="rounded px-1.5 py-0.5 text-[10px] font-medium capitalize transition-colors"
+                          style={{
+                            background: stage.aiFillMode === mode ? "var(--color-accent-soft)" : "transparent",
+                            color: stage.aiFillMode === mode ? "var(--color-accent)" : "var(--color-text-muted)",
+                          }}
+                        >
+                          {mode}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <button
                     onClick={() => removeStage(stage.id)}
@@ -137,7 +154,7 @@ export default function StagesSettingsPage() {
                   key={stage.id}
                   className="flex items-start gap-3 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-3"
                 >
-                  <div className="mt-2 h-2.5 w-2.5 flex-shrink-0 rounded-full bg-blue-400" />
+                  <div className="mt-2 h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ background: "var(--color-info)" }} />
                   <div className="flex-1 space-y-1">
                     <input
                       value={stage.name}
@@ -151,6 +168,22 @@ export default function StagesSettingsPage() {
                       placeholder="Description"
                       className="w-full bg-transparent text-xs text-[var(--color-text-tertiary)] placeholder-[var(--color-text-tertiary)] focus:outline-none"
                     />
+                    <div className="flex items-center gap-2 pt-1">
+                      <span className="text-[10px] font-medium" style={{ color: "var(--color-text-muted)" }}>AI:</span>
+                      {(["auto", "suggest", "off"] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          onClick={() => updateStage(stage.id, "aiFillMode", mode)}
+                          className="rounded px-1.5 py-0.5 text-[10px] font-medium capitalize transition-colors"
+                          style={{
+                            background: stage.aiFillMode === mode ? "var(--color-accent-soft)" : "transparent",
+                            color: stage.aiFillMode === mode ? "var(--color-accent)" : "var(--color-text-muted)",
+                          }}
+                        >
+                          {mode}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <button
                     onClick={() => removeStage(stage.id)}
