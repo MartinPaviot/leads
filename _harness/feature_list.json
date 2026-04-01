@@ -1,267 +1,719 @@
 [
   {
-    "id": "F1.1", "name": "Authentication", "area": "Foundation", "milestone": "M1",
+    "id": "F1.1",
+    "name": "Authentication",
+    "area": "Foundation",
+    "milestone": "M1",
     "description": "Clerk auth with Google/Microsoft OAuth, magic link, user management",
-    "dependencies": [], "passes": false, "attempts": 0, "completeness_target": 9
+    "dependencies": [],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "F1.2", "name": "Multi-tenant workspace", "area": "Foundation", "milestone": "M1",
+    "id": "F1.2",
+    "name": "Multi-tenant workspace",
+    "area": "Foundation",
+    "milestone": "M1",
     "description": "Neon PostgreSQL, RLS, workspace creation, tenant isolation",
-    "dependencies": ["F1.1"], "passes": false, "attempts": 0, "completeness_target": 9
+    "dependencies": [
+      "F1.1"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "F1.3", "name": "Core data model", "area": "Foundation", "milestone": "M1",
+    "id": "F1.3",
+    "name": "Core data model",
+    "area": "Foundation",
+    "milestone": "M1",
     "description": "Company, Contact, Deal, Activity entities with JSONB properties, Drizzle ORM",
-    "dependencies": ["F1.2"], "passes": false, "attempts": 0, "completeness_target": 9
+    "dependencies": [
+      "F1.2"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "F1.4", "name": "Chat interface", "area": "Foundation", "milestone": "M1",
+    "id": "F1.4",
+    "name": "Chat interface",
+    "area": "Foundation",
+    "milestone": "M1",
     "description": "Streaming chat with AI SDK, persistent threads, chat history sidebar",
-    "dependencies": ["F1.1", "F1.2"], "passes": false, "attempts": 0, "completeness_target": 9
+    "dependencies": [
+      "F1.1",
+      "F1.2"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "F1.5", "name": "Settings and onboarding", "area": "Foundation", "milestone": "M1",
+    "id": "F1.5",
+    "name": "Settings and onboarding",
+    "area": "Foundation",
+    "milestone": "M1",
     "description": "Workspace settings, user profile, onboarding flow, ICP configuration",
-    "dependencies": ["F1.1", "F1.2"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": [
+      "F1.1",
+      "F1.2"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "F2.1", "name": "Email sync", "area": "Memory", "milestone": "M2",
+    "id": "F2.1",
+    "name": "Email sync",
+    "area": "Memory",
+    "milestone": "M2",
     "description": "Google/Microsoft OAuth email sync, backsync, auto-capture inbound/outbound",
-    "dependencies": ["F1.3"], "passes": false, "attempts": 0, "completeness_target": 9
+    "dependencies": [
+      "F1.3"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "F2.2", "name": "Calendar sync", "area": "Memory", "milestone": "M2",
+    "id": "F2.2",
+    "name": "Calendar sync",
+    "area": "Memory",
+    "milestone": "M2",
     "description": "Meeting auto-detection from calendar, participant extraction",
-    "dependencies": ["F2.1"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": [
+      "F2.1"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 8
   },
   {
-    "id": "F2.4", "name": "Activity timeline", "area": "Memory", "milestone": "M2",
+    "id": "F2.4",
+    "name": "Activity timeline",
+    "area": "Memory",
+    "milestone": "M2",
     "description": "Unified timeline per contact/company/deal showing all interactions",
-    "dependencies": ["F1.3", "F2.1"], "passes": false, "attempts": 0, "completeness_target": 9
+    "dependencies": [
+      "F1.3",
+      "F2.1"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "F2.5", "name": "Auto-summarization", "area": "Memory", "milestone": "M2",
+    "id": "F2.5",
+    "name": "Auto-summarization",
+    "area": "Memory",
+    "milestone": "M2",
     "description": "AI summarization of email threads and meetings with key points extraction",
-    "dependencies": ["F2.1", "F1.4"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": [
+      "F2.1",
+      "F1.4"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "F2.6", "name": "Embedding + RAG pipeline", "area": "Memory", "milestone": "M2",
+    "id": "F2.6",
+    "name": "Embedding + RAG pipeline",
+    "area": "Memory",
+    "milestone": "M2",
     "description": "Embed all interactions with text-embedding-3-small, pgvector storage, retrieval",
-    "dependencies": ["F2.1", "F1.3"], "passes": false, "attempts": 0, "completeness_target": 9
+    "dependencies": [
+      "F2.1",
+      "F1.3"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "F2.7", "name": "NL queries with citations", "area": "Memory", "milestone": "M2",
+    "id": "F2.7",
+    "name": "NL queries with citations",
+    "area": "Memory",
+    "milestone": "M2",
     "description": "Answer questions about business with citations to original conversations",
-    "dependencies": ["F2.6", "F1.4"], "passes": false, "attempts": 0, "completeness_target": 9
+    "dependencies": [
+      "F2.6",
+      "F1.4"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "F2.8", "name": "CSV import", "area": "Memory", "milestone": "M2",
+    "id": "F2.8",
+    "name": "CSV import",
+    "area": "Memory",
+    "milestone": "M2",
     "description": "Import contacts/companies/deals from CSV with field mapping",
-    "dependencies": ["F1.3"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": [
+      "F1.3"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "F3.1", "name": "Company enrichment", "area": "Prospecting", "milestone": "M3",
+    "id": "F3.1",
+    "name": "Company enrichment",
+    "area": "Prospecting",
+    "milestone": "M3",
     "description": "Firmographics, industry, size, tech stack from data providers",
-    "dependencies": ["F1.3", "F7.1"], "passes": true, "attempts": 1, "completeness_target": 8
+    "dependencies": [
+      "F1.3",
+      "F7.1"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "F3.2", "name": "Contact enrichment", "area": "Prospecting", "milestone": "M3",
+    "id": "F3.2",
+    "name": "Contact enrichment",
+    "area": "Prospecting",
+    "milestone": "M3",
     "description": "Title, email, LinkedIn, phone from data providers",
-    "dependencies": ["F1.3", "F7.1"], "passes": true, "attempts": 1, "completeness_target": 8
+    "dependencies": [
+      "F1.3",
+      "F7.1"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "F3.3", "name": "TAM builder", "area": "Prospecting", "milestone": "M3",
+    "id": "F3.3",
+    "name": "TAM builder",
+    "area": "Prospecting",
+    "milestone": "M3",
     "description": "Auto-build TAM from ICP description using data providers + AI",
-    "dependencies": ["F3.1", "F3.2", "F1.4"], "passes": true, "attempts": 1, "completeness_target": 9
+    "dependencies": [
+      "F3.1",
+      "F3.2",
+      "F1.4"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "F3.4", "name": "ML scoring", "area": "Prospecting", "milestone": "M3",
+    "id": "F3.4",
+    "name": "ML scoring",
+    "area": "Prospecting",
+    "milestone": "M3",
     "description": "Account/contact scoring with explanations using enrichment + signals",
-    "dependencies": ["F3.1", "F3.3"], "passes": true, "attempts": 1, "completeness_target": 8
+    "dependencies": [
+      "F3.1",
+      "F3.3"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "F3.5", "name": "Signal overlay", "area": "Prospecting", "milestone": "M3",
+    "id": "F3.5",
+    "name": "Signal overlay",
+    "area": "Prospecting",
+    "milestone": "M3",
     "description": "Job postings, funding, tech changes, website visits as scoring signals",
-    "dependencies": ["F3.1", "F7.1"], "passes": true, "attempts": 1, "completeness_target": 7
+    "dependencies": [
+      "F3.1",
+      "F7.1"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 7
   },
   {
-    "id": "F3.6", "name": "AI semantic search", "area": "Prospecting", "milestone": "M3",
+    "id": "F3.6",
+    "name": "AI semantic search",
+    "area": "Prospecting",
+    "milestone": "M3",
     "description": "NL queries over TAM: 'crypto companies hiring RAG engineers'",
-    "dependencies": ["F3.3", "F2.6"], "passes": true, "attempts": 1, "completeness_target": 8
+    "dependencies": [
+      "F3.3",
+      "F2.6"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "F4.1", "name": "Sequence builder", "area": "Outreach", "milestone": "M4",
+    "id": "F4.1",
+    "name": "Sequence builder",
+    "area": "Outreach",
+    "milestone": "M4",
     "description": "Multi-step email sequences with delays, conditions, templates",
-    "dependencies": ["F1.3", "F7.1"], "passes": true, "attempts": 1, "completeness_target": 9
+    "dependencies": [
+      "F1.3",
+      "F7.1"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "F4.2", "name": "AI email writer", "area": "Outreach", "milestone": "M4",
+    "id": "F4.2",
+    "name": "AI email writer",
+    "area": "Outreach",
+    "milestone": "M4",
     "description": "Generate personalized emails from enrichment + signals + memory",
-    "dependencies": ["F3.1", "F2.6", "F1.4"], "passes": true, "attempts": 1, "completeness_target": 9
+    "dependencies": [
+      "F3.1",
+      "F2.6",
+      "F1.4"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "F4.3", "name": "Autopilot enrollment", "area": "Outreach", "milestone": "M4",
+    "id": "F4.3",
+    "name": "Autopilot enrollment",
+    "area": "Outreach",
+    "milestone": "M4",
     "description": "AI decides who to enroll in sequences, when, and with what messaging",
-    "dependencies": ["F4.1", "F4.2", "F3.4"], "passes": true, "attempts": 1, "completeness_target": 8
+    "dependencies": [
+      "F4.1",
+      "F4.2",
+      "F3.4"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "F4.4", "name": "Email sending infrastructure", "area": "Outreach", "milestone": "M4",
+    "id": "F4.4",
+    "name": "Email sending infrastructure",
+    "area": "Outreach",
+    "milestone": "M4",
     "description": "SES integration, mailbox rotation, warm-up tracking, SPF/DKIM/DMARC",
-    "dependencies": ["F7.1"], "passes": true, "attempts": 1, "completeness_target": 9
+    "dependencies": [
+      "F7.1"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "F4.5", "name": "Reply detection", "area": "Outreach", "milestone": "M4",
+    "id": "F4.5",
+    "name": "Reply detection",
+    "area": "Outreach",
+    "milestone": "M4",
     "description": "Detect replies and auto-stop sequence, classify positive/negative/OOO",
-    "dependencies": ["F2.1", "F4.1"], "passes": true, "attempts": 1, "completeness_target": 8
+    "dependencies": [
+      "F2.1",
+      "F4.1"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "F5.1", "name": "Deal management", "area": "Pipeline", "milestone": "M5",
+    "id": "F5.1",
+    "name": "Deal management",
+    "area": "Pipeline",
+    "milestone": "M5",
     "description": "Kanban + list views, create/edit deals, drag-drop stages",
-    "dependencies": ["F1.3"], "passes": true, "attempts": 1, "completeness_target": 9
+    "dependencies": [
+      "F1.3"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "F5.2", "name": "Signal-based stage progression", "area": "Pipeline", "milestone": "M5",
+    "id": "F5.2",
+    "name": "Signal-based stage progression",
+    "area": "Pipeline",
+    "milestone": "M5",
     "description": "Auto-progress deals based on email activity, meeting count, stakeholder engagement",
-    "dependencies": ["F5.1", "F2.4"], "passes": true, "attempts": 1, "completeness_target": 8
+    "dependencies": [
+      "F5.1",
+      "F2.4"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "F5.3", "name": "Risk detection", "area": "Pipeline", "milestone": "M5",
+    "id": "F5.3",
+    "name": "Risk detection",
+    "area": "Pipeline",
+    "milestone": "M5",
     "description": "Flag ghosting, stalls, competitor mentions with reasons",
-    "dependencies": ["F5.1", "F2.4"], "passes": true, "attempts": 1, "completeness_target": 8
+    "dependencies": [
+      "F5.1",
+      "F2.4"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "F5.4", "name": "Auto-generated deal summaries", "area": "Pipeline", "milestone": "M5",
+    "id": "F5.4",
+    "name": "Auto-generated deal summaries",
+    "area": "Pipeline",
+    "milestone": "M5",
     "description": "AI-written deal overview from all captured interactions",
-    "dependencies": ["F5.1", "F2.5", "F2.7"], "passes": true, "attempts": 1, "completeness_target": 8
+    "dependencies": [
+      "F5.1",
+      "F2.5",
+      "F2.7"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "F6.1", "name": "CRO Copilot", "area": "Intelligence", "milestone": "M6",
+    "id": "F6.1",
+    "name": "CRO Copilot",
+    "area": "Intelligence",
+    "milestone": "M6",
     "description": "Chat-based deal coaching with specific actionable feedback",
-    "dependencies": ["F1.4", "F2.7", "F5.1"], "passes": true, "attempts": 1, "completeness_target": 9
+    "dependencies": [
+      "F1.4",
+      "F2.7",
+      "F5.1"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "F6.3", "name": "Prioritized actions", "area": "Intelligence", "milestone": "M6",
+    "id": "F6.3",
+    "name": "Prioritized actions",
+    "area": "Intelligence",
+    "milestone": "M6",
     "description": "AI suggests most important actions to close more revenue",
-    "dependencies": ["F6.1", "F5.3"], "passes": true, "attempts": 1, "completeness_target": 8
+    "dependencies": [
+      "F6.1",
+      "F5.3"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "F4.6", "name": "Deliverability monitoring", "area": "Outreach", "milestone": "M4",
+    "id": "F4.6",
+    "name": "Deliverability monitoring",
+    "area": "Outreach",
+    "milestone": "M4",
     "description": "Health score, bounce/spam/open/reply rates, warnings, dedicated page",
-    "dependencies": ["F4.4"], "passes": true, "attempts": 1, "completeness_target": 8
+    "dependencies": [
+      "F4.4"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "F5.5", "name": "Pipeline analytics", "area": "Pipeline", "milestone": "M5",
+    "id": "F5.5",
+    "name": "Pipeline analytics",
+    "area": "Pipeline",
+    "milestone": "M5",
     "description": "KPI cards (value, win rate, avg deal, velocity), value-by-stage bars, risk summary",
-    "dependencies": ["F5.1"], "passes": true, "attempts": 1, "completeness_target": 8
+    "dependencies": [
+      "F5.1"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "F6.4", "name": "Proactive insights", "area": "Intelligence", "milestone": "M6",
+    "id": "F6.4",
+    "name": "Proactive insights",
+    "area": "Intelligence",
+    "milestone": "M6",
     "description": "Rule-based trend/alert/opportunity detection from pipeline data",
-    "dependencies": ["F5.1", "F3.4"], "passes": true, "attempts": 1, "completeness_target": 8
+    "dependencies": [
+      "F5.1",
+      "F3.4"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "F7.1", "name": "Background job system", "area": "Infrastructure", "milestone": "M1",
+    "id": "F7.1",
+    "name": "Background job system",
+    "area": "Infrastructure",
+    "milestone": "M1",
     "description": "BullMQ on Redis for async jobs: enrichment, email, sequences",
-    "dependencies": [], "passes": false, "attempts": 0, "completeness_target": 9
+    "dependencies": [],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "G1", "name": "Daily Dashboard", "area": "Intelligence", "milestone": "M8",
+    "id": "G1",
+    "name": "Daily Dashboard",
+    "area": "Intelligence",
+    "milestone": "M8",
     "description": "Good morning greeting + weekly summary + prioritized task cards with stall detection + today's calendar + inline email with AI-drafted follow-ups",
-    "dependencies": ["F6.3", "F5.3"], "passes": true, "attempts": 1, "completeness_target": 9
+    "dependencies": [
+      "F6.3",
+      "F5.3"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "G2", "name": "Per-signal reasoning with citations", "area": "Prospecting", "milestone": "M8",
+    "id": "G2",
+    "name": "Per-signal reasoning with citations",
+    "area": "Prospecting",
+    "milestone": "M8",
     "description": "Click any signal value → popover with Reasoning tab (AI explanation) + Sources tab (URLs with favicons)",
-    "dependencies": ["F3.5"], "passes": true, "attempts": 1, "completeness_target": 9
+    "dependencies": [
+      "F3.5"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "G4", "name": "Sequence approve/reject flow", "area": "Outreach", "milestone": "M8",
+    "id": "G4",
+    "name": "Sequence approve/reject flow",
+    "area": "Outreach",
+    "milestone": "M8",
     "description": "Start button + thumbs-down reject for AI-proposed sequences. Header shows sender-to-recipient context",
-    "dependencies": ["F4.1", "F4.3"], "passes": true, "attempts": 1, "completeness_target": 8
+    "dependencies": [
+      "F4.1",
+      "F4.3"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "G5", "name": "Email composer side panel", "area": "Outreach", "milestone": "M8",
+    "id": "G5",
+    "name": "Email composer side panel",
+    "area": "Outreach",
+    "milestone": "M8",
     "description": "Side panel with To/From/Subject/Body fields + Send button. Pre-filled from AI draft",
-    "dependencies": ["F4.2", "F4.4"], "passes": true, "attempts": 1, "completeness_target": 9
+    "dependencies": [
+      "F4.2",
+      "F4.4"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 9
   },
   {
-    "id": "G6", "name": "Stall detection + AI nudges", "area": "Pipeline", "milestone": "M8",
+    "id": "G6",
+    "name": "Stall detection + AI nudges",
+    "area": "Pipeline",
+    "milestone": "M8",
     "description": "Stalled N days badge on dashboard tasks + AI-drafted follow-up email inline",
-    "dependencies": ["F5.3", "F4.2"], "passes": true, "attempts": 1, "completeness_target": 8
+    "dependencies": [
+      "F5.3",
+      "F4.2"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "G11", "name": "Score visualization (heat + grades)", "area": "Prospecting", "milestone": "M8",
+    "id": "G11",
+    "name": "Score visualization (heat + grades)",
+    "area": "Prospecting",
+    "milestone": "M8",
     "description": "Letter grade A-F + fire emoji + Burning/Warm/Cold heat indicator on account scores",
-    "dependencies": ["F3.4"], "passes": true, "attempts": 1, "completeness_target": 7
+    "dependencies": [
+      "F3.4"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 7
   },
   {
-    "id": "G13", "name": "Pipeline column totals", "area": "Pipeline", "milestone": "M8",
+    "id": "G13",
+    "name": "Pipeline column totals",
+    "area": "Pipeline",
+    "milestone": "M8",
     "description": "Kanban column headers show stage name + deal count badge + total dollar value",
-    "dependencies": ["F5.1"], "passes": true, "attempts": 1, "completeness_target": 7
+    "dependencies": [
+      "F5.1"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 7
   },
   {
-    "id": "G14", "name": "Account-scoped chat", "area": "Intelligence", "milestone": "M8",
+    "id": "G14",
+    "name": "Account-scoped chat",
+    "area": "Intelligence",
+    "milestone": "M8",
     "description": "On account/deal detail pages, chat context automatically scoped to current record",
-    "dependencies": ["F6.1"], "passes": true, "attempts": 1, "completeness_target": 8
+    "dependencies": [
+      "F6.1"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 8
   },
   {
-    "id": "G15", "name": "Chat transparency indicators", "area": "Intelligence", "milestone": "M8",
+    "id": "G15",
+    "name": "Chat transparency indicators",
+    "area": "Intelligence",
+    "milestone": "M8",
     "description": "Ran code / Retrieved CRM data / Analyzed data labels showing what the AI did",
-    "dependencies": ["F6.1"], "passes": true, "attempts": 1, "completeness_target": 7
+    "dependencies": [
+      "F6.1"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 7
   },
   {
-    "id": "G20", "name": "Suggested chat prompts", "area": "Intelligence", "milestone": "M8",
+    "id": "G20",
+    "name": "Suggested chat prompts",
+    "area": "Intelligence",
+    "milestone": "M8",
     "description": "8 pre-built prompts on empty chat state for discoverability",
-    "dependencies": ["F6.1"], "passes": true, "attempts": 1, "completeness_target": 6
+    "dependencies": [
+      "F6.1"
+    ],
+    "passes": true,
+    "attempts": 1,
+    "completeness_target": 6
   },
   {
-    "id": "G3", "name": "Contact auto-suggestion", "area": "Prospecting", "milestone": "M9",
+    "id": "G3",
+    "name": "Contact auto-suggestion",
+    "area": "Prospecting",
+    "milestone": "M9",
     "description": "Expand account row to see auto-discovered contacts with names, titles, Suggested status",
-    "dependencies": ["F3.2"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": [
+      "F3.2"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 8
   },
   {
-    "id": "G7", "name": "Auto-generated follow-up emails", "area": "Outreach", "milestone": "M9",
+    "id": "G7",
+    "name": "Auto-generated follow-up emails",
+    "area": "Outreach",
+    "milestone": "M9",
     "description": "After meetings/interactions, auto-generate follow-up email with extracted action items",
-    "dependencies": ["F4.2"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": [
+      "F4.2"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 8
   },
   {
-    "id": "G8", "name": "Deal timeline from interactions", "area": "Pipeline", "milestone": "M9",
+    "id": "G8",
+    "name": "Deal timeline from interactions",
+    "area": "Pipeline",
+    "milestone": "M9",
     "description": "Auto-generated timeline with dated entries from emails, meetings, activities on deal detail",
-    "dependencies": ["F5.1"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": [
+      "F5.1"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 8
   },
   {
-    "id": "G9", "name": "Structured data extraction", "area": "Intelligence", "milestone": "M9",
+    "id": "G9",
+    "name": "Structured data extraction",
+    "area": "Intelligence",
+    "milestone": "M9",
     "description": "Extract budget, team size, competitor tools from meeting notes into structured deal fields",
-    "dependencies": ["F6.1"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": [
+      "F6.1"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 8
   },
   {
-    "id": "G10", "name": "Multi-language chat support", "area": "Intelligence", "milestone": "M9",
+    "id": "G10",
+    "name": "Multi-language chat support",
+    "area": "Intelligence",
+    "milestone": "M9",
     "description": "French/Spanish/etc queries get responses in the same language",
-    "dependencies": ["F6.1"], "passes": false, "attempts": 0, "completeness_target": 7
+    "dependencies": [
+      "F6.1"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 7
   },
   {
-    "id": "G12", "name": "Suggested replies to incoming emails", "area": "Outreach", "milestone": "M9",
+    "id": "G12",
+    "name": "Suggested replies to incoming emails",
+    "area": "Outreach",
+    "milestone": "M9",
     "description": "AI pre-drafts replies to incoming emails, user edits and sends via composer",
-    "dependencies": ["F4.2", "G5"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": [
+      "F4.2",
+      "G5"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 8
   },
   {
-    "id": "G16", "name": "7 account lifecycle stages", "area": "Prospecting", "milestone": "M10",
+    "id": "G16",
+    "name": "7 account lifecycle stages",
+    "area": "Prospecting",
+    "milestone": "M10",
     "description": "New, Prospecting, Opportunity, Customer, Disqualified, Inbound, Nurture stages with color-coded pills",
-    "dependencies": ["F3.1"], "passes": false, "attempts": 0, "completeness_target": 7
+    "dependencies": [
+      "F3.1"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 7
   },
   {
-    "id": "G17", "name": "Momentum indicator on deals", "area": "Pipeline", "milestone": "M10",
+    "id": "G17",
+    "name": "Momentum indicator on deals",
+    "area": "Pipeline",
+    "milestone": "M10",
     "description": "Lightning bolt icon on deals with high recent activity in kanban view",
-    "dependencies": ["F5.1"], "passes": false, "attempts": 0, "completeness_target": 6
+    "dependencies": [
+      "F5.1"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 6
   },
   {
-    "id": "G18", "name": "Custom boolean signal columns", "area": "Prospecting", "milestone": "M10",
+    "id": "G18",
+    "name": "Custom boolean signal columns",
+    "area": "Prospecting",
+    "milestone": "M10",
     "description": "Configurable Yes/No columns like Common Investor, Sales-led growth, YC Company",
-    "dependencies": ["F3.5"], "passes": false, "attempts": 0, "completeness_target": 7
+    "dependencies": [
+      "F3.5"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 7
   },
   {
-    "id": "G19", "name": "Chat history persistence", "area": "Intelligence", "milestone": "M10",
+    "id": "G19",
+    "name": "Chat history persistence",
+    "area": "Intelligence",
+    "milestone": "M10",
     "description": "Previous chat threads saved in sidebar, browsable and resumable",
-    "dependencies": ["F6.1"], "passes": false, "attempts": 0, "completeness_target": 7
+    "dependencies": [
+      "F6.1"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 7
   }
 ]
