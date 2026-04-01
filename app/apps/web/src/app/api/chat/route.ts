@@ -2,11 +2,41 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { streamText } from "ai";
 import { searchSimilar } from "@/lib/embeddings";
+import { db } from "@/db";
+import { companies, contacts, deals } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export const maxDuration = 30;
 
+async function getEntityContext(contextType?: string, contextId?: string): Promise<string> {
+  if (!contextType || !contextId) return "";
+  try {
+    if (contextType === "account" || contextType === "company") {
+      const [company] = await db.select().from(companies).where(eq(companies.id, contextId)).limit(1);
+      if (company) {
+        return `\n\n## Current Context: Account "${company.name}"\nDomain: ${company.domain || "unknown"}\nIndustry: ${company.industry || "unknown"}\nSize: ${company.size || "unknown"}\nRevenue: ${company.revenue || "unknown"}\nDescription: ${company.description || "none"}\n\nAll questions should be answered in the context of this account. Focus on information relevant to ${company.name}.`;
+      }
+    }
+    if (contextType === "contact") {
+      const [contact] = await db.select().from(contacts).where(eq(contacts.id, contextId)).limit(1);
+      if (contact) {
+        return `\n\n## Current Context: Contact "${contact.name}"\nEmail: ${contact.email || "unknown"}\nTitle: ${contact.title || "unknown"}\nCompany ID: ${contact.companyId || "unknown"}\n\nAll questions should be answered in the context of this contact.`;
+      }
+    }
+    if (contextType === "deal") {
+      const [deal] = await db.select().from(deals).where(eq(deals.id, contextId)).limit(1);
+      if (deal) {
+        return `\n\n## Current Context: Deal "${deal.name}"\nStage: ${deal.stage}\nValue: ${deal.value ? "$" + deal.value.toLocaleString() : "not set"}\nSummary: ${deal.summary || "none"}\n\nAll questions should be answered in the context of this deal.`;
+      }
+    }
+  } catch {
+    // Non-critical
+  }
+  return "";
+}
+
 export async function POST(req: Request) {
-  const { messages } = await req.json();
+  const { messages, contextType, contextId } = await req.json();
 
   const model = process.env.ANTHROPIC_API_KEY
     ? anthropic("claude-sonnet-4-20250514")
@@ -57,7 +87,7 @@ export async function POST(req: Request) {
 - Creating and managing tasks
 
 Be concise, specific, and actionable. When referencing CRM data, cite the specific record.
-If you don't have data, say so honestly.${ragContext}`,
+If you don't have data, say so honestly.${ragContext}${await getEntityContext(contextType, contextId)}`,
     messages,
   });
 

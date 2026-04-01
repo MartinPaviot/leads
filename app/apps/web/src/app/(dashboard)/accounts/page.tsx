@@ -571,7 +571,7 @@ export default function AccountsPage() {
                     </td>
                     <td className="py-3 pr-4">
                       <div>
-                        <span className="font-medium text-[#e8e8ed]">{account.name}</span>
+                        <a href={`/accounts/${account.id}`} className="font-medium text-[#e8e8ed] hover:text-[#6366f1]">{account.name}</a>
                         {account.description && (
                           <p className="mt-0.5 truncate text-xs text-[#5a5a70]" title={account.description}>
                             {account.description}

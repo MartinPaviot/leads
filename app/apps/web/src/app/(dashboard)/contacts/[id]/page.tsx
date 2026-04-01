@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { ScopedChat } from "@/components/scoped-chat";
 
 interface Contact {
   id: string;
@@ -125,6 +126,15 @@ export default function ContactDetailPage() {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Scoped chat */}
+        <div className="mt-8">
+          <ScopedChat
+            contextType="contact"
+            contextId={contactId}
+            contextLabel={name}
+          />
         </div>
       </div>
 
