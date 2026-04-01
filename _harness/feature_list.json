@@ -167,37 +167,37 @@
   {
     "id": "G1", "name": "Daily Dashboard", "area": "Intelligence", "milestone": "M8",
     "description": "Good morning greeting + weekly summary + prioritized task cards with stall detection + today's calendar + inline email with AI-drafted follow-ups",
-    "dependencies": ["F6.3", "F5.3"], "passes": false, "attempts": 0, "completeness_target": 9
+    "dependencies": ["F6.3", "F5.3"], "passes": true, "attempts": 1, "completeness_target": 9
   },
   {
     "id": "G2", "name": "Per-signal reasoning with citations", "area": "Prospecting", "milestone": "M8",
     "description": "Click any signal value → popover with Reasoning tab (AI explanation) + Sources tab (URLs with favicons)",
-    "dependencies": ["F3.5"], "passes": false, "attempts": 0, "completeness_target": 9
+    "dependencies": ["F3.5"], "passes": true, "attempts": 1, "completeness_target": 9
   },
   {
     "id": "G4", "name": "Sequence approve/reject flow", "area": "Outreach", "milestone": "M8",
     "description": "Start button + thumbs-down reject for AI-proposed sequences. Header shows sender-to-recipient context",
-    "dependencies": ["F4.1", "F4.3"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": ["F4.1", "F4.3"], "passes": true, "attempts": 1, "completeness_target": 8
   },
   {
     "id": "G5", "name": "Email composer side panel", "area": "Outreach", "milestone": "M8",
     "description": "Side panel with To/From/Subject/Body fields + Send button. Pre-filled from AI draft",
-    "dependencies": ["F4.2", "F4.4"], "passes": false, "attempts": 0, "completeness_target": 9
+    "dependencies": ["F4.2", "F4.4"], "passes": true, "attempts": 1, "completeness_target": 9
   },
   {
     "id": "G6", "name": "Stall detection + AI nudges", "area": "Pipeline", "milestone": "M8",
     "description": "Stalled N days badge on dashboard tasks + AI-drafted follow-up email inline",
-    "dependencies": ["F5.3", "F4.2"], "passes": false, "attempts": 0, "completeness_target": 8
+    "dependencies": ["F5.3", "F4.2"], "passes": true, "attempts": 1, "completeness_target": 8
   },
   {
     "id": "G11", "name": "Score visualization (heat + grades)", "area": "Prospecting", "milestone": "M8",
     "description": "Letter grade A-F + fire emoji + Burning/Warm/Cold heat indicator on account scores",
-    "dependencies": ["F3.4"], "passes": false, "attempts": 0, "completeness_target": 7
+    "dependencies": ["F3.4"], "passes": true, "attempts": 1, "completeness_target": 7
   },
   {
     "id": "G13", "name": "Pipeline column totals", "area": "Pipeline", "milestone": "M8",
     "description": "Kanban column headers show stage name + deal count badge + total dollar value",
-    "dependencies": ["F5.1"], "passes": false, "attempts": 0, "completeness_target": 7
+    "dependencies": ["F5.1"], "passes": true, "attempts": 1, "completeness_target": 7
   },
   {
     "id": "G14", "name": "Account-scoped chat", "area": "Intelligence", "milestone": "M8",
@@ -207,11 +207,11 @@
   {
     "id": "G15", "name": "Chat transparency indicators", "area": "Intelligence", "milestone": "M8",
     "description": "Ran code / Retrieved CRM data / Analyzed data labels showing what the AI did",
-    "dependencies": ["F6.1"], "passes": false, "attempts": 0, "completeness_target": 7
+    "dependencies": ["F6.1"], "passes": true, "attempts": 1, "completeness_target": 7
   },
   {
     "id": "G20", "name": "Suggested chat prompts", "area": "Intelligence", "milestone": "M8",
     "description": "8 pre-built prompts on empty chat state for discoverability",
-    "dependencies": ["F6.1"], "passes": false, "attempts": 0, "completeness_target": 6
+    "dependencies": ["F6.1"], "passes": true, "attempts": 1, "completeness_target": 6
   }
 ]
