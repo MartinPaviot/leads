@@ -56,11 +56,13 @@ export function ScopedChat({ contextType, contextId, contextLabel }: ScopedChatP
                 {msg.role === "assistant" && (
                   <span className="text-[#6366f1] mr-1">✦</span>
                 )}
-                {msg.parts
-                  .filter((p) => p.type === "text")
-                  .map((p, i) => (
-                    <ReactMarkdown key={i} className="prose prose-invert prose-xs max-w-none [&_p]:my-0.5">{"text" in p ? p.text : ""}</ReactMarkdown>
-                  ))}
+                <div className="prose prose-invert prose-xs max-w-none [&_p]:my-0.5">
+                  {msg.parts
+                    .filter((p) => p.type === "text")
+                    .map((p, i) => (
+                      <ReactMarkdown key={i}>{"text" in p ? p.text : ""}</ReactMarkdown>
+                    ))}
+                </div>
               </div>
             </div>
           ))}
