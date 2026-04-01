@@ -352,6 +352,101 @@
   5. One-click actions (nudge, respond, setup, send)
 - **Comparison note**: WE DO NOT HAVE A DAILY DASHBOARD. This is arguably Monaco's most important screen — the "home" that tells founders exactly what to do today. Our app has no equivalent. THIS IS THE BIGGEST GAP.
 
+---
+
+## STEP M3: Feature Videos (9 webm clips from homepage)
+
+(Carried forward from v1 analysis — 9 videos already downloaded and analyzed at 5 frames each. Key findings incorporated here.)
+
+### Theme 1: "Everything you need, all in one place"
+- **1-1**: Accounts table skeleton/loading state — floating card design on dark bg
+- **1-2**: Email response card — "Thanks for the demo!" with timestamp "1 hr ago", "Email" badge, blue thread line
+- **1-3**: Account lifecycle stages — 7 color-coded pills: New (gray), Prospecting (navy), Opportunity (purple), Customer (green), Disqualified (red), Inbound (gold), Nurture (pink)
+
+### Theme 2: "Time to value"
+- **2-1**: Pre-built TAM cards (5 accounts all rated "A 🔥 Burning" with real company logos)
+- **2-2**: Forward-deployed AE video call — "Monaco Expert" label on video feed, integrated into product UI
+- **2-3**: KPI card — "Meetings Booked" = **11** this week, **+175%** growth (green badge)
+
+### Theme 3: "Agents working for you"
+- **3-1**: Auto-scoring table with "About" column auto-generating descriptions from enrichment
+- **3-2**: Pipeline kanban — **Discovery (20 deals, $817,214)** and **Proposal (8 deals, $327,036)** columns with company logos + deal values
+- **3-3**: Ask AI quick-action menu — hybrid menu+chat: pre-built actions (Overview, Outbound Sequences, Summary, Opportunities) + freeform chat input ("best strategy for my TAM?")
+
+### Key Design Patterns from Feature Videos
+- Score format: "A | 🔥 Burning" — letter grade + fire emoji + status word
+- Pipeline columns show deal count + total dollar value in headers
+- Ask AI has BOTH preset actions AND freeform — important hybrid pattern
+- 7 account lifecycle stages (vs typical 3-4) — more granular tracking
+
+---
+
+---
+
+## STEP M4: YouTube Search
+
+**Search queries**: "Monaco sales platform demo", "sam blond monaco sales", "Monaco CRM walkthrough 2026"
+
+### Results Found
+1. **"Monaco raises $35m to reinvent AI-powered sales software"** — BrieflyBuzzed World, 106 views, ~Feb 2026. News recap, no product UI.
+2. **"The AI CRM wars are officially on (Monaco vs Salesforce)"** — Raised and Confused, 118 views, ~Feb 2026. Commentary with Sam Blond's launch tweet shown.
+3. **"Weekly Startup News - 2/13/2026"** — SparkLaunchOfficial, 144 views. Founder briefing mentioning Monaco launch.
+4. **"Is Something Big Happening? JOBS BEAT!!!"** — TBPN, 6.5k views. Moment at 2:53:21 referencing Sam Blond/Monaco.
+
+### Conclusion
+- **No official Monaco product demo video exists on YouTube** (confirmed from v1 research)
+- All product footage is hosted on cdn.monaco.com (hero-video.mp4 + 9 feature webms)
+- Sam Blond's launch was shared primarily via X and LinkedIn, not YouTube
+- No third-party reviewers have uploaded product walkthroughs
+- **Information gap**: Without a public demo, our hero video analysis (116 frames) is the primary source of product UI intelligence
+
+---
+
+---
+
+## STEP M5: Community Screenshots (X/Twitter)
+
+X requires login for image search. Google Image search results for "site:x.com monaco sales platform" found:
+- @MonacoGTM official posts with investor slides (Garry Tan, Peter Thiel, Ryan Petersen)
+- Sam Blond launch announcement tweet with embedded hero video
+- No user-generated product screenshots found beyond official marketing
+
+**Key finding**: Monaco's product is demo-gated with no self-serve signup. Users can't take their own screenshots because they don't have public access. All product imagery comes exclusively from Monaco's marketing team. This means our hero video frame analysis is the ONLY source of actual product UI detail beyond the 6 product page screenshots.
+
+---
+
+## STEP M6: Job Listings (jobs.ashbyhq.com/monaco)
+
+Screenshot: 016-ashby-jobs.png
+**Status**: Same 8 positions as v1 analysis (unchanged since Mar 30)
+
+### Positions (8 total, all SF on-site, full-time)
+**Design (1)**: AI Product Designer — non-deterministic AI-driven UX
+**Engineering (4)**:
+- AI Engineer — LLMs (OpenAI+Anthropic), RAG, vector DBs, agentic systems, Python
+- Frontend Engineer — React+TypeScript, chat UIs, LLM streaming, non-deterministic UI
+- Product Backend Engineer — Go/TypeScript/Python, APIs, cloud infra
+- Senior Platform Engineer — event-driven systems, ML infra, streaming, distributed systems
+**Sales (3)**: Client Operations, Forward-Deployed AE ($25K-$100K ACV), Founding AM
+
+### Inferred Tech Stack (from v1 deep analysis)
+| Layer | Technology | Confidence |
+|-------|-----------|------------|
+| Frontend | React + TypeScript | Confirmed |
+| Marketing | Next.js + Turbopack → Vercel | Confirmed |
+| Backend | Go, TypeScript, Python | Confirmed |
+| AI Models | OpenAI + Anthropic (multi-model) | Confirmed |
+| AI Pattern | RAG + Agentic workflows + Memory | Confirmed |
+| Data Arch | Event-driven, streaming, warehouse | Confirmed |
+| Observability | Datadog RUM + full suite | Confirmed |
+| Cloud | Likely AWS (CloudFront CDN) | High |
+| Visitor ID | Snitcher + RB2B (own marketing) | Confirmed |
+| ATS | Ashby | Confirmed |
+
+**Full technical analysis**: See `_research/teardown-monaco/technical-and-community.md`
+
+---
+
 ### Page-Level Observations
 - **Navigation**: Fixed top bar with "Product" | "Company" links, centered MONACO logo, right-side "Log in" and "Request demo" (green pill button)
 - **Section navigation**: Horizontal tab bar below hero, showing all 6 steps with numbers and category labels ("Drive Demand" for 1-3, "Increase Conversion" for 4-6)
