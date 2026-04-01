@@ -60,5 +60,14 @@
     "checkpoint": true,
     "checkpoint_question": "Is every feature production-ready? Analytics meaningful? Insights actionable?",
     "status": "pending"
+  },
+  {
+    "id": "M8",
+    "name": "Competitive Gaps — Dashboard + Trust + Actions",
+    "description": "Daily dashboard, per-signal reasoning, sequence approve/reject, email composer, stall nudges, score viz, pipeline totals, scoped chat, transparency indicators, suggested prompts",
+    "features": ["G1", "G2", "G4", "G5", "G6", "G11", "G13", "G14", "G15", "G20"],
+    "checkpoint": true,
+    "checkpoint_question": "Does the dashboard make Martin immediately know what to do? Do signals feel trustworthy with citations? Can Martin send an email directly from the AI draft?",
+    "status": "pending"
   }
 ]
