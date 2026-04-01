@@ -21,6 +21,12 @@ const settingsNav = [
       { label: "Notifications", href: "/settings/notifications" },
     ],
   },
+  {
+    label: "Outbound",
+    items: [
+      { label: "Mailboxes", href: "/settings/mailboxes" },
+    ],
+  },
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {

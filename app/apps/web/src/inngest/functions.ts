@@ -1,6 +1,6 @@
 import { inngest } from "./client";
 import { db } from "@/db";
-import { companies, contacts, sequenceSteps, sequenceEnrollments, activities } from "@/db/schema";
+import { companies, contacts, sequenceSteps, sequenceEnrollments, activities, outboundEmails, emailOptouts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { generateObject } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
@@ -311,7 +311,47 @@ Make it more specific and engaging. Keep the core message but add personal touch
       body = enhanced.body;
     }
 
-    // "Send" the email (development mode: log to activities)
+    // Check opt-out before sending
+    const optedOut = await step.run("check-optout", async () => {
+      const [opt] = await db
+        .select()
+        .from(emailOptouts)
+        .where(
+          and(
+            eq(emailOptouts.tenantId, "default"),
+            eq(emailOptouts.emailAddress, contact.email!)
+          )
+        )
+        .limit(1);
+      return !!opt;
+    });
+
+    if (optedOut) {
+      return { enrollmentId, sent: false, reason: "Opted out" };
+    }
+
+    // Create outbound email record (draft or queued depending on autopilot)
+    const outboundEmail = await step.run("create-outbound-email", async () => {
+      const [email] = await db
+        .insert(outboundEmails)
+        .values({
+          tenantId: "default",
+          enrollmentId,
+          contactId: enrollment.contactId,
+          stepNumber: enrollment.currentStep,
+          fromAddress: "pending@rotation", // Will be set by send worker
+          toAddress: contact.email!,
+          subject,
+          bodyHtml: `<div>${body.replace(/\n/g, "<br>")}</div>`,
+          bodyText: body,
+          status: "queued", // Goes straight to queue — review queue can intercept if needed
+          queuedAt: new Date(),
+        })
+        .returning();
+      return email;
+    });
+
+    // Log activity
     await step.run("log-send", async () => {
       await db.insert(activities).values({
         tenantId: "default",
@@ -328,6 +368,7 @@ Make it more specific and engaging. Keep the core message but add personal touch
           sequenceId: enrollment.sequenceId,
           stepNumber: enrollment.currentStep,
           enrollmentId,
+          outboundEmailId: outboundEmail.id,
           to: contact.email,
         },
       });

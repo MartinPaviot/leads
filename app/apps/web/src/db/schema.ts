@@ -10,6 +10,7 @@ import {
   uniqueIndex,
   primaryKey,
   boolean,
+  varchar,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 
@@ -414,5 +415,133 @@ export const sequenceEnrollments = pgTable(
     index("enrollments_sequence_id_idx").on(table.sequenceId),
     index("enrollments_contact_id_idx").on(table.contactId),
     index("enrollments_next_step_idx").on(table.nextStepAt),
+  ]
+);
+
+// === OUTBOUND EMAIL TABLES ===
+
+export const mailboxStatusEnum = pgEnum("mailbox_status", [
+  "warming_up",
+  "active",
+  "paused",
+  "disabled",
+  "error",
+]);
+
+export const outboundStatusEnum = pgEnum("outbound_status", [
+  "draft",
+  "queued",
+  "sending",
+  "sent",
+  "delivered",
+  "bounced",
+  "failed",
+  "skipped",
+]);
+
+export const connectedMailboxes = pgTable(
+  "connected_mailboxes",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    emailAddress: text("email_address").notNull(),
+    displayName: text("display_name"),
+    provider: text("provider").notNull(), // gmail, outlook, smtp_custom
+    eeAccountId: text("ee_account_id").notNull().unique(),
+    domain: text("domain").notNull(),
+    status: mailboxStatusEnum("status").default("warming_up"),
+    dailyLimit: integer("daily_limit").notNull().default(50),
+    sentToday: integer("sent_today").notNull().default(0),
+    sentTotal: integer("sent_total").notNull().default(0),
+    bounceCount7d: integer("bounce_count_7d").notNull().default(0),
+    replyCount7d: integer("reply_count_7d").notNull().default(0),
+    healthScore: integer("health_score").notNull().default(100),
+    warmupStartedAt: timestamp("warmup_started_at", { withTimezone: true }),
+    warmupDailyTarget: integer("warmup_daily_target").default(5),
+    warmupCompletedAt: timestamp("warmup_completed_at", { withTimezone: true }),
+    sendWindowStart: text("send_window_start").default("08:00"),
+    sendWindowEnd: text("send_window_end").default("18:00"),
+    sendDays: jsonb("send_days").default(["mon", "tue", "wed", "thu", "fri"]),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("mailbox_tenant_idx").on(table.tenantId),
+    index("mailbox_status_idx").on(table.status),
+    index("mailbox_domain_idx").on(table.domain),
+    uniqueIndex("mailbox_tenant_email_idx").on(table.tenantId, table.emailAddress),
+  ]
+);
+
+export const outboundEmails = pgTable(
+  "outbound_emails",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    campaignId: text("campaign_id"),
+    enrollmentId: text("enrollment_id").references(() => sequenceEnrollments.id),
+    contactId: text("contact_id").references(() => contacts.id),
+    mailboxId: text("mailbox_id").references(() => connectedMailboxes.id),
+    stepNumber: integer("step_number"),
+    fromAddress: text("from_address").notNull(),
+    toAddress: text("to_address").notNull(),
+    subject: text("subject").notNull(),
+    bodyHtml: text("body_html").notNull(),
+    bodyText: text("body_text"),
+    messageId: text("message_id"),
+    eeMessageId: text("ee_message_id"),
+    threadId: text("thread_id"),
+    inReplyTo: text("in_reply_to"),
+    status: outboundStatusEnum("status").default("draft"),
+    queuedAt: timestamp("queued_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    clickedAt: timestamp("clicked_at", { withTimezone: true }),
+    repliedAt: timestamp("replied_at", { withTimezone: true }),
+    bouncedAt: timestamp("bounced_at", { withTimezone: true }),
+    failedAt: timestamp("failed_at", { withTimezone: true }),
+    replyClassification: text("reply_classification"),
+    replySnippet: text("reply_snippet"),
+    errorMessage: text("error_message"),
+    bounceType: text("bounce_type"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("outbound_tenant_idx").on(table.tenantId),
+    index("outbound_status_idx").on(table.status),
+    index("outbound_mailbox_idx").on(table.mailboxId),
+    index("outbound_contact_idx").on(table.contactId),
+    index("outbound_thread_idx").on(table.threadId),
+    index("outbound_enrollment_idx").on(table.enrollmentId),
+    index("outbound_sent_idx").on(table.sentAt),
+  ]
+);
+
+export const warmupEmails = pgTable(
+  "warmup_emails",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    mailboxId: text("mailbox_id").references(() => connectedMailboxes.id).notNull(),
+    targetMailboxId: text("target_mailbox_id").references(() => connectedMailboxes.id).notNull(),
+    direction: text("direction").notNull(), // sent, received
+    messageId: text("message_id"),
+    status: text("status").notNull().default("pending"), // pending, sent, opened, replied
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  }
+);
+
+export const emailOptouts = pgTable(
+  "email_optouts",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    emailAddress: text("email_address").notNull(),
+    reason: text("reason"), // unsubscribe, bounce_hard, manual
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("optout_tenant_email_idx").on(table.tenantId, table.emailAddress),
   ]
 );
