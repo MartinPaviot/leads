@@ -7,12 +7,10 @@
 **Workaround**: Skip to F2.8 (CSV import) and F2.7 (NL queries) — these provide data without email integration
 **Resolution needed**: Martin creates Google Cloud project + OAuth credentials, or provides a Google account for automated setup
 
-## 3. LLM API Key (F2.7, F1.4) — BLOCKED
+## 3. LLM API Key (F2.7, F1.4) — RESOLVED
 **Date**: 2026-03-31
 **Blocker**: No ANTHROPIC_API_KEY or OPENAI_API_KEY in .env.local
-**Impact**: Chat returns mock responses only, NL queries with citations cannot work, email drafting is dummy
-**Workaround**: Mock responses demonstrate the UI flow. Real AI requires a key.
-**Resolution needed**: Martin adds ANTHROPIC_API_KEY to app/apps/web/.env.local
+**Resolution**: API keys added to .env.local. Chat now works with real Claude Sonnet responses + RAG context from CRM data. Also fixed AI SDK v6 UIMessage format with convertToModelMessages().
 
 ## 2. Clerk Signup (F1.1) — RESOLVED
 **Date**: 2026-03-31

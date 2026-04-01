@@ -73,12 +73,24 @@
 **Tests**: 64 unit tests across 15 test files, all passing
 **MCP**: Context7 + Rippletide Context Graph configured and connected
 
-## FINAL STATUS
-**All 7 milestones complete. 25 features built. 64 tests passing.**
+## Phase 6: Full Visual Evaluation — PASS
+**Date**: 2026-04-01
+**Score**: 0.79/0.70 (PASS all 5 dimensions)
+**Bugs found & fixed**: 6 (2 critical: chat empty responses, AUTH_URL; 4 medium: markdown, 3 missing pages)
+**Data seeded**: 50 accounts enriched, 20 scored, 10 deals ($521,600 pipeline)
+**Tests**: 99 passing across 19 files, no regressions
+
+## CURRENT STATUS
+**M1-M10 complete. 52/53 features pass. 99 tests passing.**
 - M1 Foundation: 6 features (auth, data model, chat, settings, sidebar, Inngest)
-- M2 Memory: 7 features (email sync, calendar, timeline, summarization, RAG, NL queries, CSV import)
+- M2 Memory: 7 features (email sync, calendar [blocked], timeline, summarization, RAG, NL queries, CSV import)
 - M3 Prospecting: 6 features (company enrich, contact enrich, TAM, scoring, signals, semantic search)
 - M4 Outreach: 6 features (sequences, AI writer, autopilot, sending, reply detection, deliverability)
 - M5 Pipeline: 5 features (deals, stage progression, risk detection, summaries, analytics)
 - M6 Intelligence: 3 features (CRO copilot, prioritized actions, proactive insights)
 - M7 Polish: MCP setup (Context7, Rippletide), CLAUDE.md + EVAL_RUBRIC.md updates
+- M8 UX Gap Features: 10 features (dashboard, signal reasoning, sequence flow, email composer, stall detection, score viz, pipeline totals, scoped chat, transparency, suggested prompts)
+- M9 Advanced: 6 features (contact suggestion, follow-up emails, deal timeline, extraction, multi-language, suggested replies)
+- M10 Final: 4 features (lifecycle stages, momentum, custom signals, chat history)
+- SETTINGS-V2: 7 sections (Profile, Agent, General, Members, Knowledge, Stages, Notifications)
+- Phase 6 eval: PASS (0.79), 6 bugs fixed, data seeded
