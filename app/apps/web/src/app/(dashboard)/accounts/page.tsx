@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { Building2, Search, Plus, Zap, Target, Radio, X } from "lucide-react";
 
 interface Account {
   id: string;
@@ -17,6 +18,38 @@ interface Account {
 
 type EnrichStatus = "idle" | "enriching" | "done" | "failed";
 
+// Auto-color badge: hash string to one of 10 category colors
+function badgeColorIndex(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % 10;
+}
+
+const badgeColors = [
+  { bg: "rgba(59,130,246,0.10)", text: "#3b82f6" },
+  { bg: "rgba(34,197,94,0.10)", text: "#22c55e" },
+  { bg: "rgba(168,85,247,0.10)", text: "#a855f7" },
+  { bg: "rgba(249,115,22,0.10)", text: "#f97316" },
+  { bg: "rgba(6,182,212,0.10)", text: "#06b6d4" },
+  { bg: "rgba(239,68,68,0.10)", text: "#ef4444" },
+  { bg: "rgba(132,204,22,0.10)", text: "#84cc16" },
+  { bg: "rgba(99,102,241,0.10)", text: "#6366f1" },
+  { bg: "rgba(236,72,153,0.10)", text: "#ec4899" },
+  { bg: "rgba(245,158,11,0.10)", text: "#f59e0b" },
+];
+
+const lifecycleConfig: Record<string, { bg: string; text: string }> = {
+  new: { bg: "rgba(255,255,255,0.06)", text: "var(--color-text-secondary)" },
+  prospecting: { bg: "rgba(59,130,246,0.12)", text: "#3b82f6" },
+  opportunity: { bg: "rgba(168,85,247,0.12)", text: "#a855f7" },
+  customer: { bg: "rgba(34,197,94,0.12)", text: "#22c55e" },
+  disqualified: { bg: "rgba(239,68,68,0.12)", text: "#ef4444" },
+  inbound: { bg: "rgba(245,158,11,0.12)", text: "#f59e0b" },
+  nurture: { bg: "rgba(236,72,153,0.12)", text: "#ec4899" },
+};
+
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +65,7 @@ export default function AccountsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<string[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [activeSignalPopover, setActiveSignalPopover] = useState<string | null>(null);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -40,634 +74,462 @@ export default function AccountsPage() {
         const data = await res.json();
         setAccounts(data.accounts || []);
       }
-    } catch {
-      console.error("Failed to fetch accounts");
-    } finally {
-      setLoading(false);
-    }
+    } catch { /* */ } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => {
-    fetchAccounts();
-  }, [fetchAccounts]);
+  useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!newName.trim()) return;
     setCreating(true);
-
     try {
       const res = await fetch("/api/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newName.trim(), domain: newDomain.trim() || undefined }),
       });
-      if (res.ok) {
-        setNewName("");
-        setNewDomain("");
-        setShowCreate(false);
-        fetchAccounts();
-      }
-    } catch {
-      console.error("Failed to create account");
-    } finally {
-      setCreating(false);
-    }
+      if (res.ok) { setNewName(""); setNewDomain(""); setShowCreate(false); fetchAccounts(); }
+    } catch { /* */ } finally { setCreating(false); }
   }
 
   async function enrichSingle(id: string) {
     setEnrichStatus((prev) => ({ ...prev, [id]: "enriching" }));
     try {
-      const res = await fetch("/api/enrich", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyIds: [id] }),
-      });
-      if (res.ok) {
-        setEnrichStatus((prev) => ({ ...prev, [id]: "done" }));
-        await fetchAccounts();
-      } else {
-        setEnrichStatus((prev) => ({ ...prev, [id]: "failed" }));
-      }
-    } catch {
-      setEnrichStatus((prev) => ({ ...prev, [id]: "failed" }));
-    }
+      const res = await fetch("/api/enrich", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyIds: [id] }) });
+      setEnrichStatus((prev) => ({ ...prev, [id]: res.ok ? "done" : "failed" }));
+      if (res.ok) await fetchAccounts();
+    } catch { setEnrichStatus((prev) => ({ ...prev, [id]: "failed" })); }
   }
 
   async function enrichAll() {
     const unenriched = accounts.filter((a) => !a.industry && !a.description);
     if (unenriched.length === 0) return;
-
     setEnrichAllRunning(true);
     const ids = unenriched.map((a) => a.id);
-    for (const id of ids) {
-      setEnrichStatus((prev) => ({ ...prev, [id]: "enriching" }));
-    }
-
+    for (const id of ids) setEnrichStatus((prev) => ({ ...prev, [id]: "enriching" }));
     try {
-      const res = await fetch("/api/enrich", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyIds: ids }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        for (const id of ids) {
-          setEnrichStatus((prev) => ({ ...prev, [id]: "done" }));
-        }
-        await fetchAccounts();
-        console.log(`Enriched: ${data.enriched}, Failed: ${data.failed}`);
-      } else {
-        for (const id of ids) {
-          setEnrichStatus((prev) => ({ ...prev, [id]: "failed" }));
-        }
-      }
-    } catch {
-      for (const id of ids) {
-        setEnrichStatus((prev) => ({ ...prev, [id]: "failed" }));
-      }
-    } finally {
-      setEnrichAllRunning(false);
-    }
+      const res = await fetch("/api/enrich", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyIds: ids }) });
+      for (const id of ids) setEnrichStatus((prev) => ({ ...prev, [id]: res.ok ? "done" : "failed" }));
+      if (res.ok) await fetchAccounts();
+    } catch { for (const id of ids) setEnrichStatus((prev) => ({ ...prev, [id]: "failed" })); }
+    finally { setEnrichAllRunning(false); }
   }
 
   async function scoreAll() {
-    const unscoredIds = accounts.filter((a) => a.score == null).map((a) => a.id);
-    if (unscoredIds.length === 0) return;
-
+    const ids = accounts.filter((a) => a.score == null).map((a) => a.id);
+    if (ids.length === 0) return;
     setScoreAllRunning(true);
     try {
-      const res = await fetch("/api/score", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyIds: unscoredIds }),
-      });
-      if (res.ok) {
-        await fetchAccounts();
-      }
-    } catch {
-      console.error("Scoring failed");
-    } finally {
-      setScoreAllRunning(false);
-    }
+      const res = await fetch("/api/score", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyIds: ids }) });
+      if (res.ok) await fetchAccounts();
+    } catch { /* */ } finally { setScoreAllRunning(false); }
   }
 
   async function detectSignals() {
     const ids = accounts.filter((a) => isEnriched(a)).map((a) => a.id);
     if (ids.length === 0) return;
-
     setDetectingSignals(true);
     try {
-      const res = await fetch("/api/signals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyIds: ids }),
-      });
-      if (res.ok) {
-        await fetchAccounts();
-      }
-    } catch {
-      console.error("Signal detection failed");
-    } finally {
-      setDetectingSignals(false);
-    }
+      const res = await fetch("/api/signals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyIds: ids }) });
+      if (res.ok) await fetchAccounts();
+    } catch { /* */ } finally { setDetectingSignals(false); }
   }
 
   async function handleSemanticSearch() {
-    if (!searchQuery.trim()) {
-      setSearchResults(null);
-      return;
-    }
+    if (!searchQuery.trim()) { setSearchResults(null); return; }
     setSearching(true);
     try {
-      const res = await fetch("/api/search/tam", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: searchQuery.trim(), entityType: "company", limit: 20 }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSearchResults(data.results.map((r: { entityId: string }) => r.entityId));
-      }
-    } catch {
-      console.error("Search failed");
-    } finally {
-      setSearching(false);
-    }
+      const res = await fetch("/api/search/tam", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: searchQuery.trim(), entityType: "company", limit: 20 }) });
+      if (res.ok) { const data = await res.json(); setSearchResults(data.results.map((r: { entityId: string }) => r.entityId)); }
+    } catch { /* */ } finally { setSearching(false); }
   }
 
-  function isEnriched(account: Account): boolean {
-    return !!(account.industry && account.description);
-  }
+  function isEnriched(account: Account): boolean { return !!(account.industry && account.description); }
+  function isTAM(account: Account): boolean { return (account.properties as Record<string, unknown>)?.source === "tam"; }
+  function getLifecycleStage(account: Account): string { return ((account.properties as Record<string, unknown>)?.lifecycleStage as string) || "new"; }
 
-  function enrichmentIndicator(account: Account) {
-    const status = enrichStatus[account.id];
-    if (status === "enriching") {
-      return (
-        <span className="inline-flex items-center gap-1 text-[10px] text-amber-400">
-          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
-          Enriching...
-        </span>
-      );
-    }
-    if (status === "failed") {
-      return (
-        <span className="inline-flex items-center gap-1 text-[10px] text-red-400">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-400" />
-          Failed
-        </span>
-      );
-    }
-    if (isEnriched(account)) {
-      return (
-        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
-          Enriched
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] text-[#5a5a70]">
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#5a5a70]" />
-        Pending
-      </span>
-    );
-  }
+  interface Signal { type: string; title: string; description: string; relevance: string; reasoning?: string; sources?: Array<{ url: string; title: string }>; }
+  function getSignals(account: Account): Signal[] { return ((account.properties as Record<string, unknown>)?.signals as Signal[]) || []; }
 
-  function scoreDisplay(account: Account) {
-    if (account.score == null) return "—";
-    const s = Math.round(account.score);
-
-    // Letter grade + heat indicator (Monaco-style)
-    let grade = "F";
-    let heat = "Cold";
-    let heatIcon = "❄️";
-    let gradeColor = "text-red-400";
-    let heatColor = "text-[#5a5a70]";
-
-    if (s >= 90) { grade = "A"; heat = "Burning"; heatIcon = "🔥"; gradeColor = "text-emerald-400"; heatColor = "text-orange-400"; }
-    else if (s >= 80) { grade = "A"; heat = "Hot"; heatIcon = "🔥"; gradeColor = "text-emerald-400"; heatColor = "text-orange-400"; }
-    else if (s >= 70) { grade = "B"; heat = "Warm"; heatIcon = "☀️"; gradeColor = "text-amber-400"; heatColor = "text-amber-400"; }
-    else if (s >= 60) { grade = "B"; heat = "Warm"; heatIcon = "☀️"; gradeColor = "text-amber-400"; heatColor = "text-amber-400"; }
-    else if (s >= 50) { grade = "C"; heat = "Cool"; heatIcon = ""; gradeColor = "text-orange-400"; heatColor = "text-[#5a5a70]"; }
-    else if (s >= 40) { grade = "C"; heat = "Cool"; heatIcon = ""; gradeColor = "text-orange-400"; heatColor = "text-[#5a5a70]"; }
-    else if (s >= 30) { grade = "D"; heat = "Cold"; heatIcon = "❄️"; gradeColor = "text-red-400"; heatColor = "text-blue-400"; }
-    else { grade = "F"; heat = "Cold"; heatIcon = "❄️"; gradeColor = "text-red-400"; heatColor = "text-blue-400"; }
-
-    const reasons = account.scoreReasons;
-    return (
-      <span className="flex items-center gap-1.5" title={reasons?.join("; ") || ""}>
-        <span className={`font-bold ${gradeColor}`}>{grade}</span>
-        {heatIcon && <span className="text-xs">{heatIcon}</span>}
-        <span className={`text-xs ${heatColor}`}>{heat}</span>
-      </span>
-    );
-  }
-
-  const signalColors: Record<string, string> = {
-    hiring: "bg-blue-500/15 text-blue-400",
-    funding: "bg-emerald-500/15 text-emerald-400",
-    tech_change: "bg-purple-500/15 text-purple-400",
-    news: "bg-gray-500/15 text-gray-400",
-    expansion: "bg-amber-500/15 text-amber-400",
-    leadership_change: "bg-pink-500/15 text-pink-400",
-  };
-
-  interface Signal {
-    type: string;
-    title: string;
-    description: string;
-    relevance: string;
-    reasoning?: string;
-    sources?: Array<{ url: string; title: string }>;
-  }
-
-  function getSignals(account: Account): Signal[] {
-    const props = account.properties as Record<string, unknown> | null;
-    return (props?.signals as Signal[]) || [];
-  }
-
-  const [activeSignalPopover, setActiveSignalPopover] = useState<string | null>(null);
-
-  function signalBadges(account: Account) {
-    const signals = getSignals(account);
-    if (signals.length === 0) return <span className="text-xs text-[#5a5a70]">—</span>;
-    return (
-      <div className="relative flex flex-wrap gap-1">
-        {signals.slice(0, 3).map((signal, i) => {
-          const popoverId = `${account.id}-${i}`;
-          return (
-            <span key={i} className="relative">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveSignalPopover(activeSignalPopover === popoverId ? null : popoverId);
-                }}
-                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-medium cursor-pointer hover:ring-1 hover:ring-[#6366f1] ${signalColors[signal.type] || signalColors.news}`}
-              >
-                {signal.type.replace("_", " ")}
-              </button>
-              {activeSignalPopover === popoverId && (
-                <div className="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3 shadow-xl">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${signalColors[signal.type] || signalColors.news}`}>
-                      {signal.type.replace("_", " ")}
-                    </span>
-                    <span className={`text-[9px] font-semibold uppercase ${signal.relevance === "high" ? "text-emerald-400" : signal.relevance === "medium" ? "text-amber-400" : "text-[#5a5a70]"}`}>
-                      {signal.relevance}
-                    </span>
-                  </div>
-                  <p className="text-xs font-medium text-[#e8e8ed]">{signal.title}</p>
-                  <p className="mt-1 text-[11px] text-[#8b8ba0]">{signal.description}</p>
-                  {signal.reasoning && (
-                    <div className="mt-2 border-t border-[#1e1f2a] pt-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#5a5a70] mb-1">Reasoning</p>
-                      <p className="text-[11px] text-[#8b8ba0]">{signal.reasoning}</p>
-                    </div>
-                  )}
-                  {signal.sources && signal.sources.length > 0 && (
-                    <div className="mt-2 border-t border-[#1e1f2a] pt-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#5a5a70] mb-1">Sources</p>
-                      <div className="space-y-1">
-                        {signal.sources.map((source, si) => (
-                          <a
-                            key={si}
-                            href={source.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 text-[11px] text-[#6366f1] hover:underline"
-                          >
-                            <span className="flex-shrink-0 w-3 h-3 rounded bg-[#1e1f2a] flex items-center justify-center text-[8px] text-[#5a5a70]">↗</span>
-                            <span className="truncate">{source.title}</span>
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setActiveSignalPopover(null); }}
-                    className="mt-2 w-full text-center text-[10px] text-[#5a5a70] hover:text-[#8b8ba0]"
-                  >
-                    Close
-                  </button>
-                </div>
-              )}
-            </span>
-          );
-        })}
-        {signals.length > 3 && (
-          <span className="text-[9px] text-[#5a5a70]">+{signals.length - 3}</span>
-        )}
-      </div>
-    );
-  }
-
-  function isTAM(account: Account): boolean {
-    return (account.properties as Record<string, unknown>)?.source === "tam";
-  }
-
-  // G16: 7 Account Lifecycle Stages
-  const lifecycleColors: Record<string, string> = {
-    new: "bg-[#5a5a70]/20 text-[#8b8ba0]",
-    prospecting: "bg-blue-500/15 text-blue-400",
-    opportunity: "bg-purple-500/15 text-purple-400",
-    customer: "bg-emerald-500/15 text-emerald-400",
-    disqualified: "bg-red-500/15 text-red-400",
-    inbound: "bg-amber-500/15 text-amber-400",
-    nurture: "bg-pink-500/15 text-pink-400",
-  };
-
-  function getLifecycleStage(account: Account): string {
-    return ((account.properties as Record<string, unknown>)?.lifecycleStage as string) || "new";
-  }
-
-  function lifecycleBadge(account: Account) {
-    const stage = getLifecycleStage(account);
-    return (
-      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-medium capitalize ${lifecycleColors[stage] || lifecycleColors.new}`}>
-        {stage}
-      </span>
-    );
-  }
-
-  // G18: Custom Boolean Signal Columns
   const [customBoolColumns] = useState<string[]>(["Common Investor?", "Sales-led?"]);
-
   function getCustomBool(account: Account, column: string): boolean | null {
-    const props = account.properties as Record<string, unknown> | null;
-    const customs = props?.customBools as Record<string, boolean> | undefined;
+    const customs = (account.properties as Record<string, unknown>)?.customBools as Record<string, boolean> | undefined;
     return customs?.[column] ?? null;
-  }
-
-  function customBoolCell(account: Account, column: string) {
-    const val = getCustomBool(account, column);
-    if (val === null) return <span className="text-[10px] text-[#5a5a70]">—</span>;
-    return val
-      ? <span className="text-[10px] font-medium text-emerald-400">Yes</span>
-      : <span className="text-[10px] text-[#5a5a70]">No</span>;
   }
 
   const filteredAccounts = accounts
     .filter((a) => {
-      // Source filter
       if (filter === "tam" && !isTAM(a)) return false;
       if (filter === "manual" && isTAM(a)) return false;
-      // Text search filter
       if (searchQuery.trim() && !searchResults) {
         const q = searchQuery.toLowerCase();
-        return (
-          a.name.toLowerCase().includes(q) ||
-          (a.domain?.toLowerCase().includes(q) ?? false) ||
-          (a.industry?.toLowerCase().includes(q) ?? false)
-        );
+        return a.name.toLowerCase().includes(q) || (a.domain?.toLowerCase().includes(q) ?? false) || (a.industry?.toLowerCase().includes(q) ?? false);
       }
-      // Semantic search results
-      if (searchResults) {
-        return searchResults.includes(a.id);
-      }
+      if (searchResults) return searchResults.includes(a.id);
       return true;
     })
-    .sort((a, b) => {
-      // If semantic search, sort by search result order
-      if (searchResults) {
-        return searchResults.indexOf(a.id) - searchResults.indexOf(b.id);
-      }
-      return (b.score ?? -1) - (a.score ?? -1);
-    });
+    .sort((a, b) => searchResults ? searchResults.indexOf(a.id) - searchResults.indexOf(b.id) : (b.score ?? -1) - (a.score ?? -1));
 
   const unenrichedCount = accounts.filter((a) => !isEnriched(a)).length;
   const tamCount = accounts.filter(isTAM).length;
 
+  // === RENDER ===
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Accounts</h1>
-          <p className="mt-1 text-sm text-[#5a5a70]">
-            {accounts.length} account{accounts.length !== 1 ? "s" : ""}
-            {tamCount > 0 && ` · ${tamCount} TAM`}
-            {unenrichedCount > 0 && ` · ${unenrichedCount} unenriched`}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={detectSignals}
-            disabled={detectingSignals}
-            className="rounded-lg border border-[#1e1f2a] px-4 py-2 text-sm font-medium text-[#e8e8ed] hover:bg-[#1e1f2a] disabled:opacity-50"
+    <div className="flex h-full flex-col">
+      {/* Page header */}
+      <div
+        className="flex items-center gap-3 px-6"
+        style={{ height: "var(--header-height)", borderBottom: "0.5px solid var(--color-border-default)" }}
+      >
+        <Building2 size={16} style={{ color: "var(--color-text-tertiary)" }} />
+        <h1 className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+          Accounts
+        </h1>
+        <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+          {accounts.length}
+        </span>
+
+        <div className="ml-auto flex items-center gap-1.5">
+          <button onClick={detectSignals} disabled={detectingSignals}
+            className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[12px] font-medium transition-colors disabled:opacity-40"
+            style={{ border: "0.5px solid var(--color-border-moderate)", color: "var(--color-text-primary)" }}
           >
-            {detectingSignals ? "Detecting..." : "Detect Signals"}
+            <Radio size={13} />
+            {detectingSignals ? "Detecting..." : "Signals"}
           </button>
           {accounts.some((a) => a.score == null) && (
-            <button
-              onClick={scoreAll}
-              disabled={scoreAllRunning}
-              className="rounded-lg border border-[#1e1f2a] px-4 py-2 text-sm font-medium text-[#e8e8ed] hover:bg-[#1e1f2a] disabled:opacity-50"
+            <button onClick={scoreAll} disabled={scoreAllRunning}
+              className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[12px] font-medium transition-colors disabled:opacity-40"
+              style={{ border: "0.5px solid var(--color-border-moderate)", color: "var(--color-text-primary)" }}
             >
-              {scoreAllRunning ? "Scoring..." : "Score All"}
+              <Target size={13} />
+              {scoreAllRunning ? "Scoring..." : "Score"}
             </button>
           )}
           {unenrichedCount > 0 && (
-            <button
-              onClick={enrichAll}
-              disabled={enrichAllRunning}
-              className="rounded-lg border border-[#1e1f2a] px-4 py-2 text-sm font-medium text-[#e8e8ed] hover:bg-[#1e1f2a] disabled:opacity-50"
+            <button onClick={enrichAll} disabled={enrichAllRunning}
+              className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[12px] font-medium transition-colors disabled:opacity-40"
+              style={{ border: "0.5px solid var(--color-border-moderate)", color: "var(--color-text-primary)" }}
             >
-              {enrichAllRunning ? "Enriching..." : `Enrich All (${unenrichedCount})`}
+              <Zap size={13} />
+              {enrichAllRunning ? "Enriching..." : `Enrich (${unenrichedCount})`}
             </button>
           )}
-          <button
-            onClick={() => setShowCreate(true)}
-            className="rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6]"
+          <button onClick={() => setShowCreate(true)}
+            className="flex h-7 items-center gap-1 rounded-md px-2.5 text-[12px] font-medium text-white"
+            style={{ background: "var(--color-accent)" }}
           >
-            + Create account
+            <Plus size={13} />
+            Create account
           </button>
         </div>
       </div>
 
-      {/* Search bar */}
-      <div className="mt-4 flex gap-2">
-        <input
-          value={searchQuery}
-          onChange={(e) => {
-            setSearchQuery(e.target.value);
-            if (!e.target.value.trim()) setSearchResults(null);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleSemanticSearch();
-          }}
-          placeholder="Search accounts... (Enter for AI search)"
-          className="flex-1 rounded-lg border border-[#1e1f2a] bg-[#12131a] px-3 py-2 text-sm text-[#e8e8ed] placeholder-[#5a5a70] focus:border-[#6366f1] focus:outline-none"
-        />
-        <button
-          onClick={handleSemanticSearch}
-          disabled={searching || !searchQuery.trim()}
-          className="rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6] disabled:opacity-50"
-        >
-          {searching ? "Searching..." : "AI Search"}
-        </button>
-        {searchResults && (
-          <button
-            onClick={() => { setSearchResults(null); setSearchQuery(""); }}
-            className="rounded-lg border border-[#1e1f2a] px-3 py-2 text-sm text-[#8b8ba0] hover:text-[#e8e8ed]"
-          >
-            Clear
-          </button>
-        )}
+      {/* Filter bar */}
+      <div
+        className="flex items-center gap-3 px-6"
+        style={{ height: "var(--filter-bar-height)", borderBottom: "0.5px solid var(--color-border-default)" }}
+      >
+        {/* Filter tabs */}
+        <div className="flex gap-0.5">
+          {(["all", "tam", "manual"] as const).map((f) => (
+            <button key={f} onClick={() => setFilter(f)}
+              className="rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
+              style={{
+                background: filter === f ? "var(--color-accent-soft)" : "transparent",
+                color: filter === f ? "var(--color-accent)" : "var(--color-text-tertiary)",
+              }}
+            >
+              {f === "all" ? "All" : f === "tam" ? `TAM (${tamCount})` : "Manual"}
+            </button>
+          ))}
+        </div>
+
+        <div className="ml-auto flex items-center gap-2">
+          <div className="relative flex items-center">
+            <Search size={13} className="absolute left-2.5" style={{ color: "var(--color-text-muted)" }} />
+            <input
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); if (!e.target.value.trim()) setSearchResults(null); }}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSemanticSearch(); }}
+              placeholder="Search accounts..."
+              className="h-7 w-52 rounded-md pl-8 pr-2 text-[12px] outline-none transition-colors"
+              style={{ background: "var(--color-bg-surface)", border: "0.5px solid var(--color-border-default)", color: "var(--color-text-primary)" }}
+            />
+          </div>
+          {searchResults && (
+            <button onClick={() => { setSearchResults(null); setSearchQuery(""); }}
+              className="flex h-6 w-6 items-center justify-center rounded-md"
+              style={{ color: "var(--color-text-tertiary)" }}
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Filter tabs */}
-      <div className="mt-3 flex gap-1">
-        {(["all", "tam", "manual"] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
-              filter === f
-                ? "bg-[#6366f1]/15 text-[#6366f1]"
-                : "text-[#5a5a70] hover:text-[#8b8ba0]"
-            }`}
-          >
-            {f === "all" ? "All" : f === "tam" ? "TAM" : "Manual"}
-          </button>
-        ))}
-      </div>
-
+      {/* Create form */}
       {showCreate && (
-        <form onSubmit={handleCreate} className="mt-4 flex gap-2">
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Company name"
-            autoFocus
-            className="flex-1 rounded-lg border border-[#1e1f2a] bg-[#12131a] px-3 py-2 text-sm text-[#e8e8ed] placeholder-[#5a5a70] focus:border-[#6366f1] focus:outline-none"
-          />
-          <input
-            value={newDomain}
-            onChange={(e) => setNewDomain(e.target.value)}
-            placeholder="Domain (optional)"
-            className="w-48 rounded-lg border border-[#1e1f2a] bg-[#12131a] px-3 py-2 text-sm text-[#e8e8ed] placeholder-[#5a5a70] focus:border-[#6366f1] focus:outline-none"
-          />
-          <button
-            type="submit"
-            disabled={creating || !newName.trim()}
-            className="rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6] disabled:opacity-50"
-          >
-            {creating ? "Creating..." : "Create"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowCreate(false)}
-            className="rounded-lg border border-[#1e1f2a] px-4 py-2 text-sm text-[#8b8ba0] hover:text-[#e8e8ed]"
-          >
-            Cancel
-          </button>
-        </form>
+        <div className="flex items-center gap-2 px-6 py-2" style={{ borderBottom: "0.5px solid var(--color-border-default)" }}>
+          <form onSubmit={handleCreate} className="flex flex-1 items-center gap-2">
+            <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Company name" autoFocus
+              className="h-7 flex-1 rounded-md px-2.5 text-[12px] outline-none"
+              style={{ background: "var(--color-bg-surface)", border: "0.5px solid var(--color-border-moderate)", color: "var(--color-text-primary)" }}
+            />
+            <input value={newDomain} onChange={(e) => setNewDomain(e.target.value)} placeholder="Domain"
+              className="h-7 w-40 rounded-md px-2.5 text-[12px] outline-none"
+              style={{ background: "var(--color-bg-surface)", border: "0.5px solid var(--color-border-moderate)", color: "var(--color-text-primary)" }}
+            />
+            <button type="submit" disabled={creating || !newName.trim()}
+              className="h-7 rounded-md px-3 text-[12px] font-medium text-white disabled:opacity-40"
+              style={{ background: "var(--color-accent)" }}>
+              {creating ? "..." : "Create"}
+            </button>
+            <button type="button" onClick={() => setShowCreate(false)}
+              className="h-7 rounded-md px-3 text-[12px] font-medium"
+              style={{ color: "var(--color-text-tertiary)" }}>
+              Cancel
+            </button>
+          </form>
+        </div>
       )}
 
-      <div className="mt-6">
+      {/* Table */}
+      <div className="flex-1 overflow-auto">
         {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-12 animate-pulse rounded-lg bg-[#1e1f2a]" />
+          <div className="space-y-1 p-6">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="skeleton h-10 rounded-md" />
             ))}
           </div>
         ) : accounts.length === 0 ? (
-          <div className="py-16 text-center">
-            <p className="text-sm font-medium text-[#8b8ba0]">No accounts</p>
-            <p className="mt-1 text-sm text-[#5a5a70]">
+          <div className="flex flex-col items-center justify-center py-20">
+            <Building2 size={32} style={{ color: "var(--color-text-muted)" }} />
+            <p className="mt-3 text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+              No accounts
+            </p>
+            <p className="mt-1 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
               Create accounts or import contacts to get started.
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead>
-                <tr className="border-b border-[#1e1f2a] text-[11px] uppercase tracking-wider text-[#5a5a70]">
-                  <th className="pb-2 pr-4">Status</th>
-                  <th className="pb-2 pr-4">Account</th>
-                  <th className="pb-2 pr-4">Domain</th>
-                  <th className="pb-2 pr-4">Industry</th>
-                  <th className="pb-2 pr-4">Size</th>
-                  <th className="pb-2 pr-4">Revenue</th>
-                  <th className="pb-2 pr-4">Stage</th>
-                  <th className="pb-2 pr-4">Score</th>
-                  <th className="pb-2 pr-4">Signals</th>
-                  {customBoolColumns.map((col) => (
-                    <th key={col} className="pb-2 pr-4 text-[10px]">{col}</th>
-                  ))}
-                  <th className="pb-2 pr-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredAccounts.map((account) => (
-                  <tr
-                    key={account.id}
-                    className="border-b border-[#1e1f2a] hover:bg-[#12131a]"
+          <table className="w-full text-left" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
+            <thead>
+              <tr style={{ height: "36px" }}>
+                {["", "Account", "Domain", "Industry", "Size", "Revenue", "Stage", "Score", "Signals",
+                  ...customBoolColumns, ""].map((col, i) => (
+                  <th key={i}
+                    className="sticky top-0 z-10 whitespace-nowrap px-3 text-[11px] font-medium uppercase tracking-wider"
+                    style={{
+                      color: "var(--color-text-tertiary)",
+                      background: "var(--color-bg-surface)",
+                      borderBottom: "0.5px solid var(--color-border-moderate)",
+                    }}
                   >
-                    <td className="py-3 pr-4">
-                      <div className="flex flex-col gap-0.5">
-                        {enrichmentIndicator(account)}
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredAccounts.map((account) => {
+                const lc = getLifecycleStage(account);
+                const lcStyle = lifecycleConfig[lc] || lifecycleConfig.new;
+                const signals = getSignals(account);
+
+                return (
+                  <tr key={account.id} className="group transition-colors"
+                    style={{ height: "var(--table-row-height)", borderBottom: "0.5px solid var(--color-border-default)" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-muted)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                  >
+                    {/* Status */}
+                    <td className="px-3">
+                      <div className="flex items-center gap-1.5">
+                        {enrichStatus[account.id] === "enriching" ? (
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: "var(--color-warning)" }} />
+                        ) : isEnriched(account) ? (
+                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-success)" }} />
+                        ) : enrichStatus[account.id] === "failed" ? (
+                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-error)" }} />
+                        ) : (
+                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-text-muted)" }} />
+                        )}
                         {isTAM(account) && (
-                          <span className="inline-flex w-fit items-center rounded bg-[#6366f1]/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-[#6366f1]">
+                          <span className="rounded px-1 py-0.5 text-[9px] font-semibold uppercase"
+                            style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
                             TAM
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="py-3 pr-4 max-w-[200px]">
-                      <div>
-                        <a href={`/accounts/${account.id}`} className="font-medium text-[#e8e8ed] hover:text-[#6366f1]">{account.name}</a>
-                        {account.description && (
-                          <p className="mt-0.5 max-w-[200px] truncate text-xs text-[#5a5a70]" title={account.description}>
-                            {account.description}
-                          </p>
-                        )}
-                      </div>
+
+                    {/* Account name */}
+                    <td className="px-3">
+                      <a href={`/accounts/${account.id}`}
+                        className="text-[13px] font-medium transition-colors hover:underline"
+                        style={{ color: "var(--color-text-primary)" }}>
+                        {account.name}
+                      </a>
+                      {account.description && (
+                        <p className="mt-0.5 max-w-[180px] truncate text-[11px]"
+                          style={{ color: "var(--color-text-tertiary)" }} title={account.description}>
+                          {account.description}
+                        </p>
+                      )}
                     </td>
-                    <td className="py-3 pr-4 text-[#8b8ba0]">
+
+                    {/* Domain */}
+                    <td className="px-3 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
                       {account.domain || "—"}
                     </td>
-                    <td className="py-3 pr-4 text-[#8b8ba0]">
-                      {account.industry || "—"}
+
+                    {/* Industry — auto-colored badge */}
+                    <td className="px-3">
+                      {account.industry ? (
+                        <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium"
+                          style={{
+                            background: badgeColors[badgeColorIndex(account.industry)].bg,
+                            color: badgeColors[badgeColorIndex(account.industry)].text,
+                            border: "0.5px solid var(--color-border-default)",
+                          }}>
+                          {account.industry}
+                        </span>
+                      ) : <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>}
                     </td>
-                    <td className="py-3 pr-4 text-[#8b8ba0]">
+
+                    {/* Size */}
+                    <td className="px-3 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
                       {account.size || "—"}
                     </td>
-                    <td className="py-3 pr-4 text-[#8b8ba0]">
+
+                    {/* Revenue */}
+                    <td className="px-3 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
                       {account.revenue || "—"}
                     </td>
-                    <td className="py-3 pr-4">
-                      {lifecycleBadge(account)}
+
+                    {/* Lifecycle stage */}
+                    <td className="px-3">
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium capitalize"
+                        style={{ background: lcStyle.bg, color: lcStyle.text }}>
+                        {lc}
+                      </span>
                     </td>
-                    <td className="py-3 pr-4">
-                      {scoreDisplay(account)}
+
+                    {/* Score */}
+                    <td className="px-3">
+                      {account.score != null ? (() => {
+                        const s = Math.round(account.score!);
+                        const grade = s >= 80 ? "A" : s >= 60 ? "B" : s >= 40 ? "C" : s >= 20 ? "D" : "F";
+                        const heat = s >= 80 ? "Burning" : s >= 60 ? "Warm" : s >= 40 ? "Cool" : "Cold";
+                        const icon = s >= 80 ? "🔥" : s >= 60 ? "☀️" : "";
+                        const gradeColor = s >= 80 ? "var(--color-success)" : s >= 60 ? "var(--color-warning)" : s >= 40 ? "var(--color-info)" : "var(--color-text-tertiary)";
+                        return (
+                          <span className="flex items-center gap-1" title={account.scoreReasons?.join("; ") || ""}>
+                            <span className="text-[12px] font-bold" style={{ color: gradeColor }}>{grade}</span>
+                            {icon && <span className="text-[11px]">{icon}</span>}
+                            <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{heat}</span>
+                          </span>
+                        );
+                      })() : <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>}
                     </td>
-                    <td className="py-3 pr-4">
-                      {signalBadges(account)}
+
+                    {/* Signals */}
+                    <td className="px-3">
+                      {signals.length === 0 ? (
+                        <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>
+                      ) : (
+                        <div className="relative flex flex-wrap gap-1">
+                          {signals.slice(0, 3).map((signal, i) => {
+                            const popoverId = `${account.id}-${i}`;
+                            const idx = badgeColorIndex(signal.type);
+                            return (
+                              <span key={i} className="relative">
+                                <button onClick={(e) => { e.stopPropagation(); setActiveSignalPopover(activeSignalPopover === popoverId ? null : popoverId); }}
+                                  className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors"
+                                  style={{ background: badgeColors[idx].bg, color: badgeColors[idx].text, border: "0.5px solid var(--color-border-default)" }}>
+                                  {signal.type.replace("_", " ")}
+                                </button>
+                                {activeSignalPopover === popoverId && (
+                                  <div className="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg p-3"
+                                    style={{ background: "var(--color-bg-elevated)", border: "0.5px solid var(--color-border-moderate)", boxShadow: "var(--shadow-floating)" }}>
+                                    <div className="mb-2 flex items-center justify-between">
+                                      <span className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+                                        style={{ background: badgeColors[idx].bg, color: badgeColors[idx].text }}>
+                                        {signal.type.replace("_", " ")}
+                                      </span>
+                                      <span className="text-[10px] font-semibold uppercase"
+                                        style={{ color: signal.relevance === "high" ? "var(--color-success)" : signal.relevance === "medium" ? "var(--color-warning)" : "var(--color-text-tertiary)" }}>
+                                        {signal.relevance}
+                                      </span>
+                                    </div>
+                                    <p className="text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>{signal.title}</p>
+                                    <p className="mt-1 text-[11px]" style={{ color: "var(--color-text-secondary)" }}>{signal.description}</p>
+                                    {signal.reasoning && (
+                                      <div className="mt-2 pt-2" style={{ borderTop: "0.5px solid var(--color-border-default)" }}>
+                                        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Reasoning</p>
+                                        <p className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>{signal.reasoning}</p>
+                                      </div>
+                                    )}
+                                    {signal.sources && signal.sources.length > 0 && (
+                                      <div className="mt-2 space-y-1 pt-2" style={{ borderTop: "0.5px solid var(--color-border-default)" }}>
+                                        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Sources</p>
+                                        {signal.sources.map((src, si) => (
+                                          <a key={si} href={src.url} target="_blank" rel="noopener noreferrer"
+                                            className="flex items-center gap-1.5 text-[11px] hover:underline" style={{ color: "var(--color-accent)" }}>
+                                            <span className="shrink-0">↗</span>
+                                            <span className="truncate">{src.title}</span>
+                                          </a>
+                                        ))}
+                                      </div>
+                                    )}
+                                    <button onClick={(e) => { e.stopPropagation(); setActiveSignalPopover(null); }}
+                                      className="mt-2 w-full text-center text-[10px] transition-colors"
+                                      style={{ color: "var(--color-text-muted)" }}>
+                                      Close
+                                    </button>
+                                  </div>
+                                )}
+                              </span>
+                            );
+                          })}
+                          {signals.length > 3 && <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>+{signals.length - 3}</span>}
+                        </div>
+                      )}
                     </td>
-                    {customBoolColumns.map((col) => (
-                      <td key={col} className="py-3 pr-4">
-                        {customBoolCell(account, col)}
-                      </td>
-                    ))}
-                    <td className="py-3 pr-4">
+
+                    {/* Custom bool columns */}
+                    {customBoolColumns.map((col) => {
+                      const val = getCustomBool(account, col);
+                      return (
+                        <td key={col} className="px-3 text-[11px] font-medium">
+                          {val === null ? (
+                            <span style={{ color: "var(--color-text-muted)" }}>—</span>
+                          ) : val ? (
+                            <span style={{ color: "var(--color-success)" }}>Yes</span>
+                          ) : (
+                            <span style={{ color: "var(--color-text-muted)" }}>No</span>
+                          )}
+                        </td>
+                      );
+                    })}
+
+                    {/* Actions */}
+                    <td className="px-3">
                       {!isEnriched(account) && enrichStatus[account.id] !== "enriching" && (
-                        <button
-                          onClick={() => enrichSingle(account.id)}
-                          className="rounded px-2 py-1 text-xs text-[#6366f1] hover:bg-[#6366f1]/10"
-                        >
+                        <button onClick={() => enrichSingle(account.id)}
+                          className="rounded px-2 py-0.5 text-[11px] font-medium transition-colors"
+                          style={{ color: "var(--color-accent)" }}>
                           Enrich
                         </button>
                       )}
-                      {enrichStatus[account.id] === "enriching" && (
-                        <span className="text-xs text-amber-400">...</span>
-                      )}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
     </div>
