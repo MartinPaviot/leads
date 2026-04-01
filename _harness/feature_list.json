@@ -715,5 +715,174 @@
     "passes": true,
     "attempts": 1,
     "completeness_target": 7
+  },
+  {
+    "id": "G21",
+    "name": "Mail pre-connection configuration",
+    "area": "Settings",
+    "milestone": "M11",
+    "description": "Backsync range (1-24mo), visibility (metadata/full), do-not-track domains, auto-creation mode (disabled/selective/always) configured BEFORE OAuth flow",
+    "dependencies": [
+      "F2.1"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 9
+  },
+  {
+    "id": "G22",
+    "name": "Custom fields / Data model",
+    "area": "Settings",
+    "milestone": "M11",
+    "description": "Data model settings page: create custom fields per entity, field types (Text, Date, Single/Multi select, URL, Social handle, Address, Markdown), AI fill mode per field (Auto/Suggest/Off)",
+    "dependencies": [
+      "F1.3"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 10
+  },
+  {
+    "id": "G23",
+    "name": "Company logos in tables",
+    "area": "UI Polish",
+    "milestone": "M11",
+    "description": "Fetch and display company logos (~24px rounded square) next to account names in tables via Clearbit Logo API or similar",
+    "dependencies": [
+      "F3.1"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 7
+  },
+  {
+    "id": "G24",
+    "name": "Persistent chat across all pages",
+    "area": "Intelligence",
+    "milestone": "M11",
+    "description": "Chat input bar visible at bottom of ALL pages (accounts, contacts, opportunities, sequences, etc.), not just dashboard and chat page",
+    "dependencies": [
+      "F6.1"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 8
+  },
+  {
+    "id": "G25",
+    "name": "Score visualization upgrade",
+    "area": "Prospecting",
+    "milestone": "M11",
+    "description": "Replace numeric scores with letter grades (A-F) + fire emoji + heat label (Burning/Warm/Cool/Cold). Map: 90+→A, 75+→B, 60+→C, below→D",
+    "dependencies": [
+      "F3.4"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 8
+  },
+  {
+    "id": "G26",
+    "name": "Dashboard weekly summary with real metrics",
+    "area": "Intelligence",
+    "milestone": "M11",
+    "description": "Replace 'No activity' empty state with real weekly metrics: sequences launched, responses received, meetings held, opportunities created/closed",
+    "dependencies": [
+      "G1"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 8
+  },
+  {
+    "id": "G27",
+    "name": "Individual signal columns with reasoning",
+    "area": "Prospecting",
+    "milestone": "M11",
+    "description": "Show detected signals as individual Yes/No columns in accounts table (not count badge). Each Yes opens reasoning popover with Reasoning + Sources tabs",
+    "dependencies": [
+      "G2"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 9
+  },
+  {
+    "id": "G28",
+    "name": "Microsoft OAuth email sync",
+    "area": "Memory",
+    "milestone": "M11",
+    "description": "Add Microsoft Graph API integration for Outlook/Office 365 email and calendar sync alongside existing Gmail",
+    "dependencies": [
+      "F2.1"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 9
+  },
+  {
+    "id": "G29",
+    "name": "Stage descriptions for AI auto-progression",
+    "area": "Settings",
+    "milestone": "M11",
+    "description": "Add description field to opportunity stages that AI reads for auto-progression decisions. AI fill mode (Auto/Suggest/Off) per stage. Optional custom AI prompt",
+    "dependencies": [
+      "F5.2"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 8
+  },
+  {
+    "id": "G30",
+    "name": "Slide-over detail panels",
+    "area": "UI Polish",
+    "milestone": "M11",
+    "description": "Click row in list → 400px slide-over panel from right with entity details, properties, related records. Close/expand buttons. Lightfield pattern",
+    "dependencies": [
+      "F1.3"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 8
+  },
+  {
+    "id": "G31",
+    "name": "Meeting recording + AI notes",
+    "area": "Memory",
+    "milestone": "M12",
+    "description": "Integrate meeting recording (Recall.ai or similar), split view: video left 60% + AI notes right 40%. Real-time transcription, summary, key points, structured extraction",
+    "dependencies": [
+      "F2.2"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 9
+  },
+  {
+    "id": "G32",
+    "name": "Notification 3-channel system",
+    "area": "Settings",
+    "milestone": "M12",
+    "description": "6 notification types × 3 channels (Slack/Email/In-app) with per-type toggles and timing config for task reminders",
+    "dependencies": [
+      "F1.5"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 7
+  },
+  {
+    "id": "G33",
+    "name": "Domain exclusion for own company",
+    "area": "Settings",
+    "milestone": "M11",
+    "description": "Workspace setting: list of domains associated with own company. Prevent auto-creation of accounts for these domains",
+    "dependencies": [
+      "F1.5"
+    ],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 6
   }
 ]
