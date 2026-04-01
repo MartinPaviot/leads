@@ -20,6 +20,7 @@ import {
   Clock,
   Zap,
 } from "lucide-react";
+import { PersistentChatBar } from "@/components/persistent-chat-bar";
 
 const navSections = [
   {
@@ -201,7 +202,10 @@ export default async function DashboardLayout({
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto">{children}</main>
+      <main className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex-1 overflow-auto">{children}</div>
+        <PersistentChatBar />
+      </main>
 
       {/* Sidebar nav hover/active styles */}
       <style>{`

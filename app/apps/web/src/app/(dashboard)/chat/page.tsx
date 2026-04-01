@@ -3,22 +3,34 @@
 import { useChat } from "@ai-sdk/react";
 import { TextStreamChatTransport } from "ai";
 import { useRef, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { EmailComposer } from "@/components/email-composer";
 import { Sparkles, Send, Mail } from "lucide-react";
 
 export default function ChatPage() {
+  const searchParams = useSearchParams();
   const chat = useChat({
     transport: new TextStreamChatTransport({ api: "/api/chat" }),
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [localInput, setLocalInput] = useState("");
+  const [autoSent, setAutoSent] = useState(false);
   const [emailComposer, setEmailComposer] = useState<{
     to: string;
     subject: string;
     body: string;
   } | null>(null);
+
+  // Auto-send query from persistent chat bar
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q && !autoSent && chat.messages.length === 0) {
+      setAutoSent(true);
+      chat.sendMessage({ text: q });
+    }
+  }, [searchParams, autoSent, chat]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
