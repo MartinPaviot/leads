@@ -1,6 +1,6 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
-import { streamText } from "ai";
+import { streamText, UIMessage, convertToModelMessages } from "ai";
 import { searchSimilar } from "@/lib/embeddings";
 import { db } from "@/db";
 import { companies, contacts, deals } from "@/db/schema";
@@ -37,7 +37,7 @@ async function getEntityContext(contextType?: string, contextId?: string): Promi
 }
 
 export async function POST(req: Request) {
-  const { messages, contextType, contextId } = await req.json();
+  const { messages, contextType, contextId }: { messages: UIMessage[]; contextType?: string; contextId?: string } = await req.json();
 
   const model = process.env.ANTHROPIC_API_KEY
     ? anthropic("claude-sonnet-4-20250514")
@@ -52,15 +52,19 @@ export async function POST(req: Request) {
     );
   }
 
-  // RAG: Get relevant context from embeddings
+  // Extract last user message text for RAG (UIMessage uses parts array)
   const lastUserMessage = [...messages]
     .reverse()
-    .find((m: { role: string }) => m.role === "user");
+    .find((m) => m.role === "user");
+  const lastUserText = lastUserMessage?.parts
+    ?.filter((p) => p.type === "text")
+    .map((p) => ("text" in p ? p.text : ""))
+    .join("") || "";
   let ragContext = "";
 
-  if (lastUserMessage?.content && process.env.OPENAI_API_KEY) {
+  if (lastUserText && process.env.OPENAI_API_KEY) {
     try {
-      const results = await searchSimilar(lastUserMessage.content, 5);
+      const results = await searchSimilar(lastUserText, 5);
       if (results.length > 0) {
         ragContext =
           "\n\n## Relevant CRM Data\n" +
@@ -91,7 +95,7 @@ Be concise, specific, and actionable. When referencing CRM data, cite the specif
 If you don't have data, say so honestly.
 
 IMPORTANT: Always respond in the same language as the user's message. If the user writes in French, respond entirely in French including any table headers or labels. If in Spanish, respond in Spanish. Default to English.${ragContext}${await getEntityContext(contextType, contextId)}`,
-    messages,
+    messages: await convertToModelMessages(messages),
   });
 
   return result.toTextStreamResponse();

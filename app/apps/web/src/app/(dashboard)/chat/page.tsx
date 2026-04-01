@@ -3,6 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { TextStreamChatTransport } from "ai";
 import { useRef, useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { EmailComposer } from "@/components/email-composer";
 
 export default function ChatPage() {
@@ -123,11 +124,11 @@ export default function ChatPage() {
                   })()}
                 </div>
               )}
-              <div className="whitespace-pre-wrap text-sm leading-relaxed">
+              <div className="prose prose-invert prose-sm max-w-none text-sm leading-relaxed [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5">
                 {message.parts
                   .filter((part) => part.type === "text")
                   .map((part, i) => (
-                    <span key={i}>{"text" in part ? part.text : ""}</span>
+                    <ReactMarkdown key={i}>{"text" in part ? part.text : ""}</ReactMarkdown>
                   ))}
               </div>
               {message.role === "assistant" && (() => {

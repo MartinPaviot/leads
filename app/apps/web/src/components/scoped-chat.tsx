@@ -3,6 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { TextStreamChatTransport } from "ai";
 import { useRef, useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 interface ScopedChatProps {
   contextType: "account" | "contact" | "deal";
@@ -58,7 +59,7 @@ export function ScopedChat({ contextType, contextId, contextLabel }: ScopedChatP
                 {msg.parts
                   .filter((p) => p.type === "text")
                   .map((p, i) => (
-                    <span key={i}>{"text" in p ? p.text : ""}</span>
+                    <ReactMarkdown key={i} className="prose prose-invert prose-xs max-w-none [&_p]:my-0.5">{"text" in p ? p.text : ""}</ReactMarkdown>
                   ))}
               </div>
             </div>

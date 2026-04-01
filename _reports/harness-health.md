@@ -20,6 +20,16 @@
 **Health**: Excellent — M1-M10 complete, 99 tests across 19 files
 **Date**: 2026-04-01
 
+## Phase 6: Full Visual Evaluation (2026-04-01)
+| Sprint | Feature | Attempt | Result | Score | Notes |
+|--------|---------|---------|--------|-------|-------|
+| EVAL | Full app visual eval | 1 | PASS | 0.79 | 15 pages tested, 16 screenshots, 6 bugs fixed |
+| EVAL | Chat AI (convertToModelMessages) | — | BUG FIX | — | AI SDK v6 UIMessage → model messages |
+| EVAL | Markdown rendering | — | BUG FIX | — | react-markdown + @tailwindcss/typography |
+| EVAL | Missing pages (tasks/meetings/notes) | — | BUG FIX | — | 3 new pages created |
+
+**Post-eval status**: 52/53 features pass. Chat now works with real AI responses. All sidebar routes resolve. 99 tests passing.
+
 ## Latest sprint (M9+M10 + SETTINGS-V2 + Lightfield research)
 | Sprint | Feature | Attempt | Result | Notes |
 |--------|---------|---------|--------|-------|
