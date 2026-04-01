@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { CircleDot, Plus, BarChart3, X, ChevronDown, ChevronUp } from "lucide-react";
+import { STAGE_COLORS as STAGE_DOT_COLORS_IMPORTED, RISK_STYLES } from "@/lib/ui-utils";
 
 interface Analytics {
   totalDeals: number;
@@ -40,16 +41,7 @@ const STAGE_LABELS: Record<string, string> = {
   lost: "Lost",
 };
 
-const STAGE_DOT_COLORS: Record<string, string> = {
-  lead: "var(--color-text-muted)",
-  qualification: "var(--color-text-tertiary)",
-  demo: "#f97316",
-  trial: "#f59e0b",
-  proposal: "#f59e0b",
-  negotiation: "#22c55e",
-  won: "#3b82f6",
-  lost: "#ef4444",
-};
+const STAGE_DOT_COLORS = STAGE_DOT_COLORS_IMPORTED;
 
 interface Deal {
   id: string;
@@ -149,12 +141,10 @@ export default function OpportunitiesPage() {
     }
   }
 
-  function getRiskColor(deal: Deal): string {
+  function getRiskBorderColor(deal: Deal): string {
     const risk = (deal.properties as Record<string, unknown>)?.riskLevel as string;
-    if (risk === "high") return "border-l-red-500";
-    if (risk === "medium") return "border-l-amber-500";
-    if (risk === "low") return "border-l-emerald-500";
-    return "border-l-transparent";
+    const style = RISK_STYLES[risk];
+    return style ? style.text : "transparent";
   }
 
   // G17: Momentum indicator
@@ -167,13 +157,11 @@ export default function OpportunitiesPage() {
   function getRiskBadge(deal: Deal) {
     const risk = (deal.properties as Record<string, unknown>)?.riskLevel as string;
     if (!risk || risk === "none") return null;
-    const colors: Record<string, string> = {
-      high: "bg-red-500/15 text-red-400",
-      medium: "bg-amber-500/15 text-amber-400",
-      low: "bg-emerald-500/15 text-emerald-400",
-    };
+    const style = RISK_STYLES[risk];
+    if (!style) return null;
     return (
-      <span className={`rounded px-1 py-0.5 text-[8px] font-semibold uppercase ${colors[risk] || ""}`}>
+      <span className="rounded px-1 py-0.5 text-[8px] font-semibold uppercase"
+        style={{ background: style.bg, color: style.text }}>
         {risk}
       </span>
     );
@@ -432,17 +420,17 @@ export default function OpportunitiesPage() {
                 </p>
                 <div className="mt-1 flex items-baseline gap-2">
                   {analytics.riskSummary.high > 0 && (
-                    <span className="text-lg font-semibold text-red-400">
+                    <span className="text-lg font-semibold" style={{ color: "var(--color-error)" }}>
                       {analytics.riskSummary.high}
                     </span>
                   )}
                   {analytics.riskSummary.medium > 0 && (
-                    <span className="text-lg font-semibold text-amber-400">
+                    <span className="text-lg font-semibold" style={{ color: "var(--color-warning)" }}>
                       {analytics.riskSummary.medium}
                     </span>
                   )}
                   {analytics.riskSummary.high === 0 && analytics.riskSummary.medium === 0 && (
-                    <span className="text-lg font-semibold text-emerald-400">0</span>
+                    <span className="text-lg font-semibold" style={{ color: "var(--color-success)" }}>0</span>
                   )}
                 </div>
                 <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
@@ -571,11 +559,11 @@ export default function OpportunitiesPage() {
                   {dealsByStage[stage].map((deal) => (
                     <div
                       key={deal.id}
-                      className={`rounded-md border-l-2 p-3 ${getRiskColor(deal)}`}
+                      className="rounded-md p-3"
                       style={{
                         background: "var(--color-bg-surface)",
                         border: "0.5px solid var(--color-border-default)",
-                        borderLeftWidth: 2,
+                        borderLeft: `2px solid ${getRiskBorderColor(deal)}`,
                       }}
                     >
                       <div className="flex items-start justify-between gap-1">

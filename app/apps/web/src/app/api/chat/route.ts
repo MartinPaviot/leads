@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { streamText, UIMessage, convertToModelMessages } from "ai";
@@ -37,6 +38,11 @@ async function getEntityContext(contextType?: string, contextId?: string): Promi
 }
 
 export async function POST(req: Request) {
+  const session = await auth();
+  if (!session?.user) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { messages, contextType, contextId }: { messages: UIMessage[]; contextType?: string; contextId?: string } = await req.json();
 
   const model = process.env.ANTHROPIC_API_KEY

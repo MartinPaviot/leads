@@ -16,7 +16,7 @@ export default function MeetingsPage() {
         <Calendar size={32} style={{ color: "var(--color-text-muted)" }} />
         <p className="mt-3 text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>No meetings</p>
         <p className="mt-1 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-          Lightfield automatically syncs meetings from your calendar activity.
+          LeadSens automatically syncs meetings from your calendar activity.
         </p>
         <Link href="/settings" className="mt-4 flex items-center gap-1 rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors"
           style={{ border: "0.5px solid var(--color-border-moderate)", color: "var(--color-text-primary)", boxShadow: "var(--shadow-button)" }}>

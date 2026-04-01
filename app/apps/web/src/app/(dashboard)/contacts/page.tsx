@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Users, Search, Plus, Zap, X } from "lucide-react";
+import { badgeColorIndex, BADGE_COLORS, formatScore, ENRICHMENT_COLORS } from "@/lib/ui-utils";
 
 interface Contact {
   id: string;
@@ -18,41 +19,6 @@ interface Contact {
 }
 
 type EnrichStatus = "idle" | "enriching" | "done" | "failed";
-
-function badgeColorIndex(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
-  return Math.abs(hash) % 10;
-}
-
-const badgeColors = [
-  { bg: "rgba(59,130,246,0.10)", text: "#3b82f6" },
-  { bg: "rgba(34,197,94,0.10)", text: "#22c55e" },
-  { bg: "rgba(168,85,247,0.10)", text: "#a855f7" },
-  { bg: "rgba(249,115,22,0.10)", text: "#f97316" },
-  { bg: "rgba(6,182,212,0.10)", text: "#06b6d4" },
-  { bg: "rgba(239,68,68,0.10)", text: "#ef4444" },
-  { bg: "rgba(132,204,22,0.10)", text: "#84cc16" },
-  { bg: "rgba(99,102,241,0.10)", text: "#6366f1" },
-  { bg: "rgba(236,72,153,0.10)", text: "#ec4899" },
-  { bg: "rgba(245,158,11,0.10)", text: "#f59e0b" },
-];
-
-function letterGrade(score: number): string {
-  if (score >= 90) return "A+";
-  if (score >= 80) return "A";
-  if (score >= 70) return "B";
-  if (score >= 60) return "C";
-  if (score >= 50) return "D";
-  return "F";
-}
-
-function heatColor(score: number): string {
-  if (score >= 80) return "#22c55e";
-  if (score >= 60) return "#f59e0b";
-  if (score >= 40) return "#f97316";
-  return "#ef4444";
-}
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -178,61 +144,49 @@ export default function ContactsPage() {
     const status = enrichStatus[contact.id];
     if (status === "enriching") {
       return (
-        <span className="inline-flex items-center gap-1 text-[10px] text-amber-400">
-          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+        <span className="inline-flex items-center gap-1 text-[10px]" style={{ color: ENRICHMENT_COLORS.enriching }}>
+          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: ENRICHMENT_COLORS.enriching }} />
           Enriching...
         </span>
       );
     }
     if (status === "failed") {
       return (
-        <span className="inline-flex items-center gap-1 text-[10px] text-red-400">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-400" />
+        <span className="inline-flex items-center gap-1 text-[10px]" style={{ color: ENRICHMENT_COLORS.failed }}>
+          <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: ENRICHMENT_COLORS.failed }} />
           Failed
         </span>
       );
     }
     if (isEnriched(contact)) {
       return (
-        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        <span className="inline-flex items-center gap-1 text-[10px]" style={{ color: ENRICHMENT_COLORS.done }}>
+          <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: ENRICHMENT_COLORS.done }} />
           Enriched
         </span>
       );
     }
     return (
-      <span
-        className="inline-flex items-center gap-1 text-[10px]"
-        style={{ color: "var(--color-text-tertiary)" }}
-      >
-        <span
-          className="inline-block h-1.5 w-1.5 rounded-full"
-          style={{ background: "var(--color-text-tertiary)" }}
-        />
+      <span className="inline-flex items-center gap-1 text-[10px]" style={{ color: ENRICHMENT_COLORS.pending }}>
+        <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: ENRICHMENT_COLORS.pending }} />
         Pending
       </span>
     );
   }
 
   function scoreDisplay(contact: Contact) {
-    if (contact.score == null) return <span style={{ color: "var(--color-text-tertiary)" }}>--</span>;
-    const s = Math.round(contact.score);
-    const color = heatColor(s);
-    const grade = letterGrade(s);
+    const scoreInfo = formatScore(contact.score);
+    if (!scoreInfo) return <span style={{ color: "var(--color-text-tertiary)" }}>--</span>;
 
     return (
       <span
         className="inline-flex items-center gap-1.5 font-medium"
         title={contact.scoreReasons?.join("; ") || ""}
       >
-        <span
-          className="inline-block h-2 w-2 rounded-full"
-          style={{ background: color }}
-        />
-        <span style={{ color }}>{grade}</span>
-        <span className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
-          {s}
-        </span>
+        <span className="inline-block h-2 w-2 rounded-full" style={{ background: scoreInfo.color }} />
+        <span style={{ color: scoreInfo.color }}>{scoreInfo.grade}</span>
+        {scoreInfo.icon && <span className="text-[10px]">{scoreInfo.icon}</span>}
+        <span className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>{scoreInfo.heat}</span>
       </span>
     );
   }
@@ -479,7 +433,7 @@ export default function ContactsPage() {
             <tbody>
               {filteredContacts.map((contact) => {
                 const titleIdx = contact.title ? badgeColorIndex(contact.title) : -1;
-                const titleColor = titleIdx >= 0 ? badgeColors[titleIdx] : null;
+                const titleColor = titleIdx >= 0 ? BADGE_COLORS[titleIdx] : null;
 
                 return (
                   <tr
@@ -549,7 +503,7 @@ export default function ContactsPage() {
                           </button>
                         )}
                       {enrichStatus[contact.id] === "enriching" && (
-                        <span className="text-[11px] text-amber-400">...</span>
+                        <span className="text-[11px]" style={{ color: ENRICHMENT_COLORS.enriching }}>...</span>
                       )}
                     </td>
                   </tr>

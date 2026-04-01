@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Building2, Search, Plus, Zap, Target, Radio, X } from "lucide-react";
+import { badgeColorIndex, BADGE_COLORS, getLifecycleStyle, formatScore } from "@/lib/ui-utils";
 
 interface Account {
   id: string;
@@ -17,38 +18,6 @@ interface Account {
 }
 
 type EnrichStatus = "idle" | "enriching" | "done" | "failed";
-
-// Auto-color badge: hash string to one of 10 category colors
-function badgeColorIndex(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash) % 10;
-}
-
-const badgeColors = [
-  { bg: "rgba(59,130,246,0.10)", text: "#3b82f6" },
-  { bg: "rgba(34,197,94,0.10)", text: "#22c55e" },
-  { bg: "rgba(168,85,247,0.10)", text: "#a855f7" },
-  { bg: "rgba(249,115,22,0.10)", text: "#f97316" },
-  { bg: "rgba(6,182,212,0.10)", text: "#06b6d4" },
-  { bg: "rgba(239,68,68,0.10)", text: "#ef4444" },
-  { bg: "rgba(132,204,22,0.10)", text: "#84cc16" },
-  { bg: "rgba(99,102,241,0.10)", text: "#6366f1" },
-  { bg: "rgba(236,72,153,0.10)", text: "#ec4899" },
-  { bg: "rgba(245,158,11,0.10)", text: "#f59e0b" },
-];
-
-const lifecycleConfig: Record<string, { bg: string; text: string }> = {
-  new: { bg: "rgba(255,255,255,0.06)", text: "var(--color-text-secondary)" },
-  prospecting: { bg: "rgba(59,130,246,0.12)", text: "#3b82f6" },
-  opportunity: { bg: "rgba(168,85,247,0.12)", text: "#a855f7" },
-  customer: { bg: "rgba(34,197,94,0.12)", text: "#22c55e" },
-  disqualified: { bg: "rgba(239,68,68,0.12)", text: "#ef4444" },
-  inbound: { bg: "rgba(245,158,11,0.12)", text: "#f59e0b" },
-  nurture: { bg: "rgba(236,72,153,0.12)", text: "#ec4899" },
-};
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -335,7 +304,7 @@ export default function AccountsPage() {
             <tbody>
               {filteredAccounts.map((account) => {
                 const lc = getLifecycleStage(account);
-                const lcStyle = lifecycleConfig[lc] || lifecycleConfig.new;
+                const lcStyle = getLifecycleStyle(lc);
                 const signals = getSignals(account);
 
                 return (
@@ -390,8 +359,8 @@ export default function AccountsPage() {
                       {account.industry ? (
                         <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium"
                           style={{
-                            background: badgeColors[badgeColorIndex(account.industry)].bg,
-                            color: badgeColors[badgeColorIndex(account.industry)].text,
+                            background: BADGE_COLORS[badgeColorIndex(account.industry)].bg,
+                            color: BADGE_COLORS[badgeColorIndex(account.industry)].text,
                             border: "0.5px solid var(--color-border-default)",
                           }}>
                           {account.industry}
@@ -419,20 +388,17 @@ export default function AccountsPage() {
 
                     {/* Score */}
                     <td className="px-3">
-                      {account.score != null ? (() => {
-                        const s = Math.round(account.score!);
-                        const grade = s >= 80 ? "A" : s >= 60 ? "B" : s >= 40 ? "C" : s >= 20 ? "D" : "F";
-                        const heat = s >= 80 ? "Burning" : s >= 60 ? "Warm" : s >= 40 ? "Cool" : "Cold";
-                        const icon = s >= 80 ? "🔥" : s >= 60 ? "☀️" : "";
-                        const gradeColor = s >= 80 ? "var(--color-success)" : s >= 60 ? "var(--color-warning)" : s >= 40 ? "var(--color-info)" : "var(--color-text-tertiary)";
+                      {(() => {
+                        const scoreInfo = formatScore(account.score);
+                        if (!scoreInfo) return <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>;
                         return (
                           <span className="flex items-center gap-1" title={account.scoreReasons?.join("; ") || ""}>
-                            <span className="text-[12px] font-bold" style={{ color: gradeColor }}>{grade}</span>
-                            {icon && <span className="text-[11px]">{icon}</span>}
-                            <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{heat}</span>
+                            <span className="text-[12px] font-bold" style={{ color: scoreInfo.color }}>{scoreInfo.grade}</span>
+                            {scoreInfo.icon && <span className="text-[11px]">{scoreInfo.icon}</span>}
+                            <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{scoreInfo.heat}</span>
                           </span>
                         );
-                      })() : <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>}
+                      })()}
                     </td>
 
                     {/* Signals */}
@@ -448,7 +414,7 @@ export default function AccountsPage() {
                               <span key={i} className="relative">
                                 <button onClick={(e) => { e.stopPropagation(); setActiveSignalPopover(activeSignalPopover === popoverId ? null : popoverId); }}
                                   className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors"
-                                  style={{ background: badgeColors[idx].bg, color: badgeColors[idx].text, border: "0.5px solid var(--color-border-default)" }}>
+                                  style={{ background: BADGE_COLORS[idx].bg, color: BADGE_COLORS[idx].text, border: "0.5px solid var(--color-border-default)" }}>
                                   {signal.type.replace("_", " ")}
                                 </button>
                                 {activeSignalPopover === popoverId && (
@@ -456,7 +422,7 @@ export default function AccountsPage() {
                                     style={{ background: "var(--color-bg-elevated)", border: "0.5px solid var(--color-border-moderate)", boxShadow: "var(--shadow-floating)" }}>
                                     <div className="mb-2 flex items-center justify-between">
                                       <span className="rounded px-1.5 py-0.5 text-[10px] font-medium"
-                                        style={{ background: badgeColors[idx].bg, color: badgeColors[idx].text }}>
+                                        style={{ background: BADGE_COLORS[idx].bg, color: BADGE_COLORS[idx].text }}>
                                         {signal.type.replace("_", " ")}
                                       </span>
                                       <span className="text-[10px] font-semibold uppercase"
