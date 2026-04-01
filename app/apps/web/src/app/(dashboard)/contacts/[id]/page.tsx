@@ -63,7 +63,7 @@ export default function ContactDetailPage() {
     load();
   }, [contactId]);
 
-  if (loading) return <p className="p-6 text-sm text-[#5a5a70]">Loading...</p>;
+  if (loading) return <p className="p-6 text-sm text-[var(--color-text-tertiary)]">Loading...</p>;
   if (!contact) return <p className="p-6 text-sm text-red-400">Contact not found</p>;
 
   const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "Unknown";
@@ -75,12 +75,12 @@ export default function ContactDetailPage() {
       {/* Main content */}
       <div className="flex-1 overflow-auto p-6">
         <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#6366f1] text-lg font-bold text-white">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-accent)] text-lg font-bold text-white">
             {initials}
           </div>
           <div>
             <h1 className="text-xl font-semibold">{name}</h1>
-            <p className="text-sm text-[#8b8ba0]">
+            <p className="text-sm text-[var(--color-text-secondary)]">
               {contact.title || "No title"} {contact.email ? `· ${contact.email}` : ""}
             </p>
           </div>
@@ -88,11 +88,11 @@ export default function ContactDetailPage() {
 
         {/* Activity Timeline */}
         <div className="mt-8">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-[#5a5a70]">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
             Activity
           </h2>
           {activities.length === 0 ? (
-            <p className="mt-4 text-sm text-[#5a5a70]">
+            <p className="mt-4 text-sm text-[var(--color-text-tertiary)]">
               No activity recorded for this contact.
             </p>
           ) : (
@@ -100,7 +100,7 @@ export default function ContactDetailPage() {
               {activities.map((activity) => (
                 <div
                   key={activity.id}
-                  className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3"
+                  className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-3"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -111,16 +111,16 @@ export default function ContactDetailPage() {
                             : "bg-blue-500"
                         }`}
                       />
-                      <span className="text-xs font-medium uppercase text-[#8b8ba0]">
+                      <span className="text-xs font-medium uppercase text-[var(--color-text-secondary)]">
                         {activity.activityType.replace(/_/g, " ")}
                       </span>
                     </div>
-                    <span className="text-xs text-[#5a5a70]">
+                    <span className="text-xs text-[var(--color-text-tertiary)]">
                       {new Date(activity.occurredAt).toLocaleDateString()}
                     </span>
                   </div>
                   {activity.summary && (
-                    <p className="mt-1 text-sm text-[#e8e8ed]">
+                    <p className="mt-1 text-sm text-[var(--color-text-primary)]">
                       {activity.summary}
                     </p>
                   )}
@@ -132,7 +132,7 @@ export default function ContactDetailPage() {
                         subject: `Re: ${activity.summary?.slice(0, 50) || "your email"}`,
                         body: `Hi ${contact?.firstName || "there"},\n\nThanks for your email. ${activity.summary ? `Regarding "${activity.summary.slice(0, 80)}..." — ` : ""}\n\nBest regards`,
                       })}
-                      className="mt-2 text-[10px] text-[#6366f1] hover:underline"
+                      className="mt-2 text-[10px] text-[var(--color-accent)] hover:underline"
                     >
                       ✉️ Suggest reply
                     </button>
@@ -154,35 +154,35 @@ export default function ContactDetailPage() {
       </div>
 
       {/* Right panel — details */}
-      <div className="w-[300px] border-l border-[#1e1f2a] p-6">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-[#5a5a70]">
+      <div className="w-[300px] border-l border-[rgba(255,255,255,0.08)] p-6">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
           Contact details
         </h3>
         <div className="mt-4 space-y-3">
           <div>
-            <p className="text-xs text-[#5a5a70]">Name</p>
-            <p className="text-sm text-[#e8e8ed]">{name}</p>
+            <p className="text-xs text-[var(--color-text-tertiary)]">Name</p>
+            <p className="text-sm text-[var(--color-text-primary)]">{name}</p>
           </div>
           <div>
-            <p className="text-xs text-[#5a5a70]">Title</p>
-            <p className="text-sm text-[#e8e8ed]">{contact.title || "—"}</p>
+            <p className="text-xs text-[var(--color-text-tertiary)]">Title</p>
+            <p className="text-sm text-[var(--color-text-primary)]">{contact.title || "—"}</p>
           </div>
           <div>
-            <p className="text-xs text-[#5a5a70]">Email</p>
-            <p className="text-sm text-[#e8e8ed]">{contact.email || "—"}</p>
+            <p className="text-xs text-[var(--color-text-tertiary)]">Email</p>
+            <p className="text-sm text-[var(--color-text-primary)]">{contact.email || "—"}</p>
           </div>
           <div>
-            <p className="text-xs text-[#5a5a70]">Phone</p>
-            <p className="text-sm text-[#e8e8ed]">{contact.phone || "—"}</p>
+            <p className="text-xs text-[var(--color-text-tertiary)]">Phone</p>
+            <p className="text-sm text-[var(--color-text-primary)]">{contact.phone || "—"}</p>
           </div>
           {contact.linkedinUrl && (
             <div>
-              <p className="text-xs text-[#5a5a70]">LinkedIn</p>
+              <p className="text-xs text-[var(--color-text-tertiary)]">LinkedIn</p>
               <a
                 href={contact.linkedinUrl}
                 target="_blank"
                 rel="noopener"
-                className="text-sm text-[#6366f1] hover:underline"
+                className="text-sm text-[var(--color-accent)] hover:underline"
               >
                 {contact.linkedinUrl}
               </a>

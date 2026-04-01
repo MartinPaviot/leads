@@ -114,10 +114,10 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
     }
   }
 
-  if (loading) return <div className="p-6 text-sm text-[#5a5a70]">Loading...</div>;
+  if (loading) return <div className="p-6 text-sm text-[var(--color-text-tertiary)]">Loading...</div>;
   if (!sequence) return <div className="p-6 text-sm text-red-400">Sequence not found</div>;
 
-  const statusColor = sequence.status === "active" ? "text-emerald-400" : sequence.status === "paused" ? "text-amber-400" : "text-[#5a5a70]";
+  const statusColor = sequence.status === "active" ? "text-emerald-400" : sequence.status === "paused" ? "text-amber-400" : "text-[var(--color-text-tertiary)]";
 
   return (
     <div className="p-6">
@@ -125,7 +125,7 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
         <div>
           <h1 className="text-xl font-semibold">{sequence.name}</h1>
           {sequence.description && (
-            <p className="mt-1 text-sm text-[#5a5a70]">{sequence.description}</p>
+            <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">{sequence.description}</p>
           )}
         </div>
         <div className="flex items-center gap-3">
@@ -133,7 +133,7 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
           <button
             onClick={toggleStatus}
             disabled={updatingStatus}
-            className="rounded-lg border border-[#1e1f2a] px-3 py-1.5 text-sm text-[#8b8ba0] hover:text-[#e8e8ed] disabled:opacity-50"
+            className="rounded-lg border border-[rgba(255,255,255,0.08)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50"
           >
             {sequence.status === "active" ? "Pause" : "Activate"}
           </button>
@@ -143,56 +143,56 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
       {/* Steps */}
       <section className="mt-8">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-[#5a5a70]">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
             Steps ({steps.length})
           </h2>
           <button
             onClick={() => setShowAddStep(true)}
-            className="text-sm text-[#6366f1] hover:text-[#5558e6]"
+            className="text-sm text-[var(--color-accent)] hover:opacity-90"
           >
             + Add Step
           </button>
         </div>
 
         {showAddStep && (
-          <form onSubmit={handleAddStep} className="mt-3 space-y-2 rounded-lg border border-[#1e1f2a] bg-[#12131a] p-4">
+          <form onSubmit={handleAddStep} className="mt-3 space-y-2 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-4">
             <input
               value={stepSubject}
               onChange={(e) => setStepSubject(e.target.value)}
               placeholder="Subject template (use {{firstName}}, {{company}})"
               autoFocus
-              className="w-full rounded-lg border border-[#1e1f2a] bg-[#0a0b0f] px-3 py-2 text-sm text-[#e8e8ed] placeholder-[#5a5a70] focus:border-[#6366f1] focus:outline-none"
+              className="w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
             />
             <textarea
               value={stepBody}
               onChange={(e) => setStepBody(e.target.value)}
               placeholder="Body template..."
               rows={4}
-              className="w-full rounded-lg border border-[#1e1f2a] bg-[#0a0b0f] px-3 py-2 text-sm text-[#e8e8ed] placeholder-[#5a5a70] focus:border-[#6366f1] focus:outline-none"
+              className="w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
             />
             <div className="flex items-center gap-2">
-              <label className="text-xs text-[#5a5a70]">Delay (days):</label>
+              <label className="text-xs text-[var(--color-text-tertiary)]">Delay (days):</label>
               <input
                 type="number"
                 value={stepDelay}
                 onChange={(e) => setStepDelay(Number(e.target.value))}
                 min={0}
                 max={30}
-                className="w-16 rounded border border-[#1e1f2a] bg-[#0a0b0f] px-2 py-1 text-sm text-[#e8e8ed]"
+                className="w-16 rounded border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-2 py-1 text-sm text-[var(--color-text-primary)]"
               />
             </div>
             <div className="flex gap-2">
               <button
                 type="submit"
                 disabled={addingStep || !stepSubject.trim() || !stepBody.trim()}
-                className="rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6] disabled:opacity-50"
+                className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
                 {addingStep ? "Adding..." : "Add Step"}
               </button>
               <button
                 type="button"
                 onClick={() => setShowAddStep(false)}
-                className="rounded-lg border border-[#1e1f2a] px-4 py-2 text-sm text-[#8b8ba0]"
+                className="rounded-lg border border-[rgba(255,255,255,0.08)] px-4 py-2 text-sm text-[var(--color-text-secondary)]"
               >
                 Cancel
               </button>
@@ -202,18 +202,18 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
 
         <div className="mt-3 space-y-2">
           {steps.length === 0 ? (
-            <p className="text-sm text-[#5a5a70]">No steps yet. Add a step to get started.</p>
+            <p className="text-sm text-[var(--color-text-tertiary)]">No steps yet. Add a step to get started.</p>
           ) : (
             steps.map((step) => (
-              <div key={step.id} className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3">
+              <div key={step.id} className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[#6366f1]">Step {step.stepNumber}</span>
-                  <span className="text-xs text-[#5a5a70]">
+                  <span className="text-xs font-medium text-[var(--color-accent)]">Step {step.stepNumber}</span>
+                  <span className="text-xs text-[var(--color-text-tertiary)]">
                     {step.delayDays > 0 ? `Wait ${step.delayDays} day${step.delayDays > 1 ? "s" : ""}` : "Immediate"}
                   </span>
                 </div>
-                <p className="mt-1 text-sm font-medium text-[#e8e8ed]">{step.subjectTemplate}</p>
-                <p className="mt-1 text-xs text-[#5a5a70] line-clamp-2">{step.bodyTemplate}</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text-primary)]">{step.subjectTemplate}</p>
+                <p className="mt-1 text-xs text-[var(--color-text-tertiary)] line-clamp-2">{step.bodyTemplate}</p>
               </div>
             ))
           )}
@@ -223,10 +223,10 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
       {/* AI-Suggested Enrollments (G4: Approve/Reject Flow) */}
       {sequence.status === "active" && (
         <section className="mt-8">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-[#5a5a70]">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
             AI Suggestions
           </h2>
-          <p className="mt-1 text-xs text-[#5a5a70]">
+          <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">
             Contacts recommended for enrollment based on scoring and signals.
           </p>
           <AISuggestions sequenceId={id} onApprove={fetchSequence} />
@@ -235,16 +235,16 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
 
       {/* Enrollments */}
       <section className="mt-8">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-[#5a5a70]">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
           Enrolled ({enrollments.length})
         </h2>
         <div className="mt-3">
           {enrollments.length === 0 ? (
-            <p className="text-sm text-[#5a5a70]">No contacts enrolled yet.</p>
+            <p className="text-sm text-[var(--color-text-tertiary)]">No contacts enrolled yet.</p>
           ) : (
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-[#1e1f2a] text-[11px] uppercase tracking-wider text-[#5a5a70]">
+                <tr className="border-b border-[rgba(255,255,255,0.08)] text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]">
                   <th className="pb-2 pr-4">Contact</th>
                   <th className="pb-2 pr-4">Email</th>
                   <th className="pb-2 pr-4">Step</th>
@@ -253,16 +253,16 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
               </thead>
               <tbody>
                 {enrollments.map((enrollment) => (
-                  <tr key={enrollment.id} className="border-b border-[#1e1f2a]">
-                    <td className="py-2 pr-4 text-[#e8e8ed]">{enrollment.contactName}</td>
-                    <td className="py-2 pr-4 text-[#8b8ba0]">{enrollment.contactEmail || "—"}</td>
-                    <td className="py-2 pr-4 text-[#8b8ba0]">{enrollment.currentStep}/{steps.length}</td>
+                  <tr key={enrollment.id} className="border-b border-[rgba(255,255,255,0.08)]">
+                    <td className="py-2 pr-4 text-[var(--color-text-primary)]">{enrollment.contactName}</td>
+                    <td className="py-2 pr-4 text-[var(--color-text-secondary)]">{enrollment.contactEmail || "—"}</td>
+                    <td className="py-2 pr-4 text-[var(--color-text-secondary)]">{enrollment.currentStep}/{steps.length}</td>
                     <td className="py-2 pr-4">
                       <span className={`text-xs font-medium ${
                         enrollment.status === "active" ? "text-emerald-400" :
                         enrollment.status === "completed" ? "text-blue-400" :
                         enrollment.status === "replied" ? "text-purple-400" :
-                        "text-[#5a5a70]"
+                        "text-[var(--color-text-tertiary)]"
                       }`}>
                         {enrollment.status}
                       </span>
@@ -338,7 +338,7 @@ function AISuggestions({ sequenceId, onApprove }: { sequenceId: string; onApprov
       <button
         onClick={fetchSuggestions}
         disabled={loading}
-        className="mt-2 rounded-lg border border-dashed border-[#1e1f2a] px-4 py-3 text-sm text-[#6366f1] hover:border-[#6366f1] hover:bg-[#6366f1]/5 w-full"
+        className="mt-2 rounded-lg border border-dashed border-[rgba(255,255,255,0.08)] px-4 py-3 text-sm text-[var(--color-accent)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-muted)] w-full"
       >
         {loading ? "Finding suggestions..." : "Get AI Suggestions"}
       </button>
@@ -346,7 +346,7 @@ function AISuggestions({ sequenceId, onApprove }: { sequenceId: string; onApprov
   }
 
   if (visible.length === 0) {
-    return <p className="mt-2 text-xs text-[#5a5a70]">No suggestions right now.</p>;
+    return <p className="mt-2 text-xs text-[var(--color-text-tertiary)]">No suggestions right now.</p>;
   }
 
   return (
@@ -354,19 +354,19 @@ function AISuggestions({ sequenceId, onApprove }: { sequenceId: string; onApprov
       {visible.map((suggestion) => (
         <div
           key={suggestion.contactId}
-          className="flex items-center justify-between rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3"
+          className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-3"
         >
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-medium text-[#e8e8ed]">{suggestion.contactName}</p>
-              <span className="text-xs text-[#6366f1]">{suggestion.companyName}</span>
+              <p className="text-sm font-medium text-[var(--color-text-primary)]">{suggestion.contactName}</p>
+              <span className="text-xs text-[var(--color-accent)]">{suggestion.companyName}</span>
             </div>
-            <p className="mt-0.5 text-xs text-[#5a5a70]">{suggestion.reason}</p>
+            <p className="mt-0.5 text-xs text-[var(--color-text-tertiary)]">{suggestion.reason}</p>
           </div>
           <div className="flex items-center gap-2 ml-3">
             <button
               onClick={() => rejectSuggestion(suggestion.contactId)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#1e1f2a] text-[#5a5a70] hover:border-red-500/30 hover:text-red-400"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[rgba(255,255,255,0.08)] text-[var(--color-text-tertiary)] hover:border-red-500/30 hover:text-red-400"
               title="Reject"
             >
               👎
@@ -374,7 +374,7 @@ function AISuggestions({ sequenceId, onApprove }: { sequenceId: string; onApprov
             <button
               onClick={() => approveSuggestion(suggestion.contactId)}
               disabled={enrolling[suggestion.contactId]}
-              className="rounded-lg bg-white px-4 py-1.5 text-sm font-semibold text-[#0a0b0f] hover:bg-gray-100 disabled:opacity-50"
+              className="rounded-lg bg-white px-4 py-1.5 text-sm font-semibold text-[var(--color-bg-base)] hover:bg-gray-100 disabled:opacity-50"
             >
               {enrolling[suggestion.contactId] ? "..." : "Start"}
             </button>

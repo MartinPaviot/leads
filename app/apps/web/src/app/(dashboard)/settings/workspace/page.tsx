@@ -59,23 +59,23 @@ export default function WorkspaceSettingsPage() {
   return (
     <>
       <h1 className="text-xl font-semibold">Workspace settings</h1>
-      <p className="mt-1 text-sm text-[#8b8ba0]">
+      <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
         Manage settings for your entire workspace.
       </p>
 
       <div className="mt-6 space-y-6">
         <div>
-          <label className="text-sm text-[#8b8ba0]">Workspace name</label>
+          <label className="text-sm text-[var(--color-text-secondary)]">Workspace name</label>
           <div className="mt-1 flex gap-2">
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="flex-1 rounded-lg border border-[#1e1f2a] bg-[#12131a] px-3 py-2 text-sm text-[#e8e8ed] focus:border-[#6366f1] focus:outline-none"
+              className="flex-1 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
             />
             <button
               onClick={saveName}
               disabled={!name.trim()}
-              className="rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6] disabled:opacity-50"
+              className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               Update
             </button>
@@ -84,8 +84,8 @@ export default function WorkspaceSettingsPage() {
         </div>
 
         <div>
-          <h2 className="text-sm font-semibold text-[#e8e8ed]">Domains</h2>
-          <p className="mt-1 text-sm text-[#5a5a70]">
+          <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Domains</h2>
+          <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">
             These domains will be associated with your company. No new accounts will be
             created for companies with these domains.
           </p>
@@ -93,12 +93,12 @@ export default function WorkspaceSettingsPage() {
             {domains.map((domain) => (
               <span
                 key={domain}
-                className="inline-flex items-center gap-1 rounded-lg border border-[#1e1f2a] bg-[#12131a] px-3 py-1 text-sm text-[#e8e8ed]"
+                className="inline-flex items-center gap-1 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] px-3 py-1 text-sm text-[var(--color-text-primary)]"
               >
                 {domain}
                 <button
                   onClick={() => removeDomain(domain)}
-                  className="text-[#5a5a70] hover:text-red-400"
+                  className="text-[var(--color-text-tertiary)] hover:text-red-400"
                 >
                   &times;
                 </button>
@@ -111,17 +111,17 @@ export default function WorkspaceSettingsPage() {
               onChange={(e) => setNewDomain(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addDomain()}
               placeholder="Add domain (e.g. yourcompany.com)"
-              className="flex-1 rounded-lg border border-[#1e1f2a] bg-[#12131a] px-3 py-2 text-sm text-[#e8e8ed] placeholder-[#5a5a70] focus:border-[#6366f1] focus:outline-none"
+              className="flex-1 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
             />
           </div>
         </div>
 
-        <div className="border-t border-[#1e1f2a] pt-6">
+        <div className="border-t border-[rgba(255,255,255,0.08)] pt-6">
           <h2 className="text-sm font-semibold text-red-400">Danger zone</h2>
           <div className="mt-3 flex items-center justify-between rounded-lg border border-red-900/30 bg-red-950/10 p-4">
             <div>
-              <p className="text-sm text-[#e8e8ed]">Delete workspace</p>
-              <p className="text-xs text-[#5a5a70]">
+              <p className="text-sm text-[var(--color-text-primary)]">Delete workspace</p>
+              <p className="text-xs text-[var(--color-text-tertiary)]">
                 Schedule workspace to be permanently deleted
               </p>
             </div>

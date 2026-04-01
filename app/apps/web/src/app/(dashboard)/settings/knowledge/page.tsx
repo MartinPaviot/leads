@@ -85,14 +85,14 @@ export default function KnowledgeSettingsPage() {
   return (
     <>
       <h1 className="text-xl font-semibold">Knowledge</h1>
-      <p className="mt-1 text-sm text-[#8b8ba0]">
+      <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
         Give LeadSens additional context on your business. This context will be
         included in AI requests for everyone in your organization.
       </p>
 
       <button
         onClick={addTopic}
-        className="mt-4 rounded-lg border border-[#1e1f2a] px-4 py-2 text-sm text-[#8b8ba0] hover:border-[#6366f1] hover:text-[#e8e8ed]"
+        className="mt-4 rounded-lg border border-[rgba(255,255,255,0.08)] px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:border-[var(--color-accent)] hover:text-[var(--color-text-primary)]"
       >
         + Add knowledge
       </button>
@@ -101,12 +101,12 @@ export default function KnowledgeSettingsPage() {
         {loading ? (
           <div className="space-y-3">
             {[1, 2].map((i) => (
-              <div key={i} className="h-32 animate-pulse rounded-lg bg-[#1e1f2a]" />
+              <div key={i} className="h-32 animate-pulse rounded-lg bg-[var(--color-bg-muted)]" />
             ))}
           </div>
         ) : topics.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-[#1e1f2a] py-8 text-center">
-            <p className="text-sm text-[#5a5a70]">
+          <div className="rounded-lg border border-dashed border-[rgba(255,255,255,0.08)] py-8 text-center">
+            <p className="text-sm text-[var(--color-text-tertiary)]">
               No knowledge topics yet. Add topics to help the AI understand your business.
             </p>
           </div>
@@ -114,38 +114,38 @@ export default function KnowledgeSettingsPage() {
           topics.map((topic) => (
             <div
               key={topic.id}
-              className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-4"
+              className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-4"
             >
               <div>
-                <label className="text-xs text-[#5a5a70]">Topic</label>
+                <label className="text-xs text-[var(--color-text-tertiary)]">Topic</label>
                 <input
                   value={topic.topic}
                   onChange={(e) => updateTopic(topic.id, "topic", e.target.value)}
                   placeholder="Title of topic"
-                  className="mt-1 w-full rounded-lg border border-[#1e1f2a] bg-[#0a0b0f] px-3 py-2 text-sm text-[#e8e8ed] placeholder-[#5a5a70] focus:border-[#6366f1] focus:outline-none"
+                  className="mt-1 w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
                 />
               </div>
               <div className="mt-3">
-                <label className="text-xs text-[#5a5a70]">Content</label>
+                <label className="text-xs text-[var(--color-text-tertiary)]">Content</label>
                 <textarea
                   value={topic.content}
                   onChange={(e) => updateTopic(topic.id, "content", e.target.value)}
                   placeholder="Content of topic"
                   rows={4}
-                  className="mt-1 w-full rounded-lg border border-[#1e1f2a] bg-[#0a0b0f] px-3 py-2 text-sm text-[#e8e8ed] placeholder-[#5a5a70] focus:border-[#6366f1] focus:outline-none"
+                  className="mt-1 w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
                 />
               </div>
               <div className="mt-3 flex gap-2">
                 <button
                   onClick={() => saveTopic(topic)}
                   disabled={saving === topic.id || !topic.topic.trim() || !topic.content.trim()}
-                  className="rounded-lg bg-[#6366f1] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#5558e6] disabled:opacity-50"
+                  className="rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
                 >
                   {saving === topic.id ? "Saving..." : "Save changes"}
                 </button>
                 <button
                   onClick={() => removeTopic(topic.id)}
-                  className="rounded-lg px-3 py-1.5 text-sm text-[#8b8ba0] hover:text-red-400"
+                  className="rounded-lg px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-red-400"
                 >
                   Remove
                 </button>

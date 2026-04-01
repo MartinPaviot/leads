@@ -54,8 +54,8 @@ export default function StagesSettingsPage() {
   const done = stages.filter((s) => s.category === "done");
 
   const stageColors: Record<number, string> = {
-    0: "bg-[#5a5a70]",
-    1: "bg-[#5a5a70]",
+    0: "bg-[var(--color-text-tertiary)]",
+    1: "bg-[var(--color-text-tertiary)]",
     2: "bg-amber-400",
     3: "bg-amber-400",
     4: "bg-emerald-400",
@@ -64,7 +64,7 @@ export default function StagesSettingsPage() {
   return (
     <>
       <h1 className="text-xl font-semibold">Opportunity stages</h1>
-      <p className="mt-1 text-sm text-[#8b8ba0]">
+      <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
         Each stage represents a milestone in a deal. Describing each stage enables
         LeadSens to track stages automatically based on activity.
       </p>
@@ -72,7 +72,7 @@ export default function StagesSettingsPage() {
       {loading ? (
         <div className="mt-6 space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded-lg bg-[#1e1f2a]" />
+            <div key={i} className="h-16 animate-pulse rounded-lg bg-[var(--color-bg-muted)]" />
           ))}
         </div>
       ) : (
@@ -80,10 +80,10 @@ export default function StagesSettingsPage() {
           {/* In progress */}
           <div className="mt-6">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-[#5a5a70]">In progress</span>
+              <span className="text-xs text-[var(--color-text-tertiary)]">In progress</span>
               <button
                 onClick={() => addStage("in_progress")}
-                className="text-xs text-[#6366f1] hover:text-[#5558e6]"
+                className="text-xs text-[var(--color-accent)] hover:opacity-90"
               >
                 +
               </button>
@@ -92,7 +92,7 @@ export default function StagesSettingsPage() {
               {inProgress.map((stage, i) => (
                 <div
                   key={stage.id}
-                  className="flex items-start gap-3 rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3"
+                  className="flex items-start gap-3 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-3"
                 >
                   <div className={`mt-2 h-2.5 w-2.5 flex-shrink-0 rounded-full ${stageColors[i] || "bg-emerald-400"}`} />
                   <div className="flex-1 space-y-1">
@@ -100,18 +100,18 @@ export default function StagesSettingsPage() {
                       value={stage.name}
                       onChange={(e) => updateStage(stage.id, "name", e.target.value)}
                       placeholder="Stage name"
-                      className="w-full bg-transparent text-sm font-medium text-[#e8e8ed] placeholder-[#5a5a70] focus:outline-none"
+                      className="w-full bg-transparent text-sm font-medium text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:outline-none"
                     />
                     <input
                       value={stage.description}
                       onChange={(e) => updateStage(stage.id, "description", e.target.value)}
                       placeholder="Description (used by AI for auto-progression)"
-                      className="w-full bg-transparent text-xs text-[#5a5a70] placeholder-[#3a3a50] focus:outline-none"
+                      className="w-full bg-transparent text-xs text-[var(--color-text-tertiary)] placeholder-[var(--color-text-tertiary)] focus:outline-none"
                     />
                   </div>
                   <button
                     onClick={() => removeStage(stage.id)}
-                    className="text-xs text-[#5a5a70] hover:text-red-400"
+                    className="text-xs text-[var(--color-text-tertiary)] hover:text-red-400"
                   >
                     &times;
                   </button>
@@ -123,10 +123,10 @@ export default function StagesSettingsPage() {
           {/* Done */}
           <div className="mt-6">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-[#5a5a70]">Done</span>
+              <span className="text-xs text-[var(--color-text-tertiary)]">Done</span>
               <button
                 onClick={() => addStage("done")}
-                className="text-xs text-[#6366f1] hover:text-[#5558e6]"
+                className="text-xs text-[var(--color-accent)] hover:opacity-90"
               >
                 +
               </button>
@@ -135,7 +135,7 @@ export default function StagesSettingsPage() {
               {done.map((stage) => (
                 <div
                   key={stage.id}
-                  className="flex items-start gap-3 rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3"
+                  className="flex items-start gap-3 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-3"
                 >
                   <div className="mt-2 h-2.5 w-2.5 flex-shrink-0 rounded-full bg-blue-400" />
                   <div className="flex-1 space-y-1">
@@ -143,18 +143,18 @@ export default function StagesSettingsPage() {
                       value={stage.name}
                       onChange={(e) => updateStage(stage.id, "name", e.target.value)}
                       placeholder="Stage name"
-                      className="w-full bg-transparent text-sm font-medium text-[#e8e8ed] placeholder-[#5a5a70] focus:outline-none"
+                      className="w-full bg-transparent text-sm font-medium text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:outline-none"
                     />
                     <input
                       value={stage.description}
                       onChange={(e) => updateStage(stage.id, "description", e.target.value)}
                       placeholder="Description"
-                      className="w-full bg-transparent text-xs text-[#5a5a70] placeholder-[#3a3a50] focus:outline-none"
+                      className="w-full bg-transparent text-xs text-[var(--color-text-tertiary)] placeholder-[var(--color-text-tertiary)] focus:outline-none"
                     />
                   </div>
                   <button
                     onClick={() => removeStage(stage.id)}
-                    className="text-xs text-[#5a5a70] hover:text-red-400"
+                    className="text-xs text-[var(--color-text-tertiary)] hover:text-red-400"
                   >
                     &times;
                   </button>
@@ -166,7 +166,7 @@ export default function StagesSettingsPage() {
           <button
             onClick={saveStages}
             disabled={saving}
-            className="mt-6 rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6] disabled:opacity-50"
+            className="mt-6 rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
             {saving ? "Saving..." : "Save stages"}
           </button>

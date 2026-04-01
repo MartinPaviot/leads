@@ -4,13 +4,13 @@ import { redirect } from "next/navigation";
 
 export default function SignInPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0a0b0f]">
-      <div className="w-full max-w-sm space-y-6 rounded-xl border border-[#1e1f2a] bg-[#12131a] p-8">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-base)]">
+      <div className="w-full max-w-sm space-y-6 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-8">
         <div className="text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-[#6366f1]">
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--color-accent)]">
             LeadSens
           </h1>
-          <p className="mt-1 text-sm text-[#8b8ba0]">
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
             Sign in to your GTM engine
           </p>
         </div>
@@ -24,7 +24,7 @@ export default function SignInPage() {
         >
           <button
             type="submit"
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#1e1f2a] bg-[#0a0b0f] px-4 py-2.5 text-sm font-medium text-[#e8e8ed] hover:border-[#6366f1] hover:bg-[#1a1b24]"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-4 py-2.5 text-sm font-medium text-[var(--color-text-primary)] hover:border-[var(--color-accent)] hover:bg-[var(--color-bg-elevated)]"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -37,9 +37,9 @@ export default function SignInPage() {
         </form>
 
         <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-[#1e1f2a]" />
-          <span className="text-xs text-[#5a5a70]">or</span>
-          <div className="h-px flex-1 bg-[#1e1f2a]" />
+          <div className="h-px flex-1 bg-[var(--color-bg-muted)]" />
+          <span className="text-xs text-[var(--color-text-tertiary)]">or</span>
+          <div className="h-px flex-1 bg-[var(--color-bg-muted)]" />
         </div>
 
         {/* Email/password */}
@@ -59,7 +59,7 @@ export default function SignInPage() {
         >
           <input type="hidden" name="redirectTo" value="/" />
           <div>
-            <label htmlFor="email" className="block text-sm text-[#8b8ba0]">
+            <label htmlFor="email" className="block text-sm text-[var(--color-text-secondary)]">
               Email
             </label>
             <input
@@ -68,11 +68,11 @@ export default function SignInPage() {
               type="email"
               required
               placeholder="you@company.com"
-              className="mt-1 w-full rounded-lg border border-[#1e1f2a] bg-[#0a0b0f] px-3 py-2 text-sm text-[#e8e8ed] placeholder-[#5a5a70] focus:border-[#6366f1] focus:outline-none"
+              className="mt-1 w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
             />
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm text-[#8b8ba0]">
+            <label htmlFor="password" className="block text-sm text-[var(--color-text-secondary)]">
               Password
             </label>
             <input
@@ -81,12 +81,12 @@ export default function SignInPage() {
               type="password"
               required
               placeholder="Enter password"
-              className="mt-1 w-full rounded-lg border border-[#1e1f2a] bg-[#0a0b0f] px-3 py-2 text-sm text-[#e8e8ed] placeholder-[#5a5a70] focus:border-[#6366f1] focus:outline-none"
+              className="mt-1 w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
             />
           </div>
           <button
             type="submit"
-            className="w-full rounded-lg bg-[#6366f1] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#5558e6]"
+            className="w-full rounded-lg bg-[var(--color-accent)] px-4 py-2.5 text-sm font-medium text-white hover:opacity-90"
           >
             Sign in
           </button>

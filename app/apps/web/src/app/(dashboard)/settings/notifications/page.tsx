@@ -34,19 +34,19 @@ export default function NotificationsSettingsPage() {
   return (
     <>
       <h1 className="text-xl font-semibold">Notifications</h1>
-      <p className="mt-1 text-sm text-[#8b8ba0]">
+      <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
         Choose your preferred notification settings for email and in-app.
       </p>
 
       <div className="mt-6 space-y-8">
         {categories.map((category) => (
           <div key={category}>
-            <div className="flex items-center gap-4 border-b border-[#1e1f2a] pb-2">
-              <span className="flex-1 text-xs font-semibold uppercase tracking-wider text-[#5a5a70]">
+            <div className="flex items-center gap-4 border-b border-[rgba(255,255,255,0.08)] pb-2">
+              <span className="flex-1 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
                 {category}
               </span>
-              <span className="w-16 text-center text-[10px] text-[#5a5a70]">Email</span>
-              <span className="w-16 text-center text-[10px] text-[#5a5a70]">In-app</span>
+              <span className="w-16 text-center text-[10px] text-[var(--color-text-tertiary)]">Email</span>
+              <span className="w-16 text-center text-[10px] text-[var(--color-text-tertiary)]">In-app</span>
             </div>
             <div className="space-y-1">
               {prefs
@@ -54,14 +54,14 @@ export default function NotificationsSettingsPage() {
                 .map((pref) => (
                   <div key={pref.key} className="flex items-center gap-4 rounded-lg px-2 py-3">
                     <div className="flex-1">
-                      <p className="text-sm text-[#e8e8ed]">{pref.label}</p>
-                      <p className="text-xs text-[#5a5a70]">{pref.description}</p>
+                      <p className="text-sm text-[var(--color-text-primary)]">{pref.label}</p>
+                      <p className="text-xs text-[var(--color-text-tertiary)]">{pref.description}</p>
                     </div>
                     <div className="flex w-16 justify-center">
                       <button
                         onClick={() => toggle(pref.key, "email")}
                         className={`h-5 w-9 rounded-full transition-colors ${
-                          pref.email ? "bg-[#6366f1]" : "bg-[#1e1f2a]"
+                          pref.email ? "bg-[var(--color-accent)]" : "bg-[var(--color-bg-muted)]"
                         }`}
                       >
                         <div
@@ -75,7 +75,7 @@ export default function NotificationsSettingsPage() {
                       <button
                         onClick={() => toggle(pref.key, "inApp")}
                         className={`h-5 w-9 rounded-full transition-colors ${
-                          pref.inApp ? "bg-[#6366f1]" : "bg-[#1e1f2a]"
+                          pref.inApp ? "bg-[var(--color-accent)]" : "bg-[var(--color-bg-muted)]"
                         }`}
                       >
                         <div

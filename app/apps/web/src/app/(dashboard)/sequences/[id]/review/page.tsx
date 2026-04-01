@@ -107,25 +107,25 @@ export default function ReviewQueuePage({
         <div>
           <Link
             href={`/sequences/${id}`}
-            className="text-sm text-[#6366f1] hover:text-[#5558e6]"
+            className="text-sm text-[var(--color-accent)] hover:opacity-90"
           >
             &larr; Back to sequence
           </Link>
           <h1 className="mt-1 text-xl font-semibold">Review Queue</h1>
-          <p className="text-sm text-[#8b8ba0]">
+          <p className="text-sm text-[var(--color-text-secondary)]">
             Review and approve outbound emails before sending.
           </p>
         </div>
         <div className="flex gap-2">
-          <div className="flex rounded-lg border border-[#1e1f2a]">
+          <div className="flex rounded-lg border border-[rgba(255,255,255,0.08)]">
             {(["draft", "queued", "sent"] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
                 className={`px-3 py-1.5 text-xs ${
                   filter === f
-                    ? "bg-[#6366f1] text-white"
-                    : "text-[#8b8ba0] hover:bg-[#1e1f2a]"
+                    ? "bg-[var(--color-accent)] text-white"
+                    : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)]"
                 }`}
               >
                 {f}
@@ -144,9 +144,9 @@ export default function ReviewQueuePage({
       </div>
 
       {loading ? (
-        <p className="text-[#8b8ba0]">Loading...</p>
+        <p className="text-[var(--color-text-secondary)]">Loading...</p>
       ) : emails.length === 0 ? (
-        <div className="mt-8 text-center text-[#8b8ba0]">
+        <div className="mt-8 text-center text-[var(--color-text-secondary)]">
           No {filter} emails in the queue.
         </div>
       ) : (
@@ -154,11 +154,11 @@ export default function ReviewQueuePage({
           {emails.map((email) => (
             <div
               key={email.id}
-              className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-4"
+              className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-4"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 text-xs text-[#8b8ba0]">
+                  <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
                     <span>To: {email.toAddress}</span>
                     {email.contact && (
                       <span>
@@ -174,24 +174,24 @@ export default function ReviewQueuePage({
                       <input
                         value={editSubject}
                         onChange={(e) => setEditSubject(e.target.value)}
-                        className="w-full rounded border border-[#1e1f2a] bg-[#0a0b10] px-3 py-1.5 text-sm text-[#e8e8ed] focus:border-[#6366f1] focus:outline-none"
+                        className="w-full rounded border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
                       />
                       <textarea
                         value={editBody}
                         onChange={(e) => setEditBody(e.target.value)}
                         rows={6}
-                        className="w-full rounded border border-[#1e1f2a] bg-[#0a0b10] px-3 py-2 text-sm text-[#e8e8ed] focus:border-[#6366f1] focus:outline-none"
+                        className="w-full rounded border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
                       />
                       <div className="flex gap-2">
                         <button
                           onClick={() => saveEdit(email.id)}
-                          className="rounded bg-[#6366f1] px-3 py-1 text-xs text-white"
+                          className="rounded bg-[var(--color-accent)] px-3 py-1 text-xs text-white"
                         >
                           Save
                         </button>
                         <button
                           onClick={() => setEditingId(null)}
-                          className="rounded border border-[#1e1f2a] px-3 py-1 text-xs text-[#8b8ba0]"
+                          className="rounded border border-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[var(--color-text-secondary)]"
                         >
                           Cancel
                         </button>
@@ -199,11 +199,11 @@ export default function ReviewQueuePage({
                     </div>
                   ) : (
                     <>
-                      <p className="mt-1 text-sm font-medium text-[#e8e8ed]">
+                      <p className="mt-1 text-sm font-medium text-[var(--color-text-primary)]">
                         {email.subject}
                       </p>
                       <div
-                        className="mt-2 text-xs text-[#8b8ba0] line-clamp-3"
+                        className="mt-2 text-xs text-[var(--color-text-secondary)] line-clamp-3"
                         dangerouslySetInnerHTML={{
                           __html: email.bodyHtml.substring(0, 300),
                         }}
@@ -222,7 +222,7 @@ export default function ReviewQueuePage({
                     </button>
                     <button
                       onClick={() => startEdit(email)}
-                      className="rounded bg-[#1e1f2a] px-2 py-1 text-xs text-[#8b8ba0] hover:bg-[#2a2b3a]"
+                      className="rounded bg-[var(--color-bg-muted)] px-2 py-1 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]"
                     >
                       Edit
                     </button>

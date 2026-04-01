@@ -63,10 +63,10 @@ export default function SequencesPage() {
   }
 
   const statusColors: Record<string, string> = {
-    draft: "text-[#5a5a70]",
+    draft: "text-[var(--color-text-tertiary)]",
     active: "text-emerald-400",
     paused: "text-amber-400",
-    archived: "text-[#5a5a70]",
+    archived: "text-[var(--color-text-tertiary)]",
   };
 
   return (
@@ -74,13 +74,13 @@ export default function SequencesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Sequences</h1>
-          <p className="mt-1 text-sm text-[#5a5a70]">
+          <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">
             {sequences.length} sequence{sequences.length !== 1 ? "s" : ""}
           </p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6]"
+          className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
         >
           + Create Sequence
         </button>
@@ -93,26 +93,26 @@ export default function SequencesPage() {
             onChange={(e) => setNewName(e.target.value)}
             placeholder="Sequence name (e.g. Cold Outreach)"
             autoFocus
-            className="w-full rounded-lg border border-[#1e1f2a] bg-[#12131a] px-3 py-2 text-sm text-[#e8e8ed] placeholder-[#5a5a70] focus:border-[#6366f1] focus:outline-none"
+            className="w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
           />
           <input
             value={newDesc}
             onChange={(e) => setNewDesc(e.target.value)}
             placeholder="Description (optional)"
-            className="w-full rounded-lg border border-[#1e1f2a] bg-[#12131a] px-3 py-2 text-sm text-[#e8e8ed] placeholder-[#5a5a70] focus:border-[#6366f1] focus:outline-none"
+            className="w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
           />
           <div className="flex gap-2">
             <button
               type="submit"
               disabled={creating || !newName.trim()}
-              className="rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6] disabled:opacity-50"
+              className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               {creating ? "Creating..." : "Create"}
             </button>
             <button
               type="button"
               onClick={() => setShowCreate(false)}
-              className="rounded-lg border border-[#1e1f2a] px-4 py-2 text-sm text-[#8b8ba0] hover:text-[#e8e8ed]"
+              className="rounded-lg border border-[rgba(255,255,255,0.08)] px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
             >
               Cancel
             </button>
@@ -124,13 +124,13 @@ export default function SequencesPage() {
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-16 animate-pulse rounded-lg bg-[#1e1f2a]" />
+              <div key={i} className="h-16 animate-pulse rounded-lg bg-[var(--color-bg-muted)]" />
             ))}
           </div>
         ) : sequences.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="text-sm font-medium text-[#8b8ba0]">No sequences</p>
-            <p className="mt-1 text-sm text-[#5a5a70]">
+            <p className="text-sm font-medium text-[var(--color-text-secondary)]">No sequences</p>
+            <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">
               Create a sequence to automate your outreach.
             </p>
           </div>
@@ -140,20 +140,20 @@ export default function SequencesPage() {
               <div
                 key={seq.id}
                 onClick={() => window.location.href = `/sequences/${seq.id}`}
-                className="cursor-pointer rounded-lg border border-[#1e1f2a] bg-[#12131a] p-4 hover:border-[#6366f1]/30"
+                className="cursor-pointer rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-4 hover:border-[var(--color-accent)]/30"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-medium text-[#e8e8ed]">{seq.name}</h3>
+                    <h3 className="font-medium text-[var(--color-text-primary)]">{seq.name}</h3>
                     {seq.description && (
-                      <p className="mt-0.5 text-xs text-[#5a5a70]">{seq.description}</p>
+                      <p className="mt-0.5 text-xs text-[var(--color-text-tertiary)]">{seq.description}</p>
                     )}
                   </div>
                   <span className={`text-xs font-medium uppercase ${statusColors[seq.status] || statusColors.draft}`}>
                     {seq.status}
                   </span>
                 </div>
-                <div className="mt-2 flex gap-4 text-xs text-[#5a5a70]">
+                <div className="mt-2 flex gap-4 text-xs text-[var(--color-text-tertiary)]">
                   <span>{seq.stepCount} step{seq.stepCount !== 1 ? "s" : ""}</span>
                   <span>{seq.enrolledCount} enrolled</span>
                 </div>

@@ -116,7 +116,7 @@ export default function MailboxesPage() {
     return (
       <>
         <h1 className="text-xl font-semibold">Connected mailboxes</h1>
-        <p className="mt-2 text-sm text-[#8b8ba0]">Loading...</p>
+        <p className="mt-2 text-sm text-[var(--color-text-secondary)]">Loading...</p>
       </>
     );
   }
@@ -126,13 +126,13 @@ export default function MailboxesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Connected mailboxes</h1>
-          <p className="mt-1 text-sm text-[#8b8ba0]">
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
             Manage email accounts used for outbound sequences.
           </p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6]"
+          className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
         >
           + Connect Mailbox
         </button>
@@ -141,36 +141,36 @@ export default function MailboxesPage() {
       {showForm && (
         <form
           onSubmit={connectMailbox}
-          className="mt-4 space-y-3 rounded-lg border border-[#1e1f2a] bg-[#12131a] p-4"
+          className="mt-4 space-y-3 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-4"
         >
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-[#8b8ba0]">Email address</label>
+              <label className="text-xs text-[var(--color-text-secondary)]">Email address</label>
               <input
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 placeholder="sales@company.com"
-                className="mt-1 w-full rounded-lg border border-[#1e1f2a] bg-[#0a0b10] px-3 py-2 text-sm text-[#e8e8ed] focus:border-[#6366f1] focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
                 required
               />
             </div>
             <div>
-              <label className="text-xs text-[#8b8ba0]">Display name</label>
+              <label className="text-xs text-[var(--color-text-secondary)]">Display name</label>
               <input
                 type="text"
                 value={form.displayName}
                 onChange={(e) => setForm({ ...form, displayName: e.target.value })}
                 placeholder="Martin"
-                className="mt-1 w-full rounded-lg border border-[#1e1f2a] bg-[#0a0b10] px-3 py-2 text-sm text-[#e8e8ed] focus:border-[#6366f1] focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
               />
             </div>
             <div>
-              <label className="text-xs text-[#8b8ba0]">Provider</label>
+              <label className="text-xs text-[var(--color-text-secondary)]">Provider</label>
               <select
                 value={form.provider}
                 onChange={(e) => setForm({ ...form, provider: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-[#1e1f2a] bg-[#0a0b10] px-3 py-2 text-sm text-[#e8e8ed] focus:border-[#6366f1] focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
               >
                 <option value="gmail">Gmail</option>
                 <option value="outlook">Outlook</option>
@@ -178,13 +178,13 @@ export default function MailboxesPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs text-[#8b8ba0]">App password</label>
+              <label className="text-xs text-[var(--color-text-secondary)]">App password</label>
               <input
                 type="password"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 placeholder="App-specific password"
-                className="mt-1 w-full rounded-lg border border-[#1e1f2a] bg-[#0a0b10] px-3 py-2 text-sm text-[#e8e8ed] focus:border-[#6366f1] focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
               />
             </div>
           </div>
@@ -192,14 +192,14 @@ export default function MailboxesPage() {
             <button
               type="submit"
               disabled={saving || !form.email}
-              className="rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6] disabled:opacity-50"
+              className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               {saving ? "Connecting..." : "Connect"}
             </button>
             <button
               type="button"
               onClick={() => setShowForm(false)}
-              className="rounded-lg border border-[#1e1f2a] px-4 py-2 text-sm text-[#8b8ba0] hover:bg-[#1e1f2a]"
+              className="rounded-lg border border-[rgba(255,255,255,0.08)] px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)]"
             >
               Cancel
             </button>
@@ -209,8 +209,8 @@ export default function MailboxesPage() {
 
       {mailboxes.length === 0 ? (
         <div className="mt-8 text-center">
-          <p className="text-[#8b8ba0]">No mailboxes connected yet.</p>
-          <p className="mt-1 text-sm text-[#555]">
+          <p className="text-[var(--color-text-secondary)]">No mailboxes connected yet.</p>
+          <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">
             Connect a mailbox to start sending outbound emails.
           </p>
         </div>
@@ -221,11 +221,11 @@ export default function MailboxesPage() {
             return (
               <div
                 key={mb.id}
-                className="flex items-center justify-between rounded-lg border border-[#1e1f2a] bg-[#12131a] px-4 py-3"
+                className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] px-4 py-3"
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-[#e8e8ed]">
+                    <span className="text-sm font-medium text-[var(--color-text-primary)]">
                       {mb.emailAddress}
                     </span>
                     <span
@@ -235,34 +235,34 @@ export default function MailboxesPage() {
                         ? `Warming up${wp ? ` — Day ${wp.daysSinceStart}/21` : ""}`
                         : mb.status}
                     </span>
-                    <span className="text-xs text-[#555]">{mb.provider}</span>
+                    <span className="text-xs text-[var(--color-text-tertiary)]">{mb.provider}</span>
                   </div>
                   {wp && (
                     <div className="mt-2 flex items-center gap-3">
-                      <div className="h-1.5 w-48 rounded-full bg-[#1e1f2a]">
+                      <div className="h-1.5 w-48 rounded-full bg-[var(--color-bg-muted)]">
                         <div
                           className="h-full rounded-full bg-yellow-500"
                           style={{ width: `${wp.progress}%` }}
                         />
                       </div>
-                      <span className="text-[10px] text-[#555]">
+                      <span className="text-[10px] text-[var(--color-text-tertiary)]">
                         {mb.warmupDailyTarget}/day target
                       </span>
                       <button
                         onClick={() => skipWarmup(mb.id)}
-                        className="text-[10px] text-[#6366f1] hover:text-[#5558e6]"
+                        className="text-[10px] text-[var(--color-accent)] hover:opacity-90"
                       >
                         Skip warm-up
                       </button>
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-6 text-xs text-[#8b8ba0]">
+                <div className="flex items-center gap-6 text-xs text-[var(--color-text-secondary)]">
                   <div>
-                    <span className="text-[#e8e8ed]">{mb.sentToday}</span>/{mb.dailyLimit} today
+                    <span className="text-[var(--color-text-primary)]">{mb.sentToday}</span>/{mb.dailyLimit} today
                   </div>
                   <div>
-                    <span className="text-[#e8e8ed]">{mb.sentTotal}</span> total
+                    <span className="text-[var(--color-text-primary)]">{mb.sentTotal}</span> total
                   </div>
                   <div>
                     Health:{" "}
