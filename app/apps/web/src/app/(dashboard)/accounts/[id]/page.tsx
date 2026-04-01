@@ -105,6 +105,9 @@ export default function AccountDetailPage() {
           )}
         </div>
 
+        {/* G3: Suggested Contacts */}
+        <SuggestedContacts accountId={accountId} accountName={account.name} />
+
         {/* Scoped chat */}
         <div className="mt-8">
           <ScopedChat
@@ -156,6 +159,69 @@ export default function AccountDetailPage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// G3: Contact Auto-Suggestion component
+function SuggestedContacts({ accountId, accountName }: { accountId: string; accountName: string }) {
+  const [suggestions, setSuggestions] = useState<Array<{
+    name: string;
+    title: string;
+    reason: string;
+  }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [fetched, setFetched] = useState(false);
+
+  async function fetchSuggestions() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/accounts/${accountId}/suggested-contacts`);
+      if (res.ok) {
+        const data = await res.json();
+        setSuggestions(data.suggestions || []);
+      }
+    } catch {
+      // Non-critical
+    } finally {
+      setLoading(false);
+      setFetched(true);
+    }
+  }
+
+  return (
+    <div className="mt-6">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-[#5a5a70]">
+        Suggested Contacts
+      </h2>
+      {!fetched ? (
+        <button
+          onClick={fetchSuggestions}
+          disabled={loading}
+          className="mt-2 w-full rounded-lg border border-dashed border-[#1e1f2a] px-4 py-3 text-sm text-[#6366f1] hover:border-[#6366f1] hover:bg-[#6366f1]/5"
+        >
+          {loading ? "Discovering contacts..." : `Discover contacts at ${accountName}`}
+        </button>
+      ) : suggestions.length === 0 ? (
+        <p className="mt-2 text-xs text-[#5a5a70]">No suggestions available.</p>
+      ) : (
+        <div className="mt-2 space-y-2">
+          {suggestions.map((s, i) => (
+            <div key={i} className="rounded-lg border border-[#1e1f2a] bg-[#12131a] p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-[#e8e8ed]">{s.name}</p>
+                  <p className="text-xs text-[#8b8ba0]">{s.title}</p>
+                </div>
+                <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-medium text-emerald-400">
+                  Suggested
+                </span>
+              </div>
+              <p className="mt-1 text-[10px] text-[#5a5a70]">{s.reason}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

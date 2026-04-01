@@ -145,6 +145,13 @@ export default function OpportunitiesPage() {
     return "border-l-transparent";
   }
 
+  // G17: Momentum indicator
+  function hasMomentum(deal: Deal): boolean {
+    const props = deal.properties as Record<string, unknown> | null;
+    const activityCount = (props?.recentActivityCount as number) || 0;
+    return activityCount >= 3;
+  }
+
   function getRiskBadge(deal: Deal) {
     const risk = (deal.properties as Record<string, unknown>)?.riskLevel as string;
     if (!risk || risk === "none") return null;
@@ -373,7 +380,10 @@ export default function OpportunitiesPage() {
                     className={`rounded-lg border border-[#1e1f2a] border-l-2 bg-[#0a0b0f] p-3 ${getRiskColor(deal)}`}
                   >
                     <div className="flex items-start justify-between gap-1">
-                      <p className="text-sm font-medium text-[#e8e8ed]">{deal.name}</p>
+                      <p className="text-sm font-medium text-[#e8e8ed]">
+                        {hasMomentum(deal) && <span title="High momentum">⚡</span>}
+                        {deal.name}
+                      </p>
                       {getRiskBadge(deal)}
                     </div>
                     {deal.value != null && deal.value > 0 && (

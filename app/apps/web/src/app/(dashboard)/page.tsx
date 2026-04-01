@@ -184,7 +184,22 @@ export default function DashboardPage() {
                     </div>
                     <p className="mt-1 text-xs text-[#5a5a70]">{action.why}</p>
                     {action.dealName && (
-                      <p className="mt-1 text-xs text-[#6366f1]">{action.dealName}</p>
+                      <div className="mt-1 flex items-center justify-between">
+                        <p className="text-xs text-[#6366f1]">{action.dealName}</p>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEmailComposer({
+                              to: "",
+                              subject: `Following up — ${action.dealName}`,
+                              body: `Hi,\n\n${action.action}\n\n${action.why}\n\nWould you have time for a quick call this week?\n\nBest regards`,
+                            });
+                          }}
+                          className="text-[10px] text-[#6366f1] hover:underline"
+                        >
+                          ✉️ Draft email
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}

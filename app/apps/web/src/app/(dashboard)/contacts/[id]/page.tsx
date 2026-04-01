@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ScopedChat } from "@/components/scoped-chat";
+import { EmailComposer } from "@/components/email-composer";
 
 interface Contact {
   id: string;
@@ -33,6 +34,7 @@ export default function ContactDetailPage() {
   const [contact, setContact] = useState<Contact | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [emailComposer, setEmailComposer] = useState<{ to: string; subject: string; body: string } | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -122,6 +124,19 @@ export default function ContactDetailPage() {
                       {activity.summary}
                     </p>
                   )}
+                  {/* G12: Suggested Reply for inbound emails */}
+                  {activity.direction === "inbound" && activity.activityType.includes("email") && (
+                    <button
+                      onClick={() => setEmailComposer({
+                        to: contact?.email || "",
+                        subject: `Re: ${activity.summary?.slice(0, 50) || "your email"}`,
+                        body: `Hi ${contact?.firstName || "there"},\n\nThanks for your email. ${activity.summary ? `Regarding "${activity.summary.slice(0, 80)}..." — ` : ""}\n\nBest regards`,
+                      })}
+                      className="mt-2 text-[10px] text-[#6366f1] hover:underline"
+                    >
+                      ✉️ Suggest reply
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -175,6 +190,15 @@ export default function ContactDetailPage() {
           )}
         </div>
       </div>
+
+      {emailComposer && (
+        <EmailComposer
+          to={emailComposer.to}
+          subject={emailComposer.subject}
+          body={emailComposer.body}
+          onClose={() => setEmailComposer(null)}
+        />
+      )}
     </div>
   );
 }

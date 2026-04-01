@@ -20,7 +20,8 @@ async function getEntityContext(contextType?: string, contextId?: string): Promi
     if (contextType === "contact") {
       const [contact] = await db.select().from(contacts).where(eq(contacts.id, contextId)).limit(1);
       if (contact) {
-        return `\n\n## Current Context: Contact "${contact.name}"\nEmail: ${contact.email || "unknown"}\nTitle: ${contact.title || "unknown"}\nCompany ID: ${contact.companyId || "unknown"}\n\nAll questions should be answered in the context of this contact.`;
+        const contactName = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "Unknown";
+        return `\n\n## Current Context: Contact "${contactName}"\nEmail: ${contact.email || "unknown"}\nTitle: ${contact.title || "unknown"}\nCompany ID: ${contact.companyId || "unknown"}\n\nAll questions should be answered in the context of this contact.`;
       }
     }
     if (contextType === "deal") {
@@ -87,7 +88,9 @@ export async function POST(req: Request) {
 - Creating and managing tasks
 
 Be concise, specific, and actionable. When referencing CRM data, cite the specific record.
-If you don't have data, say so honestly.${ragContext}${await getEntityContext(contextType, contextId)}`,
+If you don't have data, say so honestly.
+
+IMPORTANT: Always respond in the same language as the user's message. If the user writes in French, respond entirely in French including any table headers or labels. If in Spanish, respond in Spanish. Default to English.${ragContext}${await getEntityContext(contextType, contextId)}`,
     messages,
   });
 

@@ -366,6 +366,47 @@ export default function AccountsPage() {
     return (account.properties as Record<string, unknown>)?.source === "tam";
   }
 
+  // G16: 7 Account Lifecycle Stages
+  const lifecycleColors: Record<string, string> = {
+    new: "bg-[#5a5a70]/20 text-[#8b8ba0]",
+    prospecting: "bg-blue-500/15 text-blue-400",
+    opportunity: "bg-purple-500/15 text-purple-400",
+    customer: "bg-emerald-500/15 text-emerald-400",
+    disqualified: "bg-red-500/15 text-red-400",
+    inbound: "bg-amber-500/15 text-amber-400",
+    nurture: "bg-pink-500/15 text-pink-400",
+  };
+
+  function getLifecycleStage(account: Account): string {
+    return ((account.properties as Record<string, unknown>)?.lifecycleStage as string) || "new";
+  }
+
+  function lifecycleBadge(account: Account) {
+    const stage = getLifecycleStage(account);
+    return (
+      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-medium capitalize ${lifecycleColors[stage] || lifecycleColors.new}`}>
+        {stage}
+      </span>
+    );
+  }
+
+  // G18: Custom Boolean Signal Columns
+  const [customBoolColumns] = useState<string[]>(["Common Investor?", "Sales-led?"]);
+
+  function getCustomBool(account: Account, column: string): boolean | null {
+    const props = account.properties as Record<string, unknown> | null;
+    const customs = props?.customBools as Record<string, boolean> | undefined;
+    return customs?.[column] ?? null;
+  }
+
+  function customBoolCell(account: Account, column: string) {
+    const val = getCustomBool(account, column);
+    if (val === null) return <span className="text-[10px] text-[#5a5a70]">—</span>;
+    return val
+      ? <span className="text-[10px] font-medium text-emerald-400">Yes</span>
+      : <span className="text-[10px] text-[#5a5a70]">No</span>;
+  }
+
   const filteredAccounts = accounts
     .filter((a) => {
       // Source filter
@@ -548,8 +589,12 @@ export default function AccountsPage() {
                   <th className="pb-2 pr-4">Industry</th>
                   <th className="pb-2 pr-4">Size</th>
                   <th className="pb-2 pr-4">Revenue</th>
+                  <th className="pb-2 pr-4">Stage</th>
                   <th className="pb-2 pr-4">Score</th>
                   <th className="pb-2 pr-4">Signals</th>
+                  {customBoolColumns.map((col) => (
+                    <th key={col} className="pb-2 pr-4 text-[10px]">{col}</th>
+                  ))}
                   <th className="pb-2 pr-4">Actions</th>
                 </tr>
               </thead>
@@ -592,11 +637,19 @@ export default function AccountsPage() {
                       {account.revenue || "—"}
                     </td>
                     <td className="py-3 pr-4">
+                      {lifecycleBadge(account)}
+                    </td>
+                    <td className="py-3 pr-4">
                       {scoreDisplay(account)}
                     </td>
                     <td className="py-3 pr-4">
                       {signalBadges(account)}
                     </td>
+                    {customBoolColumns.map((col) => (
+                      <td key={col} className="py-3 pr-4">
+                        {customBoolCell(account, col)}
+                      </td>
+                    ))}
                     <td className="py-3 pr-4">
                       {!isEnriched(account) && enrichStatus[account.id] !== "enriching" && (
                         <button

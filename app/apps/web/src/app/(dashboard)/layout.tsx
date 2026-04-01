@@ -1,6 +1,9 @@
 import { auth, signOut } from "@/auth";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { db } from "@/db";
+import { chatThreads } from "@/db/schema";
+import { eq, desc } from "drizzle-orm";
 
 const navSections = [
   {
@@ -29,6 +32,7 @@ const navSections = [
   {
     label: "Chats",
     items: [{ label: "+ New chat", href: "/chat" }],
+    dynamic: true,
   },
 ];
 
@@ -41,6 +45,19 @@ export default async function DashboardLayout({
   if (!session?.user) redirect("/sign-in");
 
   const initials = (session.user.name?.charAt(0) || "?").toUpperCase();
+
+  // G19: Load recent chat threads for sidebar
+  let recentChats: Array<{ id: string; title: string | null }> = [];
+  try {
+    recentChats = await db
+      .select({ id: chatThreads.id, title: chatThreads.title })
+      .from(chatThreads)
+      .where(eq(chatThreads.userId, session.user.id!))
+      .orderBy(desc(chatThreads.updatedAt))
+      .limit(5);
+  } catch {
+    // DB not available or table doesn't exist yet
+  }
 
   return (
     <div className="flex h-screen">
@@ -89,6 +106,21 @@ export default async function DashboardLayout({
                   {item.label}
                 </Link>
               ))}
+              {/* G19: Chat history in sidebar */}
+              {section.label === "Chats" && recentChats.length > 0 && (
+                <div className="mt-1 space-y-0.5">
+                  {recentChats.map((thread) => (
+                    <Link
+                      key={thread.id}
+                      href={`/chat?thread=${thread.id}`}
+                      className="flex items-center gap-2 rounded-lg px-2 py-1 text-xs text-[#5a5a70] hover:bg-[rgba(99,102,241,0.12)] hover:text-[#8b8ba0] truncate"
+                      title={thread.title || "Untitled chat"}
+                    >
+                      <span className="truncate">{thread.title || "Untitled chat"}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </nav>
