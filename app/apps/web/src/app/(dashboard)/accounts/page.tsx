@@ -145,6 +145,15 @@ export default function AccountsPage() {
   const unenrichedCount = accounts.filter((a) => !isEnriched(a)).length;
   const tamCount = accounts.filter(isTAM).length;
 
+  // G27: Collect unique signal types across all accounts for individual columns
+  const signalTypeColumns = Array.from(
+    new Set(accounts.flatMap((a) => getSignals(a).map((s) => s.type)))
+  ).slice(0, 5); // Cap at 5 signal columns to avoid table overflow
+
+  function accountHasSignalType(account: Account, signalType: string): Signal | null {
+    return getSignals(account).find((s) => s.type === signalType) || null;
+  }
+
   // === RENDER ===
   return (
     <div className="flex h-full flex-col">
@@ -288,7 +297,8 @@ export default function AccountsPage() {
           <table className="w-full text-left" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
             <thead>
               <tr style={{ height: "36px" }}>
-                {["", "Account", "Domain", "Industry", "Size", "Revenue", "Stage", "Score", "Signals",
+                {["", "Account", "Domain", "Industry", "Size", "Revenue", "Stage", "Score",
+                  ...signalTypeColumns.map((t) => t.replace(/_/g, " ")),
                   ...customBoolColumns, ""].map((col, i) => (
                   <th key={i}
                     className="sticky top-0 z-10 whitespace-nowrap px-3 text-[11px] font-medium uppercase tracking-wider"
@@ -424,69 +434,62 @@ export default function AccountsPage() {
                       })()}
                     </td>
 
-                    {/* Signals */}
-                    <td className="px-3">
-                      {signals.length === 0 ? (
-                        <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>
-                      ) : (
-                        <div className="relative flex flex-wrap gap-1">
-                          {signals.slice(0, 3).map((signal, i) => {
-                            const popoverId = `${account.id}-${i}`;
-                            const idx = badgeColorIndex(signal.type);
-                            return (
-                              <span key={i} className="relative">
-                                <button onClick={(e) => { e.stopPropagation(); setActiveSignalPopover(activeSignalPopover === popoverId ? null : popoverId); }}
-                                  className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors"
-                                  style={{ background: BADGE_COLORS[idx].bg, color: BADGE_COLORS[idx].text, border: "0.5px solid var(--color-border-default)" }}>
-                                  {signal.type.replace("_", " ")}
-                                </button>
-                                {activeSignalPopover === popoverId && (
-                                  <div className="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg p-3"
-                                    style={{ background: "var(--color-bg-elevated)", border: "0.5px solid var(--color-border-moderate)", boxShadow: "var(--shadow-floating)" }}>
-                                    <div className="mb-2 flex items-center justify-between">
-                                      <span className="rounded px-1.5 py-0.5 text-[10px] font-medium"
-                                        style={{ background: BADGE_COLORS[idx].bg, color: BADGE_COLORS[idx].text }}>
-                                        {signal.type.replace("_", " ")}
-                                      </span>
-                                      <span className="text-[10px] font-semibold uppercase"
-                                        style={{ color: signal.relevance === "high" ? "var(--color-success)" : signal.relevance === "medium" ? "var(--color-warning)" : "var(--color-text-tertiary)" }}>
-                                        {signal.relevance}
-                                      </span>
-                                    </div>
-                                    <p className="text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>{signal.title}</p>
-                                    <p className="mt-1 text-[11px]" style={{ color: "var(--color-text-secondary)" }}>{signal.description}</p>
-                                    {signal.reasoning && (
-                                      <div className="mt-2 pt-2" style={{ borderTop: "0.5px solid var(--color-border-default)" }}>
-                                        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Reasoning</p>
-                                        <p className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>{signal.reasoning}</p>
-                                      </div>
-                                    )}
-                                    {signal.sources && signal.sources.length > 0 && (
-                                      <div className="mt-2 space-y-1 pt-2" style={{ borderTop: "0.5px solid var(--color-border-default)" }}>
-                                        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Sources</p>
-                                        {signal.sources.map((src, si) => (
-                                          <a key={si} href={src.url} target="_blank" rel="noopener noreferrer"
-                                            className="flex items-center gap-1.5 text-[11px] hover:underline" style={{ color: "var(--color-accent)" }}>
-                                            <span className="shrink-0">↗</span>
-                                            <span className="truncate">{src.title}</span>
-                                          </a>
-                                        ))}
-                                      </div>
-                                    )}
-                                    <button onClick={(e) => { e.stopPropagation(); setActiveSignalPopover(null); }}
-                                      className="mt-2 w-full text-center text-[10px] transition-colors"
-                                      style={{ color: "var(--color-text-muted)" }}>
-                                      Close
-                                    </button>
+                    {/* G27: Individual signal type columns */}
+                    {signalTypeColumns.map((sigType) => {
+                      const signal = accountHasSignalType(account, sigType);
+                      const popoverId = `${account.id}-sig-${sigType}`;
+                      return (
+                        <td key={sigType} className="px-3">
+                          {signal ? (
+                            <span className="relative">
+                              <button onClick={(e) => { e.stopPropagation(); setActiveSignalPopover(activeSignalPopover === popoverId ? null : popoverId); }}
+                                className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium"
+                                style={{ background: "var(--color-success-soft)", color: "var(--color-success)" }}>
+                                Yes
+                              </button>
+                              {activeSignalPopover === popoverId && (
+                                <div className="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg p-3"
+                                  style={{ background: "var(--color-bg-elevated)", border: "0.5px solid var(--color-border-moderate)", boxShadow: "var(--shadow-floating)" }}>
+                                  <div className="mb-2 flex items-center justify-between">
+                                    <span className="text-[11px] font-medium" style={{ color: "var(--color-text-primary)" }}>{signal.title}</span>
+                                    <span className="text-[10px] font-semibold uppercase"
+                                      style={{ color: signal.relevance === "high" ? "var(--color-success)" : signal.relevance === "medium" ? "var(--color-warning)" : "var(--color-text-tertiary)" }}>
+                                      {signal.relevance}
+                                    </span>
                                   </div>
-                                )}
-                              </span>
-                            );
-                          })}
-                          {signals.length > 3 && <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>+{signals.length - 3}</span>}
-                        </div>
-                      )}
-                    </td>
+                                  <p className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>{signal.description}</p>
+                                  {signal.reasoning && (
+                                    <div className="mt-2 pt-2" style={{ borderTop: "0.5px solid var(--color-border-default)" }}>
+                                      <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Reasoning</p>
+                                      <p className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>{signal.reasoning}</p>
+                                    </div>
+                                  )}
+                                  {signal.sources && signal.sources.length > 0 && (
+                                    <div className="mt-2 space-y-1 pt-2" style={{ borderTop: "0.5px solid var(--color-border-default)" }}>
+                                      <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Sources</p>
+                                      {signal.sources.map((src, si) => (
+                                        <a key={si} href={src.url} target="_blank" rel="noopener noreferrer"
+                                          className="flex items-center gap-1.5 text-[11px] hover:underline" style={{ color: "var(--color-accent)" }}>
+                                          <span className="shrink-0">↗</span>
+                                          <span className="truncate">{src.title}</span>
+                                        </a>
+                                      ))}
+                                    </div>
+                                  )}
+                                  <button onClick={(e) => { e.stopPropagation(); setActiveSignalPopover(null); }}
+                                    className="mt-2 w-full text-center text-[10px] transition-colors"
+                                    style={{ color: "var(--color-text-muted)" }}>
+                                    Close
+                                  </button>
+                                </div>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-[11px]" style={{ color: "var(--color-text-muted)" }}>—</span>
+                          )}
+                        </td>
+                      );
+                    })}
 
                     {/* Custom bool columns */}
                     {customBoolColumns.map((col) => {
