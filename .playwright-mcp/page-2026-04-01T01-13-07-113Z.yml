@@ -1,0 +1,182 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e7]:
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - button "MP Martin Paviot" [ref=e13]:
+          - generic [ref=e16]: MP
+          - generic [ref=e17]: Martin Paviot
+        - generic [ref=e18]:
+          - button "Search" [ref=e19]:
+            - img [ref=e20]
+          - button [ref=e22]:
+            - img [ref=e24]
+      - generic [ref=e27]:
+        - generic [ref=e29]:
+          - generic [ref=e30] [cursor=pointer]:
+            - link [ref=e31]:
+              - /url: /crm/up-next
+            - generic [ref=e32]:
+              - img
+            - generic "Up next" [ref=e33]
+          - button "Notifications" [ref=e34] [cursor=pointer]:
+            - generic [ref=e35]:
+              - img
+            - generic "Notifications" [ref=e36]
+        - generic [ref=e37]:
+          - generic [ref=e38]: Records
+          - generic [ref=e39] [cursor=pointer]:
+            - link [ref=e40]:
+              - /url: https://crm.lightfield.app/crm/accounts
+            - generic [ref=e41]:
+              - img
+            - generic "Accounts" [ref=e42]
+          - generic [ref=e43] [cursor=pointer]:
+            - link [ref=e44]:
+              - /url: https://crm.lightfield.app/crm/opportunities
+            - generic [ref=e45]:
+              - img
+            - generic "Opportunities" [ref=e46]
+          - generic [ref=e47] [cursor=pointer]:
+            - link [ref=e48]:
+              - /url: https://crm.lightfield.app/crm/contacts
+            - generic [ref=e49]:
+              - img
+            - generic "Contacts" [ref=e50]
+        - generic [ref=e51]:
+          - generic [ref=e52]: Resources
+          - generic [ref=e53] [cursor=pointer]:
+            - link [ref=e54]:
+              - /url: https://crm.lightfield.app/crm/tasks
+            - generic [ref=e55]:
+              - img
+            - generic "Tasks" [ref=e56]
+          - generic [ref=e57] [cursor=pointer]:
+            - link [ref=e58]:
+              - /url: https://crm.lightfield.app/crm/meetings
+            - generic [ref=e59]:
+              - img
+            - generic "Meetings" [ref=e60]
+          - generic [ref=e61] [cursor=pointer]:
+            - link [ref=e62]:
+              - /url: https://crm.lightfield.app/crm/notes
+            - generic [ref=e63]:
+              - img
+            - generic "Notes" [ref=e64]
+        - generic [ref=e65]:
+          - generic [ref=e66]: Lists
+          - button "New list" [ref=e67] [cursor=pointer]:
+            - generic [ref=e68]:
+              - img
+            - generic [ref=e69]: New list
+        - generic [ref=e70]:
+          - generic [ref=e71]: Chats
+          - button "New chat" [ref=e72] [cursor=pointer]:
+            - generic [ref=e73]:
+              - img
+            - generic [ref=e74]: New chat
+          - generic [ref=e75] [cursor=pointer]:
+            - link [ref=e76]:
+              - /url: /crm/thread/cmndtcyiz001j3571whjdyiq7
+            - generic [ref=e77]:
+              - img
+            - generic "What's the deal value of all my active opportun..." [ref=e78]
+          - generic [ref=e79] [cursor=pointer]:
+            - link [ref=e80]:
+              - /url: /crm/thread/cmndtc7ao001h3571h1jrw3ey
+            - generic [ref=e81]:
+              - img
+            - generic "Help me prepare for a meeting with Sarah Chen a..." [ref=e82]
+          - generic [ref=e83] [cursor=pointer]:
+            - link [ref=e84]:
+              - /url: /crm/thread/cmndtbiug001f3571amjxjqik
+            - generic [ref=e85]:
+              - img
+            - generic "What integrations are available?" [ref=e86]
+          - generic [ref=e87] [cursor=pointer]:
+            - link [ref=e88]:
+              - /url: /crm/thread/cmndtap1h001d35712uk2up76
+            - generic [ref=e89]:
+              - img
+            - generic "Export all contacts as CSV" [ref=e90]
+          - generic [ref=e91] [cursor=pointer]:
+            - link [ref=e92]:
+              - /url: /crm/thread/cmndta10l001b3571zhwkvvs1
+            - generic [ref=e93]:
+              - img
+            - generic "Draft a follow-up email to James Park referenci..." [ref=e94]
+          - combobox [ref=e95] [cursor=pointer]:
+            - generic [ref=e96]:
+              - img
+            - generic [ref=e97]: More
+      - button [ref=e100]:
+        - img [ref=e101]
+      - button "Resize sidebar" [ref=e103]
+    - generic [ref=e105]:
+      - generic [ref=e106]:
+        - generic [ref=e108]:
+          - generic [ref=e109]:
+            - img [ref=e111]
+            - generic [ref=e113]: Notes
+          - generic [ref=e114]:
+            - button "All" [ref=e115]:
+              - img [ref=e117]
+              - generic [ref=e122]: All
+            - button [ref=e126]:
+              - img [ref=e128]
+        - button "Create note" [ref=e131]:
+          - img [ref=e133]
+          - generic [ref=e135]: Create note
+      - generic [ref=e136]:
+        - button "Filter" [ref=e138]:
+          - img [ref=e140]
+          - generic [ref=e144]: Filter
+        - button "Display" [ref=e145]:
+          - img [ref=e147]
+          - generic [ref=e157]: Display
+      - region "scrollable content" [ref=e164]:
+        - table [ref=e167]:
+          - generic [ref=e168]:
+            - link "account-logo-meridian_labs Meridian Labs" [ref=e170] [cursor=pointer]:
+              - /url: /crm/notes?hsot=a&hsid=cmndozjzg0001jjoikwx5xnh6
+              - img "account-logo-meridian_labs" [ref=e173]
+              - generic [ref=e174]: Meridian Labs
+            - row "Sarah Chen - SaaStr 2025 MP" [ref=e176]:
+              - generic [ref=e177]:
+                - cell "Sarah Chen - SaaStr 2025" [ref=e178] [cursor=pointer]:
+                  - generic "Sarah Chen - SaaStr 2025" [ref=e180]
+                - cell
+                - cell "MP" [ref=e181]:
+                  - generic "Martin Paviot" [ref=e183]:
+                    - generic [ref=e187]: MP
+                - cell [ref=e188]:
+                  - button [ref=e189]:
+                    - img [ref=e191]
+          - generic [ref=e195]:
+            - link "account-logo-nova_tech NovaTech" [ref=e197] [cursor=pointer]:
+              - /url: /crm/notes?hsot=a&hsid=cmndozk1u000bjjoiwps05zb7
+              - img "account-logo-nova_tech" [ref=e200]
+              - generic [ref=e201]: NovaTech
+            - generic [ref=e202]:
+              - row "James Park - Pricing Discussion MP" [ref=e203]:
+                - generic [ref=e204]:
+                  - cell "James Park - Pricing Discussion" [ref=e205] [cursor=pointer]:
+                    - generic "James Park - Pricing Discussion" [ref=e207]
+                  - cell
+                  - cell "MP" [ref=e208]:
+                    - generic "Martin Paviot" [ref=e210]:
+                      - generic [ref=e214]: MP
+                  - cell [ref=e215]:
+                    - button [ref=e216]:
+                      - img [ref=e218]
+              - row "James Park - Background MP" [ref=e222]:
+                - generic [ref=e223]:
+                  - cell "James Park - Background" [ref=e224] [cursor=pointer]:
+                    - generic "James Park - Background" [ref=e226]
+                  - cell
+                  - cell "MP" [ref=e227]:
+                    - generic "Martin Paviot" [ref=e229]:
+                      - generic [ref=e233]: MP
+                  - cell [ref=e234]:
+                    - button [ref=e235]:
+                      - img [ref=e237]
+  - alert [ref=e4]

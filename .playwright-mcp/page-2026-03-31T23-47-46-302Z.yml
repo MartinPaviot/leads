@@ -1,0 +1,307 @@
+- generic [active] [ref=e1]:
+  - generic:
+    - generic:
+      - link "Passer directement au contenu principal" [ref=e593] [cursor=pointer]
+      - link "Désactiver le défilement continu" [ref=e594] [cursor=pointer]:
+        - /url: "#"
+      - link "Aide sur l'accessibilité" [ref=e595] [cursor=pointer]:
+        - /url: https://support.google.com/websearch/answer/181196?hl=fr
+      - link "Commentaires sur l'accessibilité" [ref=e596] [cursor=pointer]
+  - generic [ref=e55]:
+    - search [ref=e56]:
+      - generic [ref=e58]:
+        - link "Afficher la page d'accueil de Google" [ref=e597] [cursor=pointer]:
+          - /url: https://www.google.com/webhp?hl=fr&sa=X&ved=0ahUKEwiN1orIqMuTAxUIXKQEHWr5OR4QPAhq
+          - img [ref=e61]
+        - generic [ref=e68]:
+          - generic [ref=e69]:
+            - combobox "Rech." [ref=e598]: site:x.com monaco sales platform screenshot site:x.com monaco sales platform screenshot
+            - generic [ref=e73]:
+              - button "Effacer" [ref=e599] [cursor=pointer]:
+                - img [ref=e77]
+              - generic [ref=e80]:
+                - button "Utiliser la recherche vocale" [ref=e600] [cursor=pointer]:
+                  - img [ref=e82]
+                - button "Rechercher par image" [ref=e601] [cursor=pointer]:
+                  - img [ref=e85]
+          - button "Rechercher" [ref=e602] [cursor=pointer]:
+            - img [ref=e90]
+    - generic [ref=e92]:
+      - button "Paramètres" [ref=e603] [cursor=pointer]:
+        - img [ref=e606]
+      - generic [ref=e95]:
+        - button "Applications Google" [ref=e609] [cursor=pointer]:
+          - img [ref=e98]
+        - link "Connexion" [ref=e610] [cursor=pointer]:
+          - /url: https://accounts.google.com/ServiceLogin?hl=fr&passive=true&continue=https://www.google.com/search%3Fq%3Dsite:x.com%2Bmonaco%2Bsales%2Bplatform%2Bscreenshot%26udm%3D2%26sei%3DJFzMaYP2C4SqkdUPmZf9uAw&ec=futura_srp_og_si_72236_p
+  - generic [ref=e104]:
+    - navigation [ref=e109]:
+      - generic [ref=e110]:
+        - list [ref=e111]:
+          - listitem [ref=e112]:
+            - link "Tous" [ref=e611] [cursor=pointer]:
+              - /url: /search?sca_esv=63b726b38d73526b&q=site:x.com+monaco+sales+platform+screenshot&source=lnms&fbs=ADc_l-bpk8W4E-qsVlOvbGJcDwpnHC5OJXXTJvmMu2n9YYx-G_pfw24wg8jEi34E91xBhp_ry0KuQnQZku_PKsKngeWBimOLSFlCRUBNEmYfj2UKV1_V90SGsLCCJmKY1pYc78k6HHijF_avAmLg6mmT9hGEvlujv_bDPIaqXrgHB7bm0Q2tsL0lmcHb_6kxV7kN5_7aengg50Js_xzD1PEXpc9HyVGslA&sa=X&ved=2ahUKEwiN1orIqMuTAxUIXKQEHWr5OR4Q0pQJegQIEBAB
+              - generic [ref=e115]: Tous
+          - listitem [ref=e116]:
+            - link "Images" [disabled] [ref=e612]:
+              - generic [ref=e119]: Images
+          - listitem [ref=e120]:
+            - link "Actualités" [ref=e613] [cursor=pointer]:
+              - /url: /search?sca_esv=63b726b38d73526b&q=site:x.com+monaco+sales+platform+screenshot&tbm=nws&source=lnms&fbs=ADc_l-bpk8W4E-qsVlOvbGJcDwpnHC5OJXXTJvmMu2n9YYx-G_pfw24wg8jEi34E91xBhp_ry0KuQnQZku_PKsKngeWBimOLSFlCRUBNEmYfj2UKV1_V90SGsLCCJmKY1pYc78k6HHijF_avAmLg6mmT9hGEvlujv_bDPIaqXrgHB7bm0Q2tsL0lmcHb_6kxV7kN5_7aengg50Js_xzD1PEXpc9HyVGslA&sa=X&ved=2ahUKEwiN1orIqMuTAxUIXKQEHWr5OR4Q0pQJegQIDhAB
+              - generic [ref=e123]: Actualités
+          - listitem [ref=e124]:
+            - link "Produits" [ref=e614] [cursor=pointer]:
+              - /url: /search?sca_esv=63b726b38d73526b&udm=3&fbs=ADc_l-bpk8W4E-qsVlOvbGJcDwpnHC5OJXXTJvmMu2n9YYx-G_pfw24wg8jEi34E91xBhp_ry0KuQnQZku_PKsKngeWBimOLSFlCRUBNEmYfj2UKV1_V90SGsLCCJmKY1pYc78k6HHijF_avAmLg6mmT9hGEvlujv_bDPIaqXrgHB7bm0Q2tsL0lmcHb_6kxV7kN5_7aengg50Js_xzD1PEXpc9HyVGslA&q=site:x.com+monaco+sales+platform+screenshot&sa=X&ved=2ahUKEwiN1orIqMuTAxUIXKQEHWr5OR4Qs6gLegQIDRAB
+              - generic [ref=e127]: Produits
+          - listitem [ref=e128]:
+            - link "Vidéos courtes" [ref=e615] [cursor=pointer]:
+              - /url: /search?sca_esv=63b726b38d73526b&udm=39&fbs=ADc_l-bpk8W4E-qsVlOvbGJcDwpnHC5OJXXTJvmMu2n9YYx-G_pfw24wg8jEi34E91xBhp_ry0KuQnQZku_PKsKngeWBimOLSFlCRUBNEmYfj2UKV1_V90SGsLCCJmKY1pYc78k6HHijF_avAmLg6mmT9hGEvlujv_bDPIaqXrgHB7bm0Q2tsL0lmcHb_6kxV7kN5_7aengg50Js_xzD1PEXpc9HyVGslA&q=site:x.com+monaco+sales+platform+screenshot&sa=X&ved=2ahUKEwiN1orIqMuTAxUIXKQEHWr5OR4Qs6gLegQIDxAB
+              - generic [ref=e131]: Vidéos courtes
+          - listitem [ref=e132]:
+            - link "Web" [ref=e616] [cursor=pointer]:
+              - /url: /search?sca_esv=63b726b38d73526b&udm=web&fbs=ADc_l-bpk8W4E-qsVlOvbGJcDwpnHC5OJXXTJvmMu2n9YYx-G_pfw24wg8jEi34E91xBhp_ry0KuQnQZku_PKsKngeWBimOLSFlCRUBNEmYfj2UKV1_V90SGsLCCJmKY1pYc78k6HHijF_avAmLg6mmT9hGEvlujv_bDPIaqXrgHB7bm0Q2tsL0lmcHb_6kxV7kN5_7aengg50Js_xzD1PEXpc9HyVGslA&q=site:x.com+monaco+sales+platform+screenshot&sa=X&ved=2ahUKEwiN1orIqMuTAxUIXKQEHWr5OR4Qs6gLegQIChAB
+              - generic [ref=e135]: Web
+          - listitem [ref=e136]:
+            - link "Finance" [ref=e617] [cursor=pointer]:
+              - /url: /finance?sca_esv=63b726b38d73526b&output=search&q=site:x.com+monaco+sales+platform+screenshot&source=lnms&fbs=ADc_l-bpk8W4E-qsVlOvbGJcDwpnHC5OJXXTJvmMu2n9YYx-G_pfw24wg8jEi34E91xBhp_ry0KuQnQZku_PKsKngeWBimOLSFlCRUBNEmYfj2UKV1_V90SGsLCCJmKY1pYc78k6HHijF_avAmLg6mmT9hGEvlujv_bDPIaqXrgHB7bm0Q2tsL0lmcHb_6kxV7kN5_7aengg50Js_xzD1PEXpc9HyVGslA&sa=X&ved=2ahUKEwiN1orIqMuTAxUIXKQEHWr5OR4Q0pQJegQICxAB
+              - generic [ref=e139]: Finance
+          - listitem [ref=e140]:
+            - button "Plus de filtres" [ref=e618] [cursor=pointer]:
+              - generic "Plus de filtres" [ref=e619]:
+                - generic [ref=e143]:
+                  - generic [ref=e144]: Plus
+                  - img [ref=e146]
+        - button "Outils" [ref=e621] [cursor=pointer]:
+          - generic [ref=e623]:
+            - generic [ref=e624]: Outils
+            - img [ref=e626]
+    - navigation [ref=e149]:
+      - navigation [ref=e152]:
+        - list [ref=e160]:
+          - listitem [ref=e161]:
+            - link "Ajouter Monaco coatings" [ref=e628] [cursor=pointer]:
+              - /url: /search?sca_esv=63b726b38d73526b&q=monaco+coatings+site:x.com+monaco+sales+platform+screenshot&uds=ALYpb_ncDc7jTlmw6Mmq7NjuX5c-Gu3cGWeU3vmo5LM_mPcpUxHemlLuaNpEXLGaXJoS6lKyeYDLXsirOl9mgcFp7jdvBFbKhPJOx7ZgTfnd_JFA_kC3N0sCJEBsKO9qaoXmxhOXtLu1bAf7PkNOrN8YvAaCBMMYFxgXz9S55ZiXGbkWzBpQH5it_Z0Dyj7vXPHdifJ47ss4ffZ0kQBYklKoaE1tfnW7JA&udm=2&sa=X&ved=2ahUKEwiN1orIqMuTAxUIXKQEHWr5OR4QxKsJKAB6BAgREAE&ictx=0
+              - generic [ref=e168]: Monaco coatings
+          - listitem [ref=e169]:
+            - link "Ajouter Waib summit" [ref=e629] [cursor=pointer]:
+              - /url: /search?sca_esv=63b726b38d73526b&q=waib+summit+site:x.com+monaco+sales+platform+screenshot&uds=ALYpb_ncDc7jTlmw6Mmq7NjuX5c-K1fm-6MbHrVPgWC5v0Ha2gJKY6vc9KTKQ4avLwXOiwshnq45VCoxbrm7BDTa5T6eGTcq0AWE2Hxqql3bs9u5nKQkKVIBQyI0EKB_kqfgXysV-OkzL8FrjF7kU1MkkpC_cCYoxiaEZANlnkht-0YKwnsQ-sT0bAouD-0hmoftfnXEABVx1o8XWL4OY5snFVWrvjUJqQ&udm=2&sa=X&ved=2ahUKEwiN1orIqMuTAxUIXKQEHWr5OR4QxKsJKAF6BAgWEAE&ictx=0
+              - generic [ref=e176]: Waib summit
+          - listitem [ref=e177]:
+            - link "Ajouter Lantonnet" [ref=e630] [cursor=pointer]:
+              - /url: /search?sca_esv=63b726b38d73526b&q=lantonnet+site:x.com+monaco+sales+platform+screenshot&uds=ALYpb_ncDc7jTlmw6Mmq7NjuX5c-ZUNM7mtYny5rKDXe5Qj352KIBs7sEjZ01wc1iIDcBWRydTINDN6da78lNhQxCw-VW2H93vCXWwBWiM_oKfeLzVHTSFBQ7UBgJDQSj0zhGy3imoEtFDstKdH7Ot2O4jzHyZZiNcmbb-4LnolER2Lx9oYQsdjNzqX0JgxNDqGefxBNM5HU&udm=2&sa=X&ved=2ahUKEwiN1orIqMuTAxUIXKQEHWr5OR4QxKsJKAJ6BAgUEAE&ictx=0
+              - generic [ref=e184]: Lantonnet
+          - listitem [ref=e185]:
+            - link "Ajouter Matthew monaco" [ref=e631] [cursor=pointer]:
+              - /url: /search?sca_esv=63b726b38d73526b&q=matthew+monaco+site:x.com+monaco+sales+platform+screenshot&uds=ALYpb_ncDc7jTlmw6Mmq7NjuX5c-xflvf2lwpG_Q1DPXMZZP3AxMZgQYtGmH9BnY-2XulBNVbGhMrPd4QDt5_YJc7SJYGF7M2d89IZE_V4lCHQCM4F3SbVXDd5G3OVT1IK6sBNzZ6V-DnfTJVLULscCAohsHkoyTEFziAIhYlSfCt1IMfZF1MuhWrAsW5yFvlidiMNlwy8zPIRIC0zmriihBgILhRs8ZeQ&udm=2&sa=X&ved=2ahUKEwiN1orIqMuTAxUIXKQEHWr5OR4QxKsJKAN6BAgTEAE&ictx=0
+              - generic [ref=e192]: Matthew monaco
+          - listitem [ref=e193]:
+            - link "Ajouter Trading" [ref=e632] [cursor=pointer]:
+              - /url: /search?sca_esv=63b726b38d73526b&q=trading+site:x.com+monaco+sales+platform+screenshot&uds=ALYpb_ncDc7jTlmw6Mmq7NjuX5c-lZXy4WXjCBs-WMfCmu8tIZACMyQeiLg2HY73yZmxn6faEZOZ9hBojfxhCaKjccl6Kt1XjZ_oIzch5qPH5dVH5LISwXhTCdx6rS94NnNpJCBK0Y7tNqxJn0slN5Y40OGAny3dh_bx1f8f5YLRTt_9rxYoxs-IaVv-Sna2K2rcdUIkHnPQ&udm=2&sa=X&ved=2ahUKEwiN1orIqMuTAxUIXKQEHWr5OR4QxKsJKAR6BAgSEAE&ictx=0
+              - generic [ref=e200]: Trading
+          - listitem [ref=e633]:
+            - link "Ajouter Lantonnet eric" [ref=e634] [cursor=pointer]:
+              - /url: /search?sca_esv=63b726b38d73526b&q=lantonnet+eric+site:x.com+monaco+sales+platform+screenshot&uds=ALYpb_ncDc7jTlmw6Mmq7NjuX5c-xflvf2lwpG_Q1DPXMZZP3AxMZgQYtGmH9BnY-2XulBNVbGhMrPd4QDt5_YJc7SJYGF7M2d89IZE_V4lCHQCM4F2bNn_jk_uEKz741_7khfldgqWQlfrsRTO_sz-p6DFM82q1cYbvC7fppVpJ9ozoDfVqHg5VpsWnbYJKRW8jyTna5jcI2LoxA1ipOUMPFo-8ehpE9A&udm=2&sa=X&ved=2ahUKEwiN1orIqMuTAxUIXKQEHWr5OR4QxKsJKAV6BAh9EAE&ictx=0
+              - generic [ref=e640]: Lantonnet eric
+          - listitem [ref=e641]:
+            - link "Ajouter Paint" [ref=e642] [cursor=pointer]:
+              - /url: /search?sca_esv=63b726b38d73526b&q=paint+site:x.com+monaco+sales+platform+screenshot&uds=ALYpb_ncDc7jTlmw6Mmq7NjuX5c-p2edqP4ik7v2FPRwJbsSBEZVpB2EpaQoL6I7xddD9M9_0p_wo-DhrTJ0u-r_pMZz5M8PINTFKY2Wfo0LAlgtDU3Uda3lcve1bEnZLMTY1vUbbpm3Fhi9xKXBIXVP8fO4kuQdMlR7Vqs3ykFDM38Y_q2x_GkBJHi4UXuLhFP_SDrCpG0c&udm=2&sa=X&ved=2ahUKEwiN1orIqMuTAxUIXKQEHWr5OR4QxKsJKAZ6BAh_EAE&ictx=0
+              - generic [ref=e648]: Paint
+    - heading "Résultats de recherche" [level=1] [ref=e649]
+    - main [ref=e203]:
+      - generic [ref=e209]:
+        - generic [ref=e212]:
+          - generic [ref=e213] [cursor=pointer]:
+            - 'heading "Prodtex at the Dassault Systèmes Value Solutions Sales Leader Convention in Monaco. Many new exciting upgrades for 2019 in the #3DEXPERIENCE platform by Dassault Systémes." [level=3] [ref=e650]':
+              - 'button "Prodtex at the Dassault Systèmes Value Solutions Sales Leader Convention in Monaco. Many new exciting upgrades for 2019 in the #3DEXPERIENCE platform by Dassault Systémes." [ref=e651]':
+                - 'img "Prodtex at the Dassault Systèmes Value Solutions Sales Leader Convention in Monaco. Many new exciting upgrades for 2019 in the #3DEXPERIENCE platform by Dassault Systémes." [ref=e652]'
+            - 'link "x.com Prodtex at the Dassault Systèmes Value Solutions Sales Leader Convention in Monaco. Many new exciting upgrades for 2019 in the #3DEXPERIENCE platform by Dassault Systémes." [ref=e653]':
+              - /url: https://x.com/Prodtex1/status/1087771058709692417
+              - generic [ref=e227]: x.com
+              - generic [ref=e229]: "Prodtex at the Dassault Systèmes Value Solutions Sales Leader Convention in Monaco. Many new exciting upgrades for 2019 in the #3DEXPERIENCE platform by Dassault Systémes."
+          - generic [ref=e230] [cursor=pointer]:
+            - heading "Monaco (@MonacoGTM) / Posts / X" [level=3] [ref=e654]:
+              - button "Monaco (@MonacoGTM) / Posts / X" [ref=e655]:
+                - img "Monaco (@MonacoGTM) / Posts / X" [ref=e656]
+            - link "Twitter Monaco (@MonacoGTM) / Posts / X" [ref=e657]:
+              - /url: https://x.com/MonacoGTM
+              - generic [ref=e244]: Twitter
+              - generic [ref=e246]: Monaco (@MonacoGTM) / Posts / X
+          - generic [ref=e247] [cursor=pointer]:
+            - generic [ref=e248]:
+              - heading "Matthew Monaco (@mono_trader) / Posts / X" [level=3] [ref=e658]:
+                - button "Matthew Monaco (@mono_trader) / Posts / X" [ref=e659]:
+                  - img "Matthew Monaco (@mono_trader) / Posts / X" [ref=e660]
+              - generic:
+                - generic: il y a 6 jours
+            - link "Twitter Matthew Monaco (@mono_trader) / Posts / X" [ref=e661]:
+              - /url: https://x.com/mono_trader
+              - generic [ref=e261]: Twitter
+              - generic [ref=e263]: Matthew Monaco (@mono_trader) / Posts / X
+          - generic [ref=e264] [cursor=pointer]:
+            - heading "Monaco (@MonacoGTM) / Posts / X" [level=3] [ref=e662]:
+              - button "Monaco (@MonacoGTM) / Posts / X" [ref=e663]:
+                - img "Monaco (@MonacoGTM) / Posts / X" [ref=e664]
+            - link "Twitter Monaco (@MonacoGTM) / Posts / X" [ref=e665]:
+              - /url: https://x.com/MonacoGTM
+              - generic [ref=e278]: Twitter
+              - generic [ref=e280]: Monaco (@MonacoGTM) / Posts / X
+          - generic [ref=e281] [cursor=pointer]:
+            - generic [ref=e282]:
+              - heading "Monexplora platform trading apa 9IwVb\" - Results on X | Live Posts & Updates" [level=3] [ref=e666]:
+                - button "Monexplora platform trading apa 9IwVb\" - Results on X | Live Posts & Updates" [ref=e667]:
+                  - img "Monexplora platform trading apa 9IwVb\" - Results on X | Live Posts & Updates" [ref=e668]
+              - generic:
+                - generic: il y a 4 jours
+            - link "Twitter Monexplora platform trading apa 9IwVb\" - Results on X | Live Posts & Updates" [ref=e669]:
+              - /url: https://x.com/search?q=Monexplora%20platform%20trading%20apa%209IwVb
+              - generic [ref=e295]: Twitter
+              - generic [ref=e297]: Monexplora platform trading apa 9IwVb" - Results on X | Live Posts & Updates
+          - generic [ref=e298] [cursor=pointer]:
+            - heading "Monaco (@MonacoGTM) / Posts / X" [level=3] [ref=e670]:
+              - button "Monaco (@MonacoGTM) / Posts / X" [ref=e671]:
+                - img "Monaco (@MonacoGTM) / Posts / X" [ref=e672]
+            - link "Twitter Monaco (@MonacoGTM) / Posts / X" [ref=e673]:
+              - /url: https://x.com/MonacoGTM
+              - generic [ref=e312]: Twitter
+              - generic [ref=e314]: Monaco (@MonacoGTM) / Posts / X
+          - generic [ref=e315] [cursor=pointer]:
+            - heading "Monzack and Monaco P.A.\" - Results on X | Live Posts & Updates" [level=3] [ref=e674]:
+              - button "Monzack and Monaco P.A.\" - Results on X | Live Posts & Updates" [ref=e675]:
+                - img "Monzack and Monaco P.A.\" - Results on X | Live Posts & Updates" [ref=e676]
+            - link "Twitter Monzack and Monaco P.A.\" - Results on X | Live Posts & Updates" [ref=e677]:
+              - /url: https://x.com/search?q=Monzack%20and%20Monaco%20P.A.
+              - generic [ref=e329]: Twitter
+              - generic [ref=e331]: Monzack and Monaco P.A." - Results on X | Live Posts & Updates
+          - generic [ref=e332] [cursor=pointer]:
+            - 'heading "Breaking News: Ferrari F40 Sold within 48hrs! 💥 We are thrilled to announce the successful sale of the iconic F40 that captivated the Monaco Grand Prix. This marks a significant milestone as" [level=3] [ref=e678]':
+              - 'button "Breaking News: Ferrari F40 Sold within 48hrs! 💥 We are thrilled to announce the successful sale of the iconic F40 that captivated the Monaco Grand Prix. This marks a significant milestone as" [ref=e679]':
+                - 'img "Breaking News: Ferrari F40 Sold within 48hrs! 💥 We are thrilled to announce the successful sale of the iconic F40 that captivated the Monaco Grand Prix. This marks a significant milestone as" [ref=e680]'
+            - 'link "X Breaking News: Ferrari F40 Sold within 48hrs! 💥 We are thrilled to announce the successful sale of the iconic F40 that captivated the Monaco Grand Prix. This marks a significant milestone as" [ref=e681]':
+              - /url: https://x.com/Lucidao_/status/1681589658654736389
+              - generic [ref=e346]: X
+              - generic [ref=e348]: "Breaking News: Ferrari F40 Sold within 48hrs! 💥 We are thrilled to announce the successful sale of the iconic F40 that captivated the Monaco Grand Prix. This marks a significant milestone as"
+          - generic [ref=e349] [cursor=pointer]:
+            - heading "Matthew Monaco (@mono_trader) / Posts / X" [level=3] [ref=e682]:
+              - button "Matthew Monaco (@mono_trader) / Posts / X" [ref=e683]:
+                - img "Matthew Monaco (@mono_trader) / Posts / X" [ref=e684]
+            - link "Twitter Matthew Monaco (@mono_trader) / Posts / X" [ref=e685]:
+              - /url: https://x.com/mono_trader
+              - generic [ref=e363]: Twitter
+              - generic [ref=e365]: Matthew Monaco (@mono_trader) / Posts / X
+          - generic [ref=e366] [cursor=pointer]:
+            - heading "Sam Blond (@samdblond) / Posts and Replies / X" [level=3] [ref=e686]:
+              - button "Sam Blond (@samdblond) / Posts and Replies / X" [ref=e687]:
+                - img "Sam Blond (@samdblond) / Posts and Replies / X" [ref=e688]
+            - link "Twitter Sam Blond (@samdblond) / Posts and Replies / X" [ref=e689]:
+              - /url: https://x.com/samdblond/with_replies
+              - generic [ref=e380]: Twitter
+              - generic [ref=e382]: Sam Blond (@samdblond) / Posts and Replies / X
+          - generic [ref=e383] [cursor=pointer]:
+            - heading "Sam Blond (@samdblond) / Posts and Replies / X" [level=3] [ref=e690]:
+              - button "Sam Blond (@samdblond) / Posts and Replies / X" [ref=e691]:
+                - img "Sam Blond (@samdblond) / Posts and Replies / X" [ref=e692]
+            - link "Twitter Sam Blond (@samdblond) / Posts and Replies / X" [ref=e693]:
+              - /url: https://x.com/samdblond/with_replies
+              - generic [ref=e397]: Twitter
+              - generic [ref=e399]: Sam Blond (@samdblond) / Posts and Replies / X
+          - generic [ref=e400] [cursor=pointer]:
+            - heading "Sam Blond (@samdblond) / Posts and Replies / X" [level=3] [ref=e694]:
+              - button "Sam Blond (@samdblond) / Posts and Replies / X" [ref=e695]:
+                - img "Sam Blond (@samdblond) / Posts and Replies / X" [ref=e696]
+            - link "Twitter Sam Blond (@samdblond) / Posts and Replies / X" [ref=e697]:
+              - /url: https://x.com/samdblond/with_replies
+              - generic [ref=e414]: Twitter
+              - generic [ref=e416]: Sam Blond (@samdblond) / Posts and Replies / X
+          - generic [ref=e417] [cursor=pointer]:
+            - heading "Sam Blond (@samdblond) / Posts and Replies / X" [level=3] [ref=e698]:
+              - button "Sam Blond (@samdblond) / Posts and Replies / X" [ref=e699]:
+                - img "Sam Blond (@samdblond) / Posts and Replies / X" [ref=e700]
+            - link "Twitter Sam Blond (@samdblond) / Posts and Replies / X" [ref=e701]:
+              - /url: https://x.com/samdblond/with_replies
+              - generic [ref=e431]: Twitter
+              - generic [ref=e433]: Sam Blond (@samdblond) / Posts and Replies / X
+          - generic [ref=e434] [cursor=pointer]:
+            - generic [ref=e435]:
+              - heading "Sam Blond (@samdblond) / Posts / X" [level=3] [ref=e702]:
+                - button "Sam Blond (@samdblond) / Posts / X" [ref=e703]:
+                  - img "Sam Blond (@samdblond) / Posts / X" [ref=e704]
+              - generic:
+                - generic: il y a 5 jours
+            - link "Twitter Sam Blond (@samdblond) / Posts / X" [ref=e705]:
+              - /url: https://x.com/samdblond
+              - generic [ref=e448]: Twitter
+              - generic [ref=e450]: Sam Blond (@samdblond) / Posts / X
+          - generic [ref=e451] [cursor=pointer]:
+            - heading "WAIB Summit (@waibsummit) / Posts / X" [level=3] [ref=e706]:
+              - button "WAIB Summit (@waibsummit) / Posts / X" [ref=e707]:
+                - img "WAIB Summit (@waibsummit) / Posts / X" [ref=e708]
+            - link "Twitter WAIB Summit (@waibsummit) / Posts / X" [ref=e709]:
+              - /url: https://x.com/waibsummit
+              - generic [ref=e465]: Twitter
+              - generic [ref=e467]: WAIB Summit (@waibsummit) / Posts / X
+          - generic [ref=e468] [cursor=pointer]:
+            - heading "Monaco (@MonacoGTM) / Posts / X" [level=3] [ref=e710]:
+              - button "Monaco (@MonacoGTM) / Posts / X" [ref=e711]:
+                - img "Monaco (@MonacoGTM) / Posts / X" [ref=e712]
+            - link "Twitter Monaco (@MonacoGTM) / Posts / X" [ref=e713]:
+              - /url: https://x.com/MonacoGTM
+              - generic [ref=e482]: Twitter
+              - generic [ref=e484]: Monaco (@MonacoGTM) / Posts / X
+          - generic [ref=e485] [cursor=pointer]:
+            - generic [ref=e486]:
+              - heading "NextEpochMarket platform profile.hgz\" - Results on X | Live Posts & Updates" [level=3] [ref=e714]:
+                - button "NextEpochMarket platform profile.hgz\" - Results on X | Live Posts & Updates" [ref=e715]:
+                  - img "NextEpochMarket platform profile.hgz\" - Results on X | Live Posts & Updates" [ref=e716]
+              - generic:
+                - generic: il y a 4 jours
+            - link "Twitter NextEpochMarket platform profile.hgz\" - Results on X | Live Posts & Updates" [ref=e717]:
+              - /url: https://x.com/search?lang=zh-Hant&src=user&q=NextEpochMarket%20platform%20profile.hgz
+              - generic [ref=e499]: Twitter
+              - generic [ref=e501]: NextEpochMarket platform profile.hgz" - Results on X | Live Posts & Updates
+          - generic [ref=e502] [cursor=pointer]:
+            - heading "Sam Blond (@samdblond) / Posts and Replies / X" [level=3] [ref=e718]:
+              - button "Sam Blond (@samdblond) / Posts and Replies / X" [ref=e719]:
+                - img "Sam Blond (@samdblond) / Posts and Replies / X" [ref=e720]
+            - link "Twitter Sam Blond (@samdblond) / Posts and Replies / X" [ref=e721]:
+              - /url: https://x.com/samdblond/with_replies
+              - generic [ref=e516]: Twitter
+              - generic [ref=e518]: Sam Blond (@samdblond) / Posts and Replies / X
+          - generic [ref=e519] [cursor=pointer]:
+            - heading "Javier Ramírez Lugo (@Javib2b) / Posts / X" [level=3] [ref=e722]:
+              - button "Javier Ramírez Lugo (@Javib2b) / Posts / X" [ref=e723]:
+                - img "Javier Ramírez Lugo (@Javib2b) / Posts / X" [ref=e724]
+            - link "Twitter Javier Ramírez Lugo (@Javib2b) / Posts / X" [ref=e725]:
+              - /url: https://x.com/Javib2b
+              - generic [ref=e533]: Twitter
+              - generic [ref=e535]: Javier Ramírez Lugo (@Javib2b) / Posts / X
+          - generic [ref=e536] [cursor=pointer]:
+            - heading "WAIB Summit (@waibsummit) / Posts / X" [level=3] [ref=e726]:
+              - button "WAIB Summit (@waibsummit) / Posts / X" [ref=e727]:
+                - img "WAIB Summit (@waibsummit) / Posts / X" [ref=e728]
+            - link "Twitter WAIB Summit (@waibsummit) / Posts / X" [ref=e729]:
+              - /url: https://x.com/waibsummit
+              - generic [ref=e550]: Twitter
+              - generic [ref=e552]: WAIB Summit (@waibsummit) / Posts / X
+          - generic [ref=e553] [cursor=pointer]:
+            - heading "Joseph Voyager (@JosephVoyager) / Posts / X" [level=3] [ref=e730]:
+              - button "Joseph Voyager (@JosephVoyager) / Posts / X" [ref=e731]:
+                - img "Joseph Voyager (@JosephVoyager) / Posts / X" [ref=e732]
+            - link "Twitter Joseph Voyager (@JosephVoyager) / Posts / X" [ref=e733]:
+              - /url: https://x.com/JosephVoyager
+              - generic [ref=e567]: Twitter
+              - generic [ref=e569]: Joseph Voyager (@JosephVoyager) / Posts / X
+          - generic [ref=e570] [cursor=pointer]:
+            - 'heading "If you''re building AI for sales, finance, or any data-complex vertical: the low Anthropic numbers on AI agent usage are not a warning sign. They''re a market map.”" [level=3] [ref=e734]':
+              - 'button "If you''re building AI for sales, finance, or any data-complex vertical: the low Anthropic numbers on AI agent usage are not a warning sign. They''re a market map.”" [ref=e735]':
+                - 'img "If you''re building AI for sales, finance, or any data-complex vertical: the low Anthropic numbers on AI agent usage are not a warning sign. They''re a market map.”" [ref=e736]'
+            - 'link "x.com If you''re building AI for sales, finance, or any data-complex vertical: the low Anthropic numbers on AI agent usage are not a warning sign. They''re a market map.”" [ref=e737]':
+              - /url: https://x.com/saastr/status/2025275680326648172
+              - generic [ref=e584]: x.com
+              - generic [ref=e586]: "If you're building AI for sales, finance, or any data-complex vertical: the low Anthropic numbers on AI agent usage are not a warning sign. They're a market map.”"
+        - generic [ref=e589]:
+          - heading "Page Navigation" [level=1] [ref=e738]
+          - generic [ref=e591]:
+            - text: Les autres résultats ne correspondent peut-être pas à ce que vous recherchez.
+            - link "Voir quand même" [ref=e739] [cursor=pointer]:
+              - /url: "#"
+      - navigation

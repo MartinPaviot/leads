@@ -1,0 +1,73 @@
+- generic [ref=e2]:
+  - list [ref=e7]:
+    - listitem [ref=e8]:
+      - link "Monaco" [ref=e9] [cursor=pointer]:
+        - /url: https://monaco.com
+        - img "Monaco" [ref=e10]
+    - listitem
+    - listitem
+  - generic [ref=e11]:
+    - status [ref=e13]:
+      - text: Open Positions
+      - generic [ref=e14]: (8)
+    - generic [ref=e16]:
+      - heading "Design" [level=2] [ref=e17]:
+        - generic [ref=e18]: Design
+      - link "AI Product Designer Design • San Francisco • Full time • On-site" [ref=e20] [cursor=pointer]:
+        - /url: /monaco/424e55d3-98ec-4a84-847f-52c38c4489dd
+        - generic [ref=e21]:
+          - heading "AI Product Designer" [level=3] [ref=e22]
+          - paragraph [ref=e24]: Design • San Francisco • Full time • On-site
+      - heading "Engineering" [level=2] [ref=e25]:
+        - generic [ref=e26]: Engineering
+      - generic [ref=e27]:
+        - link "AI Engineer Engineering • San Francisco • Full time • On-site" [ref=e28] [cursor=pointer]:
+          - /url: /monaco/448aa20c-3119-4166-a2dd-ed11b58327e3
+          - generic [ref=e29]:
+            - heading "AI Engineer" [level=3] [ref=e30]
+            - paragraph [ref=e32]: Engineering • San Francisco • Full time • On-site
+        - link "Frontend Engineer Engineering • San Francisco • Full time • On-site" [ref=e33] [cursor=pointer]:
+          - /url: /monaco/7c038d69-5d4d-448f-8c7b-248f41f08ec2
+          - generic [ref=e34]:
+            - heading "Frontend Engineer" [level=3] [ref=e35]
+            - paragraph [ref=e37]: Engineering • San Francisco • Full time • On-site
+        - link "Product Backend Engineer Engineering • San Francisco • Full time • On-site" [ref=e38] [cursor=pointer]:
+          - /url: /monaco/b488ba86-8011-4356-9a55-c3cdfec88175
+          - generic [ref=e39]:
+            - heading "Product Backend Engineer" [level=3] [ref=e40]
+            - paragraph [ref=e42]: Engineering • San Francisco • Full time • On-site
+        - link "Senior Platform Engineer Engineering • San Francisco • Full time • On-site" [ref=e43] [cursor=pointer]:
+          - /url: /monaco/e2e315e4-c024-4d88-8cdb-11690a6a08e0
+          - generic [ref=e44]:
+            - heading "Senior Platform Engineer" [level=3] [ref=e45]
+            - paragraph [ref=e47]: Engineering • San Francisco • Full time • On-site
+      - heading "Sales" [level=2] [ref=e48]:
+        - generic [ref=e49]: Sales
+      - generic [ref=e50]:
+        - link "Client Operations Sales • San Francisco • Full time • On-site" [ref=e51] [cursor=pointer]:
+          - /url: /monaco/cb156353-08c2-4fc4-ba4d-a7d50830c0bf
+          - generic [ref=e52]:
+            - heading "Client Operations" [level=3] [ref=e53]
+            - paragraph [ref=e55]: Sales • San Francisco • Full time • On-site
+        - link "Forward-Deployed Account Executive Sales • San Francisco • Full time • On-site" [ref=e56] [cursor=pointer]:
+          - /url: /monaco/6f1b01b8-b332-4413-926d-cd2b7e9c30b2
+          - generic [ref=e57]:
+            - heading "Forward-Deployed Account Executive" [level=3] [ref=e58]
+            - paragraph [ref=e60]: Sales • San Francisco • Full time • On-site
+        - link "Founding Account Manager Sales • San Francisco • Full time • On-site" [ref=e61] [cursor=pointer]:
+          - /url: /monaco/c73cd2e0-d1a2-4a23-bafd-44431ebbfe9a
+          - generic [ref=e62]:
+            - heading "Founding Account Manager" [level=3] [ref=e63]
+            - paragraph [ref=e65]: Sales • San Francisco • Full time • On-site
+  - contentinfo [ref=e66]:
+    - link "Learn more about Ashby" [ref=e67] [cursor=pointer]:
+      - /url: https://www.ashbyhq.com
+      - generic [ref=e68]: Powered by
+      - img "Ashby" [ref=e69]
+    - paragraph [ref=e75]:
+      - link "Privacy Policy" [ref=e76] [cursor=pointer]:
+        - /url: https://www.ashbyhq.com/privacy
+      - link "Security" [ref=e77] [cursor=pointer]:
+        - /url: https://www.ashbyhq.com/security
+      - link "Vulnerability Disclosure" [ref=e78] [cursor=pointer]:
+        - /url: https://www.ashbyhq.com/disclosure

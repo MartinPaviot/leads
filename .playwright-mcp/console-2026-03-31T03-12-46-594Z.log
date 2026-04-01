@@ -1,0 +1,7 @@
+[   10872ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://api.supabase.com/platform/profile:0
+[   13277ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://api.supabase.com/platform/notifications?offset=0&limit=20&status=new%2Cseen:0
+[   14469ms] [ERROR] Failed to load resource: the server responded with a status of 409 () @ https://api.supabase.com/platform/profile:0
+[  178230ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://api.supabase.com/platform/organizations/eaykcdsuuofbqohtuzxa/available-versions:0
+[  179195ms] [WARNING] Select is changing from uncontrolled to controlled. Components should not switch from controlled to uncontrolled (or vice versa). Decide between using a controlled or uncontrolled value for the lifetime of the component. @ https://frontend-assets.supabase.com/studio/e820068634a8/_next/static/chunks/95bb6c95ab419ed7.js?dpl=dpl_BN4iZxceFvGeTcMzhKj287WRR35c:12
+[  392600ms] [WARNING] [Warning] Please install/enable Redux devtools extension @ https://frontend-assets.supabase.com/studio/e820068634a8/_next/static/chunks/95bb6c95ab419ed7.js?dpl=dpl_BN4iZxceFvGeTcMzhKj287WRR35c:12
+[  396146ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://api.supabase.com/platform/pg-meta/wdgwytpaxuvgigqgzxrw/query?key=migrations:0

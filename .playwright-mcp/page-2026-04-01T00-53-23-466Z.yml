@@ -1,0 +1,402 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e7]:
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - button "MP Martin Paviot" [ref=e13]:
+          - generic [ref=e16]: MP
+          - generic [ref=e17]: Martin Paviot
+        - generic [ref=e18]:
+          - button "Search" [ref=e19]:
+            - img [ref=e20]
+          - button [ref=e22]:
+            - img [ref=e24]
+      - generic [ref=e27]:
+        - generic [ref=e29]:
+          - generic [ref=e30] [cursor=pointer]:
+            - link [ref=e31]:
+              - /url: /crm/up-next
+            - generic [ref=e32]:
+              - img
+            - generic "Up next" [ref=e33]
+          - button "Notifications" [ref=e34] [cursor=pointer]:
+            - generic [ref=e35]:
+              - img
+            - generic "Notifications" [ref=e36]
+        - generic [ref=e37]:
+          - generic [ref=e38]: Records
+          - generic [ref=e39] [cursor=pointer]:
+            - link [ref=e40]:
+              - /url: https://crm.lightfield.app/crm/accounts
+            - generic [ref=e41]:
+              - img
+            - generic "Accounts" [ref=e42]
+          - generic [ref=e43] [cursor=pointer]:
+            - link [ref=e44]:
+              - /url: https://crm.lightfield.app/crm/opportunities
+            - generic [ref=e45]:
+              - img
+            - generic "Opportunities" [ref=e46]
+          - generic [ref=e47] [cursor=pointer]:
+            - link [ref=e48]:
+              - /url: https://crm.lightfield.app/crm/contacts
+            - generic [ref=e49]:
+              - img
+            - generic "Contacts" [ref=e50]
+        - generic [ref=e51]:
+          - generic [ref=e52]: Resources
+          - generic [ref=e53] [cursor=pointer]:
+            - link [ref=e54]:
+              - /url: https://crm.lightfield.app/crm/tasks
+            - generic [ref=e55]:
+              - img
+            - generic "Tasks" [ref=e56]
+          - generic [ref=e57] [cursor=pointer]:
+            - link [ref=e58]:
+              - /url: https://crm.lightfield.app/crm/meetings
+            - generic [ref=e59]:
+              - img
+            - generic "Meetings" [ref=e60]
+          - generic [ref=e61] [cursor=pointer]:
+            - link [ref=e62]:
+              - /url: https://crm.lightfield.app/crm/notes
+            - generic [ref=e63]:
+              - img
+            - generic "Notes" [ref=e64]
+        - generic [ref=e65]:
+          - generic [ref=e66]: Lists
+          - button "New list" [ref=e67] [cursor=pointer]:
+            - generic [ref=e68]:
+              - img
+            - generic [ref=e69]: New list
+        - generic [ref=e70]:
+          - generic [ref=e71]: Chats
+          - button "New chat" [ref=e72] [cursor=pointer]:
+            - generic [ref=e73]:
+              - img
+            - generic [ref=e74]: New chat
+          - generic [ref=e75] [cursor=pointer]:
+            - link [ref=e76]:
+              - /url: /crm/thread/cmndtcyiz001j3571whjdyiq7
+            - generic [ref=e77]:
+              - img
+            - generic "What's the deal value of all my active opportun..." [ref=e78]
+          - generic [ref=e79] [cursor=pointer]:
+            - link [ref=e80]:
+              - /url: /crm/thread/cmndtc7ao001h3571h1jrw3ey
+            - generic [ref=e81]:
+              - img
+            - generic "Help me prepare for a meeting with Sarah Chen a..." [ref=e82]
+          - generic [ref=e83] [cursor=pointer]:
+            - link [ref=e84]:
+              - /url: /crm/thread/cmndtbiug001f3571amjxjqik
+            - generic [ref=e85]:
+              - img
+            - generic "What integrations are available?" [ref=e86]
+          - generic [ref=e87] [cursor=pointer]:
+            - link [ref=e88]:
+              - /url: /crm/thread/cmndtap1h001d35712uk2up76
+            - generic [ref=e89]:
+              - img
+            - generic "Export all contacts as CSV" [ref=e90]
+          - generic [ref=e91] [cursor=pointer]:
+            - link [ref=e92]:
+              - /url: /crm/thread/cmndta10l001b3571zhwkvvs1
+            - generic [ref=e93]:
+              - img
+            - generic "Draft a follow-up email to James Park referenci..." [ref=e94]
+          - combobox [ref=e95] [cursor=pointer]:
+            - generic [ref=e96]:
+              - img
+            - generic [ref=e97]: More
+      - button [ref=e100]:
+        - img [ref=e101]
+      - button "Resize sidebar" [ref=e103]
+    - generic [ref=e105]:
+      - generic [ref=e106]:
+        - generic [ref=e108]:
+          - generic [ref=e109]:
+            - img [ref=e111]
+            - generic [ref=e116]: Contacts
+          - generic [ref=e117]:
+            - button "All" [ref=e118]:
+              - img [ref=e120]
+              - generic [ref=e122]: All
+            - button [ref=e126]:
+              - img [ref=e128]
+        - generic [ref=e130]:
+          - button "Import / Export" [ref=e131]:
+            - img [ref=e133]
+            - text: Import / Export
+            - img [ref=e135]
+          - button "Create contact" [ref=e137]:
+            - img [ref=e139]
+            - generic [ref=e141]: Create contact
+      - generic [ref=e142]:
+        - button "Filter" [ref=e144]:
+          - img [ref=e146]
+          - generic [ref=e150]: Filter
+        - button "Display" [ref=e151]:
+          - img [ref=e153]
+          - generic [ref=e163]: Display
+      - region "scrollable content" [ref=e170]:
+        - table [ref=e172]:
+          - rowgroup [ref=e173]:
+            - row "Name Resize column Account Resize column Resize column Last interaction Resize column Resize column Job title Resize column Resize column Email addresses Resize column Resize column LinkedIn Resize column" [ref=e174]:
+              - columnheader "Name Resize column" [ref=e175]:
+                - generic [ref=e176]:
+                  - generic [ref=e178]:
+                    - img [ref=e181]
+                    - generic [ref=e184]: Name
+                  - button [ref=e185]:
+                    - img [ref=e187]
+                - button "Resize column" [ref=e189]
+              - columnheader "Account Resize column Resize column" [ref=e191]:
+                - generic [ref=e192]:
+                  - generic [ref=e194]:
+                    - img [ref=e197]
+                    - generic [ref=e199]: Account
+                  - button [ref=e200]:
+                    - img [ref=e202]
+                - button "Resize column" [ref=e204]
+                - button "Resize column" [ref=e206]
+              - columnheader "Last interaction Resize column Resize column" [ref=e208]:
+                - generic [ref=e209]:
+                  - generic [ref=e211]:
+                    - img [ref=e214]
+                    - generic [ref=e218]: Last interaction
+                  - button [ref=e219]:
+                    - img [ref=e221]
+                - button "Resize column" [ref=e223]
+                - button "Resize column" [ref=e225]
+              - columnheader "Job title Resize column Resize column" [ref=e227]:
+                - generic [ref=e228]:
+                  - generic [ref=e230]:
+                    - img [ref=e233]
+                    - generic [ref=e237]: Job title
+                  - button [ref=e238]:
+                    - img [ref=e240]
+                - button "Resize column" [ref=e242]
+                - button "Resize column" [ref=e244]
+              - columnheader "Email addresses Resize column Resize column" [ref=e246]:
+                - generic [ref=e247]:
+                  - generic [ref=e249]:
+                    - img [ref=e252]
+                    - generic [ref=e254]: Email addresses
+                  - button [ref=e255]:
+                    - img [ref=e257]
+                - button "Resize column" [ref=e259]
+                - button "Resize column" [ref=e261]
+              - columnheader "LinkedIn Resize column" [ref=e263]:
+                - generic [ref=e264]:
+                  - generic [ref=e266]:
+                    - img [ref=e269]
+                    - generic [ref=e271]: LinkedIn
+                  - button [ref=e272]:
+                    - img [ref=e274]
+                - button "Resize column" [ref=e276]
+          - rowgroup [ref=e278]:
+            - row "Liam O'Brien Open full details view Resize column account-logo-dublin_software Dublin Software Resize column Resize column Resize column Resize column CEO Resize column Resize column liam@dublinsoft.ie Resize column Resize column Resize column" [ref=e279]:
+              - cell "Liam O'Brien Open full details view Resize column" [ref=e280] [cursor=pointer]:
+                - generic [ref=e281]:
+                  - generic [ref=e283]:
+                    - img [ref=e285]
+                    - generic [ref=e288]: Liam O'Brien
+                  - generic:
+                    - link "Open full details view":
+                      - /url: /crm/contact/cmndp4vxz00wpjjoe15fc5mmy
+                      - generic:
+                        - img
+                    - button:
+                      - generic:
+                        - img
+                - button "Resize column" [ref=e289]
+              - cell "account-logo-dublin_software Dublin Software Resize column Resize column" [ref=e291] [cursor=pointer]:
+                - link "account-logo-dublin_software Dublin Software" [ref=e295]:
+                  - /url: /crm/contacts?hsot=a&hsid=cmndozk7k0015jjoiutya5bt0
+                  - img "account-logo-dublin_software" [ref=e298]
+                  - generic [ref=e299]: Dublin Software
+                - button "Resize column" [ref=e300]
+                - button "Resize column" [ref=e302]
+              - cell "Resize column Resize column" [ref=e304] [cursor=pointer]:
+                - button "Resize column" [ref=e305]
+                - button "Resize column" [ref=e307]
+              - cell "CEO Resize column Resize column" [ref=e309] [cursor=pointer]:
+                - generic [ref=e310]: CEO
+                - button "Resize column" [ref=e311]
+                - button "Resize column" [ref=e313]
+              - cell "liam@dublinsoft.ie Resize column Resize column" [ref=e315] [cursor=pointer]:
+                - generic [ref=e316]: liam@dublinsoft.ie
+                - button "Resize column" [ref=e317]
+                - button "Resize column" [ref=e319]
+              - cell "Resize column" [ref=e321] [cursor=pointer]:
+                - button "Resize column" [ref=e322]
+            - row "محمد العلي Open full details view Resize column account-logo-gulf_tech GulfTech Resize column Resize column Resize column Resize column مدير المبيعات Resize column Resize column mohammed@gulftech.sa Resize column Resize column mohammed-sarafndy-8b564386 mohammed-sarafndy-8b564386 Resize column" [ref=e324]:
+              - cell "محمد العلي Open full details view Resize column" [ref=e325] [cursor=pointer]:
+                - generic [ref=e326]:
+                  - generic [ref=e328]:
+                    - img [ref=e330]
+                    - generic [ref=e333]: محمد العلي
+                  - generic:
+                    - link "Open full details view":
+                      - /url: /crm/contact/cmndp4vu300wnjjoe2n0easul
+                      - generic:
+                        - img
+                    - button:
+                      - generic:
+                        - img
+                - button "Resize column" [ref=e334]
+              - cell "account-logo-gulf_tech GulfTech Resize column Resize column" [ref=e336] [cursor=pointer]:
+                - link "account-logo-gulf_tech GulfTech" [ref=e340]:
+                  - /url: /crm/contacts?hsot=a&hsid=cmndozk5n000vjjoi35fqq9ct
+                  - img "account-logo-gulf_tech" [ref=e343]
+                  - generic [ref=e344]: GulfTech
+                - button "Resize column" [ref=e345]
+                - button "Resize column" [ref=e347]
+              - cell "Resize column Resize column" [ref=e349] [cursor=pointer]:
+                - button "Resize column" [ref=e350]
+                - button "Resize column" [ref=e352]
+              - cell "مدير المبيعات Resize column Resize column" [ref=e354] [cursor=pointer]:
+                - generic [ref=e355]: مدير المبيعات
+                - button "Resize column" [ref=e356]
+                - button "Resize column" [ref=e358]
+              - cell "mohammed@gulftech.sa Resize column Resize column" [ref=e360] [cursor=pointer]:
+                - generic [ref=e361]: mohammed@gulftech.sa
+                - button "Resize column" [ref=e362]
+                - button "Resize column" [ref=e364]
+              - cell "mohammed-sarafndy-8b564386 mohammed-sarafndy-8b564386 Resize column" [ref=e366] [cursor=pointer]:
+                - generic [ref=e369]:
+                  - generic [ref=e370]:
+                    - generic: mohammed-sarafndy-8b564386
+                  - link "mohammed-sarafndy-8b564386" [ref=e371]:
+                    - /url: https://www.linkedin.com/in/mohammed-sarafndy-8b564386/
+                - button "Resize column" [ref=e372]
+            - row "Pierre Dubois Open full details view Resize column account-logo-tech_flow TechFlow Resize column Resize column Resize column Resize column Directeur Commercial Resize column Resize column pierre@techflow.fr Resize column Resize column Resize column" [ref=e374]:
+              - cell "Pierre Dubois Open full details view Resize column" [ref=e375] [cursor=pointer]:
+                - generic [ref=e376]:
+                  - generic [ref=e378]:
+                    - img [ref=e380]
+                    - generic [ref=e383]: Pierre Dubois
+                  - generic:
+                    - link "Open full details view":
+                      - /url: /crm/contact/cmndp4vpy00wljjoe4mj51p95
+                      - generic:
+                        - img
+                    - button:
+                      - generic:
+                        - img
+                - button "Resize column" [ref=e384]
+              - cell "account-logo-tech_flow TechFlow Resize column Resize column" [ref=e386] [cursor=pointer]:
+                - link "account-logo-tech_flow TechFlow" [ref=e390]:
+                  - /url: /crm/contacts?hsot=a&hsid=cmndozk3w000ljjoi0rumlx5a
+                  - img "account-logo-tech_flow" [ref=e393]
+                  - generic [ref=e394]: TechFlow
+                - button "Resize column" [ref=e395]
+                - button "Resize column" [ref=e397]
+              - cell "Resize column Resize column" [ref=e399] [cursor=pointer]:
+                - button "Resize column" [ref=e400]
+                - button "Resize column" [ref=e402]
+              - cell "Directeur Commercial Resize column Resize column" [ref=e404] [cursor=pointer]:
+                - generic [ref=e405]: Directeur Commercial
+                - button "Resize column" [ref=e406]
+                - button "Resize column" [ref=e408]
+              - cell "pierre@techflow.fr Resize column Resize column" [ref=e410] [cursor=pointer]:
+                - generic [ref=e411]: pierre@techflow.fr
+                - button "Resize column" [ref=e412]
+                - button "Resize column" [ref=e414]
+              - cell "Resize column" [ref=e416] [cursor=pointer]:
+                - button "Resize column" [ref=e417]
+            - row "James Park Open full details view Resize column account-logo-nova_tech NovaTech Resize column Resize column Resize column Resize column CEO Resize column Resize column james@novatech.dev Resize column Resize column Resize column" [ref=e419]:
+              - cell "James Park Open full details view Resize column" [ref=e420] [cursor=pointer]:
+                - generic [ref=e421]:
+                  - generic [ref=e423]:
+                    - img [ref=e425]
+                    - generic [ref=e428]: James Park
+                  - generic:
+                    - link "Open full details view":
+                      - /url: /crm/contact/cmndp4vlc00wkjjoe4fe8b4ns
+                      - generic:
+                        - img
+                    - button:
+                      - generic:
+                        - img
+                - button "Resize column" [ref=e429]
+              - cell "account-logo-nova_tech NovaTech Resize column Resize column" [ref=e431] [cursor=pointer]:
+                - link "account-logo-nova_tech NovaTech" [ref=e435]:
+                  - /url: /crm/contacts?hsot=a&hsid=cmndozk1u000bjjoiwps05zb7
+                  - img "account-logo-nova_tech" [ref=e438]
+                  - generic [ref=e439]: NovaTech
+                - button "Resize column" [ref=e440]
+                - button "Resize column" [ref=e442]
+              - cell "Resize column Resize column" [ref=e444] [cursor=pointer]:
+                - button "Resize column" [ref=e445]
+                - button "Resize column" [ref=e447]
+              - cell "CEO Resize column Resize column" [ref=e449] [cursor=pointer]:
+                - generic [ref=e450]: CEO
+                - button "Resize column" [ref=e451]
+                - button "Resize column" [ref=e453]
+              - cell "james@novatech.dev Resize column Resize column" [ref=e455] [cursor=pointer]:
+                - generic [ref=e456]: james@novatech.dev
+                - button "Resize column" [ref=e457]
+                - button "Resize column" [ref=e459]
+              - cell "Resize column" [ref=e461] [cursor=pointer]:
+                - button "Resize column" [ref=e462]
+            - row "Sarah Chen Open full details view Resize column account-logo-meridian_labs Meridian Labs Resize column Resize column Resize column Resize column CTO Resize column Resize column sarah@meridianlabs.io Resize column Resize column Resize column" [ref=e464]:
+              - cell "Sarah Chen Open full details view Resize column" [ref=e465] [cursor=pointer]:
+                - generic [ref=e466]:
+                  - generic [ref=e468]:
+                    - img [ref=e470]
+                    - generic [ref=e473]: Sarah Chen
+                  - generic:
+                    - link "Open full details view":
+                      - /url: /crm/contact/cmndp4vhq00wjjjoegjtygi1r
+                      - generic:
+                        - img
+                    - button:
+                      - generic:
+                        - img
+                - button "Resize column" [ref=e474]
+              - cell "account-logo-meridian_labs Meridian Labs Resize column Resize column" [ref=e476] [cursor=pointer]:
+                - link "account-logo-meridian_labs Meridian Labs" [ref=e480]:
+                  - /url: /crm/contacts?hsot=a&hsid=cmndozjzg0001jjoikwx5xnh6
+                  - img "account-logo-meridian_labs" [ref=e483]
+                  - generic [ref=e484]: Meridian Labs
+                - button "Resize column" [ref=e485]
+                - button "Resize column" [ref=e487]
+              - cell "Resize column Resize column" [ref=e489] [cursor=pointer]:
+                - button "Resize column" [ref=e490]
+                - button "Resize column" [ref=e492]
+              - cell "CTO Resize column Resize column" [ref=e494] [cursor=pointer]:
+                - generic [ref=e495]: CTO
+                - button "Resize column" [ref=e496]
+                - button "Resize column" [ref=e498]
+              - cell "sarah@meridianlabs.io Resize column Resize column" [ref=e500] [cursor=pointer]:
+                - generic [ref=e501]: sarah@meridianlabs.io
+                - button "Resize column" [ref=e502]
+                - button "Resize column" [ref=e504]
+              - cell "Resize column" [ref=e506] [cursor=pointer]:
+                - button "Resize column" [ref=e507]
+          - rowgroup [ref=e509]:
+            - row "5 count Add operation Add operation Add operation Add operation Add operation" [ref=e510]:
+              - cell "5 count" [ref=e511]:
+                - generic [ref=e512]: 5 count
+              - cell "Add operation" [ref=e513]:
+                - button "Add operation" [ref=e514] [cursor=pointer]:
+                  - img [ref=e515]
+                  - generic [ref=e517]: Add operation
+              - cell "Add operation" [ref=e518]:
+                - button "Add operation" [ref=e519] [cursor=pointer]:
+                  - img [ref=e520]
+                  - generic [ref=e522]: Add operation
+              - cell "Add operation" [ref=e523]:
+                - button "Add operation" [ref=e524] [cursor=pointer]:
+                  - img [ref=e525]
+                  - generic [ref=e527]: Add operation
+              - cell "Add operation" [ref=e528]:
+                - button "Add operation" [ref=e529] [cursor=pointer]:
+                  - img [ref=e530]
+                  - generic [ref=e532]: Add operation
+              - cell "Add operation" [ref=e533]:
+                - button "Add operation" [ref=e534] [cursor=pointer]:
+                  - img [ref=e535]
+                  - generic [ref=e537]: Add operation
+  - alert [ref=e4]

@@ -1,0 +1,10 @@
+[   15058ms] [ERROR] Not signed in with the identity provider. @ https://x.com/MonacoGTM:0
+[   15060ms] [ERROR] [GSI_LOGGER]: FedCM get() rejects with AbortError: signal is aborted without reason @ https://accounts.google.com/gsi/client:81
+[   15061ms] [ERROR] Not signed in with the identity provider. @ https://x.com/MonacoGTM:0
+[   15235ms] [WARNING] [GSI_LOGGER]: google.accounts.id.initialize() is called multiple times. This could cause unexpected behavior and only the last initialized instance will be used. @ https://accounts.google.com/gsi/client:80
+[   30943ms] [ERROR] [GSI_LOGGER]: FedCM get() rejects with NetworkError: Error retrieving a token. @ https://accounts.google.com/gsi/client:81
+[10808633ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://api.x.com/1.1/graphql/user_flow.json:0
+[21609449ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://api.x.com/1.1/help/settings.json?include_zero_rate=true&feature_set_token=148e5201f23f2a707fc740448a964f2b1298c4e6&settings_version=c939488e60909edf29b814154f31877c:0
+[21609552ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://api.x.com/1.1/graphql/user_flow.json:0
+[32708469ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://api.x.com/1.1/graphql/user_flow.json:0
+[32708873ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://api.x.com/1.1/graphql/user_flow.json:0

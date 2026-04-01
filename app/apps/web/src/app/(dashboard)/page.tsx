@@ -9,6 +9,7 @@ interface Action {
   dealName: string | null;
   priority: "critical" | "high" | "medium" | "low";
   category: string;
+  stalledDays?: number;
 }
 
 interface Insight {
@@ -20,38 +21,64 @@ interface Insight {
   suggestedAction: string;
 }
 
-export default function UpNextPage() {
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+interface DashboardSummary {
+  greeting: string;
+  firstName: string;
+  weekSummary: {
+    sequencesLaunched: number;
+    responsesReceived: number;
+    meetingsBooked: number;
+    opportunitiesClosed: number;
+  };
+  todayTasks: Array<{
+    id: string;
+    title: string;
+    dueDate: string | null;
+    priority: string;
+    account: string | null;
+    overdue: boolean;
+  }>;
+  todayMeetings: Array<{
+    id: string;
+    title: string;
+    time: string;
+  }>;
+}
 
+export default function DashboardPage() {
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [actions, setActions] = useState<Action[]>([]);
-  const [loadingActions, setLoadingActions] = useState(false);
   const [insights, setInsights] = useState<Insight[]>([]);
+  const [loadingActions, setLoadingActions] = useState(true);
+  const [loadingSummary, setLoadingSummary] = useState(true);
 
   useEffect(() => {
+    // Load summary
+    fetch("/api/dashboard/summary")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setSummary(data))
+      .catch(() => {})
+      .finally(() => setLoadingSummary(false));
+
+    // Load actions automatically
+    fetch("/api/actions")
+      .then((res) => (res.ok ? res.json() : { actions: [] }))
+      .then((data) => setActions(data.actions || []))
+      .catch(() => {})
+      .finally(() => setLoadingActions(false));
+
+    // Load insights
     fetch("/api/insights")
       .then((res) => (res.ok ? res.json() : { insights: [] }))
       .then((data) => setInsights(data.insights || []))
       .catch(() => {});
   }, []);
 
-  async function fetchActions() {
-    setLoadingActions(true);
-    try {
-      const res = await fetch("/api/actions");
-      if (res.ok) {
-        const data = await res.json();
-        setActions(data.actions || []);
-      }
-    } catch {
-      console.error("Failed to fetch actions");
-    } finally {
-      setLoadingActions(false);
-    }
-  }
+  const today = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
 
   const priorityColors: Record<string, string> = {
     critical: "border-l-red-500 bg-red-500/5",
@@ -67,115 +94,188 @@ export default function UpNextPage() {
     low: "text-[#5a5a70]",
   };
 
+  const ws = summary?.weekSummary;
+  const hasActivity = ws && (ws.sequencesLaunched + ws.responsesReceived + ws.meetingsBooked + ws.opportunitiesClosed > 0);
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-auto p-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold">Up next</h1>
-            <p className="mt-1 text-sm text-[#8b8ba0]">{today}</p>
-          </div>
-          <button
-            onClick={fetchActions}
-            disabled={loadingActions}
-            className="rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-medium text-white hover:bg-[#5558e6] disabled:opacity-50"
-          >
-            {loadingActions ? "Loading..." : actions.length > 0 ? "Refresh Actions" : "Get AI Actions"}
-          </button>
+        {/* Greeting */}
+        <div className="mb-2">
+          <h1 className="text-2xl font-semibold text-[#e8e8ed]">
+            {summary ? `${summary.greeting}, ${summary.firstName}` : "Welcome back"}
+          </h1>
+          <p className="mt-1 text-sm text-[#5a5a70]">{today}</p>
         </div>
 
-        {/* Prioritized Actions */}
-        {actions.length > 0 && (
-          <div className="mt-6">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-[#5a5a70]">
-              Prioritized Actions
-            </h2>
-            <div className="mt-3 space-y-2">
-              {actions.map((action, i) => (
-                <div
-                  key={i}
-                  className={`rounded-lg border border-[#1e1f2a] border-l-2 p-4 ${priorityColors[action.priority] || ""}`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-medium text-[#e8e8ed]">{action.action}</p>
-                    <span className={`whitespace-nowrap text-[10px] font-semibold uppercase ${priorityLabels[action.priority] || ""}`}>
-                      {action.priority}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-[#5a5a70]">{action.why}</p>
-                  {action.dealName && (
-                    <p className="mt-1 text-xs text-[#6366f1]">{action.dealName}</p>
-                  )}
-                </div>
-              ))}
-            </div>
+        {/* Weekly Summary Banner */}
+        {summary && (
+          <div className="mt-4 rounded-lg border border-[#1e1f2a] bg-[#12131a] p-4">
+            {hasActivity ? (
+              <p className="text-sm text-[#8b8ba0]">
+                This week, you&apos;ve launched{" "}
+                <span className="font-semibold text-[#e8e8ed]">{ws!.sequencesLaunched} sequences</span>,
+                received{" "}
+                <span className="font-semibold text-[#e8e8ed]">{ws!.responsesReceived} responses</span>,
+                booked{" "}
+                <span className="font-semibold text-[#e8e8ed]">{ws!.meetingsBooked} meetings</span>,
+                and closed{" "}
+                <span className="font-semibold text-[#e8e8ed]">{ws!.opportunitiesClosed} opportunities</span>.
+              </p>
+            ) : (
+              <p className="text-sm text-[#5a5a70]">
+                No activity this week yet. Let&apos;s change that.
+              </p>
+            )}
           </div>
         )}
 
-        {/* Proactive Insights */}
-        {insights.length > 0 && (
-          <div className="mt-8">
+        {/* Two Column Layout */}
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-5">
+          {/* Left Column — Actions (3/5 width) */}
+          <div className="lg:col-span-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-[#5a5a70]">
-              Insights
+              Your priorities today
             </h2>
-            <div className="mt-3 space-y-2">
-              {insights.slice(0, 5).map((insight) => {
-                const severityStyles: Record<string, string> = {
-                  critical: "border-l-red-500 bg-red-500/5",
-                  high: "border-l-amber-500 bg-amber-500/5",
-                  medium: "border-l-blue-500 bg-blue-500/5",
-                  info: "border-l-emerald-500 bg-emerald-500/5",
-                };
-                const categoryIcons: Record<string, string> = {
-                  alert: "!",
-                  trend: "~",
-                  pattern: "#",
-                  opportunity: "+",
-                };
-                const severityLabels: Record<string, string> = {
-                  critical: "text-red-400",
-                  high: "text-amber-400",
-                  medium: "text-blue-400",
-                  info: "text-emerald-400",
-                };
-                return (
+
+            {loadingActions ? (
+              <div className="mt-3 space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="animate-pulse rounded-lg border border-[#1e1f2a] p-4">
+                    <div className="h-4 w-3/4 rounded bg-[#1e1f2a]" />
+                    <div className="mt-2 h-3 w-1/2 rounded bg-[#1e1f2a]" />
+                  </div>
+                ))}
+              </div>
+            ) : actions.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                {actions.slice(0, 5).map((action, i) => (
                   <div
-                    key={insight.id}
-                    className={`rounded-lg border border-[#1e1f2a] border-l-2 p-3 ${severityStyles[insight.severity] || ""}`}
+                    key={i}
+                    className={`rounded-lg border border-[#1e1f2a] border-l-2 p-4 ${priorityColors[action.priority] || ""}`}
                   >
-                    <div className="flex items-start gap-2">
-                      <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-[10px] font-bold text-[#8b8ba0] bg-[#1e1f2a]">
-                        {categoryIcons[insight.category] || "?"}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-medium text-[#e8e8ed]">{insight.title}</p>
-                          <span className={`whitespace-nowrap text-[10px] font-semibold uppercase ${severityLabels[insight.severity] || ""}`}>
-                            {insight.category}
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium text-[#e8e8ed]">{action.action}</p>
+                      <div className="flex items-center gap-2">
+                        {action.stalledDays && action.stalledDays >= 3 && (
+                          <span className="whitespace-nowrap rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-red-400">
+                            Stalled {action.stalledDays}d
                           </span>
-                        </div>
+                        )}
+                        <span className={`whitespace-nowrap text-[10px] font-semibold uppercase ${priorityLabels[action.priority] || ""}`}>
+                          {action.priority}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="mt-1 text-xs text-[#5a5a70]">{action.why}</p>
+                    {action.dealName && (
+                      <p className="mt-1 text-xs text-[#6366f1]">{action.dealName}</p>
+                    )}
+                  </div>
+                ))}
+                {actions.length > 5 && (
+                  <button className="w-full rounded-lg border border-[#1e1f2a] p-2 text-xs text-[#5a5a70] hover:bg-[#1e1f2a]">
+                    Show {actions.length - 5} more
+                  </button>
+                )}
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-[#5a5a70]">
+                No actions right now. Your pipeline is clear.
+              </p>
+            )}
+
+            {/* Insights */}
+            {insights.length > 0 && (
+              <div className="mt-6">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-[#5a5a70]">
+                  Insights
+                </h2>
+                <div className="mt-3 space-y-2">
+                  {insights.slice(0, 3).map((insight) => {
+                    const severityStyles: Record<string, string> = {
+                      critical: "border-l-red-500 bg-red-500/5",
+                      high: "border-l-amber-500 bg-amber-500/5",
+                      medium: "border-l-blue-500 bg-blue-500/5",
+                      info: "border-l-emerald-500 bg-emerald-500/5",
+                    };
+                    return (
+                      <div
+                        key={insight.id}
+                        className={`rounded-lg border border-[#1e1f2a] border-l-2 p-3 ${severityStyles[insight.severity] || ""}`}
+                      >
+                        <p className="text-sm font-medium text-[#e8e8ed]">{insight.title}</p>
                         <p className="mt-0.5 text-xs text-[#5a5a70]">{insight.description}</p>
                         <p className="mt-1 text-xs text-[#6366f1]">{insight.suggestedAction}</p>
                       </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right Column — Schedule (2/5 width) */}
+          <div className="lg:col-span-2">
+            {/* Today's Meetings */}
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-[#5a5a70]">
+                Today&apos;s meetings
+              </h2>
+              {loadingSummary ? (
+                <div className="mt-3 animate-pulse rounded-lg border border-[#1e1f2a] p-3">
+                  <div className="h-4 w-1/2 rounded bg-[#1e1f2a]" />
+                </div>
+              ) : summary && summary.todayMeetings.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                  {summary.todayMeetings.map((meeting) => (
+                    <div key={meeting.id} className="rounded-lg border border-[#1e1f2a] p-3">
+                      <p className="text-sm font-medium text-[#e8e8ed]">{meeting.title}</p>
+                      <p className="mt-0.5 text-xs text-[#5a5a70]">{meeting.time}</p>
                     </div>
-                  </div>
-                );
-              })}
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-[#5a5a70]">No meetings today</p>
+              )}
+            </div>
+
+            {/* Today's Tasks */}
+            <div className="mt-6">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-[#5a5a70]">
+                Tasks due
+              </h2>
+              {loadingSummary ? (
+                <div className="mt-3 animate-pulse rounded-lg border border-[#1e1f2a] p-3">
+                  <div className="h-4 w-1/2 rounded bg-[#1e1f2a]" />
+                </div>
+              ) : summary && summary.todayTasks.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                  {summary.todayTasks.map((task) => (
+                    <div key={task.id} className="rounded-lg border border-[#1e1f2a] p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium text-[#e8e8ed]">{task.title}</p>
+                        {task.overdue && (
+                          <span className="whitespace-nowrap rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-red-400">
+                            Overdue
+                          </span>
+                        )}
+                      </div>
+                      {task.account && (
+                        <p className="mt-0.5 text-xs text-[#6366f1]">{task.account}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-[#5a5a70]">No tasks due today</p>
+              )}
             </div>
           </div>
-        )}
-
-        <div className="mt-8">
-          <h2 className="text-sm font-semibold">Meetings</h2>
-          <p className="mt-2 text-sm text-[#5a5a70]">No meetings today</p>
-        </div>
-
-        <div className="mt-8">
-          <h2 className="text-sm font-semibold">Tasks</h2>
-          <p className="mt-2 text-sm text-[#5a5a70]">No tasks due today</p>
         </div>
       </div>
 
+      {/* Bottom Chat Bar */}
       <div className="border-t border-[#1e1f2a] p-4">
         <Link
           href="/chat"

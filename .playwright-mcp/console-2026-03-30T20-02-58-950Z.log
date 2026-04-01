@@ -1,0 +1,25 @@
+[    3467ms] [ERROR] Attestation check for Attribution Reporting on https://www.facebook.com failed. @ https://crm.lightfield.app/create-profile:0
+[   96849ms] [WARNING] Select is changing from uncontrolled to controlled. Components should not switch from controlled to uncontrolled (or vice versa). Decide between using a controlled or uncontrolled value for the lifetime of the component. @ https://crm.lightfield.app/_next/static/chunks/pages/_app-10183218dc81dc0f.js?dpl=dpl_B8JUuhKhH1VP4S63oDEzLzMCWKvH:4032
+[  130363ms] [ERROR] Attestation check for Attribution Reporting on https://www.facebook.com failed. @ https://crm.lightfield.app/create-workspace:0
+[  176949ms] [ERROR] Attestation check for Attribution Reporting on https://www.facebook.com failed. @ https://crm.lightfield.app/pricing:0
+[  217207ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ https://checkout.stripe.com/c/pay/cs_live_b1wbFwTXckoQsK16eHR7T44Lx8uKplILSYw7WDZdoSx7DwaHcpvdRAnl3f#fidnandhYHdWcXxpYCc%2FJ2FgY2RwaXEnKSd2cGd2ZndsdXFsamtQa2x0cGBrYHZ2QGtkZ2lgYSc%2FY2RpdmApJ2R1bE5gfCc%2FJ3VuWmlsc2BaMDRIaUs9akZvbGNhY0tPNz1OVmlfdWdQUUNpaXRASUFwQmJsXzJLV3MxdFBQSDd8QXFIZmZWNlM1YExrRHVTT39AQGw3TGlWbklIRzNjczM1PGFrRGgxYFc1NW9HS0ttVzU1JyknY3dqaFZgd3Ngdyc%2FcXdwYCknZ2RmbmJ3anBrYUZqaWp3Jz8nJmNkY2RjZCcpJ2lkfGpwcVF8dWAnPydocGlxbFpscWBoJyknYGtkZ2lgVWlkZmBtamlhYHd2Jz9xd3BgeCUl:0
+[  217207ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ https://checkout.stripe.com/c/pay/cs_live_b1wbFwTXckoQsK16eHR7T44Lx8uKplILSYw7WDZdoSx7DwaHcpvdRAnl3f#fidnandhYHdWcXxpYCc%2FJ2FgY2RwaXEnKSd2cGd2ZndsdXFsamtQa2x0cGBrYHZ2QGtkZ2lgYSc%2FY2RpdmApJ2R1bE5gfCc%2FJ3VuWmlsc2BaMDRIaUs9akZvbGNhY0tPNz1OVmlfdWdQUUNpaXRASUFwQmJsXzJLV3MxdFBQSDd8QXFIZmZWNlM1YExrRHVTT39AQGw3TGlWbklIRzNjczM1PGFrRGgxYFc1NW9HS0ttVzU1JyknY3dqaFZgd3Ngdyc%2FcXdwYCknZ2RmbmJ3anBrYUZqaWp3Jz8nJmNkY2RjZCcpJ2lkfGpwcVF8dWAnPydocGlxbFpscWBoJyknYGtkZ2lgVWlkZmBtamlhYHd2Jz9xd3BgeCUl:0
+[  226672ms] [ERROR] Framing 'https://client.wra-api.net/' violates the following Content Security Policy directive: "frame-src 'self' https://*.px-cloud.net https://*.px-cdn.net https://crcldu.com". The request has been blocked.
+ @ https://client.px-cloud.net/:0
+[  226721ms] [WARNING] Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://client.wra-api.net') does not match the recipient window's origin ('null'). @ https://client.px-cloud.net/PXVl48pWoc/main.min.js:2
+[  226672ms] [ERROR] Framing 'https://client.wra-api.net/' violates the following Content Security Policy directive: "frame-src 'self' https://*.px-cloud.net https://*.px-cdn.net https://crcldu.com". The request has been blocked.
+ @ https://client.px-cloud.net/:0
+[  226721ms] [WARNING] Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://client.wra-api.net') does not match the recipient window's origin ('null'). @ https://client.px-cloud.net/PXVl48pWoc/main.min.js:2
+[  379880ms] [ERROR] Attestation check for Attribution Reporting on https://www.facebook.com failed. @ https://crm.lightfield.app/pricing?from=stripe:0
+[  490645ms] [WARNING] Select is changing from uncontrolled to controlled. Components should not switch from controlled to uncontrolled (or vice versa). Decide between using a controlled or uncontrolled value for the lifetime of the component. @ https://crm.lightfield.app/_next/static/chunks/pages/_app-10183218dc81dc0f.js?dpl=dpl_B8JUuhKhH1VP4S63oDEzLzMCWKvH:4032
+[  673224ms] [ERROR] Failed to load resource: the server responded with a status of 499 (status code 499) @ https://auth.lightfield.app/submit:0
+[  691957ms] [WARNING] WARNING: Too many active WebGL contexts. Oldest context will be lost. @ https://elements.stytch.com/telemetry.js:416
+[  692091ms] [WARNING] WARNING: Too many active WebGL contexts. Oldest context will be lost. @ https://elements.stytch.com/telemetry.js:416
+[  692214ms] [WARNING] WARNING: Too many active WebGL contexts. Oldest context will be lost. @ https://elements.stytch.com/telemetry.js:416
+[  692332ms] [WARNING] WARNING: Too many active WebGL contexts. Oldest context will be lost. @ https://elements.stytch.com/telemetry.js:416
+[  692439ms] [WARNING] WARNING: Too many active WebGL contexts. Oldest context will be lost. @ https://elements.stytch.com/telemetry.js:416
+[  692571ms] [WARNING] WARNING: Too many active WebGL contexts. Oldest context will be lost. @ https://elements.stytch.com/telemetry.js:416
+[  692711ms] [WARNING] WARNING: Too many active WebGL contexts. Oldest context will be lost. @ https://elements.stytch.com/telemetry.js:416
+[  692850ms] [WARNING] WARNING: Too many active WebGL contexts. Oldest context will be lost. @ https://elements.stytch.com/telemetry.js:416
+[  692976ms] [WARNING] WARNING: Too many active WebGL contexts. Oldest context will be lost. @ https://elements.stytch.com/telemetry.js:416
+[  693117ms] [WARNING] WARNING: Too many active WebGL contexts. Oldest context will be lost. @ https://elements.stytch.com/telemetry.js:416

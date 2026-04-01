@@ -1,0 +1,909 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e4]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - button "Guide" [ref=e9] [cursor=pointer]:
+            - generic [ref=e964]:
+              - img
+          - generic [ref=e11]:
+            - link "Accueil YouTube" [ref=e12] [cursor=pointer]:
+              - /url: /
+              - generic [ref=e966]:
+                - img
+            - generic [ref=e16]: FR
+          - button "Ignorer les liens de navigation" [ref=e20] [cursor=pointer]:
+            - generic [ref=e21]: Ignorer les liens de navigation
+        - search [ref=e26]:
+          - generic [ref=e27]:
+            - generic [ref=e28]:
+              - combobox "Rechercher" [expanded] [ref=e30]: Monaco sales platform demo
+              - button "Effacer la requête de recherche" [ref=e32] [cursor=pointer]:
+                - generic [ref=e968]:
+                  - img
+            - button "Search" [ref=e37] [cursor=pointer]:
+              - generic [ref=e970]:
+                - img
+        - generic [ref=e971]:
+          - button "Paramètres" [ref=e976] [cursor=pointer]:
+            - generic [ref=e979]:
+              - img
+          - link "Se connecter" [ref=e982] [cursor=pointer]:
+            - /url: https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Dfr%26next%3Dhttps%253A%252F%252Fwww.youtube.com%252Fresults%253Fsearch_query%253DMonaco%252Bsales%252Bplatform%252Bdemo%2526themeRefresh%253D1&hl=fr&ec=65620
+            - generic [ref=e986]:
+              - img
+            - generic [ref=e987]: Se connecter
+    - navigation [ref=e44]:
+      - generic [ref=e991]:
+        - link "Accueil" [ref=e993] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e996]:
+            - img
+          - generic [ref=e997]: Accueil
+        - link "Shorts" [ref=e999] [cursor=pointer]:
+          - /url: /shorts/
+          - generic [ref=e1002]:
+            - img
+          - generic [ref=e1003]: Shorts
+        - link "Abonnements" [ref=e1005] [cursor=pointer]:
+          - /url: /feed/subscriptions
+          - generic [ref=e1008]:
+            - img
+          - generic [ref=e1009]: Abonnements
+        - link "Vous" [ref=e1011] [cursor=pointer]:
+          - /url: /feed/you
+          - generic [ref=e1014]:
+            - img
+          - generic [ref=e1015]: Vous
+    - generic [ref=e45]:
+      - main [ref=e46]:
+        - generic [ref=e47]:
+          - generic [ref=e49]:
+            - generic [ref=e52]:
+              - tablist [ref=e54]:
+                - tab "Tous" [selected] [ref=e58] [cursor=pointer]:
+                  - generic [ref=e60]: Tous
+                - tab "Shorts" [ref=e67] [cursor=pointer]:
+                  - generic [ref=e69]: Shorts
+                - tab "Vidéos" [ref=e76] [cursor=pointer]:
+                  - generic [ref=e78]: Vidéos
+                - tab "Non visionnées" [ref=e85] [cursor=pointer]:
+                  - generic [ref=e87]: Non visionnées
+                - tab "Regardées" [ref=e94] [cursor=pointer]:
+                  - generic [ref=e96]: Regardées
+                - tab "Publiées récemment" [ref=e103] [cursor=pointer]:
+                  - generic [ref=e105]: Publiées récemment
+                - tab "En direct" [ref=e112] [cursor=pointer]:
+                  - generic [ref=e114]: En direct
+                - tab "Chaînes" [ref=e121] [cursor=pointer]:
+                  - generic [ref=e123]: Chaînes
+              - button "Suivant" [ref=e131] [cursor=pointer]:
+                - generic [ref=e1017]:
+                  - img
+            - link "À propos de ces résultats" [ref=e140] [cursor=pointer]:
+              - /url: https://www.youtube.com/howyoutubeworks/product-features/search/
+              - generic [ref=e141]: À propos de ces résultats
+              - generic [ref=e1019]:
+                - img
+            - generic [ref=e148]:
+              - button "Filtres de recherche" [ref=e150] [cursor=pointer]:
+                - generic [ref=e151]: Filtres
+                - generic [ref=e1021]:
+                  - img
+              - tooltip "tooltip"
+          - generic [ref=e160]:
+            - generic [ref=e167]:
+              - img [ref=e173]:
+                - generic [ref=e1023]:
+                  - img
+              - generic [ref=e175] [cursor=pointer]:
+                - generic [ref=e176]:
+                  - link "App pour commerciaux terrain - Application pour commerciaux - Capture numérique des leads" [ref=e179]:
+                    - /url: https://www.google.com/aclk?sa=L&pf=1&ai=DChsSEwjC1MucpcuTAxWu8nkEHXT4DoUYACICCAEQABoCd2Y&co=1&ase=2&gclid=EAIaIQobChMIwtTLnKXLkwMVrvJ5BB10-A6FEAAYASAAEgKRlPD_BwE&category=acrcp_v1_32&sig=AOD64_1ND1rE3wbxaItlPdpr794P1oTFwA&adurl=https://www.snapaddy.com/de/snapaddy-visitreport.html%3Futm_feeditemid%3D%26utm_device%3Dc%26utm_term%3Dapplication%2520pour%2520les%2520commerciaux%26utm_source%3Dadwords%26utm_medium%3Dppc%26utm_campaign%3D%2523%2B07%2BVisitReport%26hsa_cam%3D20039747410%26hsa_grp%3D175223910128%26hsa_mt%3Db%26hsa_src%3Ds%26hsa_ad%3D719275388108%26hsa_acc%3D6571091104%26hsa_net%3Dadwords%26hsa_kw%3Dapplication%2520pour%2520les%2520commerciaux%26hsa_tgt%3Dkwd-464958164851%26hsa_ver%3D3%26gad_source%3D2%26gad_campaignid%3D20039747410%26gclid%3DEAIaIQobChMIwtTLnKXLkwMVrvJ5BB10-A6FEAAYASAAEgKRlPD_BwE&ms=[CLICK_MS]&nx=[NX]&ny=[NY]&nb=0
+                  - link "Avec snapAddy VisitReport, vous économisez un temps de travail précieux. 14 jours d'essai. Prise de commande mobile | Rapport de..." [ref=e182]:
+                    - /url: https://www.google.com/aclk?sa=L&pf=1&ai=DChsSEwjC1MucpcuTAxWu8nkEHXT4DoUYACICCAEQABoCd2Y&co=1&ase=2&gclid=EAIaIQobChMIwtTLnKXLkwMVrvJ5BB10-A6FEAAYASAAEgKRlPD_BwE&category=acrcp_v1_32&sig=AOD64_1ND1rE3wbxaItlPdpr794P1oTFwA&adurl=https://www.snapaddy.com/de/snapaddy-visitreport.html%3Futm_feeditemid%3D%26utm_device%3Dc%26utm_term%3Dapplication%2520pour%2520les%2520commerciaux%26utm_source%3Dadwords%26utm_medium%3Dppc%26utm_campaign%3D%2523%2B07%2BVisitReport%26hsa_cam%3D20039747410%26hsa_grp%3D175223910128%26hsa_mt%3Db%26hsa_src%3Ds%26hsa_ad%3D719275388108%26hsa_acc%3D6571091104%26hsa_net%3Dadwords%26hsa_kw%3Dapplication%2520pour%2520les%2520commerciaux%26hsa_tgt%3Dkwd-464958164851%26hsa_ver%3D3%26gad_source%3D2%26gad_campaignid%3D20039747410%26gclid%3DEAIaIQobChMIwtTLnKXLkwMVrvJ5BB10-A6FEAAYASAAEgKRlPD_BwE&ms=[CLICK_MS]&nx=[NX]&ny=[NY]&nb=7
+                  - generic [ref=e183]:
+                    - generic [ref=e185]:
+                      - generic [ref=e186]: Sponsorisé
+                      - text: ·
+                    - generic [ref=e188]: https://www.snapaddy.com/
+                - button "Mes préférences publicitaires" [ref=e191]:
+                  - generic [ref=e1025]:
+                    - img
+            - generic [ref=e198]:
+              - generic [ref=e200]:
+                - link [ref=e202] [cursor=pointer]:
+                  - /url: /shorts/tYfqo8nGKEM
+                  - img [ref=e204]
+                  - img [ref=e1028]:
+                    - generic [ref=e1031]:
+                      - img
+                    - generic [ref=e1032]: SHORTS
+                  - generic:
+                    - generic: En cours de lecture
+                    - generic:
+                      - img
+                - generic [ref=e205] [cursor=pointer]:
+                  - generic [ref=e206]:
+                    - generic [ref=e207]:
+                      - 'heading "Monaco''s AI Sales Platform: Revolutionizing Startup Revenue Growth de ESSG consulting 180 vues il y a 1 mois 38 secondes - lire le Short" [level=3] [ref=e208]':
+                        - 'link "Monaco''s AI Sales Platform: Revolutionizing Startup Revenue Growth de ESSG consulting 180 vues il y a 1 mois 38 secondes - lire le Short" [ref=e209]':
+                          - /url: /shorts/tYfqo8nGKEM
+                          - text: "Monaco's AI Sales Platform: Revolutionizing Startup Revenue Growth"
+                      - button "Menu d'actions" [ref=e1036]:
+                        - generic [ref=e1039]:
+                          - img
+                    - generic [ref=e212]:
+                      - generic [ref=e213]: 180 vues
+                      - generic [ref=e214]: •il y a 1 mois
+                  - generic [ref=e215]:
+                    - link "Accéder à la chaîne ESSG consulting" [ref=e216]:
+                      - /url: /@ESSGconsulting
+                    - link "ESSG consulting" [ref=e222]:
+                      - /url: /@ESSGconsulting
+              - generic [ref=e224]:
+                - link [ref=e226] [cursor=pointer]:
+                  - /url: /@monacodigitalgroup
+                - generic [ref=e229]:
+                  - link "MONACO DIGITAL GROUP @monacodigitalgroup•237 abonnés Monaco Digital est une entreprise monégasque née en Principauté il y a une quinzaine d'années, qui accompagne les acteurs ..." [ref=e230] [cursor=pointer]:
+                    - /url: /@monacodigitalgroup
+                    - generic [ref=e231]:
+                      - generic [ref=e235]: MONACO DIGITAL GROUP
+                      - generic [ref=e236]: "@monacodigitalgroup•237 abonnés"
+                      - generic [ref=e237]: Monaco Digital est une entreprise monégasque née en Principauté il y a une quinzaine d'années, qui accompagne les acteurs ...
+                  - link "S'abonner" [ref=e242] [cursor=pointer]:
+                    - /url: https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Dfr%26next%3D%252Fresults%253Fsearch_query%253DMonaco%252Bsales%252Bplatform%252Bdemo%26continue_action%3DQUFFLUhqbW4zTlhZSnljSGZVekZ3V0xfdU1YdlRyTFJkZ3xBQ3Jtc0tuUTMwMjFnSmU3ZzA4bWM5a1FVVUIxdVZiWEtYSmNvSnBsLVJBU3JuSlBkMW5CVUVsa0hVRk9sS0QybDdSMkhJck9vendaZEJMVm1CTlI3VkU5MXkxZm4zTmRCeWtNRW9OLWg0OGE3U0o1RVFFNEUwMzNNcVJUWGZVNGQ3UV91ZWNxYnNJbjNlTU1OLXJUYVZNeUZQYmYydktHdFhHV1ZXVkROdDBFYkRZT1d3ZnpWY2hBdDFQMVdqNXhjVklyQkQwa1B2T0s&hl=fr
+                    - generic [ref=e243]: S'abonner
+              - generic [ref=e251]:
+                - img [ref=e257]:
+                  - generic [ref=e1041]:
+                    - img
+                - generic [ref=e259] [cursor=pointer]:
+                  - generic [ref=e260]:
+                    - link "AI to Get B2B Leads" [ref=e263]:
+                      - /url: https://www.googleadservices.com/pagead/aclk?sa=L&ai=C4yCwpFjMabzkCfqxkeQP9rDEqAi_muSOhgHix8iwqxWwkB8QASAAYPv5_IKICoIBF2NhLXB1Yi02MjE5ODExNzQ3MDQ5MzcxoAH-sLepPqgDBMgDCqoEvwJP0DM0T63WYAh08-cexwGGEx1V-E2m_dgvD10rH68mMZxJbZRdZkqZhpu1ZLyCsLF7CkAabOgQpK3MyAKgnK7fIlD07oC-tYDM1DVaksVrxd42JbaWasiMS0pzVL0QID6y-b-6iLGwTJmIY4YDasgllDkOstLH70x4GZHSEc6-tNIDIGGioQiBrwFXQ9DRdp4cE1DwIvtTU_5y1b7TOTnz1viU5P08jpryM-rtl39ia_x4yhaY6XB0zhcUFSBfj0fex86aYHsCfqXYFl1twUYnE11YlF_GxeBPYUAgo52niPCMZGRo8DTAEMqnLTV5oylrxNRgfBHDDh0W-Nn_8CxFM3mbYgVxbUwlT0Ye2Uv620oVIybIAuJA4SR80W9vSF13Mc0BpwJlueuVAYWGBr-qr5pfyzaqvSMZWGjSIH-PiAW0k4qfV5IFCAgTeOOK35YZoAakAYAH_uiHiRmQBwGoB_LAsQKoB7jEsQKoB-G2sQKoB6XPsQKoB-edsQKoB-idsQKoB--1sQKoB_C1sQKoB_nTsQKoB8nasQKoB6ngsQKoB4QIqAem1LECqAeo0huoB7YHqAewm7ECqAeusbECqAfmvLECqAfKurECqAf9srECqAf3uLECqAf4uLECqAfIz7ECqAfJz7ECqAet4LECqAfNx7ECqAfx0bECqAf81bECqAf71bECqAeM1rECqAeL1rECqAea4bECqAed17ECqAed1LECqAeBxhuoB_yvsQKoB6vFG6gHt6GxAqgH1amxAqgH2KaxAqgH3rWxArgIAdIINwiAwYBQEAEYXjIIo4LAgICAoAw6EoDCgICAkIACgICAgICQhuADKkjZoNI1UBRYyKy7nKXLkwOaCRZodHRwczovL3d3dy5hbnliaXouaW8vsQl1YRa2Au9fM8gJAJgLAboLPwgDEAUYFiAIKAEwHEABSABQAVhOYABoAHABiAEAmAEBogELCgCgAgGoAgPYAgHYAQGAAgGIAgW6AwV2aWJyddALEqIMDCoKCgiO37ECleKxAtIMAhABmg0BEqoNAkZSyA0B0g2VAmh0dHBzOi8vd3d3LmFueWJpei5pby8_dXRtX2FkZ3JvdXA9JnV0bV9zb3VyY2U9YWR3b3JkcyZ1dG1fbWVkaXVtPWNwYyZ1dG1fY2FtcGFpZ249Z29vZ2xlYWRzX3BtYXgmdXRtX3Rlcm09JnV0bV9jb250ZW50PSZoc2FfYWNjPTExMTA4MTYwOTUmaHNhX2NhbT0yMzQyODU3OTU4MiZoc2FfZ3JwPSZoc2FfYWQ9JmhzYV9zcmM9eCZoc2FfdGd0PSZoc2Ffa3c9JmhzYV9tdD0maHNhX25ldD1hZHdvcmRzJmhzYV92ZXI9MyZnYWRfc291cmNlPTImZ2FkX2NhbXBhaWduaWQ9MjM0MTkwNjI3MDiwDqD9n-UYuBP___________8BsBQDwBWBgIBA0BUB2BUBmBYB4hYCCAGAFwGKFxYIAxgBIAEoATABOAFAAUgBUAFYAWACoBcBqRcM3XJx6cL8ELoXBigAMAA4AdAYAfAYAcIZAggB&gclid=EAIaIQobChMIvMa7nKXLkwMV-liEBh12GBGFEAEYASAAEgL-W_D_BwE&num=1&cid=CAASF-RoJiJDnTPkGZcT8QnXdqacLpg1b67e&sig=AOD64_3M9KNtf1TNMd_7fSz6Y2rQGhvnGw&ms=%5BCLICK_MS%5D&nb=0&nx=%5BNX%5D&ny=%5BNY%5D&dim=%5BDIM%5D
+                    - link "AI-powered SDR agent does outreach over email, LinkedIn, and phone calls." [ref=e266]:
+                      - /url: https://www.googleadservices.com/pagead/aclk?sa=L&ai=C4yCwpFjMabzkCfqxkeQP9rDEqAi_muSOhgHix8iwqxWwkB8QASAAYPv5_IKICoIBF2NhLXB1Yi02MjE5ODExNzQ3MDQ5MzcxoAH-sLepPqgDBMgDCqoEvwJP0DM0T63WYAh08-cexwGGEx1V-E2m_dgvD10rH68mMZxJbZRdZkqZhpu1ZLyCsLF7CkAabOgQpK3MyAKgnK7fIlD07oC-tYDM1DVaksVrxd42JbaWasiMS0pzVL0QID6y-b-6iLGwTJmIY4YDasgllDkOstLH70x4GZHSEc6-tNIDIGGioQiBrwFXQ9DRdp4cE1DwIvtTU_5y1b7TOTnz1viU5P08jpryM-rtl39ia_x4yhaY6XB0zhcUFSBfj0fex86aYHsCfqXYFl1twUYnE11YlF_GxeBPYUAgo52niPCMZGRo8DTAEMqnLTV5oylrxNRgfBHDDh0W-Nn_8CxFM3mbYgVxbUwlT0Ye2Uv620oVIybIAuJA4SR80W9vSF13Mc0BpwJlueuVAYWGBr-qr5pfyzaqvSMZWGjSIH-PiAW0k4qfV5IFCAgTeOOK35YZoAakAYAH_uiHiRmQBwGoB_LAsQKoB7jEsQKoB-G2sQKoB6XPsQKoB-edsQKoB-idsQKoB--1sQKoB_C1sQKoB_nTsQKoB8nasQKoB6ngsQKoB4QIqAem1LECqAeo0huoB7YHqAewm7ECqAeusbECqAfmvLECqAfKurECqAf9srECqAf3uLECqAf4uLECqAfIz7ECqAfJz7ECqAet4LECqAfNx7ECqAfx0bECqAf81bECqAf71bECqAeM1rECqAeL1rECqAea4bECqAed17ECqAed1LECqAeBxhuoB_yvsQKoB6vFG6gHt6GxAqgH1amxAqgH2KaxAqgH3rWxArgIAdIINwiAwYBQEAEYXjIIo4LAgICAoAw6EoDCgICAkIACgICAgICQhuADKkjZoNI1UBRYyKy7nKXLkwOaCRZodHRwczovL3d3dy5hbnliaXouaW8vsQl1YRa2Au9fM8gJAJgLAboLPwgDEAUYFiAIKAEwHEABSABQAVhOYABoAHABiAEAmAEBogELCgCgAgGoAgPYAgHYAQGAAgGIAgW6AwV2aWJyddALEqIMDCoKCgiO37ECleKxAtIMAhABmg0BEqoNAkZSyA0B0g2VAmh0dHBzOi8vd3d3LmFueWJpei5pby8_dXRtX2FkZ3JvdXA9JnV0bV9zb3VyY2U9YWR3b3JkcyZ1dG1fbWVkaXVtPWNwYyZ1dG1fY2FtcGFpZ249Z29vZ2xlYWRzX3BtYXgmdXRtX3Rlcm09JnV0bV9jb250ZW50PSZoc2FfYWNjPTExMTA4MTYwOTUmaHNhX2NhbT0yMzQyODU3OTU4MiZoc2FfZ3JwPSZoc2FfYWQ9JmhzYV9zcmM9eCZoc2FfdGd0PSZoc2Ffa3c9JmhzYV9tdD0maHNhX25ldD1hZHdvcmRzJmhzYV92ZXI9MyZnYWRfc291cmNlPTImZ2FkX2NhbXBhaWduaWQ9MjM0MTkwNjI3MDiwDqD9n-UYuBP___________8BsBQDwBWBgIBA0BUB2BUBmBYB4hYCCAGAFwGKFxYIAxgBIAEoATABOAFAAUgBUAFYAWACoBcBqRcM3XJx6cL8ELoXBigAMAA4AdAYAfAYAcIZAggB&gclid=EAIaIQobChMIvMa7nKXLkwMV-liEBh12GBGFEAEYASAAEgL-W_D_BwE&num=1&cid=CAASF-RoJiJDnTPkGZcT8QnXdqacLpg1b67e&sig=AOD64_3M9KNtf1TNMd_7fSz6Y2rQGhvnGw&ms=%5BCLICK_MS%5D&nb=7&nx=%5BNX%5D&ny=%5BNY%5D&dim=%5BDIM%5D
+                    - generic [ref=e267]:
+                      - generic [ref=e269]:
+                        - generic [ref=e270]: Sponsorisé
+                        - text: ·
+                      - generic [ref=e272]: AnyBiz.io
+                  - button "Mes préférences publicitaires" [ref=e275]:
+                    - generic [ref=e1043]:
+                      - img
+              - generic [ref=e282]:
+                - link [ref=e284] [cursor=pointer]:
+                  - /url: /watch?v=9E_93i0FXYI&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                - generic [ref=e286] [cursor=pointer]:
+                  - generic [ref=e287]:
+                    - generic [ref=e288]:
+                      - 'heading "Travail : Demo Day de Monacotech 1 minute et 49 secondes" [level=3] [ref=e289]':
+                        - 'link "Travail : Demo Day de Monacotech 1 minute et 49 secondes" [ref=e290]':
+                          - /url: /watch?v=9E_93i0FXYI&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                          - text: "Travail : Demo Day de Monacotech"
+                      - button "Menu d'actions" [ref=e1047]:
+                        - generic [ref=e1050]:
+                          - img
+                    - generic [ref=e293]:
+                      - generic [ref=e294]: 175 vues
+                      - generic [ref=e295]: •il y a 1 an
+                  - generic [ref=e296]:
+                    - link "Accéder à la chaîne MonacoInfo" [ref=e297]:
+                      - /url: /@MonacoInfo
+                    - link "MonacoInfo" [ref=e303]:
+                      - /url: /@MonacoInfo
+                  - generic [ref=e304]:
+                    - generic [ref=e305]: Lundi soir a eu lieu la présentation des dernières start-up qui ont intégré Monaco Tech.
+                    - tooltip "tooltip"
+              - generic [ref=e307]:
+                - link [ref=e309] [cursor=pointer]:
+                  - /url: /watch?v=MmvZY1gTAy4&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                - generic [ref=e311] [cursor=pointer]:
+                  - generic [ref=e312]:
+                    - generic [ref=e313]:
+                      - 'heading "2025: Monte Carlo Data + AI Observability Platform Demo 17 minutes" [level=3] [ref=e314]':
+                        - 'link "2025: Monte Carlo Data + AI Observability Platform Demo 17 minutes" [ref=e315]':
+                          - /url: /watch?v=MmvZY1gTAy4&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                          - text: "2025: Monte Carlo Data + AI Observability Platform Demo"
+                      - button "Menu d'actions" [ref=e1054]:
+                        - generic [ref=e1057]:
+                          - img
+                    - generic [ref=e318]:
+                      - generic [ref=e319]: 4,4 k vues
+                      - generic [ref=e320]: •il y a 1 an
+                  - generic [ref=e321]:
+                    - link "Accéder à la chaîne Monte Carlo" [ref=e322]:
+                      - /url: /@montecarlodata
+                    - link "Monte Carlo" [ref=e327]:
+                      - /url: /@montecarlodata
+                  - generic [ref=e328]:
+                    - generic [ref=e329]: Go beyond data quality with Monte Carlo's end-to-end data observability platform. Detect, triage, resolve, and measure data ...
+                    - tooltip "tooltip"
+              - generic [ref=e331]:
+                - link [ref=e333] [cursor=pointer]:
+                  - /url: /watch?v=oMJ8Hr507Bc&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                - generic [ref=e335] [cursor=pointer]:
+                  - generic [ref=e336]:
+                    - generic [ref=e337]:
+                      - heading "Monaco Market | Demo 2.0 | Buyer's Experience 7 minutes et 13 secondes" [level=3] [ref=e338]:
+                        - link "Monaco Market | Demo 2.0 | Buyer's Experience 7 minutes et 13 secondes" [ref=e339]:
+                          - /url: /watch?v=oMJ8Hr507Bc&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                          - text: Monaco Market | Demo 2.0 | Buyer's Experience
+                      - button "Menu d'actions" [ref=e1061]:
+                        - generic [ref=e1064]:
+                          - img
+                    - generic [ref=e342]:
+                      - generic [ref=e343]: 437 vues
+                      - generic [ref=e344]: •il y a 3 ans
+                  - generic [ref=e345]:
+                    - link "Accéder à la chaîne CollectCoin" [ref=e346]:
+                      - /url: /@CollectCoin
+                    - link "CollectCoin" [ref=e351]:
+                      - /url: /@CollectCoin
+                  - generic [ref=e352]:
+                    - generic [ref=e353]: In this updated demonstration of the Monaco Market MVP Application, we walk you through the entire buyer's experience.
+                    - tooltip "tooltip"
+              - generic [ref=e355]:
+                - link [ref=e357] [cursor=pointer]:
+                  - /url: /watch?v=tmoU8qs5cxY&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                - generic [ref=e359] [cursor=pointer]:
+                  - generic [ref=e360]:
+                    - generic [ref=e361]:
+                      - heading "Monaco Market Demo 6 minutes et 39 secondes" [level=3] [ref=e362]:
+                        - link "Monaco Market Demo 6 minutes et 39 secondes" [ref=e363]:
+                          - /url: /watch?v=tmoU8qs5cxY&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                          - text: Monaco Market Demo
+                      - button "Menu d'actions" [ref=e1068]:
+                        - generic [ref=e1071]:
+                          - img
+                    - generic [ref=e366]:
+                      - generic [ref=e367]: 791 vues
+                      - generic [ref=e368]: •il y a 4 ans
+                  - generic [ref=e369]:
+                    - link "Accéder à la chaîne CollectCoin" [ref=e370]:
+                      - /url: /@CollectCoin
+                    - link "CollectCoin" [ref=e375]:
+                      - /url: /@CollectCoin
+                  - generic [ref=e376]:
+                    - text: In this video we demonstrate the buying and reselling functions of the beta.
+                    - tooltip "tooltip"
+              - generic [ref=e378]:
+                - link [ref=e380] [cursor=pointer]:
+                  - /url: /@extendedmonaco9347
+                - generic [ref=e383]:
+                  - link "Extended Monaco @extendedmonaco9347•133 abonnés Extended Monaco is the program related to the digital transformation of Monaco Principality, funded and implemented by the ..." [ref=e384] [cursor=pointer]:
+                    - /url: /@extendedmonaco9347
+                    - generic [ref=e385]:
+                      - generic [ref=e389]: Extended Monaco
+                      - generic [ref=e390]: "@extendedmonaco9347•133 abonnés"
+                      - generic [ref=e391]: Extended Monaco is the program related to the digital transformation of Monaco Principality, funded and implemented by the ...
+                  - link "S'abonner" [ref=e396] [cursor=pointer]:
+                    - /url: https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Dfr%26next%3D%252Fresults%253Fsearch_query%253DMonaco%252Bsales%252Bplatform%252Bdemo%26continue_action%3DQUFFLUhqa1lxeGJGS2pzZHo4ZWNYSGtwMlhlajNyQWhLUXxBQ3Jtc0trS0ZNYTlPVEtOMmJkLTBoajk3VjE5dGlTY25vUlYyNTVFV2pkb2w2eUFuc1NMVm5CY3AzUmdsMVhTMWpvLUxCYXZDa0xLMllRMVZzeG1maGlZbFliN1VmclZZbUF0VkVCYkhmV1diS3pQeUZuc2ZETUUtTnVxcHBma2J0WndZVk4yMW5EMFhvV09sZVhDWWFVWUNTS1ZRNFRtRGg5UlpjR3BiYXgzTlVzWTJNYlBRNGpxeU1ubHAtOG5HMjROX0R1U0g3S0o&hl=fr
+                    - generic [ref=e397]: S'abonner
+              - generic [ref=e402]:
+                - link [ref=e404] [cursor=pointer]:
+                  - /url: /watch?v=vVDEDqB0uGE&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                - generic [ref=e406] [cursor=pointer]:
+                  - generic [ref=e407]:
+                    - generic [ref=e408]:
+                      - 'heading "Company Focus: Monaco Digital 4 minutes et 8 secondes" [level=3] [ref=e409]':
+                        - 'link "Company Focus: Monaco Digital 4 minutes et 8 secondes" [ref=e410]':
+                          - /url: /watch?v=vVDEDqB0uGE&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                          - text: "Company Focus: Monaco Digital"
+                      - button "Menu d'actions" [ref=e1075]:
+                        - generic [ref=e1078]:
+                          - img
+                    - generic [ref=e413]:
+                      - generic [ref=e414]: 368 vues
+                      - generic [ref=e415]: •il y a 6 ans
+                  - generic [ref=e416]:
+                    - link "Accéder à la chaîne MonacoInfo" [ref=e417]:
+                      - /url: /@MonacoInfo
+                    - link "MonacoInfo" [ref=e422]:
+                      - /url: /@MonacoInfo
+                  - generic [ref=e423]:
+                    - generic [ref=e424]: The 160 staff at Monaco Digital are working with companies in the Principality to develop information technology activities, ...
+                    - tooltip "tooltip"
+              - generic [ref=e426]:
+                - link [ref=e428] [cursor=pointer]:
+                  - /url: /watch?v=5Oy6gxK6cI8&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                - generic [ref=e430] [cursor=pointer]:
+                  - generic [ref=e431]:
+                    - generic [ref=e432]:
+                      - 'heading "Monaco: A world-class platform at a human scale - by Anthony Torriani 1 minute" [level=3] [ref=e433]':
+                        - 'link "Monaco: A world-class platform at a human scale - by Anthony Torriani 1 minute" [ref=e434]':
+                          - /url: /watch?v=5Oy6gxK6cI8&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                          - text: "Monaco: A world-class platform at a human scale - by Anthony Torriani"
+                      - button "Menu d'actions" [ref=e1082]:
+                        - generic [ref=e1085]:
+                          - img
+                    - generic [ref=e437]:
+                      - generic [ref=e438]: 444 vues
+                      - generic [ref=e439]: •il y a 10 ans
+                  - generic [ref=e440]:
+                    - link "Accéder à la chaîne Gouvernement Monaco" [ref=e441]:
+                      - /url: /@monacowebdoc
+                    - link "Gouvernement Monaco" [ref=e446]:
+                      - /url: /@monacowebdoc
+                  - generic [ref=e447]:
+                    - generic [ref=e448]: Anthony Torriani gives us his opinion on how the Principality of Monaco is capable of providing businesses with large scale ...
+                    - tooltip "tooltip"
+              - generic [ref=e450]:
+                - link [ref=e452] [cursor=pointer]:
+                  - /url: /watch?v=0-QudKy-6Ek&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                - generic [ref=e454] [cursor=pointer]:
+                  - generic [ref=e455]:
+                    - generic [ref=e456]:
+                      - heading "Un site de petites annonces sur Monaco 1 minute et 59 secondes" [level=3] [ref=e457]:
+                        - link "Un site de petites annonces sur Monaco 1 minute et 59 secondes" [ref=e458]:
+                          - /url: /watch?v=0-QudKy-6Ek&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                          - text: Un site de petites annonces sur Monaco
+                      - button "Menu d'actions" [ref=e1089]:
+                        - generic [ref=e1092]:
+                          - img
+                    - generic [ref=e461]:
+                      - generic [ref=e462]: 402 vues
+                      - generic [ref=e463]: •il y a 9 ans
+                  - generic [ref=e464]:
+                    - link "Accéder à la chaîne MonacoInfo" [ref=e465]:
+                      - /url: /@MonacoInfo
+                    - link "MonacoInfo" [ref=e470]:
+                      - /url: /@MonacoInfo
+                  - generic [ref=e471]:
+                    - text: Vendre, acheter, louer… sur le web, les sites qui proposent ce service ne manquent pas. Mais depuis le printemps 2016, ...
+                    - tooltip "tooltip"
+              - generic [ref=e473]:
+                - link [ref=e475] [cursor=pointer]:
+                  - /url: /watch?v=EZbIx94dMeU&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW_SBwkJ2QoBhyohjO8%3D
+                - generic [ref=e477] [cursor=pointer]:
+                  - generic [ref=e478]:
+                    - generic [ref=e479]:
+                      - heading "How to Present a MIND-BLOWING Software Demo That Closes Sales 10 minutes et 49 secondes" [level=3] [ref=e480]:
+                        - link "How to Present a MIND-BLOWING Software Demo That Closes Sales 10 minutes et 49 secondes" [ref=e481]:
+                          - /url: /watch?v=EZbIx94dMeU&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW_SBwkJ2QoBhyohjO8%3D
+                          - text: How to Present a MIND-BLOWING Software Demo That Closes Sales
+                      - button "Menu d'actions" [ref=e1096]:
+                        - generic [ref=e1099]:
+                          - img
+                    - generic [ref=e484]:
+                      - generic [ref=e485]: 137 k vues
+                      - generic [ref=e486]: •il y a 3 ans
+                  - generic [ref=e487]:
+                    - link "Accéder à la chaîne Sales Feed" [ref=e488]:
+                      - /url: /@Sales_Feed
+                    - link "Sales Feed" [ref=e493]:
+                      - /url: /@Sales_Feed
+                  - generic [ref=e494]:
+                    - generic [ref=e495]: You've done your sales discovery; now it's time for the product demonstration. In this episode of Sales Stuff Explained, we share ...
+                    - tooltip "tooltip"
+                  - img "Sous-titres" [ref=e498]:
+                    - generic [ref=e499]: Sous-titres
+                  - generic [ref=e502]:
+                    - generic [ref=e503]:
+                      - generic [ref=e507]: 16 chapitres
+                      - 'button "Intro | The Prep: Review and refresh | The Prep: Reach out to new stakeholders | The Prep: Create a recap slide | The Prep: Customize your demo | The Prep: Practice your demo | The Call: Prep your environment | The Call: Build rapport | The Call: Confirm the agenda | The Call: Do the demo | The Call: Pressure-test | The Call: Emphasize important moments | The Call: “Magic moments” | The Call: Demo with video and in pairs | The Call: Set next steps | After the Call: Send a recap email" [ref=e508]'
+                    - button "Plus" [ref=e513]:
+                      - generic [ref=e1101]:
+                        - img
+              - generic [ref=e520]:
+                - link [ref=e522] [cursor=pointer]:
+                  - /url: /@VisitMonaco_Official
+                - generic [ref=e525]:
+                  - link "Visit Monaco @VisitMonaco_Official•3,71 k abonnés La chaîne YouTube officielle de la Direction du Tourisme et des Congrès de Monaco. Suivez-nous pour vivre des expériences ..." [ref=e526] [cursor=pointer]:
+                    - /url: /@VisitMonaco_Official
+                    - generic [ref=e527]:
+                      - generic [ref=e531]: Visit Monaco
+                      - generic [ref=e532]: "@VisitMonaco_Official•3,71 k abonnés"
+                      - generic [ref=e533]: La chaîne YouTube officielle de la Direction du Tourisme et des Congrès de Monaco. Suivez-nous pour vivre des expériences ...
+                  - link "S'abonner" [ref=e538] [cursor=pointer]:
+                    - /url: https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Dfr%26next%3D%252Fresults%253Fsearch_query%253DMonaco%252Bsales%252Bplatform%252Bdemo%26continue_action%3DQUFFLUhqbVY0TjlpRW1MaFRWS0QyWkUtRUhrUHZ5SnB5UXxBQ3Jtc0tsb1hJYlJXWTNQcXBkOWRLWjJuWVZYTHJEQVhleEJ3VllaMFVRY0NVZzRPTURxWTFKN3VSZG94OUN4SXFUcWw2UTQwdnNXSXUwaUFTWlQ4dFZtQ1V1QnNDYWhyY1BZSGZfVFRyRDlySnFoS3pIV3lkYXpUVjBoOEVJRXB2bURObHNUMEFUX1BURV9tMzk0YmxFZVRacU03NHpDT2FUV0xqQVlHZjJEamFYX2dtcHdBaFR4a2ZBUUlmRlQyOVN0Q3c2SkZlRlA&hl=fr
+                    - generic [ref=e539]: S'abonner
+              - generic [ref=e544]:
+                - heading "Les internautes ont aussi regardé" [level=2] [ref=e547]:
+                  - generic [ref=e549]: Les internautes ont aussi regardé
+                - generic [ref=e551]:
+                  - generic [ref=e552]:
+                    - generic [ref=e554]:
+                      - link [ref=e556] [cursor=pointer]:
+                        - /url: /watch?v=UTsc-OLotaA&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                      - generic [ref=e558] [cursor=pointer]:
+                        - generic [ref=e559]:
+                          - generic [ref=e560]:
+                            - heading "MONACO LADIES BEST SUPERCAR ARRIVALS & BILLIONAIRE LUXURY LIFESTYLE 17 minutes" [level=3] [ref=e561]:
+                              - link "MONACO LADIES BEST SUPERCAR ARRIVALS & BILLIONAIRE LUXURY LIFESTYLE 17 minutes" [ref=e562]:
+                                - /url: /watch?v=UTsc-OLotaA&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                                - text: MONACO LADIES BEST SUPERCAR ARRIVALS & BILLIONAIRE LUXURY LIFESTYLE
+                            - button "Menu d'actions" [ref=e1105]:
+                              - generic [ref=e1108]:
+                                - img
+                          - generic [ref=e565]:
+                            - generic [ref=e566]: 1,1 M de vues
+                            - generic [ref=e567]: •il y a 6 mois
+                        - generic [ref=e568]:
+                          - link "Accéder à la chaîne Monaco Luxurious" [ref=e569]:
+                            - /url: /@Monacoluxurious
+                          - link "Monaco Luxurious" [ref=e574]:
+                            - /url: /@Monacoluxurious
+                        - generic [ref=e575]:
+                          - generic [ref=e576]: MONACO LADIES BEST SUPERCAR ARRIVALS & BILLIONAIRE LUXURY LIFESTYLE.
+                          - tooltip "tooltip"
+                        - img "4K" [ref=e579]:
+                          - generic [ref=e580]: 4K
+                    - generic [ref=e582]:
+                      - link [ref=e584] [cursor=pointer]:
+                        - /url: /watch?v=sMW81q6wc3Y&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                      - generic [ref=e586] [cursor=pointer]:
+                        - generic [ref=e587]:
+                          - generic [ref=e588]:
+                            - heading "Visite d'un appartement monégasque à 13 millions d'euros | Monte Carlo Sun Tour 5 minutes et 35 secondes" [level=3] [ref=e589]:
+                              - link "Visite d'un appartement monégasque à 13 millions d'euros | Monte Carlo Sun Tour 5 minutes et 35 secondes" [ref=e590]:
+                                - /url: /watch?v=sMW81q6wc3Y&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                                - text: Visite d'un appartement monégasque à 13 millions d'euros | Monte Carlo Sun Tour
+                            - button "Menu d'actions" [ref=e1112]:
+                              - generic [ref=e1115]:
+                                - img
+                          - generic [ref=e593]:
+                            - generic [ref=e594]: 125 k vues
+                            - generic [ref=e595]: •il y a 2 mois
+                        - generic [ref=e596]:
+                          - link "Accéder à la chaîne Sander Recommends" [ref=e597]:
+                            - /url: /@sanderrecommends
+                          - link "Sander Recommends" [ref=e602]:
+                            - /url: /@sanderrecommends
+                        - generic [ref=e603]:
+                          - text: Bienvenue à Monaco ! Dans cette vidéo, je me trouve dans le quartier de La Rousse–Saint-Roman, juste au-dessus de la plage du ...
+                          - tooltip "tooltip"
+                        - img "4K" [ref=e606]:
+                          - generic [ref=e607]: 4K
+                        - generic [ref=e610]:
+                          - generic [ref=e611]:
+                            - generic [ref=e615]: 7 chapitres
+                            - 'button "Monte Carlo Sun residence in La Rousse–Saint Roman district | Three bedroom apartment tour in Monte Carlo Sun | Views of Monaco from the terrace | Apartment tour: kitchen | Room tour: Bedrooms with ensuite bathrooms | The price & monthly charges | Are you interested in buying or renting a property in Monaco?" [ref=e616]'
+                          - button "Plus" [ref=e621]:
+                            - generic [ref=e1117]:
+                              - img
+                    - generic [ref=e628]:
+                      - link [ref=e630] [cursor=pointer]:
+                        - /url: /watch?v=CtfcjsxJHr4&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                      - generic [ref=e632] [cursor=pointer]:
+                        - generic [ref=e633]:
+                          - generic [ref=e634]:
+                            - heading "MARCHE DE LA CONDAMINE MONACO MC 4KHD 11 minutes et 18 secondes" [level=3] [ref=e635]:
+                              - link "MARCHE DE LA CONDAMINE MONACO MC 4KHD 11 minutes et 18 secondes" [ref=e636]:
+                                - /url: /watch?v=CtfcjsxJHr4&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                                - text: MARCHE DE LA CONDAMINE MONACO MC 4KHD
+                            - button "Menu d'actions" [ref=e1121]:
+                              - generic [ref=e1124]:
+                                - img
+                          - generic [ref=e639]:
+                            - generic [ref=e640]: 7,5 k vues
+                            - generic [ref=e641]: •il y a 6 ans
+                        - generic [ref=e642]:
+                          - link "Accéder à la chaîne ArchiesVlogMC" [ref=e643]:
+                            - /url: /@archiesvlogmc
+                          - link "ArchiesVlogMC" [ref=e648]:
+                            - /url: /@archiesvlogmc
+                        - generic [ref=e649]:
+                          - generic [ref=e650]: travelVlog#9 If you're visiting Monaco don't forget to pas s at their fresh market in La Condamine located just in front of Rocher ...
+                          - tooltip "tooltip"
+                    - generic [ref=e652]:
+                      - link [ref=e654] [cursor=pointer]:
+                        - /url: /watch?v=ij6xccYYIuE&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                      - generic [ref=e656] [cursor=pointer]:
+                        - generic [ref=e657]:
+                          - generic [ref=e658]:
+                            - heading "Monaco 4K - Billionaires' Playground - Sunset Drive 31 minutes" [level=3] [ref=e659]:
+                              - link "Monaco 4K - Billionaires' Playground - Sunset Drive 31 minutes" [ref=e660]:
+                                - /url: /watch?v=ij6xccYYIuE&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                                - text: Monaco 4K - Billionaires' Playground - Sunset Drive
+                            - button "Menu d'actions" [ref=e1128]:
+                              - generic [ref=e1131]:
+                                - img
+                          - generic [ref=e663]:
+                            - generic [ref=e664]: 3,3 M de vues
+                            - generic [ref=e665]: •il y a 4 ans
+                        - generic [ref=e666]:
+                          - link "Accéder à la chaîne J Utah" [ref=e667]:
+                            - /url: /@jutah
+                          - generic [ref=e668]:
+                            - link "J Utah" [ref=e672]:
+                              - /url: /@jutah
+                            - img "Validé" [ref=e675]:
+                              - generic [ref=e1133]:
+                                - img
+                        - generic [ref=e677]:
+                          - generic [ref=e678]: Sunset drive around Monaco, the Billionaires' Playground on the French Riviera. Known for the Formula One Monaco Grand Prix, ...
+                          - tooltip "tooltip"
+                        - img "4K" [ref=e681]:
+                          - generic [ref=e682]: 4K
+                  - generic "6 en +" [ref=e684] [cursor=pointer]
+              - generic [ref=e686]:
+                - link [ref=e688] [cursor=pointer]:
+                  - /url: /shorts/06IcGHiJKt0
+                - generic [ref=e690] [cursor=pointer]:
+                  - generic [ref=e691]:
+                    - generic [ref=e692]:
+                      - 'heading "You need €500,000 to live in Monaco 😱 #monaco #montecarlo #luxury #monacolife de Bag Breeze by Sellier 759 957 vues il y a 2 ans 19 secondes - lire le Short" [level=3] [ref=e693]':
+                        - 'link "You need €500,000 to live in Monaco 😱 #monaco #montecarlo #luxury #monacolife de Bag Breeze by Sellier 759 957 vues il y a 2 ans 19 secondes - lire le Short" [ref=e694]':
+                          - /url: /shorts/06IcGHiJKt0
+                          - text: "You need €500,000 to live in Monaco 😱 #monaco #montecarlo #luxury #monacolife"
+                      - button "Menu d'actions" [ref=e1137]:
+                        - generic [ref=e1140]:
+                          - img
+                    - generic [ref=e697]:
+                      - generic [ref=e698]: 759 k vues
+                      - generic [ref=e699]: •il y a 2 ans
+                  - generic [ref=e700]:
+                    - link "Accéder à la chaîne Bag Breeze by Sellier" [ref=e701]:
+                      - /url: /@sellierluxurybags
+                    - link "Bag Breeze by Sellier" [ref=e706]:
+                      - /url: /@sellierluxurybags
+                  - generic [ref=e707]:
+                    - generic [ref=e708]: "You need €500000 to live in Monaco #monaco #montecarlo #luxury #monacolife."
+                    - tooltip "tooltip"
+              - generic [ref=e710]:
+                - link [ref=e712] [cursor=pointer]:
+                  - /url: /watch?v=jxHs10CPZls&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                - generic [ref=e714] [cursor=pointer]:
+                  - generic [ref=e715]:
+                    - generic [ref=e716]:
+                      - heading "Monaco AI CRM - should I pull the trigger? 11 minutes et 19 secondes" [level=3] [ref=e717]:
+                        - link "Monaco AI CRM - should I pull the trigger? 11 minutes et 19 secondes" [ref=e718]:
+                          - /url: /watch?v=jxHs10CPZls&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                          - text: Monaco AI CRM - should I pull the trigger?
+                      - button "Menu d'actions" [ref=e1144]:
+                        - generic [ref=e1147]:
+                          - img
+                    - generic [ref=e721]:
+                      - generic [ref=e722]: 96 vues
+                      - generic [ref=e723]: •il y a 2 semaines
+                  - generic [ref=e724]:
+                    - link "Accéder à la chaîne Ship Rats" [ref=e725]:
+                      - /url: /@shipratscrew
+                    - link "Ship Rats" [ref=e730]:
+                      - /url: /@shipratscrew
+                  - generic [ref=e731]:
+                    - generic [ref=e732]: After a long 3-week wait, I finally got my Monaco demo. Should I pull the trigger?
+                    - tooltip "tooltip"
+              - generic [ref=e734]:
+                - link [ref=e736] [cursor=pointer]:
+                  - /url: /watch?v=LpTQH7DqjL4&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                - generic [ref=e738] [cursor=pointer]:
+                  - generic [ref=e739]:
+                    - generic [ref=e740]:
+                      - heading "MonacoTech propose son Demo Day 1 minute et 50 secondes" [level=3] [ref=e741]:
+                        - link "MonacoTech propose son Demo Day 1 minute et 50 secondes" [ref=e742]:
+                          - /url: /watch?v=LpTQH7DqjL4&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                          - text: MonacoTech propose son Demo Day
+                      - button "Menu d'actions" [ref=e1151]:
+                        - generic [ref=e1154]:
+                          - img
+                    - generic [ref=e745]:
+                      - generic [ref=e746]: 117 vues
+                      - generic [ref=e747]: •il y a 3 mois
+                  - generic [ref=e748]:
+                    - link "Accéder à la chaîne MonacoInfo" [ref=e749]:
+                      - /url: /@MonacoInfo
+                    - link "MonacoInfo" [ref=e754]:
+                      - /url: /@MonacoInfo
+                  - generic [ref=e755]:
+                    - generic [ref=e756]: Les Demo Days mettent avant les start-ups les plus prometteuses en Principauté. MONACO INFO LE PODCAST ...
+                    - tooltip "tooltip"
+              - generic [ref=e758]:
+                - link [ref=e760] [cursor=pointer]:
+                  - /url: /watch?v=wIvUNEwMNpE&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                - generic [ref=e762] [cursor=pointer]:
+                  - generic [ref=e763]:
+                    - generic [ref=e764]:
+                      - heading "How Monaco Real Estate Transactions Work - Monaco Insider 2 minutes et 20 secondes" [level=3] [ref=e765]:
+                        - link "How Monaco Real Estate Transactions Work - Monaco Insider 2 minutes et 20 secondes" [ref=e766]:
+                          - /url: /watch?v=wIvUNEwMNpE&pp=ygUaTW9uYWNvIHNhbGVzIHBsYXRmb3JtIGRlbW8%3D
+                          - text: How Monaco Real Estate Transactions Work - Monaco Insider
+                      - button "Menu d'actions" [ref=e1158]:
+                        - generic [ref=e1161]:
+                          - img
+                    - generic [ref=e769]:
+                      - generic [ref=e770]: 2,1 k vues
+                      - generic [ref=e771]: •il y a 4 ans
+                  - generic [ref=e772]:
+                    - link "Accéder à la chaîne Monaco Insider" [ref=e773]:
+                      - /url: /@monacoinsider892
+                    - link "Monaco Insider" [ref=e778]:
+                      - /url: /@monacoinsider892
+                  - generic [ref=e779]:
+                    - generic [ref=e780]: Download our report on How To Make Monaco Your Home at https://monacoestate.com/resources-about-real-estate-monaco/ In ...
+                    - tooltip "tooltip"
+                  - generic [ref=e783]:
+                    - generic [ref=e784]:
+                      - generic [ref=e788]: 4 chapitres
+                      - button "Intro | Monaco vs Hong Kong | Transaction Costs | Capital Gains" [ref=e789]
+                    - button "Plus" [ref=e794]:
+                      - generic [ref=e1163]:
+                        - img
+              - generic [ref=e801]:
+                - link [ref=e803] [cursor=pointer]:
+                  - /url: /@lorenzavonsteinmonaco
+                - generic [ref=e806]:
+                  - link "Lorenza Von Stein | Luxury Real Estate | Monaco @lorenzavonsteinmonaco•2,76 k abonnés Lorenza Von Stein is one of the leading luxury real estate agencies in Monaco. The agency, unique in Monaco as much as for its ..." [ref=e807] [cursor=pointer]:
+                    - /url: /@lorenzavonsteinmonaco
+                    - generic [ref=e808]:
+                      - generic [ref=e812]: Lorenza Von Stein | Luxury Real Estate | Monaco
+                      - generic [ref=e813]: "@lorenzavonsteinmonaco•2,76 k abonnés"
+                      - generic [ref=e814]: Lorenza Von Stein is one of the leading luxury real estate agencies in Monaco. The agency, unique in Monaco as much as for its ...
+                  - link "S'abonner" [ref=e819] [cursor=pointer]:
+                    - /url: https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Dfr%26next%3D%252Fresults%253Fsearch_query%253DMonaco%252Bsales%252Bplatform%252Bdemo%26continue_action%3DQUFFLUhqbnpYbF85dUtzazhtVlhjdlJGTmdUZWZFTmZpQXxBQ3Jtc0traUphdGFFeVpkajNjTE8xZGk5WF9LaTNnLV82SE5RcEJpYnpSMWpOaHZ5ZGVKX2syNlVISHpJZWFWeHhpTDc5dW9aWEN4a2tUek10bjA0YzNSdTJScFdKeGlWSk1TS0VrQ0NZWkRnV2pRREhzS3NlN2pvUzVtUTVwUk13dF9wQThqZjVJY21ORmVIbjFNYmNUbkhVVS03bUdsREJvRDQ4NXNfVlA0Tklib1BobENwaVp5Q0xLRXVtd0NLZWRJcnFlVDBqcGU&hl=fr
+                    - generic [ref=e820]: S'abonner
+              - generic [ref=e825]:
+                - link [ref=e827] [cursor=pointer]:
+                  - /url: /shorts/qA-ZHJYvvuw
+                - generic [ref=e829] [cursor=pointer]:
+                  - generic [ref=e830]:
+                    - generic [ref=e831]:
+                      - 'heading "Beautiful Girls Night Vibes Monaco 🇲🇨 #luxury #rich #life de Euro Travel Monaco 3 365 284 vues il y a 1 an 12 secondes - lire le Short" [level=3] [ref=e832]':
+                        - 'link "Beautiful Girls Night Vibes Monaco 🇲🇨 #luxury #rich #life de Euro Travel Monaco 3 365 284 vues il y a 1 an 12 secondes - lire le Short" [ref=e833]':
+                          - /url: /shorts/qA-ZHJYvvuw
+                          - text: "Beautiful Girls Night Vibes Monaco 🇲🇨 #luxury #rich #life"
+                      - button "Menu d'actions" [ref=e1167]:
+                        - generic [ref=e1170]:
+                          - img
+                    - generic [ref=e836]:
+                      - generic [ref=e837]: 3,3 M de vues
+                      - generic [ref=e838]: •il y a 1 an
+                  - generic [ref=e839]:
+                    - link "Accéder à la chaîne Euro Travel Monaco" [ref=e840]:
+                      - /url: /@EuroTravelMonaco
+                    - link "Euro Travel Monaco" [ref=e845]:
+                      - /url: /@EuroTravelMonaco
+              - generic [ref=e1172]:
+                - link [ref=e1174] [cursor=pointer]:
+                  - /url: /shorts/ut0x2HnIncw
+                - generic [ref=e1176] [cursor=pointer]:
+                  - generic [ref=e1177]:
+                    - generic [ref=e1178]:
+                      - 'heading "🛍 Sales in Monaco be like - @monacoluxurylifestyle #Shorts de OptimumLuxe 5 363 vues il y a 3 ans 10 secondes - lire le Short" [level=3] [ref=e1179]':
+                        - 'link "🛍 Sales in Monaco be like - @monacoluxurylifestyle #Shorts de OptimumLuxe 5 363 vues il y a 3 ans 10 secondes - lire le Short" [ref=e1180]':
+                          - /url: /shorts/ut0x2HnIncw
+                          - text: "🛍 Sales in Monaco be like - @monacoluxurylifestyle #Shorts"
+                      - button "Menu d'actions" [ref=e1184]:
+                        - generic [ref=e1187]:
+                          - img
+                    - generic [ref=e1190]:
+                      - generic [ref=e1191]: 5,3 k vues
+                      - generic [ref=e1192]: •il y a 3 ans
+                  - generic [ref=e1193]:
+                    - link "Accéder à la chaîne OptimumLuxe" [ref=e1194]:
+                      - /url: /@optimumluxe9685
+                    - link "OptimumLuxe" [ref=e1199]:
+                      - /url: /@optimumluxe9685
+                  - generic [ref=e1200]:
+                    - generic [ref=e1201]: "Sales in Monaco be like - @monacoluxurylifestyle #Shorts Want to know how to make video ads like this one? It is simple to do ..."
+                    - tooltip "tooltip"
+              - generic [ref=e1203]:
+                - link [ref=e1205] [cursor=pointer]:
+                  - /url: /shorts/aJTkfBMFfWk
+                - generic [ref=e1207] [cursor=pointer]:
+                  - generic [ref=e1208]:
+                    - generic [ref=e1209]:
+                      - heading "What Rich People Do For Fun IN Monaco de Noah Kagan 1 051 852 vues il y a 2 ans 26 secondes - lire le Short" [level=3] [ref=e1210]:
+                        - link "What Rich People Do For Fun IN Monaco de Noah Kagan 1 051 852 vues il y a 2 ans 26 secondes - lire le Short" [ref=e1211]:
+                          - /url: /shorts/aJTkfBMFfWk
+                          - text: What Rich People Do For Fun IN Monaco
+                      - button "Menu d'actions" [ref=e1215]:
+                        - generic [ref=e1218]:
+                          - img
+                    - generic [ref=e1221]:
+                      - generic [ref=e1222]: 1 M de vues
+                      - generic [ref=e1223]: •il y a 2 ans
+                  - generic [ref=e1224]:
+                    - link "Accéder à la chaîne Noah Kagan" [ref=e1225]:
+                      - /url: /@noahkagan
+                    - generic [ref=e1226]:
+                      - link "Noah Kagan" [ref=e1230]:
+                        - /url: /@noahkagan
+                      - img "Validé" [ref=e1233]:
+                        - generic [ref=e1236]:
+                          - img
+                  - generic [ref=e1237]:
+                    - text: "Need help getting started with your own business? Sign up at http://monthly1k.com Subscribe: ..."
+                    - tooltip "tooltip"
+              - generic [ref=e1238]:
+                - generic [ref=e1241]:
+                  - img [ref=e1243]:
+                    - generic [ref=e1245]:
+                      - img
+                  - heading "Shorts" [level=2] [ref=e1248]
+                - generic [ref=e1250]:
+                  - generic [ref=e1253]:
+                    - link [ref=e1254] [cursor=pointer]:
+                      - /url: /shorts/tOF-q3IYtSU
+                    - generic [ref=e1258] [cursor=pointer]:
+                      - link "Carlo s’impose dans les habitudes de paiement en Principauté" [ref=e1259]:
+                        - /url: /shorts/tOF-q3IYtSU
+                      - generic [ref=e1260]: 251 vues
+                    - button "Autres actions" [ref=e1262] [cursor=pointer]:
+                      - generic [ref=e1266]:
+                        - img
+                  - generic [ref=e1272]:
+                    - link [ref=e1273] [cursor=pointer]:
+                      - /url: /shorts/aPyLTNFrDpQ
+                    - generic [ref=e1277] [cursor=pointer]:
+                      - 'link "Monaco Residency: The Entry Process & Market Insights" [ref=e1278]':
+                        - /url: /shorts/aPyLTNFrDpQ
+                      - generic [ref=e1279]: 6,1 k vues
+                    - button "Autres actions" [ref=e1281] [cursor=pointer]:
+                      - generic [ref=e1285]:
+                        - img
+                  - generic [ref=e1291]:
+                    - link [ref=e1292] [cursor=pointer]:
+                      - /url: /shorts/zohJ2uvKyQ0
+                    - generic [ref=e1296] [cursor=pointer]:
+                      - link "Welcome to Mareterra, Monaco's newest district" [ref=e1297]:
+                        - /url: /shorts/zohJ2uvKyQ0
+                      - generic [ref=e1298]: 8,5 k vues
+                    - button "Autres actions" [ref=e1300] [cursor=pointer]:
+                      - generic [ref=e1304]:
+                        - img
+                  - generic [ref=e1310]:
+                    - link [ref=e1311] [cursor=pointer]:
+                      - /url: /shorts/LsDmaBQH8gg
+                    - generic [ref=e1315] [cursor=pointer]:
+                      - 'link "Créer une entreprise à Monaco #monaco #entrepreneur #business" [ref=e1316]':
+                        - /url: /shorts/LsDmaBQH8gg
+                      - generic [ref=e1317]: 3,8 k vues
+                    - button "Autres actions" [ref=e1319] [cursor=pointer]:
+                      - generic [ref=e1323]:
+                        - img
+                  - generic [ref=e1329]:
+                    - link [ref=e1330] [cursor=pointer]:
+                      - /url: /shorts/5uoVmjXNOmI
+                    - generic [ref=e1334] [cursor=pointer]:
+                      - 'link "Monaco''s Real Estate Market: A Tale of High Demand and Limited Supply" [ref=e1335]':
+                        - /url: /shorts/5uoVmjXNOmI
+                      - generic [ref=e1336]: 234 vues
+                    - button "Autres actions" [ref=e1338] [cursor=pointer]:
+                      - generic [ref=e1342]:
+                        - img
+                - button "Plus" [ref=e1349] [cursor=pointer]:
+                  - generic [ref=e1350]: Plus
+                  - generic [ref=e1354]:
+                    - img
+              - generic [ref=e1358]:
+                - generic [ref=e1361]:
+                  - img [ref=e1363]:
+                    - generic [ref=e1365]:
+                      - img
+                  - heading "Shorts" [level=2] [ref=e1368]
+                - generic [ref=e1370]:
+                  - generic [ref=e1373]:
+                    - link [ref=e1374] [cursor=pointer]:
+                      - /url: /shorts/5uoVmjXNOmI
+                    - generic [ref=e1378] [cursor=pointer]:
+                      - 'link "Monaco''s Real Estate Market: A Tale of High Demand and Limited Supply" [ref=e1379]':
+                        - /url: /shorts/5uoVmjXNOmI
+                      - generic [ref=e1380]: 234 vues
+                    - button "Autres actions" [ref=e1382] [cursor=pointer]:
+                      - generic [ref=e1386]:
+                        - img
+                  - generic [ref=e1392]:
+                    - link [ref=e1393] [cursor=pointer]:
+                      - /url: /shorts/y3mZoEm5ncA
+                    - generic [ref=e1397] [cursor=pointer]:
+                      - link "SUPER YACHTS FOR SALE MONTE CARLO MONACO" [ref=e1398]:
+                        - /url: /shorts/y3mZoEm5ncA
+                      - generic [ref=e1399]: 121 vues
+                    - button "Autres actions" [ref=e1401] [cursor=pointer]:
+                      - generic [ref=e1405]:
+                        - img
+                  - generic [ref=e1411]:
+                    - link [ref=e1412] [cursor=pointer]:
+                      - /url: /shorts/jb7UVYdKHsk
+                    - generic [ref=e1416] [cursor=pointer]:
+                      - link "The Shocking Truth About Conducting Business in Monaco - yourinternationaltaxlawyers.net" [ref=e1417]:
+                        - /url: /shorts/jb7UVYdKHsk
+                      - generic [ref=e1418]: 325 vues
+                    - button "Autres actions" [ref=e1420] [cursor=pointer]:
+                      - generic [ref=e1424]:
+                        - img
+                  - generic [ref=e1430]:
+                    - link [ref=e1431] [cursor=pointer]:
+                      - /url: /shorts/k3df0NMy9Ko
+                    - generic [ref=e1435] [cursor=pointer]:
+                      - link "Riva 68' Diable Yacht in Monaco Show | Elegance Meets High-Performance | YachtSpecsDirect.com" [ref=e1436]:
+                        - /url: /shorts/k3df0NMy9Ko
+                      - generic [ref=e1437]: 1,4 k vues
+                    - button "Autres actions" [ref=e1439] [cursor=pointer]:
+                      - generic [ref=e1443]:
+                        - img
+                  - generic [ref=e1449]:
+                    - link [ref=e1450] [cursor=pointer]:
+                      - /url: /shorts/EPxzB-bTCF4
+                    - generic [ref=e1454] [cursor=pointer]:
+                      - 'link "Fleet Update! Monaco For Sale!? #shorts" [ref=e1455]':
+                        - /url: /shorts/EPxzB-bTCF4
+                      - generic [ref=e1456]: 87 vues
+                    - button "Autres actions" [ref=e1458] [cursor=pointer]:
+                      - generic [ref=e1462]:
+                        - img
+                - button "Plus" [ref=e1469] [cursor=pointer]:
+                  - generic [ref=e1470]: Plus
+                  - generic [ref=e1474]:
+                    - img
+      - text: •
+  - dialog "Avant d'accéder à YouTube" [active] [ref=e869]:
+    - generic [ref=e870]:
+      - generic [ref=e871]:
+        - generic [ref=e1479]:
+          - img
+        - generic [ref=e874]: Une filiale de Google
+      - generic [ref=e875]:
+        - 'button "Langue : French" [ref=e880] [cursor=pointer]':
+          - generic [ref=e1481]:
+            - img
+          - generic [ref=e883]: fr
+        - generic [ref=e888]:
+          - link "Se connecter" [ref=e890] [cursor=pointer]:
+            - /url: https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Dfr%26next%3Dhttps%253A%252F%252Fwww.youtube.com%252Fresults%253Fsearch_query%253DMonaco%252Bsales%252Bplatform%252Bdemo%2526themeRefresh%253D1&hl=fr
+            - generic [ref=e1483]:
+              - img
+            - generic [ref=e893]: Se connecter
+          - tooltip "tooltip"
+    - generic [ref=e897]:
+      - heading "Avant d'accéder à YouTube" [level=2] [ref=e898]
+      - generic [ref=e899]:
+        - generic [ref=e900]:
+          - generic [ref=e902]:
+            - text: Nous utilisons des
+            - link "cookies" [ref=e903] [cursor=pointer]:
+              - /url: https://policies.google.com/technologies/cookies?hl=fr
+            - text: "et d'autres données pour :"
+          - list [ref=e904]:
+            - listitem [ref=e905]:
+              - generic [ref=e1485]:
+                - img
+              - generic [ref=e907]: Proposer les services Google et s'assurer qu'ils fonctionnent correctement
+            - listitem [ref=e908]:
+              - generic [ref=e1487]:
+                - img
+              - generic [ref=e910]: Suivre les interruptions de service et protéger contre le spam, les fraudes et les abus
+            - listitem [ref=e911]:
+              - generic [ref=e1489]:
+                - img
+              - generic [ref=e913]: Mesurer l'engagement de l'audience et les statistiques des sites pour comprendre la façon dont nos services sont utilisés et pour améliorer leur qualité
+        - generic [ref=e914]:
+          - generic [ref=e915]: "Si vous cliquez sur \"Tout accepter\", nous utiliserons également des cookies et d'autres données pour :"
+          - list [ref=e916]:
+            - listitem [ref=e917]:
+              - generic [ref=e1491]:
+                - img
+              - generic [ref=e919]: Développer de nouveaux services et les améliorer
+            - listitem [ref=e920]:
+              - generic [ref=e1493]:
+                - img
+              - generic [ref=e922]: Diffuser des annonces et évaluer leur efficacité
+            - listitem [ref=e923]:
+              - generic [ref=e1495]:
+                - img
+              - generic [ref=e925]: Proposer des contenus personnalisés en fonction de vos paramètres
+            - listitem [ref=e926]:
+              - generic [ref=e1497]:
+                - img
+              - generic [ref=e928]: Afficher des annonces personnalisées en fonction de vos paramètres
+        - generic [ref=e929]: Si vous cliquez sur "Tout refuser", nous n'utiliserons pas de cookies pour ces fins supplémentaires.
+        - generic [ref=e930]: Les annonces et les contenus non personnalisés dépendent, par exemple, du contenu du site que vous consultez et de votre position (la diffusion d'annonces est basée sur votre position approximative). Les annonces et les contenus personnalisés peuvent aussi inclure, par exemple, des recommandations de vidéos, une page d'accueil YouTube personnalisée et des annonces adaptées en fonction de votre activité passée, comme les vidéos que vous avez regardées et les contenus que vous avez recherchés sur YouTube. Le cas échéant, nous adaptons également l'expérience en fonction de l'âge de l'utilisateur à l'aide de cookies et de données.
+        - generic [ref=e931]: Cliquez sur "Plus d'options" pour afficher plus d'informations, y compris sur la manière de gérer vos paramètres de confidentialité. Vous pouvez aussi consulter la page g.co/privacytools à tout moment.
+        - generic [ref=e932]:
+          - generic [ref=e933]:
+            - button "Refuser l'utilisation de cookies et d'autres données aux fins décrites" [ref=e936] [cursor=pointer]:
+              - generic [ref=e937]: Tout refuser
+            - button "Accepter l'utilisation de cookies et d'autres données aux fins décrites" [ref=e943] [cursor=pointer]:
+              - generic [ref=e944]: Tout accepter
+          - link "Plus d'options" [ref=e951] [cursor=pointer]:
+            - /url: https://consent.youtube.com/d?continue=https://www.youtube.com/results%3Fsearch_query%3DMonaco%2Bsales%2Bplatform%2Bdemo%26themeRefresh%3D1%26cbrd%3D1&gl=FR&m=0&pc=yt&cm=2&hl=fr&src=2
+            - generic [ref=e952]: Plus d'options
+        - generic [ref=e956]:
+          - link "Règles de confidentialité" [ref=e958] [cursor=pointer]:
+            - /url: https://policies.google.com/privacy?hl=fr
+          - generic [ref=e959]: •
+          - link "Conditions d'utilisation" [ref=e961] [cursor=pointer]:
+            - /url: https://policies.google.com/terms?hl=fr

@@ -1,0 +1,778 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - button:
+                        - generic:
+                          - generic:
+                            - generic: MP
+                        - generic: Martin Paviot
+                    - generic:
+                      - button:
+                        - img
+                      - button:
+                        - generic:
+                          - img
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - link:
+                            - /url: /crm/up-next
+                          - generic:
+                            - img
+                          - generic: Up next
+                        - button:
+                          - generic:
+                            - img
+                          - generic: Notifications
+                    - generic:
+                      - generic: Records
+                      - generic:
+                        - link:
+                          - /url: https://crm.lightfield.app/crm/accounts
+                        - generic:
+                          - img
+                        - generic: Accounts
+                      - generic:
+                        - link:
+                          - /url: https://crm.lightfield.app/crm/opportunities
+                        - generic:
+                          - img
+                        - generic: Opportunities
+                      - generic:
+                        - link:
+                          - /url: https://crm.lightfield.app/crm/contacts
+                        - generic:
+                          - img
+                        - generic: Contacts
+                    - generic:
+                      - generic: Resources
+                      - generic:
+                        - link:
+                          - /url: https://crm.lightfield.app/crm/tasks
+                        - generic:
+                          - img
+                        - generic: Tasks
+                      - generic:
+                        - link:
+                          - /url: https://crm.lightfield.app/crm/meetings
+                        - generic:
+                          - img
+                        - generic: Meetings
+                      - generic:
+                        - link:
+                          - /url: https://crm.lightfield.app/crm/notes
+                        - generic:
+                          - img
+                        - generic: Notes
+                    - generic:
+                      - generic: Lists
+                      - button:
+                        - generic:
+                          - img
+                        - generic: New list
+                    - generic:
+                      - generic: Chats
+                      - button:
+                        - generic:
+                          - img
+                        - generic: New chat
+                      - generic:
+                        - link:
+                          - /url: /crm/thread/cmndtcyiz001j3571whjdyiq7
+                        - generic:
+                          - img
+                        - generic: What's the deal value of all my active opportun...
+                      - generic:
+                        - link:
+                          - /url: /crm/thread/cmndtc7ao001h3571h1jrw3ey
+                        - generic:
+                          - img
+                        - generic: Help me prepare for a meeting with Sarah Chen a...
+                      - generic:
+                        - link:
+                          - /url: /crm/thread/cmndtbiug001f3571amjxjqik
+                        - generic:
+                          - img
+                        - generic: What integrations are available?
+                      - generic:
+                        - link:
+                          - /url: /crm/thread/cmndtap1h001d35712uk2up76
+                        - generic:
+                          - img
+                        - generic: Export all contacts as CSV
+                      - generic:
+                        - link:
+                          - /url: /crm/thread/cmndta10l001b3571zhwkvvs1
+                        - generic:
+                          - img
+                        - generic: Draft a follow-up email to James Park referenci...
+                      - combobox:
+                        - generic:
+                          - img
+                        - generic: More
+                  - generic:
+                    - generic:
+                      - button:
+                        - img
+                  - button
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - img
+                      - generic: Accounts
+                    - generic:
+                      - button:
+                        - generic:
+                          - img
+                        - generic: All
+                      - generic:
+                        - generic:
+                          - generic:
+                            - button:
+                              - generic:
+                                - img
+                - generic:
+                  - button:
+                    - generic:
+                      - img
+                    - text: Import / Export
+                    - img
+                  - button:
+                    - generic:
+                      - img
+                    - generic: Create account
+              - generic:
+                - generic:
+                  - button [expanded]:
+                    - generic:
+                      - img
+                    - generic: Filter
+                - button:
+                  - generic:
+                    - img
+                  - generic: Display
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - region:
+                            - generic:
+                              - table:
+                                - rowgroup:
+                                  - row:
+                                    - columnheader:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - img
+                                            - generic: Account
+                                        - button:
+                                          - generic:
+                                            - img
+                                      - button [ref=e760]
+                                    - columnheader:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - img
+                                            - generic: Industry
+                                        - button:
+                                          - generic:
+                                            - img
+                                      - button [ref=e761]
+                                      - button [ref=e762]
+                                    - columnheader:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - img
+                                            - generic: Last interaction
+                                        - button:
+                                          - generic:
+                                            - img
+                                      - button [ref=e763]
+                                      - button [ref=e764]
+                                    - columnheader:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - img
+                                            - generic: Revenue
+                                        - button:
+                                          - generic:
+                                            - img
+                                      - button [ref=e765]
+                                      - button [ref=e766]
+                                    - columnheader:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - img
+                                            - generic: Headcount
+                                        - button:
+                                          - generic:
+                                            - img
+                                      - button [ref=e767]
+                                      - button [ref=e768]
+                                    - columnheader:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - img
+                                            - generic: Last funding
+                                        - button:
+                                          - generic:
+                                            - img
+                                      - button [ref=e769]
+                                      - button [ref=e770]
+                                    - columnheader:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - img
+                                            - generic: LinkedIn
+                                        - button:
+                                          - generic:
+                                            - img
+                                      - button [ref=e771]
+                                      - button [ref=e772]
+                                    - columnheader:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - img
+                                            - generic: Website
+                                        - button:
+                                          - generic:
+                                            - img
+                                      - button [ref=e773]
+                                      - button [ref=e774]
+                                    - columnheader:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - img
+                                            - generic: Owner
+                                        - button:
+                                          - generic:
+                                            - img
+                                      - button [ref=e775]
+                                - rowgroup:
+                                  - row:
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - img
+                                            - generic: Dublin Software
+                                        - link:
+                                          - /url: /crm/account/cmndozk7k0015jjoiutya5bt0
+                                          - generic:
+                                            - img
+                                        - button:
+                                          - generic:
+                                            - img
+                                      - button [ref=e776]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic: Information Technology & Services
+                                          - generic:
+                                            - generic: Software
+                                      - button [ref=e777]
+                                      - button [ref=e778]
+                                    - cell:
+                                      - button [ref=e779]
+                                      - button [ref=e780]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic: $10M to $50M
+                                      - button [ref=e781]
+                                      - button [ref=e782]
+                                    - cell:
+                                      - button [ref=e783]
+                                      - button [ref=e784]
+                                    - cell:
+                                      - button [ref=e785]
+                                      - button [ref=e786]
+                                    - cell:
+                                      - button [ref=e787]
+                                      - button [ref=e788]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - link:
+                                              - /url: https://dublinsoft.ie
+                                              - text: dublinsoft.ie
+                                      - button [ref=e789]
+                                      - button [ref=e790]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - generic: MP
+                                          - generic: Martin Paviot
+                                      - button [ref=e791]
+                                  - row:
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - img
+                                            - generic: GulfTech
+                                        - link:
+                                          - /url: /crm/account/cmndozk5n000vjjoi35fqq9ct
+                                          - generic:
+                                            - img
+                                        - button:
+                                          - generic:
+                                            - img
+                                      - button [ref=e792]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic: Machinery Manufacturing
+                                          - generic:
+                                            - generic: Leasing
+                                          - generic:
+                                            - generic: Manufacturing
+                                          - generic:
+                                            - generic: Client Service
+                                          - generic:
+                                            - generic: Engineering
+                                          - generic:
+                                            - generic: Food Processing
+                                          - generic:
+                                            - generic: Fresh Cut Fruit
+                                      - button [ref=e793]
+                                      - button [ref=e794]
+                                    - cell:
+                                      - button [ref=e795]
+                                      - button [ref=e796]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic: Less than $1M
+                                      - button [ref=e797]
+                                      - button [ref=e798]
+                                    - cell:
+                                      - button [ref=e799]
+                                      - button [ref=e800]
+                                    - cell:
+                                      - button [ref=e801]
+                                      - button [ref=e802]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic: gulftech-it
+                                            - link [ref=e803] [cursor=pointer]:
+                                              - /url: https://www.linkedin.com/company/gulftech-it/
+                                              - text: gulftech-it
+                                      - button [ref=e804]
+                                      - button [ref=e805]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - link:
+                                              - /url: https://gulftech.sa
+                                              - text: gulftech.sa
+                                      - button [ref=e806]
+                                      - button [ref=e807]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - generic: MP
+                                          - generic: Martin Paviot
+                                      - button [ref=e808]
+                                  - row:
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - img
+                                            - generic: TechFlow
+                                        - link:
+                                          - /url: /crm/account/cmndozk3w000ljjoi0rumlx5a
+                                          - generic:
+                                            - img
+                                        - button:
+                                          - generic:
+                                            - img
+                                      - button [ref=e809]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic: Technology Services
+                                      - button [ref=e810]
+                                      - button [ref=e811]
+                                    - cell:
+                                      - button [ref=e812]
+                                      - button [ref=e813]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic: $10M to $50M
+                                      - button [ref=e814]
+                                      - button [ref=e815]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic: 101-250
+                                      - button [ref=e816]
+                                      - button [ref=e817]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic: Undisclosed
+                                      - button [ref=e818]
+                                      - button [ref=e819]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic: techfloworguk
+                                            - link [ref=e820] [cursor=pointer]:
+                                              - /url: https://linkedin.com/company/techfloworguk
+                                              - text: techfloworguk
+                                      - button [ref=e821]
+                                      - button [ref=e822]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - link:
+                                              - /url: https://techflow.fr
+                                              - text: techflow.fr
+                                      - button [ref=e823]
+                                      - button [ref=e824]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - generic: MP
+                                          - generic: Martin Paviot
+                                      - button [ref=e825]
+                                  - row:
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - img
+                                            - generic: NovaTech
+                                        - link:
+                                          - /url: /crm/account/cmndozk1u000bjjoiwps05zb7
+                                          - generic:
+                                            - img
+                                        - button:
+                                          - generic:
+                                            - img
+                                      - button [ref=e826]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic: Information Technology And Services
+                                      - button [ref=e827]
+                                      - button [ref=e828]
+                                    - cell:
+                                      - button [ref=e829]
+                                      - button [ref=e830]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic: $50M to $100M
+                                      - button [ref=e831]
+                                      - button [ref=e832]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic: 501-1000
+                                      - button [ref=e833]
+                                      - button [ref=e834]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic: Undisclosed
+                                      - button [ref=e835]
+                                      - button [ref=e836]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic: nova-tech-it
+                                            - link [ref=e837] [cursor=pointer]:
+                                              - /url: https://linkedin.com/company/nova-tech-it
+                                              - text: nova-tech-it
+                                      - button [ref=e838]
+                                      - button [ref=e839]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - link:
+                                              - /url: https://novatech.dev
+                                              - text: novatech.dev
+                                      - button [ref=e840]
+                                      - button [ref=e841]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - generic: MP
+                                          - generic: Martin Paviot
+                                      - button [ref=e842]
+                                  - row:
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - img
+                                            - generic: Meridian Labs
+                                        - link:
+                                          - /url: /crm/account/cmndozjzg0001jjoikwx5xnh6
+                                          - generic:
+                                            - img
+                                        - button:
+                                          - generic:
+                                            - img
+                                      - button [ref=e843]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic: Artificial Intelligence
+                                          - generic:
+                                            - generic: FinTech
+                                      - button [ref=e844]
+                                      - button [ref=e845]
+                                    - cell:
+                                      - button [ref=e846]
+                                      - button [ref=e847]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic: Less than $1M
+                                      - button [ref=e848]
+                                      - button [ref=e849]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic: 11-50
+                                      - button [ref=e850]
+                                      - button [ref=e851]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic: Seed
+                                      - button [ref=e852]
+                                      - button [ref=e853]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic: meridianbioscience
+                                            - link [ref=e854] [cursor=pointer]:
+                                              - /url: https://linkedin.com/company/meridianbioscience
+                                              - text: meridianbioscience
+                                      - button [ref=e855]
+                                      - button [ref=e856]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - link:
+                                              - /url: https://meridianlabs.io
+                                              - text: meridianlabs.io
+                                      - button [ref=e857]
+                                      - button [ref=e858]
+                                    - cell:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic:
+                                              - generic:
+                                                - generic: MP
+                                          - generic: Martin Paviot
+                                      - button [ref=e859]
+                                - rowgroup:
+                                  - row:
+                                    - cell:
+                                      - generic: 5 count
+                                    - cell:
+                                      - button:
+                                        - img
+                                        - generic: Add operation
+                                    - cell:
+                                      - button:
+                                        - img
+                                        - generic: Add operation
+                                    - cell:
+                                      - button:
+                                        - img
+                                        - generic: Add operation
+                                    - cell:
+                                      - button:
+                                        - img
+                                        - generic: Add operation
+                                    - cell:
+                                      - button:
+                                        - img
+                                        - generic: Add operation
+                                    - cell:
+                                      - button:
+                                        - img
+                                        - generic: Add operation
+                                    - cell:
+                                      - button:
+                                        - img
+                                        - generic: Add operation
+                                    - cell:
+                                      - button:
+                                        - img
+                                        - generic: Add operation
+  - generic:
+    - alert
+  - menu "Filter" [ref=e860]:
+    - generic [ref=e861]:
+      - textbox "Search filters..." [active] [ref=e863]
+      - group [ref=e866]:
+        - menuitem "Industry" [ref=e867] [cursor=pointer]:
+          - generic [ref=e868]:
+            - generic [ref=e869]:
+              - img
+              - generic [ref=e870]: Industry
+            - img
+        - menuitem "Last interaction" [ref=e871] [cursor=pointer]:
+          - generic [ref=e872]:
+            - generic [ref=e873]:
+              - img
+              - generic [ref=e874]: Last interaction
+            - img
+        - menuitem "Next interaction" [ref=e875] [cursor=pointer]:
+          - generic [ref=e876]:
+            - generic [ref=e877]:
+              - img
+              - generic [ref=e878]: Next interaction
+            - img
+        - menuitem "Created at" [ref=e879] [cursor=pointer]:
+          - generic [ref=e880]:
+            - generic [ref=e881]:
+              - img
+              - generic [ref=e882]: Created at
+            - img
+        - menuitem "Revenue" [ref=e883] [cursor=pointer]:
+          - generic [ref=e884]:
+            - generic [ref=e885]:
+              - img
+              - generic [ref=e886]: Revenue
+            - img
+        - menuitem "Headcount" [ref=e887] [cursor=pointer]:
+          - generic [ref=e888]:
+            - generic [ref=e889]:
+              - img
+              - generic [ref=e890]: Headcount
+            - img
+        - menuitem "Last funding" [ref=e891] [cursor=pointer]:
+          - generic [ref=e892]:
+            - generic [ref=e893]:
+              - img
+              - generic [ref=e894]: Last funding
+            - img
+        - menuitem "Owner" [ref=e895] [cursor=pointer]:
+          - generic [ref=e896]:
+            - generic [ref=e897]:
+              - img
+              - generic [ref=e898]: Owner
+            - img
+        - menuitem "Opportunity count" [ref=e899] [cursor=pointer]:
+          - generic [ref=e900]:
+            - generic [ref=e901]:
+              - img
+              - generic [ref=e902]: Opportunity count
+            - img
+        - menuitem "Facebook" [ref=e903] [cursor=pointer]:
+          - generic [ref=e904]:
+            - generic [ref=e905]:
+              - img
+              - generic [ref=e906]: Facebook
+            - img
+        - menuitem "Instagram" [ref=e907] [cursor=pointer]:
+          - generic [ref=e908]:
+            - generic [ref=e909]:
+              - img
+              - generic [ref=e910]: Instagram
+            - img
+        - menuitem "LinkedIn" [ref=e911] [cursor=pointer]:
+          - generic [ref=e912]:
+            - generic [ref=e913]:
+              - img
+              - generic [ref=e914]: LinkedIn
+            - img
+        - menuitem "Twitter" [ref=e915] [cursor=pointer]:
+          - generic [ref=e916]:
+            - generic [ref=e917]:
+              - img
+              - generic [ref=e918]: Twitter
+            - img

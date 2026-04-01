@@ -1,0 +1,189 @@
+- generic [ref=e1]:
+  - generic [ref=e7]:
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - button "MP Martin Paviot" [ref=e13]:
+          - generic [ref=e16]: MP
+          - generic [ref=e17]: Martin Paviot
+        - generic [ref=e18]:
+          - button "Search" [ref=e19]:
+            - img [ref=e20]
+          - button [ref=e22]:
+            - img [ref=e24]
+      - generic [ref=e27]:
+        - generic [ref=e29]:
+          - generic [ref=e30] [cursor=pointer]:
+            - link [ref=e31]:
+              - /url: /crm/up-next
+            - generic [ref=e32]:
+              - img
+            - generic "Up next" [ref=e33]
+          - button "Notifications" [ref=e34] [cursor=pointer]:
+            - generic [ref=e35]:
+              - img
+            - generic "Notifications" [ref=e36]
+        - generic [ref=e37]:
+          - generic [ref=e38]: Records
+          - generic [ref=e39] [cursor=pointer]:
+            - link [ref=e40]:
+              - /url: https://crm.lightfield.app/crm/accounts
+            - generic [ref=e41]:
+              - img
+            - generic "Accounts" [ref=e42]
+          - generic [ref=e43] [cursor=pointer]:
+            - link [ref=e44]:
+              - /url: https://crm.lightfield.app/crm/opportunities
+            - generic [ref=e45]:
+              - img
+            - generic "Opportunities" [ref=e46]
+          - generic [ref=e47] [cursor=pointer]:
+            - link [ref=e48]:
+              - /url: https://crm.lightfield.app/crm/contacts
+            - generic [ref=e49]:
+              - img
+            - generic "Contacts" [ref=e50]
+        - generic [ref=e51]:
+          - generic [ref=e52]: Resources
+          - generic [ref=e53] [cursor=pointer]:
+            - link [ref=e54]:
+              - /url: https://crm.lightfield.app/crm/tasks
+            - generic [ref=e55]:
+              - img
+            - generic "Tasks" [ref=e56]
+          - generic [ref=e57] [cursor=pointer]:
+            - link [ref=e58]:
+              - /url: https://crm.lightfield.app/crm/meetings
+            - generic [ref=e59]:
+              - img
+            - generic "Meetings" [ref=e60]
+          - generic [ref=e61] [cursor=pointer]:
+            - link [ref=e62]:
+              - /url: https://crm.lightfield.app/crm/notes
+            - generic [ref=e63]:
+              - img
+            - generic "Notes" [ref=e64]
+        - generic [ref=e65]:
+          - generic [ref=e66]: Lists
+          - button "New list" [ref=e67] [cursor=pointer]:
+            - generic [ref=e68]:
+              - img
+            - generic [ref=e69]: New list
+        - generic [ref=e70]:
+          - generic [ref=e71]: Chats
+          - button "New chat" [ref=e72] [cursor=pointer]:
+            - generic [ref=e73]:
+              - img
+            - generic [ref=e74]: New chat
+          - generic [ref=e886] [cursor=pointer]:
+            - link [ref=e887]:
+              - /url: /crm/thread/cmnfd1gio0000357jspnckz6s
+            - generic [ref=e888]:
+              - img
+            - generic "How many contacts do I have?" [ref=e889]
+            - generic [ref=e890]:
+              - img "In progress"
+          - generic [ref=e75] [cursor=pointer]:
+            - link [ref=e76]:
+              - /url: /crm/thread/cmndtcyiz001j3571whjdyiq7
+            - generic [ref=e77]:
+              - img
+            - generic "What's the deal value of all my active opportun..." [ref=e78]
+          - generic [ref=e79] [cursor=pointer]:
+            - link [ref=e80]:
+              - /url: /crm/thread/cmndtc7ao001h3571h1jrw3ey
+            - generic [ref=e81]:
+              - img
+            - generic "Help me prepare for a meeting with Sarah Chen a..." [ref=e82]
+          - generic [ref=e83] [cursor=pointer]:
+            - link [ref=e84]:
+              - /url: /crm/thread/cmndtbiug001f3571amjxjqik
+            - generic [ref=e85]:
+              - img
+            - generic "What integrations are available?" [ref=e86]
+          - generic [ref=e87] [cursor=pointer]:
+            - link [ref=e88]:
+              - /url: /crm/thread/cmndtap1h001d35712uk2up76
+            - generic [ref=e89]:
+              - img
+            - generic "Export all contacts as CSV" [ref=e90]
+          - combobox [ref=e95] [cursor=pointer]:
+            - generic [ref=e96]:
+              - img
+            - generic [ref=e97]: More
+      - button [ref=e100]:
+        - img [ref=e101]
+      - button "Resize sidebar" [ref=e103]
+    - generic [ref=e105]:
+      - generic [ref=e891]:
+        - generic [ref=e892]:
+          - generic [ref=e894]:
+            - img [ref=e896]
+            - generic [ref=e898]: How many contacts do I have?
+          - button [ref=e899]:
+            - img [ref=e901]
+        - generic [ref=e905]:
+          - button "Copy this page link" [ref=e906]:
+            - img [ref=e908]
+          - link "New chat" [ref=e912] [cursor=pointer]:
+            - /url: /crm/agent
+            - img [ref=e914]
+            - generic [ref=e916]: New chat
+      - generic [ref=e919]:
+        - paragraph [ref=e924]: How many contacts do I have?
+        - generic [ref=e1014]:
+          - generic [ref=e1015]:
+            - img [ref=e1016]
+            - text: Lightfield
+          - generic [ref=e1021]:
+            - button "Ran code" [ref=e1022] [cursor=pointer]:
+              - generic [ref=e1023]: Ran code
+            - generic [ref=e1024]:
+              - generic [ref=e1025]:
+                - button [ref=e1027] [cursor=pointer]:
+                  - img [ref=e1028]
+                - generic [ref=e1033]:
+                  - button "Executed code to get total contact count" [ref=e1034] [cursor=pointer]:
+                    - generic [ref=e1035]: Executed code to get total contact count
+                  - generic [ref=e1041]:
+                    - button [ref=e1044]:
+                      - img [ref=e1046]
+                    - generic [ref=e1048]:
+                      - code [ref=e1051]:
+                        - generic [ref=e1052]: page = client.contact.list(limit=1)
+                        - generic [ref=e1053]: print(page.total_count)
+                      - generic [ref=e1054]:
+                        - text: Output
+                        - generic [ref=e1055]: "5"
+              - generic:
+                - generic:
+                  - generic:
+                    - img
+                - generic:
+                  - generic:
+                    - generic: Done
+          - paragraph [ref=e1058]:
+            - text: You have
+            - strong [ref=e1059]: 5 contacts
+            - text: in your CRM.
+        - paragraph [ref=e1064]: Show me all contacts at Meridian Labs
+        - generic [ref=e1066]:
+          - img [ref=e1067]
+          - generic [ref=e1072]: Thinking.
+      - generic [ref=e938]:
+        - textbox [active] [ref=e941]:
+          - generic [ref=e942]:
+            - generic:
+              - generic:
+                - generic: Ask Lightfield
+        - generic [ref=e943]:
+          - generic [ref=e944]:
+            - button [ref=e945]:
+              - img [ref=e947]
+            - button [ref=e949]:
+              - img [ref=e951]
+          - generic [ref=e954]:
+            - button "Upload file" [ref=e955]:
+              - img [ref=e957]
+            - button "Stop" [ref=e1073]:
+              - img [ref=e1074]
+  - alert [ref=e4]: Lightfield

@@ -1,0 +1,2 @@
+[    1458ms] [ERROR] Loading the image 'data:image/x-icon;,' violates the following Content Security Policy directive: "img-src www.gstatic.com". The action has been blocked. @ https://stytch.com/v1/magic_links/redirect?public_token=public-token-live-c965e84b-b958-4f13-ae97-afc3d21265a1&stytch_token_type=discovery&token=m5g0z5QZtlmykKqHnzgD6i_4G6qYwV1M_EaoUwXbaV7H:3
+[   14998ms] [ERROR] Attestation check for Attribution Reporting on https://www.facebook.com failed. @ https://crm.lightfield.app/create-profile:0
