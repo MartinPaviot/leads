@@ -1,208 +1,334 @@
-# Next Loop: Real Outbound Pipeline + Real Data Sources
+# Build the Real Engine — Apollo.io + EmailEngine + Outbound Pipeline
 
-## Le problème
-8/10 data pipelines sont FAKE (Claude invente tout). Le système
-outbound ne peut pas envoyer un seul email. On a un beau shell UI
-mais zéro workflow réel.
+## Contexte
+
+LeadSens a 52 features, 99 tests, build OK. Mais 8/10 pipelines de
+données sont FAKE (Claude invente enrichissements, signaux, scores,
+contacts). Et le système outbound ne peut pas envoyer un seul email.
+
+Objectif de cette session : brancher les vrais tuyaux.
+
+Lire OBLIGATOIREMENT avant de coder :
+- `_specs/outbound-architecture.md` — architecture complète pour
+  100 tenants × 100K emails/mois (EmailEngine + BullMQ + Workers)
 
 ## STATE SNAPSHOT (2026-04-01):
-- Branch: main, commit 26f4e5a
+- Branch: main, commit 0bc6808
 - 52/53 features, 99 tests, production build OK
 - FAKE: enrichissement, scoring, signaux, TAM, contact discovery
-- REAL: Gmail sync (read), pgvector search, Inngest jobs
-- MANQUANT: Gmail send, outbound emails table, sequence execution
-- Specs: `_specs/outbound-architecture.md` (lire en premier)
+- REAL: Gmail sync (read only), pgvector search, Inngest jobs
+- ZÉRO email envoyé, ZÉRO vraie donnée d'enrichissement
+- DB: Supabase PostgreSQL, 18 tables
 - Dev: `cd app/apps/web && npx next dev --port 3002`
-- Auth: credentials (email: any, password: any)
-- MCP: Apollo.io + Gmail + Google Calendar disponibles
+- Auth: credentials (any email/password) + Google OAuth configuré
+- MCP dispo: Apollo.io, Gmail, Google Calendar, Playwright
 
-## ÉTAPE 1 : Connecter Apollo.io (source de vérité)
+## RÈGLE ABSOLUE
 
-Apollo.io remplace Claude pour toutes les données factuelles.
+Claude = rédige, personnalise, résume, classifie.
+Claude ≠ invente des données factuelles.
+
+Tout enrichissement, contact, signal, score doit venir d'une SOURCE
+RÉELLE (Apollo.io, Gmail, Calendar, calcul d'engagement).
+
+---
+
+## ÉTAPE 1 : Apollo.io — source de vérité pour les données (priorité max)
 
 ### 1A. Authentifier Apollo.io
-- Appeler `mcp__claude_ai_Apollo_io__authenticate`
-- Explorer les tools disponibles après auth
-- Documenter les endpoints utiles
+```
+Appeler: mcp__claude_ai_Apollo_io__authenticate
+Explorer les tools disponibles après auth.
+Documenter chaque tool dans _specs/apollo-tools.md
+```
 
-### 1B. Rewire `/api/enrich` → Apollo Organizations API
-- Chercher par nom + domaine
-- Récupérer: industry, employee_count, revenue, description,
-  technologies, funding_total, linkedin_url, founded_year
-- Stocker les vraies données dans companies table
-- Fallback Claude SEULEMENT si Apollo ne trouve pas
+### 1B. Rewire `/api/enrich` → Apollo Organizations
+Le code actuel dans `app/apps/web/src/app/api/enrich/route.ts` appelle
+`generateObject()` avec Claude pour INVENTER industry/size/revenue.
 
-### 1C. Rewire `/api/enrich-contacts` → Apollo People API
-- Chercher par email ou (name + company)
-- Récupérer: title, email_verified, phone, linkedin, department,
-  seniority, city, state
-- Remplacer les titres inventés par des vrais
+Remplacer par :
+- Apollo Organization Enrich (par nom + domaine)
+- Récupérer : industry, employee_count, estimated_revenue, description,
+  technologies, funding_total, linkedin_url, founded_year, domain
+- Stocker les VRAIES données dans la table companies
+- Fallback Claude UNIQUEMENT si Apollo ne trouve rien (et marquer
+  `properties.enrichment_source = "llm_fallback"`)
+
+### 1C. Rewire `/api/enrich-contacts` → Apollo People
+Le code actuel invente des titres et seniority avec Claude.
+
+Remplacer par :
+- Apollo People Enrich (par email) ou People Search (par nom + company)
+- Récupérer : title, email (vérifié), phone, linkedin_url, department,
+  seniority_level, city, state, country
+- Remplacer les données inventées par des vraies
 
 ### 1D. Rewire `/api/tam` → Apollo Organization Search
-- ICP description → traduire en filtres Apollo
-  (industry, employee_range, revenue_range, technologies)
-- Retourner de VRAIES entreprises, pas des noms inventés
+Le code actuel demande à Claude de "generate 30 REAL companies".
+Ce sont des noms inventés.
+
+Remplacer par :
+- Traduire la description ICP en filtres Apollo :
+  industry, employee_range, revenue_range, technologies, location
+- Apollo Organization Search avec ces filtres
+- Retourner de VRAIES entreprises avec de vraies données
 - Auto-enrichir chaque résultat
 
 ### 1E. Rewire `/api/accounts/[id]/suggested-contacts` → Apollo People Search
-- Chercher les vrais contacts chez une entreprise (par domain)
-- Afficher vrais noms, vrais titres, vrais emails vérifiés
+Le code actuel génère des "realistic but fictional names".
 
-### 1F. Rewire `/api/signals` → Apollo + données enrichment
-- Signaux basés sur des FAITS Apollo (funding, hiring, tech changes)
-- Claude INTERPRÈTE les faits, ne les invente pas
-- Sources = URLs réelles vers LinkedIn, Crunchbase, etc.
+Remplacer par :
+- Apollo People Search par organization_domain
+- Filtrer par seniority (VP, Director, C-Suite, Manager)
+- Retourner de vrais contacts avec vrais titres et vrais emails
 
-## ÉTAPE 2 : Construire le vrai outbound (lire `_specs/outbound-architecture.md`)
+### 1F. Rewire `/api/signals` → Apollo + faits réels
+Le code actuel invente des signaux avec de fausses URLs.
 
-### 2A. Migration DB : table `outbound_emails`
+Remplacer par :
+- Apollo intent data (si disponible)
+- Données d'enrichissement Apollo (funding_total, technologies, employee_growth)
+- Claude INTERPRÈTE les faits Apollo pour générer des insights
+  Exemple: "Funding $12M Series A" → signal "Funding récent, budget disponible"
+  PAS: Claude invente "ils viennent de lever" sans source
+
+### 1G. Purger les fausses données
 ```sql
-outbound_emails (
-  id, tenant_id, enrollment_id, contact_id, step_number,
-  subject, body_html, body_text,
-  gmail_message_id, gmail_thread_id,
-  status (draft/queued/sending/sent/bounced/replied),
-  sent_at, replied_at, bounced_at,
-  reply_classification, reply_message_id,
-  created_at, updated_at
-)
+UPDATE companies SET
+  industry = NULL, description = NULL, size = NULL,
+  revenue = NULL, score = NULL, score_reasons = NULL,
+  properties = '{}'
+WHERE tenant_id = 'default';
+```
+Puis re-enrichir avec Apollo (1B).
+
+---
+
+## ÉTAPE 2 : Infra Outbound (lire _specs/outbound-architecture.md)
+
+### 2A. Docker : EmailEngine + Redis
+```yaml
+# Créer docker-compose.yml à la racine
+services:
+  emailengine:
+    image: postalsys/emailengine:latest
+    ports: ["3100:3000", "3101:3001"]
+    environment:
+      EENGINE_REDIS: redis://redis:6379/1
+      EENGINE_SECRET: ${EMAILENGINE_SECRET}
+    depends_on: [redis]
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    volumes: [redis_data:/data]
+volumes:
+  redis_data:
+```
+Lancer avec `docker-compose up -d`.
+Vérifier : `curl http://localhost:3100/v1/settings` → 200.
+
+### 2B. Migration DB : nouvelles tables
+Créer dans le schema Drizzle + migrer :
+- `connected_mailboxes` — mailboxes connectées par les tenants
+- `outbound_emails` — chaque email envoyé avec tracking
+- `warmup_emails` — emails de warm-up inter-tenant
+- `email_optouts` — CAN-SPAM opt-outs
+
+Schema exact dans `_specs/outbound-architecture.md`, section "Composant 2".
+
+### 2C. Worker Service
+Créer `app/apps/worker/` — service Node.js séparé de Next.js.
+```
+app/apps/worker/
+├── src/
+│   ├── queues/       (send, reply, warmup, health)
+│   ├── workers/      (send, reply, warmup, health workers)
+│   ├── services/     (emailengine client, rotation, rate-limiter)
+│   └── index.ts
+├── package.json
+└── tsconfig.json
+```
+Dépendances : bullmq, imapflow (fallback), pg, @anthropic-ai/sdk
+
+### 2D. EmailEngine Client Service
+```typescript
+// services/emailengine.ts
+// REST client pour EmailEngine API
+// - registerAccount(mailbox) → connecter une mailbox
+// - sendEmail(accountId, email) → envoyer
+// - getMessages(accountId, query) → lire
+// - configureWebhook(url) → recevoir les events
 ```
 
-### 2B. Gmail Send Service (`lib/gmail-send.ts`)
-- Utiliser l'OAuth token stocké par NextAuth (table auth_accounts)
-- `gmail.users.messages.send` avec raw RFC 2822 message
-- Thread management (follow-up = même thread_id + In-Reply-To)
-- Retourner message_id + thread_id
+### 2E. Connect Mailbox Flow
+UI : page `/settings/mailboxes`
+- Bouton "+ Connect Mailbox"
+- Options : Gmail (OAuth), Outlook (OAuth), Custom SMTP/IMAP
+- Pour Gmail : utiliser le Google OAuth existant (NextAuth)
+- Stocker dans `connected_mailboxes` + enregistrer dans EmailEngine
+- Afficher : email, provider, status, sent today, health score
 
-### 2C. Rewire `sendSequenceStep` (Inngest)
-Actuellement: génère email → log en activities → c'est tout.
-Nouveau flow:
-1. Charger step template + contact enrichment (Apollo data)
-2. Charger historique interactions (Gmail sync data)
-3. Claude personnalise (depuis VRAIES données)
-4. Créer outbound_email:
-   - Mode REVIEW → status = 'draft'
-   - Mode AUTOPILOT → status = 'queued'
-5. Si queued: vérifier rate limit → Gmail Send → status = 'sent'
-6. Stocker gmail_message_id + thread_id
-7. Update enrollment (currentStep++, nextStepAt)
+### 2F. Send Worker + Rate Limiter + Rotation
+Implémenter les 3 services critiques (code exact dans la spec) :
+- `send.worker.ts` — consume la queue, envoie via EmailEngine
+- `rate-limiter.ts` — 50/mailbox/jour, 45s gap, business hours,
+  bounce auto-stop
+- `rotation.ts` — round-robin pondéré par health + domain diversity
 
-### 2D. Sequence Executor Cron (Inngest)
-```
-Toutes les 5 min:
-1. SELECT enrollments WHERE next_step_at <= NOW AND status = 'active'
-2. Pour chaque: run sendSequenceStep
-3. Vérifier rate limits AVANT chaque envoi
-```
+### 2G. Rewire Sequence Executor
+Le code actuel dans l'Inngest function `sendSequenceStep` :
+- Génère un email avec Claude ← GARDER (mais depuis données Apollo)
+- Log en activities ← REMPLACER par insertion dans outbound_emails
+- Ne fait rien d'autre ← AJOUTER envoi via send queue
 
-### 2E. Reply Matcher
-Greffer sur le Gmail Sync existant:
-1. Email entrant → chercher thread_id dans outbound_emails
-2. Si match → classifier avec Claude (positive/negative/ooo/unsubscribe)
-3. Agir: pause/stop enrollment, notifier, créer activité
+Nouveau flow :
+1. Charger step template + contact enrichment (données APOLLO)
+2. Claude personnalise (depuis des FAITS, pas des inventions)
+3. Créer outbound_email (status = draft ou queued)
+4. Si queued → ajouter à la send queue BullMQ
+5. Send worker → EmailEngine → SMTP du tenant → email envoyé
 
-### 2F. Review Queue (`/sequences/[id]/review`)
-Page UI:
+### 2H. Review Queue UI
+Page `/sequences/[id]/review` :
 - Liste des outbound_emails en status = 'draft'
-- Pour chaque: To, Subject, Body (editable)
-- Boutons: Approve & Send | Edit | Skip
-- Approve → status = 'queued' → envoi au prochain cycle
+- Pour chaque : To, From, Subject, Body (éditable)
+- Contexte de personnalisation visible (données Apollo du contact)
+- Boutons : Approve & Queue | Edit | Skip
+- Approve All / Approve Next N
 
-### 2G. Rate Limiter
-- Max 50 emails/jour (configurable dans Settings > Agent)
-- Min 45s entre chaque envoi
-- Heures d'envoi: 8h-18h (configurable)
-- Jours: Lun-Ven (configurable)
-- Auto-stop si bounce rate > 10% sur 24h
+---
 
-### 2H. Real Deliverability Dashboard
-Remplacer les métriques fake:
-- Sent = COUNT outbound_emails WHERE sent
-- Replied = COUNT WHERE replied_at NOT NULL
-- Bounced = COUNT WHERE bounced
-- Health score basé sur vrais ratios
+## ÉTAPE 3 : Reply Detection + Safety
 
-## ÉTAPE 3 : Connecter Gmail + Calendar
+### 3A. Webhook EmailEngine
+Route `/api/webhooks/emailengine` :
+- Event `messageNew` → matcher par thread_id avec outbound_emails
+  → si match → envoyer dans la reply queue pour classification
+- Event `messageBounce` → marquer outbound_email bounced,
+  opt-out si hard bounce, incrémenter bounce count mailbox
 
-### 3A. Gmail Auth
-- Utiliser `mcp__claude_ai_Gmail__authenticate`
-- OU utiliser l'OAuth Google existant (déjà configuré)
-- Vérifier que le scope inclut `gmail.send` (pas juste `gmail.readonly`)
+### 3B. Reply Classifier Worker
+- Claude classifie : interested | not_interested | ooo | unsubscribe | question
+- Actions : pause/stop enrollment, opt-out, reschedule, notification
 
-### 3B. Calendar Sync (F2.2 — le seul feature bloqué)
-- Utiliser `mcp__claude_ai_Google_Calendar__authenticate`
+### 3C. Opt-out + Bounce Handling
+- Hard bounce → opt-out permanent dans email_optouts
+- Unsubscribe → opt-out permanent
+- Vérifier opt-out AVANT chaque envoi
+- Auto-pause mailbox si bounce rate > 10% sur 7 jours
+
+---
+
+## ÉTAPE 4 : Warm-up
+
+### 4A. Warm-up inter-tenant
+Les mailboxes de la plateforme s'envoient des emails entre elles :
+- Semaine 1 : 5/jour → Semaine 2 : 10 → Semaine 3 : 20 → Semaine 4 : 50
+- Ouvrir + répondre aux warm-up reçus
+- Graduation à "active" quand 50/jour atteint et 21 jours passés
+
+### 4B. Warm-up UI
+Dans `/settings/mailboxes` :
+- Badge "Warming up — Day 12/21"
+- Progress bar du ramp (5 → 50/jour)
+- "Skip warm-up" (pour mailboxes déjà warm)
+
+---
+
+## ÉTAPE 5 : Gmail + Calendar (email capture réel)
+
+### 5A. Activer Gmail Sync
+Le code OAuth existe. Activer :
+- `mcp__claude_ai_Gmail__authenticate` pour connecter un vrai compte
+- Tester le flow : OAuth → fetch inbox → match contacts → activities
+
+### 5B. Calendar Sync (résout F2.2 — le dernier feature manquant)
+- `mcp__claude_ai_Google_Calendar__authenticate`
 - Fetch meetings → participants → activities
-- Résout le dernier feature manquant (53/53)
+- 53/53 features
 
-## ÉTAPE 4 : Scoring basé sur des faits
+---
 
-### 4A. Scoring calculé (remplace le LLM guessing)
+## ÉTAPE 6 : Scoring basé sur des faits
+
+### 6A. Modèle de scoring calculé
 ```
 Score = (Fit × 0.5) + (Engagement × 0.5)
 
 Fit (Apollo data):
-- Industry match ICP → +20
-- Size in range → +20
-- Revenue in range → +15
-- Tech stack match → +15
-- Funding récent → +10
-- Location match → +10
-- Senior contacts → +10
+  Industry match ICP     → 0-20
+  Size in range           → 0-20
+  Revenue in range        → 0-15
+  Tech stack match        → 0-15
+  Funding récent          → 0-10
+  Senior contacts dispo   → 0-10
+  Location match          → 0-10
+  = max 100
 
 Engagement (Gmail/Calendar data):
-- Emails échangés (30j) → 0-25
-- Meetings (30j) → 0-25
-- Recency dernier contact → 0-20
-- Réponses positives → 0-15
-- Multi-thread → 0-15
+  Emails échangés (30j)   → 0-25
+  Meetings (30j)          → 0-25
+  Recency dernier contact → 0-20
+  Réponses positives      → 0-15
+  Multi-thread            → 0-15
+  = max 100
 ```
 
-### 4B. Auto re-score (Inngest daily cron)
-- Recalculer tous les scores chaque nuit
-- Stocker trend data pour sparklines
-- Trigger signal si score change > 10 points
+### 6B. Rewire `/api/score`
+Remplacer `generateObject()` par le calcul ci-dessus.
+Plus de "Claude, devine un score".
 
-## ÉTAPE 5 : Purger les fausses données
-
-### 5A. Reset les colonnes fake
-```sql
-UPDATE companies SET
-  industry = NULL, description = NULL, size = NULL,
-  revenue = NULL, score = NULL, score_reasons = NULL
-WHERE tenant_id = 'default';
-
-UPDATE companies SET properties = '{}'
-WHERE tenant_id = 'default';
-```
-
-### 5B. Re-enrichir avec Apollo
-- Passer les 50 comptes dans le nouveau pipeline Apollo
-- Passer les 100 contacts dans Apollo People
-- Scorer avec le modèle calculé
-- Détecter les vrais signaux
+---
 
 ## Ordre d'exécution
-1. Apollo.io auth (1A)
-2. Rewire enrichissement company (1B) — tester sur 5 comptes
-3. Table outbound_emails (2A)
-4. Gmail Send Service (2B)
-5. Rewire sendSequenceStep (2C) + Sequence Executor (2D)
-6. Reply Matcher (2E)
-7. Review Queue UI (2F)
-8. Rate Limiter (2G)
-9. Rewire enrichissement contact + TAM + contacts (1C-1E)
-10. Rewire signaux (1F)
-11. Real Deliverability (2H)
-12. Gmail/Calendar auth (3A, 3B)
-13. Scoring calculé (4A, 4B)
-14. Purge + re-enrichir (5A, 5B)
+
+```
+Jour 1:
+  1. Apollo.io auth (1A)
+  2. Rewire enrichissement company (1B) — tester sur 5 comptes
+  3. Rewire enrichissement contact (1C)
+  4. Docker compose EmailEngine + Redis (2A)
+
+Jour 2:
+  5. Migration DB nouvelles tables (2B)
+  6. Worker service scaffold (2C)
+  7. EmailEngine client (2D)
+  8. Connect mailbox flow UI + API (2E)
+
+Jour 3:
+  9. Send worker + rate limiter + rotation (2F)
+  10. Rewire sequence executor (2G)
+  11. Review queue UI (2H)
+
+Jour 4:
+  12. Webhooks EmailEngine → reply detection (3A)
+  13. Reply classifier + actions (3B)
+  14. Opt-out + bounce safety (3C)
+
+Jour 5:
+  15. Rewire TAM builder (1D)
+  16. Rewire contact discovery (1E)
+  17. Rewire signals (1F)
+  18. Scoring calculé (6A, 6B)
+
+Jour 6:
+  19. Warm-up engine (4A, 4B)
+  20. Gmail sync activation (5A)
+  21. Calendar sync — F2.2 (5B)
+  22. Purge fake data + re-enrichir (1G)
+```
 
 ## Règles
-- Lire `_specs/outbound-architecture.md` AVANT de coder
-- Claude = rédaction + interprétation. JAMAIS invention de faits.
-- Commit après chaque composant terminé
-- Test unitaire pour chaque nouveau service
-- Vérifier avec Playwright après chaque changement UI
-- Si Apollo.io auth échoue → essayer leur REST API directement
-  (https://apolloio.github.io/apollo-api-docs/)
-- Override: skip checkpoints, log, keep building. Don't ask anything.
+
+- Lire `_specs/outbound-architecture.md` AVANT de coder.
+- Apollo.io pour les faits. Claude pour la rédaction. JAMAIS l'inverse.
+- Docker compose pour EmailEngine + Redis — vérifier qu'ils tournent.
+- Worker service SÉPARÉ de Next.js (app/apps/worker/).
+- Commit après chaque composant terminé.
+- Test pour chaque service (emailengine client, rate limiter, rotation).
+- Vérifier avec Playwright après chaque changement UI.
+- Override : skip checkpoints, log, keep building. Don't ask anything.
+- Si Apollo.io MCP auth échoue → utiliser leur REST API directement
+  (https://apolloio.github.io/apollo-api-docs/) avec une API key.
+- Si EmailEngine Docker échoue → fallback sur Nodemailer SMTP direct
+  (perd la gestion des connexions mais fonctionne).
