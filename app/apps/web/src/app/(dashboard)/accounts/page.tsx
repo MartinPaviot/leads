@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Building2, Search, Plus, Zap, Target, Radio, X } from "lucide-react";
 import { badgeColorIndex, BADGE_COLORS, getLifecycleStyle, formatScore } from "@/lib/ui-utils";
+import { SlideOver, PropertyRow } from "@/components/slide-over";
 
 interface Account {
   id: string;
@@ -35,6 +36,7 @@ export default function AccountsPage() {
   const [searchResults, setSearchResults] = useState<string[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [activeSignalPopover, setActiveSignalPopover] = useState<string | null>(null);
+  const [slideOverAccount, setSlideOverAccount] = useState<Account | null>(null);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -354,11 +356,12 @@ export default function AccountsPage() {
                           </div>
                         )}
                         <div>
-                          <a href={`/accounts/${account.id}`}
-                            className="text-[13px] font-medium transition-colors hover:underline"
+                          <button
+                            onClick={() => setSlideOverAccount(account)}
+                            className="text-left text-[13px] font-medium transition-colors hover:underline"
                             style={{ color: "var(--color-text-primary)" }}>
                             {account.name}
-                          </a>
+                          </button>
                           {account.description && (
                             <p className="mt-0.5 max-w-[180px] truncate text-[11px]"
                               style={{ color: "var(--color-text-tertiary)" }} title={account.description}>
@@ -518,6 +521,61 @@ export default function AccountsPage() {
           </table>
         )}
       </div>
+
+      {/* Account detail slide-over */}
+      <SlideOver
+        open={!!slideOverAccount}
+        onClose={() => setSlideOverAccount(null)}
+        title={slideOverAccount?.name || ""}
+        subtitle={slideOverAccount?.domain || undefined}
+        expandHref={slideOverAccount ? `/accounts/${slideOverAccount.id}` : undefined}
+      >
+        {slideOverAccount && (() => {
+          const a = slideOverAccount;
+          const scoreInfo = formatScore(a.score);
+          const lc = ((a.properties as Record<string, unknown>)?.lifecycleStage as string) || "new";
+          const lcStyle = getLifecycleStyle(lc);
+          return (
+            <div>
+              <PropertyRow label="Domain" value={a.domain} />
+              <PropertyRow label="Industry" value={a.industry} />
+              <PropertyRow label="Size" value={a.size} />
+              <PropertyRow label="Revenue" value={a.revenue} />
+              <PropertyRow label="Stage" value={
+                <span className="rounded-full px-2 py-0.5 text-[10px] font-medium capitalize"
+                  style={{ background: lcStyle.bg, color: lcStyle.text }}>
+                  {lc}
+                </span>
+              } />
+              <PropertyRow label="Score" value={
+                scoreInfo ? (
+                  <span className="flex items-center gap-1">
+                    <span className="font-bold" style={{ color: scoreInfo.color }}>{scoreInfo.grade}</span>
+                    {scoreInfo.icon && <span>{scoreInfo.icon}</span>}
+                    <span style={{ color: "var(--color-text-tertiary)" }}>{scoreInfo.heat}</span>
+                  </span>
+                ) : "—"
+              } />
+              {a.description && (
+                <div className="mt-3">
+                  <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>Description</span>
+                  <p className="mt-1 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{a.description}</p>
+                </div>
+              )}
+              {a.scoreReasons && a.scoreReasons.length > 0 && (
+                <div className="mt-3">
+                  <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>Score Criteria</span>
+                  <ul className="mt-1 space-y-0.5">
+                    {a.scoreReasons.map((reason, i) => (
+                      <li key={i} className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>• {reason}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </SlideOver>
     </div>
   );
 }
