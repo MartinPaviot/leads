@@ -27,7 +27,8 @@ export async function GET(
     const candidates = await db
       .select({
         id: contacts.id,
-        name: contacts.name,
+        firstName: contacts.firstName,
+        lastName: contacts.lastName,
         email: contacts.email,
         score: contacts.score,
         scoreReasons: contacts.scoreReasons,
@@ -62,7 +63,7 @@ export async function GET(
         const reasons = (contact.scoreReasons as string[]) || [];
         return {
           contactId: contact.id,
-          contactName: contact.name,
+          contactName: [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "Unknown",
           companyName,
           reason: reasons.slice(0, 2).join(". ") || `Score: ${Math.round(contact.score || 0)}`,
           score: Math.round(contact.score || 0),
