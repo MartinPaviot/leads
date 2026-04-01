@@ -7,20 +7,15 @@ import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
 
-const signalSchema = z.object({
+const signalInterpretationSchema = z.object({
   signals: z.array(
     z.object({
       type: z.enum(["hiring", "funding", "tech_change", "news", "expansion", "leadership_change"]),
-      title: z.string().describe("Short signal title"),
-      description: z.string().describe("1-2 sentence description of the signal"),
+      title: z.string(),
+      description: z.string(),
       relevance: z.enum(["high", "medium", "low"]),
-      reasoning: z.string().describe("Detailed explanation of WHY this signal matters for sales outreach — what it implies about their buying intent or timing"),
-      sources: z.array(
-        z.object({
-          url: z.string().describe("URL where this information can be verified (company website, news article, job board, LinkedIn)"),
-          title: z.string().describe("Title of the source page"),
-        })
-      ).describe("1-3 sources where this signal can be verified"),
+      reasoning: z.string(),
+      dataSource: z.string().describe("Which Apollo data point this signal is based on"),
     })
   ),
 });
@@ -62,34 +57,51 @@ export async function POST(req: Request) {
 
         if (!company) continue;
 
+        const props = (company.properties || {}) as Record<string, unknown>;
+
+        // Build facts from Apollo enrichment data
+        const facts: string[] = [];
+
+        if (props.total_funding) facts.push(`Total funding: ${props.total_funding_printed || props.total_funding}`);
+        if (props.latest_funding_stage) facts.push(`Latest funding stage: ${props.latest_funding_stage}`);
+        if (props.technologies && Array.isArray(props.technologies) && props.technologies.length > 0) {
+          facts.push(`Technology stack: ${(props.technologies as string[]).join(", ")}`);
+        }
+        if (props.employee_count) facts.push(`Employee count: ${props.employee_count}`);
+        if (props.founded_year) facts.push(`Founded: ${props.founded_year}`);
+        if (props.city && props.country) facts.push(`HQ: ${props.city}, ${props.state || ""} ${props.country}`);
+        if (props.keywords && Array.isArray(props.keywords)) {
+          facts.push(`Keywords: ${(props.keywords as string[]).slice(0, 10).join(", ")}`);
+        }
+        if (company.industry) facts.push(`Industry: ${company.industry}`);
+        if (company.size) facts.push(`Size: ${company.size}`);
+        if (company.revenue) facts.push(`Revenue: ${company.revenue}`);
+
+        if (facts.length === 0) {
+          // No enrichment data — can't generate meaningful signals
+          continue;
+        }
+
+        // Claude INTERPRETS real facts into sales signals
         const { object } = await generateObject({
           model,
-          schema: signalSchema,
-          prompt: `Analyze this company for buying signals. Generate realistic signals based on what you know about the company.
+          schema: signalInterpretationSchema,
+          prompt: `Analyze these VERIFIED FACTS about ${company.name} (${company.domain || "no domain"}) and identify buying signals relevant to B2B sales outreach.
 
-Company: ${company.name}
-Domain: ${company.domain || "unknown"}
-Industry: ${company.industry || "unknown"}
-Size: ${company.size || "unknown"}
-Revenue: ${company.revenue || "unknown"}
-Description: ${company.description || "none"}
+VERIFIED FACTS (from Apollo.io enrichment):
+${facts.map((f) => `- ${f}`).join("\n")}
 
-Signal types to look for:
-- hiring: Active job postings in relevant areas (engineering, sales, product)
-- funding: Recent funding rounds, acquisitions, or financial events
-- tech_change: Technology stack changes, migrations, new tool adoption
-- news: Company news, product launches, partnerships
-- expansion: New offices, market expansion, international growth
-- leadership_change: New C-suite hires, board changes
+RULES:
+- ONLY generate signals based on the facts above
+- Do NOT invent any information not in the facts
+- Each signal must reference which fact it's based on (in dataSource)
+- Focus on signals that indicate buying intent, budget availability, or good timing
+- Example: "Total funding: $12M Series A" → signal "Recent funding suggests budget for new tools"
+- If the facts don't support a signal type, skip it — return fewer signals rather than invented ones
 
-For each signal, provide:
-1. A detailed "reasoning" explaining WHY this signal matters for sales — what it implies about buying intent, budget availability, or timing
-2. 1-3 "sources" with realistic URLs where this information could be verified (use the company domain, LinkedIn, Crunchbase, TechCrunch, etc.)
-
-Only include signals you're reasonably confident about. Return an empty array if no clear signals.`,
+Return only signals you can directly support with the facts provided.`,
         });
 
-        const props = (company.properties || {}) as Record<string, unknown>;
         await db
           .update(companies)
           .set({
@@ -98,6 +110,7 @@ Only include signals you're reasonably confident about. Return an empty array if
               signals: object.signals.map((s) => ({
                 ...s,
                 detectedAt: new Date().toISOString(),
+                source: "apollo_enrichment",
               })),
             },
             updatedAt: new Date(),
