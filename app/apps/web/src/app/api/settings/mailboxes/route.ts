@@ -133,3 +133,34 @@ export async function DELETE(req: Request) {
 
   return Response.json({ success: true });
 }
+
+export async function PATCH(req: Request) {
+  const session = await auth();
+  if (!session?.user) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get("id");
+  const action = searchParams.get("action");
+
+  if (!id) {
+    return Response.json({ error: "id required" }, { status: 400 });
+  }
+
+  if (action === "skip-warmup") {
+    await db
+      .update(connectedMailboxes)
+      .set({
+        status: "active",
+        warmupCompletedAt: new Date(),
+        dailyLimit: 50,
+        updatedAt: new Date(),
+      })
+      .where(eq(connectedMailboxes.id, id));
+
+    return Response.json({ success: true });
+  }
+
+  return Response.json({ error: "Unknown action" }, { status: 400 });
+}

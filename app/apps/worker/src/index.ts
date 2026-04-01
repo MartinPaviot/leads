@@ -4,6 +4,7 @@ import { createReplyWorker } from "./workers/reply.worker.js";
 import { createWarmupWorker } from "./workers/warmup.worker.js";
 import { createHealthWorker } from "./workers/health.worker.js";
 import { healthQueue, warmupQueue } from "./queues/index.js";
+import { scheduleWarmupEmails } from "./services/warmup-scheduler.js";
 
 console.log("[worker] Starting LeadSens worker service...");
 
@@ -25,15 +26,9 @@ async function setupRecurring() {
     }
   );
 
-  // Warmup scheduler every 30 minutes during business hours
-  await warmupQueue.upsertJobScheduler(
-    "warmup-scheduler",
-    { every: 1_800_000 },
-    {
-      name: "warmup-schedule",
-      data: { type: "schedule" },
-    }
-  );
+  // Warmup scheduler — run once at startup, then every 30 minutes
+  await scheduleWarmupEmails().catch(console.error);
+  setInterval(() => scheduleWarmupEmails().catch(console.error), 1_800_000);
 
   console.log("[worker] Recurring jobs scheduled");
 }

@@ -68,11 +68,17 @@ export function createSendWorker() {
       try {
         await sql`UPDATE outbound_emails SET status = 'sending', updated_at = NOW() WHERE id = ${outboundEmailId}`;
 
+        // Inject CAN-SPAM unsubscribe footer
+        const unsubFooter = `<div style="margin-top:32px;padding-top:12px;border-top:1px solid #eee;font-size:11px;color:#999;">If you no longer wish to receive these emails, <a href="mailto:${mailbox.email_address}?subject=unsubscribe" style="color:#999;">click here to unsubscribe</a>.</div>`;
+        const htmlWithFooter = email.body_html.includes("unsubscribe")
+          ? email.body_html
+          : email.body_html + unsubFooter;
+
         const result = await sendEmail(mailbox.ee_account_id, {
           from: { name: mailbox.display_name || "", address: mailbox.email_address },
           to: [{ address: email.to_address }],
           subject: email.subject,
-          html: email.body_html,
+          html: htmlWithFooter,
           text: email.body_text || undefined,
           inReplyTo: email.in_reply_to || undefined,
         });

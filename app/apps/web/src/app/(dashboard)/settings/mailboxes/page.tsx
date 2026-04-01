@@ -83,6 +83,15 @@ export default function MailboxesPage() {
     }
   }
 
+  async function skipWarmup(id: string) {
+    try {
+      await fetch(`/api/settings/mailboxes?id=${id}&action=skip-warmup`, { method: "PATCH" });
+      loadMailboxes();
+    } catch {
+      console.error("Failed to skip warmup");
+    }
+  }
+
   function statusBadge(status: string) {
     const colors: Record<string, string> = {
       warming_up: "bg-yellow-500/20 text-yellow-400",
@@ -229,11 +238,22 @@ export default function MailboxesPage() {
                     <span className="text-xs text-[#555]">{mb.provider}</span>
                   </div>
                   {wp && (
-                    <div className="mt-2 h-1.5 w-48 rounded-full bg-[#1e1f2a]">
-                      <div
-                        className="h-full rounded-full bg-yellow-500"
-                        style={{ width: `${wp.progress}%` }}
-                      />
+                    <div className="mt-2 flex items-center gap-3">
+                      <div className="h-1.5 w-48 rounded-full bg-[#1e1f2a]">
+                        <div
+                          className="h-full rounded-full bg-yellow-500"
+                          style={{ width: `${wp.progress}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-[#555]">
+                        {mb.warmupDailyTarget}/day target
+                      </span>
+                      <button
+                        onClick={() => skipWarmup(mb.id)}
+                        className="text-[10px] text-[#6366f1] hover:text-[#5558e6]"
+                      >
+                        Skip warm-up
+                      </button>
                     </div>
                   )}
                 </div>
