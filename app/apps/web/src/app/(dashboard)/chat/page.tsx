@@ -44,10 +44,14 @@ export default function ChatPage() {
             </p>
             <div className="mt-6 grid gap-2">
               {[
-                "How many contacts do I have?",
-                "Show me my active opportunities",
+                "What should I focus on today?",
+                "Summarize my active opportunities",
+                "Which deals are at risk of stalling?",
                 "Draft a follow-up email to my last meeting",
-                "Which accounts need attention?",
+                "Who haven't I followed up with?",
+                "What's my pipeline value by stage?",
+                "Help me prepare for my next meeting",
+                "Research my top accounts to refine my ICP",
               ].map((suggestion) => (
                 <button
                   key={suggestion}

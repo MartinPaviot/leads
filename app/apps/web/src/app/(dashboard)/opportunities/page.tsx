@@ -351,13 +351,20 @@ export default function OpportunitiesPage() {
               key={stage}
               className="flex w-[220px] flex-shrink-0 flex-col rounded-lg border border-[#1e1f2a] bg-[#12131a]"
             >
-              <div className="flex items-center justify-between border-b border-[#1e1f2a] px-3 py-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-[#8b8ba0]">
-                  {STAGE_LABELS[stage]}
-                </span>
-                <span className="rounded-full bg-[#1e1f2a] px-2 py-0.5 text-xs text-[#5a5a70]">
-                  {dealsByStage[stage].length}
-                </span>
+              <div className="border-b border-[#1e1f2a] px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[#8b8ba0]">
+                    {STAGE_LABELS[stage]}
+                  </span>
+                  <span className="rounded-full bg-[#1e1f2a] px-2 py-0.5 text-xs text-[#5a5a70]">
+                    {dealsByStage[stage].length}
+                  </span>
+                </div>
+                {dealsByStage[stage].reduce((sum, d) => sum + (d.value || 0), 0) > 0 && (
+                  <p className="mt-0.5 text-[10px] text-[#22c55e]">
+                    ${dealsByStage[stage].reduce((sum, d) => sum + (d.value || 0), 0).toLocaleString()}
+                  </p>
+                )}
               </div>
               <div className="flex-1 space-y-2 p-2">
                 {dealsByStage[stage].map((deal) => (
