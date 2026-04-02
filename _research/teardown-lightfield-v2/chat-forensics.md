@@ -248,6 +248,327 @@ This is their version of citations — instead of inline links to sources, they 
 
 ---
 
+## PHASE 3: RESPONSE FORMATTING
+
+### 3.1 Table Format — "Show me all contacts at Meridian Labs"
+
+**Response structure:**
+1. Intro text: "There is one contact on record for Meridian Labs:"
+2. **Field/Details table** (NOT a multi-row contact list):
+   - Columns: Field | Details
+   - Rows: Name (linked), Title, Email (mailto link), Notes
+3. Inline account badge: "🔵 Meridian Labs" (linked to account record)
+
+**Table CSS:**
+- HTML `<table>` element, not markdown or custom component
+- Column headers: "Field", "Details" — plain text, no special styling
+- Field names in `<strong>` (bold)
+- Contact name: linked with initials avatar circle ("SC") + "Sarah Chen"
+- Email: linked with `mailto:` URL
+- Clean, borderless rows
+
+**Entity links in response:**
+- Contact: `?hsot=c&hsid={contactId}` — opens contact slide-over
+- Account: `?hsot=a&hsid={accountId}` — opens account slide-over
+- Opportunity: `?hsot=o&hsid={opportunityId}&hsaid={accountId}` — opens opportunity
+- Email draft: `?hsot=ed&hsid={draftId}` — opens email composer
+- Task: `?hsot=t&hsid={taskId}` — opens task detail
+- Entity badges include company logos (auto-generated) and initials avatars
+
+### 3.2 Email Draft — "Draft a follow-up email to Sarah Chen"
+
+**Response includes THREE parts:**
+
+**Part 1 — Analysis panel** (expandable "Analyzed data"):
+- "Analyzed 1 account" sub-step
+- Shows what data the AI found:
+  - Notes the CRM has only a brief note from SaaStr 2025
+  - Quotes the note in a blockquote with italics
+  - Mentions the existing follow-up task with due date
+  - Links to Sarah Chen contact record
+- This is the AI "showing its work" before drafting
+
+**Part 2 — Email draft card** (inline in chat):
+- Email icon + subject line preview ("Great connecting at SaaStr!")
+- Body preview truncated ("Hi Sarah, It was great meeting you...")
+- "Sarah Chen" entity badge (linked)
+- "Draft" status badge
+- Clicking opens the email composer slide-over
+
+**Part 3 — Commentary text:**
+- "I kept it concise since the CRM only had a brief note... I can personalize it further before you send."
+- AI proactively explains its limitations and offers to iterate
+
+**Email Composer Slide-Over:**
+- **Header**: Email icon + subject + close (X) button
+- **To**: sarah@meridianlabs.io (pill tag with X delete, editable)
+- **Cc Bcc**: expandable button
+- **From**: "No email account connected" (grayed out — needs setup)
+- **Subject**: "Great connecting at SaaStr!" (editable textbox)
+- **Body**: Multi-paragraph personalized email (editable contenteditable):
+  - "Hi Sarah,"
+  - References SaaStr 2025, API product, Meridian Labs
+  - Proposes call scheduling
+  - Sign-off with "Martin Paviot / Elevay"
+- **Send button**: Blue "✈ Send" at bottom right (requires email integration)
+
+**CRITICAL**: This is a REAL email composer, not text output. Editable fields, real send capability, properly structured with To/From/Subject/Body separation.
+
+### 3.3 List/Priority Format — "What should I focus on today?"
+
+**Response structure:**
+1. Opening: "I'll look across your accounts to find what needs attention today."
+2. "Retrieved data" indicator
+3. Bold sections:
+   - **"No meetings or tasks are scheduled for today."**
+   - **"One open opportunity to consider:"**
+4. Entity breadcrumb: 🔵 Meridian Labs > ○ Meridian Labs - API Product Deal — **Qualification** stage
+5. Bullet points with contextual analysis:
+   - "Met Sarah Chen (CTO) at SaaStr 2025; she showed interest..."
+   - "No next steps defined, no last interaction recorded..."
+
+**Formatting patterns observed:**
+- Bold text for section headers and key data
+- Entity breadcrumbs for hierarchical navigation (Account > Deal)
+- Bullet lists for analysis details
+- Inline entity badges with logos for all CRM records
+- No numbered priorities — organic prose structure
+
+### 3.4 Response Formatting Summary
+
+| Content Type | Formatting Used |
+|-------------|----------------|
+| Count query | Plain paragraph with bold number |
+| Contact list | HTML table (Field/Details layout) with entity links |
+| Email draft | Inline card + slide-over composer |
+| Priority/focus | Bold headers + entity breadcrumbs + bullet lists |
+| Opportunity details | HTML table (Field/Value) with entity links |
+| Meeting prep | Generated document + email draft (dual output) |
+| Error/not found | Plain paragraph with suggestions |
+
+All responses use Inter font, 15px, weight 425. Bold text uses weight 600.
+
+---
+
+## PHASE 4: CITATIONS — INLINE ENTITY LINKS
+
+### 4.1 Citation Mechanism
+
+Lightfield does NOT use traditional footnote-style citations. Instead, it uses **inline entity links** — clickable references to CRM records embedded in the response text.
+
+**Types of entity links observed:**
+
+| Entity Type | URL Pattern | Display | Opens |
+|-------------|------------|---------|-------|
+| Contact | `?hsot=c&hsid={id}` | Initials avatar circle + name | Contact slide-over |
+| Account | `?hsot=a&hsid={id}` | Company logo + name | Account slide-over |
+| Opportunity | `?hsot=o&hsid={id}&hsaid={accountId}` | Company logo + pipeline icon + deal name | Opportunity slide-over |
+| Task | `?hsot=t&hsid={id}` | Checkbox icon + task name | Task detail |
+| Email draft | `?hsot=ed&hsid={id}` | Email icon + subject + preview | Email composer slide-over |
+
+**Entity badge styling:**
+- Rendered as inline `<link>` elements with custom display components
+- Account badges show auto-generated company logos (colored squares with text)
+- Contact badges show initials circles (e.g., "SC" for Sarah Chen)
+- All are clickable and open slide-over panels within the chat thread
+- The slide-over overlays the chat, keeping context
+
+### 4.2 Data Transparency (Alternative to Citations)
+
+Instead of linking to source documents, Lightfield shows the **data retrieval process**:
+
+**Collapsible "Retrieved data" panels:**
+- Button labeled "Retrieved CRM data", "Retrieved data", or "Analyzed data"
+- Expandable sub-steps: "Retrieved 'Meridian Labs'", "Analyzed 1 account", etc.
+- Each sub-step can be expanded to show raw data:
+  - CSV previews with file name, row count, column headers
+  - Tables showing which records were found/not found
+  - Query descriptions ("Retrieved 5 contacts ordered by lastInteractionAt:desc")
+  - "Done" checkmark indicator
+
+**This replaces citations** — instead of saying "according to [email from March 15]", Lightfield says "I retrieved your contacts data, processed 5 records, and here's the raw CSV."
+
+### 4.3 Citation Quality Assessment
+
+**Strengths:**
+- Every entity reference is a clickable link to the actual record
+- Links open in-context (slide-over within chat), preserving conversation
+- Data retrieval is fully transparent and inspectable
+- Account/contact badges are visually distinct with logos and initials
+
+**Weaknesses:**
+- No citation to specific interactions (emails, calls, meeting notes)
+- No quote blocks from original sources in most responses
+- The data panel shows raw CSV, not specific highlighted evidence
+- No "confidence score" or "source reliability" indicators
+
+---
+
+## PHASE 5: ACTIONS IN CHAT
+
+### 5.1 Record Creation Flow
+
+**Full flow tested: "Add John Smith at Acme Corp"**
+
+**Step 1 — Search**: AI searches CRM for "John Smith" — not found
+**Step 2 — Offer**: Tells user "not found" and offers to create or search differently
+**Step 3 — Clarification**: User says "add as new contact at Acme Corp"
+**Step 4 — Account check**: AI searches for "Acme Corp" — not found
+**Step 5 — Options**: Offers to create Acme Corp or link to existing account
+**Step 6 — User confirms**: "Option 1 — create Acme Corp"
+
+**Step 7 — Confirmation Card (Account)**:
+- Structured card with:
+  - Header: "Acme Corp account" (building icon)
+  - Content: building icon + "Acme Corp" | globe icon + "acme.com" | avatar
+  - Permission dropdown: "Ask every time ∨"
+  - Buttons: "Dismiss" | "Create"
+- **Editable fields** on the card before confirming!
+
+**Step 8 — User clicks Create** → Account created (buttons become disabled)
+
+**Step 9 — Confirmation Card (Contact)**:
+- Header: "John Smith contact" (people icon)
+- Content: "JS" initials | "John Smith" | email icon + "john@acme.com" | "No opportunity" | building icon + "Acme Corp"
+- Same Dismiss/Create buttons
+
+**Step 10 — User clicks Create** → Contact created
+**Step 11 — Confirmation**: "Both records are created. Anything else?"
+
+**KEY DESIGN PATTERNS:**
+1. **Search before create** — never blindly creates, always checks first
+2. **Sequential confirmation** — account first, then contact linked to it
+3. **Confirmation cards** — structured UI elements, not just text
+4. **Permission control** — "Ask every time" dropdown (configurable automation level)
+5. **Editable pre-create** — fields can be modified on the card before confirming
+6. **Auto-generated assets** — company logos and initials avatars created automatically
+
+### 5.2 Dangerous Actions
+
+**"Delete all my contacts"** response:
+- "I'm not able to delete records from the CRM — that's not a capability I have access to."
+- "If you need to delete contacts, you'll need to do so manually through the CRM interface."
+- No data retrieval attempted — immediate refusal
+- Polite redirect to manual interface
+
+**Safety model**: Delete operations are not available as AI capabilities. Only CREATE and READ actions exist in the chat.
+
+---
+
+## PHASE 6: CONVERSATION MEMORY
+
+### 6.1 Within-Session Pronoun Resolution
+
+**Test: "Show me all contacts at Meridian Labs" → "What about their deals?"**
+- **Result**: AI correctly resolved "their" = Meridian Labs
+- Response: "Here's the opportunity on record for 🔵 Meridian Labs:"
+- Showed the Meridian Labs - API Product Deal with stage and value
+
+**Test: "Tell me about John Smith" → "Yes, add John Smith as a new contact..."**
+- Maintained full context across 4 messages in the thread
+- Correctly created account + contact with all specified details
+
+### 6.2 Cross-Session Memory
+
+- Chat threads are preserved in the sidebar under "Chats" section
+- Previous threads listed with titles (auto-generated from first query)
+- Threads accessible via direct URL: `/crm/thread/{id}`
+- Sidebar shows 5 most recent threads + "More" combobox for older ones
+- Clicking a previous thread loads the full conversation history
+
+---
+
+## PHASE 7: ERROR HANDLING & EDGE CASES
+
+### 7.1 Nonexistent Records
+
+**"Tell me about John Smith"** (not in CRM):
+- "I wasn't able to find anyone named John Smith in your CRM — no contacts, accounts, opportunities, or meetings matched that name."
+- Searched across ALL record types (contacts, accounts, opportunities, meetings)
+- "It's possible the person isn't in your system yet, or the name may be recorded differently."
+- Offered alternatives: search differently or create
+- **NO HALLUCINATION** — correctly reported not found
+
+### 7.2 Dangerous Operations
+
+**"Delete all my contacts"**:
+- Immediate refusal — "not a capability I have access to"
+- No data retrieval attempted
+- Redirect to manual CRM interface
+
+### 7.3 Off-Topic (from v1 teardown)
+
+**"What's the weather in Paris?"**:
+- Polite deflection with helpful alternatives
+- Doesn't attempt to answer from CRM data
+- Suggests weather.com or Google
+
+---
+
+## PHASE 8: CHAT ACROSS THE PRODUCT
+
+### 8.1 Contextual Awareness
+
+**Contact detail page + "Tell me more about this person"**:
+- AI correctly identified "this person" = Sarah Chen (from scoped chat badge)
+- Response: "Here's what I found about Sarah Chen:" with full profile summary
+- **Scoped chat creates scoped threads** — the thread retains the entity scope
+- The "Sarah Chen" badge persists in the thread view's chat input
+
+### 8.2 Scoping Architecture
+
+The chat input is contextually scoped based on where you are:
+
+| Location | Chat Scope | Badge Shown | Thread URL |
+|----------|-----------|-------------|------------|
+| /crm/agent (dedicated chat) | Global | None | /crm/thread/{id} |
+| /crm/up-next (dashboard) | Global | None | /crm/thread/{id} |
+| /crm/contact/{id} (detail) | Contact-scoped | "SC Sarah Chen" | /crm/thread/{id} |
+| /crm/account/{id} (detail) | Account-scoped | "🔵 Account Name" | /crm/thread/{id} |
+
+**Slide-over panels within threads:**
+Entity links in responses open slide-over panels that overlay the chat. This means you can:
+1. Ask a question about Meridian Labs
+2. Click a contact link in the response
+3. See the contact details in a slide-over
+4. Close the slide-over and continue the conversation
+All without leaving the thread.
+
+---
+
+## PHASE 9: PERFORMANCE & FEEL
+
+### 9.1 Response Times (Approximate)
+
+| Query Type | Time to First Token | Total Response Time |
+|-----------|--------------------|--------------------|
+| Simple count ("how many contacts") | ~2-3s | ~3-5s |
+| Data retrieval ("contacts at Meridian Labs") | ~5-8s | ~10-15s |
+| Action + analysis ("draft email") | ~8-12s | ~15-25s |
+| Record creation (confirmation card) | ~5-10s | ~10-15s |
+| Error/refusal ("delete all contacts") | ~2-3s | ~3-5s |
+
+### 9.2 Streaming Observations
+
+- Page navigates to thread URL immediately on send (URL: `/crm/thread/{id}`)
+- Response appears to arrive as a complete block, not character-by-character
+- For short responses, no visible streaming animation
+- The "✦ Lightfield" label and status indicator appear before the response text
+- Thread title auto-populates from the first query text
+- Chat input returns to empty state immediately after send
+- Send button re-disabled immediately
+- "Scroll to bottom" button appears when content overflows viewport
+
+### 9.3 Overall Feel
+
+- Feels **responsive and professional** — not like a chatbot
+- The structured confirmation cards and entity badges make it feel like a product, not just an LLM wrapper
+- Data transparency (expandable retrieval panels) builds trust
+- Entity links with logos/avatars make responses feel rich and connected
+- The email composer slide-over is the highlight — feels like a real email tool
+
+---
+
 ## SCREENSHOTS INDEX
 
 | # | File | Description |
@@ -259,3 +580,20 @@ This is their version of citations — instead of inline links to sources, they 
 | 005 | 005-sarah-chen-detail-slideover.png | Contact slide-over — NO chat input |
 | 006 | 006-sarah-chen-full-detail.png | Contact full detail — HAS scoped chat input |
 | 007 | 007-dedicated-chat-page.png | /crm/agent — suggestion chips + chat input |
+| 008 | 008-chat-input-with-text.png | Input with text, send button enabled (blue) |
+| 009 | 009-message-sent-streaming-start.png | Response complete — user bubble right, AI left |
+| 010 | 010-retrieved-data-expanded.png | Expanded process indicators (Retrieved data) |
+| 011 | 011-retrieved-data-raw-csv.png | Raw CSV data panel with file/rows/preview |
+| 012 | 012-table-response-meridian-contacts.png | Table response with entity links |
+| 013 | 013-email-draft-composer.png | Email composer slide-over with draft |
+| 014 | 014-conversation-memory-their-deals.png | Pronoun resolution: "their" = Meridian Labs |
+| 015 | 015-deals-response-scrolled.png | Deal details with Field/Value table |
+| 016 | 016-focus-today-list.png | Priority list with entity breadcrumbs |
+| 017 | 017-nonexistent-contact-john-smith.png | "Not found" response — no hallucination |
+| 018 | 018-create-contact-response.png | Account not found, offers create/link options |
+| 019 | 019-contact-created-confirmation.png | Confirmation card with Create/Dismiss |
+| 020 | 020-account-created-contact-pending.png | Account created, contact card pending |
+| 021 | 021-contact-created-final.png | Both records created after sequential confirmation |
+| 022 | 022-both-created-final.png | "Both records are created" confirmation |
+| 023 | 023-delete-all-contacts-response.png | Delete refused — "not a capability" |
+| 024 | 024-scoped-chat-contextual.png | Scoped chat: "this person" = Sarah Chen |
