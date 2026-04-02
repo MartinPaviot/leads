@@ -133,7 +133,7 @@ export default async function DashboardLayout({
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-2 py-2">
+        <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
           {navSections.map((section, sectionIdx) => (
             <div key={section.label || sectionIdx} className={sectionIdx > 0 ? "mt-4" : ""}>
               {section.label && (

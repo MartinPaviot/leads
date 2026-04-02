@@ -190,6 +190,11 @@ export async function POST(req: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Rate limit: 30 messages per minute per user
+  const { rateLimit, rateLimitResponse } = await import("@/lib/rate-limit");
+  const rl = rateLimit(`chat:${authCtx.userId}`, 30, 60 * 1000);
+  if (!rl.success) return rateLimitResponse(rl.resetAt);
+
   const { messages, contextType, contextId }: { messages: UIMessage[]; contextType?: string; contextId?: string } = await req.json();
 
   const primaryModel = process.env.ANTHROPIC_API_KEY
