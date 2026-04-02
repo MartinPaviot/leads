@@ -111,6 +111,32 @@ export async function sendNotification(params: SendNotificationParams) {
     }
   }
 
+  // Send Slack webhook notification (3rd channel)
+  const slackPrefs = typePrefs as { slack?: boolean } | undefined;
+  if (slackPrefs?.slack !== false) {
+    try {
+      // Slack webhook URL stored in tenant settings
+      const { tenants: tenantsTable } = await import("@/db/schema");
+      const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, tenantId)).limit(1);
+      const settings = (tenant?.settings || {}) as Record<string, unknown>;
+      const slackWebhook = settings.slackWebhookUrl as string | undefined;
+
+      if (slackWebhook) {
+        const emoji = type === "deal_won" ? ":trophy:" : type === "deal_risk" ? ":warning:" : type === "task_due" ? ":alarm_clock:" : ":bell:";
+        await fetch(slackWebhook, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: `${emoji} *${title}*\n${body || ""}`,
+            unfurl_links: false,
+          }),
+        });
+      }
+    } catch {
+      // Non-critical Slack failure
+    }
+  }
+
   return { inApp: shouldInApp, emailSent };
 }
 

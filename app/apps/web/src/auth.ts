@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
+import MicrosoftEntraId from "next-auth/providers/microsoft-entra-id";
 import Credentials from "next-auth/providers/credentials";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { db } from "./db";
@@ -63,6 +64,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                   "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly",
                 access_type: "offline",
                 prompt: "consent",
+              },
+            },
+          }),
+        ]
+      : []),
+    // Microsoft OAuth — ready when MICROSOFT_CLIENT_ID env var is set
+    ...(process.env.MICROSOFT_CLIENT_ID
+      ? [
+          MicrosoftEntraId({
+            clientId: process.env.MICROSOFT_CLIENT_ID,
+            clientSecret: process.env.MICROSOFT_CLIENT_SECRET!,
+            authorization: {
+              params: {
+                scope: "openid email profile offline_access Mail.Read Calendars.Read",
               },
             },
           }),
@@ -151,6 +166,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               appUserId: token.appUserId as string,
             },
           }).catch((err) => console.warn("Failed to trigger OAuth sync:", err));
+        }
+      }
+
+      // Store Microsoft access token for Graph API access
+      if (account?.provider === "microsoft-entra-id") {
+        token.microsoftAccessToken = account.access_token;
+        token.microsoftRefreshToken = account.refresh_token;
+        token.microsoftTokenExpiry = account.expires_at
+          ? account.expires_at * 1000
+          : Date.now() + 3600 * 1000;
+
+        // Trigger initial email/calendar sync via Inngest
+        if (token.tenantId && token.appUserId) {
+          inngest.send({
+            name: "microsoft/oauth-connected",
+            data: {
+              userId: user?.id || (token.id as string),
+              tenantId: token.tenantId as string,
+              appUserId: token.appUserId as string,
+            },
+          }).catch((err) => console.warn("Failed to trigger Microsoft sync:", err));
         }
       }
 
