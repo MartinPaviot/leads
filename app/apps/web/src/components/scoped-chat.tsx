@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { TextStreamChatTransport } from "ai";
 import { useRef, useEffect, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import { ChatMarkdown } from "./chat-markdown";
 import { Sparkles, Send } from "lucide-react";
 
 interface ScopedChatProps {
@@ -60,11 +60,11 @@ export function ScopedChat({ contextType, contextId, contextLabel }: ScopedChatP
                 {msg.role === "assistant" && (
                   <Sparkles size={10} className="mr-1 inline" style={{ color: "var(--color-accent)" }} />
                 )}
-                <div className="prose prose-invert prose-xs max-w-none [&_p]:my-0.5">
+                <div className="prose prose-xs max-w-none [&_p]:my-0.5">
                   {msg.parts
                     .filter((p) => p.type === "text")
                     .map((p, i) => (
-                      <ReactMarkdown key={i}>{"text" in p ? p.text : ""}</ReactMarkdown>
+                      <ChatMarkdown key={i}>{"text" in p ? p.text : ""}</ChatMarkdown>
                     ))}
                 </div>
               </div>

@@ -4,7 +4,8 @@ import { useChat } from "@ai-sdk/react";
 import { TextStreamChatTransport } from "ai";
 import { useRef, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import ReactMarkdown from "react-markdown";
+import { ChatMarkdown } from "@/components/chat-markdown";
+import { ToolCallGroup } from "@/components/tool-call-panel";
 import { EmailComposer } from "@/components/email-composer";
 import { Sparkles, Send, Mail } from "lucide-react";
 
@@ -159,30 +160,23 @@ export default function ChatPage() {
                     <span style={{ fontWeight: 500 }}>LeadSens</span>
                   </div>
 
-                  {/* Action indicator */}
+                  {/* Tool call transparency panels */}
                   {(() => {
-                    const text = message.parts
-                      .filter((p) => p.type === "text")
-                      .map((p) => ("text" in p ? p.text : ""))
-                      .join("");
-                    const hasData = /\d+ (contact|deal|account|opportunit|task|meeting)/i.test(text);
-                    const hasEmail = /Subject:/i.test(text);
-                    const hasAnalysis = /(should|recommend|priorit|focus|risk|stall|prepare)/i.test(text);
-                    const indicator = hasEmail ? "Drafted email" : hasData ? "Retrieved CRM data" : hasAnalysis ? "Analyzed data" : null;
-                    if (!indicator) return null;
-                    return (
-                      <div
-                        className="mb-2 text-[11px] font-medium"
-                        style={{ color: "var(--color-warning)", opacity: 0.7 }}
-                      >
-                        {indicator}
-                      </div>
-                    );
+                    const toolCalls = message.parts
+                      .filter((p) => p.type === "tool-invocation")
+                      .map((p) => {
+                        const inv = (p as unknown as { toolInvocation: { state: string; toolName: string; args: Record<string, unknown>; result: unknown } }).toolInvocation;
+                        if (!inv || inv.state !== "result") return null;
+                        return { toolName: inv.toolName, args: inv.args, result: inv.result };
+                      })
+                      .filter(Boolean) as { toolName: string; args: Record<string, unknown>; result: unknown }[];
+                    if (toolCalls.length === 0) return null;
+                    return <ToolCallGroup calls={toolCalls} />;
                   })()}
 
-                  {/* Message content */}
+                  {/* Message content with entity links */}
                   <div
-                    className="prose prose-invert prose-sm max-w-none [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5 [&_code]:rounded [&_code]:px-1.5 [&_code]:py-0.5"
+                    className="prose prose-sm max-w-none [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5 [&_code]:rounded [&_code]:px-1.5 [&_code]:py-0.5"
                     style={{
                       fontSize: "15px",
                       lineHeight: "22px",
@@ -192,7 +186,7 @@ export default function ChatPage() {
                     {message.parts
                       .filter((part) => part.type === "text")
                       .map((part, i) => (
-                        <ReactMarkdown key={i}>{"text" in part ? part.text : ""}</ReactMarkdown>
+                        <ChatMarkdown key={i}>{"text" in part ? part.text : ""}</ChatMarkdown>
                       ))}
                   </div>
 
