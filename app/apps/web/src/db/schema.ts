@@ -545,3 +545,57 @@ export const emailOptouts = pgTable(
     uniqueIndex("optout_tenant_email_idx").on(table.tenantId, table.emailAddress),
   ]
 );
+
+// === NOTIFICATION TABLES ===
+
+export const notificationTypeEnum = pgEnum("notification_type", [
+  "deal_risk",
+  "deal_won",
+  "deal_lost",
+  "enrichment_done",
+  "sequence_reply",
+  "task_due",
+  "task_assigned",
+  "meeting_upcoming",
+  "new_contact",
+  "system",
+]);
+
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    userId: text("user_id").references(() => users.id).notNull(),
+    type: notificationTypeEnum("type").notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    entityType: text("entity_type"), // contact, company, deal, task
+    entityId: text("entity_id"),
+    read: boolean("read").notNull().default(false),
+    emailSent: boolean("email_sent").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("notifications_user_idx").on(table.userId),
+    index("notifications_tenant_idx").on(table.tenantId),
+    index("notifications_read_idx").on(table.read),
+    index("notifications_created_at_idx").on(table.createdAt),
+  ]
+);
+
+export const notificationPreferences = pgTable(
+  "notification_preferences",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id").references(() => users.id).notNull().unique(),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    emailEnabled: boolean("email_enabled").notNull().default(true),
+    inAppEnabled: boolean("in_app_enabled").notNull().default(true),
+    // Per-type preferences stored as JSONB
+    // e.g. { deal_risk: { email: true, inApp: true }, task_due: { email: false, inApp: true } }
+    preferences: jsonb("preferences").default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  }
+);
