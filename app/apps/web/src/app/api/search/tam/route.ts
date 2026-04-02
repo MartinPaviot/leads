@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { searchSimilar } from "@/lib/embeddings";
 import { db } from "@/db";
 import { companies, contacts, deals } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
@@ -26,71 +26,49 @@ export async function POST(req: Request) {
       ? rawResults.filter((r) => r.entityType === entityType)
       : rawResults;
 
-    // Hydrate results with entity data
-    const hydrated = await Promise.all(
-      filtered.map(async (result) => {
-        let entity: Record<string, unknown> | null = null;
+    // Batch hydrate results by entity type to avoid N+1 queries
+    const companyIds = filtered.filter((r) => r.entityType === "company").map((r) => r.entityId);
+    const contactIds = filtered.filter((r) => r.entityType === "contact").map((r) => r.entityId);
+    const dealIds = filtered.filter((r) => r.entityType === "deal").map((r) => r.entityId);
 
-        try {
-          if (result.entityType === "company") {
-            const [company] = await db
-              .select()
-              .from(companies)
-              .where(and(eq(companies.id, result.entityId), eq(companies.tenantId, authCtx.tenantId)))
-              .limit(1);
-            if (company) {
-              entity = {
-                name: company.name,
-                domain: company.domain,
-                industry: company.industry,
-                size: company.size,
-                revenue: company.revenue,
-                score: company.score,
-                description: company.description,
-              };
-            }
-          } else if (result.entityType === "contact") {
-            const [contact] = await db
-              .select()
-              .from(contacts)
-              .where(and(eq(contacts.id, result.entityId), eq(contacts.tenantId, authCtx.tenantId)))
-              .limit(1);
-            if (contact) {
-              entity = {
-                name: [contact.firstName, contact.lastName].filter(Boolean).join(" "),
-                email: contact.email,
-                title: contact.title,
-                score: contact.score,
-              };
-            }
-          } else if (result.entityType === "deal") {
-            const [deal] = await db
-              .select()
-              .from(deals)
-              .where(and(eq(deals.id, result.entityId), eq(deals.tenantId, authCtx.tenantId)))
-              .limit(1);
-            if (deal) {
-              entity = {
-                name: deal.name,
-                stage: deal.stage,
-                value: deal.value,
-                score: deal.score,
-              };
-            }
-          }
-        } catch (err) {
-          console.warn(`Failed to hydrate ${result.entityType} ${result.entityId}:`, err);
-        }
+    const [companyRows, contactRows, dealRows] = await Promise.all([
+      companyIds.length > 0
+        ? db.select().from(companies).where(and(eq(companies.tenantId, authCtx.tenantId), inArray(companies.id, companyIds)))
+        : Promise.resolve([]),
+      contactIds.length > 0
+        ? db.select().from(contacts).where(and(eq(contacts.tenantId, authCtx.tenantId), inArray(contacts.id, contactIds)))
+        : Promise.resolve([]),
+      dealIds.length > 0
+        ? db.select().from(deals).where(and(eq(deals.tenantId, authCtx.tenantId), inArray(deals.id, dealIds)))
+        : Promise.resolve([]),
+    ]);
 
-        return {
-          entityType: result.entityType,
-          entityId: result.entityId,
-          content: result.content,
-          similarity: result.similarity,
-          entity,
-        };
-      })
-    );
+    const companyMap = new Map(companyRows.map((c) => [c.id, c]));
+    const contactMap = new Map(contactRows.map((c) => [c.id, c]));
+    const dealMap = new Map(dealRows.map((d) => [d.id, d]));
+
+    const hydrated = filtered.map((result) => {
+      let entity: Record<string, unknown> | null = null;
+
+      if (result.entityType === "company") {
+        const c = companyMap.get(result.entityId);
+        if (c) entity = { name: c.name, domain: c.domain, industry: c.industry, size: c.size, revenue: c.revenue, score: c.score, description: c.description };
+      } else if (result.entityType === "contact") {
+        const c = contactMap.get(result.entityId);
+        if (c) entity = { name: [c.firstName, c.lastName].filter(Boolean).join(" "), email: c.email, title: c.title, score: c.score };
+      } else if (result.entityType === "deal") {
+        const d = dealMap.get(result.entityId);
+        if (d) entity = { name: d.name, stage: d.stage, value: d.value, score: d.score };
+      }
+
+      return {
+        entityType: result.entityType,
+        entityId: result.entityId,
+        content: result.content,
+        similarity: result.similarity,
+        entity,
+      };
+    });
 
     return Response.json({ results: hydrated });
   } catch (error) {

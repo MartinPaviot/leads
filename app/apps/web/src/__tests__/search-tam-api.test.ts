@@ -27,6 +27,7 @@ vi.mock("@/db/schema", () => ({
 vi.mock("drizzle-orm", () => ({
   and: vi.fn(),
   eq: vi.fn(),
+  inArray: vi.fn(),
 }));
 
 import { auth } from "@/auth";
@@ -80,6 +81,7 @@ describe("POST /api/search/tam", () => {
     ]);
 
     const mockCompany = {
+      id: "c1",
       name: "Stripe",
       domain: "stripe.com",
       industry: "Fintech",
@@ -89,8 +91,8 @@ describe("POST /api/search/tam", () => {
       description: "Payment platform",
     };
 
-    const limitFn = vi.fn().mockResolvedValue([mockCompany]);
-    const whereFn = vi.fn().mockReturnValue({ limit: limitFn });
+    // Batch hydration: route calls db.select().from(TABLE).where(inArray(...)) once per entity type
+    const whereFn = vi.fn().mockResolvedValue([mockCompany]);
     const fromFn = vi.fn().mockReturnValue({ where: whereFn });
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 
@@ -118,10 +120,10 @@ describe("POST /api/search/tam", () => {
       { entityType: "contact", entityId: "ct1", content: "Sarah Chen", similarity: 0.7 },
     ]);
 
-    const limitFn = vi.fn().mockResolvedValue([{ name: "Stripe" }]);
-    const whereFn = vi.fn().mockReturnValue({ limit: limitFn });
-    const fromFn = vi.fn().mockReturnValue({ where: whereFn });
-    vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
+    // Batch hydration mock — only company query runs since entityType filter is "company"
+    const whereFn2 = vi.fn().mockResolvedValue([{ id: "c1", name: "Stripe" }]);
+    const fromFn2 = vi.fn().mockReturnValue({ where: whereFn2 });
+    vi.mocked(db.select).mockReturnValue({ from: fromFn2 } as never);
 
     const req = new Request("http://localhost/api/search/tam", {
       method: "POST",
