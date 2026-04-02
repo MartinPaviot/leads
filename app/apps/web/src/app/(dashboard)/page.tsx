@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Clock } from "lucide-react";
 import { EmailComposer } from "@/components/email-composer";
+import { OnboardingWizard } from "@/components/onboarding-wizard";
 
 interface Action {
   action: string;
@@ -53,6 +54,8 @@ export default function DashboardPage() {
   const [insights, setInsights] = useState<Insight[]>([]);
   const [loadingActions, setLoadingActions] = useState(true);
   const [loadingSummary, setLoadingSummary] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingHasGoogle, setOnboardingHasGoogle] = useState(false);
   const [emailComposer, setEmailComposer] = useState<{
     to: string;
     subject: string;
@@ -60,6 +63,17 @@ export default function DashboardPage() {
   } | null>(null);
 
   useEffect(() => {
+    // Check onboarding status
+    fetch("/api/onboarding/status")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.needsOnboarding) {
+          setShowOnboarding(true);
+          setOnboardingHasGoogle(data.hasGoogle);
+        }
+      })
+      .catch(() => {});
+
     // Load summary
     fetch("/api/dashboard/summary")
       .then((res) => (res.ok ? res.json() : null))
@@ -561,6 +575,17 @@ export default function DashboardPage() {
           subject={emailComposer.subject}
           body={emailComposer.body}
           onClose={() => setEmailComposer(null)}
+        />
+      )}
+
+      {showOnboarding && (
+        <OnboardingWizard
+          hasGoogle={onboardingHasGoogle}
+          onComplete={() => {
+            setShowOnboarding(false);
+            // Reload dashboard data
+            window.location.reload();
+          }}
         />
       )}
     </div>

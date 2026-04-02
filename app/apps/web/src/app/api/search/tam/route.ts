@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     }
 
     const searchLimit = Math.min(limit || 20, 50);
-    const rawResults = await searchSimilar(query.trim(), searchLimit);
+    const rawResults = await searchSimilar(query.trim(), searchLimit, authCtx.tenantId);
 
     // Filter by entity type if specified
     const filtered = entityType

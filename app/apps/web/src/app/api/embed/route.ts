@@ -1,8 +1,8 @@
 import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { contacts, companies } from "@/db/schema";
+import { contacts, companies, activities } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { embedEntity, contactToText, companyToText } from "@/lib/embeddings";
+import { embedEntity, contactToText, companyToText, activityToText } from "@/lib/embeddings";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { scope } = body; // "all", "contacts", "companies"
+    const { scope } = body; // "all", "contacts", "companies", "activities"
 
     let embedded = 0;
 
@@ -48,6 +48,24 @@ export async function POST(req: Request) {
         });
         if (text.trim()) {
           await embedEntity(authCtx.tenantId, "company", company.id, text);
+          embedded++;
+        }
+      }
+    }
+
+    if (scope === "all" || scope === "activities") {
+      const allActivities = await db.select().from(activities).where(eq(activities.tenantId, authCtx.tenantId));
+      for (const activity of allActivities) {
+        const text = activityToText({
+          activityType: activity.activityType,
+          summary: activity.summary,
+          rawContent: activity.rawContent,
+          channel: activity.channel,
+          direction: activity.direction,
+          occurredAt: activity.occurredAt,
+        });
+        if (text.trim()) {
+          await embedEntity(authCtx.tenantId, "activity", activity.id, text);
           embedded++;
         }
       }

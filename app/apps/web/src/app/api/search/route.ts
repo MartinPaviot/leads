@@ -15,7 +15,7 @@ export async function POST(req: Request) {
       return Response.json({ error: "Query is required" }, { status: 400 });
     }
 
-    const results = await searchSimilar(query, limit || 5);
+    const results = await searchSimilar(query, limit || 5, authCtx.tenantId);
 
     return Response.json({ results });
   } catch (error) {

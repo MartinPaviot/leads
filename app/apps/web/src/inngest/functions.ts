@@ -28,7 +28,7 @@ export const enrichCompany = inngest.createFunction(
     name: "Enrich Company Data",
     retries: 2,
     onFailure: async ({ error, event }) => {
-      console.error(`[DEAD LETTER] enrich-company failed for ${event.data.companyId}:`, error.message);
+      console.error(`[DEAD LETTER] enrich-company failed for ${(event as any).data?.companyId}:`, error.message);
     },
     triggers: [{ event: "company/created" }],
   },
@@ -133,7 +133,7 @@ export const enrichCompany = inngest.createFunction(
         description: org.description,
       });
       if (text && process.env.OPENAI_API_KEY) {
-        await embedEntity("default", "company", companyId, text);
+        await embedEntity(event.data.tenantId || company.tenantId, "company", companyId, text);
       }
     });
 
@@ -148,7 +148,7 @@ export const enrichContact = inngest.createFunction(
     name: "Enrich Contact Data",
     retries: 2,
     onFailure: async ({ error, event }) => {
-      console.error(`[DEAD LETTER] enrich-contact failed for ${event.data.contactId}:`, error.message);
+      console.error(`[DEAD LETTER] enrich-contact failed for ${(event as any).data?.contactId}:`, error.message);
     },
     triggers: [{ event: "contact/created" }],
   },
@@ -258,7 +258,7 @@ export const enrichContact = inngest.createFunction(
         companyName: person.organization?.name,
       });
       if (text && process.env.OPENAI_API_KEY) {
-        await embedEntity("default", "contact", contactId, text);
+        await embedEntity(event.data.tenantId || contact.tenantId, "contact", contactId, text);
       }
     });
 
@@ -278,7 +278,7 @@ export const sendSequenceStep = inngest.createFunction(
     name: "Send Sequence Step",
     retries: 3,
     onFailure: async ({ error, event }) => {
-      console.error(`[DEAD LETTER] send-sequence-step failed for enrollment ${event.data.enrollmentId}:`, error.message);
+      console.error(`[DEAD LETTER] send-sequence-step failed for enrollment ${(event as any).data?.enrollmentId}:`, error.message);
     },
     triggers: [{ event: "sequence/step-due" }],
   },
@@ -492,7 +492,7 @@ export const processReply = inngest.createFunction(
     name: "Process Sequence Reply",
     retries: 3,
     onFailure: async ({ error, event }) => {
-      console.error(`[DEAD LETTER] process-reply failed for enrollment ${event.data.enrollmentId}:`, error.message);
+      console.error(`[DEAD LETTER] process-reply failed for enrollment ${(event as any).data?.enrollmentId}:`, error.message);
     },
     triggers: [{ event: "email/reply-received" }],
   },

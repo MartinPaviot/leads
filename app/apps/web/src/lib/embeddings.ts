@@ -35,7 +35,8 @@ export async function embedEntity(
 
 export async function searchSimilar(
   query: string,
-  limit: number = 5
+  limit: number = 5,
+  tenantId?: string
 ): Promise<
   Array<{
     entityType: string;
@@ -47,16 +48,28 @@ export async function searchSimilar(
   const queryVector = await embedText(query);
   const vectorStr = `[${queryVector.join(",")}]`;
 
-  const results = await sql`
-    SELECT
-      entity_type,
-      entity_id,
-      content,
-      1 - (embedding <=> ${vectorStr}::vector) as similarity
-    FROM embeddings
-    ORDER BY embedding <=> ${vectorStr}::vector
-    LIMIT ${limit}
-  `;
+  const results = tenantId
+    ? await sql`
+        SELECT
+          entity_type,
+          entity_id,
+          content,
+          1 - (embedding <=> ${vectorStr}::vector) as similarity
+        FROM embeddings
+        WHERE tenant_id = ${tenantId}
+        ORDER BY embedding <=> ${vectorStr}::vector
+        LIMIT ${limit}
+      `
+    : await sql`
+        SELECT
+          entity_type,
+          entity_id,
+          content,
+          1 - (embedding <=> ${vectorStr}::vector) as similarity
+        FROM embeddings
+        ORDER BY embedding <=> ${vectorStr}::vector
+        LIMIT ${limit}
+      `;
 
   return results.map((r) => ({
     entityType: r.entity_type as string,
@@ -84,6 +97,26 @@ export function contactToText(contact: {
   if (contact.phone) parts.push(`Phone: ${contact.phone}`);
   const notes = (contact.properties as Record<string, string>)?.notes;
   if (notes) parts.push(`Notes: ${notes}`);
+  return parts.join(". ");
+}
+
+export function activityToText(activity: {
+  activityType: string;
+  summary?: string | null;
+  rawContent?: string | null;
+  channel?: string | null;
+  direction?: string | null;
+  occurredAt?: Date | null;
+  contactName?: string | null;
+  companyName?: string | null;
+}): string {
+  const parts = [];
+  if (activity.activityType) parts.push(activity.activityType.replace(/_/g, " "));
+  if (activity.contactName) parts.push(`with ${activity.contactName}`);
+  if (activity.companyName) parts.push(`at ${activity.companyName}`);
+  if (activity.summary) parts.push(activity.summary);
+  if (activity.occurredAt) parts.push(`on ${activity.occurredAt.toISOString().split("T")[0]}`);
+  if (activity.rawContent) parts.push(activity.rawContent.slice(0, 2000));
   return parts.join(". ");
 }
 

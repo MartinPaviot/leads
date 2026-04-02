@@ -1,8 +1,18 @@
 import { serve } from "inngest/next";
 import { inngest } from "@/inngest/client";
 import { enrichCompany, enrichContact, sendSequenceStep, processReply } from "@/inngest/functions";
+import { syncEmails, syncCalendar, onGoogleOAuthConnected, cronSyncEmails } from "@/inngest/sync-functions";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [enrichCompany, enrichContact, sendSequenceStep, processReply],
+  functions: [
+    enrichCompany,
+    enrichContact,
+    sendSequenceStep,
+    processReply,
+    syncEmails,
+    syncCalendar,
+    onGoogleOAuthConnected,
+    cronSyncEmails,
+  ],
 });
