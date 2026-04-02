@@ -1,6 +1,6 @@
 import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { notificationPreferences } from "@/db/schema";
+import { notificationPreferences, tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 // GET /api/notifications/preferences
@@ -51,7 +51,19 @@ export async function PUT(req: Request) {
   }
 
   const body = await req.json();
-  const { emailEnabled, inAppEnabled, preferences } = body;
+  const { emailEnabled, inAppEnabled, preferences, slackWebhook } = body;
+
+  // Store Slack webhook URL in tenant settings (workspace-level)
+  if (slackWebhook !== undefined) {
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, authCtx.tenantId)).limit(1);
+    if (tenant) {
+      const settings = (tenant.settings || {}) as Record<string, unknown>;
+      await db.update(tenants).set({
+        settings: { ...settings, slackWebhookUrl: slackWebhook || null },
+        updatedAt: new Date(),
+      }).where(eq(tenants.id, authCtx.tenantId));
+    }
+  }
 
   // Upsert preferences
   const [existing] = await db

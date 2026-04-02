@@ -14,6 +14,7 @@ import {
   Mail,
   Database,
   CreditCard,
+  Workflow,
 } from "lucide-react";
 
 const settingsNav = [
@@ -33,6 +34,7 @@ const settingsNav = [
       { label: "Data Model", href: "/settings/data-model", icon: Database },
       { label: "Opportunity Stages", href: "/settings/stages", icon: GitBranch },
       { label: "Notifications", href: "/settings/notifications", icon: Bell },
+      { label: "Workflows", href: "/settings/workflows", icon: Workflow },
     ],
   },
   {
