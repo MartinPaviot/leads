@@ -1,10 +1,31 @@
 import { db } from "@/db";
 import { outboundEmails, connectedMailboxes, emailOptouts } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { inngest } from "@/inngest/client";
+import crypto from "crypto";
+
+function verifyWebhookSignature(body: string, signature: string | null): boolean {
+  const secret = process.env.EMAILENGINE_WEBHOOK_SECRET;
+  if (!secret) {
+    // If no secret configured, reject all webhooks in production
+    return process.env.NODE_ENV !== "production";
+  }
+  if (!signature) return false;
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(body)
+    .digest("hex");
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+}
 
 export async function POST(req: Request) {
-  const event = await req.json();
+  const rawBody = await req.text();
+  const signature = req.headers.get("x-ee-signature");
+
+  if (!verifyWebhookSignature(rawBody, signature)) {
+    return Response.json({ error: "Invalid signature" }, { status: 401 });
+  }
+
+  const event = JSON.parse(rawBody);
 
   switch (event.event) {
     case "messageNew": {
@@ -19,27 +40,30 @@ export async function POST(req: Request) {
           .limit(1);
 
         if (outbound) {
-          // Update outbound email with reply data
-          await db
-            .update(outboundEmails)
-            .set({
-              repliedAt: new Date(),
-              replySnippet: (text || "").substring(0, 200),
-              updatedAt: new Date(),
-            })
-            .where(eq(outboundEmails.id, outbound.id));
-
-          // Trigger reply classification via Inngest
-          if (outbound.enrollmentId) {
-            await inngest.send({
-              name: "email/reply-received",
-              data: {
-                enrollmentId: outbound.enrollmentId,
-                replyContent: (text || "").substring(0, 1000),
+          // Push to reply classification queue via Redis
+          // For now, store the reply data directly
+          const replyRedisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+          try {
+            const res = await fetch(`${replyRedisUrl.replace("redis://", "http://").replace(":6379", ":3100")}/v1/queue/outbound:reply`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
                 outboundEmailId: outbound.id,
+                replyText: text,
                 replyFrom: from,
-              },
+                replyMessageId: messageId,
+              }),
             });
+          } catch {
+            // Direct DB update as fallback
+            await db
+              .update(outboundEmails)
+              .set({
+                repliedAt: new Date(),
+                replySnippet: (text || "").substring(0, 200),
+                updatedAt: new Date(),
+              })
+              .where(eq(outboundEmails.id, outbound.id));
           }
         }
       }

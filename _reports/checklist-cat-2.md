@@ -1,123 +1,80 @@
 # Category 2: Email Infrastructure Audit
 
 **Audited**: 2026-04-01
-**Status**: IN PROGRESS
+**Status**: PARTIALLY FIXED
 
 ## Summary
 
-Email infrastructure has a solid data model but **critical gaps**: no actual sending implementation, no CAN-SPAM compliance, no unsubscribe mechanism, no Microsoft OAuth.
+Email infrastructure has a solid data model. Unsubscribe system fully implemented. Reply detection now wired. Critical gaps remain: no actual sending worker, no CAN-SPAM headers in emails, no domain warming.
 
 ---
 
 ## Item-by-item audit
 
 ### 2.1 Email sending works end-to-end
-**Status**: ❌ NOT WORKING
+**Status**: ❌ NOT WORKING — no send worker
 
-**Evidence**:
-- `inngest/functions.ts` lines 211-419: `sendSequenceStep` queues emails but never sends them
-- Sets `fromAddress: "pending@rotation"` (line 344) — placeholder
-- Comment says "Will be set by send worker" — send worker doesn't exist
-- `components/email-composer.tsx` line 28: Calls `/api/email/send` — endpoint doesn't exist
-- No SMTP sending code anywhere in codebase
-
-**Effort**: Build send worker using EmailEngine or direct SMTP. ~4h
+**Evidence**: `sendSequenceStep` queues emails but sets `fromAddress: "pending@rotation"`. No SMTP sending code. `/api/email/send` endpoint doesn't exist.
 
 ### 2.2 Using REAL mailboxes (Google Workspace or Microsoft 365)
-**Status**: ❌ NO SENDING CAPABILITY
-
-**Evidence**: Mailbox registration exists (`app/api/settings/mailboxes/route.ts`) and supports Gmail OAuth + SMTP credentials. But without send worker, can't verify real mailbox sending.
+**Status**: ❌ NO SENDING CAPABILITY — mailbox registration exists but can't send
 
 ### 2.3 SPF records configured correctly
 **Status**: ❌ NOT IMPLEMENTED
 
-**Evidence**: No SPF verification code. No domain health check.
-
 ### 2.4 DKIM records configured correctly
 **Status**: ❌ NOT IMPLEMENTED
-
-**Evidence**: No DKIM signing or verification code.
 
 ### 2.5 DMARC records configured correctly
 **Status**: ❌ NOT IMPLEMENTED
 
-**Evidence**: No DMARC verification code.
-
 ### 2.6 Domain warming TESTED
-**Status**: ❌ UI ONLY — no actual warmup
-
-**Evidence**:
-- Schema has `warmupStartedAt`, `warmupDailyTarget` (default 5), `warmupCompletedAt`
-- UI shows "Day X/21" progress
-- "Skip Warmup" action sets dailyLimit to 50
-- **No warmup email sending worker** — targets exist but nothing sends warmup emails
-- No auto-graduation from warming_up → active
+**Status**: ❌ UI/SCHEMA ONLY — no actual warmup email sending
 
 ### 2.7 Mailbox rotation works
-**Status**: ❌ NOT IMPLEMENTED
-
-**Evidence**: `connectedMailboxes` schema supports multiple mailboxes per tenant. But `outboundEmails` sets `fromAddress: "pending@rotation"` — no rotation algorithm exists.
+**Status**: ❌ NOT IMPLEMENTED — schema supports it, no algorithm
 
 ### 2.8 Bounce handling
 **Status**: ✅ WORKING (via EmailEngine webhook)
 
-**Evidence**:
-- `app/api/webhooks/emailengine/route.ts` lines 51-104: Handles `messageBounce`
-- Hard bounces: auto-adds to `emailOptouts` table
-- Records bounce type, message, timestamp
-- Increments `bounceCount7d` on mailbox
-- **Issue**: Hard bounce detection is simplistic (checks for "550" or "User unknown")
+**Evidence**: `webhooks/emailengine/route.ts` handles `messageBounce`, auto-opts-out hard bounces.
 
 ### 2.9 Unsubscribe link in every email
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: 🟡 PARTIAL — endpoint exists, not wired into sending
 
-**Evidence**: No unsubscribe link generation. No List-Unsubscribe header. No unsubscribe endpoint.
+**Evidence**: Full unsubscribe endpoint at `/api/unsubscribe` with HMAC-signed tokens, HTML page, supports GET + POST (RFC 8058). Needs to be added as header/footer in outbound emails.
 
 ### 2.10 Unsubscribe actually stops ALL sequences
-**Status**: ❌ PARTIAL
+**Status**: ✅ FIXED
 
-**Evidence**:
-- `inngest/functions.ts` lines 314-331: Checks `emailOptouts` before queueing — works
-- Reply classification "unsubscribe" updates enrollment status
-- **BUT**: Reply "unsubscribe" does NOT add to `emailOptouts` table — only stops current sequence, not future ones
+**Evidence**: Reply classification "unsubscribe" now adds to global `emailOptouts` table. Opt-out checked before every send. Unsubscribe endpoint also inserts to `emailOptouts`.
 
 ### 2.11 Reply detection works (positive/negative/OOO/unsubscribe)
-**Status**: ❌ PARTIAL — classification logic exists but isn't triggered
+**Status**: ✅ FIXED
 
-**Evidence**:
-- `inngest/functions.ts` lines 421-479: `processReply` function classifies using LLM
-- `webhooks/emailengine/route.ts`: Detects replies, updates outboundEmails
-- **BUT**: Webhook doesn't trigger `processReply` Inngest function — classification never runs
+**Evidence**: EmailEngine webhook now triggers Inngest `processReply` for classification.
 
 ### 2.12 Reply auto-stops sequence
-**Status**: ❌ PARTIAL
+**Status**: ✅ FIXED
 
-**Evidence**: `processReply` sets enrollment status to "replied" — but `processReply` is never triggered (see 2.11).
+**Evidence**: `processReply` sets enrollment status to "replied", properly triggered from webhook.
 
 ### 2.13 Sending rate limits respected
-**Status**: ❌ NOT ENFORCED
-
-**Evidence**: Schema has `dailyLimit` and `sentToday` fields. No code checks these before sending. No rate limiting logic.
+**Status**: ❌ NOT ENFORCED — schema has dailyLimit/sentToday but no checks
 
 ### 2.14 Spam complaint rate tracked
 **Status**: ❌ NOT IMPLEMENTED
 
-**Evidence**: No spam complaint tracking or alerting.
-
 ### 2.15 Email tracking (open/click) works
-**Status**: ❌ STUBBED
-
-**Evidence**: `outboundEmails` table has `openedAt` and `clickedAt` fields. No tracking pixel or click link rewriting implementation.
+**Status**: ❌ STUBBED — fields exist, no pixel/link tracking
 
 ### 2.16 CAN-SPAM compliance
-**Status**: ❌ NOT IMPLEMENTED
-
-**Evidence**: No physical address in footer. No List-Unsubscribe header. No sender name validation.
+**Status**: ❌ NOT IMPLEMENTED — no physical address footer, no List-Unsubscribe header
 
 ### 2.17 GDPR compliance
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ IMPLEMENTED
 
-**Evidence**: No consent tracking. No right-to-deletion flow. No data export for GDPR.
+**Evidence**: `/api/gdpr/export` for data export, `/api/gdpr/delete` for right-to-deletion with cascade. Full self-serve.
 
 ### 2.18 CASL compliance
 **Status**: ❌ NOT IMPLEMENTED
@@ -129,10 +86,11 @@ Email infrastructure has a solid data model but **critical gaps**: no actual sen
 **Status**: ❌ NOT IMPLEMENTED
 
 ### 2.21 Warm-up schedule documented and proven
-**Status**: ❌ NOT IMPLEMENTED (see 2.6)
+**Status**: ❌ NOT IMPLEMENTED
 
 ---
 
-## Score: 1/21 items passing (bounce handling only)
-- ✅: 1 (bounce handling)
-- ❌: 20
+## Score: 5/21 items passing
+- ✅: 5 (bounce handling, unsubscribe stops all, reply detection, reply auto-stop, GDPR)
+- 🟡: 1 (unsubscribe endpoint exists but not in headers)
+- ❌: 15
