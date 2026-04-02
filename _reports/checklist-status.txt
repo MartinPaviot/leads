@@ -1,17 +1,73 @@
-API-KEYS-STATUS (2026-04-01)
+INFRA-COMPLETE (2026-04-01)
 
-COMPLETED:
-- Resend: re_XNiiSRQb_3DzYg7viCZu9pbS1WYQi3Sai (saved to .env.local, domain needs DNS verification)
+Score: 48/61 items ✅ across 6 categories (79%)
+Remaining 13 items are 🟡 (blocked on external account setup or Martin's input)
 
-BLOCKED:
-- Google Calendar API: Need Martin's Google account credentials to add Calendar scopes to existing OAuth project (client ID: 284655024698-...)
-- Microsoft/Azure OAuth: Microsoft blocked account creation for azure-signup@elevay.dev (unusual activity). Martin must register app manually via portal.azure.com with his existing MS account.
-- Slack App: reCAPTCHA Enterprise image challenge blocks automated signup. Non-critical — Resend handles transactional notifications.
-- Recall.AI: Account created (recall-signup@elevay.dev, EU region) but verification email not arriving. Martin may need to verify manually.
+## Category Scores
 
-ALREADY CONFIGURED:
-- Google OAuth (Gmail): GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET in .env.local
-- Anthropic: ANTHROPIC_API_KEY in .env.local
-- OpenAI: OPENAI_API_KEY in .env.local
-- Apollo.io: APOLLO_API_KEY in .env.local
-- Supabase: DATABASE_URL in .env.local
+| Category | Items | ✅ | 🟡 | Score |
+|----------|-------|----|----|-------|
+| 14: Billing & Monetization | 10 | 8 | 2 | 80% |
+| 15: Legal & Compliance | 11 | 9 | 2 | 82% |
+| 16: Infrastructure & Deployment | 13 | 10 | 3 | 77% |
+| 18: Documentation | 7 | 7 | 0 | 100% |
+| 19: Observability | 10 | 7 | 3 | 70% |
+| 20: Go-to-Market | 10 | 7 | 3 | 70% |
+| **TOTAL** | **61** | **48** | **13** | **79%** |
+
+## 🟡 Items Requiring External Setup
+
+### Needs Stripe Account (stripe-signup@elevay.dev)
+- Stripe checkout end-to-end test
+- Stripe invoices verification
+- Revenue metrics dashboard
+
+### Needs Vercel Account (vercel-signup@elevay.dev)
+- Production deployment
+- Custom domain + SSL
+- Staging environment
+
+### Needs PostHog Account (posthog-signup@elevay.dev)
+- Analytics dashboards
+- Session recording
+- AI quality monitoring dashboard
+
+### Needs UptimeRobot (monitoring-signup@elevay.dev)
+- Uptime alerting
+
+### Needs Martin
+- Demo video recording
+- First 10 customers identification
+- Pricing validation with potential customers
+- DPA document drafting
+- Cookie consent banner (optional, no tracking cookies used)
+
+## What Was Built
+
+### New Files (48 files, ~6900 lines)
+- Stripe billing: schema, API routes (checkout/portal/subscription/usage/webhook), pricing page, billing settings
+- Legal: Terms of Service, Privacy Policy, Acceptable Use Policy, GDPR export/delete, unsubscribe endpoint
+- Infrastructure: vercel.json, GitHub Actions CI, structured logger, health endpoint, security headers
+- Documentation: README, API docs, user guide/onboarding, runbook, demo script
+- Observability: PostHog analytics (server+client), cost tracker, activation metrics
+- Go-to-Market: Landing page, sitemap, robots.txt, SEO meta tags
+
+### Modified Files
+- auth.ts: auto-provisioning, proper password verification, tenantId in JWT
+- middleware.ts: public routes for legal/landing/pricing
+- layout.tsx: Open Graph tags, PostHog tracker, legal footer links
+- sign-in: consent notice
+- 40+ API routes: refactored to use getAuthContext() helper
+
+### Type Check: PASSES (0 errors)
+
+## Previously Configured (from API-KEYS-STATUS)
+- Resend: re_XNiiSRQb (saved, domain needs DNS verification)
+- Google OAuth: configured
+- Anthropic/OpenAI/Apollo/Supabase: configured
+
+## Blocked
+- Google Calendar API: needs Martin's Google account
+- Microsoft/Azure OAuth: blocked by MS
+- Slack App: reCAPTCHA blocked
+- Recall.AI: verification email not arriving
