@@ -2,6 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { FileText, Plus } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardBody } from "@/components/ui/card";
 
 interface Note {
   id: string;
@@ -40,70 +45,77 @@ export default function NotesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: newNote.trim() }),
       });
-      if (res.ok) {
-        setNewNote("");
-        fetchNotes();
-      }
+      if (res.ok) { setNewNote(""); fetchNotes(); }
     } catch { /* */ }
     finally { setSaving(false); }
   }
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-6" style={{ height: "var(--header-height)", borderBottom: "0.5px solid var(--color-border-default)" }}>
-        <FileText size={16} style={{ color: "var(--color-text-tertiary)" }} />
-        <h1 className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>Notes</h1>
-        <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>{notes.length}</span>
-        <div className="ml-auto">
-          <button onClick={() => document.getElementById("note-input")?.focus()}
-            className="flex h-7 items-center gap-1 rounded-md px-2.5 text-[12px] font-medium text-white"
-            style={{ background: "var(--color-accent)" }}>
-            <Plus size={13} /> Create note
-          </button>
-        </div>
-      </div>
+      <PageHeader icon={<FileText size={15} />} title="Notes" subtitle={`${notes.length}`}>
+        <Button
+          variant="gradient"
+          size="sm"
+          icon={<Plus size={13} />}
+          onClick={() => document.getElementById("note-input")?.focus()}
+        >
+          Create note
+        </Button>
+      </PageHeader>
 
       {/* Note input */}
-      <div className="px-6 py-3" style={{ borderBottom: "0.5px solid var(--color-border-default)" }}>
+      <div
+        className="px-6 py-3"
+        style={{ borderBottom: "1px solid var(--color-border-default)", background: "var(--color-bg-card)" }}
+      >
         <textarea
           id="note-input"
           value={newNote}
           onChange={(e) => setNewNote(e.target.value)}
           placeholder="Write a note..."
           rows={2}
-          className="w-full resize-none rounded-md px-3 py-2 text-[13px] outline-none"
-          style={{ background: "var(--color-bg-surface)", border: "0.5px solid var(--color-border-default)", color: "var(--color-text-primary)" }}
+          className="w-full resize-none rounded-md px-3 py-2 text-[13px] outline-none transition-colors"
+          style={{
+            background: "var(--color-bg-page)",
+            border: "1px solid var(--color-border-default)",
+            color: "var(--color-text-primary)",
+          }}
+          onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-border-focus)"; }}
+          onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-border-default)"; }}
         />
         {newNote.trim() && (
-          <button onClick={addNote} disabled={saving} className="mt-1.5 rounded-md px-3 py-1 text-[12px] font-medium text-white disabled:opacity-40"
-            style={{ background: "var(--color-accent)" }}>
-            {saving ? "Saving..." : "Save note"}
-          </button>
+          <Button variant="solid" size="sm" onClick={addNote} loading={saving} className="mt-1.5">
+            Save note
+          </Button>
         )}
       </div>
 
       {/* Notes list */}
       <div className="flex-1 overflow-auto">
         {loading ? (
-          <div className="space-y-1 p-6">
-            {[1, 2, 3].map((i) => <div key={i} className="skeleton h-16 rounded-md" />)}
+          <div className="space-y-2 p-6">
+            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
           </div>
         ) : notes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <FileText size={32} style={{ color: "var(--color-text-muted)" }} />
-            <p className="mt-3 text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>No notes yet</p>
-            <p className="mt-1 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>Capture meeting notes, observations, and insights here.</p>
-          </div>
+          <EmptyState
+            icon={<FileText size={24} />}
+            title="No notes yet"
+            description="Capture meeting notes, observations, and insights here."
+          />
         ) : (
           <div>
             {notes.map((note) => (
-              <div key={note.id} className="px-6 py-3 transition-colors"
-                style={{ borderBottom: "0.5px solid var(--color-border-default)" }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-muted)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
-                <p className="whitespace-pre-wrap text-[13px]" style={{ color: "var(--color-text-primary)" }}>{note.content}</p>
-                <p className="mt-1.5 text-[11px]" style={{ color: "var(--color-text-muted)" }}>
+              <div
+                key={note.id}
+                className="px-6 py-3 transition-colors"
+                style={{ borderBottom: "1px solid var(--color-border-default)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+              >
+                <p className="whitespace-pre-wrap text-[13px]" style={{ color: "var(--color-text-primary)" }}>
+                  {note.content}
+                </p>
+                <p className="mt-1.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
                   {new Date(note.createdAt).toLocaleString()}
                 </p>
               </div>

@@ -2,9 +2,15 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Users, Search, Plus, Zap, X } from "lucide-react";
-import { badgeColorIndex, BADGE_COLORS, formatScore, ENRICHMENT_COLORS } from "@/lib/ui-utils";
+import { formatScore, ENRICHMENT_COLORS } from "@/lib/ui-utils";
 import { useCustomFields } from "@/hooks/use-custom-fields";
 import { getCustomFieldValue, formatFieldValue } from "@/lib/custom-fields";
+import { PageHeader, FilterBar } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
+import { Badge, PropertyBadge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/skeleton";
 
 interface Contact {
   id: string;
@@ -210,141 +216,70 @@ export default function ContactsPage() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* ── Page header bar (44px) ── */}
-      <div
-        className="flex shrink-0 items-center justify-between px-5"
-        style={{
-          height: "var(--header-height)",
-          background: "var(--color-bg-surface)",
-          borderBottom: "0.5px solid var(--color-border-default)",
-        }}
+      {/* -- Page header bar -- */}
+      <PageHeader
+        icon={<Users size={16} />}
+        title="Contacts"
+        subtitle={`${contacts.length}`}
       >
-        <div className="flex items-center gap-3">
-          <Users size={16} style={{ color: "var(--color-text-tertiary)" }} />
-          <h1
-            className="text-sm font-semibold"
-            style={{ color: "var(--color-text-primary)" }}
+        {unenrichedCount > 0 && (
+          <Badge variant="warning">{unenrichedCount} unenriched</Badge>
+        )}
+        {unenrichedCount > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<Zap size={12} />}
+            onClick={enrichAll}
+            disabled={enrichAllRunning}
+            loading={enrichAllRunning}
           >
-            Contacts
-          </h1>
-          <span
-            className="rounded-full px-2 py-0.5 text-[11px] font-medium"
-            style={{
-              background: "var(--color-bg-muted)",
-              color: "var(--color-text-secondary)",
-            }}
-          >
-            {contacts.length}
-          </span>
-          {unenrichedCount > 0 && (
-            <span
-              className="rounded-full px-2 py-0.5 text-[11px] font-medium"
-              style={{
-                background: "var(--color-warning-soft)",
-                color: "var(--color-warning)",
-              }}
-            >
-              {unenrichedCount} unenriched
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {unenrichedCount > 0 && (
-            <button
-              onClick={enrichAll}
-              disabled={enrichAllRunning}
-              className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
-              style={{
-                background: "var(--color-accent-soft)",
-                color: "var(--color-accent)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "var(--color-accent-muted)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "var(--color-accent-soft)";
-              }}
-            >
-              <Zap size={12} />
-              {enrichAllRunning ? "Enriching..." : `Enrich All (${unenrichedCount})`}
-            </button>
-          )}
-          <label
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-            style={{
-              border: "0.5px solid var(--color-border-default)",
-              color: "var(--color-text-secondary)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "var(--color-accent)";
-              e.currentTarget.style.color = "var(--color-text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "var(--color-border-default)";
-              e.currentTarget.style.color = "var(--color-text-secondary)";
-            }}
+            {enrichAllRunning ? "Enriching..." : `Enrich All (${unenrichedCount})`}
+          </Button>
+        )}
+        <label className="cursor-pointer">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={importing}
+            loading={importing}
+            onClick={() => fileRef.current?.click()}
           >
             {importing ? "Importing..." : "Import CSV"}
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".csv"
-              onChange={handleImport}
-              className="hidden"
-              disabled={importing}
-            />
-          </label>
-          <button
-            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors"
-            style={{
-              background: "var(--color-accent)",
-              boxShadow: "var(--shadow-button)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "var(--color-accent-hover)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "var(--color-accent)";
-            }}
-          >
-            <Plus size={12} />
-            Create contact
-          </button>
-        </div>
-      </div>
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv"
+            onChange={handleImport}
+            className="hidden"
+            disabled={importing}
+          />
+        </label>
+        <Button
+          variant="gradient"
+          size="sm"
+          icon={<Plus size={12} />}
+        >
+          Create contact
+        </Button>
+      </PageHeader>
 
-      {/* ── Filter bar (40px) ── */}
-      <div
-        className="flex shrink-0 items-center gap-3 px-5"
-        style={{
-          height: "var(--filter-bar-height)",
-          background: "var(--color-bg-surface)",
-          borderBottom: "0.5px solid var(--color-border-default)",
-        }}
-      >
+      {/* -- Filter bar -- */}
+      <FilterBar>
         <div className="relative flex-1">
           <Search
             size={13}
             className="absolute left-2.5 top-1/2 -translate-y-1/2"
             style={{ color: "var(--color-text-tertiary)" }}
           />
-          <input
+          <Input
             type="text"
             placeholder="Search contacts..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-md py-1.5 pl-8 pr-8 text-xs outline-none"
-            style={{
-              background: "var(--color-bg-muted)",
-              color: "var(--color-text-primary)",
-              border: "0.5px solid var(--color-border-default)",
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = "var(--color-accent)";
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = "var(--color-border-default)";
-            }}
+            className="w-full pl-8 pr-8"
+            style={{ height: 30, fontSize: 12 }}
           />
           {searchQuery && (
             <button
@@ -356,9 +291,9 @@ export default function ContactsPage() {
             </button>
           )}
         </div>
-      </div>
+      </FilterBar>
 
-      {/* ── Import result banner ── */}
+      {/* -- Import result banner -- */}
       {importResult && (
         <div
           className="mx-5 mt-2 flex items-center justify-between rounded-md px-3 py-2 text-xs"
@@ -378,57 +313,32 @@ export default function ContactsPage() {
         </div>
       )}
 
-      {/* ── Table area ── */}
+      {/* -- Table area -- */}
       <div className="flex-1 overflow-auto">
         {loading ? (
-          <div className="space-y-0 px-5 pt-2">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div
-                key={i}
-                className="skeleton rounded"
-                style={{ height: "var(--table-row-height)" }}
-              />
-            ))}
-          </div>
+          <TableSkeleton
+            rows={5}
+            cols={6 + customFields.length}
+          />
         ) : filteredContacts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <Users size={32} style={{ color: "var(--color-text-muted)" }} />
-            <p
-              className="mt-3 text-sm font-medium"
-              style={{ color: "var(--color-text-secondary)" }}
-            >
-              {contacts.length === 0 ? "No contacts" : "No matching contacts"}
-            </p>
-            <p
-              className="mt-1 text-xs"
-              style={{ color: "var(--color-text-tertiary)" }}
-            >
-              {contacts.length === 0
+          <EmptyState
+            icon={<Users size={28} />}
+            title={contacts.length === 0 ? "No contacts" : "No matching contacts"}
+            description={
+              contacts.length === 0
                 ? "Import a CSV or create contacts to get started."
-                : "Try adjusting your search query."}
-            </p>
-          </div>
+                : "Try adjusting your search query."
+            }
+          />
         ) : (
-          <table className="w-full text-left text-xs">
-            <thead
-              className="sticky top-0 z-10"
-              style={{ background: "var(--color-bg-surface)" }}
-            >
+          <table className="ls-table">
+            <thead>
               <tr>
                 {["Status", "Name", "Email", "Title", "Phone", "Score",
                   ...customFields.map((f) => f.name),
                   "Actions"].map(
                   (header) => (
-                    <th
-                      key={header}
-                      className="px-5 font-medium uppercase tracking-wider"
-                      style={{
-                        height: "var(--table-row-height)",
-                        fontSize: "11px",
-                        color: "var(--color-text-tertiary)",
-                        borderBottom: "0.5px solid var(--color-border-default)",
-                      }}
-                    >
+                    <th key={header}>
                       {header}
                     </th>
                   )
@@ -436,95 +346,64 @@ export default function ContactsPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredContacts.map((contact) => {
-                const titleIdx = contact.title ? badgeColorIndex(contact.title) : -1;
-                const titleColor = titleIdx >= 0 ? BADGE_COLORS[titleIdx] : null;
-
-                return (
-                  <tr
-                    key={contact.id}
-                    className="cursor-pointer transition-colors"
-                    style={{
-                      height: "var(--table-row-height)",
-                      borderBottom: "0.5px solid var(--color-border-default)",
-                    }}
-                    onClick={() => (window.location.href = `/contacts/${contact.id}`)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "var(--color-bg-elevated)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "transparent";
-                    }}
+              {filteredContacts.map((contact) => (
+                <tr
+                  key={contact.id}
+                  className="cursor-pointer"
+                  onClick={() => (window.location.href = `/contacts/${contact.id}`)}
+                >
+                  <td onClick={(e) => e.stopPropagation()}>
+                    {enrichmentIndicator(contact)}
+                  </td>
+                  <td
+                    className="font-medium"
+                    style={{ color: "var(--color-text-primary)" }}
                   >
-                    <td className="px-5" onClick={(e) => e.stopPropagation()}>
-                      {enrichmentIndicator(contact)}
-                    </td>
-                    <td
-                      className="px-5 font-medium"
-                      style={{ color: "var(--color-text-primary)" }}
-                    >
-                      {[contact.firstName, contact.lastName].filter(Boolean).join(" ") ||
-                        "\u2014"}
-                    </td>
-                    <td className="px-5" style={{ color: "var(--color-text-secondary)" }}>
-                      {contact.email || "\u2014"}
-                    </td>
-                    <td className="px-5">
-                      {contact.title ? (
-                        <span
-                          className="inline-block max-w-[180px] truncate rounded-full px-2 py-0.5 text-[11px] font-medium"
-                          style={{
-                            background: titleColor?.bg,
-                            color: titleColor?.text,
-                          }}
+                    {[contact.firstName, contact.lastName].filter(Boolean).join(" ") ||
+                      "\u2014"}
+                  </td>
+                  <td style={{ color: "var(--color-text-secondary)" }}>
+                    {contact.email || "\u2014"}
+                  </td>
+                  <td>
+                    {contact.title ? (
+                      <PropertyBadge value={contact.title} className="max-w-[180px] truncate" />
+                    ) : (
+                      <span style={{ color: "var(--color-text-tertiary)" }}>{"\u2014"}</span>
+                    )}
+                  </td>
+                  <td style={{ color: "var(--color-text-secondary)" }}>
+                    {contact.phone || "\u2014"}
+                  </td>
+                  <td>{scoreDisplay(contact)}</td>
+                  {/* Custom fields from data model */}
+                  {customFields.map((field) => {
+                    const value = getCustomFieldValue(contact.properties, field.id);
+                    return (
+                      <td key={field.id} style={{ color: "var(--color-text-secondary)" }}>
+                        {value != null && value !== ""
+                          ? formatFieldValue(value, field.type)
+                          : "\u2014"}
+                      </td>
+                    );
+                  })}
+                  <td className="actions" onClick={(e) => e.stopPropagation()}>
+                    {!isEnriched(contact) &&
+                      enrichStatus[contact.id] !== "enriching" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => enrichSingle(contact.id)}
                         >
-                          {contact.title}
-                        </span>
-                      ) : (
-                        <span style={{ color: "var(--color-text-tertiary)" }}>{"\u2014"}</span>
+                          Enrich
+                        </Button>
                       )}
-                    </td>
-                    <td className="px-5" style={{ color: "var(--color-text-secondary)" }}>
-                      {contact.phone || "\u2014"}
-                    </td>
-                    <td className="px-5">{scoreDisplay(contact)}</td>
-                    {/* Custom fields from data model */}
-                    {customFields.map((field) => {
-                      const value = getCustomFieldValue(contact.properties, field.id);
-                      return (
-                        <td key={field.id} className="px-5 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-                          {value != null && value !== ""
-                            ? formatFieldValue(value, field.type)
-                            : "—"}
-                        </td>
-                      );
-                    })}
-                    <td className="px-5" onClick={(e) => e.stopPropagation()}>
-                      {!isEnriched(contact) &&
-                        enrichStatus[contact.id] !== "enriching" && (
-                          <button
-                            onClick={() => enrichSingle(contact.id)}
-                            className="rounded px-2 py-1 text-[11px] font-medium transition-colors"
-                            style={{
-                              color: "var(--color-accent)",
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = "var(--color-accent-soft)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = "transparent";
-                            }}
-                          >
-                            Enrich
-                          </button>
-                        )}
-                      {enrichStatus[contact.id] === "enriching" && (
-                        <span className="text-[11px]" style={{ color: ENRICHMENT_COLORS.enriching }}>...</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+                    {enrichStatus[contact.id] === "enriching" && (
+                      <span className="text-[11px]" style={{ color: ENRICHMENT_COLORS.enriching }}>...</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}

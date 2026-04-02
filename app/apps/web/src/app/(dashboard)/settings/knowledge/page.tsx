@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import { Input, Textarea } from "@/components/ui/input";
+import { Card, CardBody } from "@/components/ui/card";
 
 interface KnowledgeTopic {
   id: string;
@@ -90,67 +93,60 @@ export default function KnowledgeSettingsPage() {
         included in AI requests for everyone in your organization.
       </p>
 
-      <button
-        onClick={addTopic}
-        className="mt-4 rounded-lg border border-[rgba(255,255,255,0.08)] px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:border-[var(--color-accent)] hover:text-[var(--color-text-primary)]"
-      >
+      <Button variant="outline" size="md" onClick={addTopic} className="mt-4">
         + Add knowledge
-      </button>
+      </Button>
 
       <div className="mt-4 space-y-4">
         {loading ? (
           <div className="space-y-3">
             {[1, 2].map((i) => (
-              <div key={i} className="h-32 animate-pulse rounded-lg bg-[var(--color-bg-muted)]" />
+              <div key={i} className="h-32 animate-pulse rounded-lg" style={{ background: "var(--color-bg-hover)" }} />
             ))}
           </div>
         ) : topics.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-[rgba(255,255,255,0.08)] py-8 text-center">
-            <p className="text-sm text-[var(--color-text-tertiary)]">
-              No knowledge topics yet. Add topics to help the AI understand your business.
-            </p>
-          </div>
+          <Card>
+            <div className="py-8 text-center" style={{ borderStyle: "dashed" }}>
+              <p className="text-sm text-[var(--color-text-tertiary)]">
+                No knowledge topics yet. Add topics to help the AI understand your business.
+              </p>
+            </div>
+          </Card>
         ) : (
           topics.map((topic) => (
-            <div
-              key={topic.id}
-              className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-4"
-            >
-              <div>
-                <label className="text-xs text-[var(--color-text-tertiary)]">Topic</label>
-                <input
+            <Card key={topic.id}>
+              <CardBody>
+                <Input
+                  label="Topic"
                   value={topic.topic}
                   onChange={(e) => updateTopic(topic.id, "topic", e.target.value)}
                   placeholder="Title of topic"
-                  className="mt-1 w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
                 />
-              </div>
-              <div className="mt-3">
-                <label className="text-xs text-[var(--color-text-tertiary)]">Content</label>
-                <textarea
-                  value={topic.content}
-                  onChange={(e) => updateTopic(topic.id, "content", e.target.value)}
-                  placeholder="Content of topic"
-                  rows={4}
-                  className="mt-1 w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
-                />
-              </div>
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={() => saveTopic(topic)}
-                  disabled={saving === topic.id || !topic.topic.trim() || !topic.content.trim()}
-                  className="rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-                >
-                  {saving === topic.id ? "Saving..." : "Save changes"}
-                </button>
-                <button
-                  onClick={() => removeTopic(topic.id)}
-                  className="rounded-lg px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-red-400"
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
+                <div className="mt-3">
+                  <Textarea
+                    label="Content"
+                    value={topic.content}
+                    onChange={(e) => updateTopic(topic.id, "content", e.target.value)}
+                    placeholder="Content of topic"
+                    rows={4}
+                  />
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    variant="gradient"
+                    size="sm"
+                    onClick={() => saveTopic(topic)}
+                    disabled={saving === topic.id || !topic.topic.trim() || !topic.content.trim()}
+                    loading={saving === topic.id}
+                  >
+                    {saving === topic.id ? "Saving..." : "Save changes"}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => removeTopic(topic.id)}>
+                    Remove
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
           ))
         )}
       </div>

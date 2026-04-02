@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ScopedChat } from "@/components/scoped-chat";
 import { EmailComposer } from "@/components/email-composer";
+import { Card, CardBody } from "@/components/ui/card";
 
 interface Contact {
   id: string;
@@ -98,46 +99,45 @@ export default function ContactDetailPage() {
           ) : (
             <div className="mt-4 space-y-3">
               {activities.map((activity) => (
-                <div
-                  key={activity.id}
-                  className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`h-2 w-2 rounded-full ${
-                          activity.direction === "inbound"
-                            ? "bg-green-500"
-                            : "bg-blue-500"
-                        }`}
-                      />
-                      <span className="text-xs font-medium uppercase text-[var(--color-text-secondary)]">
-                        {activity.activityType.replace(/_/g, " ")}
+                <Card key={activity.id}>
+                  <CardBody>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            activity.direction === "inbound"
+                              ? "bg-green-500"
+                              : "bg-blue-500"
+                          }`}
+                        />
+                        <span className="text-xs font-medium uppercase text-[var(--color-text-secondary)]">
+                          {activity.activityType.replace(/_/g, " ")}
+                        </span>
+                      </div>
+                      <span className="text-xs text-[var(--color-text-tertiary)]">
+                        {new Date(activity.occurredAt).toLocaleDateString()}
                       </span>
                     </div>
-                    <span className="text-xs text-[var(--color-text-tertiary)]">
-                      {new Date(activity.occurredAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                  {activity.summary && (
-                    <p className="mt-1 text-sm text-[var(--color-text-primary)]">
-                      {activity.summary}
-                    </p>
-                  )}
-                  {/* G12: Suggested Reply for inbound emails */}
-                  {activity.direction === "inbound" && activity.activityType.includes("email") && (
-                    <button
-                      onClick={() => setEmailComposer({
-                        to: contact?.email || "",
-                        subject: `Re: ${activity.summary?.slice(0, 50) || "your email"}`,
-                        body: `Hi ${contact?.firstName || "there"},\n\nThanks for your email. ${activity.summary ? `Regarding "${activity.summary.slice(0, 80)}..." — ` : ""}\n\nBest regards`,
-                      })}
-                      className="mt-2 text-[10px] text-[var(--color-accent)] hover:underline"
-                    >
-                      ✉️ Suggest reply
-                    </button>
-                  )}
-                </div>
+                    {activity.summary && (
+                      <p className="mt-1 text-sm text-[var(--color-text-primary)]">
+                        {activity.summary}
+                      </p>
+                    )}
+                    {/* G12: Suggested Reply for inbound emails */}
+                    {activity.direction === "inbound" && activity.activityType.includes("email") && (
+                      <button
+                        onClick={() => setEmailComposer({
+                          to: contact?.email || "",
+                          subject: `Re: ${activity.summary?.slice(0, 50) || "your email"}`,
+                          body: `Hi ${contact?.firstName || "there"},\n\nThanks for your email. ${activity.summary ? `Regarding "${activity.summary.slice(0, 80)}..." — ` : ""}\n\nBest regards`,
+                        })}
+                        className="mt-2 text-[10px] text-[var(--color-accent)] hover:underline"
+                      >
+                        Suggest reply
+                      </button>
+                    )}
+                  </CardBody>
+                </Card>
               ))}
             </div>
           )}
@@ -154,7 +154,7 @@ export default function ContactDetailPage() {
       </div>
 
       {/* Right panel — details */}
-      <div className="w-[300px] border-l border-[rgba(255,255,255,0.08)] p-6">
+      <div className="w-[300px] p-6" style={{ borderLeft: "1px solid var(--color-border-default)" }}>
         <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
           Contact details
         </h3>

@@ -21,7 +21,6 @@ export default function SignUpPage() {
       redirect("/sign-up?error=PasswordTooShort");
     }
 
-    // Check if user already exists
     const [existing] = await db
       .select()
       .from(authUsers)
@@ -32,7 +31,6 @@ export default function SignUpPage() {
       redirect("/sign-up?error=EmailExists");
     }
 
-    // Create auth user
     const userId = crypto.randomUUID();
     const passwordHash = await bcrypt.hash(password, 10);
 
@@ -44,7 +42,7 @@ export default function SignUpPage() {
 
     await db.insert(authAccounts).values({
       userId,
-      type: "credentials",
+      type: "credentials" as any,
       provider: "credentials",
       providerAccountId: email.toLowerCase().trim(),
       access_token: passwordHash,
@@ -54,20 +52,30 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-base)]">
-      <div className="w-full max-w-sm space-y-6 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-8">
+    <div
+      className="bg-grid flex min-h-screen items-center justify-center"
+      style={{ background: "var(--color-bg-page)" }}
+    >
+      <div
+        className="w-full max-w-sm space-y-6 rounded-xl p-8"
+        style={{
+          background: "var(--color-bg-card)",
+          border: "1px solid var(--color-border-default)",
+          boxShadow: "var(--shadow-dialog)",
+        }}
+      >
         <div className="text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--color-accent)]">
+          <h1 className="gradient-text text-2xl font-bold tracking-tight">
             LeadSens
           </h1>
-          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+          <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
             Create your account
           </p>
         </div>
 
         <form action={handleSignUp} className="space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm text-[var(--color-text-secondary)]">
+            <label htmlFor="name" className="block text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
               Full name
             </label>
             <input
@@ -76,11 +84,16 @@ export default function SignUpPage() {
               type="text"
               required
               placeholder="Martin Paviot"
-              className="mt-1 w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
+              className="auth-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-[13px] outline-none transition-colors"
+              style={{
+                background: "var(--color-bg-page)",
+                color: "var(--color-text-primary)",
+                border: "1px solid var(--color-border-default)",
+              }}
             />
           </div>
           <div>
-            <label htmlFor="email" className="block text-sm text-[var(--color-text-secondary)]">
+            <label htmlFor="email" className="block text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
               Email
             </label>
             <input
@@ -89,11 +102,16 @@ export default function SignUpPage() {
               type="email"
               required
               placeholder="you@company.com"
-              className="mt-1 w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
+              className="auth-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-[13px] outline-none transition-colors"
+              style={{
+                background: "var(--color-bg-page)",
+                color: "var(--color-text-primary)",
+                border: "1px solid var(--color-border-default)",
+              }}
             />
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm text-[var(--color-text-secondary)]">
+            <label htmlFor="password" className="block text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
               Password
             </label>
             <input
@@ -103,20 +121,25 @@ export default function SignUpPage() {
               required
               minLength={6}
               placeholder="Min 6 characters"
-              className="mt-1 w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
+              className="auth-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-[13px] outline-none transition-colors"
+              style={{
+                background: "var(--color-bg-page)",
+                color: "var(--color-text-primary)",
+                border: "1px solid var(--color-border-default)",
+              }}
             />
           </div>
           <button
             type="submit"
-            className="w-full rounded-lg bg-[var(--color-accent)] px-4 py-2.5 text-sm font-medium text-white hover:opacity-90"
+            className="gradient-brand w-full rounded-lg px-4 py-2.5 text-[14px] font-semibold text-white shadow-sm transition-all hover:brightness-110"
           >
             Create account
           </button>
         </form>
 
-        <p className="text-center text-sm text-[var(--color-text-tertiary)]">
+        <p className="text-center text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
           Already have an account?{" "}
-          <Link href="/sign-in" className="text-[var(--color-accent)] hover:underline">
+          <Link href="/sign-in" className="font-medium hover:underline" style={{ color: "var(--color-accent)" }}>
             Sign in
           </Link>
         </p>

@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ScopedChat } from "@/components/scoped-chat";
+import { Button } from "@/components/ui/button";
+import { Card, CardBody } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 interface Account {
   id: string;
@@ -91,15 +94,17 @@ export default function AccountDetailPage() {
           ) : (
             <div className="mt-2 space-y-2">
               {deals.map((deal) => (
-                <div key={deal.id} className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-[var(--color-text-primary)]">{deal.name}</p>
-                    <span className="text-xs text-[var(--color-text-tertiary)] uppercase">{deal.stage}</span>
-                  </div>
-                  {deal.value != null && deal.value > 0 && (
-                    <p className="mt-0.5 text-xs text-emerald-500">${deal.value.toLocaleString()}</p>
-                  )}
-                </div>
+                <Card key={deal.id}>
+                  <CardBody>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-[var(--color-text-primary)]">{deal.name}</p>
+                      <Badge variant="neutral">{deal.stage}</Badge>
+                    </div>
+                    {deal.value != null && deal.value > 0 && (
+                      <p className="mt-0.5 text-xs text-emerald-500">${deal.value.toLocaleString()}</p>
+                    )}
+                  </CardBody>
+                </Card>
               ))}
             </div>
           )}
@@ -119,7 +124,7 @@ export default function AccountDetailPage() {
       </div>
 
       {/* Right panel */}
-      <div className="w-[300px] border-l border-[rgba(255,255,255,0.08)] p-6">
+      <div className="w-[300px] p-6" style={{ borderLeft: "1px solid var(--color-border-default)" }}>
         <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
           Account details
         </h3>
@@ -195,30 +200,31 @@ function SuggestedContacts({ accountId, accountName }: { accountId: string; acco
         Suggested Contacts
       </h2>
       {!fetched ? (
-        <button
+        <Button
+          variant="outline"
           onClick={fetchSuggestions}
-          disabled={loading}
-          className="mt-2 w-full rounded-lg border border-dashed border-[rgba(255,255,255,0.08)] px-4 py-3 text-sm text-[var(--color-accent)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-muted)]"
+          loading={loading}
+          className="mt-2 w-full"
         >
           {loading ? "Discovering contacts..." : `Discover contacts at ${accountName}`}
-        </button>
+        </Button>
       ) : suggestions.length === 0 ? (
         <p className="mt-2 text-xs text-[var(--color-text-tertiary)]">No suggestions available.</p>
       ) : (
         <div className="mt-2 space-y-2">
           {suggestions.map((s, i) => (
-            <div key={i} className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-[var(--color-text-primary)]">{s.name}</p>
-                  <p className="text-xs text-[var(--color-text-secondary)]">{s.title}</p>
+            <Card key={i}>
+              <CardBody>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-[var(--color-text-primary)]">{s.name}</p>
+                    <p className="text-xs text-[var(--color-text-secondary)]">{s.title}</p>
+                  </div>
+                  <Badge variant="success">Suggested</Badge>
                 </div>
-                <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-medium text-emerald-400">
-                  Suggested
-                </span>
-              </div>
-              <p className="mt-1 text-[10px] text-[var(--color-text-tertiary)]">{s.reason}</p>
-            </div>
+                <p className="mt-1 text-[10px] text-[var(--color-text-tertiary)]">{s.reason}</p>
+              </CardBody>
+            </Card>
           ))}
         </div>
       )}

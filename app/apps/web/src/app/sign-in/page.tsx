@@ -4,13 +4,23 @@ import { redirect } from "next/navigation";
 
 export default function SignInPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-base)]">
-      <div className="w-full max-w-sm space-y-6 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-8">
+    <div
+      className="bg-grid flex min-h-screen items-center justify-center"
+      style={{ background: "var(--color-bg-page)" }}
+    >
+      <div
+        className="w-full max-w-sm space-y-6 rounded-xl p-8"
+        style={{
+          background: "var(--color-bg-card)",
+          border: "1px solid var(--color-border-default)",
+          boxShadow: "var(--shadow-dialog)",
+        }}
+      >
         <div className="text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--color-accent)]">
+          <h1 className="gradient-text text-2xl font-bold tracking-tight">
             LeadSens
           </h1>
-          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+          <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
             Sign in to your GTM engine
           </p>
         </div>
@@ -24,7 +34,12 @@ export default function SignInPage() {
         >
           <button
             type="submit"
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-4 py-2.5 text-sm font-medium text-[var(--color-text-primary)] hover:border-[var(--color-accent)] hover:bg-[var(--color-bg-elevated)]"
+            className="flex w-full items-center justify-center gap-2.5 rounded-lg px-4 py-2.5 text-[13px] font-medium transition-all duration-150"
+            style={{
+              background: "var(--color-bg-card)",
+              color: "var(--color-text-primary)",
+              border: "1px solid var(--color-border-default)",
+            }}
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -37,9 +52,9 @@ export default function SignInPage() {
         </form>
 
         <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-[var(--color-bg-muted)]" />
-          <span className="text-xs text-[var(--color-text-tertiary)]">or</span>
-          <div className="h-px flex-1 bg-[var(--color-bg-muted)]" />
+          <div className="h-px flex-1" style={{ background: "var(--color-border-default)" }} />
+          <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>or</span>
+          <div className="h-px flex-1" style={{ background: "var(--color-border-default)" }} />
         </div>
 
         {/* Email/password */}
@@ -59,7 +74,7 @@ export default function SignInPage() {
         >
           <input type="hidden" name="redirectTo" value="/" />
           <div>
-            <label htmlFor="email" className="block text-sm text-[var(--color-text-secondary)]">
+            <label htmlFor="email" className="block text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
               Email
             </label>
             <input
@@ -68,11 +83,16 @@ export default function SignInPage() {
               type="email"
               required
               placeholder="you@company.com"
-              className="mt-1 w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
+              className="auth-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-[13px] outline-none transition-colors"
+              style={{
+                background: "var(--color-bg-page)",
+                color: "var(--color-text-primary)",
+                border: "1px solid var(--color-border-default)",
+              }}
             />
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm text-[var(--color-text-secondary)]">
+            <label htmlFor="password" className="block text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
               Password
             </label>
             <input
@@ -81,34 +101,35 @@ export default function SignInPage() {
               type="password"
               required
               placeholder="Enter password"
-              className="mt-1 w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
+              className="auth-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-[13px] outline-none transition-colors"
+              style={{
+                background: "var(--color-bg-page)",
+                color: "var(--color-text-primary)",
+                border: "1px solid var(--color-border-default)",
+              }}
             />
           </div>
+          {/* Gradient CTA button */}
           <button
             type="submit"
-            className="w-full rounded-lg bg-[var(--color-accent)] px-4 py-2.5 text-sm font-medium text-white hover:opacity-90"
+            className="gradient-brand w-full rounded-lg px-4 py-2.5 text-[14px] font-semibold text-white shadow-sm transition-all hover:brightness-110"
           >
             Sign in
           </button>
         </form>
 
-        <p className="text-center text-sm text-[var(--color-text-tertiary)]">
+        <p className="text-center text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
           Don&apos;t have an account?{" "}
-          <a href="/sign-up" className="text-[var(--color-accent)] hover:underline">
+          <a href="/sign-up" className="font-medium hover:underline" style={{ color: "var(--color-accent)" }}>
             Sign up
           </a>
         </p>
 
-        <p className="text-center text-[10px] leading-relaxed text-[var(--color-text-tertiary)]">
+        <p className="text-center text-[10px] leading-relaxed" style={{ color: "var(--color-text-tertiary)" }}>
           By signing in, you agree to our{" "}
-          <a href="/terms" className="underline hover:text-[var(--color-text-secondary)]">
-            Terms of Service
-          </a>{" "}
+          <a href="/terms" className="underline hover:opacity-80">Terms of Service</a>{" "}
           and{" "}
-          <a href="/privacy" className="underline hover:text-[var(--color-text-secondary)]">
-            Privacy Policy
-          </a>
-          .
+          <a href="/privacy" className="underline hover:opacity-80">Privacy Policy</a>.
         </p>
       </div>
     </div>

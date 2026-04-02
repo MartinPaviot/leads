@@ -1,117 +1,262 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* ================================================================
+   LEADSENS DESIGN SYSTEM — GLOBALS
+   Light mode default ("Clear Mode"), dark mode via .dark class
+   ================================================================ */
+
 @theme {
-  /* === BACKGROUND === */
-  --color-bg-base: #09090b;
-  --color-bg-surface: #121214;
-  --color-bg-elevated: #1a1a1f;
-  --color-bg-muted: #222228;
-  --color-bg-emphasis: #2a2a31;
-
-  /* === TEXT (transparency-based) === */
-  --color-text-primary: rgba(255, 255, 255, 0.92);
-  --color-text-secondary: rgba(255, 255, 255, 0.64);
-  --color-text-tertiary: rgba(255, 255, 255, 0.45);
-  --color-text-muted: rgba(255, 255, 255, 0.28);
-
-  /* === BORDER (transparency-based) === */
-  --color-border-default: rgba(255, 255, 255, 0.08);
-  --color-border-moderate: rgba(255, 255, 255, 0.12);
-  --color-border-strong: rgba(255, 255, 255, 0.20);
-  --color-border-focus: rgba(99, 102, 241, 0.5);
-
-  /* === ACCENT === */
-  --color-accent: #6366f1;
-  --color-accent-hover: #818cf8;
-  --color-accent-soft: rgba(99, 102, 241, 0.12);
-  --color-accent-muted: rgba(99, 102, 241, 0.06);
-
-  /* === SEMANTIC === */
-  --color-success: #22c55e;
-  --color-success-soft: rgba(34, 197, 94, 0.12);
-  --color-warning: #f59e0b;
-  --color-warning-soft: rgba(245, 158, 11, 0.12);
-  --color-error: #ef4444;
-  --color-error-soft: rgba(239, 68, 68, 0.12);
-  --color-info: #3b82f6;
-  --color-info-soft: rgba(59, 130, 246, 0.12);
-
-  /* === BADGE CATEGORY COLORS (10 hues) === */
-  --color-badge-0: #3b82f6;
-  --color-badge-0-bg: rgba(59, 130, 246, 0.10);
-  --color-badge-1: #22c55e;
-  --color-badge-1-bg: rgba(34, 197, 94, 0.10);
-  --color-badge-2: #a855f7;
-  --color-badge-2-bg: rgba(168, 85, 247, 0.10);
-  --color-badge-3: #f97316;
-  --color-badge-3-bg: rgba(249, 115, 22, 0.10);
-  --color-badge-4: #06b6d4;
-  --color-badge-4-bg: rgba(6, 182, 212, 0.10);
-  --color-badge-5: #ef4444;
-  --color-badge-5-bg: rgba(239, 68, 68, 0.10);
-  --color-badge-6: #84cc16;
-  --color-badge-6-bg: rgba(132, 204, 22, 0.10);
-  --color-badge-7: #6366f1;
-  --color-badge-7-bg: rgba(99, 102, 241, 0.10);
-  --color-badge-8: #ec4899;
-  --color-badge-8-bg: rgba(236, 72, 153, 0.10);
-  --color-badge-9: #f59e0b;
-  --color-badge-9-bg: rgba(245, 158, 11, 0.10);
-
-  /* === SHADOWS === */
-  --shadow-button: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.3);
-  --shadow-floating: 0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 6px 18px rgba(0, 0, 0, 0.4);
-  --shadow-dialog: 0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 8px 24px rgba(0, 0, 0, 0.5);
+  /* === TYPOGRAPHY === */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'DM Mono', monospace;
 
   /* === LAYOUT === */
   --sidebar-width: 240px;
   --header-height: 44px;
   --filter-bar-height: 40px;
-  --table-row-height: 40px;
+  --table-row-height: 44px;
   --detail-panel-width: 400px;
   --kanban-column-width: 260px;
 
-  /* === TYPOGRAPHY === */
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', 'DM Mono', monospace;
+  /* === BADGE CATEGORY COLORS (10 hues) === */
+  --color-badge-0: #2563eb;
+  --color-badge-0-bg: rgba(59, 130, 246, 0.08);
+  --color-badge-1: #16a34a;
+  --color-badge-1-bg: rgba(34, 197, 94, 0.08);
+  --color-badge-2: #9333ea;
+  --color-badge-2-bg: rgba(168, 85, 247, 0.08);
+  --color-badge-3: #ea580c;
+  --color-badge-3-bg: rgba(249, 115, 22, 0.08);
+  --color-badge-4: #0891b2;
+  --color-badge-4-bg: rgba(6, 182, 212, 0.08);
+  --color-badge-5: #dc2626;
+  --color-badge-5-bg: rgba(239, 68, 68, 0.08);
+  --color-badge-6: #65a30d;
+  --color-badge-6-bg: rgba(132, 204, 22, 0.08);
+  --color-badge-7: #4f46e5;
+  --color-badge-7-bg: rgba(99, 102, 241, 0.08);
+  --color-badge-8: #db2777;
+  --color-badge-8-bg: rgba(236, 72, 153, 0.08);
+  --color-badge-9: #d97706;
+  --color-badge-9-bg: rgba(245, 158, 11, 0.08);
 }
 
+/* ================================================================
+   LIGHT MODE (DEFAULT — "Clear Mode")
+   ================================================================ */
+:root {
+  /* Backgrounds */
+  --color-bg-page: #FAFAFA;
+  --color-bg-card: #FFFFFF;
+  --color-bg-sidebar: #FFFFFF;
+  --color-bg-hover: #F5F5F5;
+  --color-bg-selected: #F0F7FF;
+  --color-bg-modal-overlay: rgba(0, 0, 0, 0.4);
+
+  /* Aliases for backward compat */
+  --color-bg-base: #FAFAFA;
+  --color-bg-surface: #FFFFFF;
+  --color-bg-elevated: #FFFFFF;
+  --color-bg-muted: #F5F5F5;
+  --color-bg-emphasis: #EBEBEB;
+
+  /* Text */
+  --color-text-primary: #1A1A2E;
+  --color-text-secondary: #64648C;
+  --color-text-tertiary: #9CA3AF;
+  --color-text-placeholder: #C4C4D4;
+  --color-text-muted: #9CA3AF;
+
+  /* Borders */
+  --color-border-default: #E8E8F0;
+  --color-border-hover: #D1D1E0;
+  --color-border-moderate: #E8E8F0;
+  --color-border-strong: #D1D1E0;
+  --color-border-focus: #2C6BED;
+
+  /* Brand accent */
+  --color-accent: #2C6BED;
+  --color-accent-hover: #245ec9;
+  --color-accent-soft: rgba(44, 107, 237, 0.08);
+  --color-accent-muted: rgba(44, 107, 237, 0.04);
+
+  /* Semantic */
+  --color-success: #10B981;
+  --color-success-soft: rgba(16, 185, 129, 0.08);
+  --color-warning: #F59E0B;
+  --color-warning-soft: rgba(245, 158, 11, 0.08);
+  --color-error: #EF4444;
+  --color-error-soft: rgba(239, 68, 68, 0.08);
+  --color-info: #2C6BED;
+  --color-info-soft: rgba(44, 107, 237, 0.08);
+
+  /* Shadows */
+  --shadow-button: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-floating: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 6px 18px rgba(0, 0, 0, 0.08);
+  --shadow-dialog: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 16px 48px rgba(0, 0, 0, 0.12);
+
+  /* LeadSens Gradient */
+  --gradient-brand: linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D);
+  --gradient-brand-hover: linear-gradient(90deg, #14b0a0, #245ec9, #e56d35);
+  --gradient-shimmer: linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D, #17C3B2);
+}
+
+/* ================================================================
+   DARK MODE
+   ================================================================ */
+.dark {
+  --color-bg-page: #0A0B0F;
+  --color-bg-card: #12131A;
+  --color-bg-sidebar: #0E0F14;
+  --color-bg-hover: #1A1B26;
+  --color-bg-selected: #1A1F35;
+  --color-bg-modal-overlay: rgba(0, 0, 0, 0.6);
+
+  --color-bg-base: #0A0B0F;
+  --color-bg-surface: #12131A;
+  --color-bg-elevated: #1A1B26;
+  --color-bg-muted: #1A1B26;
+  --color-bg-emphasis: #24253A;
+
+  --color-text-primary: #E8E8ED;
+  --color-text-secondary: #8B8BA0;
+  --color-text-tertiary: #5A5A70;
+  --color-text-placeholder: #3A3A4A;
+  --color-text-muted: #5A5A70;
+
+  --color-border-default: #1E1F2A;
+  --color-border-hover: #2A2B3A;
+  --color-border-moderate: #1E1F2A;
+  --color-border-strong: #2A2B3A;
+  --color-border-focus: #60A5FA;
+
+  --color-accent: #60A5FA;
+  --color-accent-hover: #93C5FD;
+  --color-accent-soft: rgba(96, 165, 250, 0.12);
+  --color-accent-muted: rgba(96, 165, 250, 0.06);
+
+  --color-success: #34D399;
+  --color-success-soft: rgba(52, 211, 153, 0.12);
+  --color-warning: #FBBF24;
+  --color-warning-soft: rgba(251, 191, 36, 0.12);
+  --color-error: #F87171;
+  --color-error-soft: rgba(248, 113, 113, 0.12);
+  --color-info: #60A5FA;
+  --color-info-soft: rgba(96, 165, 250, 0.12);
+
+  --shadow-button: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-floating: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 6px 18px rgba(0, 0, 0, 0.4);
+  --shadow-dialog: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 16px 48px rgba(0, 0, 0, 0.5);
+
+  --gradient-brand: linear-gradient(90deg, #2DD4BF, #60A5FA, #FB923C);
+  --gradient-brand-hover: linear-gradient(90deg, #14b0a0, #245ec9, #e56d35);
+  --gradient-shimmer: linear-gradient(90deg, #2DD4BF, #60A5FA, #FB923C, #2DD4BF);
+}
+
+/* ================================================================
+   BASE STYLES
+   ================================================================ */
 @layer base {
-  body {
-    @apply antialiased;
-    background-color: var(--color-bg-base);
-    color: var(--color-text-primary);
-    font-family: var(--font-sans);
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
   }
 
-  /* Sub-pixel borders */
+  body {
+    @apply antialiased;
+    background-color: var(--color-bg-page);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
   * {
     border-color: var(--color-border-default);
   }
 
-  /* Scrollbar styling */
+  /* Scrollbar */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
-
   ::-webkit-scrollbar-track {
     background: transparent;
   }
-
   ::-webkit-scrollbar-thumb {
-    background: var(--color-border-moderate);
+    background: var(--color-border-default);
     border-radius: 3px;
   }
-
   ::-webkit-scrollbar-thumb:hover {
     background: var(--color-border-strong);
   }
 }
 
-/* Skeleton shimmer animation */
+/* ================================================================
+   SUBTLE GRID BACKGROUND — main content area only
+   ================================================================ */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.dark .bg-grid {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* ================================================================
+   LEADSENS GRADIENT UTILITIES
+   ================================================================ */
+.gradient-brand {
+  background: var(--gradient-brand);
+  background-size: 120% 100%;
+  background-position: center;
+}
+.gradient-brand:hover {
+  background: var(--gradient-brand-hover);
+  background-size: 120% 100%;
+  background-position: center;
+}
+.gradient-text {
+  background: var(--gradient-shimmer);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-shimmer 8s ease-in-out infinite;
+}
+
+@keyframes gradient-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* ================================================================
+   AUTH INPUT FOCUS STYLES
+   ================================================================ */
+.auth-input:focus {
+  border-color: var(--color-border-focus) !important;
+  box-shadow: 0 0 0 2px rgba(44, 107, 237, 0.15);
+}
+.auth-button:hover {
+  border-color: var(--color-border-hover) !important;
+  background: var(--color-bg-hover) !important;
+}
+
+/* ================================================================
+   SKELETON SHIMMER
+   ================================================================ */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -126,4 +271,108 @@
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite linear;
+  border-radius: 4px;
 }
+
+/* ================================================================
+   NOTION-STYLE TABLE
+   ================================================================ */
+.ls-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.ls-table th {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-tertiary);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border-default);
+  text-align: left;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  background: var(--color-bg-card);
+  z-index: 1;
+  cursor: pointer;
+}
+.ls-table th:hover {
+  color: var(--color-text-secondary);
+}
+.ls-table th[data-sorted="asc"]::after { content: " \2191"; }
+.ls-table th[data-sorted="desc"]::after { content: " \2193"; }
+.ls-table tr {
+  border-bottom: 1px solid var(--color-border-default);
+  transition: background 0.1s;
+}
+.ls-table tbody tr:hover {
+  background: var(--color-bg-hover);
+}
+.ls-table tbody tr[data-selected="true"] {
+  background: var(--color-bg-selected);
+}
+.ls-table td {
+  font-size: 13px;
+  color: var(--color-text-primary);
+  padding: 10px 12px;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ls-table td:first-child {
+  font-weight: 500;
+  cursor: pointer;
+}
+.ls-table td:first-child:hover {
+  color: var(--color-border-focus);
+}
+.ls-table td.actions {
+  width: 40px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.ls-table tbody tr:hover td.actions {
+  opacity: 1;
+}
+
+/* ================================================================
+   TOAST ANIMATION
+   ================================================================ */
+@keyframes toast-slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes toast-slide-out {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(100%); opacity: 0; }
+}
+.toast-enter { animation: toast-slide-in 200ms ease-out; }
+.toast-exit { animation: toast-slide-out 150ms ease-in forwards; }
+
+/* ================================================================
+   MODAL ANIMATION
+   ================================================================ */
+@keyframes modal-fade-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes modal-fade-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.95); }
+}
+@keyframes overlay-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ================================================================
+   SLIDE-OVER ANIMATION
+   ================================================================ */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.slide-in-right { animation: slide-in-right 200ms ease-out; }

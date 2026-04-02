@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ScopedChat } from "@/components/scoped-chat";
+import { Card, CardBody } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface Deal {
   id: string;
@@ -53,15 +56,15 @@ export default function DealDetailPage() {
   if (loading) return <p className="p-6 text-sm text-[var(--color-text-tertiary)]">Loading...</p>;
   if (!deal) return <p className="p-6 text-sm text-red-400">Deal not found</p>;
 
-  const stageColors: Record<string, string> = {
-    lead: "bg-[var(--color-text-tertiary)]/20 text-[var(--color-text-secondary)]",
-    qualification: "bg-blue-500/15 text-blue-400",
-    demo: "bg-purple-500/15 text-purple-400",
-    trial: "bg-amber-500/15 text-amber-400",
-    proposal: "bg-orange-500/15 text-orange-400",
-    negotiation: "bg-pink-500/15 text-pink-400",
-    won: "bg-emerald-500/15 text-emerald-400",
-    lost: "bg-red-500/15 text-red-400",
+  const stageBadgeVariant: Record<string, "success" | "warning" | "error" | "info" | "neutral"> = {
+    lead: "neutral",
+    qualification: "info",
+    demo: "info",
+    trial: "warning",
+    proposal: "warning",
+    negotiation: "warning",
+    won: "success",
+    lost: "error",
   };
 
   return (
@@ -73,9 +76,9 @@ export default function DealDetailPage() {
 
         <div className="mt-4 flex items-center gap-3">
           <h1 className="text-xl font-semibold">{deal.name}</h1>
-          <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium uppercase ${stageColors[deal.stage] || stageColors.lead}`}>
-            {deal.stage}
-          </span>
+          <Badge variant={stageBadgeVariant[deal.stage] || "neutral"} size="md">
+            {deal.stage.toUpperCase()}
+          </Badge>
         </div>
 
         {deal.companyName && (
@@ -83,10 +86,12 @@ export default function DealDetailPage() {
         )}
 
         {deal.summary && (
-          <div className="mt-4 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-4">
-            <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] mb-1">Summary</p>
-            <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">{deal.summary}</p>
-          </div>
+          <Card className="mt-4">
+            <CardBody>
+              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] mb-1">Summary</p>
+              <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">{deal.summary}</p>
+            </CardBody>
+          </Card>
         )}
 
         {/* G9: Structured Data Extraction */}
@@ -94,14 +99,16 @@ export default function DealDetailPage() {
           const props = deal.properties as Record<string, unknown> | null;
           if (!props?.extractedBudget) return null;
           return (
-            <div className="mt-4 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-4">
-              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] mb-2">Extracted Intelligence</p>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                {props.extractedBudget ? <div><span className="text-[var(--color-text-tertiary)]">Budget:</span> <span className="text-[var(--color-text-primary)]">{String(props.extractedBudget)}</span></div> : null}
-                {props.extractedTeamSize ? <div><span className="text-[var(--color-text-tertiary)]">Team size:</span> <span className="text-[var(--color-text-primary)]">{String(props.extractedTeamSize)}</span></div> : null}
-                {props.extractedDecisionMaker ? <div><span className="text-[var(--color-text-tertiary)]">Decision maker:</span> <span className="text-[var(--color-text-primary)]">{String(props.extractedDecisionMaker)}</span></div> : null}
-              </div>
-            </div>
+            <Card className="mt-4">
+              <CardBody>
+                <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] mb-2">Extracted Intelligence</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {props.extractedBudget ? <div><span className="text-[var(--color-text-tertiary)]">Budget:</span> <span className="text-[var(--color-text-primary)]">{String(props.extractedBudget)}</span></div> : null}
+                  {props.extractedTeamSize ? <div><span className="text-[var(--color-text-tertiary)]">Team size:</span> <span className="text-[var(--color-text-primary)]">{String(props.extractedTeamSize)}</span></div> : null}
+                  {props.extractedDecisionMaker ? <div><span className="text-[var(--color-text-tertiary)]">Decision maker:</span> <span className="text-[var(--color-text-primary)]">{String(props.extractedDecisionMaker)}</span></div> : null}
+                </div>
+              </CardBody>
+            </Card>
           );
         })()}
 
@@ -118,7 +125,7 @@ export default function DealDetailPage() {
                 <div key={activity.id} className="relative flex gap-3 pb-4">
                   {/* Vertical line */}
                   {i < timeline.length - 1 && (
-                    <div className="absolute left-[7px] top-4 bottom-0 w-px bg-[var(--color-bg-muted)]" />
+                    <div className="absolute left-[7px] top-4 bottom-0 w-px bg-[var(--color-bg-hover)]" />
                   )}
                   {/* Dot */}
                   <div className={`mt-1.5 h-[14px] w-[14px] flex-shrink-0 rounded-full border-2 ${
@@ -156,7 +163,7 @@ export default function DealDetailPage() {
       </div>
 
       {/* Right panel */}
-      <div className="w-[280px] flex-shrink-0 border-l border-[rgba(255,255,255,0.08)] p-6">
+      <div className="w-[280px] flex-shrink-0 p-6" style={{ borderLeft: "1px solid var(--color-border-default)" }}>
         <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">Deal details</h3>
         <div className="mt-4 space-y-3">
           <div>
@@ -223,27 +230,30 @@ function ExtractedIntel({ dealId, properties }: { dealId: string; properties: Re
         <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
           Deal Intelligence
         </h2>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={extractIntel}
-          disabled={extracting}
-          className="text-[10px] text-[var(--color-accent)] hover:underline disabled:opacity-50"
+          loading={extracting}
         >
           {extracting ? "Extracting..." : hasData ? "Re-extract" : "Extract from interactions"}
-        </button>
+        </Button>
       </div>
       {hasData ? (
-        <div className="mt-2 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-3">
-          <div className="grid grid-cols-2 gap-3">
-            {fields.map((f) => (
-              data[f.key] ? (
-                <div key={f.key}>
-                  <p className="text-[10px] text-[var(--color-text-tertiary)]">{f.icon} {f.label}</p>
-                  <p className="text-sm text-[var(--color-text-primary)]">{data[f.key]}</p>
-                </div>
-              ) : null
-            ))}
-          </div>
-        </div>
+        <Card className="mt-2">
+          <CardBody>
+            <div className="grid grid-cols-2 gap-3">
+              {fields.map((f) => (
+                data[f.key] ? (
+                  <div key={f.key}>
+                    <p className="text-[10px] text-[var(--color-text-tertiary)]">{f.icon} {f.label}</p>
+                    <p className="text-sm text-[var(--color-text-primary)]">{data[f.key]}</p>
+                  </div>
+                ) : null
+              ))}
+            </div>
+          </CardBody>
+        </Card>
       ) : (
         <p className="mt-2 text-xs text-[var(--color-text-tertiary)]">No intelligence extracted yet. Click extract to analyze interactions.</p>
       )}

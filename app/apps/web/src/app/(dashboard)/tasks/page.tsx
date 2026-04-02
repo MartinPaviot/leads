@@ -2,6 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { CheckSquare, Plus } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/input";
 
 interface Task {
   id: string;
@@ -42,10 +48,7 @@ export default function TasksPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: newTask.trim(), priority: "medium" }),
       });
-      if (res.ok) {
-        setNewTask("");
-        fetchTasks();
-      }
+      if (res.ok) { setNewTask(""); fetchTasks(); }
     } catch { /* */ }
     finally { setSaving(false); }
   }
@@ -67,66 +70,79 @@ export default function TasksPage() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-6" style={{ height: "var(--header-height)", borderBottom: "0.5px solid var(--color-border-default)" }}>
-        <CheckSquare size={16} style={{ color: "var(--color-text-tertiary)" }} />
-        <h1 className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>Tasks</h1>
-        <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>{tasks.length}</span>
-      </div>
+      <PageHeader icon={<CheckSquare size={15} />} title="Tasks" subtitle={`${tasks.length}`} />
 
       {/* Add task bar */}
-      <div className="flex items-center gap-2 px-6 py-2" style={{ borderBottom: "0.5px solid var(--color-border-default)" }}>
+      <div
+        className="flex items-center gap-2 px-6 py-2"
+        style={{ borderBottom: "1px solid var(--color-border-default)", background: "var(--color-bg-card)" }}
+      >
         <input
           value={newTask}
           onChange={(e) => setNewTask(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addTask()}
           placeholder="Add a task..."
-          className="h-8 flex-1 rounded-md px-3 text-[13px] outline-none"
-          style={{ background: "var(--color-bg-surface)", border: "0.5px solid var(--color-border-default)", color: "var(--color-text-primary)" }}
+          className="h-8 flex-1 rounded-md px-3 text-[13px] outline-none transition-colors"
+          style={{
+            background: "var(--color-bg-page)",
+            border: "1px solid var(--color-border-default)",
+            color: "var(--color-text-primary)",
+          }}
+          onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-border-focus)"; }}
+          onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-border-default)"; }}
         />
-        <button onClick={addTask} disabled={!newTask.trim() || saving}
-          className="flex h-8 items-center gap-1 rounded-md px-3 text-[12px] font-medium text-white disabled:opacity-40"
-          style={{ background: "var(--color-accent)" }}>
-          <Plus size={13} /> {saving ? "..." : "Add"}
-        </button>
+        <Button
+          variant="gradient"
+          size="sm"
+          onClick={addTask}
+          disabled={!newTask.trim() || saving}
+          icon={<Plus size={13} />}
+          loading={saving}
+        >
+          Add
+        </Button>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-auto px-6 py-4">
         {loading ? (
-          <div className="space-y-1">
-            {[1, 2, 3].map((i) => <div key={i} className="skeleton h-10 rounded-md" />)}
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-11 w-full" />)}
           </div>
         ) : tasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <CheckSquare size={32} style={{ color: "var(--color-text-muted)" }} />
-            <p className="mt-3 text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>No tasks yet</p>
-            <p className="mt-1 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>Add tasks or ask the chat to create follow-ups.</p>
-          </div>
+          <EmptyState
+            icon={<CheckSquare size={24} />}
+            title="No tasks yet"
+            description="Add tasks or ask the chat to create follow-ups."
+          />
         ) : (
           <div className="space-y-6">
             {pending.length > 0 && (
               <div>
-                <h2 className="mb-2 text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--color-accent)" }}>
+                <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-accent)" }}>
                   Pending ({pending.length})
                 </h2>
                 <div className="space-y-0.5">
                   {pending.map((task) => (
-                    <div key={task.id} className="flex items-center gap-3 rounded-md px-3 transition-colors"
-                      style={{ height: "var(--table-row-height)", borderBottom: "0.5px solid var(--color-border-default)" }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-muted)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
-                      <button onClick={() => toggleTask(task.id, task.status)}
-                        className="h-4 w-4 shrink-0 rounded"
-                        style={{ border: "0.5px solid var(--color-border-strong)" }} />
-                      <div className="flex-1 min-w-0">
+                    <div
+                      key={task.id}
+                      className="flex items-center gap-3 rounded-md px-3 transition-colors"
+                      style={{ height: "var(--table-row-height)", borderBottom: "1px solid var(--color-border-default)" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                    >
+                      <Checkbox
+                        checked={false}
+                        onChange={() => toggleTask(task.id, task.status)}
+                      />
+                      <div className="min-w-0 flex-1">
                         <span className="text-[13px]" style={{ color: "var(--color-text-primary)" }}>{task.title}</span>
                       </div>
                       {task.priority === "high" && (
-                        <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase"
-                          style={{ background: "var(--color-error-soft)", color: "var(--color-error)" }}>
-                          High
-                        </span>
+                        <Badge variant="error" size="sm">High</Badge>
+                      )}
+                      {task.priority === "medium" && (
+                        <Badge variant="warning" size="sm">Medium</Badge>
                       )}
                       {task.dueDate && (
                         <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
@@ -140,19 +156,23 @@ export default function TasksPage() {
             )}
             {completed.length > 0 && (
               <div>
-                <h2 className="mb-2 text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
+                <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
                   Completed ({completed.length})
                 </h2>
                 <div className="space-y-0.5 opacity-60">
                   {completed.map((task) => (
-                    <div key={task.id} className="flex items-center gap-3 rounded-md px-3"
-                      style={{ height: "var(--table-row-height)" }}>
-                      <button onClick={() => toggleTask(task.id, task.status)}
-                        className="flex h-4 w-4 items-center justify-center rounded text-[9px]"
-                        style={{ background: "var(--color-accent-soft)", border: "0.5px solid var(--color-accent)", color: "var(--color-accent)" }}>
-                        ✓
-                      </button>
-                      <span className="text-[13px] line-through" style={{ color: "var(--color-text-secondary)" }}>{task.title}</span>
+                    <div
+                      key={task.id}
+                      className="flex items-center gap-3 rounded-md px-3"
+                      style={{ height: "var(--table-row-height)" }}
+                    >
+                      <Checkbox
+                        checked={true}
+                        onChange={() => toggleTask(task.id, task.status)}
+                      />
+                      <span className="text-[13px] line-through" style={{ color: "var(--color-text-secondary)" }}>
+                        {task.title}
+                      </span>
                     </div>
                   ))}
                 </div>

@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { CreditCard, ExternalLink, Zap, Mail, Users, Brain } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardBody } from "@/components/ui/card";
 
 interface SubscriptionData {
   status: string | null;
@@ -119,86 +121,78 @@ export default function BillingSettingsPage() {
       ) : (
         <div className="mt-8 space-y-6">
           {/* Current Plan Card */}
-          <div
-            className="rounded-lg p-5"
-            style={{
-              background: "var(--color-bg-surface)",
-              border: "0.5px solid var(--color-border-default)",
-            }}
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <CreditCard size={16} style={{ color: "var(--color-accent)" }} />
-                  <span className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-                    Current Plan
-                  </span>
+          <Card>
+            <CardBody className="p-5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <CreditCard size={16} style={{ color: "var(--color-accent)" }} />
+                    <span className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+                      Current Plan
+                    </span>
+                  </div>
+                  <h2 className="mt-2 text-[20px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                    {PLAN_LABELS[plan] ?? plan}
+                  </h2>
+
+                  {sub?.status === "trialing" && trialDays !== null && (
+                    <p className="mt-1 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
+                      {trialDays > 0
+                        ? `${trialDays} day${trialDays === 1 ? "" : "s"} remaining in trial`
+                        : "Trial has expired"}
+                    </p>
+                  )}
+
+                  {sub?.cancelAtPeriodEnd && (
+                    <p className="mt-1 text-[13px] text-amber-400">
+                      Cancels at end of billing period
+                    </p>
+                  )}
+
+                  {sub?.currentPeriodEnd && sub.status === "active" && (
+                    <p className="mt-1 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
+                      Renews on{" "}
+                      {new Date(sub.currentPeriodEnd).toLocaleDateString("en-US", {
+                        month: "long",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </p>
+                  )}
                 </div>
-                <h2 className="mt-2 text-[20px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
-                  {PLAN_LABELS[plan] ?? plan}
-                </h2>
 
-                {sub?.status === "trialing" && trialDays !== null && (
-                  <p className="mt-1 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-                    {trialDays > 0
-                      ? `${trialDays} day${trialDays === 1 ? "" : "s"} remaining in trial`
-                      : "Trial has expired"}
-                  </p>
-                )}
-
-                {sub?.cancelAtPeriodEnd && (
-                  <p className="mt-1 text-[13px] text-amber-400">
-                    Cancels at end of billing period
-                  </p>
-                )}
-
-                {sub?.currentPeriodEnd && sub.status === "active" && (
-                  <p className="mt-1 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-                    Renews on{" "}
-                    {new Date(sub.currentPeriodEnd).toLocaleDateString("en-US", {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </p>
-                )}
+                <div className="flex gap-2">
+                  {(plan === "trial" || plan === "starter") && (
+                    <Button
+                      variant="gradient"
+                      size="sm"
+                      icon={<Zap size={13} />}
+                      onClick={() =>
+                        handleUpgrade(
+                          plan === "trial"
+                            ? (process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID ?? "")
+                            : (process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID ?? "")
+                        )
+                      }
+                    >
+                      {plan === "trial" ? "Upgrade" : "Upgrade to Pro"}
+                    </Button>
+                  )}
+                  {sub?.stripeCustomerId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      icon={<ExternalLink size={13} />}
+                      onClick={openPortal}
+                      loading={portalLoading}
+                    >
+                      {portalLoading ? "Opening..." : "Manage"}
+                    </Button>
+                  )}
+                </div>
               </div>
-
-              <div className="flex gap-2">
-                {(plan === "trial" || plan === "starter") && (
-                  <button
-                    onClick={() =>
-                      handleUpgrade(
-                        plan === "trial"
-                          ? (process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID ?? "")
-                          : (process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID ?? "")
-                      )
-                    }
-                    className="flex items-center gap-1.5 rounded-md px-4 py-2 text-[12px] font-medium text-white"
-                    style={{ background: "var(--color-accent)" }}
-                  >
-                    <Zap size={13} />
-                    {plan === "trial" ? "Upgrade" : "Upgrade to Pro"}
-                  </button>
-                )}
-                {sub?.stripeCustomerId && (
-                  <button
-                    onClick={openPortal}
-                    disabled={portalLoading}
-                    className="flex items-center gap-1.5 rounded-md px-4 py-2 text-[12px] font-medium transition-colors"
-                    style={{
-                      background: "transparent",
-                      border: "0.5px solid var(--color-border-moderate)",
-                      color: "var(--color-text-secondary)",
-                    }}
-                  >
-                    <ExternalLink size={13} />
-                    {portalLoading ? "Opening..." : "Manage"}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
+            </CardBody>
+          </Card>
 
           {/* Usage Section */}
           <div>
@@ -251,43 +245,39 @@ function UsageMeter({
   const isNearLimit = !isUnlimited && pct >= 80;
 
   return (
-    <div
-      className="rounded-lg p-4"
-      style={{
-        background: "var(--color-bg-surface)",
-        border: "0.5px solid var(--color-border-default)",
-      }}
-    >
-      <div className="flex items-center gap-2" style={{ color: "var(--color-text-muted)" }}>
-        {icon}
-        <span className="text-[12px] font-medium">{label}</span>
-      </div>
-      <div className="mt-2">
-        <span
-          className="text-[18px] font-semibold"
-          style={{ color: "var(--color-text-primary)" }}
-        >
-          {current.toLocaleString()}
-        </span>
-        <span className="text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-          {" "}
-          / {isUnlimited ? "Unlimited" : limit.toLocaleString()}
-        </span>
-      </div>
-      {!isUnlimited && (
-        <div
-          className="mt-2 h-1.5 w-full overflow-hidden rounded-full"
-          style={{ background: "rgba(255,255,255,0.06)" }}
-        >
-          <div
-            className="h-full rounded-full transition-all"
-            style={{
-              width: `${pct}%`,
-              background: isNearLimit ? "var(--color-warning, #f59e0b)" : "var(--color-accent)",
-            }}
-          />
+    <Card>
+      <CardBody>
+        <div className="flex items-center gap-2" style={{ color: "var(--color-text-muted)" }}>
+          {icon}
+          <span className="text-[12px] font-medium">{label}</span>
         </div>
-      )}
-    </div>
+        <div className="mt-2">
+          <span
+            className="text-[18px] font-semibold"
+            style={{ color: "var(--color-text-primary)" }}
+          >
+            {current.toLocaleString()}
+          </span>
+          <span className="text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
+            {" "}
+            / {isUnlimited ? "Unlimited" : limit.toLocaleString()}
+          </span>
+        </div>
+        {!isUnlimited && (
+          <div
+            className="mt-2 h-1.5 w-full overflow-hidden rounded-full"
+            style={{ background: "rgba(255,255,255,0.06)" }}
+          >
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${pct}%`,
+                background: isNearLimit ? "var(--color-warning, #f59e0b)" : "var(--color-accent)",
+              }}
+            />
+          </div>
+        )}
+      </CardBody>
+    </Card>
   );
 }

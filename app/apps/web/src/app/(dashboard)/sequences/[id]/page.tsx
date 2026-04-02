@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardBody } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface Step {
   id: string;
@@ -117,163 +121,186 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
   if (loading) return <div className="p-6 text-sm text-[var(--color-text-tertiary)]">Loading...</div>;
   if (!sequence) return <div className="p-6 text-sm text-red-400">Sequence not found</div>;
 
-  const statusColor = sequence.status === "active" ? "text-emerald-400" : sequence.status === "paused" ? "text-amber-400" : "text-[var(--color-text-tertiary)]";
+  const statusBadgeVariant: Record<string, "success" | "warning" | "error" | "info" | "neutral"> = {
+    active: "success",
+    paused: "warning",
+    draft: "neutral",
+    archived: "neutral",
+  };
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">{sequence.name}</h1>
-          {sequence.description && (
-            <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">{sequence.description}</p>
+    <div className="flex h-full flex-col">
+      <PageHeader
+        title={sequence.name}
+        subtitle={sequence.description || undefined}
+      >
+        <Badge variant={statusBadgeVariant[sequence.status] || "neutral"} size="md">
+          {sequence.status.toUpperCase()}
+        </Badge>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={toggleStatus}
+          loading={updatingStatus}
+        >
+          {sequence.status === "active" ? "Pause" : "Activate"}
+        </Button>
+      </PageHeader>
+
+      <div className="flex-1 overflow-auto p-6">
+        {/* Steps */}
+        <section>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
+              Steps ({steps.length})
+            </h2>
+            <Button variant="ghost" size="sm" onClick={() => setShowAddStep(true)}>
+              + Add Step
+            </Button>
+          </div>
+
+          {showAddStep && (
+            <Card className="mt-3">
+              <CardBody>
+                <form onSubmit={handleAddStep} className="space-y-2">
+                  <input
+                    value={stepSubject}
+                    onChange={(e) => setStepSubject(e.target.value)}
+                    placeholder="Subject template (use {{firstName}}, {{company}})"
+                    autoFocus
+                    className="w-full rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:outline-none"
+                    style={{
+                      background: "var(--color-bg-page)",
+                      border: "1px solid var(--color-border-default)",
+                    }}
+                  />
+                  <textarea
+                    value={stepBody}
+                    onChange={(e) => setStepBody(e.target.value)}
+                    placeholder="Body template..."
+                    rows={4}
+                    className="w-full rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:outline-none"
+                    style={{
+                      background: "var(--color-bg-page)",
+                      border: "1px solid var(--color-border-default)",
+                    }}
+                  />
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-[var(--color-text-tertiary)]">Delay (days):</label>
+                    <input
+                      type="number"
+                      value={stepDelay}
+                      onChange={(e) => setStepDelay(Number(e.target.value))}
+                      min={0}
+                      max={30}
+                      className="w-16 rounded px-2 py-1 text-sm text-[var(--color-text-primary)]"
+                      style={{
+                        background: "var(--color-bg-page)",
+                        border: "1px solid var(--color-border-default)",
+                      }}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="submit"
+                      variant="solid"
+                      loading={addingStep}
+                      disabled={!stepSubject.trim() || !stepBody.trim()}
+                    >
+                      {addingStep ? "Adding..." : "Add Step"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowAddStep(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              </CardBody>
+            </Card>
           )}
-        </div>
-        <div className="flex items-center gap-3">
-          <span className={`text-xs font-medium uppercase ${statusColor}`}>{sequence.status}</span>
-          <button
-            onClick={toggleStatus}
-            disabled={updatingStatus}
-            className="rounded-lg border border-[rgba(255,255,255,0.08)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50"
-          >
-            {sequence.status === "active" ? "Pause" : "Activate"}
-          </button>
-        </div>
-      </div>
 
-      {/* Steps */}
-      <section className="mt-8">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
-            Steps ({steps.length})
-          </h2>
-          <button
-            onClick={() => setShowAddStep(true)}
-            className="text-sm text-[var(--color-accent)] hover:opacity-90"
-          >
-            + Add Step
-          </button>
-        </div>
+          <div className="mt-3 space-y-2">
+            {steps.length === 0 ? (
+              <p className="text-sm text-[var(--color-text-tertiary)]">No steps yet. Add a step to get started.</p>
+            ) : (
+              steps.map((step) => (
+                <Card key={step.id}>
+                  <CardBody>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-[var(--color-accent)]">Step {step.stepNumber}</span>
+                      <span className="text-xs text-[var(--color-text-tertiary)]">
+                        {step.delayDays > 0 ? `Wait ${step.delayDays} day${step.delayDays > 1 ? "s" : ""}` : "Immediate"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm font-medium text-[var(--color-text-primary)]">{step.subjectTemplate}</p>
+                    <p className="mt-1 text-xs text-[var(--color-text-tertiary)] line-clamp-2">{step.bodyTemplate}</p>
+                  </CardBody>
+                </Card>
+              ))
+            )}
+          </div>
+        </section>
 
-        {showAddStep && (
-          <form onSubmit={handleAddStep} className="mt-3 space-y-2 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-4">
-            <input
-              value={stepSubject}
-              onChange={(e) => setStepSubject(e.target.value)}
-              placeholder="Subject template (use {{firstName}}, {{company}})"
-              autoFocus
-              className="w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
-            />
-            <textarea
-              value={stepBody}
-              onChange={(e) => setStepBody(e.target.value)}
-              placeholder="Body template..."
-              rows={4}
-              className="w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
-            />
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-[var(--color-text-tertiary)]">Delay (days):</label>
-              <input
-                type="number"
-                value={stepDelay}
-                onChange={(e) => setStepDelay(Number(e.target.value))}
-                min={0}
-                max={30}
-                className="w-16 rounded border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-2 py-1 text-sm text-[var(--color-text-primary)]"
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={addingStep || !stepSubject.trim() || !stepBody.trim()}
-                className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-              >
-                {addingStep ? "Adding..." : "Add Step"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAddStep(false)}
-                className="rounded-lg border border-[rgba(255,255,255,0.08)] px-4 py-2 text-sm text-[var(--color-text-secondary)]"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
+        {/* AI-Suggested Enrollments (G4: Approve/Reject Flow) */}
+        {sequence.status === "active" && (
+          <section className="mt-8">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
+              AI Suggestions
+            </h2>
+            <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">
+              Contacts recommended for enrollment based on scoring and signals.
+            </p>
+            <AISuggestions sequenceId={id} onApprove={fetchSequence} />
+          </section>
         )}
 
-        <div className="mt-3 space-y-2">
-          {steps.length === 0 ? (
-            <p className="text-sm text-[var(--color-text-tertiary)]">No steps yet. Add a step to get started.</p>
-          ) : (
-            steps.map((step) => (
-              <div key={step.id} className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[var(--color-accent)]">Step {step.stepNumber}</span>
-                  <span className="text-xs text-[var(--color-text-tertiary)]">
-                    {step.delayDays > 0 ? `Wait ${step.delayDays} day${step.delayDays > 1 ? "s" : ""}` : "Immediate"}
-                  </span>
-                </div>
-                <p className="mt-1 text-sm font-medium text-[var(--color-text-primary)]">{step.subjectTemplate}</p>
-                <p className="mt-1 text-xs text-[var(--color-text-tertiary)] line-clamp-2">{step.bodyTemplate}</p>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-
-      {/* AI-Suggested Enrollments (G4: Approve/Reject Flow) */}
-      {sequence.status === "active" && (
+        {/* Enrollments */}
         <section className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
-            AI Suggestions
+            Enrolled ({enrollments.length})
           </h2>
-          <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">
-            Contacts recommended for enrollment based on scoring and signals.
-          </p>
-          <AISuggestions sequenceId={id} onApprove={fetchSequence} />
-        </section>
-      )}
-
-      {/* Enrollments */}
-      <section className="mt-8">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
-          Enrolled ({enrollments.length})
-        </h2>
-        <div className="mt-3">
-          {enrollments.length === 0 ? (
-            <p className="text-sm text-[var(--color-text-tertiary)]">No contacts enrolled yet.</p>
-          ) : (
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-[rgba(255,255,255,0.08)] text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]">
-                  <th className="pb-2 pr-4">Contact</th>
-                  <th className="pb-2 pr-4">Email</th>
-                  <th className="pb-2 pr-4">Step</th>
-                  <th className="pb-2 pr-4">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {enrollments.map((enrollment) => (
-                  <tr key={enrollment.id} className="border-b border-[rgba(255,255,255,0.08)]">
-                    <td className="py-2 pr-4 text-[var(--color-text-primary)]">{enrollment.contactName}</td>
-                    <td className="py-2 pr-4 text-[var(--color-text-secondary)]">{enrollment.contactEmail || "—"}</td>
-                    <td className="py-2 pr-4 text-[var(--color-text-secondary)]">{enrollment.currentStep}/{steps.length}</td>
-                    <td className="py-2 pr-4">
-                      <span className={`text-xs font-medium ${
-                        enrollment.status === "active" ? "text-emerald-400" :
-                        enrollment.status === "completed" ? "text-blue-400" :
-                        enrollment.status === "replied" ? "text-purple-400" :
-                        "text-[var(--color-text-tertiary)]"
-                      }`}>
-                        {enrollment.status}
-                      </span>
-                    </td>
+          <div className="mt-3">
+            {enrollments.length === 0 ? (
+              <p className="text-sm text-[var(--color-text-tertiary)]">No contacts enrolled yet.</p>
+            ) : (
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]" style={{ borderBottom: "1px solid var(--color-border-default)" }}>
+                    <th className="pb-2 pr-4">Contact</th>
+                    <th className="pb-2 pr-4">Email</th>
+                    <th className="pb-2 pr-4">Step</th>
+                    <th className="pb-2 pr-4">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </section>
+                </thead>
+                <tbody>
+                  {enrollments.map((enrollment) => (
+                    <tr key={enrollment.id} style={{ borderBottom: "1px solid var(--color-border-default)" }}>
+                      <td className="py-2 pr-4 text-[var(--color-text-primary)]">{enrollment.contactName}</td>
+                      <td className="py-2 pr-4 text-[var(--color-text-secondary)]">{enrollment.contactEmail || "—"}</td>
+                      <td className="py-2 pr-4 text-[var(--color-text-secondary)]">{enrollment.currentStep}/{steps.length}</td>
+                      <td className="py-2 pr-4">
+                        <Badge
+                          variant={
+                            enrollment.status === "active" ? "success" :
+                            enrollment.status === "completed" ? "info" :
+                            enrollment.status === "replied" ? "info" :
+                            "neutral"
+                          }
+                        >
+                          {enrollment.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
@@ -335,13 +362,14 @@ function AISuggestions({ sequenceId, onApprove }: { sequenceId: string; onApprov
 
   if (!fetched) {
     return (
-      <button
+      <Button
+        variant="outline"
         onClick={fetchSuggestions}
-        disabled={loading}
-        className="mt-2 rounded-lg border border-dashed border-[rgba(255,255,255,0.08)] px-4 py-3 text-sm text-[var(--color-accent)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-muted)] w-full"
+        loading={loading}
+        className="mt-2 w-full"
       >
         {loading ? "Finding suggestions..." : "Get AI Suggestions"}
-      </button>
+      </Button>
     );
   }
 
@@ -352,34 +380,37 @@ function AISuggestions({ sequenceId, onApprove }: { sequenceId: string; onApprov
   return (
     <div className="mt-2 space-y-2">
       {visible.map((suggestion) => (
-        <div
-          key={suggestion.contactId}
-          className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-3"
-        >
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-medium text-[var(--color-text-primary)]">{suggestion.contactName}</p>
-              <span className="text-xs text-[var(--color-accent)]">{suggestion.companyName}</span>
+        <Card key={suggestion.contactId}>
+          <CardBody>
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-[var(--color-text-primary)]">{suggestion.contactName}</p>
+                  <span className="text-xs text-[var(--color-accent)]">{suggestion.companyName}</span>
+                </div>
+                <p className="mt-0.5 text-xs text-[var(--color-text-tertiary)]">{suggestion.reason}</p>
+              </div>
+              <div className="flex items-center gap-2 ml-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => rejectSuggestion(suggestion.contactId)}
+                  title="Reject"
+                >
+                  Reject
+                </Button>
+                <Button
+                  variant="gradient"
+                  size="sm"
+                  onClick={() => approveSuggestion(suggestion.contactId)}
+                  loading={enrolling[suggestion.contactId]}
+                >
+                  {enrolling[suggestion.contactId] ? "..." : "Start"}
+                </Button>
+              </div>
             </div>
-            <p className="mt-0.5 text-xs text-[var(--color-text-tertiary)]">{suggestion.reason}</p>
-          </div>
-          <div className="flex items-center gap-2 ml-3">
-            <button
-              onClick={() => rejectSuggestion(suggestion.contactId)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[rgba(255,255,255,0.08)] text-[var(--color-text-tertiary)] hover:border-red-500/30 hover:text-red-400"
-              title="Reject"
-            >
-              👎
-            </button>
-            <button
-              onClick={() => approveSuggestion(suggestion.contactId)}
-              disabled={enrolling[suggestion.contactId]}
-              className="rounded-lg bg-white px-4 py-1.5 text-sm font-semibold text-[var(--color-bg-base)] hover:bg-gray-100 disabled:opacity-50"
-            >
-              {enrolling[suggestion.contactId] ? "..." : "Start"}
-            </button>
-          </div>
-        </div>
+          </CardBody>
+        </Card>
       ))}
     </div>
   );

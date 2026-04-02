@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import { Input, Toggle } from "@/components/ui/input";
+import { Card, CardBody } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 interface NotificationPref {
   key: string;
@@ -89,50 +93,49 @@ export default function NotificationsSettingsPage() {
       </p>
 
       {/* Slack webhook config */}
-      <div className="mt-4 rounded-lg p-4" style={{ background: "var(--color-bg-surface)", border: "0.5px solid var(--color-border-default)" }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>Slack Integration</p>
-            <p className="mt-0.5 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-              {slackConnected
-                ? "Connected. Notifications will be sent to your Slack channel."
-                : "Add a Slack webhook URL to receive notifications in Slack."}
-            </p>
+      <Card className="mt-4">
+        <CardBody>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>Slack Integration</p>
+              <p className="mt-0.5 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                {slackConnected
+                  ? "Connected. Notifications will be sent to your Slack channel."
+                  : "Add a Slack webhook URL to receive notifications in Slack."}
+              </p>
+            </div>
+            {slackConnected && (
+              <Badge variant="success">Connected</Badge>
+            )}
           </div>
-          {slackConnected && (
-            <span className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ background: "var(--color-success-soft)", color: "var(--color-success)" }}>
-              Connected
-            </span>
-          )}
-        </div>
-        <div className="mt-2 flex gap-2">
-          <input
-            value={slackWebhook}
-            onChange={(e) => setSlackWebhook(e.target.value)}
-            placeholder="https://hooks.slack.com/services/..."
-            className="h-8 flex-1 rounded-md px-3 text-[12px] outline-none"
-            style={{ background: "var(--color-bg-muted)", border: "0.5px solid var(--color-border-default)", color: "var(--color-text-primary)" }}
-          />
-          <button
-            onClick={() => save(prefs)}
-            disabled={saving}
-            className="h-8 rounded-md px-3 text-[12px] font-medium text-white disabled:opacity-40"
-            style={{ background: "var(--color-accent)" }}
-          >
-            {saving ? "..." : "Save"}
-          </button>
-        </div>
-      </div>
+          <div className="mt-2 flex gap-2">
+            <Input
+              value={slackWebhook}
+              onChange={(e) => setSlackWebhook(e.target.value)}
+              placeholder="https://hooks.slack.com/services/..."
+              className="flex-1"
+            />
+            <Button
+              variant="solid"
+              size="md"
+              onClick={() => save(prefs)}
+              loading={saving}
+            >
+              Save
+            </Button>
+          </div>
+        </CardBody>
+      </Card>
 
       {loading ? (
         <div className="mt-6 space-y-3">
-          {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg" style={{ background: "var(--color-bg-muted)" }} />)}
+          {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg" style={{ background: "var(--color-bg-hover)" }} />)}
         </div>
       ) : (
         <div className="mt-6 space-y-6">
           {categories.map((category) => (
             <div key={category}>
-              <div className="flex items-center gap-4 pb-2" style={{ borderBottom: "0.5px solid var(--color-border-default)" }}>
+              <div className="flex items-center gap-4 pb-2" style={{ borderBottom: "1px solid var(--color-border-default)" }}>
                 <span className="flex-1 text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
                   {category}
                 </span>
@@ -152,30 +155,18 @@ export default function NotificationsSettingsPage() {
                       {/* Slack toggle */}
                       <div className="flex w-14 justify-center">
                         {slackConnected ? (
-                          <button onClick={() => toggle(pref.key, "slack")}
-                            className="h-5 w-9 rounded-full transition-colors"
-                            style={{ background: pref.slack ? "var(--color-accent)" : "var(--color-bg-muted)" }}>
-                            <div className={`h-4 w-4 rounded-full bg-white transition-transform ${pref.slack ? "translate-x-4" : "translate-x-0.5"}`} />
-                          </button>
+                          <Toggle checked={pref.slack} onChange={() => toggle(pref.key, "slack")} />
                         ) : (
-                          <span className="text-[11px]" style={{ color: "var(--color-text-muted)" }}>—</span>
+                          <span className="text-[11px]" style={{ color: "var(--color-text-muted)" }}>--</span>
                         )}
                       </div>
                       {/* Email toggle */}
                       <div className="flex w-14 justify-center">
-                        <button onClick={() => toggle(pref.key, "email")}
-                          className="h-5 w-9 rounded-full transition-colors"
-                          style={{ background: pref.email ? "var(--color-accent)" : "var(--color-bg-muted)" }}>
-                          <div className={`h-4 w-4 rounded-full bg-white transition-transform ${pref.email ? "translate-x-4" : "translate-x-0.5"}`} />
-                        </button>
+                        <Toggle checked={pref.email} onChange={() => toggle(pref.key, "email")} />
                       </div>
                       {/* In-app toggle */}
                       <div className="flex w-14 justify-center">
-                        <button onClick={() => toggle(pref.key, "inApp")}
-                          className="h-5 w-9 rounded-full transition-colors"
-                          style={{ background: pref.inApp ? "var(--color-accent)" : "var(--color-bg-muted)" }}>
-                          <div className={`h-4 w-4 rounded-full bg-white transition-transform ${pref.inApp ? "translate-x-4" : "translate-x-0.5"}`} />
-                        </button>
+                        <Toggle checked={pref.inApp} onChange={() => toggle(pref.key, "inApp")} />
                       </div>
                     </div>
                   ))}

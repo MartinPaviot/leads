@@ -1,10 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { CircleDot, Plus, BarChart3, X, ChevronDown, ChevronUp } from "lucide-react";
+import { CircleDot, Plus, BarChart3, ChevronDown, ChevronUp } from "lucide-react";
 import { STAGE_COLORS as STAGE_DOT_COLORS_IMPORTED, RISK_STYLES } from "@/lib/ui-utils";
 import { usePipelineStages } from "@/hooks/use-custom-fields";
 import type { PipelineStageDef } from "@/lib/custom-fields";
+import { PageHeader } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
+import { Card, CardBody } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Modal } from "@/components/ui/modal";
+import { Input } from "@/components/ui/input";
 
 interface Analytics {
   totalDeals: number;
@@ -160,13 +166,11 @@ export default function OpportunitiesPage() {
   function getRiskBadge(deal: Deal) {
     const risk = (deal.properties as Record<string, unknown>)?.riskLevel as string;
     if (!risk || risk === "none") return null;
-    const style = RISK_STYLES[risk];
-    if (!style) return null;
+    const riskVariant = risk === "high" ? "error" : risk === "medium" ? "warning" : "info";
     return (
-      <span className="rounded px-1 py-0.5 text-[8px] font-semibold uppercase"
-        style={{ background: style.bg, color: style.text }}>
-        {risk}
-      </span>
+      <Badge variant={riskVariant} size="sm">
+        {risk.toUpperCase()}
+      </Badge>
     );
   }
 
@@ -190,109 +194,84 @@ export default function OpportunitiesPage() {
   const totalValue = deals.reduce((sum, d) => sum + (d.value || 0), 0);
 
   return (
-    <div className="flex h-full flex-col" style={{ background: "var(--color-bg-surface)" }}>
-      {/* Page Header - 44px */}
-      <div
-        className="flex h-[44px] flex-shrink-0 items-center justify-between px-6"
-        style={{ borderBottom: "0.5px solid var(--color-border-default)" }}
+    <div className="flex h-full flex-col" style={{ background: "var(--color-bg-card)" }}>
+      {/* Page Header */}
+      <PageHeader
+        icon={<CircleDot size={16} />}
+        title="Opportunities"
+        subtitle={`${deals.length} deal${deals.length !== 1 ? "s" : ""}${totalValue > 0 ? ` \u00b7 $${totalValue.toLocaleString()} pipeline` : ""}`}
       >
-        <div className="flex items-center gap-3">
-          <CircleDot size={16} style={{ color: "var(--color-accent)" }} />
-          <h1 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
-            Opportunities
-          </h1>
-          <span className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>
-            {deals.length} deal{deals.length !== 1 ? "s" : ""}
-            {totalValue > 0 && ` \u00b7 $${totalValue.toLocaleString()} pipeline`}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          {analytics && (
-            <button
-              onClick={() => setShowAnalytics(!showAnalytics)}
-              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
-              style={{
-                color: "var(--color-text-secondary)",
-                border: "0.5px solid var(--color-border-default)",
-              }}
-            >
-              <BarChart3 size={12} />
-              Analytics
-              {showAnalytics ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-            </button>
-          )}
-          <button
-            onClick={analyzeDeals}
-            disabled={analyzing || deals.length === 0}
-            className="rounded-md px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80 disabled:opacity-50"
-            style={{
-              color: "var(--color-text-primary)",
-              border: "0.5px solid var(--color-border-default)",
-            }}
+        {analytics && (
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<BarChart3 size={12} />}
+            onClick={() => setShowAnalytics(!showAnalytics)}
           >
-            {analyzing ? "Analyzing..." : "Analyze Pipeline"}
-          </button>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90"
-            style={{ background: "var(--color-accent)" }}
-          >
-            <Plus size={12} />
-            Create Deal
-          </button>
-        </div>
-      </div>
+            Analytics
+            {showAnalytics ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+          </Button>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={analyzeDeals}
+          disabled={analyzing || deals.length === 0}
+          loading={analyzing}
+        >
+          {analyzing ? "Analyzing..." : "Analyze Pipeline"}
+        </Button>
+        <Button
+          variant="gradient"
+          size="sm"
+          icon={<Plus size={12} />}
+          onClick={() => setShowCreate(true)}
+        >
+          Create Deal
+        </Button>
+      </PageHeader>
 
       <div className="flex-1 overflow-hidden p-6">
-        {/* Create Deal Form */}
-        {showCreate && (
-          <form onSubmit={handleCreate} className="mb-4 flex gap-2">
-            <input
+        {/* Create Deal Modal */}
+        <Modal
+          open={showCreate}
+          onClose={() => setShowCreate(false)}
+          title="Create Deal"
+          size="sm"
+          footer={
+            <>
+              <Button variant="outline" size="sm" onClick={() => setShowCreate(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="gradient"
+                size="sm"
+                onClick={(e) => handleCreate(e as unknown as React.FormEvent)}
+                disabled={creating || !newName.trim()}
+                loading={creating}
+              >
+                {creating ? "Creating..." : "Create"}
+              </Button>
+            </>
+          }
+        >
+          <form onSubmit={handleCreate} className="flex flex-col gap-3">
+            <Input
+              label="Deal name"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Deal name"
               autoFocus
-              className="flex-1 rounded-md px-3 py-2 text-sm placeholder-opacity-50 focus:outline-none"
-              style={{
-                background: "var(--color-bg-surface)",
-                color: "var(--color-text-primary)",
-                border: "0.5px solid var(--color-border-default)",
-              }}
             />
-            <input
+            <Input
+              label="Value ($)"
               value={newValue}
               onChange={(e) => setNewValue(e.target.value)}
               placeholder="Value ($)"
               type="number"
-              className="w-32 rounded-md px-3 py-2 text-sm placeholder-opacity-50 focus:outline-none"
-              style={{
-                background: "var(--color-bg-surface)",
-                color: "var(--color-text-primary)",
-                border: "0.5px solid var(--color-border-default)",
-              }}
             />
-            <button
-              type="submit"
-              disabled={creating || !newName.trim()}
-              className="rounded-md px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-              style={{ background: "var(--color-accent)" }}
-            >
-              {creating ? "Creating..." : "Create"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowCreate(false)}
-              className="flex items-center gap-1 rounded-md px-3 py-2 text-sm"
-              style={{
-                color: "var(--color-text-secondary)",
-                border: "0.5px solid var(--color-border-default)",
-              }}
-            >
-              <X size={12} />
-              Cancel
-            </button>
           </form>
-        )}
+        </Modal>
 
         {/* Analytics Panel */}
         {analytics && showAnalytics && (
@@ -308,209 +287,181 @@ export default function OpportunitiesPage() {
 
             {/* KPI Cards */}
             <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
-              <div
-                className="rounded-md p-3"
-                style={{
-                  background: "var(--color-bg-muted)",
-                  border: "0.5px solid var(--color-border-default)",
-                }}
-              >
-                <p
-                  className="text-[10px] uppercase tracking-wider"
-                  style={{ color: "var(--color-text-tertiary)" }}
-                >
-                  Pipeline Value
-                </p>
-                <p
-                  className="mt-1 text-lg font-semibold"
-                  style={{ color: "var(--color-text-primary)" }}
-                >
-                  ${analytics.totalPipelineValue.toLocaleString()}
-                </p>
-              </div>
-              <div
-                className="rounded-md p-3"
-                style={{
-                  background: "var(--color-bg-muted)",
-                  border: "0.5px solid var(--color-border-default)",
-                }}
-              >
-                <p
-                  className="text-[10px] uppercase tracking-wider"
-                  style={{ color: "var(--color-text-tertiary)" }}
-                >
-                  Won
-                </p>
-                <p
-                  className="mt-1 text-lg font-semibold"
-                  style={{ color: "var(--color-success)" }}
-                >
-                  ${analytics.wonValue.toLocaleString()}
-                </p>
-                <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
-                  {analytics.wonCount} deal{analytics.wonCount !== 1 ? "s" : ""}
-                </p>
-              </div>
-              <div
-                className="rounded-md p-3"
-                style={{
-                  background: "var(--color-bg-muted)",
-                  border: "0.5px solid var(--color-border-default)",
-                }}
-              >
-                <p
-                  className="text-[10px] uppercase tracking-wider"
-                  style={{ color: "var(--color-text-tertiary)" }}
-                >
-                  Win Rate
-                </p>
-                <p
-                  className="mt-1 text-lg font-semibold"
-                  style={{ color: "var(--color-text-primary)" }}
-                >
-                  {analytics.winRate}%
-                </p>
-                <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
-                  {analytics.wonCount}W / {analytics.lostCount}L
-                </p>
-              </div>
-              <div
-                className="rounded-md p-3"
-                style={{
-                  background: "var(--color-bg-muted)",
-                  border: "0.5px solid var(--color-border-default)",
-                }}
-              >
-                <p
-                  className="text-[10px] uppercase tracking-wider"
-                  style={{ color: "var(--color-text-tertiary)" }}
-                >
-                  Avg Deal
-                </p>
-                <p
-                  className="mt-1 text-lg font-semibold"
-                  style={{ color: "var(--color-text-primary)" }}
-                >
-                  ${analytics.avgDealValue.toLocaleString()}
-                </p>
-              </div>
-              <div
-                className="rounded-md p-3"
-                style={{
-                  background: "var(--color-bg-muted)",
-                  border: "0.5px solid var(--color-border-default)",
-                }}
-              >
-                <p
-                  className="text-[10px] uppercase tracking-wider"
-                  style={{ color: "var(--color-text-tertiary)" }}
-                >
-                  Velocity
-                </p>
-                <p
-                  className="mt-1 text-lg font-semibold"
-                  style={{ color: "var(--color-text-primary)" }}
-                >
-                  {analytics.avgVelocityDays}d
-                </p>
-                <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
-                  avg to close
-                </p>
-              </div>
-              <div
-                className="rounded-md p-3"
-                style={{
-                  background: "var(--color-bg-muted)",
-                  border: "0.5px solid var(--color-border-default)",
-                }}
-              >
-                <p
-                  className="text-[10px] uppercase tracking-wider"
-                  style={{ color: "var(--color-text-tertiary)" }}
-                >
-                  At Risk
-                </p>
-                <div className="mt-1 flex items-baseline gap-2">
-                  {analytics.riskSummary.high > 0 && (
-                    <span className="text-lg font-semibold" style={{ color: "var(--color-error)" }}>
-                      {analytics.riskSummary.high}
-                    </span>
-                  )}
-                  {analytics.riskSummary.medium > 0 && (
-                    <span className="text-lg font-semibold" style={{ color: "var(--color-warning)" }}>
-                      {analytics.riskSummary.medium}
-                    </span>
-                  )}
-                  {analytics.riskSummary.high === 0 && analytics.riskSummary.medium === 0 && (
-                    <span className="text-lg font-semibold" style={{ color: "var(--color-success)" }}>0</span>
-                  )}
-                </div>
-                <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
-                  {analytics.riskSummary.high}H {analytics.riskSummary.medium}M{" "}
-                  {analytics.riskSummary.low}L
-                </p>
-              </div>
+              <Card>
+                <CardBody className="p-3">
+                  <p
+                    className="text-[10px] uppercase tracking-wider"
+                    style={{ color: "var(--color-text-tertiary)" }}
+                  >
+                    Pipeline Value
+                  </p>
+                  <p
+                    className="mt-1 text-lg font-semibold"
+                    style={{ color: "var(--color-text-primary)" }}
+                  >
+                    ${analytics.totalPipelineValue.toLocaleString()}
+                  </p>
+                </CardBody>
+              </Card>
+              <Card>
+                <CardBody className="p-3">
+                  <p
+                    className="text-[10px] uppercase tracking-wider"
+                    style={{ color: "var(--color-text-tertiary)" }}
+                  >
+                    Won
+                  </p>
+                  <p
+                    className="mt-1 text-lg font-semibold"
+                    style={{ color: "var(--color-success)" }}
+                  >
+                    ${analytics.wonValue.toLocaleString()}
+                  </p>
+                  <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
+                    {analytics.wonCount} deal{analytics.wonCount !== 1 ? "s" : ""}
+                  </p>
+                </CardBody>
+              </Card>
+              <Card>
+                <CardBody className="p-3">
+                  <p
+                    className="text-[10px] uppercase tracking-wider"
+                    style={{ color: "var(--color-text-tertiary)" }}
+                  >
+                    Win Rate
+                  </p>
+                  <p
+                    className="mt-1 text-lg font-semibold"
+                    style={{ color: "var(--color-text-primary)" }}
+                  >
+                    {analytics.winRate}%
+                  </p>
+                  <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
+                    {analytics.wonCount}W / {analytics.lostCount}L
+                  </p>
+                </CardBody>
+              </Card>
+              <Card>
+                <CardBody className="p-3">
+                  <p
+                    className="text-[10px] uppercase tracking-wider"
+                    style={{ color: "var(--color-text-tertiary)" }}
+                  >
+                    Avg Deal
+                  </p>
+                  <p
+                    className="mt-1 text-lg font-semibold"
+                    style={{ color: "var(--color-text-primary)" }}
+                  >
+                    ${analytics.avgDealValue.toLocaleString()}
+                  </p>
+                </CardBody>
+              </Card>
+              <Card>
+                <CardBody className="p-3">
+                  <p
+                    className="text-[10px] uppercase tracking-wider"
+                    style={{ color: "var(--color-text-tertiary)" }}
+                  >
+                    Velocity
+                  </p>
+                  <p
+                    className="mt-1 text-lg font-semibold"
+                    style={{ color: "var(--color-text-primary)" }}
+                  >
+                    {analytics.avgVelocityDays}d
+                  </p>
+                  <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
+                    avg to close
+                  </p>
+                </CardBody>
+              </Card>
+              <Card>
+                <CardBody className="p-3">
+                  <p
+                    className="text-[10px] uppercase tracking-wider"
+                    style={{ color: "var(--color-text-tertiary)" }}
+                  >
+                    At Risk
+                  </p>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    {analytics.riskSummary.high > 0 && (
+                      <span className="text-lg font-semibold" style={{ color: "var(--color-error)" }}>
+                        {analytics.riskSummary.high}
+                      </span>
+                    )}
+                    {analytics.riskSummary.medium > 0 && (
+                      <span className="text-lg font-semibold" style={{ color: "var(--color-warning)" }}>
+                        {analytics.riskSummary.medium}
+                      </span>
+                    )}
+                    {analytics.riskSummary.high === 0 && analytics.riskSummary.medium === 0 && (
+                      <span className="text-lg font-semibold" style={{ color: "var(--color-success)" }}>0</span>
+                    )}
+                  </div>
+                  <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
+                    {analytics.riskSummary.high}H {analytics.riskSummary.medium}M{" "}
+                    {analytics.riskSummary.low}L
+                  </p>
+                </CardBody>
+              </Card>
             </div>
 
             {/* Stage Value Bars */}
-            <div
-              className="rounded-md p-3"
-              style={{
-                background: "var(--color-bg-muted)",
-                border: "0.5px solid var(--color-border-default)",
-              }}
-            >
-              <p
-                className="mb-2 text-[10px] uppercase tracking-wider"
-                style={{ color: "var(--color-text-tertiary)" }}
-              >
-                Value by Stage
-              </p>
-              <div className="space-y-1.5">
-                {analytics.funnel.map((s) => {
-                  const stageData = analytics.valueByStage[s.stage];
-                  const maxValue = Math.max(
-                    ...Object.values(analytics.valueByStage).map((v) => v.value),
-                    1
-                  );
-                  const pct = stageData ? (stageData.value / maxValue) * 100 : 0;
-                  return (
-                    <div key={s.stage} className="flex items-center gap-2">
-                      <span
-                        className="w-24 text-right text-[10px]"
-                        style={{ color: "var(--color-text-secondary)" }}
-                      >
-                        {STAGE_LABELS[s.stage]}
-                      </span>
-                      <div
-                        className="h-4 flex-1 overflow-hidden rounded"
-                        style={{ background: "var(--color-bg-surface)" }}
-                      >
+            <Card>
+              <CardBody className="p-3">
+                <p
+                  className="mb-2 text-[10px] uppercase tracking-wider"
+                  style={{ color: "var(--color-text-tertiary)" }}
+                >
+                  Value by Stage
+                </p>
+                <div className="space-y-1.5">
+                  {analytics.funnel.map((s) => {
+                    const stageData = analytics.valueByStage[s.stage];
+                    const maxValue = Math.max(
+                      ...Object.values(analytics.valueByStage).map((v) => v.value),
+                      1
+                    );
+                    const pct = stageData ? (stageData.value / maxValue) * 100 : 0;
+                    return (
+                      <div key={s.stage} className="flex items-center gap-2">
+                        <span
+                          className="w-24 text-right text-[10px]"
+                          style={{ color: "var(--color-text-secondary)" }}
+                        >
+                          {STAGE_LABELS[s.stage]}
+                        </span>
                         <div
-                          className="h-full rounded"
-                          style={{
-                            background: "var(--color-accent)",
-                            width: `${Math.max(pct, stageData && stageData.count > 0 ? 2 : 0)}%`,
-                          }}
-                        />
+                          className="h-4 flex-1 overflow-hidden rounded"
+                          style={{ background: "var(--color-bg-card)" }}
+                        >
+                          <div
+                            className="h-full rounded"
+                            style={{
+                              background: "var(--color-accent)",
+                              width: `${Math.max(pct, stageData && stageData.count > 0 ? 2 : 0)}%`,
+                            }}
+                          />
+                        </div>
+                        <span
+                          className="w-20 text-[10px]"
+                          style={{ color: "var(--color-text-secondary)" }}
+                        >
+                          {stageData ? `$${stageData.value.toLocaleString()}` : "$0"}
+                        </span>
+                        <span
+                          className="w-8 text-[10px]"
+                          style={{ color: "var(--color-text-tertiary)" }}
+                        >
+                          {stageData?.count || 0}
+                        </span>
                       </div>
-                      <span
-                        className="w-20 text-[10px]"
-                        style={{ color: "var(--color-text-secondary)" }}
-                      >
-                        {stageData ? `$${stageData.value.toLocaleString()}` : "$0"}
-                      </span>
-                      <span
-                        className="w-8 text-[10px]"
-                        style={{ color: "var(--color-text-tertiary)" }}
-                      >
-                        {stageData?.count || 0}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+                    );
+                  })}
+                </div>
+              </CardBody>
+            </Card>
           </div>
         )}
 
@@ -532,13 +483,13 @@ export default function OpportunitiesPage() {
                 className="flex flex-shrink-0 flex-col rounded-md"
                 style={{
                   width: 260,
-                  background: "var(--color-bg-muted)",
-                  border: "0.5px solid var(--color-border-default)",
+                  background: "var(--color-bg-hover)",
+                  border: "1px solid var(--color-border-default)",
                 }}
               >
                 <div
                   className="px-3 py-2"
-                  style={{ borderBottom: "0.5px solid var(--color-border-default)" }}
+                  style={{ borderBottom: "1px solid var(--color-border-default)" }}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -553,15 +504,9 @@ export default function OpportunitiesPage() {
                         {stage.name}
                       </span>
                     </div>
-                    <span
-                      className="rounded-full px-2 py-0.5 text-xs"
-                      style={{
-                        background: "var(--color-bg-surface)",
-                        color: "var(--color-text-tertiary)",
-                      }}
-                    >
+                    <Badge variant="neutral" size="sm">
                       {stageDeals.length}
-                    </span>
+                    </Badge>
                   </div>
                   {stageDeals.reduce((sum, d) => sum + (d.value || 0), 0) > 0 && (
                     <p className="mt-0.5 text-[10px]" style={{ color: "var(--color-success)" }}>
@@ -579,39 +524,38 @@ export default function OpportunitiesPage() {
                 </div>
                 <div className="flex-1 space-y-2 p-2">
                   {stageDeals.map((deal) => (
-                    <div
+                    <Card
                       key={deal.id}
-                      className="rounded-md p-3"
                       style={{
-                        background: "var(--color-bg-surface)",
-                        border: "0.5px solid var(--color-border-default)",
                         borderLeft: `2px solid ${getRiskBorderColor(deal)}`,
                       }}
                     >
-                      <div className="flex items-start justify-between gap-1">
-                        <p
-                          className="text-sm font-medium"
-                          style={{ color: "var(--color-text-primary)" }}
-                        >
-                          {hasMomentum(deal) && <span title="High momentum">&#x26A1;</span>}
-                          {deal.name}
-                        </p>
-                        {getRiskBadge(deal)}
-                      </div>
-                      {deal.value != null && deal.value > 0 && (
-                        <p className="mt-1 text-xs" style={{ color: "var(--color-success)" }}>
-                          ${deal.value.toLocaleString()}
-                        </p>
-                      )}
-                      {deal.summary && (
-                        <p
-                          className="mt-1 line-clamp-2 text-[10px]"
-                          style={{ color: "var(--color-text-tertiary)" }}
-                        >
-                          {deal.summary}
-                        </p>
-                      )}
-                    </div>
+                      <CardBody className="p-3">
+                        <div className="flex items-start justify-between gap-1">
+                          <p
+                            className="text-sm font-medium"
+                            style={{ color: "var(--color-text-primary)" }}
+                          >
+                            {hasMomentum(deal) && <span title="High momentum">&#x26A1;</span>}
+                            {deal.name}
+                          </p>
+                          {getRiskBadge(deal)}
+                        </div>
+                        {deal.value != null && deal.value > 0 && (
+                          <p className="mt-1 text-xs" style={{ color: "var(--color-success)" }}>
+                            ${deal.value.toLocaleString()}
+                          </p>
+                        )}
+                        {deal.summary && (
+                          <p
+                            className="mt-1 line-clamp-2 text-[10px]"
+                            style={{ color: "var(--color-text-tertiary)" }}
+                          >
+                            {deal.summary}
+                          </p>
+                        )}
+                      </CardBody>
+                    </Card>
                   ))}
                   {stageDeals.length === 0 && (
                     <p

@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardBody } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface Sequence {
   id: string;
@@ -62,69 +66,72 @@ export default function SequencesPage() {
     }
   }
 
-  const statusColors: Record<string, string> = {
-    draft: "text-[var(--color-text-tertiary)]",
-    active: "text-emerald-400",
-    paused: "text-amber-400",
-    archived: "text-[var(--color-text-tertiary)]",
+  const statusBadgeVariant: Record<string, "success" | "warning" | "error" | "info" | "neutral"> = {
+    draft: "neutral",
+    active: "success",
+    paused: "warning",
+    archived: "neutral",
   };
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Sequences</h1>
-          <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">
-            {sequences.length} sequence{sequences.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-        >
+    <div className="flex h-full flex-col">
+      <PageHeader
+        title="Sequences"
+        subtitle={`${sequences.length} sequence${sequences.length !== 1 ? "s" : ""}`}
+      >
+        <Button variant="gradient" onClick={() => setShowCreate(true)}>
           + Create Sequence
-        </button>
-      </div>
+        </Button>
+      </PageHeader>
 
-      {showCreate && (
-        <form onSubmit={handleCreate} className="mt-4 space-y-2">
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Sequence name (e.g. Cold Outreach)"
-            autoFocus
-            className="w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
-          />
-          <input
-            value={newDesc}
-            onChange={(e) => setNewDesc(e.target.value)}
-            placeholder="Description (optional)"
-            className="w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
-          />
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={creating || !newName.trim()}
-              className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-            >
-              {creating ? "Creating..." : "Create"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowCreate(false)}
-              className="rounded-lg border border-[rgba(255,255,255,0.08)] px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
+      <div className="flex-1 overflow-auto p-6">
+        {showCreate && (
+          <form onSubmit={handleCreate} className="mb-6 space-y-2">
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Sequence name (e.g. Cold Outreach)"
+              autoFocus
+              className="w-full rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:outline-none"
+              style={{
+                background: "var(--color-bg-card)",
+                border: "1px solid var(--color-border-default)",
+              }}
+            />
+            <input
+              value={newDesc}
+              onChange={(e) => setNewDesc(e.target.value)}
+              placeholder="Description (optional)"
+              className="w-full rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:outline-none"
+              style={{
+                background: "var(--color-bg-card)",
+                border: "1px solid var(--color-border-default)",
+              }}
+            />
+            <div className="flex gap-2">
+              <Button
+                type="submit"
+                variant="solid"
+                loading={creating}
+                disabled={!newName.trim()}
+              >
+                {creating ? "Creating..." : "Create"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowCreate(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        )}
 
-      <div className="mt-6">
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-16 animate-pulse rounded-lg bg-[var(--color-bg-muted)]" />
+              <div key={i} className="h-16 animate-pulse rounded-lg bg-[var(--color-bg-hover)]" />
             ))}
           </div>
         ) : sequences.length === 0 ? (
@@ -137,27 +144,29 @@ export default function SequencesPage() {
         ) : (
           <div className="space-y-2">
             {sequences.map((seq) => (
-              <div
+              <Card
                 key={seq.id}
+                interactive
                 onClick={() => window.location.href = `/sequences/${seq.id}`}
-                className="cursor-pointer rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-4 hover:border-[var(--color-accent)]/30"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium text-[var(--color-text-primary)]">{seq.name}</h3>
-                    {seq.description && (
-                      <p className="mt-0.5 text-xs text-[var(--color-text-tertiary)]">{seq.description}</p>
-                    )}
+                <CardBody>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium text-[var(--color-text-primary)]">{seq.name}</h3>
+                      {seq.description && (
+                        <p className="mt-0.5 text-xs text-[var(--color-text-tertiary)]">{seq.description}</p>
+                      )}
+                    </div>
+                    <Badge variant={statusBadgeVariant[seq.status] || "neutral"} size="md">
+                      {seq.status.toUpperCase()}
+                    </Badge>
                   </div>
-                  <span className={`text-xs font-medium uppercase ${statusColors[seq.status] || statusColors.draft}`}>
-                    {seq.status}
-                  </span>
-                </div>
-                <div className="mt-2 flex gap-4 text-xs text-[var(--color-text-tertiary)]">
-                  <span>{seq.stepCount} step{seq.stepCount !== 1 ? "s" : ""}</span>
-                  <span>{seq.enrolledCount} enrolled</span>
-                </div>
-              </div>
+                  <div className="mt-2 flex gap-4 text-xs text-[var(--color-text-tertiary)]">
+                    <span>{seq.stepCount} step{seq.stepCount !== 1 ? "s" : ""}</span>
+                    <span>{seq.enrolledCount} enrolled</span>
+                  </div>
+                </CardBody>
+              </Card>
             ))}
           </div>
         )}

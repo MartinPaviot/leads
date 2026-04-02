@@ -1,0 +1,126 @@
+import { X } from "lucide-react";
+
+type BadgeVariant = "success" | "warning" | "error" | "info" | "neutral";
+type BadgeSize = "sm" | "md";
+
+interface BadgeProps {
+  children: React.ReactNode;
+  variant?: BadgeVariant;
+  size?: BadgeSize;
+  className?: string;
+}
+
+const variantStyles: Record<BadgeVariant, { bg: string; color: string }> = {
+  success: { bg: "var(--color-success-soft)", color: "var(--color-success)" },
+  warning: { bg: "var(--color-warning-soft)", color: "var(--color-warning)" },
+  error: { bg: "var(--color-error-soft)", color: "var(--color-error)" },
+  info: { bg: "var(--color-info-soft)", color: "var(--color-info)" },
+  neutral: { bg: "var(--color-bg-hover)", color: "var(--color-text-secondary)" },
+};
+
+export function Badge({ children, variant = "neutral", size = "sm", className = "" }: BadgeProps) {
+  const s = variantStyles[variant];
+  return (
+    <span
+      className={`inline-flex items-center font-medium rounded ${
+        size === "sm" ? "px-1.5 py-0.5 text-[11px]" : "px-2 py-0.5 text-[12px]"
+      } ${className}`}
+      style={{ background: s.bg, color: s.color }}
+    >
+      {children}
+    </span>
+  );
+}
+
+/* ── Score Badge ── */
+interface ScoreBadgeProps {
+  score: number | null;
+  className?: string;
+}
+
+export function ScoreBadge({ score, className = "" }: ScoreBadgeProps) {
+  if (score == null) return <span style={{ color: "var(--color-text-tertiary)" }}>--</span>;
+
+  let grade: string;
+  let variant: BadgeVariant;
+  if (score >= 80) { grade = "A"; variant = "success"; }
+  else if (score >= 60) { grade = "B"; variant = "warning"; }
+  else if (score >= 40) { grade = "C"; variant = "info"; }
+  else { grade = "D"; variant = "neutral"; }
+
+  return (
+    <Badge variant={variant} size="sm" className={className}>
+      {grade} ({score})
+    </Badge>
+  );
+}
+
+/* ── Tag (removable) ── */
+interface TagProps {
+  children: React.ReactNode;
+  onRemove?: () => void;
+  color?: string;
+  bg?: string;
+}
+
+export function Tag({ children, onRemove, color, bg }: TagProps) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium"
+      style={{
+        background: bg || "var(--color-bg-hover)",
+        color: color || "var(--color-text-secondary)",
+        border: "1px solid var(--color-border-default)",
+      }}
+    >
+      {children}
+      {onRemove && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          className="ml-0.5 rounded-sm hover:opacity-70"
+        >
+          <X size={10} />
+        </button>
+      )}
+    </span>
+  );
+}
+
+/* ── Property Badge (auto-colored from category string) ── */
+interface PropertyBadgeProps {
+  value: string;
+  className?: string;
+}
+
+const BADGE_PALETTE = [
+  { bg: "var(--color-badge-0-bg)", color: "var(--color-badge-0)" },
+  { bg: "var(--color-badge-1-bg)", color: "var(--color-badge-1)" },
+  { bg: "var(--color-badge-2-bg)", color: "var(--color-badge-2)" },
+  { bg: "var(--color-badge-3-bg)", color: "var(--color-badge-3)" },
+  { bg: "var(--color-badge-4-bg)", color: "var(--color-badge-4)" },
+  { bg: "var(--color-badge-5-bg)", color: "var(--color-badge-5)" },
+  { bg: "var(--color-badge-6-bg)", color: "var(--color-badge-6)" },
+  { bg: "var(--color-badge-7-bg)", color: "var(--color-badge-7)" },
+  { bg: "var(--color-badge-8-bg)", color: "var(--color-badge-8)" },
+  { bg: "var(--color-badge-9-bg)", color: "var(--color-badge-9)" },
+];
+
+function hashColor(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % BADGE_PALETTE.length;
+}
+
+export function PropertyBadge({ value, className = "" }: PropertyBadgeProps) {
+  const palette = BADGE_PALETTE[hashColor(value)];
+  return (
+    <span
+      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ${className}`}
+      style={{ background: palette.bg, color: palette.color }}
+    >
+      {value}
+    </span>
+  );
+}

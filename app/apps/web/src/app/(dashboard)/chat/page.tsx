@@ -9,6 +9,7 @@ import { ChatMarkdown } from "@/components/chat-markdown";
 import { ToolCallGroup } from "@/components/tool-call-panel";
 import { ActionCard, parseToolResultForCard } from "@/components/action-card";
 import { EmailComposer } from "@/components/email-composer";
+import { Button } from "@/components/ui/button";
 import { Sparkles, Send, Mail } from "lucide-react";
 
 export default function ChatPage() {
@@ -171,7 +172,7 @@ export default function ChatPage() {
     const subject = subjectMatch[1].trim();
     const bodyStart = text.indexOf(subjectMatch[0]) + subjectMatch[0].length;
     let body = text.slice(bodyStart).trim();
-    body = body.replace(/^[-—]+\n?/, "").trim();
+    body = body.replace(/^[-\u2014]+\n?/, "").trim();
     if (!body || body.length < 20) return null;
     return { to: toMatch ? toMatch[1].trim() : "", subject, body };
   }
@@ -191,7 +192,7 @@ export default function ChatPage() {
       {threadId && chat.messages.length > 0 && (
         <div
           className="flex items-center gap-2 px-6 py-2"
-          style={{ borderBottom: "0.5px solid var(--color-border-default)" }}
+          style={{ borderBottom: "1px solid var(--color-border-default)" }}
         >
           <Sparkles size={14} style={{ color: "var(--color-accent)" }} />
           <span
@@ -204,17 +205,18 @@ export default function ChatPage() {
               .join("")
               ?.slice(0, 80) || "Chat"}
           </span>
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => {
               router.push("/chat");
               setThreadId(null);
               setLastSavedCount(0);
             }}
-            className="text-[12px] font-medium"
             style={{ color: "var(--color-accent)" }}
           >
             + New chat
-          </button>
+          </Button>
         </div>
       )}
 
@@ -240,7 +242,7 @@ export default function ChatPage() {
             >
               Ask about your pipeline, accounts, or get help with outreach.
             </p>
-            <div className="mt-8 grid w-full max-w-lg gap-2">
+            <div className="mt-8 w-full max-w-lg">
               {[
                 "What should I focus on today?",
                 "Summarize my active opportunities",
@@ -254,18 +256,16 @@ export default function ChatPage() {
                 <button
                   key={suggestion}
                   onClick={() => useSuggestion(suggestion)}
-                  className="rounded-md px-4 py-2.5 text-left text-[13px] transition-colors"
+                  className="flex w-full items-center px-2 py-2.5 text-left text-[14px] transition-colors"
                   style={{
                     color: "var(--color-text-secondary)",
-                    border: "0.5px solid var(--color-border-moderate)",
+                    borderBottom: "1px solid var(--color-border-default)",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--color-accent)";
-                    e.currentTarget.style.color = "var(--color-text-primary)";
-                    e.currentTarget.style.background = "var(--color-accent-muted)";
+                    e.currentTarget.style.color = "var(--color-accent)";
+                    e.currentTarget.style.background = "var(--color-bg-hover)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--color-border-moderate)";
                     e.currentTarget.style.color = "var(--color-text-secondary)";
                     e.currentTarget.style.background = "transparent";
                   }}
@@ -284,11 +284,11 @@ export default function ChatPage() {
               className={`mb-6 ${message.role === "user" ? "flex justify-end" : ""}`}
             >
               {message.role === "user" ? (
-                /* User message — right-aligned, subtle bg, rounded */
+                /* User message — right-aligned, bg-hover background, rounded-[10px] */
                 <div
                   className="max-w-[85%] rounded-[10px] px-3.5 py-2.5"
                   style={{
-                    background: "var(--color-bg-muted)",
+                    background: "var(--color-bg-hover)",
                     color: "var(--color-text-primary)",
                     fontSize: "15px",
                     lineHeight: "22px",
@@ -302,7 +302,7 @@ export default function ChatPage() {
                     ))}
                 </div>
               ) : (
-                /* AI message — left-aligned, no bg, with label */
+                /* AI message — left-aligned, NO background, with "LeadSens" sparkle label */
                 <div className="max-w-[90%]">
                   {/* AI label */}
                   <div
@@ -371,18 +371,16 @@ export default function ChatPage() {
                     const emailData = detectEmail(fullText);
                     if (!emailData) return null;
                     return (
-                      <button
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        icon={<Mail size={13} />}
                         onClick={() => setEmailComposer(emailData)}
-                        className="mt-3 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors"
-                        style={{
-                          color: "var(--color-accent)",
-                          background: "var(--color-bg-surface)",
-                          border: "0.5px solid var(--color-border-moderate)",
-                        }}
+                        className="mt-3"
+                        style={{ color: "var(--color-accent)" }}
                       >
-                        <Mail size={13} />
                         Open in Composer
-                      </button>
+                      </Button>
                     );
                   })()}
                 </div>
@@ -407,39 +405,48 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Chat input bar — bottom fixed */}
+      {/* Chat input bar — bottom fixed, rounded-xl bg-card with subtle shadow */}
       <div
         className="px-6 pb-4 pt-3"
-        style={{ borderTop: "0.5px solid var(--color-border-default)" }}
+        style={{ borderTop: "1px solid var(--color-border-default)" }}
       >
-        <form onSubmit={handleLocalSubmit} className="mx-auto flex max-w-2xl gap-2">
+        <form onSubmit={handleLocalSubmit} className="relative mx-auto max-w-[740px]">
+          <Sparkles
+            size={15}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2"
+            style={{ color: "var(--color-text-tertiary)" }}
+          />
           <input
             ref={inputRef}
             value={localInput}
             onChange={(e) => setLocalInput(e.target.value)}
             placeholder="Ask LeadSens..."
-            className="flex-1 rounded-md px-4 py-2.5 text-[15px] outline-none transition-colors"
+            className="w-full rounded-xl py-2.5 pl-10 pr-12 text-[14px] outline-none transition-all"
             style={{
-              background: "var(--color-bg-surface)",
+              background: "var(--color-bg-card)",
               color: "var(--color-text-primary)",
-              border: "0.5px solid var(--color-border-moderate)",
+              border: "1px solid var(--color-border-default)",
+              boxShadow: "var(--shadow-card)",
             }}
             onFocus={(e) => {
-              e.currentTarget.style.borderColor = "var(--color-accent)";
+              e.currentTarget.style.borderColor = "var(--color-border-focus)";
             }}
             onBlur={(e) => {
-              e.currentTarget.style.borderColor = "var(--color-border-moderate)";
+              e.currentTarget.style.borderColor = "var(--color-border-default)";
             }}
             disabled={chat.status === "streaming"}
           />
-          <button
-            type="submit"
-            disabled={chat.status === "streaming" || !localInput.trim()}
-            className="flex h-[42px] w-[42px] items-center justify-center rounded-md text-white transition-colors disabled:opacity-40"
-            style={{ background: "var(--color-accent)" }}
-          >
-            <Send size={16} />
-          </button>
+          {localInput.trim() && (
+            <Button
+              type="submit"
+              variant="solid"
+              size="sm"
+              disabled={chat.status === "streaming"}
+              className="absolute right-2 top-1/2 -translate-y-1/2"
+              icon={<Send size={13} />}
+              style={{ borderRadius: "8px" }}
+            />
+          )}
         </form>
       </div>
 

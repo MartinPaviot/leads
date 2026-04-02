@@ -57,17 +57,26 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   return (
     <div className="flex h-full">
       {/* Settings sidebar */}
-      <aside className="flex w-[var(--sidebar-width)] flex-shrink-0 flex-col px-2 py-3"
-        style={{ borderRight: "0.5px solid var(--color-border-default)" }}>
-        <Link href="/" className="mb-3 flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] font-medium transition-colors"
-          style={{ color: "var(--color-accent)" }}>
+      <aside
+        className="flex w-[var(--sidebar-width)] flex-shrink-0 flex-col px-2 py-3"
+        style={{ borderRight: "1px solid var(--color-border-default)", background: "var(--color-bg-card)" }}
+      >
+        <Link
+          href="/"
+          className="mb-3 flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] font-medium transition-colors"
+          style={{ color: "var(--color-accent)" }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+        >
           <ArrowLeft size={14} /> Settings
         </Link>
 
         {settingsNav.map((section) => (
           <div key={section.label} className="mb-3">
-            <div className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider"
-              style={{ color: "var(--color-text-muted)" }}>
+            <div
+              className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider"
+              style={{ color: "var(--color-text-tertiary)" }}
+            >
               {section.label}
             </div>
             <div className="space-y-0.5">
@@ -75,13 +84,23 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                 const isActive = pathname === item.href || (item.href !== "/settings" && pathname?.startsWith(item.href));
                 const Icon = item.icon;
                 return (
-                  <Link key={item.href} href={item.href}
-                    className="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors"
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] font-medium transition-all duration-150"
                     style={{
                       background: isActive ? "var(--color-accent-soft)" : "transparent",
                       color: isActive ? "var(--color-text-primary)" : "var(--color-text-secondary)",
-                    }}>
-                    <Icon size={15} className="shrink-0" style={{ opacity: isActive ? 0.9 : 0.5 }} />
+                      boxShadow: isActive ? "inset 3px 0 0 0 var(--color-accent)" : undefined,
+                    }}
+                    onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+                    onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <Icon
+                      size={15}
+                      className="shrink-0"
+                      style={{ color: isActive ? "var(--color-accent)" : undefined, opacity: isActive ? 1 : 0.5 }}
+                    />
                     {item.label}
                   </Link>
                 );

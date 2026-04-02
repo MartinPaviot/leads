@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Check, Zap } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 interface Tier {
   name: string;
@@ -24,13 +26,8 @@ const tiers: Tier[] = [
     priceEnvKey: null,
     highlighted: false,
     features: [
-      "100 contacts",
-      "50 emails / month",
-      "100 AI queries / month",
-      "Automatic email capture",
-      "Basic lead scoring",
-      "1 connected mailbox",
-      "Community support",
+      "100 contacts", "50 emails / month", "100 AI queries / month",
+      "Automatic email capture", "Basic lead scoring", "1 connected mailbox", "Community support",
     ],
   },
   {
@@ -42,15 +39,9 @@ const tiers: Tier[] = [
     priceEnvKey: "NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID",
     highlighted: true,
     features: [
-      "1,000 contacts",
-      "500 emails / month",
-      "500 AI queries / month",
-      "Automatic email capture",
-      "ML-powered lead scoring",
-      "3 connected mailboxes",
-      "Outbound sequences",
-      "Deal pipeline",
-      "Email support",
+      "1,000 contacts", "500 emails / month", "500 AI queries / month",
+      "Automatic email capture", "ML-powered lead scoring", "3 connected mailboxes",
+      "Outbound sequences", "Deal pipeline", "Email support",
     ],
   },
   {
@@ -62,17 +53,10 @@ const tiers: Tier[] = [
     priceEnvKey: "NEXT_PUBLIC_STRIPE_PRO_PRICE_ID",
     highlighted: false,
     features: [
-      "10,000 contacts",
-      "5,000 emails / month",
-      "Unlimited AI queries",
-      "Automatic email capture",
-      "ML-powered lead scoring",
-      "Unlimited mailboxes",
-      "Outbound sequences",
-      "Deal pipeline + coaching",
-      "Signal-based prioritization",
-      "Auto-built TAM",
-      "Priority support",
+      "10,000 contacts", "5,000 emails / month", "Unlimited AI queries",
+      "Automatic email capture", "ML-powered lead scoring", "Unlimited mailboxes",
+      "Outbound sequences", "Deal pipeline + coaching", "Signal-based prioritization",
+      "Auto-built TAM", "Priority support",
     ],
   },
 ];
@@ -82,14 +66,11 @@ export default function PricingPage() {
 
   async function handleCheckout(tier: Tier) {
     if (!tier.priceEnvKey) return;
-
     const priceId =
       tier.priceEnvKey === "NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID"
         ? process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID
         : process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID;
-
     if (!priceId) return;
-
     setLoadingTier(tier.name);
     try {
       const res = await fetch("/api/billing/checkout", {
@@ -98,23 +79,15 @@ export default function PricingPage() {
         body: JSON.stringify({ priceId }),
       });
       const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    } catch {
-      console.error("Failed to start checkout");
-    } finally {
-      setLoadingTier(null);
-    }
+      if (data.url) window.location.href = data.url;
+    } catch { /* */ }
+    finally { setLoadingTier(null); }
   }
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-16">
       <div className="text-center">
-        <h1
-          className="text-[32px] font-bold tracking-tight"
-          style={{ color: "var(--color-text-primary)" }}
-        >
+        <h1 className="text-[32px] font-bold tracking-tight" style={{ color: "var(--color-text-primary)" }}>
           Simple, transparent pricing
         </h1>
         <p className="mx-auto mt-3 max-w-lg text-[15px]" style={{ color: "var(--color-text-tertiary)" }}>
@@ -122,99 +95,55 @@ export default function PricingPage() {
         </p>
       </div>
 
-      <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-3">
+      <div className="mt-12 grid grid-cols-1 gap-5 md:grid-cols-3">
         {tiers.map((tier) => (
           <div
             key={tier.name}
             className="relative flex flex-col rounded-xl p-6"
             style={{
-              background: "var(--color-bg-surface)",
-              border: tier.highlighted
-                ? "1px solid var(--color-accent)"
-                : "0.5px solid var(--color-border-default)",
+              background: "var(--color-bg-card)",
+              border: tier.highlighted ? "2px solid var(--color-accent)" : "1px solid var(--color-border-default)",
             }}
           >
             {tier.highlighted && (
-              <div
-                className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-3 py-0.5 text-[11px] font-semibold text-white"
-                style={{ background: "var(--color-accent)" }}
-              >
+              <div className="gradient-brand absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-3.5 py-1 text-[11px] font-semibold text-white">
                 Most Popular
               </div>
             )}
 
-            <div>
-              <h3
-                className="text-[15px] font-semibold"
-                style={{ color: "var(--color-text-primary)" }}
-              >
-                {tier.name}
-              </h3>
-              <div className="mt-3 flex items-baseline gap-1">
-                <span
-                  className="text-[36px] font-bold tracking-tight"
-                  style={{ color: "var(--color-text-primary)" }}
-                >
-                  {tier.price}
-                </span>
-                <span
-                  className="text-[14px]"
-                  style={{ color: "var(--color-text-muted)" }}
-                >
-                  {tier.priceNote}
-                </span>
-              </div>
-              <p
-                className="mt-2 text-[13px]"
-                style={{ color: "var(--color-text-tertiary)" }}
-              >
-                {tier.description}
-              </p>
+            <h3 className="text-[16px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+              {tier.name}
+            </h3>
+            <div className="mt-3 flex items-baseline gap-1">
+              <span className="text-[36px] font-bold tracking-tight" style={{ color: "var(--color-text-primary)" }}>
+                {tier.price}
+              </span>
+              <span className="text-[14px]" style={{ color: "var(--color-text-tertiary)" }}>
+                {tier.priceNote}
+              </span>
             </div>
+            <p className="mt-2 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
+              {tier.description}
+            </p>
 
-            <button
+            <Button
+              variant={tier.highlighted ? "gradient" : "outline"}
+              className="mt-6 w-full"
               onClick={() => handleCheckout(tier)}
               disabled={!tier.priceEnvKey || loadingTier === tier.name}
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-[13px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-60"
-              style={{
-                background: tier.highlighted
-                  ? "var(--color-accent)"
-                  : "transparent",
-                color: tier.highlighted
-                  ? "#fff"
-                  : "var(--color-text-primary)",
-                border: tier.highlighted
-                  ? "none"
-                  : "0.5px solid var(--color-border-moderate)",
-              }}
+              loading={loadingTier === tier.name}
+              icon={tier.highlighted && loadingTier !== tier.name ? <Zap size={14} /> : undefined}
             >
-              {loadingTier === tier.name ? (
-                "Redirecting..."
-              ) : (
-                <>
-                  {tier.highlighted && <Zap size={14} />}
-                  {tier.cta}
-                </>
-              )}
-            </button>
+              {tier.cta}
+            </Button>
 
-            <div
-              className="my-6 h-px"
-              style={{ background: "var(--color-border-default)" }}
-            />
+            <div className="my-6 h-px" style={{ background: "var(--color-border-default)" }} />
 
             <ul className="flex-1 space-y-2.5">
               {tier.features.map((feature) => (
                 <li key={feature} className="flex items-start gap-2.5">
-                  <Check
-                    size={15}
-                    className="mt-0.5 shrink-0"
-                    style={{ color: "var(--color-accent)" }}
-                  />
-                  <span
-                    className="text-[13px]"
-                    style={{ color: "var(--color-text-secondary)" }}
-                  >
+                  <Check size={15} className="mt-0.5 shrink-0" style={{ color: "var(--color-accent)" }} />
+                  <span className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
                     {feature}
                   </span>
                 </li>

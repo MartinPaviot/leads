@@ -6,6 +6,9 @@ import { eq, desc } from "drizzle-orm";
 import { Sidebar } from "@/components/sidebar";
 import { PersistentChatBar } from "@/components/persistent-chat-bar";
 import { PostHogPageTracker } from "@/components/posthog-provider";
+import { ThemeProvider } from "@/components/ui/theme-provider";
+import { ToastProvider } from "@/components/ui/toast";
+import { CommandPalette } from "@/components/ui/command-palette";
 
 export default async function DashboardLayout({
   children,
@@ -19,7 +22,6 @@ export default async function DashboardLayout({
 
   let recentChats: Array<{ id: string; title: string | null }> = [];
   try {
-    // Resolve app user ID from auth user ID for thread lookup
     const { users } = await import("@/db/schema");
     const [appUser] = await db
       .select({ id: users.id })
@@ -45,20 +47,26 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar
-        userName={session.user.name || "User"}
-        userInitials={initials}
-        recentChats={recentChats}
-        onSignOut={handleSignOut}
-      />
+    <ThemeProvider>
+      <ToastProvider>
+        <div className="flex h-screen overflow-hidden" style={{ background: "var(--color-bg-page)" }}>
+          <Sidebar
+            userName={session.user.name || "User"}
+            userInitials={initials}
+            recentChats={recentChats}
+            onSignOut={handleSignOut}
+          />
 
-      {/* Main content */}
-      <main className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex-1 overflow-auto">{children}</div>
-        <PersistentChatBar />
-        <PostHogPageTracker userId={session.user.id} />
-      </main>
-    </div>
+          {/* Main content with subtle grid background */}
+          <main className="bg-grid flex flex-1 flex-col overflow-hidden">
+            <div className="flex-1 overflow-auto">{children}</div>
+            <PersistentChatBar />
+            <PostHogPageTracker userId={session.user.id} />
+          </main>
+
+          <CommandPalette />
+        </div>
+      </ToastProvider>
+    </ThemeProvider>
   );
 }

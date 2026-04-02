@@ -2,11 +2,18 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Building2, Search, Plus, Zap, Target, Radio, X } from "lucide-react";
-import { badgeColorIndex, BADGE_COLORS, getLifecycleStyle, formatScore } from "@/lib/ui-utils";
+import { getLifecycleStyle, formatScore } from "@/lib/ui-utils";
 import { SlideOver, PropertyRow } from "@/components/slide-over";
 import { useCustomFields } from "@/hooks/use-custom-fields";
 import { getCustomFieldValue, formatFieldValue } from "@/lib/custom-fields";
 import type { CustomFieldDef } from "@/lib/custom-fields";
+import { PageHeader, FilterBar } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
+import { Badge, PropertyBadge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
+import { EmptyState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/skeleton";
 
 interface Account {
   id: string;
@@ -145,14 +152,7 @@ export default function AccountsPage() {
       return (
         <div className="flex flex-wrap gap-0.5">
           {values.map((v, i) => (
-            <span key={i} className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium"
-              style={{
-                background: BADGE_COLORS[badgeColorIndex(String(v))].bg,
-                color: BADGE_COLORS[badgeColorIndex(String(v))].text,
-                border: "0.5px solid var(--color-border-default)",
-              }}>
-              {String(v)}
-            </span>
+            <PropertyBadge key={i} value={String(v)} />
           ))}
         </div>
       );
@@ -199,61 +199,59 @@ export default function AccountsPage() {
 
   // === RENDER ===
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" style={{ background: "var(--color-bg-page)" }}>
       {/* Page header */}
-      <div
-        className="flex items-center gap-3 px-6"
-        style={{ height: "var(--header-height)", borderBottom: "0.5px solid var(--color-border-default)" }}
+      <PageHeader
+        icon={<Building2 size={16} />}
+        title="Accounts"
+        subtitle={`${accounts.length}`}
       >
-        <Building2 size={16} style={{ color: "var(--color-text-tertiary)" }} />
-        <h1 className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
-          Accounts
-        </h1>
-        <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-          {accounts.length}
-        </span>
-
-        <div className="ml-auto flex items-center gap-1.5">
-          <button onClick={detectSignals} disabled={detectingSignals}
-            className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[12px] font-medium transition-colors disabled:opacity-40"
-            style={{ border: "0.5px solid var(--color-border-moderate)", color: "var(--color-text-primary)" }}
+        <Button
+          variant="outline"
+          size="sm"
+          icon={<Radio size={13} />}
+          onClick={detectSignals}
+          disabled={detectingSignals}
+          loading={detectingSignals}
+        >
+          {detectingSignals ? "Detecting..." : "Signals"}
+        </Button>
+        {accounts.some((a) => a.score == null) && (
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<Target size={13} />}
+            onClick={scoreAll}
+            disabled={scoreAllRunning}
+            loading={scoreAllRunning}
           >
-            <Radio size={13} />
-            {detectingSignals ? "Detecting..." : "Signals"}
-          </button>
-          {accounts.some((a) => a.score == null) && (
-            <button onClick={scoreAll} disabled={scoreAllRunning}
-              className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[12px] font-medium transition-colors disabled:opacity-40"
-              style={{ border: "0.5px solid var(--color-border-moderate)", color: "var(--color-text-primary)" }}
-            >
-              <Target size={13} />
-              {scoreAllRunning ? "Scoring..." : "Score"}
-            </button>
-          )}
-          {unenrichedCount > 0 && (
-            <button onClick={enrichAll} disabled={enrichAllRunning}
-              className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[12px] font-medium transition-colors disabled:opacity-40"
-              style={{ border: "0.5px solid var(--color-border-moderate)", color: "var(--color-text-primary)" }}
-            >
-              <Zap size={13} />
-              {enrichAllRunning ? "Enriching..." : `Enrich (${unenrichedCount})`}
-            </button>
-          )}
-          <button onClick={() => setShowCreate(true)}
-            className="flex h-7 items-center gap-1 rounded-md px-2.5 text-[12px] font-medium text-white"
-            style={{ background: "var(--color-accent)" }}
+            {scoreAllRunning ? "Scoring..." : "Score"}
+          </Button>
+        )}
+        {unenrichedCount > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<Zap size={13} />}
+            onClick={enrichAll}
+            disabled={enrichAllRunning}
+            loading={enrichAllRunning}
           >
-            <Plus size={13} />
-            Create account
-          </button>
-        </div>
-      </div>
+            {enrichAllRunning ? "Enriching..." : `Enrich (${unenrichedCount})`}
+          </Button>
+        )}
+        <Button
+          variant="gradient"
+          size="sm"
+          icon={<Plus size={13} />}
+          onClick={() => setShowCreate(true)}
+        >
+          Create account
+        </Button>
+      </PageHeader>
 
       {/* Filter bar */}
-      <div
-        className="flex items-center gap-3 px-6"
-        style={{ height: "var(--filter-bar-height)", borderBottom: "0.5px solid var(--color-border-default)" }}
-      >
+      <FilterBar>
         {/* Filter tabs */}
         <div className="flex gap-0.5">
           {(["all", "tam", "manual"] as const).map((f) => (
@@ -272,87 +270,92 @@ export default function AccountsPage() {
         <div className="ml-auto flex items-center gap-2">
           <div className="relative flex items-center">
             <Search size={13} className="absolute left-2.5" style={{ color: "var(--color-text-muted)" }} />
-            <input
+            <Input
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); if (!e.target.value.trim()) setSearchResults(null); }}
               onKeyDown={(e) => { if (e.key === "Enter") handleSemanticSearch(); }}
               placeholder="Search accounts..."
-              className="h-7 w-52 rounded-md pl-8 pr-2 text-[12px] outline-none transition-colors"
-              style={{ background: "var(--color-bg-surface)", border: "0.5px solid var(--color-border-default)", color: "var(--color-text-primary)" }}
+              className="!h-7 w-52 !pl-8 !pr-2 !text-[12px]"
             />
           </div>
           {searchResults && (
-            <button onClick={() => { setSearchResults(null); setSearchQuery(""); }}
-              className="flex h-6 w-6 items-center justify-center rounded-md"
-              style={{ color: "var(--color-text-tertiary)" }}
+            <Button
+              variant="icon"
+              size="sm"
+              onClick={() => { setSearchResults(null); setSearchQuery(""); }}
             >
               <X size={14} />
-            </button>
+            </Button>
           )}
         </div>
-      </div>
+      </FilterBar>
 
-      {/* Create form */}
-      {showCreate && (
-        <div className="flex items-center gap-2 px-6 py-2" style={{ borderBottom: "0.5px solid var(--color-border-default)" }}>
-          <form onSubmit={handleCreate} className="flex flex-1 items-center gap-2">
-            <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Company name" autoFocus
-              className="h-7 flex-1 rounded-md px-2.5 text-[12px] outline-none"
-              style={{ background: "var(--color-bg-surface)", border: "0.5px solid var(--color-border-moderate)", color: "var(--color-text-primary)" }}
-            />
-            <input value={newDomain} onChange={(e) => setNewDomain(e.target.value)} placeholder="Domain"
-              className="h-7 w-40 rounded-md px-2.5 text-[12px] outline-none"
-              style={{ background: "var(--color-bg-surface)", border: "0.5px solid var(--color-border-moderate)", color: "var(--color-text-primary)" }}
-            />
-            <button type="submit" disabled={creating || !newName.trim()}
-              className="h-7 rounded-md px-3 text-[12px] font-medium text-white disabled:opacity-40"
-              style={{ background: "var(--color-accent)" }}>
-              {creating ? "..." : "Create"}
-            </button>
-            <button type="button" onClick={() => setShowCreate(false)}
-              className="h-7 rounded-md px-3 text-[12px] font-medium"
-              style={{ color: "var(--color-text-tertiary)" }}>
+      {/* Create form modal */}
+      <Modal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        title="Create account"
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setShowCreate(false)}>
               Cancel
-            </button>
-          </form>
-        </div>
-      )}
+            </Button>
+            <Button
+              variant="gradient"
+              size="sm"
+              onClick={(e) => handleCreate(e as unknown as React.FormEvent)}
+              disabled={creating || !newName.trim()}
+              loading={creating}
+            >
+              Create
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleCreate} className="flex flex-col gap-3">
+          <Input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Company name"
+            label="Name"
+            autoFocus
+          />
+          <Input
+            value={newDomain}
+            onChange={(e) => setNewDomain(e.target.value)}
+            placeholder="example.com"
+            label="Domain"
+          />
+        </form>
+      </Modal>
 
       {/* Table */}
       <div className="flex-1 overflow-auto">
         {loading ? (
-          <div className="space-y-1 p-6">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="skeleton h-10 rounded-md" />
-            ))}
-          </div>
+          <TableSkeleton
+            rows={8}
+            cols={8 + signalTypeColumns.length + customBoolColumns.length + customFields.length}
+          />
         ) : accounts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <Building2 size={32} style={{ color: "var(--color-text-muted)" }} />
-            <p className="mt-3 text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-              No accounts
-            </p>
-            <p className="mt-1 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-              Create accounts or import contacts to get started.
-            </p>
-          </div>
+          <EmptyState
+            icon={<Building2 size={24} />}
+            title="No accounts"
+            description="Create accounts or import contacts to get started."
+            actionLabel="Create account"
+            onAction={() => setShowCreate(true)}
+            actionVariant="gradient"
+          />
         ) : (
-          <table className="w-full text-left" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
+          <table className="ls-table">
             <thead>
-              <tr style={{ height: "36px" }}>
+              <tr>
                 {["", "Account", "Domain", "Industry", "Size", "Revenue", "Stage", "Score",
                   ...signalTypeColumns.map((t) => t.replace(/_/g, " ")),
                   ...customBoolColumns,
                   ...customFields.map((f) => f.name),
                   ""].map((col, i) => (
-                  <th key={i}
-                    className="sticky top-0 z-10 whitespace-nowrap px-3 text-[11px] font-medium uppercase tracking-wider"
-                    style={{
-                      color: "var(--color-text-tertiary)",
-                      background: "var(--color-bg-surface)",
-                      borderBottom: "0.5px solid var(--color-border-moderate)",
-                    }}
-                  >
+                  <th key={i}>
                     {col}
                   </th>
                 ))}
@@ -365,13 +368,9 @@ export default function AccountsPage() {
                 const signals = getSignals(account);
 
                 return (
-                  <tr key={account.id} className="group transition-colors"
-                    style={{ height: "var(--table-row-height)", borderBottom: "0.5px solid var(--color-border-default)" }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-muted)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                  >
+                  <tr key={account.id}>
                     {/* Status */}
-                    <td className="px-3">
+                    <td>
                       <div className="flex items-center gap-1.5">
                         {enrichStatus[account.id] === "enriching" ? (
                           <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: "var(--color-warning)" }} />
@@ -383,23 +382,20 @@ export default function AccountsPage() {
                           <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-text-muted)" }} />
                         )}
                         {isTAM(account) && (
-                          <span className="rounded px-1 py-0.5 text-[9px] font-semibold uppercase"
-                            style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
-                            TAM
-                          </span>
+                          <Badge variant="info" size="sm">TAM</Badge>
                         )}
                       </div>
                     </td>
 
                     {/* Account name with logo */}
-                    <td className="px-3">
+                    <td>
                       <div className="flex items-center gap-2">
                         {account.domain ? (
                           <img
                             src={`https://logo.clearbit.com/${account.domain}`}
                             alt=""
                             className="h-5 w-5 shrink-0 rounded"
-                            style={{ background: "var(--color-bg-muted)" }}
+                            style={{ background: "var(--color-bg-hover)" }}
                             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                           />
                         ) : (
@@ -428,36 +424,29 @@ export default function AccountsPage() {
                     </td>
 
                     {/* Domain */}
-                    <td className="px-3 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                    <td className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
                       {account.domain || "—"}
                     </td>
 
-                    {/* Industry — auto-colored badge */}
-                    <td className="px-3">
+                    {/* Industry -- auto-colored badge */}
+                    <td>
                       {account.industry ? (
-                        <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium"
-                          style={{
-                            background: BADGE_COLORS[badgeColorIndex(account.industry)].bg,
-                            color: BADGE_COLORS[badgeColorIndex(account.industry)].text,
-                            border: "0.5px solid var(--color-border-default)",
-                          }}>
-                          {account.industry}
-                        </span>
+                        <PropertyBadge value={account.industry} />
                       ) : <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>}
                     </td>
 
                     {/* Size */}
-                    <td className="px-3 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                    <td className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
                       {account.size || "—"}
                     </td>
 
                     {/* Revenue */}
-                    <td className="px-3 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                    <td className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
                       {account.revenue || "—"}
                     </td>
 
                     {/* Lifecycle stage */}
-                    <td className="px-3">
+                    <td>
                       <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium capitalize"
                         style={{ background: lcStyle.bg, color: lcStyle.text }}>
                         {lc}
@@ -465,7 +454,7 @@ export default function AccountsPage() {
                     </td>
 
                     {/* Score */}
-                    <td className="px-3">
+                    <td>
                       {(() => {
                         const scoreInfo = formatScore(account.score);
                         if (!scoreInfo) return <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>;
@@ -484,7 +473,7 @@ export default function AccountsPage() {
                       const signal = accountHasSignalType(account, sigType);
                       const popoverId = `${account.id}-sig-${sigType}`;
                       return (
-                        <td key={sigType} className="px-3">
+                        <td key={sigType}>
                           {signal ? (
                             <span className="relative">
                               <button onClick={(e) => { e.stopPropagation(); setActiveSignalPopover(activeSignalPopover === popoverId ? null : popoverId); }}
@@ -494,7 +483,7 @@ export default function AccountsPage() {
                               </button>
                               {activeSignalPopover === popoverId && (
                                 <div className="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg p-3"
-                                  style={{ background: "var(--color-bg-elevated)", border: "0.5px solid var(--color-border-moderate)", boxShadow: "var(--shadow-floating)" }}>
+                                  style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-moderate)", boxShadow: "var(--shadow-floating)" }}>
                                   <div className="mb-2 flex items-center justify-between">
                                     <span className="text-[11px] font-medium" style={{ color: "var(--color-text-primary)" }}>{signal.title}</span>
                                     <span className="text-[10px] font-semibold uppercase"
@@ -504,18 +493,18 @@ export default function AccountsPage() {
                                   </div>
                                   <p className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>{signal.description}</p>
                                   {signal.reasoning && (
-                                    <div className="mt-2 pt-2" style={{ borderTop: "0.5px solid var(--color-border-default)" }}>
+                                    <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--color-border-default)" }}>
                                       <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Reasoning</p>
                                       <p className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>{signal.reasoning}</p>
                                     </div>
                                   )}
                                   {signal.sources && signal.sources.length > 0 && (
-                                    <div className="mt-2 space-y-1 pt-2" style={{ borderTop: "0.5px solid var(--color-border-default)" }}>
+                                    <div className="mt-2 space-y-1 pt-2" style={{ borderTop: "1px solid var(--color-border-default)" }}>
                                       <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Sources</p>
                                       {signal.sources.map((src, si) => (
                                         <a key={si} href={src.url} target="_blank" rel="noopener noreferrer"
                                           className="flex items-center gap-1.5 text-[11px] hover:underline" style={{ color: "var(--color-accent)" }}>
-                                          <span className="shrink-0">↗</span>
+                                          <span className="shrink-0">&#8599;</span>
                                           <span className="truncate">{src.title}</span>
                                         </a>
                                       ))}
@@ -540,11 +529,11 @@ export default function AccountsPage() {
                     {customBoolColumns.map((col) => {
                       const val = getCustomBool(account, col);
                       return (
-                        <td key={col} className="px-3 text-[11px] font-medium">
+                        <td key={col} className="text-[11px] font-medium">
                           {val === null ? (
                             <span style={{ color: "var(--color-text-muted)" }}>—</span>
                           ) : val ? (
-                            <span style={{ color: "var(--color-success)" }}>Yes</span>
+                            <Badge variant="success" size="sm">Yes</Badge>
                           ) : (
                             <span style={{ color: "var(--color-text-muted)" }}>No</span>
                           )}
@@ -554,19 +543,22 @@ export default function AccountsPage() {
 
                     {/* Custom fields from data model */}
                     {customFields.map((field) => (
-                      <td key={field.id} className="px-3">
+                      <td key={field.id}>
                         {renderCustomFieldCell(account, field)}
                       </td>
                     ))}
 
                     {/* Actions */}
-                    <td className="px-3">
+                    <td className="actions">
                       {!isEnriched(account) && enrichStatus[account.id] !== "enriching" && (
-                        <button onClick={() => enrichSingle(account.id)}
-                          className="rounded px-2 py-0.5 text-[11px] font-medium transition-colors"
-                          style={{ color: "var(--color-accent)" }}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => enrichSingle(account.id)}
+                          className="!px-2 !py-0.5"
+                        >
                           Enrich
-                        </button>
+                        </Button>
                       )}
                     </td>
                   </tr>
@@ -613,7 +605,7 @@ export default function AccountsPage() {
               } />
               {/* Custom fields in slide-over */}
               {customFields.length > 0 && (
-                <div className="mt-3 pt-2" style={{ borderTop: "0.5px solid var(--color-border-default)" }}>
+                <div className="mt-3 pt-2" style={{ borderTop: "1px solid var(--color-border-default)" }}>
                   <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
                     Custom fields
                   </span>
@@ -636,7 +628,7 @@ export default function AccountsPage() {
                   <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>Score Criteria</span>
                   <ul className="mt-1 space-y-0.5">
                     {a.scoreReasons.map((reason, i) => (
-                      <li key={i} className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>• {reason}</li>
+                      <li key={i} className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>&#8226; {reason}</li>
                     ))}
                   </ul>
                 </div>

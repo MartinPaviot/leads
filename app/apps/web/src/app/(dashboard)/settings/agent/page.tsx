@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Card, CardBody } from "@/components/ui/card";
+import { Select } from "@/components/ui/input";
 
 export default function AgentSettingsPage() {
   const [mode, setMode] = useState<"ask" | "auto">("ask");
@@ -39,25 +41,27 @@ export default function AgentSettingsPage() {
 
       <section className="mt-6">
         <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Agent permissions</h2>
-        <div className="mt-3 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-surface)] p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-[var(--color-text-primary)]">Record creation and updates</p>
-              <p className="text-xs text-[var(--color-text-tertiary)]">
-                Choose whether or not record creation and field updates require approval in chat.
-              </p>
+        <Card className="mt-3">
+          <CardBody>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-[var(--color-text-primary)]">Record creation and updates</p>
+                <p className="text-xs text-[var(--color-text-tertiary)]">
+                  Choose whether or not record creation and field updates require approval in chat.
+                </p>
+              </div>
+              <Select
+                value={mode}
+                onChange={(e) => handleChange(e.target.value as "ask" | "auto")}
+                options={[
+                  { value: "ask", label: "Ask every time" },
+                  { value: "auto", label: "Auto-run" },
+                ]}
+              />
             </div>
-            <select
-              value={mode}
-              onChange={(e) => handleChange(e.target.value as "ask" | "auto")}
-              className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm text-[var(--color-text-primary)]"
-            >
-              <option value="ask">Ask every time</option>
-              <option value="auto">Auto-run</option>
-            </select>
-          </div>
-          {saved && <p className="mt-2 text-xs text-green-400">Saved</p>}
-        </div>
+            {saved && <p className="mt-2 text-xs text-green-400">Saved</p>}
+          </CardBody>
+        </Card>
       </section>
     </>
   );
