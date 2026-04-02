@@ -13,6 +13,7 @@ import {
 } from "./db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { inngest } from "./inngest/client";
 
 /** Resolve (or create) a tenant + app user for the given auth user */
 async function resolveUserTenant(authUserId: string, email: string) {
@@ -139,6 +140,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.googleTokenExpiry = account.expires_at
           ? account.expires_at * 1000
           : Date.now() + 3600 * 1000;
+
+        // Trigger initial email/calendar sync via Inngest
+        if (token.tenantId && token.appUserId) {
+          inngest.send({
+            name: "google/oauth-connected",
+            data: {
+              userId: user?.id || (token.id as string),
+              tenantId: token.tenantId as string,
+              appUserId: token.appUserId as string,
+            },
+          }).catch((err) => console.warn("Failed to trigger OAuth sync:", err));
+        }
       }
 
       // Refresh Google token if expired
