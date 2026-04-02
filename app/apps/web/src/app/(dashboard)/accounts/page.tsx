@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import { Building2, Search, Plus, Zap, Target, Radio, X } from "lucide-react";
 import { badgeColorIndex, BADGE_COLORS, getLifecycleStyle, formatScore } from "@/lib/ui-utils";
 import { SlideOver, PropertyRow } from "@/components/slide-over";
+import { useCustomFields } from "@/hooks/use-custom-fields";
+import { getCustomFieldValue, formatFieldValue } from "@/lib/custom-fields";
+import type { CustomFieldDef } from "@/lib/custom-fields";
 
 interface Account {
   id: string;
@@ -37,6 +40,7 @@ export default function AccountsPage() {
   const [searching, setSearching] = useState(false);
   const [activeSignalPopover, setActiveSignalPopover] = useState<string | null>(null);
   const [slideOverAccount, setSlideOverAccount] = useState<Account | null>(null);
+  const { fields: customFields } = useCustomFields("company");
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -123,10 +127,49 @@ export default function AccountsPage() {
   interface Signal { type: string; title: string; description: string; relevance: string; reasoning?: string; sources?: Array<{ url: string; title: string }>; }
   function getSignals(account: Account): Signal[] { return ((account.properties as Record<string, unknown>)?.signals as Signal[]) || []; }
 
+  // Legacy custom bool columns (kept for backward compatibility with existing signal data)
   const [customBoolColumns] = useState<string[]>(["Common Investor?", "Sales-led?"]);
   function getCustomBool(account: Account, column: string): boolean | null {
     const customs = (account.properties as Record<string, unknown>)?.customBools as Record<string, boolean> | undefined;
     return customs?.[column] ?? null;
+  }
+
+  /** Render a custom field cell value */
+  function renderCustomFieldCell(account: Account, field: CustomFieldDef) {
+    const value = getCustomFieldValue(account.properties, field.id);
+    if (value == null || value === "") {
+      return <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>;
+    }
+    if (field.type === "single_select" || field.type === "multi_select") {
+      const values = Array.isArray(value) ? value : [value];
+      return (
+        <div className="flex flex-wrap gap-0.5">
+          {values.map((v, i) => (
+            <span key={i} className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium"
+              style={{
+                background: BADGE_COLORS[badgeColorIndex(String(v))].bg,
+                color: BADGE_COLORS[badgeColorIndex(String(v))].text,
+                border: "0.5px solid var(--color-border-default)",
+              }}>
+              {String(v)}
+            </span>
+          ))}
+        </div>
+      );
+    }
+    if (field.type === "url") {
+      return (
+        <a href={String(value)} target="_blank" rel="noopener noreferrer"
+          className="text-[12px] hover:underline" style={{ color: "var(--color-accent)" }}>
+          {String(value).replace(/^https?:\/\/(www\.)?/, "").slice(0, 30)}
+        </a>
+      );
+    }
+    return (
+      <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+        {formatFieldValue(value, field.type)}
+      </span>
+    );
   }
 
   const filteredAccounts = accounts
@@ -299,7 +342,9 @@ export default function AccountsPage() {
               <tr style={{ height: "36px" }}>
                 {["", "Account", "Domain", "Industry", "Size", "Revenue", "Stage", "Score",
                   ...signalTypeColumns.map((t) => t.replace(/_/g, " ")),
-                  ...customBoolColumns, ""].map((col, i) => (
+                  ...customBoolColumns,
+                  ...customFields.map((f) => f.name),
+                  ""].map((col, i) => (
                   <th key={i}
                     className="sticky top-0 z-10 whitespace-nowrap px-3 text-[11px] font-medium uppercase tracking-wider"
                     style={{
@@ -507,6 +552,13 @@ export default function AccountsPage() {
                       );
                     })}
 
+                    {/* Custom fields from data model */}
+                    {customFields.map((field) => (
+                      <td key={field.id} className="px-3">
+                        {renderCustomFieldCell(account, field)}
+                      </td>
+                    ))}
+
                     {/* Actions */}
                     <td className="px-3">
                       {!isEnriched(account) && enrichStatus[account.id] !== "enriching" && (
@@ -559,6 +611,20 @@ export default function AccountsPage() {
                   </span>
                 ) : "—"
               } />
+              {/* Custom fields in slide-over */}
+              {customFields.length > 0 && (
+                <div className="mt-3 pt-2" style={{ borderTop: "0.5px solid var(--color-border-default)" }}>
+                  <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
+                    Custom fields
+                  </span>
+                  <div className="mt-1">
+                    {customFields.map((field) => (
+                      <PropertyRow key={field.id} label={field.name}
+                        value={formatFieldValue(getCustomFieldValue(a.properties, field.id), field.type)} />
+                    ))}
+                  </div>
+                </div>
+              )}
               {a.description && (
                 <div className="mt-3">
                   <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>Description</span>

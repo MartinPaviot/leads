@@ -4,9 +4,10 @@ import { openai } from "@ai-sdk/openai";
 import { streamText, UIMessage, convertToModelMessages, tool, stepCountIs } from "ai";
 import { searchSimilar } from "@/lib/embeddings";
 import { db } from "@/db";
-import { companies, contacts, deals, activities, notes } from "@/db/schema";
+import { companies, contacts, deals, activities, notes, tenants } from "@/db/schema";
 import { and, eq, desc, sql, ilike, or } from "drizzle-orm";
 import { z } from "zod";
+import type { CustomFieldDef, PipelineStageDef } from "@/lib/custom-fields";
 // JSONValue type for tool generics
 type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue };
 
@@ -70,11 +71,38 @@ async function getCRMSnapshot(tenantId: string): Promise<string> {
     .orderBy(desc(activities.occurredAt))
     .limit(15);
 
+  // Load custom field definitions and pipeline stages for AI awareness
+  let customFieldsInfo = "";
+  let pipelineStagesInfo = "";
+  try {
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+    if (tenant) {
+      const settings = (tenant.settings || {}) as Record<string, unknown>;
+      const customFields = (settings.customFields || []) as CustomFieldDef[];
+      const pipelineStages = (settings.pipelineStages || []) as PipelineStageDef[];
+
+      if (customFields.length > 0) {
+        customFieldsInfo = `\n\n### Custom Fields (user-defined schema)\n${customFields.map(
+          (f) => `- ${f.entityType}.${f.name} (${f.type}, AI fill: ${f.aiFillMode})${f.options ? ` [options: ${f.options.join(", ")}]` : ""}`
+        ).join("\n")}`;
+        customFieldsInfo += `\nCustom field values are stored in entity properties.customFields.{fieldId}. When creating/updating records, set custom field values there.`;
+      }
+
+      if (pipelineStages.length > 0) {
+        pipelineStagesInfo = `\n\n### Pipeline Stages (configured by user)\n${pipelineStages.map(
+          (s) => `- ${s.name} (${s.category}): ${s.description || "no description"} [AI: ${s.aiFillMode}]`
+        ).join("\n")}`;
+      }
+    }
+  } catch {
+    // Non-critical — custom fields info is supplementary
+  }
+
   let snapshot = `\n\n## CRM Data Snapshot
 - Accounts: ${accountCount.count}
 - Contacts: ${contactCount.count}
 - Deals: ${dealCount.count}
-- Activities: ${activityCount.count}`;
+- Activities: ${activityCount.count}${customFieldsInfo}${pipelineStagesInfo}`;
 
   if (recentAccounts.length > 0) {
     snapshot += `\n\n### Recent Accounts\n${recentAccounts.map((a) => `- ${a.name} (${a.domain || "no domain"}, ${a.industry || "unknown industry"}, score: ${a.score ?? "unscored"}) [id:${a.id}]`).join("\n")}`;

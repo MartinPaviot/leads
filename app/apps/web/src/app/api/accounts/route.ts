@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth-utils";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { inngest } from "@/inngest/client";
 
 export async function GET(req: Request) {
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { name, domain } = body;
+    const { name, domain, properties: customProperties } = body;
 
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       return Response.json({ error: "Name is required" }, { status: 400 });
@@ -61,6 +61,7 @@ export async function POST(req: Request) {
         name: name.trim(),
         domain: domain?.trim() || null,
         tenantId: authCtx.tenantId,
+        properties: customProperties || {},
       })
       .returning();
 
@@ -74,5 +75,48 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Failed to create account:", error);
     return Response.json({ error: "Failed to create account" }, { status: 500 });
+  }
+}
+
+/** Update custom field values on an account */
+export async function PATCH(req: Request) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const body = await req.json();
+    const { id, customFields } = body;
+
+    if (!id || !customFields || typeof customFields !== "object") {
+      return Response.json({ error: "id and customFields required" }, { status: 400 });
+    }
+
+    // Get current properties
+    const [existing] = await db.select().from(companies)
+      .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)))
+      .limit(1);
+
+    if (!existing) {
+      return Response.json({ error: "Account not found" }, { status: 404 });
+    }
+
+    const currentProps = (existing.properties || {}) as Record<string, unknown>;
+    const currentCustom = (currentProps.customFields || {}) as Record<string, unknown>;
+
+    const [updated] = await db.update(companies).set({
+      properties: {
+        ...currentProps,
+        customFields: { ...currentCustom, ...customFields },
+      },
+      updatedAt: new Date(),
+    }).where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)))
+      .returning();
+
+    return Response.json({ account: updated });
+  } catch (error) {
+    console.error("Failed to update custom fields:", error);
+    return Response.json({ error: "Failed to update" }, { status: 500 });
   }
 }

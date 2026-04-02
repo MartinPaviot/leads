@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { CircleDot, Plus, BarChart3, X, ChevronDown, ChevronUp } from "lucide-react";
 import { STAGE_COLORS as STAGE_DOT_COLORS_IMPORTED, RISK_STYLES } from "@/lib/ui-utils";
+import { usePipelineStages } from "@/hooks/use-custom-fields";
+import type { PipelineStageDef } from "@/lib/custom-fields";
 
 interface Analytics {
   totalDeals: number;
@@ -56,6 +58,7 @@ interface Deal {
 export default function OpportunitiesPage() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+  const { stages: pipelineStages } = usePipelineStages();
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [newValue, setNewValue] = useState("");
@@ -167,9 +170,18 @@ export default function OpportunitiesPage() {
     );
   }
 
-  const dealsByStage = STAGES.reduce(
+  // Use dynamic pipeline stages from settings, with fallback to hardcoded STAGES
+  const activeStages: Array<{ id: string; name: string; description: string }> =
+    pipelineStages.length > 0
+      ? pipelineStages.map((s) => ({ id: s.id, name: s.name, description: s.description }))
+      : STAGES.map((s) => ({ id: s, name: STAGE_LABELS[s] || s, description: "" }));
+
+  const dealsByStage = activeStages.reduce(
     (acc, stage) => {
-      acc[stage] = deals.filter((d) => d.stage === stage);
+      // Match deals by stage id OR stage name (case-insensitive) for flexibility
+      acc[stage.id] = deals.filter((d) =>
+        d.stage === stage.id || d.stage.toLowerCase() === stage.name.toLowerCase()
+      );
       return acc;
     },
     {} as Record<string, Deal[]>
@@ -509,9 +521,14 @@ export default function OpportunitiesPage() {
           </p>
         ) : (
           <div className="flex flex-1 gap-3 overflow-x-auto">
-            {STAGES.map((stage) => (
+            {activeStages.map((stage, stageIdx) => {
+              const stageDeals = dealsByStage[stage.id] || [];
+              // Dynamic dot color based on stage position
+              const dotColor = STAGE_DOT_COLORS[stage.id as keyof typeof STAGE_DOT_COLORS]
+                || (stageIdx < 2 ? "var(--color-text-tertiary)" : stageIdx < 4 ? "var(--color-warning)" : "var(--color-success)");
+              return (
               <div
-                key={stage}
+                key={stage.id}
                 className="flex flex-shrink-0 flex-col rounded-md"
                 style={{
                   width: 260,
@@ -527,13 +544,13 @@ export default function OpportunitiesPage() {
                     <div className="flex items-center gap-2">
                       <span
                         className="inline-block h-2 w-2 rounded-full"
-                        style={{ background: STAGE_DOT_COLORS[stage] }}
+                        style={{ background: dotColor }}
                       />
                       <span
                         className="text-xs font-semibold uppercase tracking-wider"
                         style={{ color: "var(--color-text-secondary)" }}
                       >
-                        {STAGE_LABELS[stage]}
+                        {stage.name}
                       </span>
                     </div>
                     <span
@@ -543,20 +560,25 @@ export default function OpportunitiesPage() {
                         color: "var(--color-text-tertiary)",
                       }}
                     >
-                      {dealsByStage[stage].length}
+                      {stageDeals.length}
                     </span>
                   </div>
-                  {dealsByStage[stage].reduce((sum, d) => sum + (d.value || 0), 0) > 0 && (
+                  {stageDeals.reduce((sum, d) => sum + (d.value || 0), 0) > 0 && (
                     <p className="mt-0.5 text-[10px]" style={{ color: "var(--color-success)" }}>
                       $
-                      {dealsByStage[stage]
+                      {stageDeals
                         .reduce((sum, d) => sum + (d.value || 0), 0)
                         .toLocaleString()}
                     </p>
                   )}
+                  {stage.description && (
+                    <p className="mt-0.5 text-[9px]" style={{ color: "var(--color-text-muted)" }}>
+                      {stage.description}
+                    </p>
+                  )}
                 </div>
                 <div className="flex-1 space-y-2 p-2">
-                  {dealsByStage[stage].map((deal) => (
+                  {stageDeals.map((deal) => (
                     <div
                       key={deal.id}
                       className="rounded-md p-3"
@@ -591,7 +613,7 @@ export default function OpportunitiesPage() {
                       )}
                     </div>
                   ))}
-                  {dealsByStage[stage].length === 0 && (
+                  {stageDeals.length === 0 && (
                     <p
                       className="py-4 text-center text-xs"
                       style={{ color: "var(--color-text-tertiary)" }}
@@ -601,7 +623,8 @@ export default function OpportunitiesPage() {
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

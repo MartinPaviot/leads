@@ -884,5 +884,115 @@
     "passes": true,
     "attempts": 1,
     "completeness_target": 6
+  },
+  {
+    "id": "S1",
+    "name": "Schema-less field definitions system",
+    "area": "Architecture",
+    "milestone": "M13",
+    "description": "New custom_field_definitions table + pipeline_stage_definitions table. CRUD settings UI for custom fields per entity (account/contact/deal) with field types (text, date, single_select, multi_select, url, social, address, markdown), AI fill modes (auto/suggest/off), editable-by. Migrate deal_stage enum to configurable stages.",
+    "dependencies": ["F1.3"],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 10
+  },
+  {
+    "id": "S2",
+    "name": "Dynamic entity rendering from field definitions",
+    "area": "Architecture",
+    "milestone": "M13",
+    "description": "Refactor entity tables (accounts, contacts, deals) to dynamically render columns from custom_field_definitions + JSONB properties. Include custom fields in filter/sort. Render in detail panels and slide-overs.",
+    "dependencies": ["S1"],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 9
+  },
+  {
+    "id": "S3",
+    "name": "AI field auto-fill from conversations",
+    "area": "Architecture",
+    "milestone": "M13",
+    "description": "AI reads custom_field_definitions with aiFillMode. For 'auto' fields: populate from conversation/enrichment data automatically. For 'suggest' fields: propose values for user confirmation. Per-field AI integration.",
+    "dependencies": ["S1", "F2.6"],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 9
+  },
+  {
+    "id": "S4",
+    "name": "Customer memory quality + recall testing",
+    "area": "Memory",
+    "milestone": "M13",
+    "description": "Measure recall accuracy with 20+ test queries against known data. Fix embedding coverage gaps. Add pgvector index. Verify citation links resolve. Test cross-entity and date-range queries. Target: 90%+ recall on known data.",
+    "dependencies": ["F2.6", "F2.7"],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 10
+  },
+  {
+    "id": "S5",
+    "name": "Auto-generate account summaries from conversations",
+    "area": "Memory",
+    "milestone": "M13",
+    "description": "After email sync, aggregate conversation data per account. AI generates 'Account summary' and 'About their business' fields. Store as system-managed custom fields with AI fill: auto.",
+    "dependencies": ["S1", "F2.1"],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 8
+  },
+  {
+    "id": "S6",
+    "name": "Auto-create accounts from email domains",
+    "area": "Memory",
+    "milestone": "M13",
+    "description": "During email sync, if a new external domain is detected (not in company domain exclusion list), auto-create a company record. Enrich it. Link contacts. Makes conversations a first-class data source.",
+    "dependencies": ["F2.1", "G33"],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 8
+  },
+  {
+    "id": "S7",
+    "name": "Agent action tools: createTask, updateDealStage, sendEmail, bulk ops",
+    "area": "Intelligence",
+    "milestone": "M13",
+    "description": "Add missing AI tools to chat: createTask (link to entity), updateDealStage (move deal), sendEmail (via connected mailbox with approval), bulkUpdateDeals, bulkDraftEmails. Wire human-in-the-loop approval for destructive actions.",
+    "dependencies": ["F6.1", "F4.4"],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 9
+  },
+  {
+    "id": "S8",
+    "name": "Calendar sync + meeting detection",
+    "area": "Memory",
+    "milestone": "M13",
+    "description": "Build F2.2: Google Calendar sync via OAuth. Detect meetings with external participants. Create activity records. Extract participant info. Foundation for meeting intelligence.",
+    "dependencies": ["F2.1"],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 8
+  },
+  {
+    "id": "S9",
+    "name": "Transcript processing + meeting prep + follow-up generation",
+    "area": "Intelligence",
+    "milestone": "M13",
+    "description": "Minimum viable call intelligence without recording: (1) paste/upload transcript → AI extracts summary, key points, action items, structured data (budget, team size, tools). (2) Meeting prep from account data + history. (3) Post-meeting follow-up email generation from transcript.",
+    "dependencies": ["S8", "F6.1"],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 8
+  },
+  {
+    "id": "S10",
+    "name": "Configurable opportunity stages with AI descriptions",
+    "area": "Settings",
+    "milestone": "M13",
+    "description": "Replace hardcoded deal_stage enum with pipeline_stage_definitions table. Settings UI: add/remove/reorder stages, write descriptions that AI reads for auto-progression, AI fill mode per stage, optional custom AI prompt. In Progress vs Done categories.",
+    "dependencies": ["S1", "F5.2"],
+    "passes": false,
+    "attempts": 0,
+    "completeness_target": 9
   }
 ]

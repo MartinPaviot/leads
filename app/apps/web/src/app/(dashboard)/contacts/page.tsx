@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Users, Search, Plus, Zap, X } from "lucide-react";
 import { badgeColorIndex, BADGE_COLORS, formatScore, ENRICHMENT_COLORS } from "@/lib/ui-utils";
+import { useCustomFields } from "@/hooks/use-custom-fields";
+import { getCustomFieldValue, formatFieldValue } from "@/lib/custom-fields";
 
 interface Contact {
   id: string;
@@ -29,6 +31,7 @@ export default function ContactsPage() {
   const [enrichAllRunning, setEnrichAllRunning] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const { fields: customFields } = useCustomFields("contact");
 
   const fetchContacts = useCallback(async () => {
     try {
@@ -412,7 +415,9 @@ export default function ContactsPage() {
               style={{ background: "var(--color-bg-surface)" }}
             >
               <tr>
-                {["Status", "Name", "Email", "Title", "Phone", "Score", "Actions"].map(
+                {["Status", "Name", "Email", "Title", "Phone", "Score",
+                  ...customFields.map((f) => f.name),
+                  "Actions"].map(
                   (header) => (
                     <th
                       key={header}
@@ -483,6 +488,17 @@ export default function ContactsPage() {
                       {contact.phone || "\u2014"}
                     </td>
                     <td className="px-5">{scoreDisplay(contact)}</td>
+                    {/* Custom fields from data model */}
+                    {customFields.map((field) => {
+                      const value = getCustomFieldValue(contact.properties, field.id);
+                      return (
+                        <td key={field.id} className="px-5 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                          {value != null && value !== ""
+                            ? formatFieldValue(value, field.type)
+                            : "—"}
+                        </td>
+                      );
+                    })}
                     <td className="px-5" onClick={(e) => e.stopPropagation()}>
                       {!isEnriched(contact) &&
                         enrichStatus[contact.id] !== "enriching" && (
