@@ -3,8 +3,9 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { streamText, UIMessage, convertToModelMessages, tool, stepCountIs } from "ai";
 import { searchSimilar } from "@/lib/embeddings";
+import { searchContextGraph, exploreGraphAroundEntity } from "@/lib/context-graph";
 import { db } from "@/db";
-import { companies, contacts, deals, activities, notes, tenants, tasks } from "@/db/schema";
+import { companies, contacts, deals, activities, notes, tenants, tasks, chatMemories } from "@/db/schema";
 import { and, eq, desc, sql, ilike, or } from "drizzle-orm";
 import { z } from "zod";
 import type { CustomFieldDef, PipelineStageDef } from "@/lib/custom-fields";
@@ -12,6 +13,98 @@ import type { CustomFieldDef, PipelineStageDef } from "@/lib/custom-fields";
 type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue };
 
 export const maxDuration = 60;
+
+// ── Tool Search: dynamically select tools based on query ──────────────
+const CORE_TOOLS = ["searchCRM", "queryContacts", "queryAccounts", "queryDeals", "queryActivities", "queryNotes"] as const;
+
+const TOOL_TRIGGERS: Record<string, RegExp> = {
+  createContact: /create|add|new\s+contact|ajouter.*contact/i,
+  createAccount: /create|add|new\s+(account|company)|ajouter.*(compte|entreprise)/i,
+  createDeal: /create|add|new\s+(deal|opportunity)|ajouter.*(deal|opportunit)/i,
+  createTask: /remind|task|follow.?up|todo|rappel|tâche/i,
+  updateDealStage: /move|progress|stage|won|lost|advance|déplacer|gagn|perdu/i,
+  draftEmail: /email|draft|write\s+to|reach\s+out|follow\s+up|écrire|envoyer|relancer/i,
+  getDealCoaching: /coach|advice|help.*deal|strategy|conseil|stratégie|comment.*deal/i,
+  getAccountIntelligence: /why.*account|intelligence|analysis|score.*breakdown|pourquoi.*compte/i,
+  completeTask: /complete|done|finish|mark.*done|terminé|fini/i,
+  bulkUpdateDeals: /bulk|all\s+deals|move\s+all|tous\s+les\s+deals/i,
+  bulkUpdateContacts: /bulk|all\s+contacts|update\s+all|tous\s+les\s+contacts/i,
+  generateMeetingPrep: /meeting|prep|briefing|prepare|réunion|préparer/i,
+  rememberContext: /remember|save|note.*later|retenir|souvenir/i,
+  recallMemories: /recall|what.*remember|memories|rappeler|mémoire/i,
+  queryTasks: /task|todo|due|pending|tâche|à\s+faire/i,
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function selectToolsForQuery(query: string, allTools: Record<string, any>): Record<string, any> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const selected: Record<string, any> = {};
+
+  // Always include core tools
+  for (const name of CORE_TOOLS) {
+    if (allTools[name]) selected[name] = allTools[name];
+  }
+
+  // Add triggered tools based on query
+  for (const [toolName, pattern] of Object.entries(TOOL_TRIGGERS)) {
+    if (pattern.test(query) && allTools[toolName]) {
+      selected[toolName] = allTools[toolName];
+    }
+  }
+
+  return selected;
+}
+
+// ── Context Management: compact long conversations ──────────────
+function compactMessages(messages: UIMessage[], maxMessages: number = 30): UIMessage[] {
+  if (messages.length <= maxMessages) return messages;
+
+  // Keep the first message (for context) and the most recent messages
+  const keepRecent = Math.floor(maxMessages * 0.8);
+  const older = messages.slice(1, messages.length - keepRecent);
+  const recent = messages.slice(messages.length - keepRecent);
+
+  // Summarize older messages into a single system-like user message
+  const olderTexts = older
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => {
+      const text = m.parts
+        ?.filter((p) => p.type === "text")
+        .map((p) => ("text" in p ? p.text : ""))
+        .join("") || "";
+      return `[${m.role}]: ${text.slice(0, 200)}`;
+    })
+    .join("\n");
+
+  const summaryMessage: UIMessage = {
+    id: "context-summary",
+    role: "user" as const,
+    parts: [{
+      type: "text" as const,
+      text: `[CONTEXT SUMMARY - Earlier in this conversation, we discussed:\n${olderTexts}\n...End of summary. Continue from here.]`,
+    }],
+  };
+
+  return [messages[0], summaryMessage, ...recent];
+}
+
+// ── Enhanced Citations: structure RAG results as numbered sources ──────
+function formatCitedSources(
+  ragResults: Array<{ entityType: string; entityId: string; content: string; similarity: number }>
+): string {
+  if (ragResults.length === 0) return "";
+
+  const sources = ragResults.map((r, i) => {
+    const link =
+      r.entityType === "contact" ? `/contacts/${r.entityId}`
+      : r.entityType === "company" ? `/accounts/${r.entityId}`
+      : r.entityType === "deal" ? `/opportunities/${r.entityId}`
+      : "";
+    return `[Source ${i + 1}] (${r.entityType}:${r.entityId}) ${link}\n${r.content}`;
+  });
+
+  return `\n\n## Source Documents (cite these using [Source N] format)\n${sources.join("\n\n")}`;
+}
 
 /** Build a snapshot of the tenant's CRM data for the system prompt */
 async function getCRMSnapshot(tenantId: string): Promise<string> {
@@ -226,7 +319,7 @@ export async function POST(req: Request) {
   const { messages, contextType, contextId }: { messages: UIMessage[]; contextType?: string; contextId?: string } = await req.json();
 
   const primaryModel = process.env.ANTHROPIC_API_KEY
-    ? anthropic("claude-sonnet-4-20250514")
+    ? anthropic("claude-sonnet-4-6")
     : null;
   const fallbackModel = process.env.OPENAI_API_KEY
     ? openai("gpt-4o-mini")
@@ -247,8 +340,8 @@ export async function POST(req: Request) {
     .map((p) => ("text" in p ? p.text : ""))
     .join("") || "";
 
-  // Parallel: RAG search + CRM snapshot + entity context
-  const [ragContext, crmSnapshot, entityContext] = await Promise.all([
+  // Parallel: RAG search + CRM snapshot + entity context + knowledge + approval mode
+  const [ragContext, crmSnapshot, entityContext, knowledgeContext, agentApprovalMode, memoriesContext] = await Promise.all([
     (async () => {
       if (!lastUserText || !process.env.OPENAI_API_KEY) return "";
       try {
@@ -256,15 +349,7 @@ export async function POST(req: Request) {
         if (results.length > 0) {
           const relevant = results.filter((r) => r.similarity > 0.25);
           if (relevant.length > 0) {
-            return (
-              "\n\n## Relevant CRM Data (from semantic search)\n" +
-              relevant
-                .map(
-                  (r) =>
-                    `[${r.entityType}:${r.entityId}] ${r.content} (relevance: ${(r.similarity * 100).toFixed(0)}%)`
-                )
-                .join("\n")
-            );
+            return formatCitedSources(relevant);
           }
         }
       } catch (err) {
@@ -274,44 +359,170 @@ export async function POST(req: Request) {
     })(),
     getCRMSnapshot(authCtx.tenantId),
     getEntityContext(contextType, contextId, authCtx.tenantId),
+    (async () => {
+      try {
+        const [tenant] = await db.select().from(tenants).where(eq(tenants.id, authCtx.tenantId)).limit(1);
+        if (!tenant) return "";
+        const settings = (tenant.settings || {}) as Record<string, unknown>;
+        const knowledge = (settings.knowledge || []) as Array<{ topic: string; content: string }>;
+        if (knowledge.length === 0) return "";
+        return "\n\n## Business Knowledge (world model)\n" +
+          knowledge.map((k) => `### ${k.topic}\n${k.content}`).join("\n\n");
+      } catch {
+        return "";
+      }
+    })(),
+    (async () => {
+      try {
+        const [tenant] = await db.select().from(tenants).where(eq(tenants.id, authCtx.tenantId)).limit(1);
+        if (!tenant) return "auto";
+        const settings = (tenant.settings || {}) as Record<string, unknown>;
+        return (settings.agentApprovalMode as string) || "auto";
+      } catch {
+        return "auto";
+      }
+    })(),
+    // Load persistent memories for this user
+    (async () => {
+      try {
+        const memories = await db.select()
+          .from(chatMemories)
+          .where(and(
+            eq(chatMemories.tenantId, authCtx.tenantId),
+            eq(chatMemories.userId, authCtx.appUserId),
+          ))
+          .orderBy(desc(chatMemories.updatedAt))
+          .limit(20);
+        if (memories.length === 0) return "";
+        return "\n\n## Agent Memory (learned from previous conversations)\n" +
+          memories.map((m) => `- [${m.category}] ${m.key}: ${m.content}`).join("\n");
+      } catch {
+        return "";
+      }
+    })(),
   ]);
 
   const tenantId = authCtx.tenantId;
 
-  const systemPrompt = `You are LeadSens, an autonomous GTM engine for early-stage founders doing founder-led sales. You have DIRECT ACCESS to the user's CRM data and can query it using the tools provided.
+  const systemPrompt = `<role>
+You are LeadSens, an autonomous GTM copilot for early-stage founders doing founder-led sales. You have direct, real-time access to the user's CRM data through tools. You are not a generic chatbot — you are their sales teammate who knows every account, deal, and interaction.
+</role>
 
-## Your capabilities:
-- Answer questions about accounts, contacts, deals, and activities using REAL data
-- Search the CRM semantically for relevant information
-- Create new contacts, accounts, and deals
-- Provide deal coaching grounded in SPECIFIC data points from the pipeline
-- Draft personalized emails based on real interaction history
-- Track follow-ups and suggest priorities based on activity gaps
-- Explain "why this account" by referencing real signals (funding, tech stack, engagement)
+<capabilities>
+- Query accounts, contacts, deals, activities, notes, and tasks with real-time CRM data
+- Search the CRM semantically using vector embeddings
+- Create and update records: contacts, accounts, deals, tasks, deal stages
+- Provide deal coaching grounded in specific data points, dates, and interactions
+- Draft personalized emails from real interaction history
+- Generate meeting prep briefings with full account context
+- Perform bulk operations on deals and contacts
+- Track follow-ups and flag risks based on activity gaps
+</capabilities>
 
-## Coaching behavior:
-When the user asks for coaching on a deal or account:
-1. Use queryDeals and queryActivities to get ALL data for the entity
-2. Reference SPECIFIC interactions, dates, and data points — never give generic advice
-3. Calculate activity gaps (days since last contact) and flag risks
-4. Suggest concrete next steps referencing the actual contacts and timeline
-5. For "why this account": reference score reasons (funding, tech stack, size match, engagement signals) from the account properties
-
-## Rules:
-- ALWAYS use real data from the CRM. Never make up company names, contact details, or statistics.
-- When citing data, ALWAYS include a clickable link to the source record using this format:
-  - Contacts: [Name](/contacts/{id})
-  - Accounts: [Name](/accounts/{id})
-  - Deals: [Name](/opportunities/{id})
-  Example: "According to your last email with [Sarah Chen](/contacts/abc-123), she mentioned..."
-- If the CRM is empty, acknowledge it and guide the user to populate it (import CSV, connect Gmail, or build TAM).
+<instructions>
+- ALWAYS use real data from tools. Never fabricate company names, contact details, or statistics.
 - If data is missing or incomplete, say so honestly. Never hallucinate details.
-- When the user asks about records you can see in the snapshot below, answer directly. For deeper searches, use the searchCRM tool.
-- When answering questions about timing ("when did I last...", "how long since..."), use the queryActivities tool to get exact dates.
-- Respond in the same language as the user's message.
-${crmSnapshot}${ragContext}${entityContext}`;
+- When the CRM is empty, guide the user to populate it (import CSV, connect Gmail, or build TAM).
+- For records visible in the snapshot below, answer directly. For deeper queries, use searchCRM or the specific query tools.
+- For timing questions ("when did I last…", "how long since…"), use queryActivities for exact dates.
+- For notes or written observations, use queryNotes.
+</instructions>
 
-  const convertedMessages = await convertToModelMessages(messages);
+<language>
+Always respond in the same language as the user's message. If the user writes in French, respond entirely in French. If in Spanish, respond in Spanish. This applies to all content including greetings, explanations, deal analysis, and action descriptions. Only keep entity names (company names, contact names, deal names) in their original form. Format dates and numbers according to the user's locale.
+</language>
+
+<investigate_before_answering>
+Never speculate about data you have not queried. If the user asks about a specific account, contact, or deal, you MUST use a tool to fetch current data before answering. The CRM snapshot only shows the 10 most recent records — it is NOT exhaustive. Query the relevant tool BEFORE making any claim. Give grounded, hallucination-free answers.
+</investigate_before_answering>
+
+<default_to_action>
+By default, take action rather than suggesting. If the user says "follow up with Sarah", draft the email AND offer to create a task — do not just describe what they could do. If intent is ambiguous, infer the most useful action and proceed, using tools to discover missing details instead of guessing.
+</default_to_action>
+
+<use_parallel_tool_calls>
+If you need multiple independent pieces of data, fetch them all in parallel. For example, when preparing a meeting briefing, query the account, contacts, deals, and activities simultaneously. When researching a deal, fetch deal coaching data and account intelligence in one round. Maximize parallel tool calls to reduce latency. Only sequence calls when one depends on another's result.
+</use_parallel_tool_calls>
+
+<citation_rules>
+Every factual claim about a CRM record MUST include a clickable link. No link = no claim.
+
+Link formats:
+- Contacts: [Name](/contacts/{id})
+- Accounts: [Name](/accounts/{id})
+- Deals: [Name](/opportunities/{id})
+
+Source citations for interactions:
+- Emails: "In the email from {date} — *{subject}* ([source](/contacts/{id}))"
+- Meetings: "During the {date} meeting ([source](/accounts/{id}))"
+- Notes: "From the note *{title}* ([source](/contacts/{id}))"
+- Tool results: always use the _sourceLink field returned by tools to build links
+
+Example: "According to your last email with [Sarah Chen](/contacts/abc-123) on March 15, she mentioned a budget of $50K for Q2."
+</citation_rules>
+
+<coaching_behavior>
+When coaching on a deal or account:
+1. Use getDealCoaching or getAccountIntelligence to get ALL data — do not rely on the snapshot alone
+2. Reference SPECIFIC interactions, dates, and data points — never give generic advice
+3. Calculate activity gaps (days since last contact) and flag risks: >7 days = medium, >14 days = high
+4. Suggest concrete next steps with actual contact names, titles, and realistic timelines
+5. For "why this account": reference the score breakdown (fit reasons, engagement reasons, signals like funding, tech stack, size)
+</coaching_behavior>
+
+<examples>
+<example>
+<user>How is the Meridian Labs deal going?</user>
+<approach>
+1. queryDeals with search "Meridian Labs" to find the deal ID
+2. getDealCoaching with that deal ID for full context (contact, company, activities, risk level)
+3. Cite specific dates: "Your last interaction was on [date] — [activity summary]"
+4. Flag risk if activity gap > 7 days
+5. Suggest concrete next step with the specific contact name
+</approach>
+</example>
+
+<example>
+<user>Draft a follow-up for Sarah Chen</user>
+<approach>
+1. queryContacts with search "Sarah Chen" to get her ID and context
+2. draftEmail with contactId and purpose "follow-up"
+3. Write the actual personalized email referencing their recent interaction
+4. Offer: "Want me to also create a follow-up task for next week?"
+</approach>
+</example>
+
+<example>
+<user>Which deals are at risk?</user>
+<approach>
+1. queryDeals to get all active deals
+2. queryActivities for each deal to check last interaction date
+3. Flag deals with >7 days inactivity (medium) or >14 days (high)
+4. Return a prioritized table: Deal | Stage | Value | Days Silent | Risk | Suggested Action
+</approach>
+</example>
+
+<example>
+<user>Prepare me for my meeting with Acme Corp</user>
+<approach>
+1. queryAccounts with search "Acme Corp" to find the account ID
+2. generateMeetingPrep with accountId (fetches company, contacts, deals, activities, signals in parallel)
+3. Structure the briefing: key talking points, relationship history, open deals, potential objections, suggested agenda
+</approach>
+</example>
+</examples>
+${agentApprovalMode === "ask" ? `
+<approval_mode>
+Before creating or updating any CRM record (contacts, accounts, deals, tasks, deal stages), you MUST:
+1. Describe the exact action (entity, fields, values)
+2. Ask "Should I proceed?" and WAIT for explicit confirmation
+3. Only call the create/update tool AFTER the user confirms
+Never modify records without explicit user approval.
+</approval_mode>
+` : ""}
+<crm_context>
+${crmSnapshot}${ragContext}${entityContext}${knowledgeContext}${memoriesContext}
+</crm_context>`;
 
   // Define tools for the chat to interact with CRM
   const searchCRMSchema = z.object({
@@ -373,7 +584,8 @@ ${crmSnapshot}${ragContext}${entityContext}`;
 
   const chatTools = {
     searchCRM: makeTool({
-      description: "Search the CRM database semantically. Use this when the user asks about specific contacts, companies, deals, or interactions that may not be in the snapshot.",
+      description: `Search the CRM database semantically using vector embeddings. Use when looking for specific records by name, attribute, or topic that may not be in the snapshot.
+Examples: query="Sarah Chen" finds contacts named Sarah Chen. query="deals over 50K" finds high-value deals. query="companies using React" finds companies with React in their tech stack. query="recent meetings about pricing" finds meeting activities discussing pricing.`,
       inputSchema: searchCRMSchema,
       execute: async (input) => {
         if (!process.env.OPENAI_API_KEY) return { results: [] as any[], error: "Search unavailable" };
@@ -382,7 +594,7 @@ ${crmSnapshot}${ragContext}${entityContext}`;
       },
     }),
     queryContacts: makeTool({
-      description: "Query contacts with optional text search. Use when user asks to find or filter contacts.",
+      description: `Query contacts with optional text search by name or email. Use when user asks to find, list, or filter contacts. Examples: search="Sarah" finds all contacts named Sarah. search="acme.com" finds contacts with acme.com emails. Omit search to list recent contacts.`,
       inputSchema: queryContactsSchema,
       execute: async (input) => {
         const results = await db
@@ -406,7 +618,7 @@ ${crmSnapshot}${ragContext}${entityContext}`;
       },
     }),
     queryAccounts: makeTool({
-      description: "Query accounts/companies with optional text search.",
+      description: `Query accounts/companies with optional text search by name or domain. Examples: search="Meridian" finds Meridian Labs. search="fintech" finds fintech companies. Omit search to list recent accounts.`,
       inputSchema: queryAccountsSchema,
       execute: async (input) => {
         const results = await db
@@ -429,7 +641,7 @@ ${crmSnapshot}${ragContext}${entityContext}`;
       },
     }),
     queryDeals: makeTool({
-      description: "Query deals/opportunities with optional filter by stage.",
+      description: `Query deals/opportunities with optional filters by stage or name. Examples: stage="proposal" lists all deals in proposal stage. search="Acme" finds the Acme deal. Omit both to list all active deals.`,
       inputSchema: queryDealsSchema,
       execute: async (input) => {
         const conditions = [eq(deals.tenantId, tenantId)];
@@ -445,7 +657,7 @@ ${crmSnapshot}${ragContext}${entityContext}`;
       },
     }),
     queryActivities: makeTool({
-      description: "Query recent activities for a contact, account, or all. Use to answer questions about interactions, last contact date, follow-ups needed.",
+      description: `Query recent activities (emails, meetings, calls, notes) for a specific contact, account, deal, or all. Use for: "when did I last talk to X", "what happened with Y", follow-up gaps, interaction history. Returns full email bodies and metadata for citation. Examples: entityType="contact" + entityId="abc" gets all interactions with that contact. activityType="email_received" filters to received emails only.`,
       inputSchema: queryActivitiesSchema,
       execute: async (input) => {
         const conditions = [eq(activities.tenantId, tenantId)];
@@ -459,15 +671,73 @@ ${crmSnapshot}${ragContext}${entityContext}`;
           .orderBy(desc(activities.occurredAt))
           .limit(input.limit ?? 20);
         return {
-          activities: results.map((a) => ({
-            id: a.id,
-            type: a.activityType,
-            summary: a.summary,
-            direction: a.direction,
-            channel: a.channel,
-            occurredAt: a.occurredAt,
-            entityType: a.entityType,
-            entityId: a.entityId,
+          activities: results.map((a) => {
+            const meta = (a.metadata || {}) as Record<string, unknown>;
+            return {
+              id: a.id,
+              type: a.activityType,
+              summary: a.summary,
+              direction: a.direction,
+              channel: a.channel,
+              occurredAt: a.occurredAt,
+              entityType: a.entityType,
+              entityId: a.entityId,
+              // Include email body for citation
+              emailBody: meta.body ? (meta.body as string).slice(0, 2000) : undefined,
+              emailFrom: meta.from,
+              emailTo: meta.to,
+              // Include structured notes for meetings
+              structuredNotes: meta.structuredNotes,
+              // Source link for citation
+              _sourceLink: a.entityType === "contact"
+                ? `/contacts/${a.entityId}`
+                : a.entityType === "company"
+                  ? `/accounts/${a.entityId}`
+                  : a.entityType === "deal"
+                    ? `/opportunities/${a.entityId}`
+                    : undefined,
+            };
+          }),
+        };
+      },
+    }),
+    queryNotes: makeTool({
+      description: "Query notes for a contact, account, deal, or all notes. Use when the user asks about notes, observations, or written context. Returns full note content for citation.",
+      inputSchema: z.object({
+        entityType: z.string().optional().describe("Filter by entity type: contact, company, deal"),
+        entityId: z.string().optional().describe("Filter by specific entity ID"),
+        search: z.string().optional().describe("Search by note title or content"),
+        limit: z.number().optional().describe("Max results (default 20)"),
+      }),
+      execute: async (input) => {
+        const conditions = [eq(notes.tenantId, tenantId)];
+        if (input.entityType) conditions.push(eq(notes.entityType, input.entityType));
+        if (input.entityId) conditions.push(eq(notes.entityId, input.entityId));
+        if (input.search) conditions.push(or(
+          ilike(notes.title, `%${input.search}%`),
+          ilike(notes.content, `%${input.search}%`),
+        )!);
+        const results = await db
+          .select()
+          .from(notes)
+          .where(and(...conditions))
+          .orderBy(desc(notes.createdAt))
+          .limit(input.limit ?? 20);
+        return {
+          notes: results.map((n) => ({
+            id: n.id,
+            title: n.title,
+            content: n.content,
+            entityType: n.entityType,
+            entityId: n.entityId,
+            createdAt: n.createdAt,
+            _sourceLink: n.entityType === "contact"
+              ? `/contacts/${n.entityId}`
+              : n.entityType === "company"
+                ? `/accounts/${n.entityId}`
+                : n.entityType === "deal"
+                  ? `/opportunities/${n.entityId}`
+                  : undefined,
           })),
         };
       },
@@ -724,6 +994,164 @@ ${crmSnapshot}${ragContext}${entityContext}`;
       },
     }),
 
+    bulkUpdateDeals: makeTool({
+      description: "Bulk update multiple deals at once. Use when user says 'reassign all deals', 'move all X deals to Y stage', 'tag all deals with', or any bulk deal operation.",
+      inputSchema: z.object({
+        filter: z.object({
+          stage: z.string().optional().describe("Filter deals by current stage"),
+          search: z.string().optional().describe("Filter deals by name search"),
+        }).describe("Filter to select which deals to update"),
+        update: z.object({
+          stage: z.string().optional().describe("New stage to set"),
+          assigneeId: z.string().optional().describe("New assignee user ID"),
+        }).describe("Fields to update on matched deals"),
+      }),
+      execute: async (input) => {
+        const conditions = [eq(deals.tenantId, tenantId)];
+        if (input.filter.stage) conditions.push(eq(deals.stage, input.filter.stage as any));
+        if (input.filter.search) conditions.push(ilike(deals.name, `%${input.filter.search}%`));
+
+        const matchedDeals = await db.select({ id: deals.id, name: deals.name, stage: deals.stage })
+          .from(deals)
+          .where(and(...conditions));
+
+        if (matchedDeals.length === 0) return { bulkUpdated: { count: 0 }, message: "No deals matched the filter" };
+
+        const updateFields: Record<string, unknown> = { updatedAt: new Date() };
+        if (input.update.stage) updateFields.stage = input.update.stage;
+
+        await db.update(deals)
+          .set(updateFields as any)
+          .where(and(...conditions));
+
+        // Log activity for each updated deal
+        for (const deal of matchedDeals) {
+          await db.insert(activities).values({
+            tenantId,
+            actorType: "user",
+            actorId: authCtx.appUserId,
+            entityType: "deal",
+            entityId: deal.id,
+            activityType: "deal_stage_changed",
+            channel: "system",
+            direction: "internal",
+            summary: `Bulk update: ${Object.entries(input.update).map(([k, v]) => `${k}→${v}`).join(", ")}`,
+            metadata: { bulkOperation: true, filter: input.filter, update: input.update },
+          });
+        }
+
+        return {
+          bulkUpdated: { count: matchedDeals.length, deals: matchedDeals.map((d) => ({ id: d.id, name: d.name })) },
+        };
+      },
+    }),
+
+    bulkUpdateContacts: makeTool({
+      description: "Bulk update multiple contacts. Use when user says 'tag all contacts at X', 'update all contacts with', or any bulk contact operation.",
+      inputSchema: z.object({
+        filter: z.object({
+          companyId: z.string().optional().describe("Filter by company ID"),
+          search: z.string().optional().describe("Filter by name/email search"),
+        }).describe("Filter to select which contacts to update"),
+        update: z.object({
+          title: z.string().optional(),
+          companyId: z.string().optional(),
+        }).describe("Fields to update on matched contacts"),
+      }),
+      execute: async (input) => {
+        const conditions = [eq(contacts.tenantId, tenantId)];
+        if (input.filter.companyId) conditions.push(eq(contacts.companyId, input.filter.companyId));
+        if (input.filter.search) conditions.push(or(
+          ilike(contacts.firstName, `%${input.filter.search}%`),
+          ilike(contacts.lastName, `%${input.filter.search}%`),
+          ilike(contacts.email, `%${input.filter.search}%`),
+        )!);
+
+        const matchedContacts = await db.select({ id: contacts.id, firstName: contacts.firstName, lastName: contacts.lastName })
+          .from(contacts)
+          .where(and(...conditions));
+
+        if (matchedContacts.length === 0) return { bulkUpdated: { count: 0 }, message: "No contacts matched the filter" };
+
+        const updateFields: Record<string, unknown> = { updatedAt: new Date() };
+        if (input.update.title) updateFields.title = input.update.title;
+        if (input.update.companyId) updateFields.companyId = input.update.companyId;
+
+        await db.update(contacts)
+          .set(updateFields as any)
+          .where(and(...conditions));
+
+        return {
+          bulkUpdated: {
+            count: matchedContacts.length,
+            contacts: matchedContacts.map((c) => ({ id: c.id, name: [c.firstName, c.lastName].filter(Boolean).join(" ") })),
+          },
+        };
+      },
+    }),
+
+    rememberContext: makeTool({
+      description: `Save a piece of information to persistent memory for future conversations. Use when the user shares a preference, makes a decision, or reveals context that should be remembered across sessions. Examples: key="communication_style" content="User prefers concise bullet points". key="deal_strategy_acme" content="User wants to push for enterprise plan, avoid discounts".`,
+      inputSchema: z.object({
+        key: z.string().describe("Short identifier for this memory (e.g. communication_style, deal_strategy_acme)"),
+        content: z.string().describe("The information to remember"),
+        category: z.enum(["user_preference", "decision", "learned_context", "relationship_note"]).optional(),
+      }),
+      execute: async (input) => {
+        // Upsert: update if key exists for this user, otherwise create
+        const existing = await db.select().from(chatMemories)
+          .where(and(
+            eq(chatMemories.tenantId, tenantId),
+            eq(chatMemories.userId, authCtx.appUserId),
+            eq(chatMemories.key, input.key),
+          )).limit(1);
+
+        if (existing.length > 0) {
+          await db.update(chatMemories).set({
+            content: input.content,
+            category: input.category || existing[0].category,
+            updatedAt: new Date(),
+          }).where(eq(chatMemories.id, existing[0].id));
+          return { remembered: true, action: "updated", key: input.key };
+        }
+
+        await db.insert(chatMemories).values({
+          tenantId,
+          userId: authCtx.appUserId,
+          key: input.key,
+          content: input.content,
+          category: input.category || "learned_context",
+        });
+        return { remembered: true, action: "created", key: input.key };
+      },
+    }),
+
+    recallMemories: makeTool({
+      description: `Retrieve all saved memories for the current user. Use at the start of complex tasks to check what you already know about the user's preferences and past decisions.`,
+      inputSchema: z.object({
+        category: z.string().optional().describe("Filter by category: user_preference, decision, learned_context, relationship_note"),
+      }),
+      execute: async (input) => {
+        const conditions = [
+          eq(chatMemories.tenantId, tenantId),
+          eq(chatMemories.userId, authCtx.appUserId),
+        ];
+        if (input.category) conditions.push(eq(chatMemories.category, input.category));
+        const memories = await db.select().from(chatMemories)
+          .where(and(...conditions))
+          .orderBy(desc(chatMemories.updatedAt))
+          .limit(30);
+        return {
+          memories: memories.map((m) => ({
+            key: m.key,
+            content: m.content,
+            category: m.category,
+            updatedAt: m.updatedAt,
+          })),
+        };
+      },
+    }),
+
     generateMeetingPrep: makeTool({
       description: "Generate a meeting preparation briefing for an account or contact. Use when user asks to 'prepare for meeting with X', 'briefing for X', or 'meeting prep'.",
       inputSchema: z.object({
@@ -771,15 +1199,83 @@ ${crmSnapshot}${ragContext}${entityContext}`;
         return { meetingPrepData: data, instruction: "Generate a comprehensive meeting prep briefing from this data. Include: key talking points, potential objections, relationship history, and suggested agenda items." };
       },
     }),
+    getMeetingNotes: makeTool({
+      description: `Get structured meeting notes (summary, key points, action items, buying signals, decisions) for a specific company or contact. Use when the user asks about a past meeting, what was discussed, action items from a call, or meeting outcomes.
+Examples: "What did we discuss with Acme last call?" "What were the action items from the meeting with Sarah?" "What objections did they raise?"`,
+      inputSchema: z.object({
+        companyName: z.string().optional().describe("Company name to search meetings for"),
+        contactName: z.string().optional().describe("Contact name to search meetings for"),
+        limit: z.number().optional().describe("Max meetings to return (default 5)"),
+      }),
+      execute: async (input) => {
+        // Find meetings with notes for the given company or contact
+        let meetingActivities = await db
+          .select()
+          .from(activities)
+          .where(
+            and(
+              eq(activities.tenantId, tenantId),
+              eq(activities.channel, "meeting"),
+              sql`metadata->>'structuredNotes' IS NOT NULL`
+            )
+          )
+          .orderBy(desc(activities.occurredAt))
+          .limit(input.limit ?? 5);
+
+        // Filter by company or contact name if provided
+        if (input.companyName || input.contactName) {
+          const searchTerm = (input.companyName || input.contactName || "").toLowerCase();
+          meetingActivities = meetingActivities.filter((a) => {
+            const meta = (a.metadata || {}) as any;
+            const attendees = meta.attendees || [];
+            const matchesAttendee = attendees.some((att: any) =>
+              (att.displayName || att.email || "").toLowerCase().includes(searchTerm)
+            );
+            const matchesSummary = (a.summary || "").toLowerCase().includes(searchTerm);
+            return matchesAttendee || matchesSummary;
+          });
+        }
+
+        return {
+          meetings: meetingActivities.map((a) => {
+            const meta = (a.metadata || {}) as any;
+            return {
+              id: a.id,
+              title: a.summary,
+              date: meta.startTime || a.occurredAt,
+              notes: meta.structuredNotes,
+              attendees: (meta.attendees || []).map((att: any) => att.displayName || att.email),
+              followUpDraft: meta.followUpEmailDraft || null,
+            };
+          }),
+        };
+      },
+    }),
   };
+
+  // ── Tool Search: only pass relevant tools to reduce token usage ──
+  const selectedTools = selectToolsForQuery(lastUserText, chatTools);
+  const toolCount = Object.keys(selectedTools).length;
+  const totalToolCount = Object.keys(chatTools).length;
+  console.log(`[ToolSearch] Query: "${lastUserText.slice(0, 60)}…" → ${toolCount}/${totalToolCount} tools selected`);
+
+  // ── Context Management: compact long conversations ──
+  const compactedMessages = compactMessages(messages);
+  const convertedMessages = await convertToModelMessages(compactedMessages);
 
   try {
     const result = streamText({
       model,
       system: systemPrompt,
       messages: convertedMessages,
-      tools: chatTools,
-      stopWhen: stepCountIs(5),
+      tools: selectedTools,
+      stopWhen: stepCountIs(10),
+      providerOptions: {
+        anthropic: {
+          thinking: { type: "enabled", budgetTokens: 8000 },
+          cacheControl: { type: "ephemeral" },
+        },
+      },
     });
     return result.toTextStreamResponse();
   } catch (err) {
@@ -789,8 +1285,8 @@ ${crmSnapshot}${ragContext}${entityContext}`;
         model: fallbackModel,
         system: systemPrompt,
         messages: convertedMessages,
-        tools: chatTools,
-        stopWhen: stepCountIs(5),
+        tools: selectedTools,
+        stopWhen: stepCountIs(10),
       });
       return result.toTextStreamResponse();
     }

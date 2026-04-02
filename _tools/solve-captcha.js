@@ -33,6 +33,7 @@ if (!CAPTCHA_TYPE || !PARAMS.pageUrl || !PARAMS.siteKey) {
 const TASK_TYPE_MAP = {
   recaptcha_v2: 'ReCaptchaV2TaskProxyLess',
   hcaptcha: 'HCaptchaTaskProxyLess',
+  turnstile: 'AntiTurnstileTaskProxyLess',
 };
 
 async function createTask() {
@@ -82,7 +83,7 @@ async function getResult(taskId) {
     const data = await res.json();
 
     if (data.status === 'ready') {
-      return { solved: true, solution: { token: data.solution?.gRecaptchaResponse || data.solution?.token } };
+      return { solved: true, solution: { token: data.solution?.gRecaptchaResponse || data.solution?.token || data.solution?.captcha_response } };
     }
 
     if (data.errorId && data.errorId !== 0) {

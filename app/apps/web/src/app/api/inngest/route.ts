@@ -4,6 +4,7 @@ import { enrichCompany, enrichContact, sendSequenceStep, processReply } from "@/
 import { syncEmails, syncCalendar, onGoogleOAuthConnected, cronSyncEmails } from "@/inngest/sync-functions";
 import { aiAutoFill } from "@/inngest/ai-autofill";
 import { executeWorkflow } from "@/inngest/workflow-engine";
+import { cronCalendarSync, autoMeetingPrep, generateMeetingPrep } from "@/inngest/meeting-functions";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -18,5 +19,8 @@ export const { GET, POST, PUT } = serve({
     cronSyncEmails,
     aiAutoFill,
     executeWorkflow,
+    cronCalendarSync,
+    autoMeetingPrep,
+    generateMeetingPrep,
   ],
 });
