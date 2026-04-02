@@ -1,6 +1,6 @@
 import { inngest } from "./client";
 import { db } from "@/db";
-import { activities, contacts, companies, users, authAccounts } from "@/db/schema";
+import { activities, contacts, companies, users, authAccounts, tenants } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { fetchRecentEmails, type SyncedEmail } from "@/lib/gmail";
 import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/calendar";
@@ -120,15 +120,60 @@ export const syncEmails = inngest.createFunction(
             const { firstName, lastName } = extractName(counterpartyHeader);
             const domain = counterpartyEmail.split("@")[1];
 
-            // Try to find a matching company by domain
+            // Try to find or auto-create company from email domain (S6: Gap 2 Phase 1)
             let companyId: string | null = null;
             if (domain) {
-              const [company] = await db
+              // Skip common personal email providers
+              const personalDomains = new Set([
+                "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com",
+                "aol.com", "protonmail.com", "mail.com", "live.com", "msn.com",
+                "yandex.com", "zoho.com", "gmx.com", "fastmail.com",
+              ]);
+
+              const [existingCompany] = await db
                 .select({ id: companies.id })
                 .from(companies)
                 .where(and(eq(companies.tenantId, tenantId), eq(companies.domain, domain)))
                 .limit(1);
-              if (company) companyId = company.id;
+
+              if (existingCompany) {
+                companyId = existingCompany.id;
+              } else if (!personalDomains.has(domain)) {
+                // Check domain exclusion list from workspace settings
+                const [tenantRow] = await db.select({ settings: tenants.settings })
+                  .from(tenants)
+                  .where(eq(tenants.id, tenantId))
+                  .limit(1);
+                const settings = (tenantRow?.settings || {}) as Record<string, unknown>;
+                const excludedDomains = (settings.excludedDomains || []) as string[];
+
+                if (!excludedDomains.includes(domain)) {
+                  // Auto-create company from email domain
+                  const companyName = domain
+                    .replace(/\.(com|io|co|ai|dev|org|net|app)$/i, "")
+                    .split(".")
+                    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                    .join(" ");
+
+                  const [newCompany] = await db
+                    .insert(companies)
+                    .values({
+                      tenantId,
+                      name: companyName,
+                      domain,
+                      properties: { source: "email_domain_auto", auto_created: true },
+                    })
+                    .returning();
+
+                  companyId = newCompany.id;
+
+                  // Fire enrichment for the new company
+                  await inngest.send({
+                    name: "company/created",
+                    data: { companyId: newCompany.id, tenantId },
+                  }).catch(console.warn);
+                }
+              }
             }
 
             const [newContact] = await db

@@ -4,7 +4,7 @@ import { openai } from "@ai-sdk/openai";
 import { streamText, UIMessage, convertToModelMessages, tool, stepCountIs } from "ai";
 import { searchSimilar } from "@/lib/embeddings";
 import { db } from "@/db";
-import { companies, contacts, deals, activities, notes, tenants } from "@/db/schema";
+import { companies, contacts, deals, activities, notes, tenants, tasks } from "@/db/schema";
 import { and, eq, desc, sql, ilike, or } from "drizzle-orm";
 import { z } from "zod";
 import type { CustomFieldDef, PipelineStageDef } from "@/lib/custom-fields";
@@ -575,6 +575,200 @@ ${crmSnapshot}${ragContext}${entityContext}`;
           deals: companyDeals.map((d) => ({ id: d.id, name: d.name, stage: d.stage, value: d.value })),
           recentActivity: recentActivity.map((a) => ({ type: a.activityType, summary: a.summary, date: a.occurredAt })),
         };
+      },
+    }),
+
+    // === S7: NEW AGENT ACTION TOOLS ===
+
+    createTask: makeTool({
+      description: "Create a task in the CRM. Use when the user asks to create a follow-up, reminder, todo, or task. Link it to a contact, account, or deal.",
+      inputSchema: z.object({
+        title: z.string().describe("Task title"),
+        description: z.string().optional().describe("Task description/details"),
+        dueDate: z.string().optional().describe("Due date in ISO format (YYYY-MM-DD)"),
+        priority: z.enum(["low", "medium", "high"]).optional(),
+        entityType: z.string().optional().describe("Link to entity type: contact, company, deal"),
+        entityId: z.string().optional().describe("ID of the linked entity"),
+      }),
+      execute: async (input) => {
+        const [created] = await db.insert(tasks).values({
+          tenantId,
+          assigneeId: authCtx.userId,
+          title: input.title,
+          description: input.description,
+          dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
+          priority: input.priority || "medium",
+          entityType: input.entityType,
+          entityId: input.entityId,
+          status: "pending",
+        }).returning();
+        return { created: { id: created.id, title: created.title, dueDate: created.dueDate, status: created.status } };
+      },
+    }),
+
+    updateDealStage: makeTool({
+      description: "Move a deal to a different pipeline stage. Use when the user says 'move deal X to proposal', 'progress this deal', 'mark as won/lost', etc.",
+      inputSchema: z.object({
+        dealId: z.string().describe("The deal ID to update"),
+        newStage: z.string().describe("The new stage name (e.g. qualification, demo, proposal, won, lost)"),
+      }),
+      execute: async (input) => {
+        const [deal] = await db.select().from(deals)
+          .where(and(eq(deals.id, input.dealId), eq(deals.tenantId, tenantId))).limit(1);
+        if (!deal) return { error: "Deal not found" };
+
+        const oldStage = deal.stage;
+        await db.update(deals).set({
+          stage: input.newStage as any,
+          updatedAt: new Date(),
+        }).where(and(eq(deals.id, input.dealId), eq(deals.tenantId, tenantId)));
+
+        // Log the stage change as an activity
+        await db.insert(activities).values({
+          tenantId,
+          actorType: "user",
+          actorId: authCtx.userId,
+          entityType: "deal",
+          entityId: input.dealId,
+          activityType: input.newStage === "won" ? "deal_won" : input.newStage === "lost" ? "deal_lost" : "deal_stage_changed",
+          channel: "system",
+          direction: "internal",
+          summary: `Stage changed from ${oldStage} to ${input.newStage}`,
+          metadata: { oldStage, newStage: input.newStage },
+        });
+
+        return { updated: { id: deal.id, name: deal.name, oldStage, newStage: input.newStage } };
+      },
+    }),
+
+    draftEmail: makeTool({
+      description: "Draft a personalized email to a contact. Returns the email content for the user to review and send via the email composer. Use when the user asks to 'email', 'draft', 'write to', 'follow up with', or 'reach out to' someone.",
+      inputSchema: z.object({
+        contactId: z.string().describe("Contact ID to email"),
+        purpose: z.string().describe("Purpose of the email: follow-up, introduction, revival, meeting-request, custom"),
+        customInstructions: z.string().optional().describe("Any specific instructions from the user about what to include"),
+      }),
+      execute: async (input) => {
+        const [contact] = await db.select().from(contacts)
+          .where(and(eq(contacts.id, input.contactId), eq(contacts.tenantId, tenantId))).limit(1);
+        if (!contact) return { error: "Contact not found" };
+
+        // Get recent interactions for personalization
+        const recentInteractions = await db.select().from(activities)
+          .where(and(eq(activities.tenantId, tenantId), eq(activities.entityType, "contact"), eq(activities.entityId, input.contactId)))
+          .orderBy(desc(activities.occurredAt)).limit(5);
+
+        const contactName = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
+        let company = null;
+        if (contact.companyId) {
+          const [c] = await db.select().from(companies).where(eq(companies.id, contact.companyId)).limit(1);
+          company = c;
+        }
+
+        return {
+          emailDraft: {
+            to: contact.email,
+            contactName,
+            company: company?.name,
+            purpose: input.purpose,
+            recentInteractions: recentInteractions.map((a) => ({
+              type: a.activityType,
+              summary: a.summary,
+              date: a.occurredAt,
+            })),
+          },
+          instruction: "Use this context to generate a personalized email. Include specifics from recent interactions. Keep it concise and actionable. Return the draft in your response.",
+        };
+      },
+    }),
+
+    queryTasks: makeTool({
+      description: "Query tasks with optional filters. Use when user asks about their tasks, to-dos, follow-ups, or what's due.",
+      inputSchema: z.object({
+        status: z.string().optional().describe("Filter by status: pending, completed, cancelled"),
+        entityType: z.string().optional(),
+        entityId: z.string().optional(),
+        limit: z.number().optional(),
+      }),
+      execute: async (input) => {
+        const conditions = [eq(tasks.tenantId, tenantId)];
+        if (input.status) conditions.push(eq(tasks.status, input.status));
+        if (input.entityType) conditions.push(eq(tasks.entityType, input.entityType));
+        if (input.entityId) conditions.push(eq(tasks.entityId, input.entityId));
+        const results = await db.select().from(tasks)
+          .where(and(...conditions))
+          .orderBy(desc(tasks.dueDate))
+          .limit(input.limit ?? 20);
+        return {
+          tasks: results.map((t) => ({
+            id: t.id, title: t.title, status: t.status, priority: t.priority,
+            dueDate: t.dueDate, entityType: t.entityType, entityId: t.entityId,
+          })),
+        };
+      },
+    }),
+
+    completeTask: makeTool({
+      description: "Mark a task as completed. Use when user says 'done', 'complete task', 'mark as finished'.",
+      inputSchema: z.object({
+        taskId: z.string().describe("Task ID to mark as completed"),
+      }),
+      execute: async (input) => {
+        const [updated] = await db.update(tasks).set({
+          status: "completed",
+          updatedAt: new Date(),
+        }).where(and(eq(tasks.id, input.taskId), eq(tasks.tenantId, tenantId)))
+          .returning();
+        if (!updated) return { error: "Task not found" };
+        return { completed: { id: updated.id, title: updated.title } };
+      },
+    }),
+
+    generateMeetingPrep: makeTool({
+      description: "Generate a meeting preparation briefing for an account or contact. Use when user asks to 'prepare for meeting with X', 'briefing for X', or 'meeting prep'.",
+      inputSchema: z.object({
+        accountId: z.string().optional().describe("Account ID to prepare for"),
+        contactId: z.string().optional().describe("Contact ID to prepare for"),
+      }),
+      execute: async (input) => {
+        const data: Record<string, unknown> = {};
+
+        if (input.accountId) {
+          const [company] = await db.select().from(companies)
+            .where(and(eq(companies.id, input.accountId), eq(companies.tenantId, tenantId))).limit(1);
+          if (company) {
+            data.account = { name: company.name, industry: company.industry, size: company.size, revenue: company.revenue, description: company.description, score: company.score };
+            const props = (company.properties || {}) as Record<string, unknown>;
+            data.signals = { technologies: props.technologies, funding: props.total_funding_printed, foundedYear: props.founded_year };
+
+            const companyContacts = await db.select().from(contacts)
+              .where(and(eq(contacts.companyId, input.accountId), eq(contacts.tenantId, tenantId)));
+            data.contacts = companyContacts.map((c) => ({ name: [c.firstName, c.lastName].filter(Boolean).join(" "), title: c.title, email: c.email }));
+
+            const companyDeals = await db.select().from(deals)
+              .where(and(eq(deals.companyId, input.accountId), eq(deals.tenantId, tenantId)));
+            data.deals = companyDeals.map((d) => ({ name: d.name, stage: d.stage, value: d.value }));
+
+            const recentActivity = await db.select().from(activities)
+              .where(and(eq(activities.tenantId, tenantId), eq(activities.entityType, "company"), eq(activities.entityId, input.accountId)))
+              .orderBy(desc(activities.occurredAt)).limit(15);
+            data.recentActivity = recentActivity.map((a) => ({ type: a.activityType, summary: a.summary, date: a.occurredAt, direction: a.direction }));
+          }
+        }
+
+        if (input.contactId) {
+          const [contact] = await db.select().from(contacts)
+            .where(and(eq(contacts.id, input.contactId), eq(contacts.tenantId, tenantId))).limit(1);
+          if (contact) {
+            data.contact = { name: [contact.firstName, contact.lastName].filter(Boolean).join(" "), title: contact.title, email: contact.email };
+            const contactActivity = await db.select().from(activities)
+              .where(and(eq(activities.tenantId, tenantId), eq(activities.entityType, "contact"), eq(activities.entityId, input.contactId)))
+              .orderBy(desc(activities.occurredAt)).limit(15);
+            data.interactionHistory = contactActivity.map((a) => ({ type: a.activityType, summary: a.summary, date: a.occurredAt }));
+          }
+        }
+
+        return { meetingPrepData: data, instruction: "Generate a comprehensive meeting prep briefing from this data. Include: key talking points, potential objections, relationship history, and suggested agenda items." };
       },
     }),
   };

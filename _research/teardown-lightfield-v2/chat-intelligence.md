@@ -59,7 +59,8 @@ Display (no bubble for AI, subtle bubble for user)
 - CSS: inline badge within the chat container, above the textbox
 
 ### 2.2 Confirmation Cards for Actions
-- Structured card UI with: entity icon + header + details row + permission dropdown + Dismiss/Create
+- **Create cards**: entity icon + header + details row + permission dropdown + Dismiss/Create
+- **Update cards**: entity breadcrumb + field diff (old → new arrow) + per-field ✕/✓ + "Approve N"
 - Sequential for multi-step creation (account first, then contact)
 - "Ask every time" permission dropdown for configurable automation
 - Fields are EDITABLE on the card before confirming

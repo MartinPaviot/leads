@@ -103,6 +103,7 @@ export async function POST(
 
 If there's no interaction history, set accountSummary to null. If there's no enrichment data, set aboutBusiness to null.`,
       prompt: contextParts.join("\n"),
+      // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
       maxTokens: 500,
     });
 

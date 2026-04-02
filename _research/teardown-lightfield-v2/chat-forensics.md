@@ -451,7 +451,24 @@ Instead of linking to source documents, Lightfield shows the **data retrieval pr
 - No data retrieval attempted — immediate refusal
 - Polite redirect to manual interface
 
-**Safety model**: Delete operations are not available as AI capabilities. Only CREATE and READ actions exist in the chat.
+**Safety model**: Delete operations are not available as AI capabilities. Only CREATE, READ, and UPDATE actions exist in the chat.
+
+### 5.3 Record Update Flow
+
+**"Move the Meridian Labs - API Product Deal to Demo stage"**
+
+A **Stage update** confirmation card appeared:
+- Header: "⟹ Stage update" (edit icon)
+- Entity breadcrumb: 🔵 Meridian Labs / ○ Meridian Labs - API Product Deal
+- **Diff visualization**: ◌ Stage — ○ Qualification → ⊙ Demo
+- Per-field inline buttons: ✕ (reject) and ✓ (approve) per change
+- Bottom: "Ask every time ∨" | "Dismiss" | "Approve 1"
+
+**KEY UPDATE DESIGN PATTERNS:**
+1. **Field-level diff** — shows old → new with arrow visualization
+2. **Per-field approval** — each change has its own approve/reject (for multi-field updates)
+3. **"Approve N"** button — shows count of pending changes
+4. **Same permission framework** as create cards ("Ask every time" dropdown)
 
 ---
 
@@ -496,7 +513,15 @@ Instead of linking to source documents, Lightfield shows the **data retrieval pr
 - No data retrieval attempted
 - Redirect to manual CRM interface
 
-### 7.3 Off-Topic (from v1 teardown)
+### 7.3 Typo Handling
+
+**"show me my opportnitiies"** (misspelled):
+- Understood intent perfectly — responded with opportunities table
+- No "did you mean?" correction — just answered correctly
+- Multi-column table response: Opportunity | Account | Stage | Last Interaction
+- Standard LLM typo tolerance — no special handling needed
+
+### 7.4 Off-Topic (from v1 teardown)
 
 **"What's the weather in Paris?"**:
 - Polite deflection with helpful alternatives
@@ -599,3 +624,5 @@ All without leaving the thread.
 | 024 | 024-scoped-chat-contextual.png | Scoped chat: "this person" = Sarah Chen |
 | 025 | 025-contacts-after-creation.png | John Smith at Acme Corp verified in contacts list |
 | 026 | 026-suggestion-chip-click-result.png | Suggestion click → immediate send, rich response |
+| 027 | 027-update-deal-stage.png | Stage update confirmation card with diff visualization |
+| 028 | 028-typo-opportnitiies.png | Typo handled — multi-column opportunity table |

@@ -1,11 +1,12 @@
 import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { activities, contacts, companies } from "@/db/schema";
+import { activities, contacts, companies, deals } from "@/db/schema";
 import { eq, and, ilike, or } from "drizzle-orm";
 import { generateObject } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
+import { embedEntity, activityToText } from "@/lib/embeddings";
 
 const meetingNotesSchema = z.object({
   summary: z.string().describe("2-3 sentence meeting summary"),
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { transcript, meetingTitle, meetingDate, attendeeEmails, activityId } = body;
+    const { transcript, meetingTitle, meetingDate, attendeeEmails, activityId, dealId } = body;
 
     if (!transcript || typeof transcript !== "string" || transcript.trim().length < 50) {
       return Response.json({ error: "Transcript required (min 50 characters)" }, { status: 400 });
@@ -179,6 +180,58 @@ RULES:
           processedAt: new Date().toISOString(),
         },
       });
+    }
+
+    // S9: Auto-update deal with extracted structured data
+    if (dealId && notes.buyingSignals) {
+      try {
+        const [deal] = await db.select().from(deals)
+          .where(and(eq(deals.id, dealId), eq(deals.tenantId, authCtx.tenantId))).limit(1);
+        if (deal) {
+          const props = (deal.properties || {}) as Record<string, unknown>;
+          const extracted: Record<string, unknown> = {};
+          if (notes.buyingSignals.budget) extracted.budget = notes.buyingSignals.budget;
+          if (notes.buyingSignals.teamSize) extracted.teamSize = notes.buyingSignals.teamSize;
+          if (notes.buyingSignals.currentStack?.length) extracted.currentTools = notes.buyingSignals.currentStack;
+          if (notes.buyingSignals.competitors?.length) extracted.competitors = notes.buyingSignals.competitors;
+          if (notes.buyingSignals.timeline) extracted.timeline = notes.buyingSignals.timeline;
+          if (notes.buyingSignals.painPoints?.length) extracted.painPoints = notes.buyingSignals.painPoints;
+
+          if (Object.keys(extracted).length > 0) {
+            await db.update(deals).set({
+              properties: {
+                ...props,
+                extractedIntel: {
+                  ...((props.extractedIntel || {}) as Record<string, unknown>),
+                  ...extracted,
+                  lastExtracted: new Date().toISOString(),
+                },
+              },
+              updatedAt: new Date(),
+            }).where(eq(deals.id, dealId));
+          }
+        }
+      } catch {
+        // Non-critical
+      }
+    }
+
+    // Embed the processed transcript for RAG search
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        const activityText = activityToText({
+          activityType: "meeting_completed",
+          summary: notes.summary,
+          rawContent: transcript.slice(0, 3000),
+          channel: "meeting",
+          direction: "internal",
+          occurredAt: meetingDate ? new Date(meetingDate) : new Date(),
+        });
+        const targetId = activityId || `transcript-${Date.now()}`;
+        await embedEntity(authCtx.tenantId, "activity", targetId, activityText);
+      } catch {
+        // Non-critical embedding failure
+      }
     }
 
     return Response.json({
