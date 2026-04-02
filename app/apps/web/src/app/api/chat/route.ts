@@ -251,9 +251,18 @@ export async function POST(req: Request) {
 - Answer questions about accounts, contacts, deals, and activities using REAL data
 - Search the CRM semantically for relevant information
 - Create new contacts, accounts, and deals
-- Provide sales coaching grounded in specific data points
+- Provide deal coaching grounded in SPECIFIC data points from the pipeline
 - Draft personalized emails based on real interaction history
 - Track follow-ups and suggest priorities based on activity gaps
+- Explain "why this account" by referencing real signals (funding, tech stack, engagement)
+
+## Coaching behavior:
+When the user asks for coaching on a deal or account:
+1. Use queryDeals and queryActivities to get ALL data for the entity
+2. Reference SPECIFIC interactions, dates, and data points — never give generic advice
+3. Calculate activity gaps (days since last contact) and flag risks
+4. Suggest concrete next steps referencing the actual contacts and timeline
+5. For "why this account": reference score reasons (funding, tech stack, size match, engagement signals) from the account properties
 
 ## Rules:
 - ALWAYS use real data from the CRM. Never make up company names, contact details, or statistics.
@@ -461,6 +470,78 @@ ${crmSnapshot}${ragContext}${entityContext}`;
           .values({ tenantId, stage: input.stage ?? "lead", name: input.name, value: input.value, companyId: input.companyId, contactId: input.contactId })
           .returning();
         return { created: { id: created.id, name: created.name, stage: created.stage, value: created.value } };
+      },
+    }),
+    getDealCoaching: makeTool({
+      description: "Get comprehensive deal context for coaching. Use when user asks for advice on a deal, 'what should I do about X deal', 'help with X opportunity', coaching, or deal strategy.",
+      inputSchema: z.object({
+        dealId: z.string().describe("The deal/opportunity ID"),
+      }),
+      execute: async (input) => {
+        const [deal] = await db.select().from(deals).where(and(eq(deals.id, input.dealId), eq(deals.tenantId, tenantId))).limit(1);
+        if (!deal) return { error: "Deal not found" };
+
+        // Get related contact, company, and all activities
+        const [relatedContact, relatedCompany, dealActivities] = await Promise.all([
+          deal.contactId ? db.select().from(contacts).where(eq(contacts.id, deal.contactId)).limit(1).then((r) => r[0] || null) : null,
+          deal.companyId ? db.select().from(companies).where(eq(companies.id, deal.companyId)).limit(1).then((r) => r[0] || null) : null,
+          db.select().from(activities).where(and(eq(activities.tenantId, tenantId), or(
+            and(eq(activities.entityType, "deal"), eq(activities.entityId, input.dealId)),
+            ...(deal.contactId ? [and(eq(activities.entityType, "contact"), eq(activities.entityId, deal.contactId))] : []),
+          ))).orderBy(desc(activities.occurredAt)).limit(30),
+        ]);
+
+        const lastActivity = dealActivities[0];
+        const daysSinceLastActivity = lastActivity?.occurredAt
+          ? Math.floor((Date.now() - new Date(lastActivity.occurredAt).getTime()) / 86400000)
+          : null;
+
+        return {
+          deal: { id: deal.id, name: deal.name, stage: deal.stage, value: deal.value, summary: deal.summary, expectedCloseDate: deal.expectedCloseDate },
+          contact: relatedContact ? { id: relatedContact.id, name: [relatedContact.firstName, relatedContact.lastName].filter(Boolean).join(" "), email: relatedContact.email, title: relatedContact.title } : null,
+          company: relatedCompany ? { id: relatedCompany.id, name: relatedCompany.name, industry: relatedCompany.industry, score: relatedCompany.score, properties: relatedCompany.properties } : null,
+          recentActivities: dealActivities.map((a) => ({ type: a.activityType, summary: a.summary, date: a.occurredAt, direction: a.direction })),
+          daysSinceLastActivity,
+          riskLevel: daysSinceLastActivity && daysSinceLastActivity > 14 ? "high" : daysSinceLastActivity && daysSinceLastActivity > 7 ? "medium" : "low",
+        };
+      },
+    }),
+    getAccountIntelligence: makeTool({
+      description: "Get detailed account intelligence including score breakdown, signals, contacts, and activity summary. Use for 'why this account', account analysis, or account strategy questions.",
+      inputSchema: z.object({
+        accountId: z.string().describe("The account/company ID"),
+      }),
+      execute: async (input) => {
+        const [company] = await db.select().from(companies).where(and(eq(companies.id, input.accountId), eq(companies.tenantId, tenantId))).limit(1);
+        if (!company) return { error: "Account not found" };
+
+        const props = (company.properties || {}) as Record<string, unknown>;
+        const [companyContacts, companyDeals, recentActivity] = await Promise.all([
+          db.select().from(contacts).where(and(eq(contacts.companyId, input.accountId), eq(contacts.tenantId, tenantId))),
+          db.select().from(deals).where(and(eq(deals.companyId, input.accountId), eq(deals.tenantId, tenantId))),
+          db.select().from(activities).where(and(eq(activities.tenantId, tenantId), eq(activities.entityType, "company"), eq(activities.entityId, input.accountId))).orderBy(desc(activities.occurredAt)).limit(10),
+        ]);
+
+        return {
+          account: { id: company.id, name: company.name, domain: company.domain, industry: company.industry, score: company.score, size: company.size, revenue: company.revenue, description: company.description },
+          scoreBreakdown: {
+            grade: props.score_grade,
+            fit: props.score_fit,
+            engagement: props.score_engagement,
+            fitReasons: props.score_fit_reasons,
+            engagementReasons: props.score_engagement_reasons,
+          },
+          signals: {
+            technologies: props.technologies,
+            funding: props.total_funding_printed,
+            fundingStage: props.latest_funding_stage,
+            foundedYear: props.founded_year,
+            location: [props.city, props.state, props.country].filter(Boolean).join(", "),
+          },
+          contacts: companyContacts.map((c) => ({ id: c.id, name: [c.firstName, c.lastName].filter(Boolean).join(" "), title: c.title, email: c.email })),
+          deals: companyDeals.map((d) => ({ id: d.id, name: d.name, stage: d.stage, value: d.value })),
+          recentActivity: recentActivity.map((a) => ({ type: a.activityType, summary: a.summary, date: a.occurredAt })),
+        };
       },
     }),
   };
