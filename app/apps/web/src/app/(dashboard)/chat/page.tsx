@@ -1,9 +1,10 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
+import type { UIMessage } from "@ai-sdk/react";
 import { TextStreamChatTransport } from "ai";
-import { useRef, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRef, useEffect, useState, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { ChatMarkdown } from "@/components/chat-markdown";
 import { ToolCallGroup } from "@/components/tool-call-panel";
 import { ActionCard, parseToolResultForCard } from "@/components/action-card";
@@ -12,31 +13,140 @@ import { Sparkles, Send, Mail } from "lucide-react";
 
 export default function ChatPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const [threadId, setThreadId] = useState<string | null>(searchParams.get("thread"));
+  const [threadLoaded, setThreadLoaded] = useState(!searchParams.get("thread"));
+
   const chat = useChat({
     transport: new TextStreamChatTransport({ api: "/api/chat" }),
   });
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [localInput, setLocalInput] = useState("");
   const [autoSent, setAutoSent] = useState(false);
+  const [lastSavedCount, setLastSavedCount] = useState(0);
   const [emailComposer, setEmailComposer] = useState<{
     to: string;
     subject: string;
     body: string;
   } | null>(null);
 
+  // Load existing thread messages on mount
+  useEffect(() => {
+    const tid = searchParams.get("thread");
+    if (!tid || threadLoaded) return;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/chat/threads/${tid}`);
+        if (!res.ok) {
+          setThreadLoaded(true);
+          return;
+        }
+        const data = await res.json();
+        if (data.messages && data.messages.length > 0) {
+          const msgs = data.messages.map((m: { id: string; role: string; content: string }) => ({
+            id: m.id,
+            role: m.role as "user" | "assistant",
+            parts: [{ type: "text" as const, text: m.content }],
+          }));
+          chat.setMessages(msgs);
+          setLastSavedCount(msgs.length);
+        }
+        setThreadId(tid);
+      } catch {
+        // Thread load failed — start fresh
+      }
+      setThreadLoaded(true);
+    })();
+  }, [searchParams, threadLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-send query from persistent chat bar
   useEffect(() => {
     const q = searchParams.get("q");
-    if (q && !autoSent && chat.messages.length === 0) {
+    if (q && !autoSent && threadLoaded && chat.messages.length === 0) {
       setAutoSent(true);
       chat.sendMessage({ text: q });
     }
-  }, [searchParams, autoSent, chat]);
+  }, [searchParams, autoSent, threadLoaded, chat]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat.messages]);
+
+  // Save messages to thread after AI finishes responding
+  const saveMessages = useCallback(async () => {
+    if (chat.status === "streaming") return;
+    if (chat.messages.length <= lastSavedCount) return;
+
+    const newMessages = chat.messages.slice(lastSavedCount);
+    if (newMessages.length === 0) return;
+
+    const messagesToSave = newMessages.map((m) => ({
+      role: m.role,
+      content: m.parts
+        .filter((p) => p.type === "text")
+        .map((p) => ("text" in p ? p.text : ""))
+        .join(""),
+    }));
+
+    // Auto-generate title from first user message
+    const firstUserMsg = chat.messages.find((m) => m.role === "user");
+    const title = firstUserMsg?.parts
+      .filter((p) => p.type === "text")
+      .map((p) => ("text" in p ? p.text : ""))
+      .join("")
+      ?.slice(0, 100);
+
+    if (!threadId) {
+      // Create new thread
+      try {
+        const res = await fetch("/api/chat/threads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const newThreadId = data.thread.id;
+          setThreadId(newThreadId);
+
+          // Save all messages to the new thread
+          await fetch(`/api/chat/threads/${newThreadId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: messagesToSave, title }),
+          });
+
+          // Update URL without navigation
+          window.history.replaceState(null, "", `/chat?thread=${newThreadId}`);
+        }
+      } catch {
+        // Silent fail — messages stay in memory
+      }
+    } else {
+      // Append to existing thread
+      try {
+        await fetch(`/api/chat/threads/${threadId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: messagesToSave }),
+        });
+      } catch {
+        // Silent fail
+      }
+    }
+
+    setLastSavedCount(chat.messages.length);
+  }, [chat.messages, chat.status, threadId, lastSavedCount]);
+
+  // Trigger save when streaming completes
+  useEffect(() => {
+    if (chat.status === "ready" && chat.messages.length > lastSavedCount) {
+      saveMessages();
+    }
+  }, [chat.status, chat.messages.length, lastSavedCount, saveMessages]);
 
   function handleLocalSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,8 +158,7 @@ export default function ChatPage() {
   }
 
   function useSuggestion(text: string) {
-    setLocalInput(text);
-    inputRef.current?.focus();
+    chat.sendMessage({ text });
   }
 
   function detectEmail(text: string): { to: string; subject: string; body: string } | null {
@@ -64,8 +173,48 @@ export default function ChatPage() {
     return { to: toMatch ? toMatch[1].trim() : "", subject, body };
   }
 
+  // Don't render until thread is loaded (prevents flash of empty state)
+  if (!threadLoaded) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Sparkles size={20} className="animate-pulse" style={{ color: "var(--color-accent)" }} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col">
+      {/* Thread header (when in a thread) */}
+      {threadId && chat.messages.length > 0 && (
+        <div
+          className="flex items-center gap-2 px-6 py-2"
+          style={{ borderBottom: "0.5px solid var(--color-border-default)" }}
+        >
+          <Sparkles size={14} style={{ color: "var(--color-accent)" }} />
+          <span
+            className="flex-1 truncate text-[13px] font-medium"
+            style={{ color: "var(--color-text-primary)" }}
+          >
+            {chat.messages.find((m) => m.role === "user")?.parts
+              .filter((p) => p.type === "text")
+              .map((p) => ("text" in p ? p.text : ""))
+              .join("")
+              ?.slice(0, 80) || "Chat"}
+          </span>
+          <button
+            onClick={() => {
+              router.push("/chat");
+              setThreadId(null);
+              setLastSavedCount(0);
+            }}
+            className="text-[12px] font-medium"
+            style={{ color: "var(--color-accent)" }}
+          >
+            + New chat
+          </button>
+        </div>
+      )}
+
       {/* Messages area */}
       <div className="flex-1 overflow-auto px-6 py-8">
         {chat.messages.length === 0 && (
