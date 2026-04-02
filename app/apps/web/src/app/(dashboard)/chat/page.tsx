@@ -6,6 +6,7 @@ import { useRef, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChatMarkdown } from "@/components/chat-markdown";
 import { ToolCallGroup } from "@/components/tool-call-panel";
+import { ActionCard, parseToolResultForCard } from "@/components/action-card";
 import { EmailComposer } from "@/components/email-composer";
 import { Sparkles, Send, Mail } from "lucide-react";
 
@@ -171,7 +172,26 @@ export default function ChatPage() {
                       })
                       .filter(Boolean) as { toolName: string; args: Record<string, unknown>; result: unknown }[];
                     if (toolCalls.length === 0) return null;
-                    return <ToolCallGroup calls={toolCalls} />;
+                    return (
+                      <>
+                        <ToolCallGroup calls={toolCalls} />
+                        {/* Action cards for create/update tool calls */}
+                        {toolCalls.map((call, idx) => {
+                          const cardData = parseToolResultForCard(call.toolName, call.args, call.result);
+                          if (!cardData) return null;
+                          return (
+                            <ActionCard
+                              key={idx}
+                              actionType={cardData.actionType}
+                              entityType={cardData.entityType}
+                              entityName={cardData.entityName}
+                              fields={cardData.fields}
+                              status="approved"
+                            />
+                          );
+                        })}
+                      </>
+                    );
                   })()}
 
                   {/* Message content with entity links */}
