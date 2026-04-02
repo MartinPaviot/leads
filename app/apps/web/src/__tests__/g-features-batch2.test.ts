@@ -6,6 +6,10 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
+vi.mock("@/lib/auth-utils", () => ({
+  getAuthContext: vi.fn(),
+}));
+
 vi.mock("@/db", () => ({
   db: {
     select: vi.fn(),
@@ -41,6 +45,7 @@ vi.mock("drizzle-orm", () => ({
 process.env.ANTHROPIC_API_KEY = "test-key";
 
 import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 
 const followUpModule = await import("@/app/api/emails/follow-up/route");
 const suggestReplyModule = await import("@/app/api/emails/suggest-reply/route");
@@ -54,7 +59,7 @@ describe("POST /api/emails/follow-up", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    vi.mocked(auth).mockResolvedValue(null as never);
+    vi.mocked(getAuthContext).mockResolvedValue(null);
 
     const req = new Request("http://localhost/api/emails/follow-up", {
       method: "POST",
@@ -76,7 +81,7 @@ describe("POST /api/emails/suggest-reply", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    vi.mocked(auth).mockResolvedValue(null as never);
+    vi.mocked(getAuthContext).mockResolvedValue(null);
 
     const req = new Request("http://localhost/api/emails/suggest-reply", {
       method: "POST",

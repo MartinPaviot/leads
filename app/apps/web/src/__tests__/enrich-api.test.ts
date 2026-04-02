@@ -5,6 +5,10 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
+vi.mock("@/lib/auth-utils", () => ({
+  getAuthContext: vi.fn(),
+}));
+
 vi.mock("@/db", () => ({
   db: {
     select: vi.fn(),
@@ -20,7 +24,7 @@ vi.mock("@/lib/apollo-client", () => ({
   enrichOrganization: vi.fn(),
   employeeCountToRange: vi.fn((n: number) => n > 1000 ? "1000+" : "51-200"),
   revenueToRange: vi.fn(() => "$100M+"),
-  isApolloAvailable: vi.fn(() => false),
+  isApolloAvailable: vi.fn(() => true),
 }));
 
 vi.mock("ai", () => ({
@@ -40,13 +44,20 @@ vi.mock("@/lib/embeddings", () => ({
   companyToText: vi.fn(() => "test text"),
 }));
 
+vi.mock("drizzle-orm", () => ({
+  and: vi.fn(),
+  eq: vi.fn(),
+}));
+
 // Set env before import
 process.env.ANTHROPIC_API_KEY = "test-key";
 
 import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { generateObject } from "ai";
 import { embedEntity } from "@/lib/embeddings";
+import { enrichOrganization } from "@/lib/apollo-client";
 
 // Dynamic import to get the route handler
 const { POST } = await import("@/app/api/enrich/route");
@@ -57,7 +68,7 @@ describe("POST /api/enrich", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    vi.mocked(auth).mockResolvedValue(null as never);
+    vi.mocked(getAuthContext).mockResolvedValue(null);
 
     const req = new Request("http://localhost/api/enrich", {
       method: "POST",
@@ -70,7 +81,7 @@ describe("POST /api/enrich", () => {
   });
 
   it("returns 400 when companyIds missing", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const req = new Request("http://localhost/api/enrich", {
       method: "POST",
@@ -83,7 +94,7 @@ describe("POST /api/enrich", () => {
   });
 
   it("returns 400 when companyIds is empty array", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const req = new Request("http://localhost/api/enrich", {
       method: "POST",
@@ -95,8 +106,8 @@ describe("POST /api/enrich", () => {
     expect(res.status).toBe(400);
   });
 
-  it("enriches a company successfully", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+  it("enriches a company successfully via Apollo", async () => {
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const mockCompany = {
       id: "c1",
@@ -106,6 +117,7 @@ describe("POST /api/enrich", () => {
       description: null,
       size: null,
       revenue: null,
+      properties: {},
     };
 
     // Mock select chain
@@ -119,14 +131,25 @@ describe("POST /api/enrich", () => {
     const updateSetFn = vi.fn().mockReturnValue({ where: updateWhereFn });
     vi.mocked(db.update).mockReturnValue({ set: updateSetFn } as never);
 
-    // Mock LLM response
-    vi.mocked(generateObject).mockResolvedValue({
-      object: {
-        industry: "Fintech",
-        description: "Online payment processing platform",
-        size: "1000+",
-        revenue: "$100M+",
-      },
+    // Mock Apollo enrichment response
+    vi.mocked(enrichOrganization).mockResolvedValue({
+      id: "apollo-1",
+      industry: "Fintech",
+      description: "Online payment processing platform",
+      estimated_num_employees: 8000,
+      annual_revenue: 1000000000,
+      linkedin_url: "https://linkedin.com/company/stripe",
+      website_url: "https://stripe.com",
+      founded_year: 2010,
+      technology_names: ["React", "Ruby"],
+      total_funding: 2200000000,
+      total_funding_printed: "$2.2B",
+      latest_funding_stage: "Series I",
+      annual_revenue_printed: "$1B+",
+      city: "San Francisco",
+      state: "CA",
+      country: "US",
+      keywords: ["fintech", "payments"],
     } as never);
 
     vi.mocked(embedEntity).mockResolvedValue(undefined);
@@ -145,16 +168,12 @@ describe("POST /api/enrich", () => {
     expect(data.enriched).toBe(1);
     expect(data.failed).toBe(0);
 
-    // Verify LLM was called with company name
-    expect(generateObject).toHaveBeenCalledWith(
-      expect.objectContaining({
-        prompt: expect.stringContaining("Stripe"),
-      })
-    );
+    // Verify Apollo was called
+    expect(enrichOrganization).toHaveBeenCalledWith("stripe.com");
   });
 
   it("skips already enriched companies", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const mockCompany = {
       id: "c1",
@@ -186,7 +205,7 @@ describe("POST /api/enrich", () => {
   });
 
   it("limits batch to 20 companies", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const ids = Array.from({ length: 25 }, (_, i) => `c${i}`);
 
@@ -216,7 +235,7 @@ describe("POST /api/enrich", () => {
   });
 
   it("counts failures for missing companies", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const limitFn = vi.fn().mockResolvedValue([]);
     const whereFn = vi.fn().mockReturnValue({ limit: limitFn });

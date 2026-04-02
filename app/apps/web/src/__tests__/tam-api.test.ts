@@ -4,6 +4,10 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
+vi.mock("@/lib/auth-utils", () => ({
+  getAuthContext: vi.fn(),
+}));
+
 vi.mock("@/db", () => ({
   db: {
     select: vi.fn(),
@@ -34,15 +38,26 @@ vi.mock("@/lib/embeddings", () => ({
 }));
 
 vi.mock("drizzle-orm", () => ({
+  and: vi.fn(),
   eq: vi.fn(),
   sql: vi.fn(),
+}));
+
+vi.mock("@/lib/apollo-client", () => ({
+  searchOrganizations: vi.fn(),
+  enrichOrganization: vi.fn(),
+  employeeCountToRange: vi.fn((n: number) => n > 200 ? "201-500" : "51-200"),
+  revenueToRange: vi.fn(() => "$10M-$50M"),
+  isApolloAvailable: vi.fn(() => true),
 }));
 
 process.env.ANTHROPIC_API_KEY = "test-key";
 
 import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { generateObject } from "ai";
+import { searchOrganizations, enrichOrganization } from "@/lib/apollo-client";
 
 const { POST, GET } = await import("@/app/api/tam/route");
 
@@ -52,7 +67,7 @@ describe("POST /api/tam (generate)", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    vi.mocked(auth).mockResolvedValue(null as never);
+    vi.mocked(getAuthContext).mockResolvedValue(null);
 
     const req = new Request("http://localhost/api/tam", {
       method: "POST",
@@ -65,7 +80,7 @@ describe("POST /api/tam (generate)", () => {
   });
 
   it("returns 400 when ICP is empty", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const req = new Request("http://localhost/api/tam", {
       method: "POST",
@@ -78,7 +93,7 @@ describe("POST /api/tam (generate)", () => {
   });
 
   it("returns 400 when ICP is missing", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const req = new Request("http://localhost/api/tam", {
       method: "POST",
@@ -90,48 +105,53 @@ describe("POST /api/tam (generate)", () => {
     expect(res.status).toBe(400);
   });
 
-  it("generates TAM companies successfully", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+  it("generates TAM companies successfully via Apollo", async () => {
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
-    // Mock existing companies (for dedup check)
-    const limitFnSelect = vi.fn().mockResolvedValue([{ name: "Existing Corp" }]);
-    const fromFnSelect = vi.fn().mockReturnValue({ limit: limitFnSelect });
+    // Mock existing companies (for dedup check) — route: .from(companies).where(eq(...)).limit(500)
+    const limitFnSelect = vi.fn().mockResolvedValue([{ name: "Existing Corp", domain: "existing.com" }]);
+    const whereFnSelect = vi.fn().mockReturnValue({ limit: limitFnSelect });
+    const fromFnSelect = vi.fn().mockReturnValue({ where: whereFnSelect });
     vi.mocked(db.select).mockReturnValue({ from: fromFnSelect } as never);
 
-    // Mock insert chain
-    const returningFn = vi.fn().mockResolvedValue([{ id: "new-1" }]);
-    const valuesFn = vi.fn().mockReturnValue({ returning: returningFn });
+    // Mock insert chain (no returning in route — it uses plain insert)
+    const valuesFn = vi.fn().mockResolvedValue([]);
     vi.mocked(db.insert).mockReturnValue({ values: valuesFn } as never);
 
-    // Mock update chain (for scoring)
-    const updateWhereFn = vi.fn().mockResolvedValue([]);
-    const updateSetFn = vi.fn().mockReturnValue({ where: updateWhereFn });
-    vi.mocked(db.update).mockReturnValue({ set: updateSetFn } as never);
+    // Mock LLM: ICP -> Apollo filters translation
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        keywords: ["SaaS", "B2B"],
+        employee_ranges: ["51,200"],
+        locations: [],
+      },
+    } as never);
 
-    // Mock LLM: TAM generation
-    vi.mocked(generateObject)
-      .mockResolvedValueOnce({
-        object: {
-          companies: [
-            {
-              name: "Acme Inc",
-              domain: "acme.com",
-              industry: "SaaS",
-              size: "51-200",
-              revenue: "$10M-$50M",
-              description: "Cloud platform",
-              whyItFits: "B2B SaaS, right size",
-            },
-          ],
+    // Mock Apollo search
+    vi.mocked(searchOrganizations).mockResolvedValue({
+      organizations: [
+        {
+          id: "apollo-1",
+          name: "Acme Inc",
+          website_url: "https://acme.com",
+          industry: "SaaS",
+          estimated_num_employees: 100,
+          annual_revenue: 20000000,
+          description: "Cloud platform",
+          linkedin_url: "https://linkedin.com/company/acme",
+          technology_names: ["React"],
+          total_funding: 5000000,
+          founded_year: 2018,
+          city: "SF",
+          state: "CA",
+          country: "US",
+          keywords: ["saas"],
         },
-      } as never)
-      // Mock LLM: scoring
-      .mockResolvedValueOnce({
-        object: {
-          score: 85,
-          reasons: ["Great fit"],
-        },
-      } as never);
+      ],
+    } as never);
+
+    // Mock Apollo enrich (called per org with domain)
+    vi.mocked(enrichOrganization).mockResolvedValue(null);
 
     const req = new Request("http://localhost/api/tam", {
       method: "POST",
@@ -144,14 +164,8 @@ describe("POST /api/tam (generate)", () => {
 
     expect(res.status).toBe(200);
     expect(data.success).toBe(true);
+    expect(data.source).toBe("apollo");
     expect(data.companiesCreated).toBe(1);
-
-    // Verify LLM was called with ICP
-    expect(generateObject).toHaveBeenCalledWith(
-      expect.objectContaining({
-        prompt: expect.stringContaining("B2B SaaS companies"),
-      })
-    );
   });
 });
 
@@ -161,7 +175,7 @@ describe("GET /api/tam (status)", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    vi.mocked(auth).mockResolvedValue(null as never);
+    vi.mocked(getAuthContext).mockResolvedValue(null);
 
     const res = await GET();
     expect(res.status).toBe(401);

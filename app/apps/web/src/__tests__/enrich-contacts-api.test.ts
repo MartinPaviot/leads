@@ -4,6 +4,10 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
+vi.mock("@/lib/auth-utils", () => ({
+  getAuthContext: vi.fn(),
+}));
+
 vi.mock("@/db", () => ({
   db: {
     select: vi.fn(),
@@ -18,7 +22,7 @@ vi.mock("@/db/schema", () => ({
 
 vi.mock("@/lib/apollo-client", () => ({
   enrichPerson: vi.fn(),
-  isApolloAvailable: vi.fn(() => false),
+  isApolloAvailable: vi.fn(() => true),
 }));
 
 vi.mock("ai", () => ({
@@ -38,11 +42,18 @@ vi.mock("@/lib/embeddings", () => ({
   contactToText: vi.fn(() => "test text"),
 }));
 
+vi.mock("drizzle-orm", () => ({
+  and: vi.fn(),
+  eq: vi.fn(),
+}));
+
 process.env.ANTHROPIC_API_KEY = "test-key";
 
 import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { generateObject } from "ai";
+import { enrichPerson } from "@/lib/apollo-client";
 
 const { POST } = await import("@/app/api/enrich-contacts/route");
 
@@ -52,7 +63,7 @@ describe("POST /api/enrich-contacts", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    vi.mocked(auth).mockResolvedValue(null as never);
+    vi.mocked(getAuthContext).mockResolvedValue(null);
 
     const req = new Request("http://localhost/api/enrich-contacts", {
       method: "POST",
@@ -65,7 +76,7 @@ describe("POST /api/enrich-contacts", () => {
   });
 
   it("returns 400 when contactIds missing", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const req = new Request("http://localhost/api/enrich-contacts", {
       method: "POST",
@@ -78,7 +89,7 @@ describe("POST /api/enrich-contacts", () => {
   });
 
   it("returns 400 when contactIds is empty", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const req = new Request("http://localhost/api/enrich-contacts", {
       method: "POST",
@@ -90,8 +101,8 @@ describe("POST /api/enrich-contacts", () => {
     expect(res.status).toBe(400);
   });
 
-  it("enriches a contact successfully", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+  it("enriches a contact successfully via Apollo", async () => {
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const mockContact = {
       id: "ct1",
@@ -105,10 +116,10 @@ describe("POST /api/enrich-contacts", () => {
       properties: {},
     };
 
-    // Mock select chain (used twice: once for contact, once for company lookup)
+    // Mock select chain (used twice: once for contact, once for company lookup by org name)
     const limitFn = vi.fn()
       .mockResolvedValueOnce([mockContact])  // contact lookup
-      .mockResolvedValueOnce([]);             // company lookup (not found)
+      .mockResolvedValueOnce([]);             // company lookup by org name (not found)
     const whereFn = vi.fn().mockReturnValue({ limit: limitFn });
     const fromFn = vi.fn().mockReturnValue({ where: whereFn });
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
@@ -118,15 +129,20 @@ describe("POST /api/enrich-contacts", () => {
     const updateSetFn = vi.fn().mockReturnValue({ where: updateWhereFn });
     vi.mocked(db.update).mockReturnValue({ set: updateSetFn } as never);
 
-    vi.mocked(generateObject).mockResolvedValue({
-      object: {
-        title: "CTO",
-        seniority: "C-Suite",
-        department: "Engineering",
-        linkedinUrl: "https://linkedin.com/in/sarahchen",
-        phone: null,
-        companyName: "Meridian Labs",
-      },
+    // Mock Apollo enrichPerson response
+    vi.mocked(enrichPerson).mockResolvedValue({
+      id: "apollo-person-1",
+      title: "CTO",
+      seniority: "C-Suite",
+      departments: ["Engineering"],
+      linkedin_url: "https://linkedin.com/in/sarahchen",
+      email_status: "verified",
+      headline: "CTO at Meridian Labs",
+      city: "San Francisco",
+      state: "CA",
+      country: "US",
+      phone_numbers: [{ raw_number: "+14155551234" }],
+      organization: { name: "Meridian Labs" },
     } as never);
 
     const req = new Request("http://localhost/api/enrich-contacts", {
@@ -143,15 +159,12 @@ describe("POST /api/enrich-contacts", () => {
     expect(data.enriched).toBe(1);
     expect(data.failed).toBe(0);
 
-    expect(generateObject).toHaveBeenCalledWith(
-      expect.objectContaining({
-        prompt: expect.stringContaining("Sarah Chen"),
-      })
-    );
+    // Verify Apollo was called
+    expect(enrichPerson).toHaveBeenCalled();
   });
 
   it("skips already enriched contacts", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const mockContact = {
       id: "ct1",
@@ -183,7 +196,7 @@ describe("POST /api/enrich-contacts", () => {
   });
 
   it("counts failures for missing contacts", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const limitFn = vi.fn().mockResolvedValue([]);
     const whereFn = vi.fn().mockReturnValue({ limit: limitFn });
@@ -204,7 +217,7 @@ describe("POST /api/enrich-contacts", () => {
   });
 
   it("limits batch to 20 contacts", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const ids = Array.from({ length: 25 }, (_, i) => `ct${i}`);
 

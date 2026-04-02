@@ -4,6 +4,10 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
+vi.mock("@/lib/auth-utils", () => ({
+  getAuthContext: vi.fn(),
+}));
+
 vi.mock("@/db", () => ({
   db: {
     select: vi.fn(),
@@ -16,10 +20,12 @@ vi.mock("@/db/schema", () => ({
 }));
 
 vi.mock("drizzle-orm", () => ({
+  eq: vi.fn(),
   sql: vi.fn(),
 }));
 
 import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 
 const delivModule = await import("@/app/api/deliverability/route");
@@ -30,16 +36,19 @@ describe("GET /api/deliverability", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    vi.mocked(auth).mockResolvedValue(null as never);
+    vi.mocked(getAuthContext).mockResolvedValue(null);
 
     const res = await delivModule.GET();
     expect(res.status).toBe(401);
   });
 
   it("returns zero metrics when no data", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
-    const fromFn = vi.fn().mockResolvedValue([]);
+    const whereFn = vi.fn().mockResolvedValue([]);
+    const fromFn = vi.fn()
+      .mockReturnValueOnce({ where: whereFn })   // activities query (has .where)
+      .mockResolvedValueOnce([]);                 // sequenceEnrollments query (no .where)
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 
     const res = await delivModule.GET();
@@ -52,7 +61,7 @@ describe("GET /api/deliverability", () => {
   });
 
   it("computes correct rates from activities", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const mockActivities = [
       { id: "a1", activityType: "email_sent", metadata: {} },
@@ -65,12 +74,10 @@ describe("GET /api/deliverability", () => {
       { id: "a8", activityType: "email_bounced", metadata: {} },
     ];
 
-    let callCount = 0;
-    const fromFn = vi.fn().mockImplementation(() => {
-      callCount++;
-      if (callCount === 1) return Promise.resolve(mockActivities);
-      return Promise.resolve([]);
-    });
+    const whereFn = vi.fn().mockResolvedValue(mockActivities);
+    const fromFn = vi.fn()
+      .mockReturnValueOnce({ where: whereFn })   // activities query (has .where)
+      .mockResolvedValueOnce([]);                 // sequenceEnrollments query (no .where)
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 
     const res = await delivModule.GET();
@@ -88,7 +95,7 @@ describe("GET /api/deliverability", () => {
   });
 
   it("flags high bounce rate warning", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     // 10 sent, 1 bounced = 10% bounce
     const mockActivities = [
@@ -96,12 +103,10 @@ describe("GET /api/deliverability", () => {
       { id: "b1", activityType: "email_bounced", metadata: {} },
     ];
 
-    let callCount = 0;
-    const fromFn = vi.fn().mockImplementation(() => {
-      callCount++;
-      if (callCount === 1) return Promise.resolve(mockActivities);
-      return Promise.resolve([]);
-    });
+    const whereFn = vi.fn().mockResolvedValue(mockActivities);
+    const fromFn = vi.fn()
+      .mockReturnValueOnce({ where: whereFn })   // activities query (has .where)
+      .mockResolvedValueOnce([]);                 // sequenceEnrollments query (no .where)
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 
     const res = await delivModule.GET();

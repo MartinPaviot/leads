@@ -4,6 +4,10 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
+vi.mock("@/lib/auth-utils", () => ({
+  getAuthContext: vi.fn(),
+}));
+
 vi.mock("@/db", () => ({
   db: {
     select: vi.fn(),
@@ -27,9 +31,15 @@ vi.mock("@ai-sdk/openai", () => ({
   openai: vi.fn(() => "mock-openai-model"),
 }));
 
+vi.mock("drizzle-orm", () => ({
+  and: vi.fn(),
+  eq: vi.fn(),
+}));
+
 process.env.ANTHROPIC_API_KEY = "test-key";
 
 import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { generateObject } from "ai";
 
@@ -41,7 +51,7 @@ describe("POST /api/signals/detect", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    vi.mocked(auth).mockResolvedValue(null as never);
+    vi.mocked(getAuthContext).mockResolvedValue(null);
 
     const req = new Request("http://localhost/api/signals", {
       method: "POST",
@@ -54,7 +64,7 @@ describe("POST /api/signals/detect", () => {
   });
 
   it("returns 400 when companyIds missing", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const req = new Request("http://localhost/api/signals", {
       method: "POST",
@@ -67,7 +77,7 @@ describe("POST /api/signals/detect", () => {
   });
 
   it("detects signals for a company", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const mockCompany = {
       id: "c1",
@@ -77,7 +87,12 @@ describe("POST /api/signals/detect", () => {
       size: "1000+",
       revenue: "$100M+",
       description: "Payment platform",
-      properties: {},
+      properties: {
+        enrichment_source: "apollo",
+        total_funding: 2200000000,
+        total_funding_printed: "$2.2B",
+        employee_count: 8000,
+      },
     };
 
     const limitFn = vi.fn().mockResolvedValue([mockCompany]);
@@ -124,7 +139,7 @@ describe("POST /api/signals/detect", () => {
   });
 
   it("handles company with no signals", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const mockCompany = {
       id: "c1",

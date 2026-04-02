@@ -270,6 +270,7 @@ export const sendSequenceStep = inngest.createFunction(
   {
     id: "send-sequence-step",
     name: "Send Sequence Step",
+    retries: 3,
     triggers: [{ event: "sequence/step-due" }],
   },
   async ({ event, step }: { event: { data: { enrollmentId: string } }; step: any }) => {
@@ -480,6 +481,7 @@ export const processReply = inngest.createFunction(
   {
     id: "process-reply",
     name: "Process Sequence Reply",
+    retries: 3,
     triggers: [{ event: "email/reply-received" }],
   },
   async ({ event, step }: { event: { data: { enrollmentId: string; replyContent: string } }; step: any }) => {

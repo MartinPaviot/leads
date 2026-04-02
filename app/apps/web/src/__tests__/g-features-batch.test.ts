@@ -6,6 +6,10 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
+vi.mock("@/lib/auth-utils", () => ({
+  getAuthContext: vi.fn(),
+}));
+
 vi.mock("@/db", () => ({
   db: {
     select: vi.fn(),
@@ -21,9 +25,11 @@ vi.mock("@/db/schema", () => ({
 
 vi.mock("drizzle-orm", () => ({
   eq: vi.fn(),
+  and: vi.fn(),
 }));
 
 import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { getMomentum } from "@/lib/momentum";
 
@@ -41,7 +47,7 @@ describe("G-Features Batch Tests", () => {
   // =============================================
   describe("POST /api/accounts/[id]/contacts", () => {
     it("returns 401 when not authenticated", async () => {
-      vi.mocked(auth).mockResolvedValue(null as never);
+      vi.mocked(getAuthContext).mockResolvedValue(null);
 
       const req = new Request("http://localhost/api/accounts/abc/contacts", {
         method: "POST",
@@ -57,7 +63,7 @@ describe("G-Features Batch Tests", () => {
     });
 
     it("returns contacts for authenticated user", async () => {
-      vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+      vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
       const mockContacts = [
         { id: "c1", firstName: "Alice", companyId: "abc" },

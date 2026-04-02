@@ -4,6 +4,10 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
+vi.mock("@/lib/auth-utils", () => ({
+  getAuthContext: vi.fn(),
+}));
+
 vi.mock("@/db", () => ({
   db: {
     select: vi.fn(),
@@ -24,6 +28,7 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 
 const seqModule = await import("@/app/api/sequences/route");
@@ -35,7 +40,7 @@ describe("Sequences API", () => {
 
   describe("GET /api/sequences", () => {
     it("returns 401 when not authenticated", async () => {
-      vi.mocked(auth).mockResolvedValue(null as never);
+      vi.mocked(getAuthContext).mockResolvedValue(null);
 
       const res = await seqModule.GET();
       expect(res.status).toBe(401);
@@ -44,7 +49,7 @@ describe("Sequences API", () => {
 
   describe("POST /api/sequences", () => {
     it("returns 401 when not authenticated", async () => {
-      vi.mocked(auth).mockResolvedValue(null as never);
+      vi.mocked(getAuthContext).mockResolvedValue(null);
 
       const req = new Request("http://localhost/api/sequences", {
         method: "POST",
@@ -57,7 +62,7 @@ describe("Sequences API", () => {
     });
 
     it("returns 400 when name is empty", async () => {
-      vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+      vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
       const req = new Request("http://localhost/api/sequences", {
         method: "POST",
@@ -70,7 +75,7 @@ describe("Sequences API", () => {
     });
 
     it("creates a sequence successfully", async () => {
-      vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+      vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
       const returningFn = vi.fn().mockResolvedValue([{ id: "seq1", name: "Cold Outreach" }]);
       const valuesFn = vi.fn().mockReturnValue({ returning: returningFn });

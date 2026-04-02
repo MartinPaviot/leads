@@ -4,6 +4,10 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
+vi.mock("@/lib/auth-utils", () => ({
+  getAuthContext: vi.fn(),
+}));
+
 vi.mock("@/db", () => ({
   db: {
     select: vi.fn(),
@@ -20,10 +24,12 @@ vi.mock("@/db/schema", () => ({
 }));
 
 vi.mock("drizzle-orm", () => ({
+  eq: vi.fn(),
   sql: vi.fn(),
 }));
 
 import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 
 const insightsModule = await import("@/app/api/insights/route");
@@ -34,16 +40,21 @@ describe("GET /api/insights", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    vi.mocked(auth).mockResolvedValue(null as never);
+    vi.mocked(getAuthContext).mockResolvedValue(null);
 
     const res = await insightsModule.GET();
     expect(res.status).toBe(401);
   });
 
   it("returns empty insights when no data", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
-    const fromFn = vi.fn().mockResolvedValue([]);
+    const whereFn = vi.fn().mockResolvedValue([]);
+    const fromFn = vi.fn()
+      .mockReturnValueOnce({ where: whereFn })   // deals (has .where)
+      .mockReturnValueOnce({ where: whereFn })   // contacts (has .where)
+      .mockReturnValueOnce({ where: whereFn })   // companies (has .where)
+      .mockResolvedValueOnce([]);                 // sequenceEnrollments (no .where)
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 
     const res = await insightsModule.GET();
@@ -54,7 +65,7 @@ describe("GET /api/insights", () => {
   });
 
   it("detects stalling deals", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const oldDate = new Date(Date.now() - 20 * 86400000); // 20 days ago
     const mockDeals = [
@@ -62,14 +73,15 @@ describe("GET /api/insights", () => {
       { id: "d2", name: "Another Stale", stage: "demo", value: 20000, properties: {}, createdAt: oldDate, updatedAt: oldDate },
     ];
 
-    let callCount = 0;
-    const fromFn = vi.fn().mockImplementation(() => {
-      callCount++;
-      if (callCount === 1) return Promise.resolve(mockDeals); // deals
-      if (callCount === 2) return Promise.resolve([]); // contacts
-      if (callCount === 3) return Promise.resolve([]); // companies
-      return Promise.resolve([]); // enrollments
-    });
+    const whereFn = vi.fn()
+      .mockResolvedValueOnce(mockDeals)  // deals
+      .mockResolvedValueOnce([])         // contacts
+      .mockResolvedValueOnce([]);        // companies
+    const fromFn = vi.fn()
+      .mockReturnValueOnce({ where: whereFn })   // deals (has .where)
+      .mockReturnValueOnce({ where: whereFn })   // contacts (has .where)
+      .mockReturnValueOnce({ where: whereFn })   // companies (has .where)
+      .mockResolvedValueOnce([]);                 // sequenceEnrollments (no .where)
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 
     const res = await insightsModule.GET();
@@ -82,21 +94,22 @@ describe("GET /api/insights", () => {
   });
 
   it("detects high-risk deals", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const now = new Date();
     const mockDeals = [
       { id: "d1", name: "Risky Deal", stage: "proposal", value: 50000, properties: { riskLevel: "high" }, createdAt: now, updatedAt: now },
     ];
 
-    let callCount = 0;
-    const fromFn = vi.fn().mockImplementation(() => {
-      callCount++;
-      if (callCount === 1) return Promise.resolve(mockDeals);
-      if (callCount === 2) return Promise.resolve([]);
-      if (callCount === 3) return Promise.resolve([]);
-      return Promise.resolve([]);
-    });
+    const whereFn = vi.fn()
+      .mockResolvedValueOnce(mockDeals)  // deals
+      .mockResolvedValueOnce([])         // contacts
+      .mockResolvedValueOnce([]);        // companies
+    const fromFn = vi.fn()
+      .mockReturnValueOnce({ where: whereFn })   // deals (has .where)
+      .mockReturnValueOnce({ where: whereFn })   // contacts (has .where)
+      .mockReturnValueOnce({ where: whereFn })   // companies (has .where)
+      .mockResolvedValueOnce([]);                 // sequenceEnrollments (no .where)
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 
     const res = await insightsModule.GET();
@@ -109,7 +122,7 @@ describe("GET /api/insights", () => {
   });
 
   it("detects win rate trend", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const now = new Date();
     const mockDeals = [
@@ -118,14 +131,15 @@ describe("GET /api/insights", () => {
       { id: "d3", name: "Lost 1", stage: "lost", value: 5000, properties: {}, createdAt: now, updatedAt: now },
     ];
 
-    let callCount = 0;
-    const fromFn = vi.fn().mockImplementation(() => {
-      callCount++;
-      if (callCount === 1) return Promise.resolve(mockDeals);
-      if (callCount === 2) return Promise.resolve([]);
-      if (callCount === 3) return Promise.resolve([]);
-      return Promise.resolve([]);
-    });
+    const whereFn = vi.fn()
+      .mockResolvedValueOnce(mockDeals)  // deals
+      .mockResolvedValueOnce([])         // contacts
+      .mockResolvedValueOnce([]);        // companies
+    const fromFn = vi.fn()
+      .mockReturnValueOnce({ where: whereFn })   // deals (has .where)
+      .mockReturnValueOnce({ where: whereFn })   // contacts (has .where)
+      .mockReturnValueOnce({ where: whereFn })   // companies (has .where)
+      .mockResolvedValueOnce([]);                 // sequenceEnrollments (no .where)
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 
     const res = await insightsModule.GET();

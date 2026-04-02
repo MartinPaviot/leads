@@ -1,25 +1,17 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { users, tenants } from "@/db/schema";
+import { tenants } from "@/db/schema";
 import { subscriptions } from "@/db/billing-schema";
 import { eq, sql } from "drizzle-orm";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    // Get tenant
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.clerkId, session.user.id!));
-    if (!user) {
-      return Response.json({ error: "User not found" }, { status: 404 });
-    }
-    const tenantId = user.tenantId;
+    const tenantId = authCtx.tenantId;
 
     // Get tenant plan
     const [tenant] = await db

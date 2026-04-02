@@ -1,31 +1,21 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { users } from "@/db/schema";
 import { subscriptions } from "@/db/billing-schema";
 import { stripe } from "@/lib/stripe";
 import { eq } from "drizzle-orm";
 
 export async function POST() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    // Get tenant
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.clerkId, session.user.id!));
-    if (!user) {
-      return Response.json({ error: "User not found" }, { status: 404 });
-    }
-
     // Get subscription with Stripe customer ID
     const [sub] = await db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.tenantId, user.tenantId))
+      .where(eq(subscriptions.tenantId, authCtx.tenantId))
       .limit(1);
 
     if (!sub?.stripeCustomerId) {

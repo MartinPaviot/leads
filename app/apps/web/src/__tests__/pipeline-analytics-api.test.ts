@@ -4,6 +4,10 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
+vi.mock("@/lib/auth-utils", () => ({
+  getAuthContext: vi.fn(),
+}));
+
 vi.mock("@/db", () => ({
   db: {
     select: vi.fn(),
@@ -15,10 +19,12 @@ vi.mock("@/db/schema", () => ({
 }));
 
 vi.mock("drizzle-orm", () => ({
+  eq: vi.fn(),
   sql: vi.fn(),
 }));
 
 import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 
 const analyticsModule = await import(
@@ -31,16 +37,17 @@ describe("GET /api/pipeline/analytics", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    vi.mocked(auth).mockResolvedValue(null as never);
+    vi.mocked(getAuthContext).mockResolvedValue(null);
 
     const res = await analyticsModule.GET();
     expect(res.status).toBe(401);
   });
 
   it("returns zeroes when no deals exist", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
-    const fromFn = vi.fn().mockResolvedValue([]);
+    const whereFn = vi.fn().mockResolvedValue([]);
+    const fromFn = vi.fn().mockReturnValue({ where: whereFn });
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 
     const res = await analyticsModule.GET();
@@ -56,7 +63,7 @@ describe("GET /api/pipeline/analytics", () => {
   });
 
   it("computes correct analytics for mixed deals", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
@@ -69,7 +76,8 @@ describe("GET /api/pipeline/analytics", () => {
       { id: "d5", stage: "lost", value: 15000, properties: {}, createdAt: now, updatedAt: now },
     ];
 
-    const fromFn = vi.fn().mockResolvedValue(mockDeals);
+    const whereFn = vi.fn().mockResolvedValue(mockDeals);
+    const fromFn = vi.fn().mockReturnValue({ where: whereFn });
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 
     const res = await analyticsModule.GET();
@@ -95,14 +103,15 @@ describe("GET /api/pipeline/analytics", () => {
   });
 
   it("handles deals with no values", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const mockDeals = [
       { id: "d1", stage: "lead", value: null, properties: {}, createdAt: new Date(), updatedAt: new Date() },
       { id: "d2", stage: "qualification", value: 0, properties: {}, createdAt: new Date(), updatedAt: new Date() },
     ];
 
-    const fromFn = vi.fn().mockResolvedValue(mockDeals);
+    const whereFn = vi.fn().mockResolvedValue(mockDeals);
+    const fromFn = vi.fn().mockReturnValue({ where: whereFn });
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 
     const res = await analyticsModule.GET();

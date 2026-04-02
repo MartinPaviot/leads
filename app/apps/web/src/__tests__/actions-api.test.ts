@@ -4,6 +4,10 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
+vi.mock("@/lib/auth-utils", () => ({
+  getAuthContext: vi.fn(),
+}));
+
 vi.mock("@/db", () => ({
   db: {
     select: vi.fn(),
@@ -30,12 +34,14 @@ vi.mock("@ai-sdk/openai", () => ({
 }));
 
 vi.mock("drizzle-orm", () => ({
+  eq: vi.fn(),
   sql: vi.fn(),
 }));
 
 process.env.ANTHROPIC_API_KEY = "test-key";
 
 import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { generateObject } from "ai";
 
@@ -47,18 +53,27 @@ describe("GET /api/actions", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    vi.mocked(auth).mockResolvedValue(null as never);
+    vi.mocked(getAuthContext).mockResolvedValue(null);
 
     const res = await GET();
     expect(res.status).toBe(401);
   });
 
   it("generates prioritized actions", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
-    // Mock db selects
+    // Mock db selects — route does 4 queries:
+    // 1. deals: .where().limit() -> []
+    // 2. companies: .where() -> []
+    // 3. contacts: .where() -> []
+    // 4. sequenceEnrollments: no .where() -> []
     const limitFn = vi.fn().mockResolvedValue([]);
-    const fromFn = vi.fn().mockReturnValue({ limit: limitFn });
+    const whereFn = vi.fn().mockReturnValue({ limit: limitFn, then: (cb: (v: unknown) => void) => Promise.resolve([]).then(cb) });
+    const fromFn = vi.fn()
+      .mockReturnValueOnce({ where: whereFn })   // deals (has .where().limit())
+      .mockReturnValueOnce({ where: whereFn })   // companies (has .where())
+      .mockReturnValueOnce({ where: whereFn })   // contacts (has .where())
+      .mockResolvedValueOnce([]);                 // sequenceEnrollments (no .where)
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 
     vi.mocked(generateObject).mockResolvedValue({

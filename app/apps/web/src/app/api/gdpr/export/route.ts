@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import {
   users,
@@ -9,24 +9,24 @@ import {
   notes,
   tasks,
 } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
+    const tenantId = authCtx.tenantId;
+
     const [user] = await db
       .select()
       .from(users)
-      .where(eq(users.clerkId, session.user.id!));
+      .where(and(eq(users.clerkId, authCtx.userId), eq(users.tenantId, tenantId)));
     if (!user) {
       return Response.json({ error: "User not found" }, { status: 404 });
     }
-
-    const tenantId = user.tenantId;
 
     const [
       contactsData,

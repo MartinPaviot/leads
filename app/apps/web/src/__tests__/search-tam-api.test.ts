@@ -4,6 +4,10 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
+vi.mock("@/lib/auth-utils", () => ({
+  getAuthContext: vi.fn(),
+}));
+
 vi.mock("@/lib/embeddings", () => ({
   searchSimilar: vi.fn(),
 }));
@@ -20,7 +24,13 @@ vi.mock("@/db/schema", () => ({
   deals: { id: "id" },
 }));
 
+vi.mock("drizzle-orm", () => ({
+  and: vi.fn(),
+  eq: vi.fn(),
+}));
+
 import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { searchSimilar } from "@/lib/embeddings";
 import { db } from "@/db";
 
@@ -32,7 +42,7 @@ describe("POST /api/search/tam", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    vi.mocked(auth).mockResolvedValue(null as never);
+    vi.mocked(getAuthContext).mockResolvedValue(null);
 
     const req = new Request("http://localhost/api/search/tam", {
       method: "POST",
@@ -45,7 +55,7 @@ describe("POST /api/search/tam", () => {
   });
 
   it("returns 400 when query is empty", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const req = new Request("http://localhost/api/search/tam", {
       method: "POST",
@@ -58,7 +68,7 @@ describe("POST /api/search/tam", () => {
   });
 
   it("returns hydrated search results", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     vi.mocked(searchSimilar).mockResolvedValue([
       {
@@ -101,7 +111,7 @@ describe("POST /api/search/tam", () => {
   });
 
   it("filters by entity type", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     vi.mocked(searchSimilar).mockResolvedValue([
       { entityType: "company", entityId: "c1", content: "Stripe", similarity: 0.8 },
@@ -128,7 +138,7 @@ describe("POST /api/search/tam", () => {
   });
 
   it("returns empty results for no matches", async () => {
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
     vi.mocked(searchSimilar).mockResolvedValue([]);
 
     const req = new Request("http://localhost/api/search/tam", {

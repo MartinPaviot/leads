@@ -45,11 +45,13 @@ export async function POST(req: Request) {
 
   const { messages, contextType, contextId }: { messages: UIMessage[]; contextType?: string; contextId?: string } = await req.json();
 
-  const model = process.env.ANTHROPIC_API_KEY
+  const primaryModel = process.env.ANTHROPIC_API_KEY
     ? anthropic("claude-sonnet-4-20250514")
-    : process.env.OPENAI_API_KEY
-      ? openai("gpt-4o-mini")
-      : null;
+    : null;
+  const fallbackModel = process.env.OPENAI_API_KEY
+    ? openai("gpt-4o-mini")
+    : null;
+  const model = primaryModel || fallbackModel;
 
   if (!model) {
     return new Response(
@@ -88,9 +90,7 @@ export async function POST(req: Request) {
     }
   }
 
-  const result = streamText({
-    model,
-    system: `You are LeadSens, an autonomous GTM engine for early-stage founders doing founder-led sales. You help with:
+  const systemPrompt = `You are LeadSens, an autonomous GTM engine for early-stage founders doing founder-led sales. You help with:
 - Managing accounts, contacts, and deals
 - Answering questions about the pipeline
 - Drafting follow-up emails
@@ -100,9 +100,31 @@ export async function POST(req: Request) {
 Be concise, specific, and actionable. When referencing CRM data, cite the specific record.
 If you don't have data, say so honestly.
 
-IMPORTANT: Always respond in the same language as the user's message. If the user writes in French, respond entirely in French including any table headers or labels. If in Spanish, respond in Spanish. Default to English.${ragContext}${await getEntityContext(contextType, contextId, authCtx.tenantId)}`,
-    messages: await convertToModelMessages(messages),
-  });
+IMPORTANT: Always respond in the same language as the user's message. If the user writes in French, respond entirely in French including any table headers or labels. If in Spanish, respond in Spanish. Default to English.${ragContext}${await getEntityContext(contextType, contextId, authCtx.tenantId)}`;
 
-  return result.toTextStreamResponse();
+  const convertedMessages = await convertToModelMessages(messages);
+
+  try {
+    const result = streamText({
+      model,
+      system: systemPrompt,
+      messages: convertedMessages,
+    });
+    return result.toTextStreamResponse();
+  } catch (err) {
+    // Runtime fallback: if primary model fails and fallback is available, retry
+    if (model === primaryModel && fallbackModel) {
+      console.warn("Primary model failed, falling back to OpenAI:", err);
+      const result = streamText({
+        model: fallbackModel,
+        system: systemPrompt,
+        messages: convertedMessages,
+      });
+      return result.toTextStreamResponse();
+    }
+    return Response.json(
+      { error: "AI service temporarily unavailable. Please try again." },
+      { status: 503 }
+    );
+  }
 }
