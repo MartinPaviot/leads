@@ -115,7 +115,7 @@ Slide-over/drawer detail views do NOT have chat input — only full-page detail 
 - **Separator**: `::after` element, 0.5px height, `bg-border-moderate` color, inset 12px from edges
 - **Padding**: 0px 12px
 - **Cursor**: pointer
-- **Hover behavior**: TBD (need to test)
+- **Click behavior**: SENDS IMMEDIATELY — does NOT fill input first. Navigates directly to new thread URL.
 
 **Suggestions are NOT contextual** — they appear only on the dedicated /crm/agent page, same every time.
 Entity detail pages (contact/account) show the scoped chat input WITHOUT suggestion chips.
@@ -597,3 +597,5 @@ All without leaving the thread.
 | 022 | 022-both-created-final.png | "Both records are created" confirmation |
 | 023 | 023-delete-all-contacts-response.png | Delete refused — "not a capability" |
 | 024 | 024-scoped-chat-contextual.png | Scoped chat: "this person" = Sarah Chen |
+| 025 | 025-contacts-after-creation.png | John Smith at Acme Corp verified in contacts list |
+| 026 | 026-suggestion-chip-click-result.png | Suggestion click → immediate send, rich response |
