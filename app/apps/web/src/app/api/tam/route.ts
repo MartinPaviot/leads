@@ -1,7 +1,7 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
@@ -37,8 +37,8 @@ const llmFallbackSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -54,6 +54,7 @@ export async function POST(req: Request) {
     const existing = await db
       .select({ name: companies.name, domain: companies.domain })
       .from(companies)
+      .where(eq(companies.tenantId, authCtx.tenantId))
       .limit(500);
     const existingNames = new Set(existing.map((c) => c.name.toLowerCase()));
     const existingDomains = new Set(existing.map((c) => c.domain?.toLowerCase()).filter(Boolean));
@@ -142,7 +143,7 @@ If no location is mentioned, return an empty array.`,
                 size,
                 revenue,
                 description: enrichedOrg.description || null,
-                tenantId: "default",
+                tenantId: authCtx.tenantId,
                 properties: {
                   source: "tam",
                   enrichment_source: "apollo",
@@ -191,24 +192,25 @@ If no location is mentioned, return an empty array.`,
 }
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const result = await db
     .select({ count: sql<number>`count(*)` })
-    .from(companies);
+    .from(companies)
+    .where(eq(companies.tenantId, authCtx.tenantId));
 
   const tamResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(companies)
-    .where(sql`properties->>'source' = 'tam'`);
+    .where(and(eq(companies.tenantId, authCtx.tenantId), sql`properties->>'source' = 'tam'`));
 
   const apolloResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(companies)
-    .where(sql`properties->>'enrichment_source' = 'apollo'`);
+    .where(and(eq(companies.tenantId, authCtx.tenantId), sql`properties->>'enrichment_source' = 'apollo'`));
 
   return Response.json({
     totalCompanies: Number(result[0]?.count || 0),

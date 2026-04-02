@@ -1,7 +1,7 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { contacts, companies } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
@@ -19,8 +19,8 @@ const llmFallbackSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
         const [contact] = await db
           .select()
           .from(contacts)
-          .where(eq(contacts.id, id))
+          .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId)))
           .limit(1);
 
         if (!contact) {
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
                 const [existingCompany] = await db
                   .select()
                   .from(companies)
-                  .where(eq(companies.name, person.organization.name))
+                  .where(and(eq(companies.name, person.organization.name), eq(companies.tenantId, authCtx.tenantId)))
                   .limit(1);
                 if (existingCompany) {
                   companyId = existingCompany.id;
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
                   },
                   updatedAt: new Date(),
                 })
-                .where(eq(contacts.id, id));
+                .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId)));
 
               const text = contactToText({
                 firstName: contact.firstName,
@@ -119,7 +119,7 @@ export async function POST(req: Request) {
                 companyName: person.organization?.name,
               });
               if (text && process.env.OPENAI_API_KEY) {
-                await embedEntity("default", "contact", id, text).catch(console.warn);
+                await embedEntity(authCtx.tenantId, "contact", id, text).catch(console.warn);
               }
 
               enriched++;
@@ -145,7 +145,7 @@ export async function POST(req: Request) {
             },
             updatedAt: new Date(),
           })
-          .where(eq(contacts.id, id));
+          .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId)));
 
         failed++;
       } catch (err) {

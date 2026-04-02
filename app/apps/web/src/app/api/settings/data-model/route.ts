@@ -1,16 +1,16 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, "default")).limit(1);
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, authCtx.tenantId)).limit(1);
     if (!tenant) {
       return Response.json({ fields: [] });
     }
@@ -24,15 +24,15 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const { fields } = await req.json();
 
-    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, "default")).limit(1);
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, authCtx.tenantId)).limit(1);
     if (!tenant) {
       return Response.json({ error: "Workspace not found" }, { status: 404 });
     }
@@ -40,7 +40,7 @@ export async function PUT(req: Request) {
     const settings = (tenant.settings || {}) as Record<string, unknown>;
     await db.update(tenants).set({
       settings: { ...settings, customFields: fields },
-    }).where(eq(tenants.id, "default"));
+    }).where(eq(tenants.id, authCtx.tenantId));
 
     return Response.json({ ok: true });
   } catch (error) {

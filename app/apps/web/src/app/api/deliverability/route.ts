@@ -1,16 +1,16 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { activities, sequenceEnrollments } from "@/db/schema";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const allActivities = await db.select().from(activities);
+    const allActivities = await db.select().from(activities).where(eq(activities.tenantId, authCtx.tenantId));
     const allEnrollments = await db.select().from(sequenceEnrollments);
 
     // Email activity breakdown

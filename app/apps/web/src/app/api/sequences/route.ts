@@ -1,11 +1,11 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { sequences, sequenceSteps, sequenceEnrollments } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -13,6 +13,7 @@ export async function GET() {
     const result = await db
       .select()
       .from(sequences)
+      .where(eq(sequences.tenantId, authCtx.tenantId))
       .limit(50);
 
     // Get step counts and enrollment counts for each sequence
@@ -44,8 +45,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
       .values({
         name: name.trim(),
         description: description?.trim() || null,
-        tenantId: "default",
+        tenantId: authCtx.tenantId,
       })
       .returning();
 

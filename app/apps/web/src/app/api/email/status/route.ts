@@ -1,11 +1,11 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { authAccounts, activities } from "@/db/schema";
 import { eq, and, count } from "drizzle-orm";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -16,7 +16,7 @@ export async function GET() {
       .from(authAccounts)
       .where(
         and(
-          eq(authAccounts.userId, session.user.id),
+          eq(authAccounts.userId, authCtx.userId),
           eq(authAccounts.provider, "google")
         )
       )
@@ -35,7 +35,7 @@ export async function GET() {
     const [emailCount] = await db
       .select({ value: count() })
       .from(activities)
-      .where(eq(activities.channel, "email"));
+      .where(and(eq(activities.channel, "email"), eq(activities.tenantId, authCtx.tenantId)));
 
     return Response.json({
       connected: true,

@@ -1,25 +1,25 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { sequenceSteps, sequences } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id } = await params;
 
   try {
-    // Verify sequence exists
+    // Verify sequence exists and belongs to tenant
     const [sequence] = await db
       .select()
       .from(sequences)
-      .where(eq(sequences.id, id))
+      .where(and(eq(sequences.id, id), eq(sequences.tenantId, authCtx.tenantId)))
       .limit(1);
 
     if (!sequence) {

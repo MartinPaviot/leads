@@ -1,12 +1,12 @@
 import { db } from "@/db";
 import { companies, contacts } from "@/db/schema";
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { eq } from "drizzle-orm";
 import Papa from "papaparse";
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
             .insert(companies)
             .values({
               name: companyName,
-              tenantId: "default",
+              tenantId: authCtx.tenantId,
             })
             .onConflictDoNothing()
             .returning();
@@ -107,7 +107,7 @@ export async function POST(req: Request) {
         phone: phone || null,
         linkedinUrl: linkedin || null,
         companyId,
-        tenantId: "default",
+        tenantId: authCtx.tenantId,
         properties: notes ? { notes } : {},
       });
 

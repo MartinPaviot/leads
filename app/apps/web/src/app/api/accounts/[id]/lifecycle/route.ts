@@ -1,15 +1,15 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { LIFECYCLE_STAGES, LIFECYCLE_COLORS, type LifecycleStage } from "@/lib/lifecycle";
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -32,7 +32,7 @@ export async function POST(
     const [company] = await db
       .select()
       .from(companies)
-      .where(eq(companies.id, id))
+      .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)))
       .limit(1);
 
     if (!company) {
@@ -46,7 +46,7 @@ export async function POST(
         properties: { ...currentProperties, lifecycle: stage },
         updatedAt: new Date(),
       })
-      .where(eq(companies.id, id));
+      .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)));
 
     return Response.json({
       success: true,

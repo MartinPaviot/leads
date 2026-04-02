@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -22,13 +22,13 @@ const DEFAULT_STAGES: PipelineStage[] = [
 ];
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, "default")).limit(1);
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, authCtx.tenantId)).limit(1);
     const settings = (tenant?.settings || {}) as Record<string, unknown>;
     const stages = (settings.pipelineStages as PipelineStage[]) || DEFAULT_STAGES;
     return Response.json({ stages });
@@ -39,8 +39,8 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -52,14 +52,14 @@ export async function PUT(req: Request) {
       return Response.json({ error: "stages array required" }, { status: 400 });
     }
 
-    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, "default")).limit(1);
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, authCtx.tenantId)).limit(1);
     if (!tenant) return Response.json({ error: "Not found" }, { status: 404 });
 
     const settings = (tenant.settings || {}) as Record<string, unknown>;
     await db.update(tenants).set({
       settings: { ...settings, pipelineStages: stages },
       updatedAt: new Date(),
-    }).where(eq(tenants.id, "default"));
+    }).where(eq(tenants.id, authCtx.tenantId));
 
     return Response.json({ success: true });
   } catch (error) {

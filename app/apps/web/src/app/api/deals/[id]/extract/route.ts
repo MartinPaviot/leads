@@ -1,7 +1,7 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { deals } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
@@ -20,8 +20,8 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -49,7 +49,7 @@ export async function POST(
     const [deal] = await db
       .select()
       .from(deals)
-      .where(eq(deals.id, id))
+      .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
       .limit(1);
 
     if (!deal) {
@@ -97,7 +97,7 @@ Extract:
         },
         updatedAt: new Date(),
       })
-      .where(eq(deals.id, id));
+      .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)));
 
     return Response.json({
       budget: object.budget,

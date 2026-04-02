@@ -1,14 +1,14 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { deals, companies, activities } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -17,7 +17,7 @@ export async function GET(
   const [deal] = await db
     .select()
     .from(deals)
-    .where(eq(deals.id, id))
+    .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
     .limit(1);
 
   if (!deal) {
@@ -30,7 +30,7 @@ export async function GET(
     const [company] = await db
       .select({ name: companies.name })
       .from(companies)
-      .where(eq(companies.id, deal.companyId))
+      .where(and(eq(companies.id, deal.companyId), eq(companies.tenantId, authCtx.tenantId)))
       .limit(1);
     companyName = company?.name || null;
   }
@@ -46,7 +46,7 @@ export async function GET(
       occurredAt: activities.occurredAt,
     })
     .from(activities)
-    .where(eq(activities.entityId, id))
+    .where(and(eq(activities.entityId, id), eq(activities.tenantId, authCtx.tenantId)))
     .orderBy(desc(activities.occurredAt))
     .limit(50);
 

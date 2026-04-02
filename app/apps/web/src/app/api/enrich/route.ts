@@ -1,7 +1,7 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
@@ -22,8 +22,8 @@ const llmFallbackSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
         const [company] = await db
           .select()
           .from(companies)
-          .where(eq(companies.id, id))
+          .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)))
           .limit(1);
 
         if (!company) {
@@ -93,7 +93,7 @@ export async function POST(req: Request) {
                   },
                   updatedAt: new Date(),
                 })
-                .where(eq(companies.id, id));
+                .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)));
 
               // Re-embed with enriched data
               const text = companyToText({
@@ -105,7 +105,7 @@ export async function POST(req: Request) {
                 description: org.description,
               });
               if (text && process.env.OPENAI_API_KEY) {
-                await embedEntity("default", "company", id, text).catch(console.warn);
+                await embedEntity(authCtx.tenantId, "company", id, text).catch(console.warn);
               }
 
               enriched++;
@@ -133,7 +133,7 @@ export async function POST(req: Request) {
             },
             updatedAt: new Date(),
           })
-          .where(eq(companies.id, id));
+          .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)));
 
         failed++;
       } catch (err) {

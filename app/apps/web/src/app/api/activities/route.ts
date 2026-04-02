@@ -1,11 +1,11 @@
 import { db } from "@/db";
 import { activities } from "@/db/schema";
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { eq, desc, and } from "drizzle-orm";
 
 export async function GET(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -18,10 +18,11 @@ export async function GET(req: Request) {
     const conditions =
       entityType && entityId
         ? and(
+            eq(activities.tenantId, authCtx.tenantId),
             eq(activities.entityType, entityType),
             eq(activities.entityId, entityId)
           )
-        : undefined;
+        : eq(activities.tenantId, authCtx.tenantId);
 
     const result = await db
       .select()
@@ -38,8 +39,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -57,9 +58,9 @@ export async function POST(req: Request) {
     const [activity] = await db
       .insert(activities)
       .values({
-        tenantId: "default",
+        tenantId: authCtx.tenantId,
         actorType: "user",
-        actorId: session.user.id,
+        actorId: authCtx.appUserId,
         entityType,
         entityId,
         activityType,

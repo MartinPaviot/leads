@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { companies, activities } from "@/db/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
@@ -210,8 +210,8 @@ async function calculateEngagementScore(
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -230,7 +230,7 @@ export async function POST(req: Request) {
         const [company] = await db
           .select()
           .from(companies)
-          .where(eq(companies.id, id))
+          .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)))
           .limit(1);
 
         if (!company) continue;
@@ -241,7 +241,7 @@ export async function POST(req: Request) {
         const fit = calculateFitScore(company, props);
 
         // Calculate Engagement score (from activities)
-        const engagement = await calculateEngagementScore("default", id);
+        const engagement = await calculateEngagementScore(authCtx.tenantId, id);
 
         // Combined score: Fit × 0.5 + Engagement × 0.5
         const totalScore = Math.round(fit.score * 0.5 + engagement.score * 0.5);
@@ -271,7 +271,7 @@ export async function POST(req: Request) {
             },
             updatedAt: new Date(),
           })
-          .where(eq(companies.id, id));
+          .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)));
 
         scored++;
       } catch (err) {

@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -9,8 +9,8 @@ export interface CustomSignal {
 }
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -18,7 +18,7 @@ export async function GET() {
     const [tenant] = await db
       .select()
       .from(tenants)
-      .where(eq(tenants.id, "default"))
+      .where(eq(tenants.id, authCtx.tenantId))
       .limit(1);
 
     if (!tenant) {
@@ -39,8 +39,8 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -74,7 +74,7 @@ export async function PUT(req: Request) {
     const [tenant] = await db
       .select()
       .from(tenants)
-      .where(eq(tenants.id, "default"))
+      .where(eq(tenants.id, authCtx.tenantId))
       .limit(1);
 
     if (!tenant) {
@@ -90,7 +90,7 @@ export async function PUT(req: Request) {
     await db
       .update(tenants)
       .set({ settings: updatedSettings, updatedAt: new Date() })
-      .where(eq(tenants.id, "default"));
+      .where(eq(tenants.id, authCtx.tenantId));
 
     return Response.json({ success: true, customSignals });
   } catch (error) {

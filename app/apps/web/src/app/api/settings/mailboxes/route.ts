@@ -1,26 +1,26 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { connectedMailboxes } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const mailboxes = await db
     .select()
     .from(connectedMailboxes)
-    .where(eq(connectedMailboxes.tenantId, "default"))
+    .where(eq(connectedMailboxes.tenantId, authCtx.tenantId))
     .orderBy(connectedMailboxes.createdAt);
 
   return Response.json({ mailboxes });
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   }
 
   const domain = email.split("@")[1];
-  const eeAccountId = `default_${email.replace(/[^a-zA-Z0-9]/g, "-")}`;
+  const eeAccountId = `${authCtx.tenantId}_${email.replace(/[^a-zA-Z0-9]/g, "-")}`;
 
   // Register with EmailEngine
   const eeBase = process.env.EMAILENGINE_URL || "http://localhost:3100";
@@ -89,7 +89,7 @@ export async function POST(req: Request) {
   const [mailbox] = await db
     .insert(connectedMailboxes)
     .values({
-      tenantId: "default",
+      tenantId: authCtx.tenantId,
       emailAddress: email,
       displayName: displayName || email.split("@")[0],
       provider,
@@ -104,8 +104,8 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -119,7 +119,7 @@ export async function DELETE(req: Request) {
   const [mailbox] = await db
     .select()
     .from(connectedMailboxes)
-    .where(eq(connectedMailboxes.id, id))
+    .where(and(eq(connectedMailboxes.id, id), eq(connectedMailboxes.tenantId, authCtx.tenantId)))
     .limit(1);
 
   if (mailbox) {
@@ -128,15 +128,15 @@ export async function DELETE(req: Request) {
       await fetch(`${eeBase}/v1/account/${mailbox.eeAccountId}`, { method: "DELETE" });
     } catch {}
 
-    await db.delete(connectedMailboxes).where(eq(connectedMailboxes.id, id));
+    await db.delete(connectedMailboxes).where(and(eq(connectedMailboxes.id, id), eq(connectedMailboxes.tenantId, authCtx.tenantId)));
   }
 
   return Response.json({ success: true });
 }
 
 export async function PATCH(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -157,7 +157,7 @@ export async function PATCH(req: Request) {
         dailyLimit: 50,
         updatedAt: new Date(),
       })
-      .where(eq(connectedMailboxes.id, id));
+      .where(and(eq(connectedMailboxes.id, id), eq(connectedMailboxes.tenantId, authCtx.tenantId)));
 
     return Response.json({ success: true });
   }

@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { activities, deals, tasks, sequenceEnrollments, companies } from "@/db/schema";
 import { sql, eq, and, gte, lte, or } from "drizzle-orm";
@@ -20,8 +21,8 @@ function getStartOfWeek(): Date {
 }
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -40,7 +41,7 @@ export async function GET() {
         count: sql<number>`count(*)::int`,
       })
       .from(activities)
-      .where(gte(activities.occurredAt, weekStart))
+      .where(and(eq(activities.tenantId, authCtx.tenantId), gte(activities.occurredAt, weekStart)))
       .groupBy(activities.activityType);
 
     const activityCounts: Record<string, number> = {};
@@ -60,6 +61,7 @@ export async function GET() {
       .from(deals)
       .where(
         and(
+          eq(deals.tenantId, authCtx.tenantId),
           eq(deals.stage, "won"),
           gte(deals.updatedAt, weekStart)
         )
@@ -79,6 +81,7 @@ export async function GET() {
       .from(tasks)
       .where(
         and(
+          eq(tasks.tenantId, authCtx.tenantId),
           eq(tasks.status, "pending"),
           or(
             and(gte(tasks.dueDate, todayStart), lte(tasks.dueDate, todayEnd)),
@@ -96,7 +99,7 @@ export async function GET() {
           const company = await db
             .select({ name: companies.name })
             .from(companies)
-            .where(eq(companies.id, task.entityId))
+            .where(and(eq(companies.id, task.entityId), eq(companies.tenantId, authCtx.tenantId)))
             .limit(1);
           accountName = company[0]?.name || null;
         }
@@ -122,6 +125,7 @@ export async function GET() {
       .from(activities)
       .where(
         and(
+          eq(activities.tenantId, authCtx.tenantId),
           eq(activities.activityType, "meeting_scheduled"),
           gte(activities.occurredAt, todayStart),
           lte(activities.occurredAt, todayEnd)
@@ -129,7 +133,8 @@ export async function GET() {
       )
       .orderBy(activities.occurredAt);
 
-    const firstName = session.user.name?.split(" ")[0] || "there";
+    const session = await auth();
+    const firstName = session?.user?.name?.split(" ")[0] || "there";
 
     return Response.json({
       greeting: getGreeting(),
@@ -151,7 +156,7 @@ export async function GET() {
     console.error("Dashboard summary error:", error);
     return Response.json({
       greeting: getGreeting(),
-      firstName: session.user.name?.split(" ")[0] || "there",
+      firstName: (await auth())?.user?.name?.split(" ")[0] || "there",
       weekSummary: { sequencesLaunched: 0, responsesReceived: 0, meetingsBooked: 0, opportunitiesClosed: 0 },
       todayTasks: [],
       todayMeetings: [],

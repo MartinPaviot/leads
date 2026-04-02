@@ -1,16 +1,16 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { deals } from "@/db/schema";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const allDeals = await db.select().from(deals);
+    const allDeals = await db.select().from(deals).where(eq(deals.tenantId, authCtx.tenantId));
 
     const activeStages = ["lead", "qualification", "demo", "trial", "proposal", "negotiation"];
     const wonDeals = allDeals.filter((d) => d.stage === "won");

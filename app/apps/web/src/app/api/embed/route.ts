@@ -1,11 +1,12 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { contacts, companies } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { embedEntity, contactToText, companyToText } from "@/lib/embeddings";
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
     let embedded = 0;
 
     if (scope === "all" || scope === "contacts") {
-      const allContacts = await db.select().from(contacts);
+      const allContacts = await db.select().from(contacts).where(eq(contacts.tenantId, authCtx.tenantId));
       for (const contact of allContacts) {
         const text = contactToText({
           firstName: contact.firstName,
@@ -28,14 +29,14 @@ export async function POST(req: Request) {
           companyName: null,
         });
         if (text.trim()) {
-          await embedEntity("default", "contact", contact.id, text);
+          await embedEntity(authCtx.tenantId, "contact", contact.id, text);
           embedded++;
         }
       }
     }
 
     if (scope === "all" || scope === "companies") {
-      const allCompanies = await db.select().from(companies);
+      const allCompanies = await db.select().from(companies).where(eq(companies.tenantId, authCtx.tenantId));
       for (const company of allCompanies) {
         const text = companyToText({
           name: company.name,
@@ -46,7 +47,7 @@ export async function POST(req: Request) {
           description: company.description,
         });
         if (text.trim()) {
-          await embedEntity("default", "company", company.id, text);
+          await embedEntity(authCtx.tenantId, "company", company.id, text);
           embedded++;
         }
       }

@@ -1,7 +1,7 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { deals, companies, contacts, sequenceEnrollments } from "@/db/schema";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
@@ -20,8 +20,8 @@ const actionsSchema = z.object({
 });
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -37,9 +37,9 @@ export async function GET() {
 
   try {
     // Gather pipeline data
-    const allDeals = await db.select().from(deals).limit(50);
-    const companyCount = await db.select({ count: sql<number>`count(*)` }).from(companies);
-    const contactCount = await db.select({ count: sql<number>`count(*)` }).from(contacts);
+    const allDeals = await db.select().from(deals).where(eq(deals.tenantId, authCtx.tenantId)).limit(50);
+    const companyCount = await db.select({ count: sql<number>`count(*)` }).from(companies).where(eq(companies.tenantId, authCtx.tenantId));
+    const contactCount = await db.select({ count: sql<number>`count(*)` }).from(contacts).where(eq(contacts.tenantId, authCtx.tenantId));
     const enrollmentCount = await db.select({ count: sql<number>`count(*)` }).from(sequenceEnrollments);
 
     const dealSummary = allDeals.map((d) => {

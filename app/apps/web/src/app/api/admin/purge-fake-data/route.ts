@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { eq, sql, and, isNotNull } from "drizzle-orm";
@@ -10,14 +10,14 @@ import {
 } from "@/lib/apollo-client";
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const body = await req.json().catch(() => ({}));
   const dryRun = body.dryRun !== false; // Default to dry run
-  const tenantId = body.tenantId || "default";
+  const tenantId = authCtx.tenantId;
 
   try {
     // Step 1: Find companies that were enriched by LLM (not Apollo)

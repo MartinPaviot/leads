@@ -1,14 +1,14 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { deals } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -18,7 +18,7 @@ export async function GET(
     const [deal] = await db
       .select()
       .from(deals)
-      .where(eq(deals.id, id))
+      .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
       .limit(1);
 
     if (!deal) {
@@ -36,8 +36,8 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -56,7 +56,7 @@ export async function PUT(
     const [updated] = await db
       .update(deals)
       .set(updates)
-      .where(eq(deals.id, id))
+      .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
       .returning();
 
     if (!updated) {

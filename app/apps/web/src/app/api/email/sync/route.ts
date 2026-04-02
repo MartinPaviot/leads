@@ -1,24 +1,28 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { activities, contacts } from "@/db/schema";
+import { activities, contacts, users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { fetchRecentEmails } from "@/lib/gmail";
 
 export async function POST() {
-  const session = await auth();
-  if (!session?.user?.id || !session?.user?.email) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
+    // Look up user email for direction detection
+    const [user] = await db.select({ email: users.email }).from(users).where(eq(users.id, authCtx.appUserId)).limit(1);
+    const userEmail = user?.email || "";
+
     const emails = await fetchRecentEmails(
-      session.user.id,
-      session.user.email,
+      authCtx.userId,
+      userEmail,
       30
     );
 
     // Get all contacts for email matching
-    const allContacts = await db.select().from(contacts);
+    const allContacts = await db.select().from(contacts).where(eq(contacts.tenantId, authCtx.tenantId));
     const contactByEmail = new Map(
       allContacts
         .filter((c) => c.email)
@@ -59,12 +63,12 @@ export async function POST() {
         : null;
 
       await db.insert(activities).values({
-        tenantId: "default",
+        tenantId: authCtx.tenantId,
         actorType: email.direction === "inbound" ? "contact" : "user",
         actorId:
           email.direction === "inbound"
             ? matchedContact?.id || null
-            : session.user.id,
+            : authCtx.userId,
         entityType: matchedContact ? "contact" : "company",
         entityId: matchedContact?.id || "unknown",
         activityType:

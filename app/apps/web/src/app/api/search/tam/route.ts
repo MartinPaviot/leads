@@ -1,12 +1,12 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { searchSimilar } from "@/lib/embeddings";
 import { db } from "@/db";
 import { companies, contacts, deals } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
             const [company] = await db
               .select()
               .from(companies)
-              .where(eq(companies.id, result.entityId))
+              .where(and(eq(companies.id, result.entityId), eq(companies.tenantId, authCtx.tenantId)))
               .limit(1);
             if (company) {
               entity = {
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
             const [contact] = await db
               .select()
               .from(contacts)
-              .where(eq(contacts.id, result.entityId))
+              .where(and(eq(contacts.id, result.entityId), eq(contacts.tenantId, authCtx.tenantId)))
               .limit(1);
             if (contact) {
               entity = {
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
             const [deal] = await db
               .select()
               .from(deals)
-              .where(eq(deals.id, result.entityId))
+              .where(and(eq(deals.id, result.entityId), eq(deals.tenantId, authCtx.tenantId)))
               .limit(1);
             if (deal) {
               entity = {

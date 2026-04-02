@@ -1,7 +1,7 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { contacts, companies } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
@@ -14,8 +14,8 @@ const followUpSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     const [contact] = await db
       .select()
       .from(contacts)
-      .where(eq(contacts.id, contactId))
+      .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, authCtx.tenantId)))
       .limit(1);
 
     if (!contact) {
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
       const [c] = await db
         .select()
         .from(companies)
-        .where(eq(companies.id, contact.companyId))
+        .where(and(eq(companies.id, contact.companyId), eq(companies.tenantId, authCtx.tenantId)))
         .limit(1);
       company = c || null;
     }

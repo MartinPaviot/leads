@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { deals, activities, companies } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
@@ -17,8 +17,8 @@ const dealAnalysisSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
         const [deal] = await db
           .select()
           .from(deals)
-          .where(eq(deals.id, dealId))
+          .where(and(eq(deals.id, dealId), eq(deals.tenantId, authCtx.tenantId)))
           .limit(1);
 
         if (!deal) continue;
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
           const [company] = await db
             .select()
             .from(companies)
-            .where(eq(companies.id, deal.companyId))
+            .where(and(eq(companies.id, deal.companyId), eq(companies.tenantId, authCtx.tenantId)))
             .limit(1);
           if (company) {
             companyInfo = `Company: ${company.name}, Industry: ${company.industry || "unknown"}, Size: ${company.size || "unknown"}`;
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
         const activityResult = await db
           .select({ count: sql<number>`count(*)` })
           .from(activities)
-          .where(eq(activities.entityId, dealId));
+          .where(and(eq(activities.entityId, dealId), eq(activities.tenantId, authCtx.tenantId)));
         const activityCount = Number(activityResult[0]?.count || 0);
 
         const { object } = await generateObject({
@@ -117,7 +117,7 @@ Be realistic — don't assume progress without evidence.`,
             },
             updatedAt: new Date(),
           })
-          .where(eq(deals.id, dealId));
+          .where(and(eq(deals.id, dealId), eq(deals.tenantId, authCtx.tenantId)));
 
         results.push({
           dealId,

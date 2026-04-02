@@ -1,14 +1,14 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { companies, deals } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -17,7 +17,7 @@ export async function GET(
   const [account] = await db
     .select()
     .from(companies)
-    .where(eq(companies.id, id))
+    .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)))
     .limit(1);
 
   if (!account) {
@@ -32,7 +32,7 @@ export async function GET(
       value: deals.value,
     })
     .from(deals)
-    .where(eq(deals.companyId, id));
+    .where(and(eq(deals.companyId, id), eq(deals.tenantId, authCtx.tenantId)));
 
   return Response.json({
     account: {

@@ -1,16 +1,16 @@
 import { db } from "@/db";
 import { tasks } from "@/db/schema";
-import { auth } from "@/auth";
-import { eq, desc } from "drizzle-orm";
+import { getAuthContext } from "@/lib/auth-utils";
+import { eq, desc, and } from "drizzle-orm";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const result = await db.select().from(tasks).orderBy(desc(tasks.createdAt)).limit(100);
+    const result = await db.select().from(tasks).where(eq(tasks.tenantId, authCtx.tenantId)).orderBy(desc(tasks.createdAt)).limit(100);
     return Response.json({ tasks: result });
   } catch (error) {
     console.error("Failed to fetch tasks:", error);
@@ -19,8 +19,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -39,10 +39,10 @@ export async function POST(req: Request) {
         description: description || null,
         dueDate: dueDate ? new Date(dueDate) : null,
         priority: priority || "medium",
-        assigneeId: session.user.id,
+        assigneeId: authCtx.appUserId,
         entityType: entityType || null,
         entityId: entityId || null,
-        tenantId: "default",
+        tenantId: authCtx.tenantId,
       })
       .returning();
 

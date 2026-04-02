@@ -1,11 +1,11 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { outboundEmails, contacts, companies } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 
 export async function GET(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -18,7 +18,7 @@ export async function GET(req: Request) {
     .from(outboundEmails)
     .where(
       and(
-        eq(outboundEmails.tenantId, "default"),
+        eq(outboundEmails.tenantId, authCtx.tenantId),
         eq(outboundEmails.status, status as "draft" | "queued" | "sent")
       )
     )
@@ -47,8 +47,8 @@ export async function GET(req: Request) {
 }
 
 export async function PUT(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -70,14 +70,14 @@ export async function PUT(req: Request) {
           ...(bodyHtml && { bodyHtml }),
           updatedAt: new Date(),
         })
-        .where(eq(outboundEmails.id, emailId));
+        .where(and(eq(outboundEmails.id, emailId), eq(outboundEmails.tenantId, authCtx.tenantId)));
       break;
     }
     case "skip": {
       await db
         .update(outboundEmails)
         .set({ status: "skipped", updatedAt: new Date() })
-        .where(eq(outboundEmails.id, emailId));
+        .where(and(eq(outboundEmails.id, emailId), eq(outboundEmails.tenantId, authCtx.tenantId)));
       break;
     }
     case "edit": {
@@ -89,7 +89,7 @@ export async function PUT(req: Request) {
             ...(bodyHtml && { bodyHtml }),
             updatedAt: new Date(),
           })
-          .where(eq(outboundEmails.id, emailId));
+          .where(and(eq(outboundEmails.id, emailId), eq(outboundEmails.tenantId, authCtx.tenantId)));
       }
       break;
     }
@@ -100,8 +100,8 @@ export async function PUT(req: Request) {
 
 // Bulk approve
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -118,6 +118,7 @@ export async function POST(req: Request) {
       .set({ status: "queued", queuedAt: new Date(), updatedAt: new Date() })
       .where(
         and(
+          eq(outboundEmails.tenantId, authCtx.tenantId),
           inArray(outboundEmails.id, emailIds),
           eq(outboundEmails.status, "draft")
         )

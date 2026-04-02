@@ -1,12 +1,14 @@
 import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { activities, contacts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { fetchRecentMeetings } from "@/lib/calendar";
 
 export async function POST() {
+  const authCtx = await getAuthContext();
   const session = await auth();
-  if (!session?.user?.id || !session?.user?.email) {
+  if (!authCtx || !session?.user?.id || !session?.user?.email) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -14,7 +16,7 @@ export async function POST() {
     const meetings = await fetchRecentMeetings(session.user.id, 30, 14);
 
     // Get all contacts for attendee matching
-    const allContacts = await db.select().from(contacts);
+    const allContacts = await db.select().from(contacts).where(eq(contacts.tenantId, authCtx.tenantId));
     const contactByEmail = new Map(
       allContacts
         .filter((c) => c.email)
@@ -31,7 +33,7 @@ export async function POST() {
         .from(activities)
         .where(
           and(
-            eq(activities.tenantId, "default"),
+            eq(activities.tenantId, authCtx.tenantId),
             sql`metadata->>'calendarEventId' = ${meeting.calendarEventId}`
           )
         )
@@ -57,7 +59,7 @@ export async function POST() {
       const activityType = isPast ? "meeting_completed" : "meeting_scheduled";
 
       await db.insert(activities).values({
-        tenantId: "default",
+        tenantId: authCtx.tenantId,
         actorType: "user",
         actorId: session.user.id,
         entityType: primaryContact ? "contact" : "company",

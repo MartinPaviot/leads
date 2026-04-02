@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { contacts, companies, activities } from "@/db/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
@@ -110,8 +110,8 @@ function calculateContactFitScore(
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -130,7 +130,7 @@ export async function POST(req: Request) {
         const [contact] = await db
           .select()
           .from(contacts)
-          .where(eq(contacts.id, id))
+          .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId)))
           .limit(1);
 
         if (!contact) continue;
@@ -144,7 +144,7 @@ export async function POST(req: Request) {
           const [c] = await db
             .select()
             .from(companies)
-            .where(eq(companies.id, contact.companyId))
+            .where(and(eq(companies.id, contact.companyId), eq(companies.tenantId, authCtx.tenantId)))
             .limit(1);
           if (c) {
             company = c as Record<string, unknown>;
@@ -163,6 +163,7 @@ export async function POST(req: Request) {
           .from(activities)
           .where(
             and(
+              eq(activities.tenantId, authCtx.tenantId),
               eq(activities.entityType, "contact"),
               eq(activities.entityId, id),
               gte(activities.occurredAt, thirtyDaysAgo)
@@ -207,7 +208,7 @@ export async function POST(req: Request) {
             },
             updatedAt: new Date(),
           })
-          .where(eq(contacts.id, id));
+          .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId)));
 
         scored++;
       } catch (err) {

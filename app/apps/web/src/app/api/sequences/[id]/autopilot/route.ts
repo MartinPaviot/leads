@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { sequences, sequenceSteps, sequenceEnrollments, contacts } from "@/db/schema";
 import { eq, sql, and, isNotNull, gte } from "drizzle-orm";
@@ -7,19 +7,19 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id } = await params;
 
   try {
-    // Verify sequence exists and has steps
+    // Verify sequence exists, belongs to tenant, and has steps
     const [sequence] = await db
       .select()
       .from(sequences)
-      .where(eq(sequences.id, id))
+      .where(and(eq(sequences.id, id), eq(sequences.tenantId, authCtx.tenantId)))
       .limit(1);
 
     if (!sequence) {
@@ -46,12 +46,13 @@ export async function POST(
       .where(eq(sequenceEnrollments.sequenceId, id));
     const enrolledIds = new Set(enrolled.map((e) => e.contactId));
 
-    // Get eligible contacts: has email, score >= minScore, not enrolled
+    // Get eligible contacts: belongs to tenant, has email, score >= minScore, not enrolled
     const eligible = await db
       .select()
       .from(contacts)
       .where(
         and(
+          eq(contacts.tenantId, authCtx.tenantId),
           isNotNull(contacts.email),
           gte(contacts.score, minScore)
         )

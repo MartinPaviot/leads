@@ -1,14 +1,14 @@
 import { db } from "@/db";
 import { contacts } from "@/db/schema";
-import { auth } from "@/auth";
-import { eq } from "drizzle-orm";
+import { getAuthContext } from "@/lib/auth-utils";
+import { eq, and } from "drizzle-orm";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -18,7 +18,7 @@ export async function GET(
     const [contact] = await db
       .select()
       .from(contacts)
-      .where(eq(contacts.id, id))
+      .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId)))
       .limit(1);
 
     if (!contact) {

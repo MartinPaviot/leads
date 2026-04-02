@@ -8,7 +8,40 @@ import {
   authAccounts,
   authSessions,
   authVerificationTokens,
+  tenants,
+  users,
 } from "./db/schema";
+import { eq } from "drizzle-orm";
+import bcrypt from "bcryptjs";
+
+/** Resolve (or create) a tenant + app user for the given auth user */
+async function resolveUserTenant(authUserId: string, email: string) {
+  // Check if app-level user already exists
+  const [existing] = await db
+    .select()
+    .from(users)
+    .where(eq(users.clerkId, authUserId))
+    .limit(1);
+
+  if (existing) return { tenantId: existing.tenantId, userId: existing.id };
+
+  // First login — create tenant + user
+  const [tenant] = await db
+    .insert(tenants)
+    .values({ name: email.split("@")[1] || "default" })
+    .returning();
+
+  const [user] = await db
+    .insert(users)
+    .values({
+      clerkId: authUserId,
+      tenantId: tenant.id,
+      email,
+    })
+    .returning();
+
+  return { tenantId: tenant.id, userId: user.id };
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: DrizzleAdapter(db, {
@@ -42,10 +75,41 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
+        const email = credentials.email as string;
+        const password = credentials.password as string;
+
+        // Look up the auth user by email
+        const [user] = await db
+          .select()
+          .from(authUsers)
+          .where(eq(authUsers.email, email))
+          .limit(1);
+
+        if (!user) return null;
+
+        // Verify password hash (stored in authUsers.image field repurposed,
+        // or in a dedicated password field if added). For now, check the
+        // auth_account table for a credentials-type entry with hashed password.
+        const [credAccount] = await db
+          .select()
+          .from(authAccounts)
+          .where(eq(authAccounts.userId, user.id))
+          .limit(1);
+
+        // If no credentials account exists, reject
+        if (!credAccount || credAccount.provider !== "credentials") return null;
+
+        // The access_token field stores the bcrypt hash for credentials provider
+        const storedHash = credAccount.access_token;
+        if (!storedHash) return null;
+
+        const isValid = await bcrypt.compare(password, storedHash);
+        if (!isValid) return null;
+
         return {
-          id: credentials.email as string,
-          name: (credentials.email as string).split("@")[0],
-          email: credentials.email as string,
+          id: user.id,
+          name: user.name,
+          email: user.email,
         };
       },
     }),
@@ -57,9 +121,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     strategy: "jwt",
   },
   callbacks: {
-    jwt({ token, user, account }) {
-      if (user) {
+    async jwt({ token, user, account }) {
+      if (user && user.id && user.email) {
         token.id = user.id;
+        // Resolve tenant on first sign-in
+        const { tenantId, userId } = await resolveUserTenant(
+          user.id,
+          user.email
+        );
+        token.tenantId = tenantId;
+        token.appUserId = userId;
       }
       // Store Google access token in JWT for Gmail API access
       if (account?.provider === "google") {
@@ -71,6 +142,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     session({ session, token }) {
       if (session.user && token.id) {
         session.user.id = token.id as string;
+        (session as any).tenantId = token.tenantId as string;
+        (session as any).appUserId = token.appUserId as string;
       }
       return session;
     },

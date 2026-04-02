@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { sequenceEnrollments, sequenceSteps, sequences, contacts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
@@ -7,19 +7,19 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id } = await params;
 
   try {
-    // Verify sequence exists and has steps
+    // Verify sequence exists and belongs to tenant
     const [sequence] = await db
       .select()
       .from(sequences)
-      .where(eq(sequences.id, id))
+      .where(and(eq(sequences.id, id), eq(sequences.tenantId, authCtx.tenantId)))
       .limit(1);
 
     if (!sequence) {
@@ -56,11 +56,11 @@ export async function POST(
     const firstStepDelay = steps[0]?.delayDays || 0;
 
     for (const contactId of contactIds.slice(0, 100)) {
-      // Check contact exists and has email
+      // Check contact exists, belongs to tenant, and has email
       const [contact] = await db
         .select()
         .from(contacts)
-        .where(eq(contacts.id, contactId))
+        .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, authCtx.tenantId)))
         .limit(1);
 
       if (!contact || !contact.email) {

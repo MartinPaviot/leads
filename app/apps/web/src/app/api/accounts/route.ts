@@ -1,12 +1,12 @@
 import { db } from "@/db";
 import { companies } from "@/db/schema";
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { eq } from "drizzle-orm";
 import { inngest } from "@/inngest/client";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -14,6 +14,7 @@ export async function GET() {
     const accounts = await db
       .select()
       .from(companies)
+      .where(eq(companies.tenantId, authCtx.tenantId))
       .limit(50);
 
     return Response.json({ accounts });
@@ -24,8 +25,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -42,14 +43,14 @@ export async function POST(req: Request) {
       .values({
         name: name.trim(),
         domain: domain?.trim() || null,
-        tenantId: "default", // TODO: use real tenant from session
+        tenantId: authCtx.tenantId,
       })
       .returning();
 
     // Fire enrichment event for background processing
     await inngest.send({
       name: "company/created",
-      data: { companyId: account.id, tenantId: "default" },
+      data: { companyId: account.id, tenantId: authCtx.tenantId },
     }).catch(console.warn);
 
     return Response.json({ account }, { status: 201 });

@@ -1,20 +1,31 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { contacts, companies, sequenceEnrollments } from "@/db/schema";
+import { contacts, companies, sequenceEnrollments, sequences } from "@/db/schema";
 import { eq, sql, and, isNotNull, notInArray } from "drizzle-orm";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id: sequenceId } = await params;
 
   try {
+    // Verify sequence belongs to tenant
+    const [sequence] = await db
+      .select()
+      .from(sequences)
+      .where(and(eq(sequences.id, sequenceId), eq(sequences.tenantId, authCtx.tenantId)))
+      .limit(1);
+
+    if (!sequence) {
+      return Response.json({ error: "Sequence not found" }, { status: 404 });
+    }
+
     // Get already-enrolled contact IDs for this sequence
     const enrolled = await db
       .select({ contactId: sequenceEnrollments.contactId })
@@ -23,7 +34,7 @@ export async function GET(
 
     const enrolledIds = enrolled.map((e) => e.contactId).filter(Boolean) as string[];
 
-    // Find scored contacts not already enrolled, with email addresses
+    // Find scored contacts not already enrolled, with email addresses, scoped to tenant
     const candidates = await db
       .select({
         id: contacts.id,
@@ -37,6 +48,7 @@ export async function GET(
       .from(contacts)
       .where(
         and(
+          eq(contacts.tenantId, authCtx.tenantId),
           isNotNull(contacts.score),
           isNotNull(contacts.email),
           enrolledIds.length > 0

@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -10,13 +10,13 @@ interface KnowledgeTopic {
 }
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, "default")).limit(1);
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, authCtx.tenantId)).limit(1);
     const settings = (tenant?.settings || {}) as Record<string, unknown>;
     return Response.json({ knowledge: (settings.knowledge as KnowledgeTopic[]) || [] });
   } catch (error) {
@@ -26,8 +26,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
       return Response.json({ error: "Topic and content required" }, { status: 400 });
     }
 
-    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, "default")).limit(1);
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, authCtx.tenantId)).limit(1);
     if (!tenant) {
       return Response.json({ error: "Workspace not found" }, { status: 404 });
     }
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     await db.update(tenants).set({
       settings: { ...settings, knowledge },
       updatedAt: new Date(),
-    }).where(eq(tenants.id, "default"));
+    }).where(eq(tenants.id, authCtx.tenantId));
 
     return Response.json({ topic: newTopic }, { status: 201 });
   } catch (error) {
@@ -68,8 +68,8 @@ export async function POST(req: Request) {
 }
 
 export async function PUT(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -81,7 +81,7 @@ export async function PUT(req: Request) {
       return Response.json({ error: "Topic ID required" }, { status: 400 });
     }
 
-    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, "default")).limit(1);
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, authCtx.tenantId)).limit(1);
     if (!tenant) return Response.json({ error: "Not found" }, { status: 404 });
 
     const settings = (tenant.settings || {}) as Record<string, unknown>;
@@ -95,7 +95,7 @@ export async function PUT(req: Request) {
     await db.update(tenants).set({
       settings: { ...settings, knowledge },
       updatedAt: new Date(),
-    }).where(eq(tenants.id, "default"));
+    }).where(eq(tenants.id, authCtx.tenantId));
 
     return Response.json({ success: true });
   } catch (error) {
@@ -105,8 +105,8 @@ export async function PUT(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -118,7 +118,7 @@ export async function DELETE(req: Request) {
       return Response.json({ error: "Topic ID required" }, { status: 400 });
     }
 
-    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, "default")).limit(1);
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, authCtx.tenantId)).limit(1);
     if (!tenant) return Response.json({ error: "Not found" }, { status: 404 });
 
     const settings = (tenant.settings || {}) as Record<string, unknown>;
@@ -127,7 +127,7 @@ export async function DELETE(req: Request) {
     await db.update(tenants).set({
       settings: { ...settings, knowledge },
       updatedAt: new Date(),
-    }).where(eq(tenants.id, "default"));
+    }).where(eq(tenants.id, authCtx.tenantId));
 
     return Response.json({ success: true });
   } catch (error) {

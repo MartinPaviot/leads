@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { activities } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
@@ -7,8 +7,8 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -26,7 +26,8 @@ export async function GET(
       .where(
         and(
           eq(activities.entityId, id),
-          eq(activities.entityType, "deal")
+          eq(activities.entityType, "deal"),
+          eq(activities.tenantId, authCtx.tenantId)
         )
       )
       .orderBy(desc(activities.occurredAt));

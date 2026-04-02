@@ -1,15 +1,16 @@
 import { db } from "@/db";
 import { deals } from "@/db/schema";
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
+import { eq } from "drizzle-orm";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const result = await db.select().from(deals).limit(100);
+    const result = await db.select().from(deals).where(eq(deals.tenantId, authCtx.tenantId)).limit(100);
     return Response.json({ deals: result });
   } catch (error) {
     console.error("Failed to fetch deals:", error);
@@ -18,8 +19,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
         stage: stage || "lead",
         companyId: companyId || null,
         value: value ? parseInt(value) : null,
-        tenantId: "default",
+        tenantId: authCtx.tenantId,
       })
       .returning();
 

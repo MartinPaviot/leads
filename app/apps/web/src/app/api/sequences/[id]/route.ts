@@ -1,14 +1,14 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { sequences, sequenceSteps, sequenceEnrollments, contacts } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -18,7 +18,7 @@ export async function GET(
     const [sequence] = await db
       .select()
       .from(sequences)
-      .where(eq(sequences.id, id))
+      .where(and(eq(sequences.id, id), eq(sequences.tenantId, authCtx.tenantId)))
       .limit(1);
 
     if (!sequence) {
@@ -61,8 +61,8 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -80,7 +80,7 @@ export async function PUT(
     const [updated] = await db
       .update(sequences)
       .set(updates)
-      .where(eq(sequences.id, id))
+      .where(and(eq(sequences.id, id), eq(sequences.tenantId, authCtx.tenantId)))
       .returning();
 
     if (!updated) {

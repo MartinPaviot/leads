@@ -13,6 +13,7 @@ import {
   Bell,
   Mail,
   Database,
+  CreditCard,
 } from "lucide-react";
 
 const settingsNav = [
@@ -38,6 +39,12 @@ const settingsNav = [
     label: "Outbound",
     items: [
       { label: "Mailboxes", href: "/settings/mailboxes", icon: Mail },
+    ],
+  },
+  {
+    label: "Billing",
+    items: [
+      { label: "Billing", href: "/settings/billing", icon: CreditCard },
     ],
   },
 ];

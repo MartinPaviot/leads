@@ -1,7 +1,7 @@
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { deals, contacts, companies, activities, sequences, sequenceEnrollments } from "@/db/schema";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 interface Insight {
   id: string;
@@ -13,16 +13,16 @@ interface Insight {
 }
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const [allDeals, allContacts, allCompanies, allEnrollments] = await Promise.all([
-      db.select().from(deals),
-      db.select().from(contacts),
-      db.select().from(companies),
+      db.select().from(deals).where(eq(deals.tenantId, authCtx.tenantId)),
+      db.select().from(contacts).where(eq(contacts.tenantId, authCtx.tenantId)),
+      db.select().from(companies).where(eq(companies.tenantId, authCtx.tenantId)),
       db.select().from(sequenceEnrollments),
     ]);
 
