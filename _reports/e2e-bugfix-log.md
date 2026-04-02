@@ -38,11 +38,51 @@
 - Fix: Changed `authCtx.userId` → `authCtx.appUserId` in assigneeId and actorId fields
 - Verified: TypeScript compiles, tests pass — WORKS
 
-### BUG-005: [Billing] — Subscription API returns 500
+### BUG-005: [Billing] — Subscription API returns 500 when table missing
 - Steps: GET /api/billing/subscription
 - Expected: Returns plan info or graceful empty state
 - Actual: HTTP 500 "Failed to fetch subscription"
 - Root cause: `subscriptions` table doesn't exist in DB (billing schema not migrated). The query crashes on missing table.
 - Fix: Wrapped subscriptions query in try-catch. Returns `plan: "trial"` with null subscription fields when table is missing.
 - Verified: Now returns HTTP 200 with `{"plan":"trial","status":null,...}` — WORKS
+
+### BUG-006: [Notes] — /api/notes route didn't exist
+- Steps: Navigate to Notes page, create a note
+- Expected: Note saved to DB, persists on refresh
+- Actual: Notes page used local state only — all notes lost on page refresh. /api/notes returned the dashboard HTML (no API route).
+- Root cause: API route file was never created.
+- Fix: Created /api/notes/route.ts with GET (list) + POST (create). Wired notes page to fetch from API.
+- Verified: POST creates note in DB, GET returns it. Persists across refreshes. — WORKS
+
+### BUG-007: [Notes] — Notes page uses local state only (no persistence)
+- See BUG-006 — fixed together.
+
+### BUG-008: [Tasks] — Tasks page uses local state only (no persistence)
+- Steps: Navigate to Tasks page, add a task, refresh
+- Expected: Task persists
+- Actual: Tasks page used local useState — all tasks lost on refresh. The /api/tasks route existed but the page didn't call it.
+- Root cause: Page component never called fetch("/api/tasks").
+- Fix: Rewrote tasks page to fetch from /api/tasks, create via POST, toggle status via PATCH. Created /api/tasks/[id] PATCH endpoint.
+- Verified: Tasks from chat (BUG-005 fix) now appear. New tasks persist. — WORKS
+
+### BUG-009: [Auth] — No sign-up page exists
+- Steps: New user tries to create an account
+- Expected: Sign-up form at /sign-up
+- Actual: 404 — only sign-in page existed
+- Root cause: No sign-up page file.
+- Fix: Created /sign-up/page.tsx with name/email/password form, bcrypt hashing, duplicate email check. Added "Sign up" link on sign-in page. /sign-up already in middleware public paths.
+- Verified: /sign-up returns HTTP 200 with registration form. — WORKS
+
+### BUG-010: [Chat] — Thread creation crashes (HTTP 500)
+- Steps: Send a chat message, thread auto-save fires
+- Expected: Thread created in DB, messages persisted
+- Actual: POST /api/chat/threads returns HTTP 500 — FK constraint violation
+- Root cause: `chatThreads.userId` references `users.id` (app user), but code used `authCtx.userId` (auth_user.id, different UUID). Same pattern as BUG-004 but in 4 more files.
+- Fix: Changed `authCtx.userId` → `authCtx.appUserId` in:
+  - POST /api/chat/threads (create thread)
+  - GET /api/chat/threads (list threads)  
+  - GET /api/chat/threads/[id] (load messages)
+  - POST /api/chat/threads/[id] (save messages)
+  - Dashboard layout.tsx (sidebar thread query)
+- Verified: Thread creation returns HTTP 200, messages persist and reload. — WORKS
 
