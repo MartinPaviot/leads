@@ -16,8 +16,28 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
-  companies: { id: "id" },
-  activities: { id: "id" },
+  companies: { id: "id", tenantId: "tenantId" },
+  activities: { id: "id", tenantId: "tenantId", entityType: "entityType", entityId: "entityId", occurredAt: "occurredAt", actorType: "actorType", sentiment: "sentiment" },
+}));
+
+vi.mock("drizzle-orm", () => ({
+  eq: vi.fn(),
+  and: vi.fn(),
+  gte: vi.fn(),
+  sql: vi.fn(),
+}));
+
+vi.mock("@/lib/rate-limit", () => ({
+  checkRateLimit: vi.fn(() => null),
+}));
+
+vi.mock("@/lib/tenant-settings", () => ({
+  getTenantSettings: vi.fn(() => Promise.resolve({})),
+  parseSizeRange: vi.fn(() => null),
+}));
+
+vi.mock("@/lib/scoring", () => ({
+  calculateFitScore: vi.fn(() => ({ score: 50, reasons: ["Industry match"] })),
 }));
 
 import { auth } from "@/auth";
@@ -78,9 +98,16 @@ describe("POST /api/score", () => {
       },
     };
 
-    // Mock: first select returns company, subsequent selects return engagement counts
-    const limitFn = vi.fn().mockResolvedValue([mockCompany]);
-    const whereFn = vi.fn().mockReturnValue({ limit: limitFn });
+    // Mock db.select chains:
+    // 1) Company lookup: .select().from().where().limit(1) -> [mockCompany]
+    // 2-6) Engagement queries: .select().from().where() -> [{count: 0}] or [{latest: null}]
+    // The where() return must be both thenable (for engagement) and have .limit() (for company lookup)
+    const engagementResult = [{ count: 0, latest: null }];
+    const whereFn = vi.fn().mockImplementation(() => {
+      const promise = Promise.resolve(engagementResult);
+      (promise as any).limit = vi.fn().mockResolvedValue([mockCompany]);
+      return promise;
+    });
     const fromFn = vi.fn().mockReturnValue({ where: whereFn });
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 

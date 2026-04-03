@@ -17,7 +17,7 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
-  companies: { id: "id", name: "name" },
+  companies: { id: "id", name: "name", tenantId: "tenantId", domain: "domain" },
 }));
 
 vi.mock("ai", () => ({
@@ -41,6 +41,15 @@ vi.mock("drizzle-orm", () => ({
   and: vi.fn(),
   eq: vi.fn(),
   sql: vi.fn(),
+}));
+
+vi.mock("@/lib/rate-limit", () => ({
+  checkRateLimit: vi.fn(() => null),
+}));
+
+vi.mock("@/lib/tenant-settings", () => ({
+  getTenantSettings: vi.fn(() => Promise.resolve({})),
+  parseSizeRange: vi.fn(() => null),
 }));
 
 vi.mock("@/lib/apollo-client", () => ({
@@ -79,20 +88,20 @@ describe("POST /api/tam (generate)", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 400 when ICP is empty", async () => {
+  it("returns 400 when industries and companySizes are empty", async () => {
     vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const req = new Request("http://localhost/api/tam", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ icp: "" }),
+      body: JSON.stringify({ industries: [], companySizes: [] }),
     });
 
     const res = await POST(req);
     expect(res.status).toBe(400);
   });
 
-  it("returns 400 when ICP is missing", async () => {
+  it("returns 400 when required fields are missing", async () => {
     vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
     const req = new Request("http://localhost/api/tam", {
@@ -108,7 +117,7 @@ describe("POST /api/tam (generate)", () => {
   it("generates TAM companies successfully via Apollo", async () => {
     vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
 
-    // Mock existing companies (for dedup check) — route: .from(companies).where(eq(...)).limit(500)
+    // Mock existing companies (for dedup check) — route: .select({name, domain}).from(companies).where(eq(...)).limit(500)
     const limitFnSelect = vi.fn().mockResolvedValue([{ name: "Existing Corp", domain: "existing.com" }]);
     const whereFnSelect = vi.fn().mockReturnValue({ limit: limitFnSelect });
     const fromFnSelect = vi.fn().mockReturnValue({ where: whereFnSelect });
@@ -118,45 +127,42 @@ describe("POST /api/tam (generate)", () => {
     const valuesFn = vi.fn().mockResolvedValue([]);
     vi.mocked(db.insert).mockReturnValue({ values: valuesFn } as never);
 
-    // Mock LLM: ICP -> Apollo filters translation
+    // Mock LLM: generates candidate companies from structured ICP
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        keywords: ["SaaS", "B2B"],
-        employee_ranges: ["51,200"],
-        locations: [],
+        companies: [
+          {
+            name: "Acme Inc",
+            domain: "acme.com",
+            reason: "B2B SaaS company with 100 employees",
+          },
+        ],
       },
     } as never);
 
-    // Mock Apollo search
-    vi.mocked(searchOrganizations).mockResolvedValue({
-      organizations: [
-        {
-          id: "apollo-1",
-          name: "Acme Inc",
-          website_url: "https://acme.com",
-          industry: "SaaS",
-          estimated_num_employees: 100,
-          annual_revenue: 20000000,
-          description: "Cloud platform",
-          linkedin_url: "https://linkedin.com/company/acme",
-          technology_names: ["React"],
-          total_funding: 5000000,
-          founded_year: 2018,
-          city: "SF",
-          state: "CA",
-          country: "US",
-          keywords: ["saas"],
-        },
-      ],
+    // Mock Apollo enrich (called per candidate with domain)
+    vi.mocked(enrichOrganization).mockResolvedValue({
+      id: "apollo-1",
+      name: "Acme Inc",
+      website_url: "https://acme.com",
+      industry: "SaaS",
+      estimated_num_employees: 100,
+      annual_revenue: 20000000,
+      description: "Cloud platform",
+      linkedin_url: "https://linkedin.com/company/acme",
+      technology_names: ["React"],
+      total_funding: 5000000,
+      founded_year: 2018,
+      city: "SF",
+      state: "CA",
+      country: "US",
+      keywords: ["saas"],
     } as never);
-
-    // Mock Apollo enrich (called per org with domain)
-    vi.mocked(enrichOrganization).mockResolvedValue(null);
 
     const req = new Request("http://localhost/api/tam", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ icp: "B2B SaaS companies, 50-200 employees" }),
+      body: JSON.stringify({ industries: ["SaaS"], companySizes: ["51-200"] }),
     });
 
     const res = await POST(req);
@@ -164,7 +170,7 @@ describe("POST /api/tam (generate)", () => {
 
     expect(res.status).toBe(200);
     expect(data.success).toBe(true);
-    expect(data.source).toBe("apollo");
+    expect(data.source).toBe("llm+apollo");
     expect(data.companiesCreated).toBe(1);
   });
 });

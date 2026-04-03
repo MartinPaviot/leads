@@ -15,8 +15,8 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
-  contacts: { id: "id" },
-  companies: { id: "id" },
+  contacts: { id: "id", tenantId: "tenantId" },
+  companies: { id: "id", tenantId: "tenantId" },
 }));
 
 vi.mock("ai", () => ({
@@ -29,6 +29,24 @@ vi.mock("@ai-sdk/anthropic", () => ({
 
 vi.mock("@ai-sdk/openai", () => ({
   openai: vi.fn(() => "mock-openai-model"),
+}));
+
+vi.mock("drizzle-orm", () => ({
+  and: vi.fn(),
+  eq: vi.fn(),
+}));
+
+vi.mock("@/lib/rate-limit", () => ({
+  checkRateLimit: vi.fn(() => null),
+}));
+
+vi.mock("@/lib/tenant-settings", () => ({
+  getTenantSettings: vi.fn(() => Promise.resolve({})),
+}));
+
+vi.mock("@/lib/writing-profile", () => ({
+  getWritingSamples: vi.fn(() => Promise.resolve([])),
+  buildWritingStylePrompt: vi.fn(() => ""),
 }));
 
 process.env.ANTHROPIC_API_KEY = "test-key";

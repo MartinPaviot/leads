@@ -40,6 +40,19 @@ vi.mock("drizzle-orm", () => ({
   sql: vi.fn(),
 }));
 
+vi.mock("@/lib/rate-limit", () => ({
+  checkRateLimit: vi.fn(() => null),
+}));
+
+vi.mock("@/lib/tenant-settings", () => ({
+  getTenantSettings: vi.fn(() => Promise.resolve({})),
+  parseRoleKeywords: vi.fn(() => []),
+}));
+
+vi.mock("@/lib/scoring", () => ({
+  calculateContactFitScore: vi.fn(() => ({ score: 40, grade: "C", reasons: ["Default score"] })),
+}));
+
 process.env.ANTHROPIC_API_KEY = "test-key";
 
 import { auth } from "@/auth";
@@ -94,11 +107,13 @@ describe("POST /api/score-contacts", () => {
     };
 
     // Route does: 1) contact lookup with .where().limit(), 2) activity count with .where() (no limit)
-    const limitFn = vi.fn().mockResolvedValue([mockContact]);
+    // where() must return thenable (for activity count) AND have .limit() (for contact lookup)
     const activityCountResult = [{ count: 0 }];
-    const whereFn = vi.fn()
-      .mockReturnValueOnce({ limit: limitFn })                         // contact lookup (has .limit)
-      .mockResolvedValueOnce(activityCountResult);                     // activity count (no .limit)
+    const whereFn = vi.fn().mockImplementation(() => {
+      const promise = Promise.resolve(activityCountResult);
+      (promise as any).limit = vi.fn().mockResolvedValue([mockContact]);
+      return promise;
+    });
     const fromFn = vi.fn().mockReturnValue({ where: whereFn });
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 

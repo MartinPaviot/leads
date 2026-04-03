@@ -16,9 +16,9 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
-  deals: { id: "id" },
-  activities: { entityId: "entity_id" },
-  companies: { id: "id" },
+  deals: { id: "id", tenantId: "tenantId" },
+  activities: { entityId: "entity_id", tenantId: "tenantId" },
+  companies: { id: "id", tenantId: "tenantId" },
 }));
 
 vi.mock("ai", () => ({
@@ -37,6 +37,15 @@ vi.mock("drizzle-orm", () => ({
   eq: vi.fn(),
   and: vi.fn(),
   sql: vi.fn(),
+}));
+
+vi.mock("@/lib/rate-limit", () => ({
+  checkRateLimit: vi.fn(() => null),
+}));
+
+vi.mock("@/lib/tenant-settings", () => ({
+  getTenantSettings: vi.fn(() => Promise.resolve({})),
+  getStageNames: vi.fn(() => "lead, qualification, demo, trial, proposal, negotiation, won, lost"),
 }));
 
 process.env.ANTHROPIC_API_KEY = "test-key";
@@ -93,9 +102,14 @@ describe("POST /api/deals/analyze", () => {
       updatedAt: new Date(),
     };
 
-    // Mock select: deal fetch, activity count
-    const limitFn = vi.fn().mockResolvedValue([mockDeal]);
-    const whereFn = vi.fn().mockReturnValue({ limit: limitFn });
+    // Mock select: deal fetch (.where().limit(1)), activity count (.where() no limit)
+    // where() must be thenable (for activity count) and have .limit() (for deal fetch)
+    const activityCountResult = [{ count: 0 }];
+    const whereFn = vi.fn().mockImplementation(() => {
+      const promise = Promise.resolve(activityCountResult);
+      (promise as any).limit = vi.fn().mockResolvedValue([mockDeal]);
+      return promise;
+    });
     const fromFn = vi.fn().mockReturnValue({ where: whereFn });
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 
