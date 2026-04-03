@@ -7,6 +7,12 @@ import { ScopedChat } from "@/components/scoped-chat";
 import { EmailComposer } from "@/components/email-composer";
 import { Card, CardBody } from "@/components/ui/card";
 
+interface Company {
+  id: string;
+  name: string;
+  domain: string | null;
+}
+
 interface Contact {
   id: string;
   firstName: string | null;
@@ -34,6 +40,7 @@ export default function ContactDetailPage() {
   const contactId = params.id as string;
   const [contact, setContact] = useState<Contact | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [companies, setCompanies] = useState<Map<string, Company>>(new Map());
   const [loading, setLoading] = useState(true);
   const [emailComposer, setEmailComposer] = useState<{ to: string; subject: string; body: string } | null>(null);
 
@@ -42,9 +49,11 @@ export default function ContactDetailPage() {
       try {
         // Fetch contact
         const contactRes = await fetch(`/api/contacts/${contactId}`);
+        let contactData: Contact | null = null;
         if (contactRes.ok) {
           const data = await contactRes.json();
-          setContact(data.contact);
+          contactData = data.contact;
+          setContact(contactData);
         }
 
         // Fetch activities
@@ -54,6 +63,33 @@ export default function ContactDetailPage() {
         if (actRes.ok) {
           const data = await actRes.json();
           setActivities(data.activities || []);
+        }
+
+        // Fetch company names for all associated companies
+        if (contactData) {
+          const allCompanyIds: string[] = [];
+          if (contactData.companyId) allCompanyIds.push(contactData.companyId);
+          const additionalIds = (contactData.properties?.additionalCompanyIds || []) as string[];
+          allCompanyIds.push(...additionalIds.filter((id) => id && !allCompanyIds.includes(id)));
+
+          if (allCompanyIds.length > 0) {
+            const companyMap = new Map<string, Company>();
+            await Promise.all(
+              allCompanyIds.map(async (cId) => {
+                try {
+                  const res = await fetch(`/api/accounts/${cId}`);
+                  if (res.ok) {
+                    const data = await res.json();
+                    const co = data.company || data.account;
+                    if (co) companyMap.set(cId, co);
+                  }
+                } catch {
+                  // skip
+                }
+              })
+            );
+            setCompanies(companyMap);
+          }
         }
       } catch (err) {
         console.error("Failed to load contact:", err);
@@ -82,7 +118,13 @@ export default function ContactDetailPage() {
           <div>
             <h1 className="text-xl font-semibold">{name}</h1>
             <p className="text-sm text-[var(--color-text-secondary)]">
-              {contact.title || "No title"} {contact.email ? `· ${contact.email}` : ""}
+              {contact.title || "No title"} {contact.email ? `\u00b7 ${contact.email}` : ""}
+              {(() => {
+                const extras = (contact.properties?.additionalEmails || []) as string[];
+                return extras.length > 0
+                  ? ` (+${extras.length} more)`
+                  : "";
+              })()}
             </p>
           </div>
         </div>
@@ -165,15 +207,25 @@ export default function ContactDetailPage() {
           </div>
           <div>
             <p className="text-xs text-[var(--color-text-tertiary)]">Title</p>
-            <p className="text-sm text-[var(--color-text-primary)]">{contact.title || "—"}</p>
+            <p className="text-sm text-[var(--color-text-primary)]">{contact.title || "\u2014"}</p>
           </div>
           <div>
             <p className="text-xs text-[var(--color-text-tertiary)]">Email</p>
-            <p className="text-sm text-[var(--color-text-primary)]">{contact.email || "—"}</p>
+            <p className="text-sm text-[var(--color-text-primary)]">{contact.email || "\u2014"}</p>
+            {(() => {
+              const extras = (contact.properties?.additionalEmails || []) as string[];
+              return extras.length > 0 ? (
+                <div className="mt-1 space-y-0.5">
+                  {extras.map((ae) => (
+                    <p key={ae} className="text-xs text-[var(--color-text-secondary)]">{ae}</p>
+                  ))}
+                </div>
+              ) : null;
+            })()}
           </div>
           <div>
             <p className="text-xs text-[var(--color-text-tertiary)]">Phone</p>
-            <p className="text-sm text-[var(--color-text-primary)]">{contact.phone || "—"}</p>
+            <p className="text-sm text-[var(--color-text-primary)]">{contact.phone || "\u2014"}</p>
           </div>
           {contact.linkedinUrl && (
             <div>
@@ -188,6 +240,44 @@ export default function ContactDetailPage() {
               </a>
             </div>
           )}
+          {/* Associated companies */}
+          {(() => {
+            const allCompanyIds: string[] = [];
+            if (contact.companyId) allCompanyIds.push(contact.companyId);
+            const additionalIds = (contact.properties?.additionalCompanyIds || []) as string[];
+            for (const cid of additionalIds) {
+              if (cid && !allCompanyIds.includes(cid)) allCompanyIds.push(cid);
+            }
+            if (allCompanyIds.length === 0) return null;
+            return (
+              <div>
+                <p className="text-xs text-[var(--color-text-tertiary)]">
+                  {allCompanyIds.length === 1 ? "Company" : "Companies"}
+                </p>
+                <div className="mt-0.5 space-y-1">
+                  {allCompanyIds.map((cid, idx) => {
+                    const co = companies.get(cid);
+                    const isPrimary = idx === 0 && cid === contact.companyId;
+                    return (
+                      <div key={cid} className="flex items-center gap-1.5">
+                        <Link
+                          href={`/accounts/${cid}`}
+                          className="text-sm text-[var(--color-accent)] hover:underline"
+                        >
+                          {co?.name || cid.slice(0, 8) + "..."}
+                        </Link>
+                        {isPrimary && allCompanyIds.length > 1 && (
+                          <span className="rounded bg-[var(--color-bg-tertiary)] px-1 py-0.5 text-[10px] text-[var(--color-text-tertiary)]">
+                            primary
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

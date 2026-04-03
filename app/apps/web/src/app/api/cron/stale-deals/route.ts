@@ -1,6 +1,16 @@
 import { db } from "@/db";
-import { activities, deals, notifications, tenants, contacts, companies, users } from "@/db/schema";
+import { activities, deals, notifications, tenants, contacts, companies, users, outboundEmails, connectedMailboxes } from "@/db/schema";
 import { eq, and, desc, sql, or, ne } from "drizzle-orm";
+import { anthropic } from "@ai-sdk/anthropic";
+import { openai } from "@ai-sdk/openai";
+import { generateObject } from "ai";
+import { z } from "zod";
+
+const revivalEmailSchema = z.object({
+  subject: z.string().describe("Short, personal email subject line"),
+  bodyHtml: z.string().describe("Brief HTML email body — warm, personal, no hard sell"),
+  bodyText: z.string().describe("Plain text version of the email"),
+});
 
 /**
  * Stale Deal Detection — finds deals with no recent activity
@@ -156,10 +166,93 @@ async function detectStaleDealsByTenant(tenantId: string) {
     notificationsCreated++;
   }
 
+  // Auto-draft revival emails for deals stale 14+ days with a contact
+  let revivalEmailsQueued = 0;
+  const model = process.env.ANTHROPIC_API_KEY
+    ? anthropic("claude-sonnet-4-6")
+    : process.env.OPENAI_API_KEY
+      ? openai("gpt-4o-mini")
+      : null;
+
+  if (model) {
+    for (const staleDeal of staleDeals) {
+      if (staleDeal.daysSinceLastActivity < 14) continue;
+
+      // Need a contact with an email to send to
+      const deal = activeDeals.find((d) => d.id === staleDeal.dealId);
+      if (!deal?.contactId) continue;
+
+      const [contact] = await db.select().from(contacts)
+        .where(eq(contacts.id, deal.contactId)).limit(1);
+      if (!contact?.email) continue;
+
+      // Find a connected mailbox for this tenant to send from
+      const [mailbox] = await db.select().from(connectedMailboxes)
+        .where(and(
+          eq(connectedMailboxes.tenantId, tenantId),
+          eq(connectedMailboxes.status, "active"),
+        ))
+        .limit(1);
+      if (!mailbox) continue;
+
+      try {
+        const contactFirstName = contact.firstName || "there";
+        const { object: email } = await generateObject({
+          model,
+          schema: revivalEmailSchema,
+          prompt: `Draft a short, warm revival email for a stale sales deal.
+
+Deal name: ${staleDeal.dealName}
+Contact name: ${contactFirstName}${contact.lastName ? ` ${contact.lastName}` : ""}
+Company: ${staleDeal.companyName || "their company"}
+Deal stage: ${staleDeal.stage || "unknown"}
+Days since last activity: ${staleDeal.daysSinceLastActivity}
+Last activity type: ${staleDeal.lastActivityType || "unknown"}
+
+Write a brief, personal check-in email (3-4 sentences max). Be warm and helpful, not pushy. Reference the deal context naturally. End with a soft call to action (e.g., "Would love to reconnect" or "Happy to pick up where we left off").
+
+Use the contact's first name. Do not use placeholder brackets. Keep the subject line under 50 characters.`,
+        });
+
+        // Insert as queued outbound email
+        await db.insert(outboundEmails).values({
+          tenantId,
+          contactId: deal.contactId,
+          mailboxId: mailbox.id,
+          fromAddress: mailbox.emailAddress,
+          toAddress: contact.email,
+          subject: email.subject,
+          bodyHtml: email.bodyHtml,
+          bodyText: email.bodyText,
+          status: "queued",
+          queuedAt: new Date(),
+        });
+
+        // Log an activity entry for the revival email
+        await db.insert(activities).values({
+          tenantId,
+          actorType: "system",
+          entityType: "deal",
+          entityId: deal.id,
+          activityType: "email_sent",
+          channel: "email",
+          direction: "outbound",
+          summary: `Revival email queued for ${contact.email}: "${email.subject}"`,
+          occurredAt: new Date(),
+        });
+
+        revivalEmailsQueued++;
+      } catch (err) {
+        console.warn(`Failed to draft revival email for deal ${staleDeal.dealId}:`, err);
+      }
+    }
+  }
+
   return {
     activeDeals: activeDeals.length,
     staleDeals: staleDeals.length,
     notificationsCreated,
+    revivalEmailsQueued,
     details: staleDeals,
   };
 }

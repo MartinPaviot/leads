@@ -65,7 +65,7 @@ describe("POST /api/score", () => {
   });
 
   it("returns 400 when companyIds missing", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const req = new Request("http://localhost/api/score", {
       method: "POST",
@@ -78,7 +78,7 @@ describe("POST /api/score", () => {
   });
 
   it("scores a company using calculated model", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const mockCompany = {
       id: "c1",
@@ -131,7 +131,7 @@ describe("POST /api/score", () => {
   });
 
   it("handles missing company gracefully", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const limitFn = vi.fn().mockResolvedValue([]);
     const whereFn = vi.fn().mockReturnValue({ limit: limitFn });

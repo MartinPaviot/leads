@@ -64,7 +64,7 @@ describe("POST /api/signals/detect", () => {
   });
 
   it("returns 400 when companyIds missing", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const req = new Request("http://localhost/api/signals", {
       method: "POST",
@@ -77,7 +77,7 @@ describe("POST /api/signals/detect", () => {
   });
 
   it("detects signals for a company", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const mockCompany = {
       id: "c1",
@@ -139,7 +139,7 @@ describe("POST /api/signals/detect", () => {
   });
 
   it("handles company with no signals", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const mockCompany = {
       id: "c1",

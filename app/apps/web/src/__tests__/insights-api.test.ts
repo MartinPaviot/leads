@@ -47,7 +47,7 @@ describe("GET /api/insights", () => {
   });
 
   it("returns empty insights when no data", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const whereFn = vi.fn().mockResolvedValue([]);
     const fromFn = vi.fn()
@@ -65,7 +65,7 @@ describe("GET /api/insights", () => {
   });
 
   it("detects stalling deals", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const oldDate = new Date(Date.now() - 20 * 86400000); // 20 days ago
     const mockDeals = [
@@ -94,7 +94,7 @@ describe("GET /api/insights", () => {
   });
 
   it("detects high-risk deals", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const now = new Date();
     const mockDeals = [
@@ -122,7 +122,7 @@ describe("GET /api/insights", () => {
   });
 
   it("detects win rate trend", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const now = new Date();
     const mockDeals = [

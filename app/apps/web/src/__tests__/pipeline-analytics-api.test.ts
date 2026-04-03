@@ -44,7 +44,7 @@ describe("GET /api/pipeline/analytics", () => {
   });
 
   it("returns zeroes when no deals exist", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const whereFn = vi.fn().mockResolvedValue([]);
     const fromFn = vi.fn().mockReturnValue({ where: whereFn });
@@ -63,7 +63,7 @@ describe("GET /api/pipeline/analytics", () => {
   });
 
   it("computes correct analytics for mixed deals", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
@@ -103,7 +103,7 @@ describe("GET /api/pipeline/analytics", () => {
   });
 
   it("handles deals with no values", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const mockDeals = [
       { id: "d1", stage: "lead", value: null, properties: {}, createdAt: new Date(), updatedAt: new Date() },

@@ -62,7 +62,7 @@ describe("Sequences API", () => {
     });
 
     it("returns 400 when name is empty", async () => {
-      vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+      vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
       const req = new Request("http://localhost/api/sequences", {
         method: "POST",
@@ -75,7 +75,7 @@ describe("Sequences API", () => {
     });
 
     it("creates a sequence successfully", async () => {
-      vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+      vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
       const returningFn = vi.fn().mockResolvedValue([{ id: "seq1", name: "Cold Outreach" }]);
       const valuesFn = vi.fn().mockReturnValue({ returning: returningFn });

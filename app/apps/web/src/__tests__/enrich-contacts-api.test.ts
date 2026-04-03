@@ -76,7 +76,7 @@ describe("POST /api/enrich-contacts", () => {
   });
 
   it("returns 400 when contactIds missing", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const req = new Request("http://localhost/api/enrich-contacts", {
       method: "POST",
@@ -89,7 +89,7 @@ describe("POST /api/enrich-contacts", () => {
   });
 
   it("returns 400 when contactIds is empty", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const req = new Request("http://localhost/api/enrich-contacts", {
       method: "POST",
@@ -102,7 +102,7 @@ describe("POST /api/enrich-contacts", () => {
   });
 
   it("enriches a contact successfully via Apollo", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const mockContact = {
       id: "ct1",
@@ -164,7 +164,7 @@ describe("POST /api/enrich-contacts", () => {
   });
 
   it("skips already enriched contacts", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const mockContact = {
       id: "ct1",
@@ -196,7 +196,7 @@ describe("POST /api/enrich-contacts", () => {
   });
 
   it("counts failures for missing contacts", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const limitFn = vi.fn().mockResolvedValue([]);
     const whereFn = vi.fn().mockReturnValue({ limit: limitFn });
@@ -217,7 +217,7 @@ describe("POST /api/enrich-contacts", () => {
   });
 
   it("limits batch to 20 contacts", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const ids = Array.from({ length: 25 }, (_, i) => `ct${i}`);
 

@@ -56,7 +56,7 @@ describe("POST /api/search/tam", () => {
   });
 
   it("returns 400 when query is empty", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const req = new Request("http://localhost/api/search/tam", {
       method: "POST",
@@ -69,7 +69,7 @@ describe("POST /api/search/tam", () => {
   });
 
   it("returns hydrated search results", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     vi.mocked(searchSimilar).mockResolvedValue([
       {
@@ -113,7 +113,7 @@ describe("POST /api/search/tam", () => {
   });
 
   it("filters by entity type", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     vi.mocked(searchSimilar).mockResolvedValue([
       { entityType: "company", entityId: "c1", content: "Stripe", similarity: 0.8 },
@@ -140,7 +140,7 @@ describe("POST /api/search/tam", () => {
   });
 
   it("returns empty results for no matches", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
     vi.mocked(searchSimilar).mockResolvedValue([]);
 
     const req = new Request("http://localhost/api/search/tam", {

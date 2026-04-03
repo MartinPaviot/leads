@@ -89,7 +89,7 @@ describe("POST /api/tam (generate)", () => {
   });
 
   it("returns 400 when industries and companySizes are empty", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const req = new Request("http://localhost/api/tam", {
       method: "POST",
@@ -102,7 +102,7 @@ describe("POST /api/tam (generate)", () => {
   });
 
   it("returns 400 when required fields are missing", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const req = new Request("http://localhost/api/tam", {
       method: "POST",
@@ -115,7 +115,7 @@ describe("POST /api/tam (generate)", () => {
   });
 
   it("generates TAM companies successfully via Apollo", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     // Mock existing companies (for dedup check) — route: .select({name, domain}).from(companies).where(eq(...)).limit(500)
     const limitFnSelect = vi.fn().mockResolvedValue([{ name: "Existing Corp", domain: "existing.com" }]);

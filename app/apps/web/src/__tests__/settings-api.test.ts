@@ -44,7 +44,7 @@ describe("Settings API", () => {
     });
 
     it("returns knowledge topics", async () => {
-      vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+      vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
       const limitFn = vi.fn().mockResolvedValue([{
         settings: { knowledge: [{ id: "k1", topic: "ICP", content: "B2B SaaS" }] },
@@ -62,7 +62,7 @@ describe("Settings API", () => {
 
   describe("POST /api/settings/knowledge", () => {
     it("returns 400 when topic empty", async () => {
-      vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+      vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
       const req = new Request("http://localhost/api/settings/knowledge", {
         method: "POST",
@@ -91,7 +91,7 @@ describe("Settings API", () => {
     });
 
     it("returns default stages when none configured", async () => {
-      vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+      vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
       const limitFn = vi.fn().mockResolvedValue([{ settings: {} }]);
       const whereFn = vi.fn().mockReturnValue({ limit: limitFn });

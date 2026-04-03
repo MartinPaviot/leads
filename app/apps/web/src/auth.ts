@@ -25,7 +25,7 @@ async function resolveUserTenant(authUserId: string, email: string) {
     .where(eq(users.clerkId, authUserId))
     .limit(1);
 
-  if (existing) return { tenantId: existing.tenantId, userId: existing.id };
+  if (existing) return { tenantId: existing.tenantId, userId: existing.id, role: existing.role || "member" };
 
   // First login — create tenant + user
   const [tenant] = await db
@@ -42,7 +42,7 @@ async function resolveUserTenant(authUserId: string, email: string) {
     })
     .returning();
 
-  return { tenantId: tenant.id, userId: user.id };
+  return { tenantId: tenant.id, userId: user.id, role: user.role || "member" };
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -143,12 +143,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user && user.id && user.email) {
         token.id = user.id;
         // Resolve tenant on first sign-in
-        const { tenantId, userId } = await resolveUserTenant(
+        const { tenantId, userId, role } = await resolveUserTenant(
           user.id,
           user.email
         );
         token.tenantId = tenantId;
         token.appUserId = userId;
+        token.role = role;
       }
       // Store Google access token in JWT for Gmail API access
       if (account?.provider === "google") {
@@ -226,6 +227,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.id = token.id as string;
         (session as any).tenantId = token.tenantId as string;
         (session as any).appUserId = token.appUserId as string;
+        (session as any).role = (token.role as string) || "member";
       }
       return session;
     },

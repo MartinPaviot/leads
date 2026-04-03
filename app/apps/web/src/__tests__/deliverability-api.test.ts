@@ -43,7 +43,7 @@ describe("GET /api/deliverability", () => {
   });
 
   it("returns zero metrics when no data", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const whereFn = vi.fn().mockResolvedValue([]);
     const fromFn = vi.fn()
@@ -61,7 +61,7 @@ describe("GET /api/deliverability", () => {
   });
 
   it("computes correct rates from activities", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const mockActivities = [
       { id: "a1", activityType: "email_sent", metadata: {} },
@@ -95,7 +95,7 @@ describe("GET /api/deliverability", () => {
   });
 
   it("flags high bounce rate warning", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     // 10 sent, 1 bounced = 10% bounce
     const mockActivities = [

@@ -208,10 +208,12 @@ export default function ContactsPage() {
     ? contacts.filter((c) => {
         const q = searchQuery.toLowerCase();
         const name = [c.firstName, c.lastName].filter(Boolean).join(" ").toLowerCase();
+        const additionalEmails = ((c.properties?.additionalEmails || []) as string[]);
         return (
           name.includes(q) ||
           (c.email?.toLowerCase().includes(q) ?? false) ||
-          (c.title?.toLowerCase().includes(q) ?? false)
+          (c.title?.toLowerCase().includes(q) ?? false) ||
+          additionalEmails.some((ae) => ae.toLowerCase().includes(q))
         );
       })
     : contacts;

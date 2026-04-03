@@ -16,18 +16,32 @@ export async function GET(req: Request) {
     const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
     const pageSize = Math.min(200, Math.max(1, parseInt(url.searchParams.get("pageSize") || "50", 10)));
     const offset = (page - 1) * pageSize;
+    const emailSearch = url.searchParams.get("email")?.trim().toLowerCase();
+
+    // Build where clause — optionally filter by email (primary OR additionalEmails)
+    const baseWhere = eq(contacts.tenantId, authCtx.tenantId);
+    const whereClause = emailSearch
+      ? sql`${baseWhere} AND (
+          lower(${contacts.email}) = ${emailSearch}
+          OR ${contacts.properties}->>'additionalEmails' IS NOT NULL
+            AND EXISTS (
+              SELECT 1 FROM jsonb_array_elements_text(${contacts.properties}->'additionalEmails') AS ae
+              WHERE lower(ae) = ${emailSearch}
+            )
+        )`
+      : baseWhere;
 
     const [result, countResult] = await Promise.all([
       db
         .select()
         .from(contacts)
-        .where(eq(contacts.tenantId, authCtx.tenantId))
+        .where(whereClause)
         .limit(pageSize)
         .offset(offset),
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(contacts)
-        .where(eq(contacts.tenantId, authCtx.tenantId)),
+        .where(whereClause),
     ]);
 
     const total = countResult[0]?.count ?? 0;
@@ -50,10 +64,23 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { firstName, lastName, email, title, phone, companyId } = body;
+    const { firstName, lastName, email, title, phone, companyId, additionalEmails, additionalCompanyIds } = body;
 
     if (!email && !firstName && !lastName) {
       return Response.json({ error: "At least email or name required" }, { status: 400 });
+    }
+
+    // Build properties with multi-email and multi-account data
+    const properties: Record<string, unknown> = {};
+    if (Array.isArray(additionalEmails) && additionalEmails.length > 0) {
+      properties.additionalEmails = additionalEmails
+        .map((e: string) => e.trim().toLowerCase())
+        .filter((e: string) => e && e !== email?.trim()?.toLowerCase());
+    }
+    if (Array.isArray(additionalCompanyIds) && additionalCompanyIds.length > 0) {
+      properties.additionalCompanyIds = additionalCompanyIds.filter(
+        (id: string) => id && id !== companyId
+      );
     }
 
     const [contact] = await db
@@ -66,6 +93,7 @@ export async function POST(req: Request) {
         title: title?.trim() || null,
         phone: phone?.trim() || null,
         companyId: companyId || null,
+        properties,
       })
       .returning();
 

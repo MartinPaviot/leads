@@ -72,9 +72,20 @@ export const syncEmails = inngest.createFunction(
       return all;
     });
 
-    const contactByEmail = new Map<string, ContactRow>(
-      existingContacts.filter((c: ContactRow) => c.email).map((c: ContactRow) => [c.email!.toLowerCase(), c])
-    );
+    const contactByEmail = new Map<string, ContactRow>();
+    for (const c of existingContacts) {
+      if (c.email) {
+        contactByEmail.set(c.email.toLowerCase(), c);
+      }
+      // Also index additional emails from properties
+      const props = (c.properties || {}) as Record<string, unknown>;
+      const additionalEmails = (props.additionalEmails || []) as string[];
+      for (const ae of additionalEmails) {
+        if (ae && !contactByEmail.has(ae.toLowerCase())) {
+          contactByEmail.set(ae.toLowerCase(), c);
+        }
+      }
+    }
 
     // Load tenant settings to get the user's own company domain
     const tenantSettings = await step.run("get-tenant-settings", async () => {
@@ -301,9 +312,19 @@ export const syncCalendar = inngest.createFunction(
       return all;
     });
 
-    const contactByEmail = new Map<string, ContactRow>(
-      existingContacts2.filter((c: ContactRow) => c.email).map((c: ContactRow) => [c.email!.toLowerCase(), c])
-    );
+    const contactByEmail = new Map<string, ContactRow>();
+    for (const c of existingContacts2) {
+      if (c.email) {
+        contactByEmail.set(c.email.toLowerCase(), c);
+      }
+      const props = (c.properties || {}) as Record<string, unknown>;
+      const additionalEmails = (props.additionalEmails || []) as string[];
+      for (const ae of additionalEmails) {
+        if (ae && !contactByEmail.has(ae.toLowerCase())) {
+          contactByEmail.set(ae.toLowerCase(), c);
+        }
+      }
+    }
 
     let created = 0;
 

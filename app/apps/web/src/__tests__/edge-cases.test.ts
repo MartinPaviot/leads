@@ -39,7 +39,7 @@ import { db } from "@/db";
 const accountsModule = await import("@/app/api/accounts/route");
 const contactsModule = await import("@/app/api/contacts/route");
 
-const mockAuthCtx = { userId: "u1", tenantId: "t1", appUserId: "u1" };
+const mockAuthCtx = { userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" };
 
 describe("Edge case tests", () => {
   beforeEach(() => {

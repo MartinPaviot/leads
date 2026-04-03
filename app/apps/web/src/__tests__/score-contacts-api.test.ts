@@ -81,7 +81,7 @@ describe("POST /api/score-contacts", () => {
   });
 
   it("returns 400 when contactIds missing", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const req = new Request("http://localhost/api/score-contacts", {
       method: "POST",
@@ -94,7 +94,7 @@ describe("POST /api/score-contacts", () => {
   });
 
   it("scores a contact successfully", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const mockContact = {
       id: "ct1",
@@ -136,7 +136,7 @@ describe("POST /api/score-contacts", () => {
   });
 
   it("handles missing contacts gracefully", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const limitFn = vi.fn().mockResolvedValue([]); // empty = not found
     const whereFn = vi.fn().mockReturnValue({ limit: limitFn });

@@ -55,7 +55,7 @@ describe("POST /api/sequences/[id]/autopilot", () => {
   });
 
   it("returns 404 when sequence not found", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const limitFn = vi.fn().mockResolvedValue([]);
     const whereFn = vi.fn().mockReturnValue({ limit: limitFn });

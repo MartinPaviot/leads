@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -28,6 +28,9 @@ export async function PUT(req: Request) {
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const adminCheck = requireAdmin(authCtx);
+  if (adminCheck) return adminCheck;
 
   try {
     const { fields } = await req.json();

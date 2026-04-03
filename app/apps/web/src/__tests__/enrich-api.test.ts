@@ -81,7 +81,7 @@ describe("POST /api/enrich", () => {
   });
 
   it("returns 400 when companyIds missing", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const req = new Request("http://localhost/api/enrich", {
       method: "POST",
@@ -94,7 +94,7 @@ describe("POST /api/enrich", () => {
   });
 
   it("returns 400 when companyIds is empty array", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const req = new Request("http://localhost/api/enrich", {
       method: "POST",
@@ -107,7 +107,7 @@ describe("POST /api/enrich", () => {
   });
 
   it("enriches a company successfully via Apollo", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const mockCompany = {
       id: "c1",
@@ -173,7 +173,7 @@ describe("POST /api/enrich", () => {
   });
 
   it("skips already enriched companies", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const mockCompany = {
       id: "c1",
@@ -205,7 +205,7 @@ describe("POST /api/enrich", () => {
   });
 
   it("limits batch to 20 companies", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const ids = Array.from({ length: 25 }, (_, i) => `c${i}`);
 
@@ -235,7 +235,7 @@ describe("POST /api/enrich", () => {
   });
 
   it("counts failures for missing companies", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const limitFn = vi.fn().mockResolvedValue([]);
     const whereFn = vi.fn().mockReturnValue({ limit: limitFn });

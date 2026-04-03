@@ -63,7 +63,7 @@ describe("G-Features Batch Tests", () => {
     });
 
     it("returns contacts for authenticated user", async () => {
-      vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+      vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
       const mockContacts = [
         { id: "c1", firstName: "Alice", companyId: "abc" },

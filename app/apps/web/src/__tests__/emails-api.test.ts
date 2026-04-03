@@ -77,7 +77,7 @@ describe("POST /api/emails/generate", () => {
   });
 
   it("returns 400 when contactId missing", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const req = new Request("http://localhost/api/emails", {
       method: "POST",
@@ -90,7 +90,7 @@ describe("POST /api/emails/generate", () => {
   });
 
   it("returns 404 when contact not found", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const limitFn = vi.fn().mockResolvedValue([]);
     const whereFn = vi.fn().mockReturnValue({ limit: limitFn });
@@ -108,7 +108,7 @@ describe("POST /api/emails/generate", () => {
   });
 
   it("generates a personalized email", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const mockContact = {
       id: "ct1",

@@ -76,7 +76,7 @@ describe("POST /api/deals/analyze", () => {
   });
 
   it("returns 400 when dealIds missing", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const req = new Request("http://localhost/api/deals/analyze", {
       method: "POST",
@@ -89,7 +89,7 @@ describe("POST /api/deals/analyze", () => {
   });
 
   it("analyzes a deal successfully", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     const mockDeal = {
       id: "d1",

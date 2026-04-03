@@ -60,7 +60,7 @@ describe("GET /api/actions", () => {
   });
 
   it("generates prioritized actions", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1" });
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
     // Mock db selects — route does 4 queries:
     // 1. deals: .where().limit() -> []
