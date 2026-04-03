@@ -1,6 +1,6 @@
 import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { companies, contacts, authAccounts } from "@/db/schema";
+import { companies, contacts, authAccounts, tenants } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 
 export async function GET() {
@@ -31,16 +31,40 @@ export async function GET() {
     )
     .limit(1);
 
+  // Check if Microsoft OAuth is connected
+  const [msAccount] = await db
+    .select({ userId: authAccounts.userId })
+    .from(authAccounts)
+    .where(
+      and(
+        eq(authAccounts.userId, authCtx.userId),
+        eq(authAccounts.provider, "microsoft-entra-id")
+      )
+    )
+    .limit(1);
+
+  // Check onboarding completion in tenant settings
+  const [tenant] = await db
+    .select({ settings: tenants.settings })
+    .from(tenants)
+    .where(eq(tenants.id, authCtx.tenantId));
+
+  const settings = (tenant?.settings || {}) as Record<string, unknown>;
+  const onboardingCompleted = !!settings.onboardingCompleted;
+
   const accounts = Number(accountCount?.count || 0);
   const contactTotal = Number(contactCount?.count || 0);
   const isNew = accounts === 0 && contactTotal === 0;
   const hasGoogle = !!googleAccount;
+  const hasMicrosoft = !!msAccount;
 
   return Response.json({
     isNew,
     accounts,
     contacts: contactTotal,
     hasGoogle,
-    needsOnboarding: isNew,
+    hasMicrosoft,
+    hasEmail: hasGoogle || hasMicrosoft,
+    needsOnboarding: !onboardingCompleted && isNew,
   });
 }

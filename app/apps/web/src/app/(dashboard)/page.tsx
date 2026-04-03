@@ -86,7 +86,7 @@ export default function DashboardPage() {
       .then((data) => {
         if (data?.needsOnboarding) {
           setShowOnboarding(true);
-          setOnboardingHasGoogle(data.hasGoogle);
+          setOnboardingHasGoogle(data.hasGoogle || data.hasMicrosoft || false);
         }
       })
       .catch(() => {});
