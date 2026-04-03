@@ -7,6 +7,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { embedEntity, activityToText } from "@/lib/embeddings";
+import { ingestEpisode } from "@/lib/context-graph";
 
 const meetingNotesSchema = z.object({
   summary: z.string().describe("2-3 sentence meeting summary"),
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
   }
 
   const model = process.env.ANTHROPIC_API_KEY
-    ? anthropic("claude-sonnet-4-20250514")
+    ? anthropic("claude-sonnet-4-6")
     : process.env.OPENAI_API_KEY
       ? openai("gpt-4o-mini")
       : null;
@@ -232,6 +233,12 @@ RULES:
       } catch {
         // Non-critical embedding failure
       }
+    }
+
+    // Ingest into context graph (async, non-blocking)
+    if (transcript.length > 50) {
+      const graphContent = `Meeting: ${meetingTitle || "Untitled"}\nDate: ${meetingDate || new Date().toISOString()}\nParticipants: ${notes.participants.map(p => p.name).join(", ")}\n\nSummary: ${notes.summary}\n\nKey Points:\n${notes.keyPoints.join("\n")}\n\nDecisions:\n${notes.decisions.join("\n")}\n\nAction Items:\n${notes.actionItems.map(a => `- ${a.owner}: ${a.task}`).join("\n")}`;
+      ingestEpisode(authCtx.tenantId, graphContent, "meeting", activityId || `meeting-${Date.now()}`).catch(() => {});
     }
 
     return Response.json({

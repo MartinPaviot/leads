@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   }
 
   const model = process.env.ANTHROPIC_API_KEY
-    ? anthropic("claude-sonnet-4-20250514")
+    ? anthropic("claude-sonnet-4-6")
     : process.env.OPENAI_API_KEY
       ? openai("gpt-4o-mini")
       : null;

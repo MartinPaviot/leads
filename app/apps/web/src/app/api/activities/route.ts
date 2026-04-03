@@ -12,17 +12,15 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const entityType = url.searchParams.get("entityType");
   const entityId = url.searchParams.get("entityId");
+  const activityType = url.searchParams.get("activityType");
   const limit = parseInt(url.searchParams.get("limit") || "50");
 
   try {
-    const conditions =
-      entityType && entityId
-        ? and(
-            eq(activities.tenantId, authCtx.tenantId),
-            eq(activities.entityType, entityType),
-            eq(activities.entityId, entityId)
-          )
-        : eq(activities.tenantId, authCtx.tenantId);
+    const filters = [eq(activities.tenantId, authCtx.tenantId)];
+    if (entityType) filters.push(eq(activities.entityType, entityType));
+    if (entityId) filters.push(eq(activities.entityId, entityId));
+    if (activityType) filters.push(eq(activities.activityType, activityType as any));
+    const conditions = filters.length === 1 ? filters[0] : and(...filters);
 
     const result = await db
       .select()

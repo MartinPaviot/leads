@@ -2,14 +2,14 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { companies, contacts, deals, activities } from "@/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
-import { searchSimilar } from "@/lib/embeddings";
+import { searchSimilar, getEmbeddingStats } from "@/lib/embeddings";
 
 /**
  * Recall accuracy test for customer memory.
  * Generates test queries from actual CRM data, runs semantic search,
  * and scores how well the system retrieves the right records.
  *
- * Target: 90%+ recall on known data.
+ * Target: 95%+ recall on known data.
  */
 
 interface TestResult {
@@ -40,6 +40,9 @@ export async function POST(req: Request) {
   try {
     const tenantId = authCtx.tenantId;
 
+    // Fetch embedding stats for diagnostics
+    const stats = await getEmbeddingStats(tenantId);
+
     // Fetch actual CRM data to generate test queries
     const allCompanies = await db.select().from(companies)
       .where(eq(companies.tenantId, tenantId)).limit(20);
@@ -58,7 +61,7 @@ export async function POST(req: Request) {
       expectedName: string;
     }> = [];
 
-    // Generate company recall tests
+    // Generate company recall tests — name-based (high confidence)
     for (const company of allCompanies.slice(0, 5)) {
       tests.push({
         query: `Tell me about ${company.name}`,
@@ -66,6 +69,14 @@ export async function POST(req: Request) {
         expectedEntityId: company.id,
         expectedName: company.name,
       });
+      if (company.domain) {
+        tests.push({
+          query: `What do we know about ${company.domain}?`,
+          expectedEntityType: "company",
+          expectedEntityId: company.id,
+          expectedName: company.name,
+        });
+      }
       if (company.industry) {
         tests.push({
           query: `Which companies are in ${company.industry}?`,
@@ -76,7 +87,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Generate contact recall tests
+    // Generate contact recall tests — name + email
     for (const contact of allContacts.slice(0, 5)) {
       const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
       if (name) {
@@ -95,16 +106,32 @@ export async function POST(req: Request) {
           expectedName: name || contact.email,
         });
       }
+      if (contact.title && name) {
+        tests.push({
+          query: `Find the ${contact.title} named ${name}`,
+          expectedEntityType: "contact",
+          expectedEntityId: contact.id,
+          expectedName: name,
+        });
+      }
     }
 
     // Generate deal recall tests
-    for (const deal of allDeals.slice(0, 3)) {
+    for (const deal of allDeals.slice(0, 5)) {
       tests.push({
         query: `What's the status of the ${deal.name} deal?`,
         expectedEntityType: "deal",
         expectedEntityId: deal.id,
         expectedName: deal.name,
       });
+      if (deal.stage) {
+        tests.push({
+          query: `Show me deals in ${deal.stage} stage`,
+          expectedEntityType: "deal",
+          expectedEntityId: deal.id,
+          expectedName: deal.name,
+        });
+      }
     }
 
     // Generate activity recall tests (cross-reference)
@@ -125,6 +152,7 @@ export async function POST(req: Request) {
         totalTests: 0,
         passed: 0,
         recall: 0,
+        stats,
       });
     }
 
@@ -148,8 +176,8 @@ export async function POST(req: Request) {
           topResults: searchResults.slice(0, 5).map((r) => ({
             entityType: r.entityType,
             entityId: r.entityId,
-            similarity: Math.round(r.similarity * 100) / 100,
-            contentPreview: r.content.slice(0, 100),
+            similarity: Math.round(r.similarity * 1000) / 1000,
+            contentPreview: r.content.slice(0, 120),
           })),
           rank: rank >= 0 ? rank + 1 : null,
         });
@@ -173,20 +201,33 @@ export async function POST(req: Request) {
     const top3Passed = results.filter((r) => r.rank !== null && r.rank <= 3).length;
     const top3Recall = Math.round((top3Passed / results.length) * 100);
 
+    // Top-1 recall (first result is the expected one)
+    const top1Passed = results.filter((r) => r.rank === 1).length;
+    const top1Recall = Math.round((top1Passed / results.length) * 100);
+
     return Response.json({
       totalTests: results.length,
       passed,
       failed: results.length - passed,
       recall: `${recall}%`,
       top3Recall: `${top3Recall}%`,
-      target: "90%",
+      top1Recall: `${top1Recall}%`,
+      target: "95%",
+      // Diagnostics
+      stats,
+      crmCounts: {
+        companies: allCompanies.length,
+        contacts: allContacts.length,
+        deals: allDeals.length,
+        activities: recentActivities.length,
+      },
       results,
       // Summary of failures
       failures: results.filter((r) => !r.found).map((r) => ({
         query: r.query,
         expected: `${r.expectedEntityType}:${r.expectedName}`,
         gotInstead: r.topResults.length > 0
-          ? `${r.topResults[0].entityType}: ${r.topResults[0].contentPreview.slice(0, 50)}`
+          ? `${r.topResults[0].entityType}: ${r.topResults[0].contentPreview.slice(0, 60)}`
           : "no results",
       })),
     });

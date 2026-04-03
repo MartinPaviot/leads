@@ -8,7 +8,7 @@ import { openai } from "@ai-sdk/openai";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 
 function getLLMModel() {
-  if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-20250514");
+  if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-6");
   if (process.env.OPENAI_API_KEY) return openai("gpt-4o-mini");
   return null;
 }

@@ -2,6 +2,7 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { notes } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
+import { ingestEpisode } from "@/lib/context-graph";
 
 export async function GET() {
   const authCtx = await getAuthContext();
@@ -49,6 +50,12 @@ export async function POST(req: Request) {
         entityId: entityId || null,
       })
       .returning();
+
+    // Ingest into context graph (async, non-blocking)
+    if (content.trim().length > 20) {
+      const graphContent = `Note: ${title || "Untitled"}\n\n${content.trim().slice(0, 3000)}`;
+      ingestEpisode(authCtx.tenantId, graphContent, "note", note.id).catch(() => {});
+    }
 
     return Response.json({ note }, { status: 201 });
   } catch (error) {
