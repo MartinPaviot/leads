@@ -427,6 +427,37 @@ export const onGoogleOAuthConnected = inngest.createFunction(
   }
 );
 
+/** Triggered after Microsoft OAuth completes — kicks off initial email+calendar sync */
+export const onMicrosoftOAuthConnected = inngest.createFunction(
+  {
+    id: "microsoft-oauth-connected",
+    name: "Handle Microsoft OAuth Connection",
+    retries: 1,
+    triggers: [{ event: "microsoft/oauth-connected" }],
+  },
+  async ({ event, step }: { event: { data: { userId: string; tenantId: string; appUserId: string } }; step: any }) => {
+    const { userId, tenantId, appUserId } = event.data;
+
+    // Kick off email sync (2 year backfill for first sync)
+    await step.run("trigger-email-sync", async () => {
+      await inngest.send({
+        name: "email/sync-requested",
+        data: { userId, tenantId, appUserId, daysBack: 730, provider: "microsoft" },
+      });
+    });
+
+    // Kick off calendar sync
+    await step.run("trigger-calendar-sync", async () => {
+      await inngest.send({
+        name: "calendar/sync-requested",
+        data: { userId, tenantId, appUserId, provider: "microsoft" },
+      });
+    });
+
+    return { triggered: true };
+  }
+);
+
 /** Cron: sync emails every 15 minutes for all connected users */
 export const cronSyncEmails = inngest.createFunction(
   {

@@ -5,6 +5,9 @@ import postgres from "postgres";
 const sql = postgres(process.env.DATABASE_URL!);
 
 export async function embedText(text: string): Promise<number[]> {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY not configured — embedding unavailable");
+  }
   const { embedding } = await embed({
     model: openai.embedding("text-embedding-3-small"),
     value: text,

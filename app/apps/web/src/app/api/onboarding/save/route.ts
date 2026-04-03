@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { tenants, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { updateTenantSettings, type TenantSettings } from "@/lib/tenant-settings";
+import { inngest } from "@/inngest/client";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
@@ -55,6 +56,21 @@ export async function POST(req: Request) {
   }
 
   await updateTenantSettings(authCtx.tenantId, updates);
+
+  // Fire onboarding/completed event to trigger auto-TAM + enrichment
+  if (data.step === "complete") {
+    inngest
+      .send({
+        name: "onboarding/completed",
+        data: {
+          tenantId: authCtx.tenantId,
+          appUserId: authCtx.appUserId,
+        },
+      })
+      .catch((err) =>
+        console.warn("Failed to trigger onboarding completion:", err)
+      );
+  }
 
   return Response.json({ ok: true });
 }
