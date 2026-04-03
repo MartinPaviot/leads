@@ -155,11 +155,16 @@ export async function searchOrganizations(params: {
 export function employeeCountToRange(count: number | null): string {
   if (!count) return "Unknown";
   if (count <= 10) return "1-10";
-  if (count <= 50) return "11-50";
-  if (count <= 200) return "51-200";
+  if (count <= 20) return "11-20";
+  if (count <= 50) return "21-50";
+  if (count <= 100) return "51-100";
+  if (count <= 200) return "101-200";
   if (count <= 500) return "201-500";
-  if (count <= 1000) return "501-1000";
-  return "1000+";
+  if (count <= 1000) return "501-1,000";
+  if (count <= 2000) return "1,001-2,000";
+  if (count <= 5000) return "2,001-5,000";
+  if (count <= 10000) return "5,001-10,000";
+  return "10,001+";
 }
 
 export function revenueToRange(revenue: number | null): string {
