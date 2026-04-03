@@ -5,6 +5,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { fetchRecentEmails, type SyncedEmail } from "@/lib/gmail";
 import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/calendar";
 import { embedEntity, activityToText } from "@/lib/embeddings";
+import { getTenantSettings } from "@/lib/tenant-settings";
 
 // Type for a contact row from the database
 type ContactRow = typeof contacts.$inferSelect;
@@ -75,6 +76,13 @@ export const syncEmails = inngest.createFunction(
       existingContacts.filter((c: ContactRow) => c.email).map((c: ContactRow) => [c.email!.toLowerCase(), c])
     );
 
+    // Load tenant settings to get the user's own company domain
+    const tenantSettings = await step.run("get-tenant-settings", async () => {
+      const s = await getTenantSettings(tenantId);
+      return { companyDomain: s.companyDomain || "" };
+    });
+    const ownDomain = tenantSettings.companyDomain.toLowerCase().replace(/^www\./, "");
+
     let created = 0;
     let contactsCreated = 0;
 
@@ -129,6 +137,8 @@ export const syncEmails = inngest.createFunction(
                 "aol.com", "protonmail.com", "mail.com", "live.com", "msn.com",
                 "yandex.com", "zoho.com", "gmx.com", "fastmail.com",
               ]);
+              // Also skip the user's own company domain
+              if (ownDomain) personalDomains.add(ownDomain);
 
               const [existingCompany] = await db
                 .select({ id: companies.id })

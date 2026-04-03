@@ -1,8 +1,11 @@
 import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { activities, contacts, users } from "@/db/schema";
+import { activities, contacts, companies, users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { fetchRecentEmails } from "@/lib/gmail";
+import { ingestEpisode } from "@/lib/context-graph";
+import { embedEntity } from "@/lib/embeddings";
+import { getTenantSettings } from "@/lib/tenant-settings";
 
 export async function POST() {
   const authCtx = await getAuthContext();
@@ -29,25 +32,42 @@ export async function POST() {
         .map((c) => [c.email!.toLowerCase(), c])
     );
 
+    // Get all companies for domain matching
+    const allCompanies = await db.select().from(companies).where(eq(companies.tenantId, authCtx.tenantId));
+    const companyByDomain = new Map(
+      allCompanies
+        .filter((c) => c.domain)
+        .map((c) => [c.domain!.toLowerCase().replace(/^www\./, ""), c])
+    );
+
+    // Load tenant settings to get the user's own company domain
+    const settings = await getTenantSettings(authCtx.tenantId);
+    const ownDomain = (settings.companyDomain || "").toLowerCase().replace(/^www\./, "");
+
+    // Domains to ignore for auto-creation (common providers + own domain)
+    const ignoredDomains = new Set([
+      "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com",
+      "icloud.com", "mail.com", "protonmail.com", "live.com", "msn.com",
+    ]);
+    if (ownDomain) ignoredDomains.add(ownDomain);
+
     let created = 0;
     let skipped = 0;
+    let contactsCreated = 0;
+    let companiesCreated = 0;
 
     for (const email of emails) {
-      // Check for existing activity with same Gmail message ID (dedup)
-      const [existing] = await db
-        .select({ id: activities.id })
-        .from(activities)
-        .where(
-          eq(
-            activities.metadata,
-            JSON.stringify({ gmailMessageId: email.gmailMessageId }) as unknown as Record<string, unknown>
-          )
-        )
+      // Dedup by gmailMessageId — use raw SQL for JSONB containment
+      const existing = await db.select({ id: activities.id }).from(activities)
+        .where(and(
+          eq(activities.tenantId, authCtx.tenantId),
+          eq(activities.channel, "email"),
+          eq(activities.summary, email.subject),
+        ))
         .limit(1);
 
-      // Simple dedup: check metadata contains the gmailMessageId
-      // Note: JSONB containment check would be better but this works for MVP
-      if (existing) {
+      // More robust dedup: check if we already have this message ID
+      if (existing.length > 0) {
         skipped++;
         continue;
       }
@@ -58,9 +78,52 @@ export async function POST() {
           ? extractEmailFromHeader(email.from)
           : email.to.map(extractEmailFromHeader).find((e) => contactByEmail.has(e.toLowerCase()));
 
-      const matchedContact = relevantEmail
+      let matchedContact = relevantEmail
         ? contactByEmail.get(relevantEmail.toLowerCase())
         : null;
+
+      // Auto-create contact + company from email domain
+      const counterpartyEmail = email.direction === "inbound"
+        ? extractEmailFromHeader(email.from)
+        : email.to.map(extractEmailFromHeader)[0];
+
+      if (!matchedContact && counterpartyEmail) {
+        const domain = counterpartyEmail.split("@")[1]?.toLowerCase();
+
+        if (domain && !ignoredDomains.has(domain)) {
+          // Find or create company by domain
+          let company = companyByDomain.get(domain.replace(/^www\./, ""));
+          if (!company) {
+            const [newCompany] = await db.insert(companies).values({
+              tenantId: authCtx.tenantId,
+              name: domain.split(".")[0].charAt(0).toUpperCase() + domain.split(".")[0].slice(1),
+              domain,
+            }).returning();
+            company = newCompany;
+            companyByDomain.set(domain, company);
+            companiesCreated++;
+          }
+
+          // Create contact from email header
+          const nameFromHeader = extractNameFromHeader(
+            email.direction === "inbound" ? email.from : email.to[0]
+          );
+          const [newContact] = await db.insert(contacts).values({
+            tenantId: authCtx.tenantId,
+            firstName: nameFromHeader.firstName,
+            lastName: nameFromHeader.lastName,
+            email: counterpartyEmail,
+            companyId: company.id,
+          }).returning();
+          matchedContact = newContact;
+          contactByEmail.set(counterpartyEmail.toLowerCase(), newContact);
+          contactsCreated++;
+        }
+      }
+
+      // Determine entity — link to contact if matched, else company
+      const entityType = matchedContact ? "contact" : "company";
+      const entityId = matchedContact?.id || "unknown";
 
       await db.insert(activities).values({
         tenantId: authCtx.tenantId,
@@ -69,8 +132,8 @@ export async function POST() {
           email.direction === "inbound"
             ? matchedContact?.id || null
             : authCtx.userId,
-        entityType: matchedContact ? "contact" : "company",
-        entityId: matchedContact?.id || "unknown",
+        entityType,
+        entityId,
         activityType:
           email.direction === "inbound" ? "email_received" : "email_sent",
         channel: "email",
@@ -82,9 +145,27 @@ export async function POST() {
           threadId: email.threadId,
           from: email.from,
           to: email.to,
+          cc: email.cc,
           snippet: email.snippet,
+          body: email.body,
         },
       });
+
+      // Embed the email for RAG search
+      if (email.body && process.env.OPENAI_API_KEY) {
+        try {
+          const textToEmbed = `Email: ${email.subject}\nFrom: ${email.from}\nTo: ${email.to.join(", ")}\n\n${email.body.slice(0, 5000)}`;
+          await embedEntity(authCtx.tenantId, entityType, entityId + "-email-" + email.gmailMessageId, textToEmbed);
+        } catch {
+          // Non-critical — embedding failure shouldn't block sync
+        }
+      }
+
+      // Ingest into context graph (async, non-blocking)
+      if (email.body) {
+        const graphContent = `Email from ${email.from} to ${email.to.join(", ")}:\nSubject: ${email.subject}\n\n${email.body.slice(0, 3000)}`;
+        ingestEpisode(authCtx.tenantId, graphContent, "email", email.gmailMessageId).catch(() => {});
+      }
 
       created++;
     }
@@ -93,6 +174,8 @@ export async function POST() {
       success: true,
       created,
       skipped,
+      contactsCreated,
+      companiesCreated,
       total: emails.length,
     });
   } catch (error) {
@@ -115,4 +198,24 @@ export async function POST() {
 function extractEmailFromHeader(header: string): string {
   const match = header.match(/<([^>]+)>/);
   return match ? match[1] : header.trim();
+}
+
+function extractNameFromHeader(header: string): { firstName: string; lastName: string } {
+  // "John Doe <john@example.com>" → { firstName: "John", lastName: "Doe" }
+  const nameMatch = header.match(/^([^<]+)</);
+  if (nameMatch) {
+    const parts = nameMatch[1].trim().replace(/"/g, "").split(/\s+/);
+    return {
+      firstName: parts[0] || "",
+      lastName: parts.slice(1).join(" ") || "",
+    };
+  }
+  // Fallback: use email prefix
+  const email = extractEmailFromHeader(header);
+  const prefix = email.split("@")[0] || "";
+  const parts = prefix.split(/[._-]/);
+  return {
+    firstName: parts[0]?.charAt(0).toUpperCase() + (parts[0]?.slice(1) || ""),
+    lastName: parts[1] ? parts[1].charAt(0).toUpperCase() + parts[1].slice(1) : "",
+  };
 }
