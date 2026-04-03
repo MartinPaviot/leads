@@ -29,11 +29,16 @@ export async function getCalendarClient(userId: string) {
     refresh_token: account.refresh_token,
   });
 
+  // Handle token refresh — persist new access_token and expiry to DB
   oauth2Client.on("tokens", async (tokens) => {
     if (tokens.access_token) {
+      const updates: Record<string, unknown> = { access_token: tokens.access_token };
+      if (tokens.expiry_date) {
+        updates.expires_at = Math.floor(tokens.expiry_date / 1000);
+      }
       await db
         .update(authAccounts)
-        .set({ access_token: tokens.access_token })
+        .set(updates)
         .where(
           and(
             eq(authAccounts.userId, userId),

@@ -12,6 +12,10 @@ export async function embedText(text: string): Promise<number[]> {
   return embedding;
 }
 
+/**
+ * Embed a single entity. Uses DELETE + INSERT (upsert pattern) to prevent duplicates.
+ * The unique constraint (tenant_id, entity_type, entity_id) is the DB-level safety net.
+ */
 export async function embedEntity(
   tenantId: string,
   entityType: string,
@@ -25,7 +29,8 @@ export async function embedEntity(
   const vector = await embedText(truncated);
   const vectorStr = `[${vector.join(",")}]`;
 
-  // Delete any existing embedding for this entity+tenant first, then insert fresh
+  // Delete any existing embedding for this entity+tenant first, then insert fresh.
+  // The UNIQUE constraint (tenant_id, entity_type, entity_id) is the DB-level safety net.
   await sql`
     DELETE FROM embeddings
     WHERE tenant_id = ${tenantId} AND entity_type = ${entityType} AND entity_id = ${entityId}
@@ -36,6 +41,13 @@ export async function embedEntity(
   `;
 }
 
+/**
+ * Search for similar embeddings using cosine similarity.
+ *
+ * Uses HNSW index which provides near-exact recall without tuning.
+ * The HNSW default ef_search=40 is sufficient for datasets under 100K rows.
+ * For larger datasets, increase via: SET hnsw.ef_search = 200.
+ */
 export async function searchSimilar(
   query: string,
   limit: number = 5,
@@ -80,6 +92,67 @@ export async function searchSimilar(
     content: r.content as string,
     similarity: r.similarity as number,
   }));
+}
+
+/**
+ * Remove duplicate embeddings (keep only the most recent per entity).
+ * Returns the number of duplicates removed.
+ */
+export async function cleanupDuplicateEmbeddings(): Promise<number> {
+  const result = await sql`
+    DELETE FROM embeddings
+    WHERE id IN (
+      SELECT id FROM (
+        SELECT id, ROW_NUMBER() OVER (
+          PARTITION BY tenant_id, entity_type, entity_id
+          ORDER BY created_at DESC
+        ) as rn
+        FROM embeddings
+      ) ranked
+      WHERE rn > 1
+    )
+  `;
+  return result.count;
+}
+
+/**
+ * Get embedding statistics for diagnostics.
+ */
+export async function getEmbeddingStats(tenantId?: string): Promise<{
+  total: number;
+  byType: Record<string, number>;
+  duplicates: number;
+  indexType: string;
+}> {
+  const whereClause = tenantId
+    ? sql`WHERE tenant_id = ${tenantId}`
+    : sql``;
+
+  const [totalResult] = await sql`SELECT count(*)::int as cnt FROM embeddings ${whereClause}`;
+  const byTypeResult = await sql`
+    SELECT entity_type, count(*)::int as cnt FROM embeddings ${whereClause} GROUP BY entity_type
+  `;
+  const [dupeResult] = await sql`
+    SELECT count(*)::int as cnt FROM (
+      SELECT tenant_id, entity_type, entity_id
+      FROM embeddings ${whereClause}
+      GROUP BY tenant_id, entity_type, entity_id
+      HAVING count(*) > 1
+    ) sub
+  `;
+  const indexResult = await sql`
+    SELECT indexdef FROM pg_indexes WHERE indexname = 'embeddings_embedding_idx'
+  `;
+  const indexType = indexResult.length > 0
+    ? (indexResult[0].indexdef as string).includes("hnsw") ? "hnsw" : "ivfflat"
+    : "none";
+
+  return {
+    total: totalResult.cnt,
+    byType: Object.fromEntries(byTypeResult.map((r) => [r.entity_type, r.cnt])),
+    duplicates: dupeResult.cnt,
+    indexType,
+  };
 }
 
 export function contactToText(contact: {

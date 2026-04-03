@@ -30,12 +30,16 @@ export async function getGmailClient(userId: string) {
     refresh_token: account.refresh_token,
   });
 
-  // Handle token refresh
+  // Handle token refresh — persist new access_token and expiry to DB
   oauth2Client.on("tokens", async (tokens) => {
     if (tokens.access_token) {
+      const updates: Record<string, unknown> = { access_token: tokens.access_token };
+      if (tokens.expiry_date) {
+        updates.expires_at = Math.floor(tokens.expiry_date / 1000);
+      }
       await db
         .update(authAccounts)
-        .set({ access_token: tokens.access_token })
+        .set(updates)
         .where(
           and(
             eq(authAccounts.userId, userId),
@@ -53,8 +57,10 @@ export interface SyncedEmail {
   threadId: string;
   from: string;
   to: string[];
+  cc: string[];
   subject: string;
   snippet: string;
+  body: string;
   date: Date;
   direction: "inbound" | "outbound";
 }
@@ -88,8 +94,7 @@ export async function fetchRecentEmails(
       const detail = await gmail.users.messages.get({
         userId: "me",
         id: msg.id,
-        format: "metadata",
-        metadataHeaders: ["From", "To", "Subject", "Date"],
+        format: "full",
       });
 
       const headers = detail.data.payload?.headers || [];
@@ -101,8 +106,14 @@ export async function fetchRecentEmails(
       const to = getHeader("to")
         .split(",")
         .map((t) => t.trim());
+      const cc = getHeader("cc")
+        ? getHeader("cc").split(",").map((t) => t.trim())
+        : [];
       const subject = getHeader("subject");
       const dateStr = getHeader("date");
+
+      // Extract full body from the payload
+      const body = extractBodyFromPayload(detail.data.payload);
 
       // Determine direction: if user's email is in the From field → outbound
       const fromEmail = extractEmail(from);
@@ -116,8 +127,10 @@ export async function fetchRecentEmails(
         threadId: msg.threadId || "",
         from,
         to,
+        cc,
         subject,
         snippet: detail.data.snippet || "",
+        body: body.slice(0, 50000), // cap at 50k chars
         date: dateStr ? new Date(dateStr) : new Date(),
         direction,
       });
@@ -133,4 +146,47 @@ export async function fetchRecentEmails(
 function extractEmail(header: string): string {
   const match = header.match(/<([^>]+)>/);
   return match ? match[1] : header.trim();
+}
+
+/** Recursively extract text body from Gmail message payload */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractBodyFromPayload(payload: any): string {
+  if (!payload) return "";
+
+  // Direct body data on this part
+  if (payload.body?.data) {
+    const mimeType = (payload.mimeType || "").toLowerCase();
+    if (mimeType === "text/plain" || mimeType === "text/html") {
+      const decoded = Buffer.from(payload.body.data, "base64url").toString("utf-8");
+      if (mimeType === "text/html") {
+        // Strip HTML tags for plain text storage
+        return decoded.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+      }
+      return decoded;
+    }
+  }
+
+  // Multipart: prefer text/plain, fall back to text/html
+  if (payload.parts && Array.isArray(payload.parts)) {
+    // First pass: look for text/plain
+    for (const part of payload.parts) {
+      if (part.mimeType === "text/plain" && part.body?.data) {
+        return Buffer.from(part.body.data, "base64url").toString("utf-8");
+      }
+    }
+    // Second pass: look for text/html
+    for (const part of payload.parts) {
+      if (part.mimeType === "text/html" && part.body?.data) {
+        const html = Buffer.from(part.body.data, "base64url").toString("utf-8");
+        return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+      }
+    }
+    // Recurse into nested multipart
+    for (const part of payload.parts) {
+      const nested = extractBodyFromPayload(part);
+      if (nested) return nested;
+    }
+  }
+
+  return "";
 }

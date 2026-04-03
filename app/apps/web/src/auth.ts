@@ -58,6 +58,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           Google({
             clientId: process.env.GOOGLE_CLIENT_ID,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+            allowDangerousEmailAccountLinking: true,
             authorization: {
               params: {
                 scope:
@@ -75,6 +76,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           MicrosoftEntraId({
             clientId: process.env.MICROSOFT_CLIENT_ID,
             clientSecret: process.env.MICROSOFT_CLIENT_SECRET!,
+            allowDangerousEmailAccountLinking: true,
             authorization: {
               params: {
                 scope: "openid email profile offline_access Mail.Read Calendars.Read",
