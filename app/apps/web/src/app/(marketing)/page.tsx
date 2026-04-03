@@ -250,7 +250,7 @@ export default function LandingPage() {
     <div className="min-h-screen w-full bg-white">
       {/* NAV */}
       <nav className={`fixed top-0 z-50 w-full transition-all duration-300 ${scrolled ? "bg-white/95 shadow-[0_1px_3px_rgba(0,0,0,0.06)] backdrop-blur-md" : "bg-transparent"}`}>
-        <div className="mx-auto flex max-w-[1200px] items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-4">
           <Link href="/" className="text-xl font-bold" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>LeadSens</Link>
           <div className="hidden items-center gap-8 md:flex">
             <Link href="#features" className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900">Features</Link>
@@ -267,7 +267,7 @@ export default function LandingPage() {
       {/* HERO */}
       <Section className="relative pb-24 pt-[140px]">
         <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(0,0,0,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.025) 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
-        <div className="relative mx-auto max-w-[1200px] px-6 text-center">
+        <div className="relative mx-auto max-w-[1400px] px-6 text-center">
           <Animate><p className="text-xs font-medium uppercase tracking-wider text-gray-500">Get started in minutes</p></Animate>
           <Animate><h1 className="mx-auto mt-6 max-w-[800px] text-[28px] font-bold leading-tight tracking-tight text-gray-900 sm:text-5xl">Your CRM finds customers, remembers everything, and does the work for you.</h1></Animate>
           <Animate><p className="mx-auto mt-6 max-w-[600px] text-lg leading-relaxed text-gray-500">Connect your email. Describe your ideal customer. LeadSens builds your pipeline, captures every conversation, and tells you exactly who to call next.</p></Animate>
@@ -313,11 +313,11 @@ export default function LandingPage() {
       </Section>
 
       {/* GRADIENT SEPARATOR */}
-      <div className="mx-auto max-w-[1200px] px-6"><div className="h-px" style={{ background: "linear-gradient(90deg, transparent, #17C3B2, #2C6BED, #FF7A3D, transparent)" }} /></div>
+      <div className="mx-auto max-w-[1400px] px-6"><div className="h-px" style={{ background: "linear-gradient(90deg, transparent, #17C3B2, #2C6BED, #FF7A3D, transparent)" }} /></div>
 
       {/* WHY LEADSENS */}
       <Section className="pt-32">
-        <div className="mx-auto max-w-[1200px] px-6">
+        <div className="mx-auto max-w-[1400px] px-6">
           <div className="max-w-3xl">
             <Animate><p className="text-xs font-medium uppercase tracking-wider text-gray-400">Why LeadSens</p></Animate>
             <Animate><h2 className="mt-4 text-3xl font-bold leading-snug tracking-tight text-gray-900">Traditional CRMs make you do the work.<br />LeadSens does it for you.</h2></Animate>
@@ -328,7 +328,7 @@ export default function LandingPage() {
 
       {/* FOUNDATIONS */}
       <Section className="pt-24">
-        <div className="mx-auto max-w-[1200px] px-6">
+        <div className="mx-auto max-w-[1400px] px-6">
           <Animate><p className="text-xs font-medium uppercase tracking-wider text-gray-400">Foundations</p></Animate>
           <Animate><h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">Everything you need to sell, in one place</h2></Animate>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
@@ -341,7 +341,7 @@ export default function LandingPage() {
 
       {/* FEATURES */}
       <Section id="features" className="pt-32">
-        <div className="mx-auto max-w-[1200px] px-6">
+        <div className="mx-auto max-w-[1400px] px-6">
           <Animate><p className="text-xs font-medium uppercase tracking-wider text-gray-400">Features</p></Animate>
           <Animate><h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">What you can do with LeadSens</h2></Animate>
           <div className="mt-12 grid gap-8 lg:grid-cols-[380px_1fr] lg:gap-12">
@@ -378,7 +378,7 @@ export default function LandingPage() {
 
       {/* PRICING */}
       <Section id="pricing" className="pt-32 text-center">
-        <div className="mx-auto max-w-[1200px] px-6">
+        <div className="mx-auto max-w-[1400px] px-6">
           <Animate><h2 className="text-3xl font-bold tracking-tight text-gray-900">Simple, founder-friendly pricing</h2></Animate>
           <div className="mx-auto mt-12 grid max-w-[960px] gap-6 md:grid-cols-3">
           {pricingTiers.map((tier) => (
@@ -489,7 +489,7 @@ export default function LandingPage() {
               "linear-gradient(180deg, rgba(23,195,178,0.03) 0%, rgba(44,107,237,0.03) 50%, rgba(255,255,255,1) 100%)",
           }}
         >
-          <div className="mx-auto max-w-[1200px] px-6 text-center">
+          <div className="mx-auto max-w-[1400px] px-6 text-center">
             <Animate>
               <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
                 Stop updating your CRM.
@@ -531,7 +531,7 @@ export default function LandingPage() {
           SECTION 10: FOOTER
           ============================================================ */}
       <footer className="border-t border-gray-200 bg-white">
-        <div className="mx-auto max-w-[1200px] px-6 pb-8 pt-12">
+        <div className="mx-auto max-w-[1400px] px-6 pb-8 pt-12">
           <div className="flex flex-col items-center justify-between gap-8 md:flex-row">
             <span
               className="text-base font-bold"
