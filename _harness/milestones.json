@@ -59,7 +59,7 @@
     "features": ["F5.5", "F6.4", "F4.6"],
     "checkpoint": true,
     "checkpoint_question": "Is every feature production-ready? Analytics meaningful? Insights actionable?",
-    "status": "pending"
+    "status": "complete"
   },
   {
     "id": "M8",
@@ -68,6 +68,48 @@
     "features": ["G1", "G2", "G4", "G5", "G6", "G11", "G13", "G14", "G15", "G20"],
     "checkpoint": true,
     "checkpoint_question": "Does the dashboard make Martin immediately know what to do? Do signals feel trustworthy with citations? Can Martin send an email directly from the AI draft?",
+    "status": "complete"
+  },
+  {
+    "id": "M9",
+    "name": "Competitive Gaps — Contacts + Follow-ups + Extraction",
+    "description": "Contact auto-suggestion, auto follow-up emails, deal timeline, structured data extraction, multi-language chat, suggested replies",
+    "features": ["G3", "G7", "G8", "G9", "G10", "G12"],
+    "checkpoint": false,
+    "status": "complete"
+  },
+  {
+    "id": "M10",
+    "name": "Competitive Gaps — Lifecycle + Momentum + Custom Signals",
+    "description": "Account lifecycle stages, momentum indicators, custom boolean signal columns, chat history persistence",
+    "features": ["G16", "G17", "G18", "G19"],
+    "checkpoint": false,
+    "status": "complete"
+  },
+  {
+    "id": "M11",
+    "name": "Competitive Gaps — Settings + Polish + Microsoft",
+    "description": "Mail pre-connection config, custom fields, company logos, persistent chat, score viz upgrade, weekly summary, signal columns, Microsoft OAuth, stage descriptions, slide-over panels, domain exclusion",
+    "features": ["G21", "G22", "G23", "G24", "G25", "G26", "G27", "G28", "G29", "G30", "G33"],
+    "checkpoint": false,
+    "status": "complete"
+  },
+  {
+    "id": "M12",
+    "name": "Meeting Intelligence + Notifications",
+    "description": "Meeting recording with AI notes, notification 3-channel system",
+    "features": ["G31", "G32"],
+    "checkpoint": true,
+    "checkpoint_question": "Does meeting recording work end-to-end? Are notifications configurable and reliable across all three channels?",
     "status": "pending"
+  },
+  {
+    "id": "M13",
+    "name": "Schema-less Architecture + Memory Quality",
+    "description": "Custom field definitions, dynamic entity rendering, AI field auto-fill, memory recall testing, account summaries, auto-create accounts from email, agent action tools, calendar sync, transcript processing, configurable opportunity stages",
+    "features": ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10"],
+    "checkpoint": true,
+    "checkpoint_question": "Does the schema-less architecture work? Can Martin create custom fields and have AI fill them? Is recall accuracy above 90%?",
+    "status": "complete"
   }
 ]

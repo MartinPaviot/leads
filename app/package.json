@@ -12,5 +12,8 @@
     "turbo": "^2.9.0",
     "typescript": "^5.8.0"
   },
-  "packageManager": "pnpm@10.15.1"
+  "packageManager": "pnpm@10.15.1",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0"
+  }
 }

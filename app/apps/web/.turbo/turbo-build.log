@@ -6,50 +6,166 @@
    - Environments: .env.local
 
    Creating an optimized production build ...
- ✓ Compiled successfully in 29.2s
+ ✓ Compiled successfully in 31.9s
    Linting and checking validity of types ...
    Collecting page data ...
-   Generating static pages (0/24) ...
-   Generating static pages (6/24) 
-   Generating static pages (12/24) 
-   Generating static pages (18/24) 
- ✓ Generating static pages (24/24)
+   Generating static pages (0/113) ...
+   Generating static pages (28/113) 
+   Generating static pages (56/113) 
+   Generating static pages (84/113) 
+ ✓ Generating static pages (113/113)
    Finalizing page optimization ...
    Collecting build traces ...
 
-Route (app)                                 Size  First Load JS
-┌ ƒ /                                      163 B         106 kB
-├ ○ /_not-found                            994 B         104 kB
-├ ƒ /accounts                            1.27 kB         104 kB
-├ ƒ /api/accounts                          163 B         103 kB
-├ ƒ /api/activities                        163 B         103 kB
-├ ƒ /api/auth/[...nextauth]                163 B         103 kB
-├ ƒ /api/chat                              163 B         103 kB
-├ ƒ /api/contacts                          163 B         103 kB
-├ ƒ /api/contacts/[id]                     163 B         103 kB
-├ ƒ /api/email/status                      163 B         103 kB
-├ ƒ /api/email/sync                        163 B         103 kB
-├ ƒ /api/embed                             163 B         103 kB
-├ ƒ /api/enrich                            163 B         103 kB
-├ ƒ /api/import                            163 B         103 kB
-├ ƒ /api/inngest                           163 B         103 kB
-├ ƒ /api/opportunities                     163 B         103 kB
-├ ƒ /api/score                             163 B         103 kB
-├ ƒ /api/search                            163 B         103 kB
-├ ƒ /api/tasks                             163 B         103 kB
-├ ƒ /chat                                91.8 kB         194 kB
-├ ƒ /contacts                            1.36 kB         104 kB
-├ ƒ /contacts/[id]                       1.33 kB         104 kB
-├ ƒ /opportunities                       1.01 kB         104 kB
-├ ƒ /settings                            4.14 kB         107 kB
-└ ○ /sign-in                               163 B         103 kB
-+ First Load JS shared by all             103 kB
-  ├ chunks/3b75a83e-a603163c16247511.js  54.2 kB
-  ├ chunks/639-e6143651c64e0522.js       46.5 kB
-  └ other shared chunks (total)          1.97 kB
+Route (app)                                   Size  First Load JS
+┌ ƒ /                                      12.4 kB         115 kB
+├ ○ /_not-found                              997 B         104 kB
+├ ○ /acceptable-use                          400 B         103 kB
+├ ƒ /accounts                              6.25 kB         113 kB
+├ ƒ /accounts/[id]                         2.26 kB         241 kB
+├ ƒ /api/accounts                            400 B         103 kB
+├ ƒ /api/accounts/[id]                       400 B         103 kB
+├ ƒ /api/accounts/[id]/contacts              400 B         103 kB
+├ ƒ /api/accounts/[id]/lifecycle             400 B         103 kB
+├ ƒ /api/accounts/[id]/suggested-contacts    400 B         103 kB
+├ ƒ /api/accounts/[id]/summarize             400 B         103 kB
+├ ƒ /api/actions                             400 B         103 kB
+├ ƒ /api/activities                          400 B         103 kB
+├ ƒ /api/admin/purge-fake-data               400 B         103 kB
+├ ƒ /api/auth/[...nextauth]                  400 B         103 kB
+├ ƒ /api/billing/checkout                    400 B         103 kB
+├ ƒ /api/billing/portal                      400 B         103 kB
+├ ƒ /api/billing/subscription                400 B         103 kB
+├ ƒ /api/billing/usage                       400 B         103 kB
+├ ƒ /api/calendar/sync                       400 B         103 kB
+├ ƒ /api/calendar/sync/microsoft             400 B         103 kB
+├ ƒ /api/chat                                400 B         103 kB
+├ ƒ /api/chat/threads                        400 B         103 kB
+├ ƒ /api/chat/threads/[id]                   400 B         103 kB
+├ ƒ /api/contacts                            400 B         103 kB
+├ ƒ /api/contacts/[id]                       400 B         103 kB
+├ ƒ /api/context-graph                       400 B         103 kB
+├ ƒ /api/context-graph/feedback              400 B         103 kB
+├ ƒ /api/context-graph/ingest                400 B         103 kB
+├ ƒ /api/context-graph/stats                 400 B         103 kB
+├ ƒ /api/cron/email-sync                     400 B         103 kB
+├ ƒ /api/cron/graph-maintenance              400 B         103 kB
+├ ƒ /api/cron/stale-deals                    400 B         103 kB
+├ ƒ /api/cron/world-model                    400 B         103 kB
+├ ƒ /api/dashboard/summary                   400 B         103 kB
+├ ƒ /api/deals/[id]                          400 B         103 kB
+├ ƒ /api/deals/[id]/extract                  400 B         103 kB
+├ ƒ /api/deals/[id]/timeline                 400 B         103 kB
+├ ƒ /api/deals/analyze                       400 B         103 kB
+├ ƒ /api/deliverability                      400 B         103 kB
+├ ƒ /api/email/status                        400 B         103 kB
+├ ƒ /api/email/sync                          400 B         103 kB
+├ ƒ /api/emails                              400 B         103 kB
+├ ƒ /api/emails/follow-up                    400 B         103 kB
+├ ƒ /api/emails/suggest-reply                400 B         103 kB
+├ ƒ /api/embed                               400 B         103 kB
+├ ƒ /api/enrich                              400 B         103 kB
+├ ƒ /api/enrich-contacts                     400 B         103 kB
+├ ƒ /api/eval                                400 B         103 kB
+├ ƒ /api/eval/datasets                       400 B         103 kB
+├ ƒ /api/eval/datasets/[id]/cases            400 B         103 kB
+├ ƒ /api/eval/runs                           400 B         103 kB
+├ ƒ /api/eval/runs/[id]                      400 B         103 kB
+├ ƒ /api/eval/seed                           400 B         103 kB
+├ ƒ /api/export                              400 B         103 kB
+├ ƒ /api/features                            400 B         103 kB
+├ ƒ /api/gdpr/delete                         400 B         103 kB
+├ ƒ /api/gdpr/export                         400 B         103 kB
+├ ƒ /api/health                              400 B         103 kB
+├ ƒ /api/import                              400 B         103 kB
+├ ƒ /api/import/smart                        400 B         103 kB
+├ ƒ /api/inngest                             400 B         103 kB
+├ ƒ /api/insights                            400 B         103 kB
+├ ƒ /api/meetings/[id]/notes                 400 B         103 kB
+├ ƒ /api/meetings/[id]/post-call             400 B         103 kB
+├ ƒ /api/meetings/prep                       400 B         103 kB
+├ ƒ /api/meetings/process-transcript         400 B         103 kB
+├ ƒ /api/meetings/upload-transcript          400 B         103 kB
+├ ƒ /api/notes                               400 B         103 kB
+├ ƒ /api/notifications                       400 B         103 kB
+├ ƒ /api/notifications/preferences           400 B         103 kB
+├ ƒ /api/onboarding/analyze-website          400 B         103 kB
+├ ƒ /api/onboarding/email-intelligence       400 B         103 kB
+├ ƒ /api/onboarding/save                     400 B         103 kB
+├ ƒ /api/onboarding/status                   400 B         103 kB
+├ ƒ /api/opportunities                       400 B         103 kB
+├ ƒ /api/opportunities/[id]                  400 B         103 kB
+├ ƒ /api/opportunities/[id]/extract-intel    400 B         103 kB
+├ ƒ /api/outbound/review                     400 B         103 kB
+├ ƒ /api/pipeline/analytics                  400 B         103 kB
+├ ƒ /api/recall-test                         400 B         103 kB
+├ ƒ /api/score                               400 B         103 kB
+├ ƒ /api/score-contacts                      400 B         103 kB
+├ ƒ /api/search                              400 B         103 kB
+├ ƒ /api/search/tam                          400 B         103 kB
+├ ƒ /api/sequences                           400 B         103 kB
+├ ƒ /api/sequences/[id]                      400 B         103 kB
+├ ƒ /api/sequences/[id]/autopilot            400 B         103 kB
+├ ƒ /api/sequences/[id]/enroll               400 B         103 kB
+├ ƒ /api/sequences/[id]/steps                400 B         103 kB
+├ ƒ /api/sequences/[id]/suggestions          400 B         103 kB
+├ ƒ /api/settings/custom-signals             400 B         103 kB
+├ ƒ /api/settings/data-model                 400 B         103 kB
+├ ƒ /api/settings/knowledge                  400 B         103 kB
+├ ƒ /api/settings/mailboxes                  400 B         103 kB
+├ ƒ /api/settings/stages                     400 B         103 kB
+├ ƒ /api/settings/workflows                  400 B         103 kB
+├ ƒ /api/settings/workspace                  400 B         103 kB
+├ ƒ /api/signals                             400 B         103 kB
+├ ƒ /api/tam                                 400 B         103 kB
+├ ƒ /api/tasks                               400 B         103 kB
+├ ƒ /api/tasks/[id]                          400 B         103 kB
+├ ƒ /api/unsubscribe                         400 B         103 kB
+├ ƒ /api/voice-of-customer                   400 B         103 kB
+├ ƒ /api/webhooks/emailengine                400 B         103 kB
+├ ƒ /api/webhooks/stripe                     400 B         103 kB
+├ ƒ /chat                                  6.04 kB         238 kB
+├ ƒ /contacts                              5.75 kB         113 kB
+├ ƒ /contacts/[id]                         2.69 kB         238 kB
+├ ƒ /deliverability                         3.1 kB         106 kB
+├ ƒ /graph                                 5.64 kB         108 kB
+├ ○ /icon                                    400 B         103 kB
+├ ○ /landing                               4.42 kB         111 kB
+├ ƒ /meetings                              2.71 kB         144 kB
+├ ƒ /meetings/[id]                         6.03 kB         109 kB
+├ ƒ /notes                                 3.33 kB         106 kB
+├ ƒ /opportunities                          3.8 kB         111 kB
+├ ƒ /opportunities/[id]                    2.29 kB         241 kB
+├ ƒ /pricing                               3.22 kB         106 kB
+├ ○ /privacy                                 400 B         103 kB
+├ ƒ /sequences                             3.72 kB         106 kB
+├ ƒ /sequences/[id]                        4.75 kB         107 kB
+├ ƒ /sequences/[id]/review                 1.71 kB         108 kB
+├ ƒ /settings                              3.32 kB         109 kB
+├ ƒ /settings/agent                        2.35 kB         105 kB
+├ ƒ /settings/billing                      4.28 kB         107 kB
+├ ƒ /settings/data-model                   5.53 kB         108 kB
+├ ƒ /settings/evals                        4.93 kB         108 kB
+├ ƒ /settings/knowledge                    3.99 kB         107 kB
+├ ƒ /settings/mailboxes                    3.67 kB         112 kB
+├ ƒ /settings/members                      3.99 kB         107 kB
+├ ƒ /settings/notifications                5.14 kB         108 kB
+├ ƒ /settings/stages                       3.12 kB         106 kB
+├ ƒ /settings/workflows                    3.24 kB         109 kB
+├ ƒ /settings/workspace                    4.45 kB         107 kB
+├ ○ /sign-in                                 877 B         104 kB
+├ ƒ /sign-up                                 890 B         107 kB
+├ ○ /sitemap.xml                             400 B         103 kB
+├ ƒ /tasks                                    5 kB         108 kB
+├ ○ /terms                                   400 B         103 kB
+└ ƒ /voice-of-customer                     4.35 kB         107 kB
++ First Load JS shared by all               103 kB
+  ├ chunks/3b75a83e-a603163c16247511.js    54.2 kB
+  ├ chunks/9639-a7febb7df7993489.js        46.5 kB
+  └ other shared chunks (total)               2 kB
 
 
-ƒ Middleware                              139 kB
+ƒ Middleware                                203 kB
 
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand
