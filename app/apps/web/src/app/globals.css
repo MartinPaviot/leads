@@ -228,6 +228,10 @@
   background-size: 120% 100%;
   background-position: center;
 }
+.gradient-brand:active {
+  transform: scale(0.97);
+  filter: brightness(0.95);
+}
 .gradient-text {
   background: var(--gradient-shimmer);
   background-size: 300% 100%;
@@ -252,6 +256,10 @@
 .auth-button:hover {
   border-color: var(--color-border-hover) !important;
   background: var(--color-bg-hover) !important;
+}
+.auth-button:active {
+  transform: scale(0.97);
+  border-color: var(--color-border-focus) !important;
 }
 
 /* ================================================================

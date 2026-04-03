@@ -4,8 +4,17 @@ import { authUsers, authAccounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import Link from "next/link";
+import { PasswordInput } from "@/components/ui/password-input";
+import { signIn } from "@/auth";
 
-export default function SignUpPage() {
+export default async function SignUpPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const params = await searchParams;
+  const errorMessages: Record<string, string> = {
+    EmailExists: "An account with this email already exists.",
+    MissingFields: "Please fill in all fields.",
+    PasswordTooShort: "Password must be at least 6 characters.",
+  };
+  const errorMessage = params.error ? errorMessages[params.error] ?? "Something went wrong." : null;
   async function handleSignUp(formData: FormData) {
     "use server";
 
@@ -57,7 +66,7 @@ export default function SignUpPage() {
       style={{ background: "var(--color-bg-page)" }}
     >
       <div
-        className="w-full max-w-sm space-y-6 rounded-xl p-8"
+        className="w-full max-w-sm space-y-3 rounded-xl px-8 py-6"
         style={{
           background: "var(--color-bg-card)",
           border: "1px solid var(--color-border-default)",
@@ -68,12 +77,87 @@ export default function SignUpPage() {
           <h1 className="gradient-text text-2xl font-bold tracking-tight">
             LeadSens
           </h1>
-          <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+          <p className="mt-1 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
             Create your account
           </p>
         </div>
 
-        <form action={handleSignUp} className="space-y-4">
+        <div className="flex gap-3">
+          {/* Google OAuth */}
+          <form
+            className="flex-1"
+            action={async () => {
+              "use server";
+              await signIn("google", { redirectTo: "/" });
+            }}
+          >
+            <button
+              type="submit"
+              className="auth-button flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150"
+              style={{
+                background: "var(--color-bg-card)",
+                color: "var(--color-text-primary)",
+                border: "1px solid var(--color-border-default)",
+              }}
+            >
+              <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+              </svg>
+              Google
+            </button>
+          </form>
+
+          {/* Microsoft OAuth */}
+          <form
+            className="flex-1"
+            action={async () => {
+              "use server";
+              await signIn("microsoft-entra-id", { redirectTo: "/" });
+            }}
+          >
+            <button
+              type="submit"
+              className="auth-button flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150"
+              style={{
+                background: "var(--color-bg-card)",
+                color: "var(--color-text-primary)",
+                border: "1px solid var(--color-border-default)",
+              }}
+            >
+              <svg className="h-4 w-4 shrink-0" viewBox="0 0 21 21">
+                <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+                <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+                <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+                <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+              </svg>
+              Microsoft
+            </button>
+          </form>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="h-px flex-1" style={{ background: "var(--color-border-default)" }} />
+          <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>or</span>
+          <div className="h-px flex-1" style={{ background: "var(--color-border-default)" }} />
+        </div>
+
+        {errorMessage && (
+          <div
+            className="rounded-lg px-3 py-2 text-[13px] font-medium"
+            style={{
+              background: "rgba(239, 68, 68, 0.1)",
+              color: "#ef4444",
+              border: "1px solid rgba(239, 68, 68, 0.2)",
+            }}
+          >
+            {errorMessage}
+          </div>
+        )}
+
+        <form action={handleSignUp} className="space-y-2.5">
           <div>
             <label htmlFor="name" className="block text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
               Full name
@@ -84,7 +168,7 @@ export default function SignUpPage() {
               type="text"
               required
               placeholder="Martin Paviot"
-              className="auth-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-[13px] outline-none transition-colors"
+              className="auth-input mt-1.5 w-full rounded-lg px-3 py-2 text-[13px] outline-none transition-colors"
               style={{
                 background: "var(--color-bg-page)",
                 color: "var(--color-text-primary)",
@@ -102,7 +186,7 @@ export default function SignUpPage() {
               type="email"
               required
               placeholder="you@company.com"
-              className="auth-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-[13px] outline-none transition-colors"
+              className="auth-input mt-1.5 w-full rounded-lg px-3 py-2 text-[13px] outline-none transition-colors"
               style={{
                 background: "var(--color-bg-page)",
                 color: "var(--color-text-primary)",
@@ -114,20 +198,7 @@ export default function SignUpPage() {
             <label htmlFor="password" className="block text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
               Password
             </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              minLength={6}
-              placeholder="Min 6 characters"
-              className="auth-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-[13px] outline-none transition-colors"
-              style={{
-                background: "var(--color-bg-page)",
-                color: "var(--color-text-primary)",
-                border: "1px solid var(--color-border-default)",
-              }}
-            />
+            <PasswordInput id="password" name="password" required minLength={6} placeholder="Min 6 characters" />
           </div>
           <button
             type="submit"

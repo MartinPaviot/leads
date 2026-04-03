@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Users, Search, Plus, Zap, X } from "lucide-react";
+import { Users, Search, Plus, Zap, X, Sparkles } from "lucide-react";
+import { SmartImport } from "@/components/smart-import";
 import { formatScore, ENRICHMENT_COLORS } from "@/lib/ui-utils";
 import { useCustomFields } from "@/hooks/use-custom-fields";
 import { getCustomFieldValue, formatFieldValue } from "@/lib/custom-fields";
@@ -37,6 +38,7 @@ export default function ContactsPage() {
   const [enrichAllRunning, setEnrichAllRunning] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const [showSmartImport, setShowSmartImport] = useState(false);
   const { fields: customFields } = useCustomFields("contact");
 
   const fetchContacts = useCallback(async () => {
@@ -237,6 +239,15 @@ export default function ContactsPage() {
             {enrichAllRunning ? "Enriching..." : `Enrich All (${unenrichedCount})`}
           </Button>
         )}
+        <Button
+          variant="outline"
+          size="sm"
+          icon={<Sparkles size={12} />}
+          onClick={() => setShowSmartImport(true)}
+          style={{ color: "var(--color-accent)" }}
+        >
+          Smart Import
+        </Button>
         <label className="cursor-pointer">
           <Button
             variant="outline"
@@ -408,6 +419,13 @@ export default function ContactsPage() {
           </table>
         )}
       </div>
+
+      {showSmartImport && (
+        <SmartImport
+          onClose={() => setShowSmartImport(false)}
+          onComplete={fetchContacts}
+        />
+      )}
     </div>
   );
 }

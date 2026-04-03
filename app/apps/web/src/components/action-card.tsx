@@ -198,5 +198,40 @@ export function parseToolResultForCard(
       },
     };
   }
+  if (toolName === "updateDealStage") {
+    const r = result as Record<string, unknown> | null;
+    const updated = (r?.updated || {}) as Record<string, unknown>;
+    return {
+      actionType: "update",
+      entityType: "deal",
+      entityName: (updated.name as string) || "Deal",
+      fields: {
+        stage: (updated.newStage as string) || null,
+      },
+    };
+  }
+  if (toolName === "createTask") {
+    return {
+      actionType: "create",
+      entityType: "contact" as EntityType, // tasks don't have their own type, use contact icon
+      entityName: (args.title as string) || "New Task",
+      fields: {
+        dueDate: (args.dueDate as string) || null,
+        priority: (args.priority as string) || null,
+      },
+    };
+  }
+  if (toolName === "bulkUpdateDeals" || toolName === "bulkUpdateContacts") {
+    const r = result as Record<string, unknown> | null;
+    const bulk = (r?.bulkUpdated || {}) as Record<string, unknown>;
+    return {
+      actionType: "update",
+      entityType: toolName === "bulkUpdateDeals" ? "deal" : "contact",
+      entityName: `${bulk.count || 0} records`,
+      fields: {
+        action: (args.action as string) || null,
+      },
+    };
+  }
   return null;
 }

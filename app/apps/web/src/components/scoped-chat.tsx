@@ -4,13 +4,26 @@ import { useChat } from "@ai-sdk/react";
 import { TextStreamChatTransport } from "ai";
 import { useRef, useEffect, useState } from "react";
 import { ChatMarkdown } from "./chat-markdown";
-import { Sparkles, Send } from "lucide-react";
+import { ToolCallGroup } from "./tool-call-panel";
+import { Sparkles, Send, Building2, Users, TrendingUp, X, Maximize2, Minimize2 } from "lucide-react";
 
 interface ScopedChatProps {
   contextType: "account" | "contact" | "deal";
   contextId: string;
   contextLabel: string;
 }
+
+const contextIcons = {
+  account: Building2,
+  contact: Users,
+  deal: TrendingUp,
+};
+
+const contextColors = {
+  account: "oklch(0.65 0.15 250)",
+  contact: "oklch(0.65 0.15 145)",
+  deal: "oklch(0.65 0.15 30)",
+};
 
 export function ScopedChat({ contextType, contextId, contextLabel }: ScopedChatProps) {
   const chat = useChat({
@@ -22,6 +35,7 @@ export function ScopedChat({ contextType, contextId, contextLabel }: ScopedChatP
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [localInput, setLocalInput] = useState("");
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -35,63 +49,132 @@ export function ScopedChat({ contextType, contextId, contextLabel }: ScopedChatP
     setLocalInput("");
   }
 
+  const Icon = contextIcons[contextType];
+  const accentColor = contextColors[contextType];
+
   return (
-    <div className="rounded-lg" style={{ background: "var(--color-bg-surface)", border: "0.5px solid var(--color-border-default)" }}>
-      {/* Context badge */}
-      <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: "0.5px solid var(--color-border-default)" }}>
-        <span className="rounded px-2 py-0.5 text-[10px] font-medium"
-          style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
-          {contextLabel}
+    <div
+      className="rounded-lg overflow-hidden transition-all"
+      style={{
+        background: "var(--color-bg-surface)",
+        border: "0.5px solid var(--color-border-default)",
+        maxHeight: expanded ? "80vh" : "400px",
+      }}
+    >
+      {/* Context badge header */}
+      <div
+        className="flex items-center gap-2 px-3 py-2"
+        style={{ borderBottom: "0.5px solid var(--color-border-default)" }}
+      >
+        <div
+          className="flex items-center gap-1.5 rounded-full px-2.5 py-1"
+          style={{ background: `color-mix(in oklch, ${accentColor} 12%, transparent)` }}
+        >
+          <Icon size={11} style={{ color: accentColor }} />
+          <span
+            className="text-[11px] font-medium"
+            style={{ color: accentColor }}
+          >
+            {contextLabel}
+          </span>
+        </div>
+        <span className="flex-1 text-[10px]" style={{ color: "var(--color-text-muted)" }}>
+          Context: {contextType}
         </span>
-        <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
-          Scoped to this {contextType}
-        </span>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="rounded p-1 transition-colors"
+          style={{ color: "var(--color-text-tertiary)" }}
+          title={expanded ? "Collapse" : "Expand"}
+        >
+          {expanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+        </button>
       </div>
 
       {/* Messages */}
-      {chat.messages.length > 0 && (
-        <div className="max-h-60 space-y-2 overflow-auto px-3 py-2">
-          {chat.messages.map((msg) => (
-            <div key={msg.id} className={msg.role === "user" ? "text-right" : ""}>
-              <div className="inline-block max-w-[90%] rounded-lg px-3 py-2 text-[12px]"
-                style={{
-                  background: msg.role === "user" ? "var(--color-bg-muted)" : "transparent",
-                  color: msg.role === "user" ? "var(--color-text-primary)" : "var(--color-text-secondary)",
-                }}>
-                {msg.role === "assistant" && (
-                  <Sparkles size={10} className="mr-1 inline" style={{ color: "var(--color-accent)" }} />
-                )}
-                <div className="prose prose-xs max-w-none [&_p]:my-0.5">
-                  {msg.parts
-                    .filter((p) => p.type === "text")
-                    .map((p, i) => (
-                      <ChatMarkdown key={i}>{"text" in p ? p.text : ""}</ChatMarkdown>
-                    ))}
+      <div
+        className="space-y-3 overflow-auto px-3 py-2"
+        style={{ maxHeight: expanded ? "calc(80vh - 90px)" : "280px" }}
+      >
+        {chat.messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <Sparkles size={16} style={{ color: "var(--color-text-tertiary)" }} />
+            <span className="mt-2 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+              Ask anything about {contextLabel}
+            </span>
+          </div>
+        )}
+
+        {chat.messages.map((msg) => (
+          <div key={msg.id} className={msg.role === "user" ? "text-right" : ""}>
+            {msg.role === "assistant" && (() => {
+              const toolCalls = msg.parts
+                .filter((p) => p.type === "tool-invocation")
+                .map((p) => {
+                  const inv = (p as unknown as { toolInvocation: { state: string; toolName: string; args: Record<string, unknown>; result: unknown } }).toolInvocation;
+                  if (!inv || inv.state !== "result") return null;
+                  return { toolName: inv.toolName, args: inv.args, result: inv.result };
+                })
+                .filter(Boolean) as { toolName: string; args: Record<string, unknown>; result: unknown }[];
+              if (toolCalls.length === 0) return null;
+              return <ToolCallGroup calls={toolCalls} />;
+            })()}
+            <div
+              className="inline-block max-w-[90%] rounded-lg px-3 py-2 text-[12px]"
+              style={{
+                background: msg.role === "user" ? "var(--color-bg-hover)" : "transparent",
+                color: msg.role === "user" ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+              }}
+            >
+              {msg.role === "assistant" && (
+                <div className="mb-1 flex items-center gap-1">
+                  <Sparkles size={10} style={{ color: "var(--color-accent)" }} />
+                  <span className="text-[10px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>
+                    LeadSens
+                  </span>
                 </div>
+              )}
+              <div className="prose prose-xs max-w-none [&_p]:my-0.5">
+                {msg.parts
+                  .filter((p) => p.type === "text")
+                  .map((p, i) => (
+                    <ChatMarkdown key={i}>{"text" in p ? p.text : ""}</ChatMarkdown>
+                  ))}
               </div>
             </div>
-          ))}
-          {chat.status === "streaming" && (
-            <div className="flex items-center gap-1 text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
-              <Sparkles size={10} className="animate-pulse" style={{ color: "var(--color-accent)" }} />
-              Thinking...
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-      )}
+          </div>
+        ))}
+
+        {chat.status === "streaming" && (
+          <div className="flex items-center gap-1 text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
+            <Sparkles size={10} className="animate-pulse" style={{ color: "var(--color-accent)" }} />
+            Thinking...
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="flex items-center gap-2 px-3 py-2"
-        style={{ borderTop: chat.messages.length > 0 ? "0.5px solid var(--color-border-default)" : "none" }}>
-        <input value={localInput} onChange={(e) => setLocalInput(e.target.value)}
+      <form
+        onSubmit={handleSubmit}
+        className="flex items-center gap-2 px-3 py-2"
+        style={{ borderTop: "0.5px solid var(--color-border-default)" }}
+      >
+        <Sparkles size={12} style={{ color: "var(--color-text-tertiary)" }} />
+        <input
+          value={localInput}
+          onChange={(e) => setLocalInput(e.target.value)}
           placeholder={`Ask about ${contextLabel}...`}
           className="flex-1 bg-transparent text-[13px] outline-none"
           style={{ color: "var(--color-text-primary)" }}
-          disabled={chat.status === "streaming"} />
-        <button type="submit" disabled={chat.status === "streaming" || !localInput.trim()}
-          className="disabled:opacity-30"
-          style={{ color: "var(--color-accent)" }}>
+          disabled={chat.status === "streaming"}
+        />
+        <button
+          type="submit"
+          disabled={chat.status === "streaming" || !localInput.trim()}
+          className="rounded-md p-1 transition-all disabled:opacity-30"
+          style={{ color: "var(--color-accent)" }}
+        >
           <Send size={14} />
         </button>
       </form>

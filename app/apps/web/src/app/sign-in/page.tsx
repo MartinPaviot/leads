@@ -1,6 +1,7 @@
 import { signIn } from "@/auth";
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
+import { PasswordInput } from "@/components/ui/password-input";
 
 export default function SignInPage() {
   return (
@@ -34,7 +35,7 @@ export default function SignInPage() {
         >
           <button
             type="submit"
-            className="flex w-full items-center justify-center gap-2.5 rounded-lg px-4 py-2.5 text-[13px] font-medium transition-all duration-150"
+            className="auth-button flex w-full items-center justify-center gap-2.5 rounded-lg px-4 py-2.5 text-[13px] font-medium transition-all duration-150"
             style={{
               background: "var(--color-bg-card)",
               color: "var(--color-text-primary)",
@@ -95,19 +96,7 @@ export default function SignInPage() {
             <label htmlFor="password" className="block text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
               Password
             </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              placeholder="Enter password"
-              className="auth-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-[13px] outline-none transition-colors"
-              style={{
-                background: "var(--color-bg-page)",
-                color: "var(--color-text-primary)",
-                border: "1px solid var(--color-border-default)",
-              }}
-            />
+            <PasswordInput id="password" name="password" required placeholder="Enter password" />
           </div>
           {/* Gradient CTA button */}
           <button
