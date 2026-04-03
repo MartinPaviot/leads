@@ -6,3 +6,5 @@ dist/
 harness/
 credentials/
 .playwright-mcp/
+.turbo/
+tsconfig.tsbuildinfo
