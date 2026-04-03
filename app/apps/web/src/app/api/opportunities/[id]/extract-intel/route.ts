@@ -5,7 +5,7 @@ import { deals, activities } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
 
 const intelSchema = z.object({
@@ -59,7 +59,7 @@ export async function POST(
     .join("\n");
 
   try {
-    const { object } = await generateObject({
+    const { object } = await tracedGenerateObject({
       model,
       schema: intelSchema,
       prompt: `Extract structured deal intelligence from these interactions. Only include fields where you have clear evidence.
@@ -72,19 +72,21 @@ ${activityText || "No recorded interactions"}
 
 Extract: budget, team size, current CRM, competitor/point solutions, decision timeline, and key pain points.
 Only include a field if there's actual evidence. Leave undefined if unknown.`,
+      _trace: { agentId: "deal-extract-intel", tenantId: authCtx.tenantId },
     });
+    const result = object as any;
 
     // Save to deal properties
     const currentProps = (deal.properties as Record<string, unknown>) || {};
     await db
       .update(deals)
       .set({
-        properties: { ...currentProps, extractedIntel: object.intel },
+        properties: { ...currentProps, extractedIntel: result.intel },
         updatedAt: new Date(),
       })
       .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)));
 
-    return Response.json({ intel: object.intel });
+    return Response.json({ intel: result.intel });
   } catch {
     return Response.json({ intel: {} });
   }

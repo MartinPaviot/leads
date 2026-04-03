@@ -7,7 +7,7 @@ import { getTenantSettings } from "@/lib/tenant-settings";
 import { getWritingSamples, buildWritingStylePrompt } from "@/lib/writing-profile";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
 
 const emailSchema = z.object({
@@ -151,15 +151,17 @@ RULES:
 - End with a clear, low-commitment CTA (e.g. "Worth a quick chat?" not "Book a demo now")
 - Do NOT use generic phrases like "I came across your profile" or "I hope this email finds you well"${!writingStyleSection ? "\n- Write in a direct, concise tone" : ""}`;
 
-    const { object } = await generateObject({
+    const { object } = await tracedGenerateObject({
       model,
       schema: emailSchema,
       prompt,
+      _trace: { agentId: "draft-email", tenantId: authCtx.tenantId, inputPreview: `Draft email for ${contactName} at ${company?.name || "unknown"}` },
     });
+    const result = object as any;
 
     // Substitute template variables if present
-    let subject = object.subject;
-    let emailBody = object.body;
+    let subject = result.subject;
+    let emailBody = result.body;
 
     const vars: Record<string, string> = {
       firstName: contact.firstName || "",

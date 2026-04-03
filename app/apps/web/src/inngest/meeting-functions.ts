@@ -4,6 +4,7 @@ import { activities, authAccounts, authUsers, users } from "@/db/schema";
 import { eq, and, sql, gte, lte } from "drizzle-orm";
 import { fetchMicrosoftMeetings } from "@/lib/calendar-microsoft";
 import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/calendar";
+import { tracedGenerateText } from "@/lib/traced-ai";
 
 /**
  * Background calendar sync — runs every 15 minutes.
@@ -212,7 +213,6 @@ export const generateMeetingPrep = inngest.createFunction(
     if (meta.prepDocument) return { skipped: true, reason: "prep already exists" };
 
     // Call the existing prep API logic — we import it inline to avoid circular deps
-    const { generateText } = await import("ai");
     const { anthropic } = await import("@ai-sdk/anthropic");
     const { openai } = await import("@ai-sdk/openai");
     const { contacts, companies, deals } = await import("@/db/schema");
@@ -277,7 +277,7 @@ export const generateMeetingPrep = inngest.createFunction(
       }
     }
 
-    const { text: prepDoc } = await generateText({
+    const { text: prepDoc } = await tracedGenerateText({
       model,
       prompt: `Generate a concise meeting prep document for an upcoming sales meeting.
 
@@ -292,6 +292,7 @@ Include:
 6. Potential objections and responses
 
 Keep it actionable and under 500 words.`,
+      _trace: { agentId: "generate-meeting-prep", tenantId },
     });
 
     // Save prep to activity

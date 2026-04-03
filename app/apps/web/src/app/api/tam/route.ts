@@ -106,6 +106,7 @@ CRITICAL RULES:
 - Include a mix: some obvious fits and some less obvious but high-potential matches.
 - Do NOT include the seller's own company.`,
     });
+    const candidates = object as any;
 
     // Step 2: Enrich each candidate with Apollo (validates they're real + adds data)
     let created = 0;
@@ -113,7 +114,7 @@ CRITICAL RULES:
     let enrichFailed = 0;
     const sizeRange = parseSizeRange(settings);
 
-    for (const candidate of object.companies) {
+    for (const candidate of candidates.companies) {
       const domain = candidate.domain.toLowerCase().replace(/^www\./, "").replace(/\/$/, "");
 
       // Skip own company
@@ -204,7 +205,7 @@ CRITICAL RULES:
       companiesCreated: created,
       companiesSkipped: skipped,
       enrichFailed,
-      candidatesGenerated: object.companies.length,
+      candidatesGenerated: candidates.companies.length,
     });
   } catch (error) {
     console.error("TAM generation failed:", error);

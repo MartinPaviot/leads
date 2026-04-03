@@ -7,6 +7,7 @@ import { executeWorkflow } from "@/inngest/workflow-engine";
 import { cronCalendarSync, autoMeetingPrep, generateMeetingPrep } from "@/inngest/meeting-functions";
 import { onOnboardingCompleted } from "@/inngest/onboarding-functions";
 import { processOutboundEmails, sendSingleEmail } from "@/inngest/email-send-worker";
+import { cronFailureToEvalCases, cronFlywheelCycle, runAgentFlywheel, asyncOnlineEval } from "@/inngest/eval-functions";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -28,5 +29,10 @@ export const { GET, POST, PUT } = serve({
     onOnboardingCompleted,
     processOutboundEmails,
     sendSingleEmail,
+    // Flywheel: self-improving eval system
+    cronFailureToEvalCases,
+    cronFlywheelCycle,
+    runAgentFlywheel,
+    asyncOnlineEval,
   ],
 });

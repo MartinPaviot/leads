@@ -3,7 +3,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { db } from "@/db";
 import { activities, contacts, companies, deals } from "@/db/schema";
 import { eq, and, ilike, or } from "drizzle-orm";
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
     }
 
     // Extract structured notes from transcript
-    const { object: notes } = await generateObject({
+    const { object: rawNotes } = await tracedGenerateObject({
       model,
       schema: meetingNotesSchema,
       prompt: `Analyze this meeting transcript and extract structured notes.
@@ -85,7 +85,9 @@ RULES:
 - For buying signals, only include if explicitly mentioned
 - Set fields to null/empty if not discussed
 - Be specific with action items — include who and what`,
+      _trace: { agentId: "process-transcript", tenantId: authCtx.tenantId },
     });
+    const notes = rawNotes as any;
 
     // Try to match participants to existing contacts
     const matchedContacts: Array<{ name: string; contactId: string | null }> = [];
@@ -241,7 +243,7 @@ RULES:
 
     // Ingest into context graph (async, non-blocking)
     if (transcript.length > 50) {
-      const graphContent = `Meeting: ${meetingTitle || "Untitled"}\nDate: ${meetingDate || new Date().toISOString()}\nParticipants: ${notes.participants.map(p => p.name).join(", ")}\n\nSummary: ${notes.summary}\n\nKey Points:\n${notes.keyPoints.join("\n")}\n\nDecisions:\n${notes.decisions.join("\n")}\n\nAction Items:\n${notes.actionItems.map(a => `- ${a.owner}: ${a.task}`).join("\n")}`;
+      const graphContent = `Meeting: ${meetingTitle || "Untitled"}\nDate: ${meetingDate || new Date().toISOString()}\nParticipants: ${notes.participants.map((p: any) => p.name).join(", ")}\n\nSummary: ${notes.summary}\n\nKey Points:\n${notes.keyPoints.join("\n")}\n\nDecisions:\n${notes.decisions.join("\n")}\n\nAction Items:\n${notes.actionItems.map((a: any) => `- ${a.owner}: ${a.task}`).join("\n")}`;
       ingestEpisode(authCtx.tenantId, graphContent, "meeting", activityId || `meeting-${Date.now()}`).catch(() => {});
     }
 

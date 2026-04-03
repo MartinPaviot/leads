@@ -5,7 +5,7 @@ import { companies, contacts, activities } from "@/db/schema";
 import { and, eq, desc } from "drizzle-orm";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
-import { generateText } from "ai";
+import { tracedGenerateText } from "@/lib/traced-ai";
 
 /**
  * Auto-generate "Account summary" and "About their business" from
@@ -99,7 +99,7 @@ export async function POST(
       return Response.json({ error: "No LLM API key configured" }, { status: 400 });
     }
 
-    const { text } = await generateText({
+    const { text } = await tracedGenerateText({
       model,
       system: `You generate concise CRM account summaries. Return ONLY a JSON object with two fields:
 - "accountSummary": 1-3 sentences summarizing the relationship status, key contacts met, next steps, and any active opportunities. Reference specific interactions and dates.
@@ -109,6 +109,7 @@ If there's no interaction history, set accountSummary to null. If there's no enr
       prompt: contextParts.join("\n"),
       // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
       maxTokens: 500,
+      _trace: { agentId: "account-summarize", tenantId: authCtx.tenantId },
     });
 
     // Parse AI response

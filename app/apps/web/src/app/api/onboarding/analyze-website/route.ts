@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth-utils";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { anthropic } from "@ai-sdk/anthropic";
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
 import { INDUSTRIES, industriesPromptHint, companySizesPromptHint } from "@/lib/icp-constants";
 
@@ -152,14 +152,16 @@ export async function POST(req: Request) {
   ].filter(Boolean).join("\n");
 
   try {
-    const { object } = await generateObject({
+    const { object } = await tracedGenerateObject({
       model: anthropic("claude-sonnet-4-20250514"),
       schema: icpInferenceSchema,
       prompt,
+      _trace: { agentId: "icp-analysis", tenantId: authCtx.tenantId },
     });
+    const result = object as any;
 
     return Response.json({
-      ...object,
+      ...result,
       domain: cleanDomain,
       hadWebsiteContent: !!websiteContent,
     });

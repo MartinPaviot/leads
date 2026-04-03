@@ -110,13 +110,14 @@ RULES:
 
 Return only signals you can directly support with the facts provided.`,
         });
+        const result = object as any;
 
         await db
           .update(companies)
           .set({
             properties: {
               ...props,
-              signals: object.signals.map((s) => ({
+              signals: result.signals.map((s: any) => ({
                 ...s,
                 detectedAt: new Date().toISOString(),
                 source: "apollo_enrichment",
@@ -126,8 +127,8 @@ Return only signals you can directly support with the facts provided.`,
           })
           .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)));
 
-        if (object.signals.length > 0) detected++;
-        totalSignals += object.signals.length;
+        if (result.signals.length > 0) detected++;
+        totalSignals += result.signals.length;
       } catch (err) {
         console.warn(`Failed to detect signals for company ${id}:`, err);
       }

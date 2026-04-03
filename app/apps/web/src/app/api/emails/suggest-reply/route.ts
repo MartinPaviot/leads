@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
 
 const suggestReplySchema = z.object({
@@ -62,13 +62,15 @@ RULES:
 - The "decline" reply should be gracious and leave the door open
 - Use the sender's name naturally in the replies`;
 
-    const { object } = await generateObject({
+    const { object } = await tracedGenerateObject({
       model,
       schema: suggestReplySchema,
       prompt,
+      _trace: { agentId: "suggest-reply", tenantId: authCtx.tenantId },
     });
+    const result = object as any;
 
-    return Response.json({ replies: object.replies });
+    return Response.json({ replies: result.replies });
   } catch (error) {
     console.error("Reply suggestion failed:", error);
     return Response.json({ error: "Reply suggestion failed" }, { status: 500 });

@@ -5,7 +5,7 @@ import { deals } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
 
 const extractionSchema = z.object({
@@ -78,11 +78,13 @@ Extract:
 5. Decision maker: who is the decision maker (name and title if mentioned)
 6. Next steps: any agreed-upon or implied next steps`;
 
-    const { object } = await generateObject({
+    const { object } = await tracedGenerateObject({
       model,
       schema: extractionSchema,
       prompt,
+      _trace: { agentId: "deal-extract-intel", tenantId: authCtx.tenantId },
     });
+    const result = object as any;
 
     // Update deal properties with extracted data
     const existingProps = (deal.properties as Record<string, unknown>) || {};
@@ -91,12 +93,12 @@ Extract:
       .set({
         properties: {
           ...existingProps,
-          extractedBudget: object.budget,
-          extractedTeamSize: object.teamSize,
-          extractedCompetitorTools: object.competitorTools,
-          extractedTimeline: object.timeline,
-          extractedDecisionMaker: object.decisionMaker,
-          extractedNextSteps: object.nextSteps,
+          extractedBudget: result.budget,
+          extractedTeamSize: result.teamSize,
+          extractedCompetitorTools: result.competitorTools,
+          extractedTimeline: result.timeline,
+          extractedDecisionMaker: result.decisionMaker,
+          extractedNextSteps: result.nextSteps,
           extractedAt: new Date().toISOString(),
         },
         updatedAt: new Date(),
@@ -104,12 +106,12 @@ Extract:
       .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)));
 
     return Response.json({
-      budget: object.budget,
-      teamSize: object.teamSize,
-      competitorTools: object.competitorTools,
-      timeline: object.timeline,
-      decisionMaker: object.decisionMaker,
-      nextSteps: object.nextSteps,
+      budget: result.budget,
+      teamSize: result.teamSize,
+      competitorTools: result.competitorTools,
+      timeline: result.timeline,
+      decisionMaker: result.decisionMaker,
+      nextSteps: result.nextSteps,
     });
   } catch (error) {
     console.error("Data extraction failed:", error);

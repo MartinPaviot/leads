@@ -132,9 +132,10 @@ CRITICAL RULES:
 - Focus on companies that would genuinely be a good fit as customers.
 - Include a mix: some obvious fits and some less obvious but high-potential matches.`,
       });
+      const generated = object as any;
 
       // Filter out duplicates and own company
-      return object.companies.filter((c) => {
+      return generated.companies.filter((c: any) => {
         const domain = c.domain
           .toLowerCase()
           .replace(/^www\./, "")

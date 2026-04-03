@@ -5,7 +5,7 @@ import { contacts, companies } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
 
 const followUpSchema = z.object({
@@ -89,16 +89,18 @@ RULES:
 - Keep the email concise (under 250 words)
 - End with a specific call-to-action tied to the next steps`;
 
-    const { object } = await generateObject({
+    const { object } = await tracedGenerateObject({
       model,
       schema: followUpSchema,
       prompt,
+      _trace: { agentId: "follow-up-email", tenantId: authCtx.tenantId },
     });
+    const result = object as any;
 
     return Response.json({
-      subject: object.subject,
-      body: object.body,
-      actionItems: object.actionItems,
+      subject: result.subject,
+      body: result.body,
+      actionItems: result.actionItems,
     });
   } catch (error) {
     console.error("Follow-up email generation failed:", error);

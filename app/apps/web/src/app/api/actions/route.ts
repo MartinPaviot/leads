@@ -5,7 +5,7 @@ import { deals, companies, contacts, sequenceEnrollments } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
 
 const actionsSchema = z.object({
@@ -51,7 +51,7 @@ export async function GET() {
       return `- ${d.name}: stage=${d.stage}, value=$${d.value || 0}, risk=${(props?.riskLevel as string) || "unknown"}`;
     }).join("\n");
 
-    const { object } = await generateObject({
+    const { object } = await tracedGenerateObject({
       model,
       schema: actionsSchema,
       prompt: `You are a CRO Copilot for a founder doing outbound sales. Based on the pipeline data below, generate the 5 most important actions to close more revenue.
@@ -67,9 +67,10 @@ STATS:
 
 Generate specific, actionable recommendations. Prioritize by impact on revenue.
 If there are no deals, recommend pipeline-building activities (TAM enrichment, sequence creation, outreach).`,
+      _trace: { agentId: "actions-recommender", tenantId: authCtx.tenantId },
     });
 
-    return Response.json({ actions: object.actions });
+    return Response.json({ actions: (object as any).actions });
   } catch (error) {
     console.error("Failed to generate actions:", error);
     return Response.json({ error: "Failed to generate actions" }, { status: 500 });

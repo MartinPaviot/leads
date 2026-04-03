@@ -2,7 +2,7 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import { companies, contacts, sequenceSteps, sequenceEnrollments, activities, outboundEmails, emailOptouts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
@@ -362,7 +362,7 @@ export const sendSequenceStep = inngest.createFunction(
     // If LLM available, enhance the email
     if (model) {
       const enhanced = await step.run("enhance-email", async () => {
-        const { object } = await generateObject({
+        const { object } = await tracedGenerateObject({
           model: model!,
           schema: emailSchema,
           prompt: `Personalize this email for ${contactName} (${contact.title || "professional"}).
@@ -371,8 +371,9 @@ Subject: ${subject}
 Body: ${body}
 
 Make it more specific and engaging. Keep the core message but add personal touches.`,
+          _trace: { agentId: "send-sequence-step", tenantId: "default" },
         });
-        return object;
+        return object as any;
       });
       subject = enhanced.subject;
       body = enhanced.body;
@@ -513,7 +514,7 @@ export const processReply = inngest.createFunction(
 
     if (model) {
       const result = await step.run("classify-reply", async () => {
-        const { object } = await generateObject({
+        const { object } = await tracedGenerateObject({
           model: model!,
           schema: z.object({
             classification: z.enum(["positive", "negative", "ooo", "unsubscribe", "unknown"]),
@@ -529,8 +530,9 @@ Classifications:
 - ooo: out of office auto-reply
 - unsubscribe: asks to be removed
 - unknown: unclear intent`,
+          _trace: { agentId: "process-reply", tenantId: "default" },
         });
-        return object;
+        return object as any;
       });
       classification = result.classification;
 

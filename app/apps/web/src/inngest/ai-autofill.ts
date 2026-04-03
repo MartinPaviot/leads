@@ -2,7 +2,7 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import { companies, contacts, deals, activities, tenants } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { generateText } from "ai";
+import { tracedGenerateText } from "@/lib/traced-ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import type { CustomFieldDef } from "@/lib/custom-fields";
@@ -104,7 +104,7 @@ export const aiAutoFill = inngest.createFunction(
         .map((a) => `${a.occurredAt ? new Date(a.occurredAt).toISOString().split("T")[0] : "?"}: ${a.summary || ""} ${a.rawContent?.slice(0, 300) || ""}`)
         .join("\n");
 
-      const { text } = await generateText({
+      const { text } = await tracedGenerateText({
         model,
         system: `You extract structured data from CRM entity information and conversations.
 Return ONLY valid JSON: an object where keys are field IDs and values are the extracted values.
@@ -123,6 +123,7 @@ ${JSON.stringify(fieldsToFill, null, 2)}
 Extract values for these fields from the entity data and conversation history. Return a JSON object with field IDs as keys.`,
         // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
         maxTokens: 500,
+        _trace: { agentId: "ai-autofill", tenantId },
       });
 
       try {

@@ -779,3 +779,112 @@ export const evalResults = pgTable(
     index("eres_case_idx").on(table.caseId),
   ]
 );
+
+// ============================================================
+// AGENT OBSERVABILITY — Traces for every AI call
+// ============================================================
+
+export const agentTraceStatusEnum = pgEnum("agent_trace_status", [
+  "ok", "error", "timeout", "corrected",
+]);
+
+export const agentTraces = pgTable(
+  "agent_traces",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id),
+    agentId: text("agent_id").notNull(), // e.g. "chat", "enrich-company", "draft-email"
+    agentCategory: text("agent_category").notNull(), // "conversational", "background", "api", "classification", "extraction"
+    traceId: text("trace_id"), // parent trace for multi-step chains
+    parentSpanId: text("parent_span_id"), // for nested agent calls
+    input: text("input"), // truncated prompt/input
+    output: text("output"), // truncated response
+    model: text("model"), // "claude-sonnet-4-6", "gpt-4o-mini"
+    status: agentTraceStatusEnum("status").notNull().default("ok"),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    estimatedCost: real("estimated_cost"),
+    latencyMs: integer("latency_ms"),
+    toolCalls: jsonb("tool_calls").default([]), // [{name, args, result, latencyMs}]
+    toolCallsCount: integer("tool_calls_count").default(0),
+    errorMessage: text("error_message"),
+    correctionApplied: text("correction_applied"), // describes what correction was made
+    evalScore: real("eval_score"), // online eval score (0.0-1.0) if sampled
+    metadata: jsonb("metadata").default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("at_tenant_idx").on(table.tenantId),
+    index("at_agent_idx").on(table.agentId),
+    index("at_trace_idx").on(table.traceId),
+    index("at_created_idx").on(table.createdAt),
+    index("at_status_idx").on(table.status),
+  ]
+);
+
+// ============================================================
+// FLYWHEEL — Self-improving agent system
+// ============================================================
+
+/** Versioned system prompts per agent — tracks every prompt change with eval scores */
+export const agentPromptVersions = pgTable(
+  "agent_prompt_versions",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    agentId: text("agent_id").notNull(),
+    version: integer("version").notNull(),
+    systemPrompt: text("system_prompt").notNull(),
+    changeReason: text("change_reason"), // why was this prompt created
+    parentVersionId: text("parent_version_id"), // which version was this derived from
+    evalScore: real("eval_score"), // score when this prompt was evaluated
+    evalPassRate: real("eval_pass_rate"),
+    isActive: boolean("is_active").default(false), // only one active per agent
+    metadata: jsonb("metadata").default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("apv_agent_idx").on(table.agentId),
+    index("apv_active_idx").on(table.agentId, table.isActive),
+  ]
+);
+
+/** Curated few-shot examples per agent — best production outputs become examples */
+export const agentFewShotExamples = pgTable(
+  "agent_few_shot_examples",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    agentId: text("agent_id").notNull(),
+    input: text("input").notNull(),
+    output: text("output").notNull(),
+    evalScore: real("eval_score").notNull(), // quality score of this example
+    sourceTraceId: text("source_trace_id"), // trace that generated this
+    isActive: boolean("is_active").default(true),
+    tags: jsonb("tags").default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("afse_agent_idx").on(table.agentId),
+    index("afse_score_idx").on(table.agentId, table.evalScore),
+  ]
+);
+
+/** Failure patterns detected across agent traces */
+export const agentFailurePatterns = pgTable(
+  "agent_failure_patterns",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    agentId: text("agent_id").notNull(),
+    patternType: text("pattern_type").notNull(), // "hallucination", "wrong_tool", "incomplete", "tone", "schema_violation"
+    description: text("description").notNull(),
+    frequency: integer("frequency").default(1),
+    exampleTraceIds: jsonb("example_trace_ids").default([]), // traces exhibiting this pattern
+    resolution: text("resolution"), // how was this fixed (prompt change, few-shot, etc.)
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("afp_agent_idx").on(table.agentId),
+    index("afp_type_idx").on(table.agentId, table.patternType),
+  ]
+);

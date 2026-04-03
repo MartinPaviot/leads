@@ -156,19 +156,21 @@ Return JSON: { "topics": [{ "topic": "title", "content": "detailed insight (2-4 
 
     if (anthropicKey) {
       const { anthropic } = await import("@ai-sdk/anthropic");
-      const { generateText } = await import("ai");
-      const result = await generateText({
+      const { tracedGenerateText } = await import("@/lib/traced-ai");
+      const result = await tracedGenerateText({
         model: anthropic("claude-sonnet-4-6"),
         prompt: analysisPrompt,
+        _trace: { agentId: "world-model", tenantId },
       });
       const parsed = JSON.parse(result.text.replace(/```json\n?/g, "").replace(/```\n?/g, ""));
       topics = parsed.topics || [];
     } else if (openaiKey) {
       const { openai } = await import("@ai-sdk/openai");
-      const { generateText } = await import("ai");
-      const result = await generateText({
+      const { tracedGenerateText } = await import("@/lib/traced-ai");
+      const result = await tracedGenerateText({
         model: openai("gpt-4o-mini"),
         prompt: analysisPrompt,
+        _trace: { agentId: "world-model", tenantId },
       });
       const parsed = JSON.parse(result.text.replace(/```json\n?/g, "").replace(/```\n?/g, ""));
       topics = parsed.topics || [];
