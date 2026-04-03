@@ -1,6 +1,6 @@
 import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { companies, contacts, authAccounts, tenants } from "@/db/schema";
+import { companies, contacts, authAccounts, tenants, authUsers } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 
 export async function GET() {
@@ -58,6 +58,13 @@ export async function GET() {
   const hasGoogle = !!googleAccount;
   const hasMicrosoft = !!msAccount;
 
+  // Get user email for domain extraction
+  const [authUser] = await db
+    .select({ email: authUsers.email })
+    .from(authUsers)
+    .where(eq(authUsers.id, authCtx.userId))
+    .limit(1);
+
   return Response.json({
     isNew,
     accounts,
@@ -66,5 +73,6 @@ export async function GET() {
     hasMicrosoft,
     hasEmail: hasGoogle || hasMicrosoft,
     needsOnboarding: !onboardingCompleted && isNew,
+    email: authUser?.email,
   });
 }

@@ -74,6 +74,7 @@ export default function DashboardPage() {
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingHasGoogle, setOnboardingHasGoogle] = useState(false);
+  const [onboardingEmail, setOnboardingEmail] = useState<string | undefined>();
   const [emailComposer, setEmailComposer] = useState<{
     to: string;
     subject: string;
@@ -87,6 +88,7 @@ export default function DashboardPage() {
         if (data?.needsOnboarding) {
           setShowOnboarding(true);
           setOnboardingHasGoogle(data.hasGoogle || data.hasMicrosoft || false);
+          setOnboardingEmail(data.email);
         }
       })
       .catch(() => {});
@@ -365,6 +367,7 @@ export default function DashboardPage() {
       {showOnboarding && (
         <OnboardingWizard
           hasGoogle={onboardingHasGoogle}
+          userEmail={onboardingEmail}
           onComplete={() => {
             setShowOnboarding(false);
             window.location.reload();

@@ -3,9 +3,22 @@
 import { useState, useEffect, useCallback } from "react";
 import { ArrowRight, ArrowLeft, Loader2, Check, Mail, Sparkles, Target, Zap, MessageSquare, Users, Building2, Globe, ChevronDown } from "lucide-react";
 
+interface WebsiteAnalysis {
+  companyDescription: string;
+  productDescription: string;
+  targetIndustries: string[];
+  targetCompanySizes: string[];
+  targetRoles: string;
+  targetGeographies: string[];
+  suggestedTone: string;
+  confidence: number;
+  reasoning: string;
+}
+
 interface OnboardingWizardProps {
   onComplete: () => void;
   hasGoogle: boolean;
+  userEmail?: string;
 }
 
 type Step = "welcome" | "product" | "connect" | "icp" | "building" | "ready";
@@ -79,13 +92,29 @@ function ProgressBar({ current, total }: { current: number; total: number }) {
   );
 }
 
-export function OnboardingWizard({ onComplete, hasGoogle }: OnboardingWizardProps) {
+export function OnboardingWizard({ onComplete, hasGoogle, userEmail }: OnboardingWizardProps) {
   const [step, setStep] = useState<Step>("welcome");
   const [saving, setSaving] = useState(false);
 
+  // Website analysis (runs in background from Step 1)
+  const [websiteAnalysis, setWebsiteAnalysis] = useState<WebsiteAnalysis | null>(null);
+  const [analyzingWebsite, setAnalyzingWebsite] = useState(false);
+  const [domain, setDomain] = useState(() => {
+    if (!userEmail) return "";
+    const d = userEmail.split("@")[1] || "";
+    // Skip generic email providers
+    if (/gmail|yahoo|hotmail|outlook|icloud|aol|proton/i.test(d)) return "";
+    return d;
+  });
+
   // Step 1: Welcome
   const [fullName, setFullName] = useState("");
-  const [companyName, setCompanyName] = useState("");
+  const [companyName, setCompanyName] = useState(() => {
+    if (!domain) return "";
+    // Extract company name from domain (elevay.dev → Elevay)
+    const name = domain.split(".")[0] || "";
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  });
   const [role, setRole] = useState("Founder");
 
   // Step 2: Product
@@ -129,12 +158,34 @@ export function OnboardingWizard({ onComplete, hasGoogle }: OnboardingWizardProp
     });
   };
 
-  // Step 1 → Step 2
+  // Step 1 → Step 2 + trigger website analysis in background
   const handleWelcomeContinue = async () => {
     setSaving(true);
     await saveOnboardingData({ fullName, companyName, role, step: "welcome" });
     setSaving(false);
     setStep("product");
+
+    // Fire-and-forget website analysis — results will be ready by Step 4
+    if (domain) {
+      setAnalyzingWebsite(true);
+      fetch("/api/onboarding/analyze-website", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain }),
+      })
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+          if (data && !data.error) {
+            setWebsiteAnalysis(data);
+            // Pre-fill product description if user hasn't typed anything yet
+            if (data.productDescription && !productDesc) {
+              setProductDesc(data.productDescription);
+            }
+          }
+        })
+        .catch(() => {})
+        .finally(() => setAnalyzingWebsite(false));
+    }
   };
 
   // Step 2 → Step 3
@@ -143,6 +194,22 @@ export function OnboardingWizard({ onComplete, hasGoogle }: OnboardingWizardProp
     await saveOnboardingData({ productDesc, salesMotion, aiTone, challenge, step: "product" });
     setSaving(false);
     setStep("connect");
+
+    // If website analysis hasn't started yet (no domain from email), try with product desc
+    if (!websiteAnalysis && !analyzingWebsite && domain) {
+      setAnalyzingWebsite(true);
+      fetch("/api/onboarding/analyze-website", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain, productDescription: productDesc }),
+      })
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+          if (data && !data.error) setWebsiteAnalysis(data);
+        })
+        .catch(() => {})
+        .finally(() => setAnalyzingWebsite(false));
+    }
   };
 
   // Step 3: Connect email
@@ -157,9 +224,35 @@ export function OnboardingWizard({ onComplete, hasGoogle }: OnboardingWizardProp
     window.location.href = "/api/auth/signin/microsoft-entra-id";
   };
 
-  // Step 3 → Step 4
-  const handleConnectContinue = () => setStep("icp");
-  const handleConnectSkip = () => setStep("icp");
+  // Step 3 → Step 4: apply AI-inferred ICP if available
+  const handleConnectContinue = () => {
+    applyWebsiteAnalysis();
+    setStep("icp");
+  };
+  const handleConnectSkip = () => {
+    applyWebsiteAnalysis();
+    setStep("icp");
+  };
+
+  // Apply website analysis to ICP fields (pre-fill pills)
+  const applyWebsiteAnalysis = () => {
+    if (!websiteAnalysis) return;
+    if (industries.length === 0 && websiteAnalysis.targetIndustries.length > 0) {
+      setIndustries(websiteAnalysis.targetIndustries.filter((i) => INDUSTRIES.includes(i)));
+    }
+    if (companySizes.length === 0 && websiteAnalysis.targetCompanySizes.length > 0) {
+      setCompanySizes(websiteAnalysis.targetCompanySizes.filter((s) => COMPANY_SIZES.includes(s)));
+    }
+    if (!targetRoles && websiteAnalysis.targetRoles) {
+      setTargetRoles(websiteAnalysis.targetRoles);
+    }
+    if (geographies.length === 0 && websiteAnalysis.targetGeographies.length > 0) {
+      setGeographies(websiteAnalysis.targetGeographies.filter((g) => GEOGRAPHIES.includes(g)));
+    }
+    if (websiteAnalysis.suggestedTone && aiTone === "Direct") {
+      setAiTone(websiteAnalysis.suggestedTone);
+    }
+  };
 
   // Step 4 → Step 5 (build)
   const handleBuildTAM = async () => {
@@ -371,6 +464,7 @@ export function OnboardingWizard({ onComplete, hasGoogle }: OnboardingWizardProp
             </h2>
             <p className="text-[13px] mb-5" style={{ color: "var(--color-text-tertiary)" }}>
               This helps our AI write relevant emails and give useful coaching.
+              {analyzingWebsite && " We're analyzing your website in the background..."}
             </p>
 
             <div className="space-y-4">
@@ -558,11 +652,31 @@ export function OnboardingWizard({ onComplete, hasGoogle }: OnboardingWizardProp
         {step === "icp" && (
           <div>
             <h2 className="text-lg font-semibold mb-1" style={{ color: "var(--color-text-primary)" }}>
-              Who is your ideal customer?
+              {websiteAnalysis ? "We analyzed your website — does this look right?" : "Who is your ideal customer?"}
             </h2>
-            <p className="text-[13px] mb-5" style={{ color: "var(--color-text-tertiary)" }}>
-              We&apos;ll find companies that match{emailConnected ? " — and flag which ones you're already talking to" : ""}.
+            <p className="text-[13px] mb-4" style={{ color: "var(--color-text-tertiary)" }}>
+              {websiteAnalysis
+                ? "We inferred your ICP from your website and product description. Adjust anything that doesn't fit."
+                : `We'll find companies that match${emailConnected ? " — and flag which ones you're already talking to" : ""}.`
+              }
             </p>
+
+            {/* AI reasoning card */}
+            {websiteAnalysis && (
+              <div className="rounded-lg p-3 mb-4" style={{ background: "rgba(44, 107, 237, 0.06)", border: "1px solid rgba(44, 107, 237, 0.15)" }}>
+                <div className="flex items-start gap-2">
+                  <Sparkles size={14} className="mt-0.5 shrink-0" style={{ color: "var(--color-accent)" }} />
+                  <div>
+                    <p className="text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+                      {websiteAnalysis.companyDescription}
+                    </p>
+                    <p className="text-[11px] mt-1" style={{ color: "var(--color-text-tertiary)" }}>
+                      {websiteAnalysis.reasoning}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {buildError && (
               <div className="mb-4 rounded-lg p-3 text-[13px]" style={{ background: "rgba(239, 68, 68, 0.1)", color: "#ef4444", border: "1px solid rgba(239, 68, 68, 0.2)" }}>
@@ -570,7 +684,7 @@ export function OnboardingWizard({ onComplete, hasGoogle }: OnboardingWizardProp
               </div>
             )}
 
-            {emailConnected && (
+            {emailConnected && !websiteAnalysis && (
               <div className="rounded-lg p-2.5 mb-4 text-[12px]" style={{ background: "rgba(44, 107, 237, 0.06)", border: "1px solid rgba(44, 107, 237, 0.15)", color: "var(--color-accent)" }}>
                 Email syncing — we&apos;ll cross-reference your contacts with your ICP.
               </div>

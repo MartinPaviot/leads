@@ -1,0 +1,169 @@
+import { getAuthContext } from "@/lib/auth-utils";
+import { anthropic } from "@ai-sdk/anthropic";
+import { generateObject } from "ai";
+import { z } from "zod";
+
+const icpInferenceSchema = z.object({
+  companyDescription: z.string().describe("One-sentence description of what this company does"),
+  productDescription: z.string().describe("What the company sells, in plain language"),
+  targetIndustries: z.array(z.string()).describe("Industries this company likely sells to. Use these exact values when applicable: SaaS / Software, Fintech, Healthcare, E-commerce, Manufacturing, Professional Services, Education, Real Estate, Logistics, Media / Entertainment, Other"),
+  targetCompanySizes: z.array(z.string()).describe("Company sizes they likely target. Use these exact values: 1-10, 11-50, 51-200, 201-1000, 1000+"),
+  targetRoles: z.string().describe("Job titles/roles of the typical buyer (e.g. 'VP Engineering, CTO, Head of Product')"),
+  targetGeographies: z.array(z.string()).describe("Geographic regions they likely target. Use these exact values: North America, Europe, UK, APAC, LATAM, Global"),
+  suggestedTone: z.enum(["Formal", "Direct", "Casual"]).describe("Suggested email tone based on the company's brand voice"),
+  confidence: z.number().min(0).max(1).describe("Confidence score in the ICP inference (0-1)"),
+  reasoning: z.string().describe("Brief explanation of why these ICP parameters were chosen"),
+});
+
+async function scrapeWebsite(domain: string): Promise<string | null> {
+  const urls = [`https://${domain}`, `https://www.${domain}`];
+
+  for (const url of urls) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; LeadSens/1.0; +https://leadsens.com)",
+          "Accept": "text/html",
+        },
+        signal: controller.signal,
+        redirect: "follow",
+      });
+
+      clearTimeout(timeout);
+
+      if (!res.ok) continue;
+
+      const html = await res.text();
+
+      // Extract useful content without a DOM parser
+      const extract = (pattern: RegExp): string => {
+        const match = html.match(pattern);
+        return match?.[1]?.replace(/<[^>]*>/g, "").trim() || "";
+      };
+
+      const title = extract(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      const metaDesc = extract(/<meta[^>]*name=["']description["'][^>]*content=["']([\s\S]*?)["']/i)
+        || extract(/<meta[^>]*content=["']([\s\S]*?)["'][^>]*name=["']description["']/i);
+      const ogDesc = extract(/<meta[^>]*property=["']og:description["'][^>]*content=["']([\s\S]*?)["']/i);
+      const ogTitle = extract(/<meta[^>]*property=["']og:title["'][^>]*content=["']([\s\S]*?)["']/i);
+
+      // Extract all H1 and H2 tags
+      const headings: string[] = [];
+      const headingRegex = /<h[12][^>]*>([\s\S]*?)<\/h[12]>/gi;
+      let hMatch;
+      while ((hMatch = headingRegex.exec(html)) !== null && headings.length < 10) {
+        const text = hMatch[1].replace(/<[^>]*>/g, "").trim();
+        if (text.length > 3 && text.length < 200) headings.push(text);
+      }
+
+      // Extract visible text from body (stripped of scripts/styles, limited)
+      let bodyText = html
+        .replace(/<script[\s\S]*?<\/script>/gi, "")
+        .replace(/<style[\s\S]*?<\/style>/gi, "")
+        .replace(/<nav[\s\S]*?<\/nav>/gi, "")
+        .replace(/<footer[\s\S]*?<\/footer>/gi, "")
+        .replace(/<header[\s\S]*?<\/header>/gi, "")
+        .replace(/<[^>]*>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      // Limit body text to avoid token waste
+      bodyText = bodyText.slice(0, 3000);
+
+      // Look for pricing indicators
+      const hasPricing = /pricing|plans|per\s*month|\$\d|€\d|contact\s*sales|book\s*a?\s*demo/i.test(html);
+      const hasEnterprise = /enterprise|contact\s*sales|talk\s*to\s*(sales|us)|book\s*a?\s*demo/i.test(html);
+      const hasSelfServe = /sign\s*up\s*free|free\s*trial|get\s*started\s*free|start\s*free/i.test(html);
+
+      // Look for customer logos (alt text often reveals customer names)
+      const logoAlts: string[] = [];
+      const imgRegex = /alt=["']([\s\S]*?)["']/gi;
+      let imgMatch;
+      while ((imgMatch = imgRegex.exec(html)) !== null && logoAlts.length < 20) {
+        const alt = imgMatch[1].trim();
+        if (alt.length > 2 && alt.length < 50 && !/icon|logo|arrow|menu|close|image/i.test(alt)) {
+          logoAlts.push(alt);
+        }
+      }
+
+      const content = [
+        `URL: ${url}`,
+        title && `Title: ${title}`,
+        metaDesc && `Meta description: ${metaDesc}`,
+        ogDesc && ogDesc !== metaDesc && `OG description: ${ogDesc}`,
+        ogTitle && ogTitle !== title && `OG title: ${ogTitle}`,
+        headings.length > 0 && `Headings: ${headings.join(" | ")}`,
+        hasPricing && `Pricing signals: ${hasEnterprise ? "enterprise/sales-led" : ""} ${hasSelfServe ? "self-serve/free-trial" : ""}`.trim(),
+        logoAlts.length > 0 && `Image alt texts (possible customer logos): ${logoAlts.join(", ")}`,
+        bodyText && `Page content (excerpt): ${bodyText}`,
+      ].filter(Boolean).join("\n");
+
+      return content;
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+export async function POST(req: Request) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json();
+  const { domain, productDescription } = body;
+
+  if (!domain) {
+    return Response.json({ error: "Domain required" }, { status: 400 });
+  }
+
+  // Clean domain
+  const cleanDomain = domain.replace(/^(https?:\/\/)?(www\.)?/, "").replace(/\/.*$/, "").trim();
+
+  // Scrape website
+  const websiteContent = await scrapeWebsite(cleanDomain);
+
+  const prompt = [
+    `Analyze this company and infer their ideal customer profile (ICP) — who they should be selling to.`,
+    ``,
+    `Company domain: ${cleanDomain}`,
+    productDescription ? `Product description (from founder): ${productDescription}` : "",
+    ``,
+    websiteContent
+      ? `Website content:\n${websiteContent}`
+      : `Could not scrape website. Infer ICP from the domain name and product description only.`,
+    ``,
+    `Based on ALL available signals (what they sell, their pricing model, their existing customers, their market positioning), infer who their ideal customer is.`,
+    `Be specific: pick exact industries, company sizes, buyer roles, and geographies.`,
+    `If the website shows customer logos or testimonials, use those to validate the ICP.`,
+    `If the website has "contact sales" or "book a demo", the target is likely mid-market/enterprise.`,
+    `If the website has "sign up free" or "free trial", the target likely includes SMBs.`,
+  ].filter(Boolean).join("\n");
+
+  try {
+    const { object } = await generateObject({
+      model: anthropic("claude-sonnet-4-20250514"),
+      schema: icpInferenceSchema,
+      prompt,
+    });
+
+    return Response.json({
+      ...object,
+      domain: cleanDomain,
+      hadWebsiteContent: !!websiteContent,
+    });
+  } catch (error) {
+    console.error("Website analysis failed:", error);
+    return Response.json({
+      error: "Analysis failed",
+      domain: cleanDomain,
+      hadWebsiteContent: !!websiteContent,
+    }, { status: 500 });
+  }
+}
