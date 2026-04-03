@@ -20,7 +20,7 @@ export function ChatMarkdown({ children }: ChatMarkdownProps) {
           : Array.isArray(linkChildren)
             ? linkChildren.map(c => (typeof c === "string" ? c : "")).join("")
             : String(linkChildren ?? "");
-        return <EntityLink type={entity.type} id={entity.id} name={name} />;
+        return <EntityLink type={entity.type} id={entity.id} name={name} domain={entity.domain} />;
       }
 
       // Non-entity links: render as regular links

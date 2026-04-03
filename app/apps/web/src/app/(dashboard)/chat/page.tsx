@@ -10,7 +10,7 @@ import { ToolCallGroup } from "@/components/tool-call-panel";
 import { ActionCard, parseToolResultForCard } from "@/components/action-card";
 import { EmailComposer } from "@/components/email-composer";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Send, Mail } from "lucide-react";
+import { Sparkles, Send, Mail, Check } from "lucide-react";
 
 export default function ChatPage() {
   const searchParams = useSearchParams();
@@ -36,6 +36,10 @@ export default function ChatPage() {
     body: string;
   } | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+
+  // Action card approval state: keyed by "messageId-toolIdx"
+  const [cardStatuses, setCardStatuses] = useState<Record<string, "pending" | "approved" | "dismissed">>({});
+  const [cardExecuting, setCardExecuting] = useState<Record<string, boolean>>({});
 
   // Load existing thread messages on mount
   useEffect(() => {
@@ -342,22 +346,123 @@ export default function ChatPage() {
                       <>
                         <ToolCallGroup calls={toolCalls} />
                         {/* Action cards for create/update tool calls (only completed ones) */}
-                        {toolCalls
-                          .filter((call) => !call.isStreaming)
-                          .map((call, idx) => {
-                            const cardData = parseToolResultForCard(call.toolName, call.args, call.result);
-                            if (!cardData) return null;
-                            return (
-                              <ActionCard
-                                key={idx}
-                                actionType={cardData.actionType}
-                                entityType={cardData.entityType}
-                                entityName={cardData.entityName}
-                                fields={cardData.fields}
-                                status="approved"
-                              />
-                            );
-                          })}
+                        {(() => {
+                          const completedCalls = toolCalls.filter((call) => !call.isStreaming);
+                          const cards = completedCalls
+                            .map((call, idx) => {
+                              const cardData = parseToolResultForCard(call.toolName, call.args, call.result);
+                              if (!cardData) return null;
+                              const cardKey = `${message.id}-${idx}`;
+                              return { cardData, cardKey, idx };
+                            })
+                            .filter(Boolean) as { cardData: NonNullable<ReturnType<typeof parseToolResultForCard>>; cardKey: string; idx: number }[];
+
+                          const pendingProposals = cards.filter(
+                            (c) => c.cardData.isProposal && (cardStatuses[c.cardKey] || "pending") === "pending"
+                          );
+
+                          const approveCard = async (cardKey: string, proposalAction: string | undefined, editedFields: Record<string, string | number | null>, entityName?: string) => {
+                            setCardExecuting((prev) => ({ ...prev, [cardKey]: true }));
+                            try {
+                              const endpoint = proposalAction === "createContact" ? "/api/contacts"
+                                : proposalAction === "createAccount" ? "/api/accounts"
+                                : proposalAction === "createDeal" ? "/api/deals"
+                                : null;
+                              if (endpoint) {
+                                const res = await fetch(endpoint, {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify(editedFields),
+                                });
+                                if (res.ok) {
+                                  const created = await res.json();
+                                  setCardStatuses((prev) => ({ ...prev, [cardKey]: "approved" }));
+
+                                  // Trigger sequential workflow: notify LLM so it can propose linked records
+                                  const entityType = proposalAction === "createContact" ? "contact"
+                                    : proposalAction === "createAccount" ? "account"
+                                    : proposalAction === "createDeal" ? "deal" : "record";
+                                  const createdId = created.id || created.contact?.id || created.account?.id || created.deal?.id || "";
+                                  if (createdId) {
+                                    chat.sendMessage({
+                                      text: `[Approved: ${entityType} "${entityName || "record"}" created with id ${createdId}. If there are related records to create (e.g., a contact for a new account), propose them now.]`,
+                                    });
+                                  }
+                                }
+                              }
+                            } catch {
+                              // Silent fail
+                            } finally {
+                              setCardExecuting((prev) => ({ ...prev, [cardKey]: false }));
+                            }
+                          };
+
+                          return (
+                            <>
+                              {/* Batch controls when 2+ proposals are pending */}
+                              {pendingProposals.length >= 2 && (
+                                <div
+                                  className="my-2 flex items-center justify-end gap-2 rounded-md px-3 py-1.5"
+                                  style={{
+                                    background: "var(--color-bg-muted)",
+                                    border: "0.5px solid var(--color-border-default)",
+                                  }}
+                                >
+                                  <span className="mr-auto text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                                    {pendingProposals.length} pending
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      const updates: Record<string, "dismissed"> = {};
+                                      for (const p of pendingProposals) updates[p.cardKey] = "dismissed";
+                                      setCardStatuses((prev) => ({ ...prev, ...updates }));
+                                    }}
+                                    className="rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
+                                    style={{ color: "var(--color-text-tertiary)" }}
+                                  >
+                                    Dismiss all
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      for (const p of pendingProposals) {
+                                        await approveCard(p.cardKey, p.cardData.proposalAction, p.cardData.fields, p.cardData.entityName);
+                                      }
+                                    }}
+                                    className="flex items-center gap-1 rounded-md px-2.5 py-1 text-[12px] font-medium text-white transition-colors"
+                                    style={{ background: "var(--color-accent)" }}
+                                  >
+                                    <Check size={12} />
+                                    Create all {pendingProposals.length}
+                                  </button>
+                                </div>
+                              )}
+
+                              {cards.map(({ cardData, cardKey, idx }) => {
+                                const cardStatus = cardData.isProposal
+                                  ? (cardStatuses[cardKey] || "pending")
+                                  : "approved";
+                                return (
+                                  <ActionCard
+                                    key={idx}
+                                    actionType={cardData.actionType}
+                                    entityType={cardData.entityType}
+                                    entityName={cardData.entityName}
+                                    fields={cardData.fields}
+                                    status={cardStatus}
+                                    onApprove={cardData.isProposal
+                                      ? (editedFields) => approveCard(cardKey, cardData.proposalAction, editedFields, cardData.entityName)
+                                      : undefined
+                                    }
+                                    onDismiss={cardData.isProposal
+                                      ? () => setCardStatuses((prev) => ({ ...prev, [cardKey]: "dismissed" }))
+                                      : undefined
+                                    }
+                                  />
+                                );
+                              })}
+                            </>
+                          );
+                        })()}
                       </>
                     );
                   })()}

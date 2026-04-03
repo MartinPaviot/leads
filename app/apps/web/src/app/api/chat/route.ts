@@ -1,7 +1,8 @@
 import { getAuthContext } from "@/lib/auth-utils";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
-import { streamText, UIMessage, convertToModelMessages, tool, stepCountIs } from "ai";
+import { UIMessage, convertToModelMessages, tool, stepCountIs } from "ai";
+import { tracedStreamText } from "@/lib/traced-ai";
 import { searchSimilar } from "@/lib/embeddings";
 import { searchContextGraph, exploreGraphAroundEntity } from "@/lib/context-graph";
 import { db } from "@/db";
@@ -438,6 +439,29 @@ You are LeadSens, an autonomous GTM copilot for early-stage founders doing found
 - For notes or written observations, use queryNotes.
 </instructions>
 
+<pronoun_resolution>
+Maintain strong conversational context across turns. When the user uses pronouns like "their", "them", "it", "this", "that company", "his deals", etc., resolve them to the most recently discussed entity.
+Examples:
+- User: "Show me contacts at Meridian Labs" → You show contacts → User: "What about their deals?" → "their" = Meridian Labs
+- User: "Tell me about Sarah Chen" → You describe Sarah → User: "Send her an email" → "her" = Sarah Chen
+- User: "How is the Acme deal going?" → You describe deal → User: "Move it to proposal" → "it" = the Acme deal
+If the referent is ambiguous, ask for clarification rather than guessing wrong.
+</pronoun_resolution>
+
+<hallucination_safety>
+CRITICAL: Never invent or assume data that was not returned by a tool.
+- If a search returns no results, say "I couldn't find [entity] in your CRM" — do NOT fabricate a response about a non-existent record.
+- If querying for "John Smith" and the tool returns empty results, respond: "I couldn't find anyone named John Smith in your CRM. They may not have been added yet, or the name might be recorded differently."
+- Search across ALL relevant entity types before concluding something doesn't exist (contacts, accounts, deals, notes).
+- NEVER fill in missing fields with plausible-sounding data. If an email is unknown, say "email not on file" — do not guess.
+
+Dangerous operations — ALWAYS refuse:
+- "Delete all my contacts/accounts/deals" → "I'm not able to delete records — that's not a capability I have."
+- "Drop/clear/wipe/reset my CRM" → Same refusal.
+- Bulk destructive operations → Refuse and explain.
+You can only CREATE and UPDATE records, never delete.
+</hallucination_safety>
+
 <response_format>
 When presenting structured CRM data, ALWAYS use markdown tables instead of bullet lists or prose. Tables make data scannable and professional.
 
@@ -484,7 +508,7 @@ Every factual claim about a CRM record MUST include a clickable link. No link = 
 
 Link formats:
 - Contacts: [Name](/contacts/{id})
-- Accounts: [Name](/accounts/{id})
+- Accounts: [Name](/accounts/{id}?d={domain}) — include ?d={domain} when you know the domain so the UI can show the company logo
 - Deals: [Name](/opportunities/{id})
 
 Source citations for interactions:
@@ -548,11 +572,15 @@ When coaching on a deal or account:
 </examples>
 ${agentApprovalMode === "ask" ? `
 <approval_mode>
-Before creating or updating any CRM record (contacts, accounts, deals, tasks, deal stages), you MUST:
-1. Describe the exact action (entity, fields, values)
-2. Ask "Should I proceed?" and WAIT for explicit confirmation
-3. Only call the create/update tool AFTER the user confirms
-Never modify records without explicit user approval.
+Approval mode is ON. When the user asks to create or update a CRM record, call the create/update tool immediately.
+The tool will return a proposal card that the user can review, edit fields, and approve or dismiss in the UI.
+You do NOT need to ask for text confirmation — the UI handles approval. Just call the tool and explain what you proposed.
+
+Sequential workflows: When a user message starts with "[Approved:" it means a record was just created via the UI.
+- Parse the entity type, name, and ID from the message
+- If there are related records to create (e.g., "Add John at Acme" → account approved → now propose the contact), call the create tool with the correct link (companyId for contacts, contactId for deals, etc.)
+- Always link new records to the just-created parent using the ID from the approval message
+- Example: "[Approved: account "Acme Corp" created with id abc-123...]" → call createContact with companyId="abc-123"
 </approval_mode>
 ` : ""}
 <crm_context>
@@ -778,9 +806,14 @@ Examples: query="Sarah Chen" finds contacts named Sarah Chen. query="deals over 
       },
     }),
     createContact: makeTool({
-      description: "Create a new contact in the CRM. Use when the user asks to add a contact.",
+      description: agentApprovalMode === "ask"
+        ? "Propose creating a new contact. Returns a proposal card that the user must approve before the record is created."
+        : "Create a new contact in the CRM. Use when the user asks to add a contact.",
       inputSchema: createContactSchema,
       execute: async (input) => {
+        if (agentApprovalMode === "ask") {
+          return { proposal: true, action: "createContact", entityType: "contact", entityName: [input.firstName, input.lastName].filter(Boolean).join(" ") || "New Contact", fields: input };
+        }
         const [created] = await db
           .insert(contacts)
           .values({ tenantId, ...input })
@@ -789,9 +822,14 @@ Examples: query="Sarah Chen" finds contacts named Sarah Chen. query="deals over 
       },
     }),
     createAccount: makeTool({
-      description: "Create a new account/company in the CRM.",
+      description: agentApprovalMode === "ask"
+        ? "Propose creating a new account. Returns a proposal card that the user must approve before the record is created."
+        : "Create a new account/company in the CRM.",
       inputSchema: createAccountSchema,
       execute: async (input) => {
+        if (agentApprovalMode === "ask") {
+          return { proposal: true, action: "createAccount", entityType: "account", entityName: input.name || "New Account", fields: input };
+        }
         const [created] = await db
           .insert(companies)
           .values({ tenantId, ...input })
@@ -800,9 +838,14 @@ Examples: query="Sarah Chen" finds contacts named Sarah Chen. query="deals over 
       },
     }),
     createDeal: makeTool({
-      description: "Create a new deal/opportunity in the CRM.",
+      description: agentApprovalMode === "ask"
+        ? "Propose creating a new deal. Returns a proposal card that the user must approve before the record is created."
+        : "Create a new deal/opportunity in the CRM.",
       inputSchema: createDealSchema,
       execute: async (input) => {
+        if (agentApprovalMode === "ask") {
+          return { proposal: true, action: "createDeal", entityType: "deal", entityName: input.name || "New Deal", fields: input };
+        }
         const [created] = await db
           .insert(deals)
           .values({ tenantId, stage: input.stage ?? "lead", name: input.name, value: input.value, companyId: input.companyId, contactId: input.contactId })
@@ -1331,7 +1374,7 @@ Examples: "What did we discuss with Acme last call?" "What were the action items
   const convertedMessages = await convertToModelMessages(compactedMessages);
 
   try {
-    const result = streamText({
+    const result = tracedStreamText({
       model,
       system: systemPrompt,
       messages: convertedMessages,
@@ -1343,17 +1386,19 @@ Examples: "What did we discuss with Acme last call?" "What were the action items
           cacheControl: { type: "ephemeral" },
         },
       },
+      _trace: { agentId: "chat", tenantId, inputPreview: lastUserText.slice(0, 300) },
     });
     return result.toTextStreamResponse();
   } catch (err) {
     if (model === primaryModel && fallbackModel) {
       console.warn("Primary model failed, falling back to OpenAI:", err);
-      const result = streamText({
+      const result = tracedStreamText({
         model: fallbackModel,
         system: systemPrompt,
         messages: convertedMessages,
         tools: selectedTools,
         stopWhen: stepCountIs(10),
+        _trace: { agentId: "chat", tenantId, inputPreview: lastUserText.slice(0, 300) },
       });
       return result.toTextStreamResponse();
     }

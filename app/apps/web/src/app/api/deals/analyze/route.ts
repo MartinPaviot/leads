@@ -6,7 +6,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { getTenantSettings, getStageNames } from "@/lib/tenant-settings";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
 
 const dealAnalysisSchema = z.object({
@@ -89,7 +89,7 @@ export async function POST(req: Request) {
           .where(and(eq(activities.entityId, dealId), eq(activities.tenantId, authCtx.tenantId)));
         const activityCount = Number(activityResult[0]?.count || 0);
 
-        const { object } = await generateObject({
+        const { object } = await tracedGenerateObject({
           model,
           schema: dealAnalysisSchema,
           prompt: `Analyze this sales deal and provide insights.
@@ -109,19 +109,22 @@ Based on the deal data, provide:
 4. Recommended next actions
 
 Be realistic — don't assume progress without evidence.`,
+          _trace: { agentId: "deal-analyze", tenantId: authCtx.tenantId },
         });
 
         // Update deal with summary
+        if (!object) continue;
+        const analysis = object as any;
         await db
           .update(deals)
           .set({
-            summary: object.summary,
+            summary: analysis.summary,
             properties: {
               ...(deal.properties as Record<string, unknown> || {}),
-              riskLevel: object.riskLevel,
-              risks: object.risks,
-              suggestedStage: object.suggestedStage,
-              nextActions: object.nextActions,
+              riskLevel: analysis.riskLevel,
+              risks: analysis.risks,
+              suggestedStage: analysis.suggestedStage,
+              nextActions: analysis.nextActions,
               analyzedAt: new Date().toISOString(),
             },
             updatedAt: new Date(),
@@ -130,7 +133,7 @@ Be realistic — don't assume progress without evidence.`,
 
         results.push({
           dealId,
-          ...object,
+          ...analysis,
         });
       } catch (err) {
         console.warn(`Failed to analyze deal ${dealId}:`, err);

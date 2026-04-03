@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, User, TrendingUp } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 import { SlideOver, PropertyRow } from "./slide-over";
 
 type EntityType = "contact" | "account" | "deal";
@@ -10,25 +10,46 @@ interface EntityLinkProps {
   type: EntityType;
   id: string;
   name: string;
+  /** Account domain for logo fetching (e.g. "acme.com") */
+  domain?: string;
 }
 
-const typeConfig: Record<EntityType, { icon: typeof Building2; color: string; bg: string; label: string; href: (id: string) => string }> = {
+/** Stable color from a string — gives each entity a consistent hue */
+function hashColor(str: string): { bg: string; text: string } {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = ((hash % 360) + 360) % 360;
+  return {
+    bg: `oklch(0.92 0.04 ${hue})`,
+    text: `oklch(0.45 0.12 ${hue})`,
+  };
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+}
+
+const typeConfig: Record<EntityType, { color: string; bg: string; label: string; href: (id: string) => string }> = {
   account: {
-    icon: Building2,
     color: "var(--color-accent)",
     bg: "var(--color-accent-soft)",
     label: "Account",
     href: (id) => `/accounts/${id}`,
   },
   contact: {
-    icon: User,
     color: "oklch(0.65 0.15 160)",
     bg: "oklch(0.95 0.03 160)",
     label: "Contact",
     href: (id) => `/contacts/${id}`,
   },
   deal: {
-    icon: TrendingUp,
     color: "oklch(0.6 0.15 280)",
     bg: "oklch(0.95 0.03 280)",
     label: "Deal",
@@ -36,23 +57,33 @@ const typeConfig: Record<EntityType, { icon: typeof Building2; color: string; bg
   },
 };
 
-/** Detect entity type from a markdown link href */
-export function parseEntityHref(href: string): { type: EntityType; id: string } | null {
-  const contactMatch = href.match(/^\/contacts\/(.+)/);
+/** Detect entity type from a markdown link href.
+ *  Supports optional query params: /accounts/id?d=domain.com */
+export function parseEntityHref(href: string): { type: EntityType; id: string; domain?: string } | null {
+  const [path, qs] = href.split("?");
+  const params = new URLSearchParams(qs || "");
+  const domain = params.get("d") || undefined;
+
+  const contactMatch = path.match(/^\/contacts\/(.+)/);
   if (contactMatch) return { type: "contact", id: contactMatch[1] };
-  const accountMatch = href.match(/^\/accounts\/(.+)/);
-  if (accountMatch) return { type: "account", id: accountMatch[1] };
-  const dealMatch = href.match(/^\/opportunities\/(.+)/);
+  const accountMatch = path.match(/^\/accounts\/(.+)/);
+  if (accountMatch) return { type: "account", id: accountMatch[1], domain };
+  const dealMatch = path.match(/^\/opportunities\/(.+)/);
   if (dealMatch) return { type: "deal", id: dealMatch[1] };
   return null;
 }
 
-export function EntityLink({ type, id, name }: EntityLinkProps) {
+export function EntityLink({ type, id, name, domain }: EntityLinkProps) {
   const [slideOverOpen, setSlideOverOpen] = useState(false);
   const [entityData, setEntityData] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
+  const [logoError, setLogoError] = useState(false);
   const config = typeConfig[type];
-  const Icon = config.icon;
+  const initials = getInitials(name);
+  const avatarColors = hashColor(name);
+  const logoUrl = type === "account" && domain && !logoError
+    ? `https://logo.clearbit.com/${domain}`
+    : null;
 
   async function handleClick(e: React.MouseEvent) {
     e.preventDefault();
@@ -92,7 +123,31 @@ export function EntityLink({ type, id, name }: EntityLinkProps) {
         }}
         title={`View ${config.label}: ${name}`}
       >
-        <Icon size={12} style={{ flexShrink: 0 }} />
+        {type === "deal" ? (
+          <TrendingUp size={12} style={{ flexShrink: 0 }} />
+        ) : logoUrl ? (
+          <img
+            src={logoUrl}
+            alt=""
+            className="rounded-full object-contain"
+            style={{ width: 18, height: 18, flexShrink: 0 }}
+            onError={() => setLogoError(true)}
+          />
+        ) : (
+          <span
+            className="inline-flex items-center justify-center rounded-full text-[9px] font-semibold"
+            style={{
+              width: 18,
+              height: 18,
+              flexShrink: 0,
+              background: avatarColors.bg,
+              color: avatarColors.text,
+              border: `1px solid ${avatarColors.text}20`,
+            }}
+          >
+            {initials}
+          </span>
+        )}
         <span>{name}</span>
       </button>
 
@@ -102,6 +157,7 @@ export function EntityLink({ type, id, name }: EntityLinkProps) {
         title={name}
         subtitle={config.label}
         expandHref={config.href(id)}
+        avatar={type !== "deal" ? { initials, bg: avatarColors.bg, color: avatarColors.text } : undefined}
       >
         {loading && (
           <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>

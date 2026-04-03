@@ -10,10 +10,11 @@ interface SlideOverProps {
   title: string;
   subtitle?: string;
   expandHref?: string;
+  avatar?: { initials: string; bg: string; color: string };
   children: React.ReactNode;
 }
 
-export function SlideOver({ open, onClose, title, subtitle, expandHref, children }: SlideOverProps) {
+export function SlideOver({ open, onClose, title, subtitle, expandHref, avatar, children }: SlideOverProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -58,15 +59,31 @@ export function SlideOver({ open, onClose, title, subtitle, expandHref, children
           className="flex items-center justify-between px-4 py-3"
           style={{ borderBottom: "1px solid var(--color-border-default)" }}
         >
-          <div className="min-w-0">
-            <h2 className="truncate text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
-              {title}
-            </h2>
-            {subtitle && (
-              <p className="mt-0.5 truncate text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-                {subtitle}
-              </p>
+          <div className="flex min-w-0 items-center gap-2.5">
+            {avatar && (
+              <span
+                className="flex shrink-0 items-center justify-center rounded-full text-[13px] font-semibold"
+                style={{
+                  width: 32,
+                  height: 32,
+                  background: avatar.bg,
+                  color: avatar.color,
+                  border: `1px solid ${avatar.color}20`,
+                }}
+              >
+                {avatar.initials}
+              </span>
             )}
+            <div className="min-w-0">
+              <h2 className="truncate text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                {title}
+              </h2>
+              {subtitle && (
+                <p className="mt-0.5 truncate text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                  {subtitle}
+                </p>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-1">
             {expandHref && (
