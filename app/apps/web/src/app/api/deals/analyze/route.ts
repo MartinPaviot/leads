@@ -2,6 +2,7 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { deals, activities, companies } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { getTenantSettings, getStageNames } from "@/lib/tenant-settings";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
   }
 
   const model = process.env.ANTHROPIC_API_KEY
-    ? anthropic("claude-sonnet-4-20250514")
+    ? anthropic("claude-sonnet-4-6")
     : process.env.OPENAI_API_KEY
       ? openai("gpt-4o-mini")
       : null;
@@ -39,6 +40,10 @@ export async function POST(req: Request) {
     if (!dealIds || !Array.isArray(dealIds) || dealIds.length === 0) {
       return Response.json({ error: "dealIds array required" }, { status: 400 });
     }
+
+    // Load tenant pipeline stages
+    const settings = await getTenantSettings(authCtx.tenantId);
+    const stageList = getStageNames(settings);
 
     const results: Array<{
       dealId: string;
@@ -94,7 +99,7 @@ Created: ${deal.createdAt}
 Last Updated: ${deal.updatedAt}
 
 Based on the deal data, provide:
-1. What stage should this deal be in? (lead, qualification, demo, trial, proposal, negotiation, won, lost)
+1. What stage should this deal be in? (${stageList})
 2. What risks exist? (ghosting, stalls, no activity, unclear timeline, competitor)
 3. A summary of the deal's current state
 4. Recommended next actions

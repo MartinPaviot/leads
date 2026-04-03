@@ -2,102 +2,8 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { companies, activities } from "@/db/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
-
-// Calculated scoring — no LLM, pure data
-function calculateFitScore(
-  company: Record<string, unknown>,
-  props: Record<string, unknown>,
-  icp?: { industries?: string[]; sizeRange?: [number, number]; revenueRange?: [number, number]; technologies?: string[] }
-): { score: number; reasons: string[] } {
-  let score = 0;
-  const reasons: string[] = [];
-
-  // Industry match (0-20)
-  const industry = company.industry as string | null;
-  if (industry) {
-    const targetIndustries = icp?.industries || ["SaaS", "AI", "Software", "Technology", "Fintech", "Cloud"];
-    if (targetIndustries.some((t) => industry.toLowerCase().includes(t.toLowerCase()))) {
-      score += 20;
-      reasons.push(`Industry match: ${industry}`);
-    } else {
-      score += 5;
-    }
-  }
-
-  // Size in range (0-20)
-  const employeeCount = props.employee_count as number | null;
-  if (employeeCount) {
-    const [minSize, maxSize] = icp?.sizeRange || [10, 500];
-    if (employeeCount >= minSize && employeeCount <= maxSize) {
-      score += 20;
-      reasons.push(`Size in range: ${employeeCount} employees`);
-    } else if (employeeCount >= minSize * 0.5 && employeeCount <= maxSize * 2) {
-      score += 10;
-    } else {
-      score += 3;
-    }
-  }
-
-  // Revenue in range (0-15)
-  const annualRevenue = props.annual_revenue as number | null;
-  if (annualRevenue) {
-    const [minRev, maxRev] = icp?.revenueRange || [1_000_000, 100_000_000];
-    if (annualRevenue >= minRev && annualRevenue <= maxRev) {
-      score += 15;
-      reasons.push(`Revenue in range: ${props.annual_revenue_printed || `$${(annualRevenue / 1_000_000).toFixed(0)}M`}`);
-    } else if (annualRevenue >= minRev * 0.5) {
-      score += 7;
-    }
-  }
-
-  // Tech stack match (0-15)
-  const technologies = (props.technologies as string[]) || [];
-  if (technologies.length > 0) {
-    const targetTech = icp?.technologies || ["React", "Node.js", "AWS", "Salesforce", "HubSpot", "Stripe", "PostgreSQL"];
-    const matches = technologies.filter((t) =>
-      targetTech.some((tt) => t.toLowerCase().includes(tt.toLowerCase()))
-    );
-    if (matches.length >= 3) {
-      score += 15;
-      reasons.push(`Tech stack match: ${matches.slice(0, 3).join(", ")}`);
-    } else if (matches.length >= 1) {
-      score += 8;
-      reasons.push(`Some tech overlap: ${matches.join(", ")}`);
-    }
-  }
-
-  // Recent funding (0-10)
-  const totalFunding = props.total_funding as number | null;
-  const fundingStage = props.latest_funding_stage as string | null;
-  if (totalFunding && totalFunding > 0) {
-    score += 10;
-    reasons.push(`Funded: ${props.total_funding_printed || `$${(totalFunding / 1_000_000).toFixed(0)}M`} (${fundingStage || "undisclosed"})`);
-  }
-
-  // LinkedIn presence (proxy for senior contacts available) (0-10)
-  const linkedinUrl = props.linkedin_url as string | null;
-  if (linkedinUrl) {
-    score += 5;
-  }
-  // Apollo enrichment available = better data
-  if (props.enrichment_source === "apollo") {
-    score += 5;
-    reasons.push("Verified by Apollo.io enrichment");
-  }
-
-  // Location (0-10) — US/Europe preferred
-  const country = props.country as string | null;
-  if (country) {
-    const preferredCountries = ["United States", "Canada", "United Kingdom", "Germany", "France", "Netherlands", "Australia"];
-    if (preferredCountries.some((c) => country.includes(c))) {
-      score += 10;
-    } else {
-      score += 3;
-    }
-  }
-
-  return { score: Math.min(100, score), reasons };
-}
+import { getTenantSettings, parseSizeRange } from "@/lib/tenant-settings";
+import { calculateFitScore } from "@/lib/scoring";
 
 async function calculateEngagementScore(
   tenantId: string,
@@ -223,6 +129,20 @@ export async function POST(req: Request) {
       return Response.json({ error: "companyIds array required" }, { status: 400 });
     }
 
+    // Load typed tenant settings
+    const settings = await getTenantSettings(authCtx.tenantId);
+
+    const icpFromSettings: {
+      industries?: string[];
+      sizeRange?: [number, number];
+      geographies?: string[];
+    } = {};
+
+    if (settings.targetIndustries?.length) icpFromSettings.industries = settings.targetIndustries;
+    const sizeRange = parseSizeRange(settings);
+    if (sizeRange) icpFromSettings.sizeRange = sizeRange;
+    if (settings.targetGeographies?.length) icpFromSettings.geographies = settings.targetGeographies;
+
     let scored = 0;
 
     for (const id of companyIds.slice(0, 20)) {
@@ -237,8 +157,8 @@ export async function POST(req: Request) {
 
         const props = (company.properties || {}) as Record<string, unknown>;
 
-        // Calculate Fit score (from Apollo data)
-        const fit = calculateFitScore(company, props);
+        // Calculate Fit score using real ICP from onboarding
+        const fit = calculateFitScore(company, props, icpFromSettings);
 
         // Calculate Engagement score (from activities)
         const engagement = await calculateEngagementScore(authCtx.tenantId, id);

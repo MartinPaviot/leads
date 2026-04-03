@@ -2,112 +2,8 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { contacts, companies, activities } from "@/db/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
-
-// Rule-based contact scoring — no LLM, uses real data signals
-function calculateContactFitScore(
-  contact: Record<string, unknown>,
-  props: Record<string, unknown>,
-  company: Record<string, unknown> | null,
-  companyProps: Record<string, unknown> | null
-): { score: number; reasons: string[]; grade: string } {
-  let score = 0;
-  const reasons: string[] = [];
-
-  // Seniority scoring (0-30)
-  const seniority = (props?.seniority as string)?.toLowerCase() || "";
-  if (seniority.includes("c-suite") || seniority.includes("founder") || seniority.includes("owner")) {
-    score += 30;
-    reasons.push(`Decision maker: ${seniority}`);
-  } else if (seniority.includes("vp") || seniority.includes("vice president")) {
-    score += 25;
-    reasons.push(`Senior leader: ${seniority}`);
-  } else if (seniority.includes("director")) {
-    score += 20;
-    reasons.push(`Director level: ${seniority}`);
-  } else if (seniority.includes("manager") || seniority.includes("head")) {
-    score += 15;
-    reasons.push(`Manager level: ${seniority}`);
-  } else if (seniority.includes("senior") || seniority.includes("lead")) {
-    score += 10;
-  } else if (seniority) {
-    score += 5;
-  }
-
-  // Title keyword scoring (0-10)
-  const title = ((contact.title as string) || "").toLowerCase();
-  const highValueTitles = ["ceo", "cto", "cfo", "coo", "cro", "cmo", "founder", "president", "partner"];
-  if (highValueTitles.some((t) => title.includes(t))) {
-    score += 10;
-    if (!reasons.some((r) => r.includes("Decision maker"))) {
-      reasons.push(`High-value title: ${contact.title}`);
-    }
-  }
-
-  // Department relevance (0-15) — scoring higher for buying departments
-  const department = ((props?.department as string) || (props?.departments as string[])?.join(", ") || "").toLowerCase();
-  const buyingDepartments = ["engineering", "product", "technology", "it", "operations"];
-  const influencerDepartments = ["marketing", "sales", "business development", "growth"];
-  if (buyingDepartments.some((d) => department.includes(d))) {
-    score += 15;
-    reasons.push(`Buying department: ${department}`);
-  } else if (influencerDepartments.some((d) => department.includes(d))) {
-    score += 10;
-    reasons.push(`Influencer department: ${department}`);
-  } else if (department) {
-    score += 3;
-  }
-
-  // Email verification status (0-10)
-  const emailStatus = props?.email_status as string;
-  if (emailStatus === "verified") {
-    score += 10;
-    reasons.push("Email verified");
-  } else if (emailStatus === "likely") {
-    score += 5;
-  }
-
-  // Has LinkedIn profile (0-5)
-  if (contact.linkedinUrl) {
-    score += 5;
-  }
-
-  // Has phone (0-5)
-  if (contact.phone) {
-    score += 5;
-  }
-
-  // Enrichment source quality (0-5)
-  if (props?.enrichment_source === "apollo") {
-    score += 5;
-    reasons.push("Verified by Apollo enrichment");
-  }
-
-  // Company score contribution (0-20)
-  if (company) {
-    const companyScore = company.score as number | null;
-    if (companyScore && companyScore >= 60) {
-      score += 20;
-      reasons.push(`High-scoring company: ${company.name} (${companyScore})`);
-    } else if (companyScore && companyScore >= 40) {
-      score += 10;
-    } else if (companyScore && companyScore >= 20) {
-      score += 5;
-    }
-  }
-
-  // Cap at 100
-  score = Math.min(100, score);
-
-  // Grade
-  let grade: string;
-  if (score >= 80) grade = "A";
-  else if (score >= 60) grade = "B";
-  else if (score >= 40) grade = "C";
-  else if (score >= 20) grade = "D";
-  else grade = "F";
-
-  return { score, reasons, grade };
-}
+import { getTenantSettings, parseRoleKeywords } from "@/lib/tenant-settings";
+import { calculateContactFitScore } from "@/lib/scoring";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
@@ -122,6 +18,10 @@ export async function POST(req: Request) {
     if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
       return Response.json({ error: "contactIds array required" }, { status: 400 });
     }
+
+    // Load typed tenant settings
+    const settings = await getTenantSettings(authCtx.tenantId);
+    const targetRoleKeywords = parseRoleKeywords(settings);
 
     let scored = 0;
 
@@ -182,7 +82,7 @@ export async function POST(req: Request) {
           contact as Record<string, unknown>,
           props,
           company,
-          companyProps
+          targetRoleKeywords
         );
 
         const totalScore = Math.min(100, fit.score + engagementBoost);

@@ -3,6 +3,7 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { activities, deals, tasks, sequenceEnrollments, companies } from "@/db/schema";
 import { sql, eq, and, gte, lte, or } from "drizzle-orm";
+import { getTenantSettings } from "@/lib/tenant-settings";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -133,12 +134,16 @@ export async function GET() {
       )
       .orderBy(activities.occurredAt);
 
-    const session = await auth();
-    const firstName = session?.user?.name?.split(" ")[0] || "there";
+    const settings = await getTenantSettings(authCtx.tenantId);
+    const firstName = settings.onboardingFullName?.split(" ")[0]
+      || (await auth())?.user?.name?.split(" ")[0]
+      || "there";
 
     return Response.json({
       greeting: getGreeting(),
       firstName,
+      role: settings.onboardingRole || null,
+      challenge: settings.primaryChallenge || null,
       weekSummary: {
         sequencesLaunched: enrollments[0]?.count || 0,
         responsesReceived: (activityCounts["email_replied"] || 0) + (activityCounts["email_received"] || 0),
@@ -157,6 +162,8 @@ export async function GET() {
     return Response.json({
       greeting: getGreeting(),
       firstName: (await auth())?.user?.name?.split(" ")[0] || "there",
+      role: null,
+      challenge: null,
       weekSummary: { sequencesLaunched: 0, responsesReceived: 0, meetingsBooked: 0, opportunitiesClosed: 0 },
       todayTasks: [],
       todayMeetings: [],

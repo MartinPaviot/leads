@@ -9,6 +9,7 @@ import { companies, contacts, deals, activities, notes, tenants, tasks, chatMemo
 import { and, eq, desc, sql, ilike, or } from "drizzle-orm";
 import { z } from "zod";
 import type { CustomFieldDef, PipelineStageDef } from "@/lib/custom-fields";
+import { getTenantSettings, type TenantSettings } from "@/lib/tenant-settings";
 // JSONValue type for tool generics
 type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue };
 
@@ -107,7 +108,7 @@ function formatCitedSources(
 }
 
 /** Build a snapshot of the tenant's CRM data for the system prompt */
-async function getCRMSnapshot(tenantId: string): Promise<string> {
+async function getCRMSnapshot(tenantId: string, settings: TenantSettings): Promise<string> {
   const [accountCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(companies)
@@ -167,31 +168,44 @@ async function getCRMSnapshot(tenantId: string): Promise<string> {
   // Load custom field definitions and pipeline stages for AI awareness
   let customFieldsInfo = "";
   let pipelineStagesInfo = "";
-  try {
-    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
-    if (tenant) {
-      const settings = (tenant.settings || {}) as Record<string, unknown>;
-      const customFields = (settings.customFields || []) as CustomFieldDef[];
-      const pipelineStages = (settings.pipelineStages || []) as PipelineStageDef[];
+  let businessContext = "";
 
-      if (customFields.length > 0) {
-        customFieldsInfo = `\n\n### Custom Fields (user-defined schema)\n${customFields.map(
-          (f) => `- ${f.entityType}.${f.name} (${f.type}, AI fill: ${f.aiFillMode})${f.options ? ` [options: ${f.options.join(", ")}]` : ""}`
-        ).join("\n")}`;
-        customFieldsInfo += `\nCustom field values are stored in entity properties.customFields.{fieldId}. When creating/updating records, set custom field values there.`;
-      }
-
-      if (pipelineStages.length > 0) {
-        pipelineStagesInfo = `\n\n### Pipeline Stages (configured by user)\n${pipelineStages.map(
-          (s) => `- ${s.name} (${s.category}): ${s.description || "no description"} [AI: ${s.aiFillMode}]`
-        ).join("\n")}`;
-      }
-    }
-  } catch {
-    // Non-critical — custom fields info is supplementary
+  // Build business context from onboarding data
+  const contextParts: string[] = [];
+  if (settings.productDescription) contextParts.push(`Product: ${settings.productDescription}`);
+  if (settings.salesMotion) contextParts.push(`Sales motion: ${settings.salesMotion}`);
+  if (settings.aiTone) contextParts.push(`Preferred email tone: ${settings.aiTone}`);
+  if (settings.onboardingRole) contextParts.push(`User role: ${settings.onboardingRole}`);
+  if (settings.primaryChallenge) contextParts.push(`Primary challenge: ${settings.primaryChallenge}`);
+  if (settings.targetIndustries?.length)
+    contextParts.push(`Target industries: ${settings.targetIndustries.join(", ")}`);
+  if (settings.targetCompanySizes?.length)
+    contextParts.push(`Target company sizes: ${settings.targetCompanySizes.join(", ")}`);
+  if (settings.targetRoles) contextParts.push(`Target buyer roles: ${settings.targetRoles}`);
+  if (settings.targetGeographies?.length)
+    contextParts.push(`Target geographies: ${settings.targetGeographies.join(", ")}`);
+  if (contextParts.length > 0) {
+    businessContext = `\n\n## Business Context (from onboarding)\n${contextParts.join("\n")}`;
   }
 
-  let snapshot = `\n\n## CRM Data Snapshot
+  // Custom fields and pipeline stages
+  const customFields = settings.customFields || [];
+  const pipelineStages = settings.pipelineStages || [];
+
+  if (customFields.length > 0) {
+    customFieldsInfo = `\n\n### Custom Fields (user-defined schema)\n${customFields.map(
+      (f) => `- ${f.entityType}.${f.name} (${f.type}, AI fill: ${f.aiFillMode})${f.options ? ` [options: ${f.options.join(", ")}]` : ""}`
+    ).join("\n")}`;
+    customFieldsInfo += `\nCustom field values are stored in entity properties.customFields.{fieldId}. When creating/updating records, set custom field values there.`;
+  }
+
+  if (pipelineStages.length > 0) {
+    pipelineStagesInfo = `\n\n### Pipeline Stages (configured by user)\n${pipelineStages.map(
+      (s) => `- ${s.name} (${s.category}): ${s.description || "no description"} [AI: ${s.aiFillMode || "auto"}]`
+    ).join("\n")}`;
+  }
+
+  let snapshot = `${businessContext}\n\n## CRM Data Snapshot
 - Accounts: ${accountCount.count}
 - Contacts: ${contactCount.count}
 - Deals: ${dealCount.count}
@@ -340,47 +354,43 @@ export async function POST(req: Request) {
     .map((p) => ("text" in p ? p.text : ""))
     .join("") || "";
 
+  // Load tenant settings once — used by snapshot, knowledge, and approval mode
+  const tenantSettings = await getTenantSettings(authCtx.tenantId);
+
   // Parallel: RAG search + CRM snapshot + entity context + knowledge + approval mode
   const [ragContext, crmSnapshot, entityContext, knowledgeContext, agentApprovalMode, memoriesContext] = await Promise.all([
     (async () => {
-      if (!lastUserText || !process.env.OPENAI_API_KEY) return "";
+      if (!lastUserText) return "";
       try {
-        const results = await searchSimilar(lastUserText, 8, authCtx.tenantId);
-        if (results.length > 0) {
-          const relevant = results.filter((r) => r.similarity > 0.25);
-          if (relevant.length > 0) {
-            return formatCitedSources(relevant);
+        // Try context graph first (hybrid: vector + graph traversal)
+        const graphResult = await searchContextGraph(lastUserText, authCtx.tenantId, 15);
+        if (graphResult.formattedContext) return graphResult.formattedContext;
+
+        // Fallback to flat vector search if graph is empty
+        if (process.env.OPENAI_API_KEY) {
+          const results = await searchSimilar(lastUserText, 8, authCtx.tenantId);
+          if (results.length > 0) {
+            const relevant = results.filter((r) => r.similarity > 0.25);
+            if (relevant.length > 0) {
+              return formatCitedSources(relevant);
+            }
           }
         }
       } catch (err) {
-        console.warn("RAG search failed:", err);
+        console.warn("Context search failed:", err);
       }
       return "";
     })(),
-    getCRMSnapshot(authCtx.tenantId),
+    getCRMSnapshot(authCtx.tenantId, tenantSettings),
     getEntityContext(contextType, contextId, authCtx.tenantId),
     (async () => {
-      try {
-        const [tenant] = await db.select().from(tenants).where(eq(tenants.id, authCtx.tenantId)).limit(1);
-        if (!tenant) return "";
-        const settings = (tenant.settings || {}) as Record<string, unknown>;
-        const knowledge = (settings.knowledge || []) as Array<{ topic: string; content: string }>;
-        if (knowledge.length === 0) return "";
-        return "\n\n## Business Knowledge (world model)\n" +
-          knowledge.map((k) => `### ${k.topic}\n${k.content}`).join("\n\n");
-      } catch {
-        return "";
-      }
+      const knowledge = tenantSettings.knowledge || [];
+      if (knowledge.length === 0) return "";
+      return "\n\n## Business Knowledge (world model)\n" +
+        knowledge.map((k) => `### ${k.topic}\n${k.content}`).join("\n\n");
     })(),
     (async () => {
-      try {
-        const [tenant] = await db.select().from(tenants).where(eq(tenants.id, authCtx.tenantId)).limit(1);
-        if (!tenant) return "auto";
-        const settings = (tenant.settings || {}) as Record<string, unknown>;
-        return (settings.agentApprovalMode as string) || "auto";
-      } catch {
-        return "auto";
-      }
+      return tenantSettings.agentApprovalMode || "auto";
     })(),
     // Load persistent memories for this user
     (async () => {
@@ -935,6 +945,11 @@ Examples: query="Sarah Chen" finds contacts named Sarah Chen. query="deals over 
           company = c;
         }
 
+        // Fetch writing samples for style matching
+        const { getWritingSamples, buildWritingStylePrompt } = await import("@/lib/writing-profile");
+        const samples = await getWritingSamples(tenantId);
+        const stylePrompt = buildWritingStylePrompt(samples);
+
         return {
           emailDraft: {
             to: contact.email,
@@ -947,7 +962,7 @@ Examples: query="Sarah Chen" finds contacts named Sarah Chen. query="deals over 
               date: a.occurredAt,
             })),
           },
-          instruction: "Use this context to generate a personalized email. Include specifics from recent interactions. Keep it concise and actionable. Return the draft in your response.",
+          instruction: `Use this context to generate a personalized email. Include specifics from recent interactions. Keep it concise and actionable.${stylePrompt ? `\n\n${stylePrompt}` : ""}\n\nReturn the draft in your response.`,
         };
       },
     }),
@@ -1086,6 +1101,33 @@ Examples: query="Sarah Chen" finds contacts named Sarah Chen. query="deals over 
             count: matchedContacts.length,
             contacts: matchedContacts.map((c) => ({ id: c.id, name: [c.firstName, c.lastName].filter(Boolean).join(" ") })),
           },
+        };
+      },
+    }),
+
+    exploreGraph: makeTool({
+      description: "Explore the context graph around an entity. Returns connected entities and facts (relationships, interactions, temporal history). Use when user asks 'what do we know about X', 'show me connections for Y', 'graph for Z', or 'context around X'.",
+      inputSchema: z.object({
+        entityName: z.string().describe("Name of the entity to explore (person, company, topic)"),
+        depth: z.number().optional().describe("How many hops to traverse (default 2, max 3)"),
+      }),
+      execute: async (input) => {
+        const result = await exploreGraphAroundEntity(
+          input.entityName,
+          tenantId,
+          Math.min(input.depth || 2, 3),
+        );
+        if (result.nodes.length === 0) return { message: `No entity found matching "${input.entityName}" in the context graph` };
+        return {
+          entities: result.nodes.map(n => ({ name: n.name, type: n.type, summary: n.summary })),
+          facts: result.edges.map(e => ({
+            from: result.nodes.find(n => n.id === e.source)?.name,
+            to: result.nodes.find(n => n.id === e.target)?.name,
+            relation: e.relation,
+            fact: e.fact,
+            valid: e.valid,
+          })),
+          graphUrl: `/graph`,
         };
       },
     }),

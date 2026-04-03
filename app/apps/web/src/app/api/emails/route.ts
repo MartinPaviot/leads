@@ -2,6 +2,8 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { contacts, companies } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import { getTenantSettings } from "@/lib/tenant-settings";
+import { getWritingSamples, buildWritingStylePrompt } from "@/lib/writing-profile";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
@@ -19,7 +21,7 @@ export async function POST(req: Request) {
   }
 
   const model = process.env.ANTHROPIC_API_KEY
-    ? anthropic("claude-sonnet-4-20250514")
+    ? anthropic("claude-sonnet-4-6")
     : process.env.OPENAI_API_KEY
       ? openai("gpt-4o-mini")
       : null;
@@ -63,8 +65,17 @@ export async function POST(req: Request) {
     const companyProps = company?.properties as Record<string, unknown> | null;
     const signals = (companyProps?.signals as Array<{ type: string; title: string; description: string }>) || [];
 
+    // Load tenant settings + writing samples in parallel
+    const [settings, writingSamples] = await Promise.all([
+      getTenantSettings(authCtx.tenantId),
+      getWritingSamples(authCtx.tenantId),
+    ]);
+    const senderCompanyName = settings.onboardingCompanyName || "";
+    const senderFullName = settings.onboardingFullName || "";
+    const productDesc = settings.productDescription || "";
+
     // Build context for LLM
-    let prompt = `Write a cold outreach email to this prospect. The email should be professional, concise, and personalized.
+    let prompt = `Write a cold outreach email to this prospect. The email should be concise and personalized.
 
 PROSPECT:
 - Name: ${contactName || "Unknown"}
@@ -105,16 +116,36 @@ Subject: ${template.subject}
 Body: ${template.body}`;
     }
 
-    prompt += `
+    if (productDesc) {
+      prompt += `
 
+SENDER CONTEXT:
+- Company: ${senderCompanyName}
+- What we sell: ${productDesc}${senderFullName ? `\n- Sender name: ${senderFullName}` : ""}`;
+    }
+
+    // Inject real writing samples as style reference (few-shot)
+    const writingStyleSection = buildWritingStylePrompt(writingSamples);
+
+    if (senderFullName) {
+      let signature = senderFullName;
+      if (settings.onboardingRole) signature += `\n${settings.onboardingRole}`;
+      if (senderCompanyName) signature += ` @ ${senderCompanyName}`;
+      prompt += `
+
+SIGNATURE (append this to every email):
+${signature}`;
+    }
+
+    prompt += `
+${writingStyleSection}
 RULES:
 - Keep the subject under 60 characters
 - Keep the body under 200 words
 - Reference at least one specific detail about the prospect or their company
 - If there are buying signals, reference the most relevant one
 - End with a clear, low-commitment CTA (e.g. "Worth a quick chat?" not "Book a demo now")
-- Do NOT use generic phrases like "I came across your profile" or "I hope this email finds you well"
-- Write in a natural, founder-to-founder tone`;
+- Do NOT use generic phrases like "I came across your profile" or "I hope this email finds you well"${!writingStyleSection ? "\n- Write in a direct, concise tone" : ""}`;
 
     const { object } = await generateObject({
       model,
@@ -133,8 +164,8 @@ RULES:
       title: contact.title || "",
       company: company?.name || "",
       industry: company?.industry || "",
-      senderName: "Me",
-      senderCompany: "LeadSens",
+      senderName: senderFullName || "Me",
+      senderCompany: senderCompanyName,
     };
 
     for (const [key, value] of Object.entries(vars)) {
