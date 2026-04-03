@@ -2,6 +2,7 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { tenants, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { updateTenantSettings, type TenantSettings } from "@/lib/tenant-settings";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
@@ -10,26 +11,13 @@ export async function POST(req: Request) {
   }
 
   const data = await req.json();
-
-  // Get current tenant settings
-  const [tenant] = await db
-    .select()
-    .from(tenants)
-    .where(eq(tenants.id, authCtx.tenantId));
-
-  if (!tenant) {
-    return Response.json({ error: "Tenant not found" }, { status: 404 });
-  }
-
-  const currentSettings = (tenant.settings || {}) as Record<string, unknown>;
-
-  // Build updated settings based on what step sent
-  const updates: Record<string, unknown> = { ...currentSettings };
+  const updates: Partial<TenantSettings> = {};
 
   if (data.step === "welcome") {
     updates.onboardingFullName = data.fullName;
     updates.onboardingCompanyName = data.companyName;
     updates.onboardingRole = data.role;
+    updates.companyDomain = data.domain;
 
     // Also update tenant name and user name
     if (data.companyName) {
@@ -46,7 +34,6 @@ export async function POST(req: Request) {
   if (data.step === "product") {
     updates.productDescription = data.productDesc;
     updates.salesMotion = data.salesMotion;
-    updates.aiTone = data.aiTone;
     updates.primaryChallenge = data.challenge;
   }
 
@@ -59,6 +46,7 @@ export async function POST(req: Request) {
     updates.targetCompanySizes = data.companySizes;
     updates.targetRoles = data.targetRoles;
     updates.targetGeographies = data.geographies;
+    if (data.aiTone) updates.aiTone = data.aiTone;
   }
 
   if (data.step === "complete") {
@@ -66,10 +54,7 @@ export async function POST(req: Request) {
     updates.onboardingCompletedAt = new Date().toISOString();
   }
 
-  await db.update(tenants).set({
-    settings: updates,
-    updatedAt: new Date(),
-  }).where(eq(tenants.id, authCtx.tenantId));
+  await updateTenantSettings(authCtx.tenantId, updates);
 
   return Response.json({ ok: true });
 }

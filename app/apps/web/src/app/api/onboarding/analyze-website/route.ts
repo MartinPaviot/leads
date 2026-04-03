@@ -2,14 +2,15 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
 import { z } from "zod";
+import { INDUSTRIES, industriesPromptHint, companySizesPromptHint } from "@/lib/icp-constants";
 
 const icpInferenceSchema = z.object({
   companyDescription: z.string().describe("One-sentence description of what this company does"),
-  productDescription: z.string().describe("What the company sells, in plain language"),
-  targetIndustries: z.array(z.string()).describe("Industries this company likely sells to. Use these exact values when applicable: SaaS / Software, Fintech, Healthcare, E-commerce, Manufacturing, Professional Services, Education, Real Estate, Logistics, Media / Entertainment, Other"),
-  targetCompanySizes: z.array(z.string()).describe("Company sizes they likely target. Use these exact values: 1-10, 11-50, 51-200, 201-1000, 1000+"),
+  productDescription: z.string().describe("What the company sells, in plain language. Return an empty string if you cannot determine this — never return placeholders like 'unknown' or 'N/A'."),
+  targetIndustries: z.array(z.enum(INDUSTRIES as unknown as [string, ...string[]])).describe(`Industries this company likely sells to. ${industriesPromptHint()}`),
+  targetCompanySizes: z.array(z.string()).describe(`Company sizes they likely target. ${companySizesPromptHint()}`),
   targetRoles: z.string().describe("Job titles/roles of the typical buyer (e.g. 'VP Engineering, CTO, Head of Product')"),
-  targetGeographies: z.array(z.string()).describe("Geographic regions they likely target. Use these exact values: North America, Europe, UK, APAC, LATAM, Global"),
+  targetGeographies: z.array(z.string()).describe("Geographic locations they likely target. Use specific names: country, state, or city (e.g. 'United States', 'France', 'California'). Be precise."),
   suggestedTone: z.enum(["Formal", "Direct", "Casual"]).describe("Suggested email tone based on the company's brand voice"),
   confidence: z.number().min(0).max(1).describe("Confidence score in the ICP inference (0-1)"),
   reasoning: z.string().describe("Brief explanation of why these ICP parameters were chosen"),

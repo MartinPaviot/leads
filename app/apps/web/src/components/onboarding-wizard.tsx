@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { ArrowRight, ArrowLeft, Loader2, Check, Mail, Sparkles, Target, Zap, MessageSquare, Users, Building2, Globe, ChevronDown } from "lucide-react";
+import { INDUSTRIES, COMPANY_SIZES, SALES_MOTIONS, sizesToApolloRanges } from "@/lib/icp-constants";
 
 interface WebsiteAnalysis {
   companyDescription: string;
@@ -32,19 +33,10 @@ const STEPS: { key: Step; label: string }[] = [
   { key: "ready", label: "Ready" },
 ];
 
-const INDUSTRIES = [
-  "SaaS / Software", "Fintech", "Healthcare", "E-commerce",
-  "Manufacturing", "Professional Services", "Education",
-  "Real Estate", "Logistics", "Media / Entertainment", "Other",
-];
-const COMPANY_SIZES = ["1-10", "11-50", "51-200", "201-1000", "1000+"];
-const GEOGRAPHIES = ["North America", "Europe", "UK", "APAC", "LATAM", "Global"];
-const SALES_MOTIONS = ["Founder-led sales", "Small sales team", "SDR / AE split", "Product-led (PLG)"];
-const TONES = ["Formal", "Direct", "Casual"];
 const CHALLENGES = ["Finding the right leads", "Getting responses", "Closing deals", "Expanding accounts"];
 
 function PillSelect({ options, selected, onToggle, multi = true }: {
-  options: string[];
+  options: readonly string[];
   selected: string[];
   onToggle: (val: string) => void;
   multi?: boolean;
@@ -69,6 +61,153 @@ function PillSelect({ options, selected, onToggle, multi = true }: {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function TagInput({ options, selected, onToggle, placeholder }: {
+  options: readonly string[];
+  selected: string[];
+  onToggle: (val: string) => void;
+  placeholder?: string;
+}) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const filtered = search.trim()
+    ? options.filter((o) => o.toLowerCase().includes(search.toLowerCase()) && !selected.includes(o))
+    : options.filter((o) => !selected.includes(o));
+
+  return (
+    <div className="relative">
+      {/* Selected tags */}
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {selected.map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-medium"
+              style={{ background: "var(--color-accent)", color: "white" }}
+            >
+              {tag}
+              <button
+                type="button"
+                onClick={() => onToggle(tag)}
+                className="ml-0.5 hover:opacity-70"
+                style={{ lineHeight: 1 }}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Search input */}
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        placeholder={selected.length > 0 ? "Add more..." : placeholder || "Search..."}
+        className="auth-input w-full rounded-lg px-3 py-2 text-[13px] outline-none"
+        style={{
+          background: "var(--color-bg-page)",
+          color: "var(--color-text-primary)",
+          border: "1px solid var(--color-border-default)",
+        }}
+      />
+
+      {/* Dropdown */}
+      {open && filtered.length > 0 && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => { setOpen(false); setSearch(""); }} />
+          <div
+            className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-lg py-1"
+            style={{
+              background: "var(--color-bg-card)",
+              border: "1px solid var(--color-border-default)",
+              boxShadow: "var(--shadow-dialog)",
+            }}
+          >
+            {filtered.slice(0, 12).map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => { onToggle(opt); setSearch(""); }}
+                className="w-full text-left px-3 py-1.5 text-[13px] hover:brightness-95 transition-colors"
+                style={{ color: "var(--color-text-primary)" }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "var(--color-bg-hover)"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+              >
+                {opt}
+              </button>
+            ))}
+            {filtered.length > 12 && (
+              <p className="px-3 py-1 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                {filtered.length - 12} more. Type to filter.
+              </p>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function FreeTagInput({ tags, setTags, placeholder }: {
+  tags: string[];
+  setTags: (tags: string[]) => void;
+  placeholder?: string;
+}) {
+  const [input, setInput] = useState("");
+
+  const addTag = () => {
+    const val = input.trim();
+    if (val && !tags.includes(val)) {
+      setTags([...tags, val]);
+    }
+    setInput("");
+  };
+
+  return (
+    <div>
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-medium"
+              style={{ background: "var(--color-accent)", color: "white" }}
+            >
+              {tag}
+              <button
+                type="button"
+                onClick={() => setTags(tags.filter((t) => t !== tag))}
+                className="ml-0.5 hover:opacity-70"
+                style={{ lineHeight: 1 }}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        type="text"
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); addTag(); }
+        }}
+        placeholder={tags.length > 0 ? "Add more..." : placeholder || "Type and press Enter..."}
+        className="auth-input w-full rounded-lg px-3 py-2 text-[13px] outline-none"
+        style={{
+          background: "var(--color-bg-page)",
+          color: "var(--color-text-primary)",
+          border: "1px solid var(--color-border-default)",
+        }}
+      />
     </div>
   );
 }
@@ -161,7 +300,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, userEmail }: Onboardin
   // Step 1 → Step 2 + trigger website analysis in background
   const handleWelcomeContinue = async () => {
     setSaving(true);
-    await saveOnboardingData({ fullName, companyName, role, step: "welcome" });
+    await saveOnboardingData({ fullName, companyName, role, domain, step: "welcome" });
     setSaving(false);
     setStep("product");
 
@@ -178,7 +317,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, userEmail }: Onboardin
           if (data && !data.error) {
             setWebsiteAnalysis(data);
             // Pre-fill product description if user hasn't typed anything yet
-            if (data.productDescription && !productDesc) {
+            if (data.productDescription && !productDesc && !/unknown|n\/a|<|>/i.test(data.productDescription)) {
               setProductDesc(data.productDescription);
             }
           }
@@ -191,7 +330,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, userEmail }: Onboardin
   // Step 2 → Step 3
   const handleProductContinue = async () => {
     setSaving(true);
-    await saveOnboardingData({ productDesc, salesMotion, aiTone, challenge, step: "product" });
+    await saveOnboardingData({ productDesc, salesMotion, challenge, step: "product" });
     setSaving(false);
     setStep("connect");
 
@@ -238,16 +377,16 @@ export function OnboardingWizard({ onComplete, hasGoogle, userEmail }: Onboardin
   const applyWebsiteAnalysis = () => {
     if (!websiteAnalysis) return;
     if (industries.length === 0 && websiteAnalysis.targetIndustries.length > 0) {
-      setIndustries(websiteAnalysis.targetIndustries.filter((i) => INDUSTRIES.includes(i)));
+      setIndustries(websiteAnalysis.targetIndustries.filter((i) => (INDUSTRIES as readonly string[]).includes(i)));
     }
     if (companySizes.length === 0 && websiteAnalysis.targetCompanySizes.length > 0) {
-      setCompanySizes(websiteAnalysis.targetCompanySizes.filter((s) => COMPANY_SIZES.includes(s)));
+      setCompanySizes(websiteAnalysis.targetCompanySizes.filter((s) => (COMPANY_SIZES as readonly string[]).includes(s)));
     }
     if (!targetRoles && websiteAnalysis.targetRoles) {
       setTargetRoles(websiteAnalysis.targetRoles);
     }
     if (geographies.length === 0 && websiteAnalysis.targetGeographies.length > 0) {
-      setGeographies(websiteAnalysis.targetGeographies.filter((g) => GEOGRAPHIES.includes(g)));
+      setGeographies(websiteAnalysis.targetGeographies);
     }
     if (websiteAnalysis.suggestedTone && aiTone === "Direct") {
       setAiTone(websiteAnalysis.suggestedTone);
@@ -259,26 +398,27 @@ export function OnboardingWizard({ onComplete, hasGoogle, userEmail }: Onboardin
     setStep("building");
     setBuildError(null);
 
-    const icpText = [
-      productDesc && `We sell: ${productDesc}`,
-      targetRoles && `Target buyer: ${targetRoles}`,
-      companySizes.length && `Company size: ${companySizes.join(", ")}`,
-      industries.length && `Industry: ${industries.join(", ")}`,
-      geographies.length && `Geography: ${geographies.join(", ")}`,
-    ].filter(Boolean).join(". ");
+    const apolloSizeRanges = sizesToApolloRanges(companySizes);
 
     try {
-      // Save ICP data
+      // Save ICP data + inferred tone from website analysis
       await saveOnboardingData({
         industries, companySizes, targetRoles, geographies,
+        aiTone,
         step: "icp",
       });
 
-      // Build TAM
+      // Build TAM with structured filters — no LLM translation needed
       const tamRes = await fetch("/api/tam", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ icp: icpText }),
+        body: JSON.stringify({
+          industries,
+          companySizes: apolloSizeRanges,
+          targetRoles,
+          geographies,
+          productDescription: productDesc,
+        }),
       });
 
       if (!tamRes.ok) {
@@ -342,7 +482,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, userEmail }: Onboardin
     }
   }, [hasGoogle, emailConnected]);
 
-  const canContinueWelcome = fullName.trim() && companyName.trim();
+  const canContinueWelcome = fullName.trim() && companyName.trim() && domain.trim();
   const canContinueProduct = productDesc.trim().length >= 10 && challenge;
   const canContinueICP = industries.length > 0 && companySizes.length > 0 && targetRoles.trim();
 
@@ -433,6 +573,28 @@ export function OnboardingWizard({ onComplete, hasGoogle, userEmail }: Onboardin
                 />
               </div>
               <div>
+                <label className="block text-[13px] font-medium mb-1" style={{ color: "var(--color-text-secondary)" }}>
+                  Company website
+                </label>
+                <input
+                  type="text"
+                  value={domain}
+                  onChange={(e) => setDomain(e.target.value.replace(/^https?:\/\/(www\.)?/, "").replace(/\/.*$/, ""))}
+                  placeholder="yourcompany.com"
+                  className="auth-input w-full rounded-lg px-3 py-2 text-[13px] outline-none"
+                  style={{
+                    background: "var(--color-bg-page)",
+                    color: "var(--color-text-primary)",
+                    border: "1px solid var(--color-border-default)",
+                  }}
+                />
+                {domain && (
+                  <p className="mt-1 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                    We&apos;ll analyze your website to pre-fill your ICP
+                  </p>
+                )}
+              </div>
+              <div>
                 <label className="block text-[13px] font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
                   Your role
                 </label>
@@ -500,18 +662,6 @@ export function OnboardingWizard({ onComplete, hasGoogle, userEmail }: Onboardin
 
               <div>
                 <label className="block text-[13px] font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
-                  AI tone for emails
-                </label>
-                <PillSelect
-                  options={TONES}
-                  selected={[aiTone]}
-                  onToggle={(val) => setAiTone(val)}
-                  multi={false}
-                />
-              </div>
-
-              <div>
-                <label className="block text-[13px] font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
                   Biggest challenge right now *
                 </label>
                 <PillSelect
@@ -563,7 +713,9 @@ export function OnboardingWizard({ onComplete, hasGoogle, userEmail }: Onboardin
                 <div key={item.title} className="flex items-start gap-2.5">
                   <span className="mt-0.5 shrink-0" style={{ color: "var(--color-accent)" }}>{item.icon}</span>
                   <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-                    <strong style={{ color: "var(--color-text-primary)" }}>{item.title}</strong> — {item.desc}
+                    <strong style={{ color: "var(--color-text-primary)" }}>{item.title}</strong>
+                    <br />
+                    <span style={{ color: "var(--color-text-tertiary)" }}>{item.desc}</span>
                   </p>
                 </div>
               ))}
@@ -574,7 +726,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, userEmail }: Onboardin
                 <div className="flex items-center gap-2">
                   <Check size={16} style={{ color: "#22c55e" }} />
                   <span className="text-[13px] font-medium" style={{ color: "#22c55e" }}>
-                    Email connected — syncing in background
+                    Email connected. Syncing in background.
                   </span>
                 </div>
                 {syncProgress && (
@@ -651,31 +803,37 @@ export function OnboardingWizard({ onComplete, hasGoogle, userEmail }: Onboardin
         {/* ──────────── STEP 4: YOUR CUSTOMER (ICP) ──────────── */}
         {step === "icp" && (
           <div>
-            <h2 className="text-lg font-semibold mb-1" style={{ color: "var(--color-text-primary)" }}>
-              {websiteAnalysis ? "We analyzed your website — does this look right?" : "Who is your ideal customer?"}
-            </h2>
-            <p className="text-[13px] mb-4" style={{ color: "var(--color-text-tertiary)" }}>
-              {websiteAnalysis
-                ? "We inferred your ICP from your website and product description. Adjust anything that doesn't fit."
-                : `We'll find companies that match${emailConnected ? " — and flag which ones you're already talking to" : ""}.`
-              }
-            </p>
+            {websiteAnalysis ? (
+              <>
+                <h2 className="text-lg font-semibold mb-1" style={{ color: "var(--color-text-primary)" }}>
+                  We analyzed your website
+                </h2>
+                <p className="text-[13px] mb-4" style={{ color: "var(--color-text-tertiary)" }}>
+                  Here&apos;s who we think you should target. Adjust anything that doesn&apos;t fit.
+                </p>
 
-            {/* AI reasoning card */}
-            {websiteAnalysis && (
-              <div className="rounded-lg p-3 mb-4" style={{ background: "rgba(44, 107, 237, 0.06)", border: "1px solid rgba(44, 107, 237, 0.15)" }}>
-                <div className="flex items-start gap-2">
-                  <Sparkles size={14} className="mt-0.5 shrink-0" style={{ color: "var(--color-accent)" }} />
-                  <div>
-                    <p className="text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+                {/* AI summary as natural language */}
+                <div className="rounded-lg p-4 mb-5" style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}>
+                  <div className="flex items-start gap-2.5 mb-2">
+                    <Sparkles size={15} className="mt-0.5 shrink-0" style={{ color: "var(--color-accent)" }} />
+                    <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-text-primary)" }}>
                       {websiteAnalysis.companyDescription}
                     </p>
-                    <p className="text-[11px] mt-1" style={{ color: "var(--color-text-tertiary)" }}>
-                      {websiteAnalysis.reasoning}
-                    </p>
                   </div>
+                  <p className="text-[12px] ml-[26px]" style={{ color: "var(--color-text-tertiary)" }}>
+                    {websiteAnalysis.reasoning}
+                  </p>
                 </div>
-              </div>
+              </>
+            ) : (
+              <>
+                <h2 className="text-lg font-semibold mb-1" style={{ color: "var(--color-text-primary)" }}>
+                  Who is your ideal customer?
+                </h2>
+                <p className="text-[13px] mb-4" style={{ color: "var(--color-text-tertiary)" }}>
+                  We&apos;ll find companies that match{emailConnected ? ", and flag which ones you're already talking to" : ""}.
+                </p>
+              </>
             )}
 
             {buildError && (
@@ -686,25 +844,26 @@ export function OnboardingWizard({ onComplete, hasGoogle, userEmail }: Onboardin
 
             {emailConnected && !websiteAnalysis && (
               <div className="rounded-lg p-2.5 mb-4 text-[12px]" style={{ background: "rgba(44, 107, 237, 0.06)", border: "1px solid rgba(44, 107, 237, 0.15)", color: "var(--color-accent)" }}>
-                Email syncing — we&apos;ll cross-reference your contacts with your ICP.
+                Email syncing. We&apos;ll cross-reference your contacts with your ICP.
               </div>
             )}
 
             <div className="space-y-4">
               <div>
                 <label className="block text-[13px] font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
-                  Target industries *
+                  Industries
                 </label>
-                <PillSelect
+                <TagInput
                   options={INDUSTRIES}
                   selected={industries}
                   onToggle={(val) => togglePill(industries, val, setIndustries)}
+                  placeholder="Search industries..."
                 />
               </div>
 
               <div>
                 <label className="block text-[13px] font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
-                  Company size *
+                  Company size
                 </label>
                 <PillSelect
                   options={COMPANY_SIZES}
@@ -714,8 +873,19 @@ export function OnboardingWizard({ onComplete, hasGoogle, userEmail }: Onboardin
               </div>
 
               <div>
+                <label className="block text-[13px] font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+                  Geography
+                </label>
+                <FreeTagInput
+                  tags={geographies}
+                  setTags={setGeographies}
+                  placeholder="Type a location and press Enter (e.g., France, California, London...)"
+                />
+              </div>
+
+              <div>
                 <label className="block text-[13px] font-medium mb-1" style={{ color: "var(--color-text-secondary)" }}>
-                  Target role / title *
+                  Decision-maker role
                 </label>
                 <input
                   type="text"
@@ -728,17 +898,6 @@ export function OnboardingWizard({ onComplete, hasGoogle, userEmail }: Onboardin
                     color: "var(--color-text-primary)",
                     border: "1px solid var(--color-border-default)",
                   }}
-                />
-              </div>
-
-              <div>
-                <label className="block text-[13px] font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
-                  Geography
-                </label>
-                <PillSelect
-                  options={GEOGRAPHIES}
-                  selected={geographies}
-                  onToggle={(val) => togglePill(geographies, val, setGeographies)}
                 />
               </div>
             </div>
@@ -865,7 +1024,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, userEmail }: Onboardin
                 </p>
                 <p className="text-[12px] mt-1" style={{ color: "var(--color-text-secondary)" }}>
                   {emailIntelligence.followUps > 0
-                    ? `${emailIntelligence.followUps} need follow-up — they haven't heard from you in over a week.`
+                    ? `${emailIntelligence.followUps} need follow-up. They haven't heard from you in over a week.`
                     : `You've had ${emailIntelligence.conversations} conversations with them.`
                   }
                 </p>
