@@ -80,11 +80,12 @@ export default auth((req) => {
 
   if (isPublic) return NextResponse.next();
 
-  // Root path: show landing if not authenticated, dashboard if authenticated
+  // Root path: marketing page for visitors, redirect to /chat for authenticated users
   if (pathname === "/") {
-    if (!req.auth?.user) {
-      return NextResponse.rewrite(new URL("/landing", req.url));
+    if (req.auth?.user) {
+      return NextResponse.redirect(new URL("/chat", req.url));
     }
+    // Unauthenticated: fall through to (marketing)/page.tsx
     return NextResponse.next();
   }
 
