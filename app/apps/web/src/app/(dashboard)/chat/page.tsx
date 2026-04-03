@@ -206,11 +206,11 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col overflow-hidden">
       {/* Thread header (when in a thread) */}
       {threadId && chat.messages.length > 0 && (
         <div
-          className="flex items-center gap-2 px-6 py-2"
+          className="flex shrink-0 items-center gap-2 px-4 py-2 sm:px-6"
           style={{ borderBottom: "1px solid var(--color-border-default)" }}
         >
           <Sparkles size={14} style={{ color: "var(--color-accent)" }} />
@@ -240,9 +240,9 @@ export default function ChatPage() {
       )}
 
       {/* Messages area */}
-      <div className="flex-1 overflow-auto px-6 py-8">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8">
         {chat.messages.length === 0 && threadLoaded && (
-          <div className="mx-auto flex h-full max-w-2xl flex-col items-center justify-center">
+          <div className="mx-auto flex min-h-[60vh] max-w-[740px] flex-col items-center justify-center">
             <div
               className="flex h-10 w-10 items-center justify-center rounded-xl"
               style={{ background: "var(--color-accent-soft)" }}
@@ -261,7 +261,7 @@ export default function ChatPage() {
             >
               Ask about your pipeline, accounts, or get help with outreach.
             </p>
-            <div className="mt-8 grid grid-cols-2 gap-2 w-full max-w-lg">
+            <div className="mt-8 grid w-full max-w-lg grid-cols-1 gap-2 sm:grid-cols-2">
               {(suggestions.length > 0
                 ? suggestions
                 : [
@@ -276,7 +276,7 @@ export default function ChatPage() {
                 <button
                   key={suggestion}
                   onClick={() => useSuggestion(suggestion)}
-                  className="text-left rounded-lg px-4 py-3 text-[13px] transition-all hover:brightness-95"
+                  className="rounded-lg px-4 py-3 text-left text-[13px] transition-all hover:brightness-95"
                   style={{
                     background: "var(--color-bg-card)",
                     color: "var(--color-text-secondary)",
@@ -290,7 +290,7 @@ export default function ChatPage() {
           </div>
         )}
 
-        <div className="mx-auto max-w-2xl">
+        <div className="mx-auto max-w-[740px]">
           {chat.messages.map((message) => (
             <div
               key={message.id}
@@ -316,7 +316,7 @@ export default function ChatPage() {
                 </div>
               ) : (
                 /* AI message — left-aligned, NO background, with "LeadSens" sparkle label */
-                <div className="max-w-[90%]">
+                <div className="min-w-0 max-w-full">
                   {/* AI label */}
                   <div
                     className="mb-2 flex items-center gap-1.5 text-[12px]"
@@ -469,11 +469,12 @@ export default function ChatPage() {
 
                   {/* Message content with entity links */}
                   <div
-                    className="prose prose-sm max-w-none [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5 [&_code]:rounded [&_code]:px-1.5 [&_code]:py-0.5"
+                    className="prose prose-sm max-w-none overflow-hidden break-words [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5 [&_code]:rounded [&_code]:px-1.5 [&_code]:py-0.5"
                     style={{
                       fontSize: "15px",
                       lineHeight: "22px",
                       color: "var(--color-text-primary)",
+                      overflowWrap: "break-word",
                     }}
                   >
                     {message.parts
@@ -526,9 +527,9 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Chat input bar — bottom fixed, rounded-xl bg-card with subtle shadow */}
+      {/* Chat input bar — bottom, same max-w as messages */}
       <div
-        className="px-6 pb-4 pt-3"
+        className="shrink-0 px-4 pb-4 pt-3 sm:px-6"
         style={{ borderTop: "1px solid var(--color-border-default)" }}
       >
         <form onSubmit={handleLocalSubmit} className="relative mx-auto max-w-[740px]">

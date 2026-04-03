@@ -38,13 +38,13 @@ export function ChatMarkdown({ children }: ChatMarkdownProps) {
     table({ children }) {
       return (
         <div
-          className="my-3 overflow-auto rounded-lg"
+          className="my-3 max-w-full overflow-x-auto rounded-lg"
           style={{
-            border: "0.667px solid oklch(0 0 0 / 0.10)",
+            border: "0.667px solid var(--color-border-default)",
             background: "var(--color-bg-card)",
           }}
         >
-          <table className="w-full text-[14px]" style={{ borderCollapse: "collapse" }}>
+          <table className="w-full text-[14px]" style={{ borderCollapse: "collapse", minWidth: 400 }}>
             {children}
           </table>
         </div>
@@ -56,11 +56,11 @@ export function ChatMarkdown({ children }: ChatMarkdownProps) {
     th({ children }) {
       return (
         <th
-          className="px-4 py-2.5 text-left text-[13px]"
+          className="px-4 py-2.5 text-left text-[13px] whitespace-nowrap"
           style={{
-            color: "oklch(0 0 0 / 0.45)",
-            fontWeight: 450,
-            borderBottom: "0.667px solid oklch(0 0 0 / 0.08)",
+            color: "var(--color-text-tertiary)",
+            fontWeight: 500,
+            borderBottom: "0.667px solid var(--color-border-default)",
           }}
         >
           {children}
@@ -74,7 +74,7 @@ export function ChatMarkdown({ children }: ChatMarkdownProps) {
           style={{
             color: "var(--color-text-primary)",
             fontWeight: 425,
-            borderBottom: "0.667px solid oklch(0 0 0 / 0.05)",
+            borderBottom: "0.667px solid var(--color-border-default)",
           }}
         >
           {children}
@@ -86,7 +86,7 @@ export function ChatMarkdown({ children }: ChatMarkdownProps) {
         <tr
           className="transition-colors"
           style={{ cursor: "default" }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(0 0 0 / 0.02)"; }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
         >
           {children}
