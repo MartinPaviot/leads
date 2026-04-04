@@ -15,6 +15,8 @@ import {
   Database,
   CreditCard,
   Workflow,
+  Box,
+  Plug,
 } from "lucide-react";
 
 const settingsNav = [
@@ -32,6 +34,7 @@ const settingsNav = [
       { label: "Members", href: "/settings/members", icon: Users },
       { label: "Knowledge", href: "/settings/knowledge", icon: BookOpen },
       { label: "Data Model", href: "/settings/data-model", icon: Database },
+      { label: "Custom Objects", href: "/settings/objects", icon: Box },
       { label: "Opportunity Stages", href: "/settings/stages", icon: GitBranch },
       { label: "Notifications", href: "/settings/notifications", icon: Bell },
       { label: "Workflows", href: "/settings/workflows", icon: Workflow },
@@ -41,6 +44,12 @@ const settingsNav = [
     label: "Outbound",
     items: [
       { label: "Mailboxes", href: "/settings/mailboxes", icon: Mail },
+    ],
+  },
+  {
+    label: "Developer",
+    items: [
+      { label: "MCP Integration", href: "/settings/mcp", icon: Plug },
     ],
   },
   {

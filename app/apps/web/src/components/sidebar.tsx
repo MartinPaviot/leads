@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
@@ -25,10 +25,31 @@ import {
   LogOut,
   Moon,
   Sun,
+  Box,
+  Folder,
+  Package,
+  Handshake,
+  Lightbulb,
+  Target,
+  Rocket,
+  Star,
+  Tag,
+  Layers,
+  Briefcase,
+  Globe,
+  Heart,
+  Bookmark,
+  Flag,
+  type LucideIcon,
 } from "lucide-react";
 import { useTheme } from "@/components/ui/theme-provider";
 import { Avatar } from "@/components/ui/avatar";
 import { NotificationBell } from "@/components/notification-bell";
+
+const CUSTOM_ICON_MAP: Record<string, LucideIcon> = {
+  Box, Folder, Package, Handshake, Lightbulb, Target, Rocket,
+  Star, Tag, Layers, Briefcase, Globe, Heart, Bookmark, Flag,
+};
 
 interface SidebarProps {
   userName: string;
@@ -72,10 +93,25 @@ const navSections = [
   },
 ];
 
+interface CustomObjectType {
+  id: string;
+  name: string;
+  nameSingular: string;
+  icon: string;
+}
+
 export function Sidebar({ userName, userInitials, recentChats, onSignOut }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [customObjectTypes, setCustomObjectTypes] = useState<CustomObjectType[]>([]);
   const pathname = usePathname();
   const { theme, toggle: toggleTheme } = useTheme();
+
+  useEffect(() => {
+    fetch("/api/custom-objects")
+      .then((r) => (r.ok ? r.json() : { objectTypes: [] }))
+      .then((data) => setCustomObjectTypes(data.objectTypes || []))
+      .catch(() => {});
+  }, []);
 
   function isActive(href: string) {
     if (href === "/") return pathname === "/";
@@ -184,6 +220,60 @@ export function Sidebar({ userName, userInitials, recentChats, onSignOut }: Side
             </div>
           </div>
         ))}
+
+        {/* Custom Objects section */}
+        {customObjectTypes.length > 0 && (
+          <div className="mt-4">
+            {!collapsed && (
+              <div
+                className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider"
+                style={{ color: "var(--color-text-tertiary)" }}
+              >
+                Custom
+              </div>
+            )}
+            {collapsed && (
+              <div
+                className="mx-2 mb-2 mt-1"
+                style={{ borderTop: "1px solid var(--color-border-default)" }}
+              />
+            )}
+            <div className="space-y-0.5">
+              {customObjectTypes.map((ot) => {
+                const OtIcon = CUSTOM_ICON_MAP[ot.icon] || Box;
+                const href = `/objects/${ot.id}`;
+                const active = isActive(href);
+                return (
+                  <Link
+                    key={ot.id}
+                    href={href}
+                    className={`group flex items-center gap-2.5 rounded-md text-[13px] font-medium transition-all duration-150 ${
+                      collapsed ? "h-8 w-8 justify-center mx-auto" : "h-8 px-2.5"
+                    }`}
+                    style={{
+                      color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                      background: active ? "var(--color-accent-soft)" : "transparent",
+                      boxShadow: active && !collapsed
+                        ? "inset 3px 0 0 0 var(--color-accent)"
+                        : undefined,
+                    }}
+                    title={collapsed ? ot.name : undefined}
+                  >
+                    <OtIcon
+                      size={16}
+                      className="shrink-0"
+                      style={{
+                        color: active ? "var(--color-accent)" : undefined,
+                        opacity: active ? 1 : 0.6,
+                      }}
+                    />
+                    {!collapsed && <span className="truncate">{ot.name}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Chats section */}
         <div className="mt-4">

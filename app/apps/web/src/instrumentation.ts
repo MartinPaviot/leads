@@ -12,5 +12,13 @@ export async function register() {
     } catch (err) {
       console.warn("Vector index setup skipped:", err instanceof Error ? err.message : err);
     }
+
+    // Ensure custom_records table exists for custom objects
+    try {
+      const { ensureCustomRecordsTable } = await import("@/db/ensure-custom-records");
+      await ensureCustomRecordsTable();
+    } catch (err) {
+      console.warn("Custom records table setup skipped:", err instanceof Error ? err.message : err);
+    }
   }
 }

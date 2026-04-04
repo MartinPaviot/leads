@@ -39,6 +39,23 @@ export interface TenantSettings {
 
   // ── Agent behavior ──
   agentApprovalMode?: "auto" | "ask" | "manual";
+
+  // ── Custom objects ──
+  customObjectTypes?: CustomObjectTypeDef[];
+
+  // ── MCP API keys ──
+  mcpApiKeys?: McpApiKeyEntry[];
+}
+
+export interface McpApiKeyEntry {
+  id: string;
+  name: string;
+  /** The hashed key (bcrypt). Only stored hashed. */
+  keyHash: string;
+  /** The key prefix for display, e.g. "mcp_a1b2..." */
+  keyPrefix: string;
+  createdAt: string;
+  lastUsedAt?: string;
 }
 
 export interface CustomFieldDef {
@@ -60,6 +77,22 @@ export interface PipelineStageDef {
 export interface KnowledgeEntry {
   topic: string;
   content: string;
+}
+
+export interface CustomObjectFieldDef {
+  id: string;
+  name: string;
+  type: "text" | "number" | "date" | "select" | "url" | "boolean";
+  options?: string[];   // for select type
+  required?: boolean;
+}
+
+export interface CustomObjectTypeDef {
+  id: string;           // slug, e.g. "project"
+  name: string;         // plural display, e.g. "Projects"
+  nameSingular: string; // singular, e.g. "Project"
+  icon: string;         // lucide icon name, e.g. "Folder"
+  fields: CustomObjectFieldDef[];
 }
 
 // ── Defaults ──
