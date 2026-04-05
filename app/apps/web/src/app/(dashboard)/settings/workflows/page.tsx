@@ -72,6 +72,7 @@ export default function WorkflowsPage() {
     actionSubject: "",
   });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     fetch("/api/settings/workflows")
@@ -83,13 +84,16 @@ export default function WorkflowsPage() {
 
   async function saveWorkflows(updated: WorkflowDef[]) {
     setSaving(true);
+    setError("");
     try {
       await fetch("/api/settings/workflows", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ workflows: updated }),
       });
-    } catch { /* */ }
+    } catch {
+      setError("Failed to save workflow changes");
+    }
     setSaving(false);
   }
 
@@ -160,6 +164,7 @@ export default function WorkflowsPage() {
           </Button>
         </div>
       </div>
+      {error && <p className="mt-2 text-[12px]" style={{ color: "var(--color-error)" }}>{error}</p>}
 
       {/* Create workflow form */}
       {showCreate && (

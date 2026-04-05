@@ -15,6 +15,7 @@ export default function KnowledgeSettingsPage() {
   const [topics, setTopics] = useState<KnowledgeTopic[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   const fetchTopics = useCallback(async () => {
     try {
@@ -24,7 +25,7 @@ export default function KnowledgeSettingsPage() {
         setTopics(data.knowledge || []);
       }
     } catch {
-      console.error("Failed to fetch knowledge");
+      setError("Failed to load knowledge topics");
     } finally {
       setLoading(false);
     }
@@ -42,6 +43,7 @@ export default function KnowledgeSettingsPage() {
   async function saveTopic(topic: KnowledgeTopic) {
     if (!topic.topic.trim() || !topic.content.trim()) return;
     setSaving(topic.id);
+    setError("");
 
     try {
       if (topic.id.startsWith("temp-")) {
@@ -52,6 +54,8 @@ export default function KnowledgeSettingsPage() {
         });
         if (res.ok) {
           await fetchTopics();
+        } else {
+          setError("Failed to save topic");
         }
       } else {
         await fetch("/api/settings/knowledge", {
@@ -61,7 +65,7 @@ export default function KnowledgeSettingsPage() {
         });
       }
     } catch {
-      console.error("Failed to save topic");
+      setError("Failed to save topic");
     } finally {
       setSaving(null);
     }
@@ -73,11 +77,12 @@ export default function KnowledgeSettingsPage() {
       return;
     }
 
+    setError("");
     try {
       await fetch(`/api/settings/knowledge?id=${id}`, { method: "DELETE" });
       setTopics(topics.filter((t) => t.id !== id));
     } catch {
-      console.error("Failed to remove topic");
+      setError("Failed to remove topic");
     }
   }
 
@@ -96,6 +101,7 @@ export default function KnowledgeSettingsPage() {
       <Button variant="outline" size="md" onClick={addTopic} className="mt-4">
         + Add knowledge
       </Button>
+      {error && <p className="mt-2 text-[12px]" style={{ color: "var(--color-error)" }}>{error}</p>}
 
       <div className="mt-4 space-y-4">
         {loading ? (

@@ -11,6 +11,7 @@ export default function WorkspaceSettingsPage() {
   const [domains, setDomains] = useState<string[]>([]);
   const [newDomain, setNewDomain] = useState("");
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     fetch("/api/settings/workspace")
@@ -19,11 +20,12 @@ export default function WorkspaceSettingsPage() {
         setName(data.name || "");
         setDomains(data.companyDomains || []);
       })
-      .catch(console.error);
+      .catch(() => setError("Failed to load workspace settings"));
   }, []);
 
   async function saveName() {
     if (!name.trim()) return;
+    setError("");
     try {
       await fetch("/api/settings/workspace", {
         method: "PUT",
@@ -33,7 +35,7 @@ export default function WorkspaceSettingsPage() {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {
-      console.error("Failed to save");
+      setError("Failed to save workspace name");
     }
   }
 
@@ -43,21 +45,31 @@ export default function WorkspaceSettingsPage() {
     const updated = [...domains, d];
     setDomains(updated);
     setNewDomain("");
-    await fetch("/api/settings/workspace", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ companyDomains: updated }),
-    }).catch(console.error);
+    setError("");
+    try {
+      await fetch("/api/settings/workspace", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyDomains: updated }),
+      });
+    } catch {
+      setError("Failed to save domain");
+    }
   }
 
   async function removeDomain(domain: string) {
     const updated = domains.filter((d) => d !== domain);
     setDomains(updated);
-    await fetch("/api/settings/workspace", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ companyDomains: updated }),
-    }).catch(console.error);
+    setError("");
+    try {
+      await fetch("/api/settings/workspace", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyDomains: updated }),
+      });
+    } catch {
+      setError("Failed to remove domain");
+    }
   }
 
   return (
@@ -85,6 +97,7 @@ export default function WorkspaceSettingsPage() {
             </Button>
           </div>
           {saved && <p className="mt-1 text-xs text-green-400">Saved</p>}
+          {error && <p className="mt-1 text-[12px]" style={{ color: "var(--color-error)" }}>{error}</p>}
         </div>
 
         <div>
@@ -119,10 +132,10 @@ export default function WorkspaceSettingsPage() {
                 <div>
                   <p className="text-sm text-[var(--color-text-primary)]">Delete workspace</p>
                   <p className="text-xs text-[var(--color-text-tertiary)]">
-                    Schedule workspace to be permanently deleted
+                    Contact support to delete your workspace.
                   </p>
                 </div>
-                <Button variant="destructive" size="sm">
+                <Button variant="destructive" size="sm" disabled>
                   Delete workspace
                 </Button>
               </div>

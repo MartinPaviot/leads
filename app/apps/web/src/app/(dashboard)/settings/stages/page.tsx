@@ -16,12 +16,13 @@ export default function StagesSettingsPage() {
   const [stages, setStages] = useState<Stage[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     fetch("/api/settings/stages")
       .then((r) => r.json())
       .then((data) => setStages(data.stages || []))
-      .catch(console.error)
+      .catch(() => setError("Failed to load stages"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -40,6 +41,7 @@ export default function StagesSettingsPage() {
   async function saveStages() {
     const valid = stages.filter((s) => s.name.trim());
     setSaving(true);
+    setError("");
     try {
       await fetch("/api/settings/stages", {
         method: "PUT",
@@ -47,7 +49,7 @@ export default function StagesSettingsPage() {
         body: JSON.stringify({ stages: valid }),
       });
     } catch {
-      console.error("Failed to save stages");
+      setError("Failed to save stages");
     } finally {
       setSaving(false);
     }
@@ -196,14 +198,16 @@ export default function StagesSettingsPage() {
             </div>
           </div>
 
-          <Button
-            variant="gradient"
-            onClick={saveStages}
-            loading={saving}
-            className="mt-6"
-          >
-            {saving ? "Saving..." : "Save stages"}
-          </Button>
+          <div className="mt-6 flex items-center gap-3">
+            <Button
+              variant="gradient"
+              onClick={saveStages}
+              loading={saving}
+            >
+              {saving ? "Saving..." : "Save stages"}
+            </Button>
+            {error && <p className="text-[12px]" style={{ color: "var(--color-error)" }}>{error}</p>}
+          </div>
         </>
       )}
     </>

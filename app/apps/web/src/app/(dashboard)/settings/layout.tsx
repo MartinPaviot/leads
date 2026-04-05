@@ -17,26 +17,30 @@ import {
   Workflow,
   Box,
   Plug,
+  Target,
+  ShieldCheck,
 } from "lucide-react";
 
 const settingsNav = [
   {
     label: "Account",
     items: [
-      { label: "Settings", href: "/settings", icon: User },
       { label: "Agent", href: "/settings/agent", icon: Bot },
+      { label: "Settings", href: "/settings", icon: User },
     ],
   },
   {
     label: "Workspace",
     items: [
-      { label: "General", href: "/settings/workspace", icon: Building },
-      { label: "Members", href: "/settings/members", icon: Users },
-      { label: "Knowledge", href: "/settings/knowledge", icon: BookOpen },
-      { label: "Data Model", href: "/settings/data-model", icon: Database },
       { label: "Custom Objects", href: "/settings/objects", icon: Box },
-      { label: "Opportunity Stages", href: "/settings/stages", icon: GitBranch },
+      { label: "Data Model", href: "/settings/data-model", icon: Database },
+      { label: "General", href: "/settings/workspace", icon: Building },
+      { label: "ICP & Product", href: "/settings/icp", icon: Target },
+      { label: "Knowledge", href: "/settings/knowledge", icon: BookOpen },
+      { label: "Members", href: "/settings/members", icon: Users },
       { label: "Notifications", href: "/settings/notifications", icon: Bell },
+      { label: "Opportunity Stages", href: "/settings/stages", icon: GitBranch },
+      { label: "Privacy & Sync", href: "/settings/privacy", icon: ShieldCheck },
       { label: "Workflows", href: "/settings/workflows", icon: Workflow },
     ],
   },
@@ -64,10 +68,10 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   const pathname = usePathname();
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full min-h-0">
       {/* Settings sidebar */}
       <aside
-        className="flex w-[var(--sidebar-width)] flex-shrink-0 flex-col px-2 py-3"
+        className="flex w-[var(--sidebar-width)] flex-shrink-0 flex-col overflow-y-auto px-2 py-3"
         style={{ borderRight: "1px solid var(--color-border-default)", background: "var(--color-bg-card)" }}
       >
         <Link
@@ -120,7 +124,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
       </aside>
 
       <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl px-8 py-10">{children}</div>
+        <div className="mx-auto max-w-2xl py-10">{children}</div>
       </main>
     </div>
   );

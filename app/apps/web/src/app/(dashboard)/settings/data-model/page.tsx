@@ -45,6 +45,7 @@ export default function DataModelPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [newField, setNewField] = useState({ name: "", type: "text", aiFillMode: "off", options: "" });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     fetch("/api/settings/data-model")
@@ -89,6 +90,7 @@ export default function DataModelPage() {
   }
 
   async function saveFields(fieldsToSave: CustomField[]) {
+    setError("");
     try {
       await fetch("/api/settings/data-model", {
         method: "PUT",
@@ -96,7 +98,7 @@ export default function DataModelPage() {
         body: JSON.stringify({ fields: fieldsToSave }),
       });
     } catch {
-      console.error("Failed to save fields");
+      setError("Failed to save fields");
     }
   }
 
@@ -108,6 +110,7 @@ export default function DataModelPage() {
       <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
         Customize fields for each entity type. The AI reads field descriptions to fill data automatically.
       </p>
+      {error && <p className="mt-2 text-[12px]" style={{ color: "var(--color-error)" }}>{error}</p>}
 
       {/* Entity type tabs */}
       <div className="mt-6 flex gap-1">
