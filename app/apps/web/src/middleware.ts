@@ -80,8 +80,11 @@ export default auth((req) => {
 
   if (isPublic) return NextResponse.next();
 
-  // Root path: always show marketing page (both authenticated and unauthenticated)
+  // Root path: authenticated users go to dashboard, unauthenticated see marketing
   if (pathname === "/") {
+    if (req.auth?.user) {
+      return NextResponse.redirect(new URL("/home", req.url));
+    }
     return NextResponse.next();
   }
 
