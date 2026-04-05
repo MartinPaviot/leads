@@ -74,7 +74,7 @@ export default function TasksPage() {
 
       {/* Add task bar */}
       <div
-        className="flex items-center gap-2 px-6 py-2"
+        className="flex items-center gap-2 px-4 py-2"
         style={{ borderBottom: "1px solid var(--color-border-default)", background: "var(--color-bg-card)" }}
       >
         <input
@@ -104,7 +104,7 @@ export default function TasksPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto px-6 py-4">
+      <div className="flex-1 overflow-auto px-4 py-4">
         {loading ? (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-11 w-full" />)}

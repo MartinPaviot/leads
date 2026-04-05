@@ -62,7 +62,7 @@ export default function DeliverabilityPage() {
     return (
       <div className="flex h-full flex-col">
         <PageHeader title="Deliverability" subtitle="Email sending health and monitoring" />
-        <div className="p-6">
+        <div className="px-4 py-6">
           <p className="text-sm text-[var(--color-text-tertiary)]">Loading...</p>
         </div>
       </div>
@@ -73,7 +73,7 @@ export default function DeliverabilityPage() {
     return (
       <div className="flex h-full flex-col">
         <PageHeader title="Deliverability" subtitle="Email sending health and monitoring" />
-        <div className="p-6">
+        <div className="px-4 py-6">
           <p className="text-sm text-[var(--color-text-tertiary)]">Failed to load deliverability data.</p>
         </div>
       </div>
@@ -96,7 +96,7 @@ export default function DeliverabilityPage() {
         </div>
       </PageHeader>
 
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto px-4 py-6">
         {/* Warnings */}
         {data.warnings.length > 0 && (
           <div className="space-y-2">

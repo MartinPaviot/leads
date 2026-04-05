@@ -82,7 +82,7 @@ export default function VoiceOfCustomerPage() {
         subtitle={`${themes.length} themes from ${totalInteractions} interactions`}
       />
 
-      <div className="flex-1 overflow-auto px-6 py-6">
+      <div className="flex-1 overflow-auto px-4 py-6">
         {themes.length === 0 ? (
           <EmptyState
             icon={<MessageCircle size={24} />}

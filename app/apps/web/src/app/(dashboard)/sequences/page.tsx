@@ -84,7 +84,7 @@ export default function SequencesPage() {
         </Button>
       </PageHeader>
 
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto px-4 py-6">
         {showCreate && (
           <form onSubmit={handleCreate} className="mb-6 space-y-2">
             <input

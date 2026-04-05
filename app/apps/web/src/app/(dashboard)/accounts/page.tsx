@@ -1,7 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Building2, Search, Plus, Zap, Target, Radio, X } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Building2, Search, Plus, Zap, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, type LucideIcon } from "lucide-react";
+
+function LinkedInIcon({ size = 13 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+    </svg>
+  );
+}
 import { getLifecycleStyle, formatScore } from "@/lib/ui-utils";
 import { SlideOver, PropertyRow } from "@/components/slide-over";
 import { useCustomFields } from "@/hooks/use-custom-fields";
@@ -26,6 +34,7 @@ interface Account {
   score: number | null;
   scoreReasons: string[] | null;
   properties: Record<string, unknown> | null;
+  lastInteraction: { date: string; summary: string | null } | null;
 }
 
 type EnrichStatus = "idle" | "enriching" | "done" | "failed";
@@ -60,6 +69,19 @@ export default function AccountsPage() {
   }, []);
 
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
+
+  // Close signal popover on outside click
+  const signalPopoverRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!activeSignalPopover) return;
+    function h(e: MouseEvent) {
+      if (signalPopoverRef.current && !signalPopoverRef.current.contains(e.target as Node)) {
+        setActiveSignalPopover(null);
+      }
+    }
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [activeSignalPopover]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -125,6 +147,23 @@ export default function AccountsPage() {
       const res = await fetch("/api/search/tam", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: searchQuery.trim(), entityType: "company", limit: 20 }) });
       if (res.ok) { const data = await res.json(); setSearchResults(data.results.map((r: { entityId: string }) => r.entityId)); }
     } catch { /* */ } finally { setSearching(false); }
+  }
+
+  function getLinkedInUrl(account: Account): string | null {
+    const props = account.properties as Record<string, unknown> | null;
+    return (props?.linkedinUrl as string) || (props?.linkedin_url as string) || null;
+  }
+
+  function timeAgo(dateStr: string): string {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    const months = Math.floor(days / 30);
+    return `${months}mo ago`;
   }
 
   function isEnriched(account: Account): boolean { return !!(account.industry && account.description); }
@@ -350,13 +389,27 @@ export default function AccountsPage() {
           <table className="ls-table">
             <thead>
               <tr>
-                {["", "Account", "Domain", "Industry", "Size", "Revenue", "Stage", "Score",
-                  ...signalTypeColumns.map((t) => t.replace(/_/g, " ")),
-                  ...customBoolColumns,
-                  ...customFields.map((f) => f.name),
-                  ""].map((col, i) => (
+                {([
+                  { label: "Account", icon: Building2 },
+                  { label: "Website", icon: Globe },
+                  { label: "LinkedIn", icon: null },
+                  { label: "Industry", icon: Factory },
+                  { label: "Size", icon: Ruler },
+                  { label: "Revenue", icon: DollarSign },
+                  { label: "Stage", icon: GitBranch },
+                  { label: "Score", icon: Gauge },
+                  { label: "Last Interaction", icon: Clock },
+                  ...signalTypeColumns.map((t) => ({ label: t.replace(/_/g, " "), icon: Radio as LucideIcon })),
+                  ...customBoolColumns.map((c) => ({ label: c, icon: Target as LucideIcon })),
+                  ...customFields.map((f) => ({ label: f.name, icon: null as LucideIcon | null })),
+                  { label: "", icon: null },
+                ] as Array<{ label: string; icon: LucideIcon | null }>).map((col, i) => (
                   <th key={i}>
-                    {col}
+                    <span className="flex items-center gap-1.5">
+                      {col.icon && <col.icon size={12} style={{ opacity: 0.5 }} />}
+                      {col.label === "LinkedIn" && <span style={{ opacity: 0.5 }}><LinkedInIcon size={12} /></span>}
+                      {col.label}
+                    </span>
                   </th>
                 ))}
               </tr>
@@ -369,52 +422,54 @@ export default function AccountsPage() {
 
                 return (
                   <tr key={account.id}>
-                    {/* Status */}
+                    {/* Account name with logo + status */}
                     <td>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2.5">
+                        {/* Status dot */}
                         {enrichStatus[account.id] === "enriching" ? (
-                          <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: "var(--color-warning)" }} />
+                          <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full" style={{ background: "var(--color-warning)" }} />
                         ) : isEnriched(account) ? (
-                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-success)" }} />
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--color-success)" }} />
                         ) : enrichStatus[account.id] === "failed" ? (
-                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-error)" }} />
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--color-error)" }} />
                         ) : (
-                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-text-muted)" }} />
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--color-text-muted)" }} />
                         )}
-                        {isTAM(account) && (
-                          <Badge variant="info" size="sm">TAM</Badge>
-                        )}
-                      </div>
-                    </td>
 
-                    {/* Account name with logo */}
-                    <td>
-                      <div className="flex items-center gap-2">
-                        {account.domain ? (
-                          <img
-                            src={`https://logo.clearbit.com/${account.domain}`}
-                            alt=""
-                            className="h-5 w-5 shrink-0 rounded"
-                            style={{ background: "var(--color-bg-hover)" }}
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                          />
-                        ) : (
+                        {/* Logo */}
+                        <div className="relative h-6 w-6 shrink-0">
+                          {account.domain && (
+                            <img
+                              src={`https://www.google.com/s2/favicons?domain=${account.domain}&sz=128`}
+                              alt=""
+                              className="absolute inset-0 h-6 w-6 rounded object-contain"
+                              style={{ background: "var(--color-bg-hover)" }}
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                            />
+                          )}
                           <div
-                            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[9px] font-semibold"
+                            className="flex h-6 w-6 items-center justify-center rounded text-[10px] font-semibold"
                             style={{ background: "var(--color-bg-emphasis)", color: "var(--color-text-tertiary)" }}
                           >
                             {account.name.charAt(0)}
                           </div>
-                        )}
-                        <div>
-                          <button
-                            onClick={() => setSlideOverAccount(account)}
-                            className="text-left text-[13px] font-medium transition-colors hover:underline"
-                            style={{ color: "var(--color-text-primary)" }}>
-                            {account.name}
-                          </button>
+                        </div>
+
+                        {/* Name + description */}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => setSlideOverAccount(account)}
+                              className="truncate text-left text-[13px] font-medium transition-colors hover:underline"
+                              style={{ color: "var(--color-text-primary)" }}>
+                              {account.name}
+                            </button>
+                            {isTAM(account) && (
+                              <Badge variant="info" size="sm">TAM</Badge>
+                            )}
+                          </div>
                           {account.description && (
-                            <p className="mt-0.5 max-w-[180px] truncate text-[11px]"
+                            <p className="mt-0.5 max-w-[220px] truncate text-[11px]"
                               style={{ color: "var(--color-text-tertiary)" }} title={account.description}>
                               {account.description}
                             </p>
@@ -423,9 +478,42 @@ export default function AccountsPage() {
                       </div>
                     </td>
 
-                    {/* Domain */}
-                    <td className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-                      {account.domain || "—"}
+                    {/* Website */}
+                    <td>
+                      {account.domain ? (
+                        <a
+                          href={`https://${account.domain}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[12px] transition-colors hover:underline"
+                          style={{ color: "var(--color-accent)" }}
+                        >
+                          {account.domain}
+                          <ExternalLink size={10} style={{ opacity: 0.5 }} />
+                        </a>
+                      ) : (
+                        <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>
+                      )}
+                    </td>
+
+                    {/* LinkedIn */}
+                    <td>
+                      {(() => {
+                        const linkedIn = getLinkedInUrl(account);
+                        if (!linkedIn) return <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>;
+                        return (
+                          <a
+                            href={linkedIn.startsWith("http") ? linkedIn : `https://${linkedIn}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[12px] transition-colors hover:underline"
+                            style={{ color: "#0A66C2" }}
+                          >
+                            <LinkedInIcon size={13} />
+                            <span>Profile</span>
+                          </a>
+                        );
+                      })()}
                     </td>
 
                     {/* Industry -- auto-colored badge */}
@@ -468,6 +556,24 @@ export default function AccountsPage() {
                       })()}
                     </td>
 
+                    {/* Last Interaction */}
+                    <td>
+                      {account.lastInteraction ? (
+                        <div title={account.lastInteraction.summary || undefined}>
+                          <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                            {timeAgo(account.lastInteraction.date)}
+                          </span>
+                          {account.lastInteraction.summary && (
+                            <p className="mt-0.5 max-w-[150px] truncate text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                              {account.lastInteraction.summary}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>
+                      )}
+                    </td>
+
                     {/* G27: Individual signal type columns */}
                     {signalTypeColumns.map((sigType) => {
                       const signal = accountHasSignalType(account, sigType);
@@ -482,7 +588,7 @@ export default function AccountsPage() {
                                 Yes
                               </button>
                               {activeSignalPopover === popoverId && (
-                                <div className="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg p-3"
+                                <div ref={signalPopoverRef} className="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg p-3"
                                   style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-moderate)", boxShadow: "var(--shadow-floating)" }}>
                                   <div className="mb-2 flex items-center justify-between">
                                     <span className="text-[11px] font-medium" style={{ color: "var(--color-text-primary)" }}>{signal.title}</span>
@@ -584,7 +690,28 @@ export default function AccountsPage() {
           const lcStyle = getLifecycleStyle(lc);
           return (
             <div>
-              <PropertyRow label="Domain" value={a.domain} />
+              <PropertyRow label="Website" value={
+                a.domain ? (
+                  <a href={`https://${a.domain}`} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[12px] hover:underline" style={{ color: "var(--color-accent)" }}>
+                    {a.domain} <ExternalLink size={10} />
+                  </a>
+                ) : "—"
+              } />
+              <PropertyRow label="LinkedIn" value={
+                (() => {
+                  const url = getLinkedInUrl(a);
+                  return url ? (
+                    <a href={url.startsWith("http") ? url : `https://${url}`} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[12px] hover:underline" style={{ color: "#0A66C2" }}>
+                      <LinkedInIcon size={12} /> View profile
+                    </a>
+                  ) : "—";
+                })()
+              } />
+              <PropertyRow label="Last Interaction" value={
+                a.lastInteraction ? `${timeAgo(a.lastInteraction.date)}${a.lastInteraction.summary ? ` — ${a.lastInteraction.summary}` : ""}` : "—"
+              } />
               <PropertyRow label="Industry" value={a.industry} />
               <PropertyRow label="Size" value={a.size} />
               <PropertyRow label="Revenue" value={a.revenue} />

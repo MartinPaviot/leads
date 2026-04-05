@@ -104,7 +104,7 @@ export default function MeetingsPage() {
         subtitle={`${meetings.length}`}
       />
 
-      <div className="flex-1 overflow-auto px-6 py-6">
+      <div className="flex-1 overflow-auto px-4 py-6">
         {meetings.length === 0 ? (
           <EmptyState
             icon={<Calendar size={24} />}

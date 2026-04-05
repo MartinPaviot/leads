@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Clock, Calendar, CheckSquare, Zap, MessageSquare, TrendingUp } from "lucide-react";
+import { Clock, Calendar, CheckSquare, Zap, MessageSquare, TrendingUp, Users, Sparkles } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,10 +13,10 @@ import { OnboardingWizard } from "@/components/onboarding-wizard";
 interface Action {
   action: string;
   why: string;
-  dealName: string | null;
   priority: "critical" | "high" | "medium" | "low";
   category: string;
-  stalledDays?: number;
+  entityType?: string;
+  entityId?: string;
 }
 
 interface Insight {
@@ -76,12 +76,15 @@ export default function DashboardPage() {
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingHasGoogle, setOnboardingHasGoogle] = useState(false);
+  const [onboardingHasMicrosoft, setOnboardingHasMicrosoft] = useState(false);
   const [onboardingEmail, setOnboardingEmail] = useState<string | undefined>();
   const [emailComposer, setEmailComposer] = useState<{
     to: string;
     subject: string;
     body: string;
   } | null>(null);
+  const [priorities, setPriorities] = useState<{ contactId: string; name: string; title: string | null; company: string | null; companyDomain: string | null; emailCount: number; topReason: string }[]>([]);
+  const [recommendations, setRecommendations] = useState<{ title: string; description: string; urgency: number; entityType: string; entityId: string; suggestedAction: string }[]>([]);
 
   useEffect(() => {
     fetch("/api/onboarding/status")
@@ -89,7 +92,8 @@ export default function DashboardPage() {
       .then((data) => {
         if (data?.needsOnboarding) {
           setShowOnboarding(true);
-          setOnboardingHasGoogle(data.hasGoogle || data.hasMicrosoft || false);
+          setOnboardingHasGoogle(data.hasGoogle || false);
+          setOnboardingHasMicrosoft(data.hasMicrosoft || false);
           setOnboardingEmail(data.email);
         }
       })
@@ -111,6 +115,16 @@ export default function DashboardPage() {
       .then((res) => (res.ok ? res.json() : { insights: [] }))
       .then((data) => setInsights(data.insights || []))
       .catch(() => {});
+
+    fetch("/api/priorities")
+      .then((res) => (res.ok ? res.json() : { priorities: [] }))
+      .then((data) => setPriorities(data.priorities || []))
+      .catch(() => {});
+
+    fetch("/api/recommendations")
+      .then((res) => (res.ok ? res.json() : { recommendations: [] }))
+      .then((data) => setRecommendations(data.recommendations || []))
+      .catch(() => {});
   }, []);
 
   const today = new Date().toLocaleDateString("en-US", {
@@ -125,7 +139,7 @@ export default function DashboardPage() {
     <div className="flex h-full flex-col">
       <PageHeader icon={<Clock size={15} />} title="Up next" subtitle={today} />
 
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto px-4 py-6">
         {/* Greeting */}
         <div className="mb-1">
           <h1 className="text-[22px] font-bold tracking-tight" style={{ color: "var(--color-text-primary)" }}>
@@ -190,14 +204,12 @@ export default function DashboardPage() {
                 {actions.slice(0, 5).map((action, i) => (
                   <Card
                     key={i}
-                    interactive={!!(action.stalledDays && action.stalledDays >= 3)}
+                    interactive={!!action.entityId}
                     onClick={() => {
-                      if (action.stalledDays && action.stalledDays >= 3 && action.dealName) {
-                        setEmailComposer({
-                          to: "",
-                          subject: `Following up — ${action.dealName}`,
-                          body: `Hi,\n\nI wanted to follow up on our conversation about ${action.dealName}. ${action.why}\n\nWould you have time for a quick call this week?\n\nBest regards`,
-                        });
+                      if (action.entityType === "contact" && action.entityId) {
+                        window.location.href = `/contacts/${action.entityId}`;
+                      } else if (action.entityType === "deal" && action.entityId) {
+                        window.location.href = `/opportunities`;
                       }
                     }}
                   >
@@ -207,8 +219,8 @@ export default function DashboardPage() {
                           {action.action}
                         </p>
                         <div className="flex items-center gap-1.5">
-                          {action.stalledDays && action.stalledDays >= 3 && (
-                            <Badge variant="error" size="sm">Stalled {action.stalledDays}d</Badge>
+                          {action.category === "rescue" && (
+                            <Badge variant="error" size="sm">Stalled</Badge>
                           )}
                           <Badge variant={priorityVariants[action.priority] || "neutral"} size="sm">
                             {action.priority}
@@ -218,17 +230,17 @@ export default function DashboardPage() {
                       <p className="mt-1 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
                         {action.why}
                       </p>
-                      {action.dealName && (
+                      {action.entityType === "contact" && action.entityId && (
                         <div className="mt-1.5 flex items-center justify-between">
                           <span className="text-[12px] font-medium" style={{ color: "var(--color-accent)" }}>
-                            {action.dealName}
+                            View contact
                           </span>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setEmailComposer({
                                 to: "",
-                                subject: `Following up — ${action.dealName}`,
+                                subject: `Following up`,
                                 body: `Hi,\n\n${action.action}\n\n${action.why}\n\nWould you have time for a quick call this week?\n\nBest regards`,
                               });
                             }}
@@ -321,6 +333,59 @@ export default function DashboardPage() {
               )}
             </div>
 
+            {/* Hot Contacts */}
+            {priorities.length > 0 && (
+              <div className="mt-6">
+                <h2 className="text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
+                  <Users size={12} className="inline mr-1" /> Hot contacts
+                </h2>
+                <div className="mt-3 space-y-1.5">
+                  {priorities.slice(0, 5).map((p) => (
+                    <Card key={p.contactId} interactive onClick={() => { window.location.href = `/contacts/${p.contactId}`; }}>
+                      <CardBody className="!py-2.5">
+                        <div className="flex items-center gap-2">
+                          {p.companyDomain && (
+                            <img src={`https://www.google.com/s2/favicons?domain=${p.companyDomain}&sz=128`} alt="" className="w-5 h-5 rounded shrink-0"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[13px] font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{p.name}</p>
+                            <p className="text-[11px] truncate" style={{ color: "var(--color-text-tertiary)" }}>
+                              {p.title ? `${p.title}${p.company ? ` at ${p.company}` : ""}` : p.company || ""}
+                            </p>
+                          </div>
+                          <span className="text-[10px] shrink-0" style={{ color: "var(--color-text-tertiary)" }}>{p.topReason}</span>
+                        </div>
+                      </CardBody>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Smart Recommendations */}
+            {recommendations.length > 0 && (
+              <div className="mt-6">
+                <h2 className="text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
+                  <Sparkles size={12} className="inline mr-1" /> This week
+                </h2>
+                <div className="mt-3 space-y-1.5">
+                  {recommendations.slice(0, 3).map((r, i) => (
+                    <Card key={i} interactive onClick={() => {
+                      if (r.entityType === "contact") window.location.href = `/contacts/${r.entityId}`;
+                      else if (r.entityType === "company") window.location.href = `/accounts`;
+                      else if (r.entityType === "deal") window.location.href = `/opportunities`;
+                    }}>
+                      <CardBody className="!py-2.5">
+                        <p className="text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>{r.title}</p>
+                        <p className="text-[11px] mt-0.5" style={{ color: "var(--color-text-tertiary)" }}>{r.description}</p>
+                      </CardBody>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Today's Tasks */}
             <div className="mt-6">
               <h2 className="text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
@@ -377,6 +442,7 @@ export default function DashboardPage() {
       {showOnboarding && (
         <OnboardingWizard
           hasGoogle={onboardingHasGoogle}
+          hasMicrosoft={onboardingHasMicrosoft}
           userEmail={onboardingEmail}
           onComplete={() => {
             setShowOnboarding(false);

@@ -2,16 +2,23 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { CircleDot, Plus, BarChart3, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  CircleDot, Plus, BarChart3, ChevronDown, ChevronUp,
+  Search, X, Building2, User, Calendar, DollarSign, Clock,
+  LayoutGrid, List, SlidersHorizontal, Filter, ArrowUpDown, ArrowUp, ArrowDown,
+  Sparkles, ClipboardCheck, MonitorPlay, FlaskConical, FileText, Handshake, Trophy, XCircle,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { STAGE_COLORS as STAGE_DOT_COLORS_IMPORTED, RISK_STYLES } from "@/lib/ui-utils";
 import { usePipelineStages } from "@/hooks/use-custom-fields";
-import type { PipelineStageDef } from "@/lib/custom-fields";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageHeader, FilterBar } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
-import { Input } from "@/components/ui/input";
+import { Input, Select } from "@/components/ui/input";
+
+/* ── Types ── */
 
 interface Analytics {
   totalDeals: number;
@@ -28,818 +35,803 @@ interface Analytics {
   riskSummary: { high: number; medium: number; low: number; none: number };
 }
 
-const STAGES = [
-  "lead",
-  "qualification",
-  "demo",
-  "trial",
-  "proposal",
-  "negotiation",
-  "won",
-  "lost",
-] as const;
-
-const STAGE_LABELS: Record<string, string> = {
-  lead: "Lead",
-  qualification: "Qualification",
-  demo: "Demo",
-  trial: "Trial",
-  proposal: "Proposal",
-  negotiation: "Negotiation",
-  won: "Won",
-  lost: "Lost",
-};
-
-const STAGE_DOT_COLORS = STAGE_DOT_COLORS_IMPORTED;
-
 interface Deal {
   id: string;
   name: string;
   stage: string;
   value: number | null;
   companyId: string | null;
+  contactId: string | null;
+  ownerId: string | null;
   summary: string | null;
+  expectedCloseDate: string | null;
   properties: Record<string, unknown> | null;
+  companyName: string | null;
+  ownerFirstName: string | null;
+  ownerLastName: string | null;
+  createdAt: string | null;
 }
+
+interface Account { id: string; name: string; domain: string | null }
+interface Contact { id: string; firstName: string | null; lastName: string | null; email: string | null; companyId: string | null }
+
+type ViewMode = "board" | "table";
+type SortField = "name" | "value" | "expectedCloseDate" | "createdAt" | "companyName" | "stage";
+type SortDir = "asc" | "desc";
+
+const DISPLAY_PROPS_ALL = [
+  { key: "companyName", label: "Account" },
+  { key: "owner", label: "Owner" },
+  { key: "value", label: "Deal value" },
+  { key: "expectedCloseDate", label: "Close date" },
+  { key: "summary", label: "Summary" },
+  { key: "risk", label: "Risk level" },
+  { key: "createdAt", label: "Created at" },
+] as const;
+type DisplayPropKey = (typeof DISPLAY_PROPS_ALL)[number]["key"];
+
+interface ActiveFilter {
+  field: string;
+  label: string;
+  op: "eq" | "contains" | "gte" | "lte";
+  value: string;
+}
+
+const STAGES = ["lead", "qualification", "demo", "trial", "proposal", "negotiation", "won", "lost"] as const;
+const STAGE_LABELS: Record<string, string> = {
+  lead: "Lead", qualification: "Qualification", demo: "Demo", trial: "Trial",
+  proposal: "Proposal", negotiation: "Negotiation", won: "Won", lost: "Lost",
+};
+const STAGE_DOT_COLORS = STAGE_DOT_COLORS_IMPORTED;
+
+const STAGE_ICONS: Record<string, LucideIcon> = {
+  lead: Sparkles,
+  qualification: ClipboardCheck,
+  demo: MonitorPlay,
+  trial: FlaskConical,
+  proposal: FileText,
+  negotiation: Handshake,
+  won: Trophy,
+  lost: XCircle,
+};
+
+/* ── Helpers ── */
+
+function getOwnerInitials(d: Deal): string {
+  const f = d.ownerFirstName || "", l = d.ownerLastName || "";
+  if (!f && !l) return "?";
+  return (f[0] || "").toUpperCase() + (l[0] || "").toUpperCase();
+}
+function getOwnerName(d: Deal): string {
+  return `${d.ownerFirstName || ""} ${d.ownerLastName || ""}`.trim() || "Unassigned";
+}
+function formatCloseDate(s: string | null): string | null {
+  if (!s) return null;
+  const d = new Date(s), now = new Date();
+  const diff = Math.ceil((d.getTime() - now.getTime()) / 86400000);
+  const fmt = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  if (diff < 0) return `${fmt} (overdue)`;
+  if (diff <= 7) return `${fmt} (${diff}d)`;
+  return fmt;
+}
+
+/* ── Main Component ── */
 
 export default function OpportunitiesPage() {
   const router = useRouter();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const { stages: pipelineStages } = usePipelineStages();
+
+  // Create modal
   const [showCreate, setShowCreate] = useState(false);
+  const [createStage, setCreateStage] = useState("lead");
   const [newName, setNewName] = useState("");
   const [newValue, setNewValue] = useState("");
+  const [newCloseDate, setNewCloseDate] = useState("");
+  const [newAccountId, setNewAccountId] = useState("");
+  const [newContactId, setNewContactId] = useState("");
   const [creating, setCreating] = useState(false);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [accountSearch, setAccountSearch] = useState("");
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+
+  // Analytics
   const [analyzing, setAnalyzing] = useState(false);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(true);
 
-  // Drag & drop state
+  // View, display, filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<ViewMode>("board");
+  const [showDisplayPanel, setShowDisplayPanel] = useState(false);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [displayProps, setDisplayProps] = useState<Set<DisplayPropKey>>(
+    new Set(["companyName", "owner", "value", "expectedCloseDate", "risk"])
+  );
+  const [sortField, setSortField] = useState<SortField>("createdAt");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const displayPanelRef = useRef<HTMLDivElement>(null);
+  const filterPanelRef = useRef<HTMLDivElement>(null);
+
+  // Drag & drop
   const [draggedDealId, setDraggedDealId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
   const isDraggingRef = useRef(false);
 
+  /* ── Data fetching ── */
+
   const fetchAnalytics = useCallback(async () => {
-    try {
-      const res = await fetch("/api/pipeline/analytics");
-      if (res.ok) {
-        const data = await res.json();
-        setAnalytics(data);
-      }
-    } catch {
-      // Analytics are non-critical
-    }
+    try { const r = await fetch("/api/pipeline/analytics"); if (r.ok) setAnalytics(await r.json()); } catch {}
   }, []);
 
   const fetchDeals = useCallback(async () => {
     try {
-      const res = await fetch("/api/opportunities");
-      if (res.ok) {
-        const data = await res.json();
-        setDeals(data.deals || []);
-      }
-    } catch {
-      console.error("Failed to fetch deals");
-    } finally {
-      setLoading(false);
-    }
+      const r = await fetch("/api/opportunities");
+      if (r.ok) { const d = await r.json(); setDeals(d.deals || []); }
+    } catch { console.error("Failed to fetch deals"); } finally { setLoading(false); }
   }, []);
 
+  const fetchAccounts = useCallback(async () => {
+    try { const r = await fetch("/api/accounts?pageSize=200"); if (r.ok) { const d = await r.json(); setAccounts(d.accounts || []); } } catch {}
+  }, []);
+
+  const fetchContacts = useCallback(async () => {
+    try { const r = await fetch("/api/contacts?pageSize=200"); if (r.ok) { const d = await r.json(); setContacts(d.contacts || []); } } catch {}
+  }, []);
+
+  useEffect(() => { fetchDeals(); fetchAnalytics(); }, [fetchDeals, fetchAnalytics]);
+  useEffect(() => { if (showCreate) { fetchAccounts(); fetchContacts(); } }, [showCreate, fetchAccounts, fetchContacts]);
+
+  // Close ALL dropdowns/panels on outside click
+  const accountDropdownRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    fetchDeals();
-    fetchAnalytics();
-  }, [fetchDeals, fetchAnalytics]);
+    function h(e: MouseEvent) {
+      const t = e.target as Node;
+      if (showDisplayPanel && displayPanelRef.current && !displayPanelRef.current.contains(t)) setShowDisplayPanel(false);
+      if (showFilterPanel && filterPanelRef.current && !filterPanelRef.current.contains(t)) setShowFilterPanel(false);
+      if (showAccountDropdown && accountDropdownRef.current && !accountDropdownRef.current.contains(t)) setShowAccountDropdown(false);
+    }
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [showDisplayPanel, showFilterPanel, showAccountDropdown]);
+
+  /* ── Actions ── */
+
+  function openCreateForStage(stageId: string) {
+    setCreateStage(stageId); setNewName(""); setNewValue(""); setNewCloseDate("");
+    setNewAccountId(""); setNewContactId(""); setAccountSearch(""); setShowCreate(true);
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!newName.trim()) return;
     setCreating(true);
     try {
-      const res = await fetch("/api/opportunities", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const r = await fetch("/api/opportunities", {
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: newName.trim(),
+          name: newName.trim(), stage: createStage,
           value: newValue ? parseInt(newValue) : undefined,
+          companyId: newAccountId || undefined, contactId: newContactId || undefined,
+          expectedCloseDate: newCloseDate || undefined,
         }),
       });
-      if (res.ok) {
-        setNewName("");
-        setNewValue("");
-        setShowCreate(false);
-        fetchDeals();
-      }
-    } catch {
-      console.error("Failed to create deal");
-    } finally {
-      setCreating(false);
-    }
+      if (r.ok) { setShowCreate(false); fetchDeals(); fetchAnalytics(); }
+    } catch {} finally { setCreating(false); }
   }
 
   async function analyzeDeals() {
     if (deals.length === 0) return;
     setAnalyzing(true);
     try {
-      const res = await fetch("/api/deals/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const r = await fetch("/api/deals/analyze", {
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dealIds: deals.map((d) => d.id) }),
       });
-      if (res.ok) {
-        await fetchDeals();
-        await fetchAnalytics();
-      }
-    } catch {
-      console.error("Analysis failed");
-    } finally {
-      setAnalyzing(false);
-    }
+      if (r.ok) { await fetchDeals(); await fetchAnalytics(); }
+    } catch {} finally { setAnalyzing(false); }
   }
 
-  function getRiskBorderColor(deal: Deal): string {
-    const risk = (deal.properties as Record<string, unknown>)?.riskLevel as string;
-    const style = RISK_STYLES[risk];
-    return style ? style.text : "transparent";
-  }
+  /* ── Drag & drop ── */
 
-  // G17: Momentum indicator
-  function hasMomentum(deal: Deal): boolean {
-    const props = deal.properties as Record<string, unknown> | null;
-    const activityCount = (props?.recentActivityCount as number) || 0;
-    return activityCount >= 3;
+  function handleDragStart(e: React.DragEvent, id: string) {
+    isDraggingRef.current = true; setDraggedDealId(id);
+    e.dataTransfer.setData("text/plain", id); e.dataTransfer.effectAllowed = "move";
   }
+  function handleDragEnd() { setTimeout(() => { isDraggingRef.current = false; }, 0); setDraggedDealId(null); setDragOverStage(null); }
+  function handleDragOver(e: React.DragEvent, stage: string) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverStage(stage); }
+  function handleDragLeave(e: React.DragEvent, el: HTMLDivElement) { if (!el.contains(e.relatedTarget as Node)) setDragOverStage(null); }
 
-  // Drag & drop handlers
-  function handleDragStart(e: React.DragEvent, dealId: string) {
-    isDraggingRef.current = true;
-    setDraggedDealId(dealId);
-    e.dataTransfer.setData("text/plain", dealId);
-    e.dataTransfer.effectAllowed = "move";
-  }
-
-  function handleDragEnd() {
-    // Delay resetting isDragging so the click handler can check it
-    setTimeout(() => {
-      isDraggingRef.current = false;
-    }, 0);
-    setDraggedDealId(null);
-    setDragOverStage(null);
-  }
-
-  function handleDragOver(e: React.DragEvent, stageId: string) {
+  async function handleDrop(e: React.DragEvent, newStage: string) {
     e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    setDragOverStage(stageId);
-  }
-
-  function handleDragLeave(e: React.DragEvent, columnEl: HTMLDivElement) {
-    // Only clear if we actually left the column (not entering a child)
-    if (!columnEl.contains(e.relatedTarget as Node)) {
-      setDragOverStage(null);
-    }
-  }
-
-  async function handleDrop(e: React.DragEvent, newStageId: string) {
-    e.preventDefault();
-    const dealId = e.dataTransfer.getData("text/plain");
-    setDragOverStage(null);
-    setDraggedDealId(null);
-
-    if (!dealId) return;
-
-    const deal = deals.find((d) => d.id === dealId);
-    if (!deal || deal.stage === newStageId) return;
-
-    // Optimistic update
-    const previousDeals = [...deals];
-    setDeals((prev) =>
-      prev.map((d) => (d.id === dealId ? { ...d, stage: newStageId } : d))
-    );
-
+    const id = e.dataTransfer.getData("text/plain");
+    setDragOverStage(null); setDraggedDealId(null);
+    if (!id) return;
+    const deal = deals.find((d) => d.id === id);
+    if (!deal || deal.stage === newStage) return;
+    const prev = [...deals];
+    setDeals((p) => p.map((d) => (d.id === id ? { ...d, stage: newStage } : d)));
     try {
-      const res = await fetch(`/api/deals/${dealId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage: newStageId }),
-      });
-      if (!res.ok) {
-        // Revert on failure
-        setDeals(previousDeals);
-      } else {
-        // Refresh analytics after stage change
-        fetchAnalytics();
-      }
-    } catch {
-      // Revert on error
-      setDeals(previousDeals);
+      const r = await fetch(`/api/deals/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stage: newStage }) });
+      if (!r.ok) setDeals(prev); else fetchAnalytics();
+    } catch { setDeals(prev); }
+  }
+
+  function handleCardClick(id: string) { if (!isDraggingRef.current) router.push(`/opportunities/${id}`); }
+
+  /* ── Computed ── */
+
+  const activeStages = pipelineStages.length > 0
+    ? pipelineStages.map((s) => ({ id: s.id, name: s.name, description: s.description }))
+    : STAGES.map((s) => ({ id: s, name: STAGE_LABELS[s] || s, description: "" }));
+
+  const stageOptions = activeStages.map((s) => ({ value: s.id, label: s.name }));
+
+  // Filter
+  const filteredDeals = deals.filter((d) => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      if (!d.name.toLowerCase().includes(q) && !(d.companyName?.toLowerCase().includes(q))) return false;
     }
-  }
+    for (const f of activeFilters) {
+      if (f.field === "stage" && d.stage !== f.value) return false;
+      if (f.field === "companyName" && !(d.companyName?.toLowerCase().includes(f.value.toLowerCase()))) return false;
+      if (f.field === "owner") {
+        const n = `${d.ownerFirstName || ""} ${d.ownerLastName || ""}`.trim().toLowerCase();
+        if (!n.includes(f.value.toLowerCase())) return false;
+      }
+      if (f.field === "value" && f.op === "gte" && (d.value || 0) < Number(f.value)) return false;
+      if (f.field === "value" && f.op === "lte" && (d.value || 0) > Number(f.value)) return false;
+      if (f.field === "expectedCloseDate" && f.op === "lte" && d.expectedCloseDate && new Date(d.expectedCloseDate) > new Date(f.value)) return false;
+      if (f.field === "risk") {
+        const r = (d.properties as Record<string, unknown>)?.riskLevel as string || "none";
+        if (r !== f.value) return false;
+      }
+    }
+    return true;
+  });
 
-  function handleCardClick(dealId: string) {
-    if (isDraggingRef.current) return;
-    router.push(`/opportunities/${dealId}`);
-  }
+  // Sort
+  const sortedDeals = [...filteredDeals].sort((a, b) => {
+    let c = 0;
+    switch (sortField) {
+      case "name": c = a.name.localeCompare(b.name); break;
+      case "value": c = (a.value || 0) - (b.value || 0); break;
+      case "expectedCloseDate":
+        c = (a.expectedCloseDate ? new Date(a.expectedCloseDate).getTime() : Infinity)
+          - (b.expectedCloseDate ? new Date(b.expectedCloseDate).getTime() : Infinity); break;
+      case "createdAt":
+        c = (a.createdAt ? new Date(a.createdAt).getTime() : 0)
+          - (b.createdAt ? new Date(b.createdAt).getTime() : 0); break;
+      case "companyName": c = (a.companyName || "").localeCompare(b.companyName || ""); break;
+      case "stage": c = activeStages.findIndex((s) => s.id === a.stage) - activeStages.findIndex((s) => s.id === b.stage); break;
+    }
+    return sortDir === "asc" ? c : -c;
+  });
 
-  function getRiskBadge(deal: Deal) {
-    const risk = (deal.properties as Record<string, unknown>)?.riskLevel as string;
-    if (!risk || risk === "none") return null;
-    const riskVariant = risk === "high" ? "error" : risk === "medium" ? "warning" : "info";
+  const dealsByStage = activeStages.reduce((acc, stage) => {
+    acc[stage.id] = sortedDeals.filter((d) => d.stage === stage.id || d.stage.toLowerCase() === stage.name.toLowerCase());
+    return acc;
+  }, {} as Record<string, Deal[]>);
+
+  const totalValue = deals.reduce((s, d) => s + (d.value || 0), 0);
+  const uniqueOwners = [...new Set(deals.filter((d) => d.ownerFirstName || d.ownerLastName).map((d) => `${d.ownerFirstName || ""} ${d.ownerLastName || ""}`.trim()))];
+  const uniqueAccounts = [...new Set(deals.filter((d) => d.companyName).map((d) => d.companyName!))];
+
+  const filteredAccountList = accountSearch.trim()
+    ? accounts.filter((a) => a.name.toLowerCase().includes(accountSearch.toLowerCase()) || (a.domain?.toLowerCase().includes(accountSearch.toLowerCase()) ?? false))
+    : accounts;
+  const filteredContactList = newAccountId ? contacts.filter((c) => c.companyId === newAccountId) : contacts;
+
+  /* ── Risk helpers ── */
+
+  function getRiskBorder(d: Deal) { const r = (d.properties as Record<string, unknown>)?.riskLevel as string; return RISK_STYLES[r]?.text || "transparent"; }
+  function getRiskBadge(d: Deal) {
+    const r = (d.properties as Record<string, unknown>)?.riskLevel as string;
+    if (!r || r === "none") return null;
+    return <Badge variant={r === "high" ? "error" : r === "medium" ? "warning" : "info"} size="sm">{r.toUpperCase()}</Badge>;
+  }
+  function hasMomentum(d: Deal) { return ((d.properties as Record<string, unknown>)?.recentActivityCount as number || 0) >= 3; }
+
+  /* ── Sub-components ── */
+
+  function DisplayPanel() {
     return (
-      <Badge variant={riskVariant} size="sm">
-        {risk.toUpperCase()}
-      </Badge>
+      <div className="absolute right-0 top-full mt-1 z-30 w-72 rounded-lg py-3 px-4" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)", boxShadow: "var(--shadow-dialog)" }}>
+        <div className="flex gap-2 mb-3">
+          {(["board", "table"] as const).map((m) => (
+            <button key={m} onClick={() => setViewMode(m)} className="flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[12px] font-medium transition-colors"
+              style={{ background: viewMode === m ? "var(--color-bg-hover)" : "transparent", color: viewMode === m ? "var(--color-text-primary)" : "var(--color-text-tertiary)", border: viewMode === m ? "1px solid var(--color-border-default)" : "1px solid transparent" }}>
+              {m === "board" ? <LayoutGrid size={13} /> : <List size={13} />} {m === "board" ? "Board" : "Table"}
+            </button>
+          ))}
+        </div>
+        <div className="mb-3">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <ArrowUpDown size={11} style={{ color: "var(--color-text-tertiary)" }} />
+            <span className="text-[11px] font-medium" style={{ color: "var(--color-text-secondary)" }}>Sorting</span>
+          </div>
+          <div className="flex gap-1.5">
+            <select value={sortField} onChange={(e) => setSortField(e.target.value as SortField)}
+              className="flex-1 h-7 rounded-md px-2 text-[12px] outline-none" style={{ background: "var(--color-bg-hover)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}>
+              <option value="createdAt">Created at</option><option value="name">Name</option><option value="value">Deal value</option>
+              <option value="expectedCloseDate">Close date</option><option value="companyName">Account</option><option value="stage">Stage</option>
+            </select>
+            <button onClick={() => setSortDir((d) => d === "asc" ? "desc" : "asc")}
+              className="flex h-7 w-7 items-center justify-center rounded-md" style={{ background: "var(--color-bg-hover)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border-default)" }}>
+              {sortDir === "asc" ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+            </button>
+          </div>
+        </div>
+        <div>
+          <span className="text-[11px] font-medium" style={{ color: "var(--color-text-secondary)" }}>Display properties</span>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {DISPLAY_PROPS_ALL.map((p) => {
+              const on = displayProps.has(p.key);
+              return (
+                <button key={p.key} onClick={() => setDisplayProps((prev) => { const n = new Set(prev); if (n.has(p.key)) n.delete(p.key); else n.add(p.key); return n; })}
+                  className="rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors"
+                  style={{ background: on ? "var(--color-accent-soft, rgba(44,107,237,0.12))" : "var(--color-bg-hover)", color: on ? "var(--color-accent)" : "var(--color-text-tertiary)", border: on ? "1px solid var(--color-accent)" : "1px solid var(--color-border-default)" }}>
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
     );
   }
 
-  // Use dynamic pipeline stages from settings, with fallback to hardcoded STAGES
-  const activeStages: Array<{ id: string; name: string; description: string }> =
-    pipelineStages.length > 0
-      ? pipelineStages.map((s) => ({ id: s.id, name: s.name, description: s.description }))
-      : STAGES.map((s) => ({ id: s, name: STAGE_LABELS[s] || s, description: "" }));
+  function FilterPanel() {
+    const [field, setField] = useState("");
+    const [val, setVal] = useState("");
+    function add(f: string, l: string, op: ActiveFilter["op"], v: string) {
+      if (!v.trim()) return;
+      setActiveFilters((p) => [...p, { field: f, label: `${l}: ${v}`, op, value: v }]);
+      setShowFilterPanel(false);
+    }
+    const items = [
+      { field: "stage", label: "Stage", icon: <CircleDot size={12} /> },
+      { field: "companyName", label: "Account", icon: <Building2 size={12} /> },
+      { field: "owner", label: "Owner", icon: <User size={12} /> },
+      { field: "value", label: "Deal value", icon: <DollarSign size={12} /> },
+      { field: "expectedCloseDate", label: "Close date", icon: <Calendar size={12} /> },
+      { field: "risk", label: "Risk level", icon: <BarChart3 size={12} /> },
+    ];
+    const btn = "flex w-full items-center gap-2 rounded px-2 py-1.5 text-[12px] transition-colors";
+    const btnStyle = { color: "var(--color-text-primary)" } as React.CSSProperties;
+    const hover = (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = "var(--color-bg-hover)"; };
+    const leave = (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = "transparent"; };
 
-  const dealsByStage = activeStages.reduce(
-    (acc, stage) => {
-      // Match deals by stage id OR stage name (case-insensitive) for flexibility
-      acc[stage.id] = deals.filter((d) =>
-        d.stage === stage.id || d.stage.toLowerCase() === stage.name.toLowerCase()
-      );
-      return acc;
-    },
-    {} as Record<string, Deal[]>
-  );
+    return (
+      <div className="absolute left-0 top-full mt-1 z-30 w-60 rounded-lg py-2" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)", boxShadow: "var(--shadow-dialog)" }}>
+        {!field ? (
+          <div className="px-1">
+            {items.map((it) => (
+              <button key={it.field} onClick={() => setField(it.field)} className={btn} style={btnStyle} onMouseEnter={hover} onMouseLeave={leave}>
+                <span style={{ color: "var(--color-text-tertiary)" }}>{it.icon}</span> {it.label}
+              </button>
+            ))}
+          </div>
+        ) : field === "stage" ? (
+          <div className="px-1">
+            <p className="px-2 pb-1 text-[11px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>Stage is...</p>
+            {activeStages.map((s) => (
+              <button key={s.id} onClick={() => add("stage", "Stage", "eq", s.id)} className={btn} style={btnStyle} onMouseEnter={hover} onMouseLeave={leave}>
+                {(() => { const Icon = STAGE_ICONS[s.id] || CircleDot; return <Icon size={13} style={{ color: STAGE_DOT_COLORS[s.id as keyof typeof STAGE_DOT_COLORS] || "var(--color-text-tertiary)" }} />; })()} {s.name}
+              </button>
+            ))}
+          </div>
+        ) : field === "companyName" ? (
+          <div className="px-1">
+            <p className="px-2 pb-1 text-[11px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>Account is...</p>
+            {uniqueAccounts.length > 0 ? uniqueAccounts.map((n) => (
+              <button key={n} onClick={() => add("companyName", "Account", "contains", n)} className={btn} style={btnStyle} onMouseEnter={hover} onMouseLeave={leave}>
+                <Building2 size={11} style={{ color: "var(--color-text-tertiary)" }} /> {n}
+              </button>
+            )) : <p className="px-3 py-2 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>No accounts</p>}
+          </div>
+        ) : field === "owner" ? (
+          <div className="px-1">
+            <p className="px-2 pb-1 text-[11px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>Owner is...</p>
+            {uniqueOwners.map((n) => (
+              <button key={n} onClick={() => add("owner", "Owner", "eq", n)} className={btn} style={btnStyle} onMouseEnter={hover} onMouseLeave={leave}>
+                <User size={11} style={{ color: "var(--color-text-tertiary)" }} /> {n}
+              </button>
+            ))}
+          </div>
+        ) : field === "value" ? (
+          <div className="px-3 py-1">
+            <p className="pb-1.5 text-[11px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>Value greater than...</p>
+            <div className="flex gap-1.5">
+              <Input placeholder="Min $" type="number" value={val} onChange={(e) => setVal(e.target.value)} style={{ height: 28, fontSize: 11 }} />
+              <Button size="sm" variant="outline" onClick={() => add("value", "Value >=", "gte", val)}>OK</Button>
+            </div>
+          </div>
+        ) : field === "expectedCloseDate" ? (
+          <div className="px-3 py-1">
+            <p className="pb-1.5 text-[11px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>Closing before...</p>
+            <div className="flex gap-1.5">
+              <Input type="date" value={val} onChange={(e) => setVal(e.target.value)} style={{ height: 28, fontSize: 11 }} />
+              <Button size="sm" variant="outline" onClick={() => add("expectedCloseDate", "Close <=", "lte", val)}>OK</Button>
+            </div>
+          </div>
+        ) : field === "risk" ? (
+          <div className="px-1">
+            <p className="px-2 pb-1 text-[11px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>Risk is...</p>
+            {(["high", "medium", "low", "none"] as const).map((lv) => (
+              <button key={lv} onClick={() => add("risk", "Risk", "eq", lv)} className={`${btn} capitalize`} style={btnStyle} onMouseEnter={hover} onMouseLeave={leave}>
+                <span className="h-2 w-2 rounded-full" style={{ background: lv === "high" ? "var(--color-error)" : lv === "medium" ? "var(--color-warning)" : lv === "low" ? "var(--color-success)" : "var(--color-text-muted)" }} /> {lv}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
-  const totalValue = deals.reduce((sum, d) => sum + (d.value || 0), 0);
+  /* ── Render ── */
 
   return (
     <div className="flex h-full flex-col" style={{ background: "var(--color-bg-card)" }}>
-      {/* Page Header */}
+      {/* Header */}
       <PageHeader
         icon={<CircleDot size={16} />}
         title="Opportunities"
         subtitle={`${deals.length} deal${deals.length !== 1 ? "s" : ""}${totalValue > 0 ? ` \u00b7 $${totalValue.toLocaleString()} pipeline` : ""}`}
       >
         {analytics && (
-          <Button
-            variant="outline"
-            size="sm"
-            icon={<BarChart3 size={12} />}
-            onClick={() => setShowAnalytics(!showAnalytics)}
-          >
-            Analytics
-            {showAnalytics ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+          <Button variant="outline" size="sm" icon={<BarChart3 size={12} />} onClick={() => setShowAnalytics(!showAnalytics)}>
+            Analytics {showAnalytics ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
           </Button>
         )}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={analyzeDeals}
-          disabled={analyzing || deals.length === 0}
-          loading={analyzing}
-        >
+        <Button variant="outline" size="sm" onClick={analyzeDeals} disabled={analyzing || deals.length === 0} loading={analyzing}>
           {analyzing ? "Analyzing..." : "Analyze Pipeline"}
         </Button>
-        <Button
-          variant="gradient"
-          size="sm"
-          icon={<Plus size={12} />}
-          onClick={() => setShowCreate(true)}
-        >
-          Create Deal
+        <Button variant="gradient" size="sm" icon={<Plus size={12} />} onClick={() => openCreateForStage("lead")}>
+          Create Opportunity
         </Button>
       </PageHeader>
 
-      <div className="flex-1 overflow-hidden p-6">
-        {/* Create Deal Modal */}
-        <Modal
-          open={showCreate}
-          onClose={() => setShowCreate(false)}
-          title="Create Deal"
-          size="sm"
-          footer={
-            <>
-              <Button variant="outline" size="sm" onClick={() => setShowCreate(false)}>
-                Cancel
-              </Button>
-              <Button
-                variant="gradient"
-                size="sm"
-                onClick={(e) => handleCreate(e as unknown as React.FormEvent)}
-                disabled={creating || !newName.trim()}
-                loading={creating}
-              >
-                {creating ? "Creating..." : "Create"}
-              </Button>
-            </>
-          }
-        >
+      {/* Toolbar */}
+      <FilterBar>
+        <div className="relative flex-1 max-w-xs">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--color-text-tertiary)" }} />
+          <Input type="text" placeholder="Search deals, accounts..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-8 pr-8" style={{ height: 30, fontSize: 12 }} />
+          {searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2" style={{ color: "var(--color-text-tertiary)" }}><X size={12} /></button>}
+        </div>
+        <div className="relative" ref={filterPanelRef}>
+          <Button variant={activeFilters.length > 0 ? "gradient" : "outline"} size="sm" icon={<Filter size={12} />}
+            onClick={() => { setShowFilterPanel(!showFilterPanel); setShowDisplayPanel(false); }}>
+            Filter{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}
+          </Button>
+          {showFilterPanel && <FilterPanel />}
+        </div>
+        <div className="relative" ref={displayPanelRef}>
+          <Button variant="outline" size="sm" icon={<SlidersHorizontal size={12} />}
+            onClick={() => { setShowDisplayPanel(!showDisplayPanel); setShowFilterPanel(false); }}>
+            Display
+          </Button>
+          {showDisplayPanel && <DisplayPanel />}
+        </div>
+        <div className="flex rounded-md overflow-hidden" style={{ border: "1px solid var(--color-border-default)" }}>
+          {(["board", "table"] as const).map((m) => (
+            <button key={m} onClick={() => setViewMode(m)}
+              className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium transition-colors"
+              style={{ background: viewMode === m ? "var(--color-accent)" : "transparent", color: viewMode === m ? "white" : "var(--color-text-secondary)", borderLeft: m === "table" ? "1px solid var(--color-border-default)" : "none" }}>
+              {m === "board" ? <LayoutGrid size={12} /> : <List size={12} />} {m === "board" ? "Board" : "Table"}
+            </button>
+          ))}
+        </div>
+        {activeFilters.length > 0 && (
+          <div className="flex items-center gap-1.5 ml-1">
+            {activeFilters.map((f, i) => (
+              <span key={i} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ background: "rgba(44,107,237,0.1)", color: "var(--color-accent)" }}>
+                {f.label} <button onClick={() => setActiveFilters((p) => p.filter((_, j) => j !== i))}><X size={10} /></button>
+              </span>
+            ))}
+            <button onClick={() => setActiveFilters([])} className="text-[10px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>Clear all</button>
+          </div>
+        )}
+      </FilterBar>
+
+      {/* Content */}
+      <div className="flex flex-1 flex-col overflow-hidden px-4 py-3">
+
+        {/* Create Opportunity Modal */}
+        <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Create Opportunity" size="md"
+          footer={<>
+            <Button variant="outline" size="sm" onClick={() => setShowCreate(false)}>Cancel</Button>
+            <Button variant="gradient" size="sm" onClick={(e) => handleCreate(e as unknown as React.FormEvent)} disabled={creating || !newName.trim()} loading={creating}>
+              {creating ? "Creating..." : "Create"}
+            </Button>
+          </>}>
           <form onSubmit={handleCreate} className="flex flex-col gap-3">
-            <Input
-              label="Deal name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Deal name"
-              autoFocus
-            />
-            <Input
-              label="Value ($)"
-              value={newValue}
-              onChange={(e) => setNewValue(e.target.value)}
-              placeholder="Value ($)"
-              type="number"
-            />
+            <div className="relative" ref={accountDropdownRef}>
+              <label className="text-[13px] font-medium mb-1 block" style={{ color: "var(--color-text-secondary)" }}>
+                <Building2 size={12} className="inline mr-1" style={{ verticalAlign: "-1px" }} /> Account
+              </label>
+              <Input
+                value={newAccountId ? accounts.find((a) => a.id === newAccountId)?.name || accountSearch : accountSearch}
+                onChange={(e) => { setAccountSearch(e.target.value); setNewAccountId(""); setShowAccountDropdown(true); }}
+                onFocus={() => setShowAccountDropdown(true)} placeholder="Search accounts..."
+              />
+              {showAccountDropdown && filteredAccountList.length > 0 && !newAccountId && (
+                <div className="absolute z-20 mt-1 w-full max-h-40 overflow-auto rounded-md py-1" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)", boxShadow: "var(--shadow-dialog)" }}>
+                  {filteredAccountList.slice(0, 8).map((a) => (
+                    <button key={a.id} type="button" className="w-full px-3 py-1.5 text-left text-[13px] transition-colors" style={{ color: "var(--color-text-primary)" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                      onClick={() => { setNewAccountId(a.id); setAccountSearch(a.name); setShowAccountDropdown(false); }}>
+                      <span className="font-medium">{a.name}</span>
+                      {a.domain && <span className="ml-2 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{a.domain}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {newAccountId && <button type="button" className="absolute right-2 top-[34px]" style={{ color: "var(--color-text-tertiary)" }} onClick={() => { setNewAccountId(""); setAccountSearch(""); }}><X size={12} /></button>}
+            </div>
+            <Input label="Deal name *" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Acme Corp - Enterprise Plan" autoFocus />
+            <div className="grid grid-cols-2 gap-3">
+              <Select label="Stage" value={createStage} onChange={(e) => setCreateStage(e.target.value)} options={stageOptions} />
+              <Input label="Value ($)" value={newValue} onChange={(e) => setNewValue(e.target.value)} placeholder="10000" type="number" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Expected close date" value={newCloseDate} onChange={(e) => setNewCloseDate(e.target.value)} type="date" />
+              <div>
+                <label className="text-[13px] font-medium mb-1 block" style={{ color: "var(--color-text-secondary)" }}>Contact</label>
+                <select value={newContactId} onChange={(e) => setNewContactId(e.target.value)} className="h-8 w-full rounded-md px-2.5 text-[13px] outline-none"
+                  style={{ background: "var(--color-bg-card)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}>
+                  <option value="">No contact</option>
+                  {(filteredContactList.length > 0 ? filteredContactList : contacts).slice(0, 50).map((c) => (
+                    <option key={c.id} value={c.id}>{[c.firstName, c.lastName].filter(Boolean).join(" ") || c.email || c.id.slice(0, 8)}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </form>
         </Modal>
 
-        {/* Analytics Panel */}
+        {/* KPI Row — compact */}
         {analytics && showAnalytics && (
-          <div className="mb-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h2
-                className="text-[10px] font-semibold uppercase tracking-wider"
-                style={{ color: "var(--color-text-secondary)" }}
-              >
-                Pipeline Analytics
-              </h2>
-            </div>
-
-            {/* KPI Cards */}
-            <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
-              <Card>
-                <CardBody className="p-3">
-                  <p
-                    className="text-[10px] uppercase tracking-wider"
-                    style={{ color: "var(--color-text-tertiary)" }}
-                  >
-                    Pipeline Value
-                  </p>
-                  <p
-                    className="mt-1 text-lg font-semibold"
-                    style={{ color: "var(--color-text-primary)" }}
-                  >
-                    ${analytics.totalPipelineValue.toLocaleString()}
-                  </p>
-                </CardBody>
-              </Card>
-              <Card>
-                <CardBody className="p-3">
-                  <p
-                    className="text-[10px] uppercase tracking-wider"
-                    style={{ color: "var(--color-text-tertiary)" }}
-                  >
-                    Won
-                  </p>
-                  <p
-                    className="mt-1 text-lg font-semibold"
-                    style={{ color: "var(--color-success)" }}
-                  >
-                    ${analytics.wonValue.toLocaleString()}
-                  </p>
-                  <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
-                    {analytics.wonCount} deal{analytics.wonCount !== 1 ? "s" : ""}
-                  </p>
-                </CardBody>
-              </Card>
-              <Card>
-                <CardBody className="p-3">
-                  <p
-                    className="text-[10px] uppercase tracking-wider"
-                    style={{ color: "var(--color-text-tertiary)" }}
-                  >
-                    Win Rate
-                  </p>
-                  <p
-                    className="mt-1 text-lg font-semibold"
-                    style={{ color: "var(--color-text-primary)" }}
-                  >
-                    {analytics.winRate}%
-                  </p>
-                  <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
-                    {analytics.wonCount}W / {analytics.lostCount}L
-                  </p>
-                </CardBody>
-              </Card>
-              <Card>
-                <CardBody className="p-3">
-                  <p
-                    className="text-[10px] uppercase tracking-wider"
-                    style={{ color: "var(--color-text-tertiary)" }}
-                  >
-                    Avg Deal
-                  </p>
-                  <p
-                    className="mt-1 text-lg font-semibold"
-                    style={{ color: "var(--color-text-primary)" }}
-                  >
-                    ${analytics.avgDealValue.toLocaleString()}
-                  </p>
-                </CardBody>
-              </Card>
-              <Card>
-                <CardBody className="p-3">
-                  <p
-                    className="text-[10px] uppercase tracking-wider"
-                    style={{ color: "var(--color-text-tertiary)" }}
-                  >
-                    Velocity
-                  </p>
-                  <p
-                    className="mt-1 text-lg font-semibold"
-                    style={{ color: "var(--color-text-primary)" }}
-                  >
-                    {analytics.avgVelocityDays}d
-                  </p>
-                  <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
-                    avg to close
-                  </p>
-                </CardBody>
-              </Card>
-              <Card>
-                <CardBody className="p-3">
-                  <p
-                    className="text-[10px] uppercase tracking-wider"
-                    style={{ color: "var(--color-text-tertiary)" }}
-                  >
-                    At Risk
-                  </p>
-                  <div className="mt-1 flex items-baseline gap-2">
-                    {analytics.riskSummary.high > 0 && (
-                      <span className="text-lg font-semibold" style={{ color: "var(--color-error)" }}>
-                        {analytics.riskSummary.high}
-                      </span>
-                    )}
-                    {analytics.riskSummary.medium > 0 && (
-                      <span className="text-lg font-semibold" style={{ color: "var(--color-warning)" }}>
-                        {analytics.riskSummary.medium}
-                      </span>
-                    )}
-                    {analytics.riskSummary.high === 0 && analytics.riskSummary.medium === 0 && (
-                      <span className="text-lg font-semibold" style={{ color: "var(--color-success)" }}>0</span>
-                    )}
-                  </div>
-                  <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
-                    {analytics.riskSummary.high}H {analytics.riskSummary.medium}M{" "}
-                    {analytics.riskSummary.low}L
-                  </p>
-                </CardBody>
-              </Card>
-            </div>
-
-            {/* Stage Value Bars */}
-            <Card>
-              <CardBody className="p-3">
-                <p
-                  className="mb-2 text-[10px] uppercase tracking-wider"
-                  style={{ color: "var(--color-text-tertiary)" }}
-                >
-                  Value by Stage
-                </p>
-                <div className="space-y-1.5">
-                  {analytics.funnel.map((s) => {
-                    const stageData = analytics.valueByStage[s.stage];
-                    const maxValue = Math.max(
-                      ...Object.values(analytics.valueByStage).map((v) => v.value),
-                      1
-                    );
-                    const pct = stageData ? (stageData.value / maxValue) * 100 : 0;
-                    return (
-                      <div key={s.stage} className="flex items-center gap-2">
-                        <span
-                          className="w-24 text-right text-[10px]"
-                          style={{ color: "var(--color-text-secondary)" }}
-                        >
-                          {STAGE_LABELS[s.stage]}
-                        </span>
-                        <div
-                          className="h-4 flex-1 overflow-hidden rounded"
-                          style={{ background: "var(--color-bg-card)" }}
-                        >
-                          <div
-                            className="h-full rounded"
-                            style={{
-                              background: "var(--color-accent)",
-                              width: `${Math.max(pct, stageData && stageData.count > 0 ? 2 : 0)}%`,
-                            }}
-                          />
-                        </div>
-                        <span
-                          className="w-20 text-[10px]"
-                          style={{ color: "var(--color-text-secondary)" }}
-                        >
-                          {stageData ? `$${stageData.value.toLocaleString()}` : "$0"}
-                        </span>
-                        <span
-                          className="w-8 text-[10px]"
-                          style={{ color: "var(--color-text-tertiary)" }}
-                        >
-                          {stageData?.count || 0}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardBody>
-            </Card>
-
-            {/* Conversion Funnel */}
-            <Card className="mt-3">
-              <CardBody className="p-3">
-                <p
-                  className="mb-2 text-[10px] uppercase tracking-wider"
-                  style={{ color: "var(--color-text-tertiary)" }}
-                >
-                  Conversion Funnel
-                </p>
-                {(() => {
-                  const funnelData = analytics.funnel.filter(
-                    (s) => s.stage !== "won" && s.stage !== "lost"
-                  );
-                  if (funnelData.length === 0) {
-                    return (
-                      <p className="py-4 text-center text-xs" style={{ color: "var(--color-text-tertiary)" }}>
-                        No funnel data
-                      </p>
-                    );
-                  }
-                  const maxCount = Math.max(...funnelData.map((s) => s.count), 1);
-                  const barHeight = 32;
-                  const gap = 4;
-                  const svgHeight = funnelData.length * (barHeight + gap) - gap;
-                  const svgWidth = 500;
-                  const minBarWidth = 60;
-                  const maxBarWidth = svgWidth - 20;
-
-                  return (
-                    <svg
-                      viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-                      width="100%"
-                      style={{ maxWidth: svgWidth }}
-                      preserveAspectRatio="xMidYMin meet"
-                    >
-                      {funnelData.map((s, i) => {
-                        const barWidth =
-                          maxCount > 0
-                            ? minBarWidth + ((s.count / maxCount) * (maxBarWidth - minBarWidth))
-                            : minBarWidth;
-                        const x = (svgWidth - barWidth) / 2;
-                        const y = i * (barHeight + gap);
-                        const conversionRate =
-                          i > 0 && funnelData[i - 1].count > 0
-                            ? Math.round((s.count / funnelData[i - 1].count) * 100)
-                            : null;
-
-                        return (
-                          <g key={s.stage}>
-                            <rect
-                              x={x}
-                              y={y}
-                              width={barWidth}
-                              height={barHeight}
-                              rx={4}
-                              ry={4}
-                              fill="var(--color-accent)"
-                              opacity={0.15 + (0.85 * (funnelData.length - i)) / funnelData.length}
-                            />
-                            <text
-                              x={svgWidth / 2}
-                              y={y + barHeight / 2}
-                              textAnchor="middle"
-                              dominantBaseline="central"
-                              fill="var(--color-text-primary)"
-                              fontSize="11"
-                              fontWeight="600"
-                            >
-                              {STAGE_LABELS[s.stage] || s.stage} — {s.count}
-                              {conversionRate !== null ? ` (${conversionRate}%)` : ""}
-                            </text>
-                          </g>
-                        );
-                      })}
-                    </svg>
-                  );
-                })()}
-              </CardBody>
-            </Card>
-
-            {/* Win Rate Trend — Won vs Lost Comparison */}
-            <Card className="mt-3">
-              <CardBody className="p-3">
-                <p
-                  className="mb-2 text-[10px] uppercase tracking-wider"
-                  style={{ color: "var(--color-text-tertiary)" }}
-                >
-                  Won vs Lost
-                </p>
-                {(() => {
-                  const total = analytics.wonCount + analytics.lostCount;
-                  if (total === 0) {
-                    return (
-                      <p className="py-4 text-center text-xs" style={{ color: "var(--color-text-tertiary)" }}>
-                        No closed deals yet
-                      </p>
-                    );
-                  }
-                  const wonPct = (analytics.wonCount / total) * 100;
-                  const lostPct = (analytics.lostCount / total) * 100;
-                  const svgWidth = 500;
-                  const barHeight = 28;
-                  const svgHeight = 80;
-                  const barY = 24;
-                  const wonWidth = (wonPct / 100) * (svgWidth - 20);
-                  const lostWidth = (lostPct / 100) * (svgWidth - 20);
-                  const barX = 10;
-
-                  return (
-                    <svg
-                      viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-                      width="100%"
-                      style={{ maxWidth: svgWidth }}
-                      preserveAspectRatio="xMidYMin meet"
-                    >
-                      {/* Won bar */}
-                      <rect
-                        x={barX}
-                        y={barY}
-                        width={wonWidth}
-                        height={barHeight}
-                        rx={4}
-                        ry={4}
-                        fill="var(--color-success)"
-                      />
-                      {/* Lost bar */}
-                      <rect
-                        x={barX + wonWidth}
-                        y={barY}
-                        width={lostWidth}
-                        height={barHeight}
-                        rx={4}
-                        ry={4}
-                        fill="var(--color-error)"
-                      />
-                      {/* Won label */}
-                      {wonPct > 15 && (
-                        <text
-                          x={barX + wonWidth / 2}
-                          y={barY + barHeight / 2}
-                          textAnchor="middle"
-                          dominantBaseline="central"
-                          fill="white"
-                          fontSize="11"
-                          fontWeight="600"
-                        >
-                          Won {analytics.wonCount} ({Math.round(wonPct)}%)
-                        </text>
-                      )}
-                      {/* Lost label */}
-                      {lostPct > 15 && (
-                        <text
-                          x={barX + wonWidth + lostWidth / 2}
-                          y={barY + barHeight / 2}
-                          textAnchor="middle"
-                          dominantBaseline="central"
-                          fill="white"
-                          fontSize="11"
-                          fontWeight="600"
-                        >
-                          Lost {analytics.lostCount} ({Math.round(lostPct)}%)
-                        </text>
-                      )}
-                      {/* Win rate summary text */}
-                      <text
-                        x={svgWidth / 2}
-                        y={barY + barHeight + 18}
-                        textAnchor="middle"
-                        dominantBaseline="central"
-                        fill="var(--color-text-secondary)"
-                        fontSize="10"
-                      >
-                        Win Rate: {analytics.winRate}% — {total} closed deal{total !== 1 ? "s" : ""}
-                      </text>
-                    </svg>
-                  );
-                })()}
-              </CardBody>
-            </Card>
+          <div className="mb-3 grid grid-cols-3 gap-2 md:grid-cols-6">
+            <Card><CardBody className="px-2.5 py-2">
+              <p className="text-[9px] uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>Pipeline</p>
+              <p className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>${analytics.totalPipelineValue.toLocaleString()}</p>
+            </CardBody></Card>
+            <Card><CardBody className="px-2.5 py-2">
+              <p className="text-[9px] uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>Won</p>
+              <p className="text-[15px] font-semibold" style={{ color: "var(--color-success)" }}>${analytics.wonValue.toLocaleString()}</p>
+            </CardBody></Card>
+            <Card><CardBody className="px-2.5 py-2">
+              <p className="text-[9px] uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>Win Rate</p>
+              <p className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>{analytics.winRate}%</p>
+            </CardBody></Card>
+            <Card><CardBody className="px-2.5 py-2">
+              <p className="text-[9px] uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>Avg Deal</p>
+              <p className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>${analytics.avgDealValue.toLocaleString()}</p>
+            </CardBody></Card>
+            <Card><CardBody className="px-2.5 py-2">
+              <p className="text-[9px] uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>Velocity</p>
+              <p className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>{analytics.avgVelocityDays}d</p>
+            </CardBody></Card>
+            <Card><CardBody className="px-2.5 py-2">
+              <p className="text-[9px] uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>At Risk</p>
+              <p className="text-[15px] font-semibold" style={{ color: analytics.riskSummary.high > 0 ? "var(--color-error)" : analytics.riskSummary.medium > 0 ? "var(--color-warning)" : "var(--color-success)" }}>
+                {analytics.riskSummary.high + analytics.riskSummary.medium}
+              </p>
+            </CardBody></Card>
           </div>
         )}
 
-        {/* Kanban Board */}
+        {/* Main view */}
         {loading ? (
-          <p className="mt-6 text-sm" style={{ color: "var(--color-text-tertiary)" }}>
-            Loading...
-          </p>
+          <p className="mt-6 text-sm" style={{ color: "var(--color-text-tertiary)" }}>Loading...</p>
+        ) : viewMode === "table" ? (
+          /* ── TABLE VIEW ── */
+          <div className="flex-1 overflow-auto rounded-md" style={{ border: "1px solid var(--color-border-default)" }}>
+            <table className="w-full text-left">
+              <thead>
+                <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border-default)" }}>
+                  {[
+                    { key: "name" as SortField, label: "Deal", always: true },
+                    { key: "companyName" as SortField, label: "Account", always: false, prop: "companyName" as DisplayPropKey },
+                    { key: "stage" as SortField, label: "Stage", always: true },
+                    { key: "value" as SortField, label: "Value", always: false, prop: "value" as DisplayPropKey, right: true },
+                    { key: "name" as SortField, label: "Owner", always: false, prop: "owner" as DisplayPropKey, noSort: true },
+                    { key: "expectedCloseDate" as SortField, label: "Close date", always: false, prop: "expectedCloseDate" as DisplayPropKey },
+                    { key: "name" as SortField, label: "Risk", always: false, prop: "risk" as DisplayPropKey, noSort: true },
+                  ].filter((col) => col.always || (col.prop && displayProps.has(col.prop))).map((col) => (
+                    <th key={col.label} className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wider ${col.right ? "text-right" : ""}`} style={{ color: "var(--color-text-secondary)" }}>
+                      {col.noSort ? col.label : (
+                        <button className="flex items-center gap-1" onClick={() => { setSortField(col.key); setSortDir((d) => sortField === col.key ? (d === "asc" ? "desc" : "asc") : "asc"); }}>
+                          {col.label} {sortField === col.key && (sortDir === "asc" ? <ArrowUp size={10} /> : <ArrowDown size={10} />)}
+                        </button>
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedDeals.map((deal) => (
+                  <tr key={deal.id} onClick={() => handleCardClick(deal.id)} className="cursor-pointer transition-colors" style={{ borderBottom: "1px solid var(--color-border-default)" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                    <td className="px-3 py-2.5">
+                      <span className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{hasMomentum(deal) && "⚡"}{deal.name}</span>
+                    </td>
+                    {displayProps.has("companyName") && <td className="px-3 py-2.5 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{deal.companyName || "—"}</td>}
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        {(() => { const Icon = STAGE_ICONS[deal.stage] || CircleDot; return <Icon size={13} style={{ color: STAGE_DOT_COLORS[deal.stage as keyof typeof STAGE_DOT_COLORS] || "var(--color-text-tertiary)" }} />; })()}
+                        <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{STAGE_LABELS[deal.stage] || deal.stage}</span>
+                      </div>
+                    </td>
+                    {displayProps.has("value") && <td className="px-3 py-2.5 text-right text-[12px] font-medium" style={{ color: deal.value ? "var(--color-success)" : "var(--color-text-tertiary)" }}>{deal.value ? `$${deal.value.toLocaleString()}` : "—"}</td>}
+                    {displayProps.has("owner") && (
+                      <td className="px-3 py-2.5"><div className="flex items-center gap-1.5">
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full text-[8px] font-bold" style={{ background: "var(--color-accent)", color: "white" }}>{getOwnerInitials(deal)}</div>
+                        <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{getOwnerName(deal)}</span>
+                      </div></td>
+                    )}
+                    {displayProps.has("expectedCloseDate") && <td className="px-3 py-2.5 text-[12px]" style={{ color: formatCloseDate(deal.expectedCloseDate)?.includes("overdue") ? "var(--color-error)" : "var(--color-text-secondary)" }}>{formatCloseDate(deal.expectedCloseDate) || "—"}</td>}
+                    {displayProps.has("risk") && <td className="px-3 py-2.5">{getRiskBadge(deal) || <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>—</span>}</td>}
+                  </tr>
+                ))}
+                {sortedDeals.length === 0 && <tr><td colSpan={10} className="px-3 py-8 text-center text-sm" style={{ color: "var(--color-text-tertiary)" }}>No deals match your filters</td></tr>}
+              </tbody>
+            </table>
+            {sortedDeals.length > 0 && (
+              <div className="flex items-center justify-between px-3 py-2 text-[11px] font-medium" style={{ background: "var(--color-bg-hover)", borderTop: "1px solid var(--color-border-default)", color: "var(--color-text-secondary)" }}>
+                <span>{sortedDeals.length} deal{sortedDeals.length !== 1 ? "s" : ""}</span>
+                <span style={{ color: "var(--color-success)" }}>Total: ${sortedDeals.reduce((s, d) => s + (d.value || 0), 0).toLocaleString()}</span>
+              </div>
+            )}
+          </div>
         ) : (
-          <div className="flex flex-1 gap-3 overflow-x-auto">
-            {activeStages.map((stage, stageIdx) => {
+          /* ── BOARD VIEW (Lightfield-style) ── */
+          <div className="flex flex-1 items-stretch gap-3 overflow-x-auto">
+            {activeStages.map((stage, idx) => {
               const stageDeals = dealsByStage[stage.id] || [];
-              // Dynamic dot color based on stage position
               const dotColor = STAGE_DOT_COLORS[stage.id as keyof typeof STAGE_DOT_COLORS]
-                || (stageIdx < 2 ? "var(--color-text-tertiary)" : stageIdx < 4 ? "var(--color-warning)" : "var(--color-success)");
+                || (idx < 2 ? "var(--color-text-tertiary)" : idx < 4 ? "var(--color-warning)" : "var(--color-success)");
+              const stageTotal = stageDeals.reduce((s, d) => s + (d.value || 0), 0);
+
               return (
-              <div
-                key={stage.id}
-                className="flex flex-shrink-0 flex-col rounded-md transition-colors duration-150"
-                style={{
-                  width: 260,
-                  background: dragOverStage === stage.id
-                    ? "var(--color-bg-tertiary, var(--color-bg-hover))"
-                    : "var(--color-bg-hover)",
-                  border: dragOverStage === stage.id
-                    ? "1px solid var(--color-accent)"
-                    : "1px solid var(--color-border-default)",
-                }}
-                onDragOver={(e) => handleDragOver(e, stage.id)}
-                onDragLeave={(e) => handleDragLeave(e, e.currentTarget)}
-                onDrop={(e) => handleDrop(e, stage.id)}
-              >
-                <div
-                  className="px-3 py-2"
-                  style={{ borderBottom: "1px solid var(--color-border-default)" }}
+                <div key={stage.id}
+                  className="flex w-[280px] flex-shrink-0 flex-col transition-colors duration-150"
+                  style={{
+                    background: dragOverStage === stage.id ? "rgba(44,107,237,0.04)" : "transparent",
+                  }}
+                  onDragOver={(e) => handleDragOver(e, stage.id)}
+                  onDragLeave={(e) => handleDragLeave(e, e.currentTarget)}
+                  onDrop={(e) => handleDrop(e, stage.id)}
                 >
-                  <div className="flex items-center justify-between">
+                  {/* Column header */}
+                  <div className="flex items-center justify-between px-3 py-2.5">
                     <div className="flex items-center gap-2">
-                      <span
-                        className="inline-block h-2 w-2 rounded-full"
-                        style={{ background: dotColor }}
-                      />
-                      <span
-                        className="text-xs font-semibold uppercase tracking-wider"
-                        style={{ color: "var(--color-text-secondary)" }}
-                      >
-                        {stage.name}
-                      </span>
+                      {(() => { const Icon = STAGE_ICONS[stage.id] || CircleDot; return <Icon size={14} style={{ color: dotColor }} />; })()}
+                      <span className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>{stage.name}</span>
+                      <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>{stageDeals.length}</span>
                     </div>
-                    <Badge variant="neutral" size="sm">
-                      {stageDeals.length}
-                    </Badge>
+                    <button onClick={() => openCreateForStage(stage.id)}
+                      className="flex h-6 w-6 items-center justify-center rounded-md transition-colors"
+                      style={{ color: "var(--color-text-tertiary)" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-card)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                      title={`Add to ${stage.name}`}>
+                      <Plus size={14} />
+                    </button>
                   </div>
-                  {stageDeals.reduce((sum, d) => sum + (d.value || 0), 0) > 0 && (
-                    <p className="mt-0.5 text-[10px]" style={{ color: "var(--color-success)" }}>
-                      $
-                      {stageDeals
-                        .reduce((sum, d) => sum + (d.value || 0), 0)
-                        .toLocaleString()}
-                    </p>
-                  )}
-                  {stage.description && (
-                    <p className="mt-0.5 text-[9px]" style={{ color: "var(--color-text-muted)" }}>
-                      {stage.description}
-                    </p>
-                  )}
-                </div>
-                <div className="flex-1 space-y-2 p-2">
-                  {stageDeals.map((deal) => (
-                    <Card
-                      key={deal.id}
-                      draggable
-                      onDragStart={(e: React.DragEvent) => handleDragStart(e, deal.id)}
-                      onDragEnd={handleDragEnd}
-                      onClick={() => handleCardClick(deal.id)}
-                      className={`transition-opacity duration-150 ${
-                        draggedDealId === deal.id ? "opacity-40" : ""
-                      }`}
-                      style={{
-                        borderLeft: `2px solid ${getRiskBorderColor(deal)}`,
-                        cursor: draggedDealId === deal.id ? "grabbing" : "grab",
-                      }}
-                    >
-                      <CardBody className="p-3">
-                        <div className="flex items-start justify-between gap-1">
-                          <p
-                            className="text-sm font-medium"
-                            style={{ color: "var(--color-text-primary)" }}
-                          >
-                            {hasMomentum(deal) && <span title="High momentum">&#x26A1;</span>}
-                            {deal.name}
-                          </p>
-                          {getRiskBadge(deal)}
-                        </div>
-                        {deal.value != null && deal.value > 0 && (
-                          <p className="mt-1 text-xs" style={{ color: "var(--color-success)" }}>
-                            ${deal.value.toLocaleString()}
-                          </p>
+
+                  {/* Cards */}
+                  <div className="flex-1 space-y-2 overflow-y-auto p-2">
+                    {stageDeals.map((deal) => (
+                      <div key={deal.id} draggable
+                        onDragStart={(e) => handleDragStart(e, deal.id)}
+                        onDragEnd={handleDragEnd}
+                        onClick={() => handleCardClick(deal.id)}
+                        className={`rounded-lg p-3 transition-all duration-150 ${draggedDealId === deal.id ? "opacity-40" : ""}`}
+                        style={{
+                          background: "var(--color-bg-card)",
+                          border: "1px solid var(--color-border-default)",
+                          borderLeft: `3px solid ${getRiskBorder(deal)}`,
+                          cursor: draggedDealId === deal.id ? "grabbing" : "grab",
+                        }}
+                      >
+                        {/* Account */}
+                        {displayProps.has("companyName") && (
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <Building2 size={12} style={{ color: "var(--color-accent)" }} />
+                            <span className="text-[12px] font-medium" style={{ color: deal.companyName ? "var(--color-text-primary)" : "var(--color-text-muted)" }}>
+                              {deal.companyName || "No account"}
+                            </span>
+                          </div>
                         )}
-                        {deal.summary && (
-                          <p
-                            className="mt-1 line-clamp-2 text-[10px]"
-                            style={{ color: "var(--color-text-tertiary)" }}
-                          >
+
+                        {/* Deal name */}
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <CircleDot size={12} style={{ color: "var(--color-text-tertiary)" }} />
+                          <span className="text-[12px] font-medium leading-tight" style={{ color: "var(--color-text-primary)" }}>
+                            {hasMomentum(deal) && <span title="Momentum">⚡</span>}
+                            {deal.name}
+                          </span>
+                        </div>
+
+                        {/* Properties — each on its own line, like Lightfield */}
+                        <div className="space-y-1.5">
+                          {/* Owner */}
+                          {displayProps.has("owner") && (
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-5 w-5 items-center justify-center rounded-full text-[8px] font-bold flex-shrink-0"
+                                style={{ background: "var(--color-accent)", color: "white" }}>
+                                {getOwnerInitials(deal)}
+                              </div>
+                              <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{getOwnerName(deal)}</span>
+                            </div>
+                          )}
+
+                          {/* Value */}
+                          {displayProps.has("value") && (
+                            <div className="flex items-center gap-2">
+                              <DollarSign size={12} className="flex-shrink-0" style={{ color: "var(--color-text-tertiary)" }} />
+                              <span className="text-[12px]" style={{ color: deal.value ? "var(--color-success)" : "var(--color-text-muted)" }}>
+                                {deal.value ? `$${deal.value.toLocaleString()}` : "No amount"}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Close date */}
+                          {displayProps.has("expectedCloseDate") && (
+                            <div className="flex items-center gap-2">
+                              <Calendar size={12} className="flex-shrink-0" style={{ color: "var(--color-text-tertiary)" }} />
+                              <span className="text-[12px]" style={{
+                                color: deal.expectedCloseDate
+                                  ? (formatCloseDate(deal.expectedCloseDate)?.includes("overdue") ? "var(--color-error)" : "var(--color-text-secondary)")
+                                  : "var(--color-text-muted)"
+                              }}>
+                                {deal.expectedCloseDate ? formatCloseDate(deal.expectedCloseDate) : "No close date"}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Risk */}
+                          {displayProps.has("risk") && getRiskBadge(deal) && (
+                            <div className="flex items-center gap-2">
+                              {getRiskBadge(deal)}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Summary */}
+                        {displayProps.has("summary") && deal.summary && (
+                          <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed" style={{ color: "var(--color-text-tertiary)" }}>
                             {deal.summary}
                           </p>
                         )}
-                      </CardBody>
-                    </Card>
-                  ))}
-                  {stageDeals.length === 0 && (
-                    <p
-                      className="py-4 text-center text-xs"
-                      style={{ color: "var(--color-text-tertiary)" }}
-                    >
-                      No deals
-                    </p>
-                  )}
+                      </div>
+                    ))}
+
+                    {/* Empty state */}
+                    {stageDeals.length === 0 && (
+                      <button onClick={() => openCreateForStage(stage.id)}
+                        className="flex w-full items-center justify-center gap-1.5 rounded-lg py-4 text-[12px] transition-colors"
+                        style={{ color: "var(--color-text-tertiary)", border: "1px dashed var(--color-border-default)" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-card)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                        <Plus size={13} /> Create opportunity
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Column footer */}
+                  <div className="flex items-center justify-center gap-1 px-3 py-2"
+                    style={{ color: stageTotal > 0 ? "var(--color-success)" : "var(--color-text-muted)" }}>
+                    <DollarSign size={11} />
+                    <span className="text-[12px] font-medium">${stageTotal.toLocaleString()}</span>
+                  </div>
                 </div>
-              </div>
               );
             })}
           </div>

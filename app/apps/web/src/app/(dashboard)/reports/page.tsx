@@ -84,7 +84,7 @@ export default function ReportsPage() {
         subtitle="AI-generated executive reports"
       />
 
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto px-4 py-6">
         {/* Report type cards */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {reportTypes.map((rt) => {

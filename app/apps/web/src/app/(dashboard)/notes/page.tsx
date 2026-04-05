@@ -65,7 +65,7 @@ export default function NotesPage() {
 
       {/* Note input */}
       <div
-        className="px-6 py-3"
+        className="px-4 py-3"
         style={{ borderBottom: "1px solid var(--color-border-default)", background: "var(--color-bg-card)" }}
       >
         <textarea
@@ -107,7 +107,7 @@ export default function NotesPage() {
             {notes.map((note) => (
               <div
                 key={note.id}
-                className="px-6 py-3 transition-colors"
+                className="px-4 py-3 transition-colors"
                 style={{ borderBottom: "1px solid var(--color-border-default)" }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}

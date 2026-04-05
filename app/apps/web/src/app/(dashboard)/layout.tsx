@@ -22,21 +22,31 @@ export default async function DashboardLayout({
   const initials = (session.user.name?.charAt(0) || "?").toUpperCase();
 
   let recentChats: Array<{ id: string; title: string | null }> = [];
+  let userAvatarUrl: string | null = null;
+  let tenantName: string | null = null;
   try {
-    const { users } = await import("@/db/schema");
+    const { users, tenants } = await import("@/db/schema");
     const [appUser] = await db
-      .select({ id: users.id })
+      .select({ id: users.id, avatarUrl: users.avatarUrl, tenantId: users.tenantId })
       .from(users)
       .where(eq(users.clerkId, session.user.id!))
       .limit(1);
 
     if (appUser) {
+      userAvatarUrl = appUser.avatarUrl;
       recentChats = await db
         .select({ id: chatThreads.id, title: chatThreads.title })
         .from(chatThreads)
         .where(eq(chatThreads.userId, appUser.id))
         .orderBy(desc(chatThreads.updatedAt))
         .limit(5);
+
+      const [tenant] = await db
+        .select({ name: tenants.name })
+        .from(tenants)
+        .where(eq(tenants.id, appUser.tenantId))
+        .limit(1);
+      if (tenant) tenantName = tenant.name;
     }
   } catch {
     // DB not available
@@ -53,7 +63,10 @@ export default async function DashboardLayout({
         <div className="flex h-screen overflow-hidden" style={{ background: "var(--color-bg-page)" }}>
           <Sidebar
             userName={session.user.name || "User"}
+            userEmail={session.user.email || undefined}
             userInitials={initials}
+            userAvatarUrl={userAvatarUrl}
+            tenantName={tenantName}
             recentChats={recentChats}
             onSignOut={handleSignOut}
           />

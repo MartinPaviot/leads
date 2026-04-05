@@ -240,7 +240,7 @@ export default function ChatPage() {
       )}
 
       {/* Messages area */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:py-8">
         {chat.messages.length === 0 && threadLoaded && (
           <div className="mx-auto flex min-h-[60vh] max-w-[740px] flex-col items-center justify-center">
             <div
@@ -528,10 +528,14 @@ export default function ChatPage() {
       </div>
 
       {/* Chat input bar — bottom, same max-w as messages */}
-      <div
-        className="shrink-0 px-4 pb-4 pt-3 sm:px-6"
-        style={{ borderTop: "1px solid var(--color-border-default)" }}
-      >
+      <div className="relative shrink-0 px-4 pb-4 pt-3">
+        {/* Fade gradient so messages dissolve behind the input */}
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-full h-8"
+          style={{
+            background: "linear-gradient(to bottom, transparent, var(--color-bg-base))",
+          }}
+        />
         <form onSubmit={handleLocalSubmit} className="relative mx-auto max-w-[740px]">
           <Sparkles
             size={15}
