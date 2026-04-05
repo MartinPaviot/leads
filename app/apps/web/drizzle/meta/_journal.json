@@ -29,6 +29,20 @@
       "when": 1775169195528,
       "tag": "0003_striped_speed_demon",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1775242664871,
+      "tag": "0004_cuddly_boom_boom",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1775329200000,
+      "tag": "0005_smooth_silver_fox",
+      "breakpoints": true
     }
   ]
 }

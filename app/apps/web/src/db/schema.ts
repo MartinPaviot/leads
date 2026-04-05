@@ -261,6 +261,8 @@ export const activities = pgTable(
     summary: text("summary"),
     rawContent: text("raw_content"),
     sentiment: sentimentEnum("sentiment"),
+    threadId: text("thread_id"),
+    intent: text("intent").array(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (table) => [
@@ -268,6 +270,7 @@ export const activities = pgTable(
     index("activities_entity_idx").on(table.entityType, table.entityId),
     index("activities_occurred_at_idx").on(table.occurredAt),
     index("activities_type_idx").on(table.activityType),
+    index("activities_thread_id_idx").on(table.threadId),
   ]
 );
 
