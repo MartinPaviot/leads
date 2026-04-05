@@ -29,6 +29,8 @@ interface Notification {
 
 interface NotificationBellProps {
   collapsed?: boolean;
+  /** Render as a sidebar nav item instead of a small icon button */
+  variant?: "icon" | "nav";
 }
 
 /* ── Type → icon mapping ── */
@@ -65,7 +67,7 @@ function timeAgo(dateStr: string): string {
 
 /* ── Component ── */
 
-export function NotificationBell({ collapsed }: NotificationBellProps) {
+export function NotificationBell({ collapsed, variant = "icon" }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -162,38 +164,83 @@ export function NotificationBell({ collapsed }: NotificationBellProps) {
     );
   }
 
-  return (
-    <div ref={ref} className="relative inline-flex">
-      {/* Bell trigger */}
-      <button
-        onClick={() => setOpen(!open)}
-        className="relative flex h-6 w-6 items-center justify-center rounded-md transition-colors"
-        style={{ color: "var(--color-text-tertiary)" }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "var(--color-bg-hover)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "transparent";
-        }}
-        title="Notifications"
-      >
-        <Bell size={14} />
+  const isNav = variant === "nav";
 
-        {/* Unread badge */}
-        {unreadCount > 0 && (
-          <span
-            className="absolute -right-1 -top-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none text-white"
-            style={{ background: "var(--color-error)" }}
-          >
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </span>
-        )}
-      </button>
+  return (
+    <div ref={ref} className={isNav ? "relative" : "relative inline-flex"}>
+      {/* Bell trigger */}
+      {isNav ? (
+        <button
+          onClick={() => setOpen(!open)}
+          className={`group flex items-center gap-2.5 rounded-md text-[13px] font-medium transition-all duration-150 ${
+            collapsed ? "h-8 w-8 justify-center mx-auto" : "h-8 px-2.5 w-full"
+          }`}
+          style={{
+            color: "var(--color-text-secondary)",
+            background: open ? "var(--color-accent-soft)" : "transparent",
+          }}
+          onMouseEnter={(e) => {
+            if (!open) e.currentTarget.style.background = "var(--color-bg-hover)";
+          }}
+          onMouseLeave={(e) => {
+            if (!open) e.currentTarget.style.background = "transparent";
+          }}
+          title={collapsed ? "Notifications" : undefined}
+        >
+          <div className="relative shrink-0">
+            <Bell size={16} style={{ opacity: open ? 1 : 0.6 }} />
+            {unreadCount > 0 && (
+              <span
+                className="absolute -right-1.5 -top-1.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none text-white"
+                style={{ background: "var(--color-error)" }}
+              >
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </div>
+          {!collapsed && (
+            <>
+              <span className="truncate">Notifications</span>
+              {unreadCount > 0 && (
+                <span
+                  className="ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white"
+                  style={{ background: "var(--color-error)" }}
+                >
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </>
+          )}
+        </button>
+      ) : (
+        <button
+          onClick={() => setOpen(!open)}
+          className="relative flex h-6 w-6 items-center justify-center rounded-md transition-colors"
+          style={{ color: "var(--color-text-tertiary)" }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "var(--color-bg-hover)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+          }}
+          title="Notifications"
+        >
+          <Bell size={14} />
+          {unreadCount > 0 && (
+            <span
+              className="absolute -right-1 -top-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none text-white"
+              style={{ background: "var(--color-error)" }}
+            >
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </button>
+      )}
 
       {/* Dropdown panel */}
       {open && (
         <div
-          className="absolute left-0 top-full z-50 mt-2 w-[340px] rounded-lg"
+          className={`absolute z-50 w-[340px] rounded-lg ${isNav ? "left-full top-0 ml-2" : "left-0 top-full mt-2"}`}
           style={{
             background: "var(--color-bg-card)",
             border: "1px solid var(--color-border-default)",

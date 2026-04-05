@@ -22,10 +22,10 @@ export function Badge({ children, variant = "neutral", size = "sm", className = 
   const s = variantStyles[variant];
   return (
     <span
-      className={`inline-flex items-center font-medium rounded ${
-        size === "sm" ? "px-1.5 py-0.5 text-[11px]" : "px-2 py-0.5 text-[12px]"
+      className={`inline-flex items-center font-medium rounded-full ${
+        size === "sm" ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-0.5 text-[12px]"
       } ${className}`}
-      style={{ background: s.bg, color: s.color }}
+      style={{ background: s.bg, color: s.color, border: `1px solid ${s.color}20` }}
     >
       {children}
     </span>
@@ -66,11 +66,11 @@ interface TagProps {
 export function Tag({ children, onRemove, color, bg }: TagProps) {
   return (
     <span
-      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium"
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
       style={{
         background: bg || "var(--color-bg-hover)",
         color: color || "var(--color-text-secondary)",
-        border: "1px solid var(--color-border-default)",
+        border: `1px solid ${color || "var(--color-border-default)"}20`,
       }}
     >
       {children}
@@ -117,8 +117,12 @@ export function PropertyBadge({ value, className = "" }: PropertyBadgeProps) {
   const palette = BADGE_PALETTE[hashColor(value)];
   return (
     <span
-      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ${className}`}
-      style={{ background: palette.bg, color: palette.color }}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${className}`}
+      style={{
+        background: palette.bg,
+        color: palette.color,
+        border: `1px solid ${palette.color}20`,
+      }}
     >
       {value}
     </span>

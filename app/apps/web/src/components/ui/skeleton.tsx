@@ -7,6 +7,9 @@ export function Skeleton({ className = "", style }: SkeletonProps) {
   return <div className={`skeleton ${className}`} style={style} />;
 }
 
+// Deterministic pseudo-random widths to avoid hydration mismatch
+const SKELETON_WIDTHS = [72, 55, 83, 64, 48, 77, 60, 90, 52, 68];
+
 export function TableSkeleton({ rows = 5, cols = 5 }: { rows?: number; cols?: number }) {
   return (
     <div className="w-full">
@@ -23,7 +26,7 @@ export function TableSkeleton({ rows = 5, cols = 5 }: { rows?: number; cols?: nu
             <Skeleton
               key={c}
               className="h-3 rounded"
-              style={{ width: `${Math.random() * 40 + 40}%`, maxWidth: `${100 / cols}%` }}
+              style={{ width: `${SKELETON_WIDTHS[(r * cols + c) % SKELETON_WIDTHS.length]}%`, maxWidth: `${100 / cols}%` }}
             />
           ))}
         </div>

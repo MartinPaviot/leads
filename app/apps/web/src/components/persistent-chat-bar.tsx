@@ -4,12 +4,17 @@ import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sparkles, Send } from "lucide-react";
 
-export function PersistentChatBar() {
+export function PersistentChatBar({ forceShow }: { forceShow?: boolean } = {}) {
   const pathname = usePathname();
   const router = useRouter();
   const [query, setQuery] = useState("");
 
-  if (pathname === "/chat" || pathname?.startsWith("/chat?")) return null;
+  if (!forceShow) {
+    // Only show on Up Next (/) and Chat (/chat)
+    const isUpNext = pathname === "/" || pathname === "/home";
+    const isChat = pathname === "/chat" || pathname?.startsWith("/chat?");
+    if (!isUpNext && !isChat) return null;
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -19,7 +24,14 @@ export function PersistentChatBar() {
   }
 
   return (
-    <div className="px-4 pb-3 pt-2" style={{ borderTop: "1px solid var(--color-border-default)" }}>
+    <div className="relative px-4 pb-3 pt-2">
+      {/* Fade gradient — messages dissolve behind the input */}
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-full h-8"
+        style={{
+          background: "linear-gradient(to bottom, transparent, var(--color-bg-base))",
+        }}
+      />
       <form onSubmit={handleSubmit} className="relative mx-auto max-w-2xl">
         <Sparkles
           size={15}

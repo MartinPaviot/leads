@@ -155,10 +155,17 @@ export function ScopedChat({ contextType, contextId, contextLabel }: ScopedChatP
       </div>
 
       {/* Input */}
+      <div className="relative">
+        {/* Fade gradient — messages dissolve behind the input */}
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-full h-6"
+          style={{
+            background: "linear-gradient(to bottom, transparent, var(--color-bg-surface))",
+          }}
+        />
       <form
         onSubmit={handleSubmit}
         className="flex items-center gap-2 px-3 py-2"
-        style={{ borderTop: "0.5px solid var(--color-border-default)" }}
       >
         <Sparkles size={12} style={{ color: "var(--color-text-tertiary)" }} />
         <input
@@ -178,6 +185,7 @@ export function ScopedChat({ contextType, contextId, contextLabel }: ScopedChatP
           <Send size={14} />
         </button>
       </form>
+      </div>
     </div>
   );
 }

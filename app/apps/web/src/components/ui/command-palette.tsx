@@ -1,8 +1,28 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Search, Building2, Users, CircleDot, CheckSquare, FileText, MessageSquare, Settings, Zap } from "lucide-react";
+import {
+  Search,
+  Building2,
+  Users,
+  CircleDot,
+  CheckSquare,
+  FileText,
+  MessageSquare,
+  Settings,
+  Zap,
+  Clock,
+  Calendar,
+  Shield,
+  FileBarChart,
+  MessageCircle,
+  Plus,
+  ArrowRight,
+  Mail,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
+
+/* ── Types ── */
 
 interface CommandItem {
   id: string;
@@ -11,31 +31,205 @@ interface CommandItem {
   href?: string;
   action?: () => void;
   section: string;
+  meta?: string;
+  logoUrl?: string;
 }
 
+interface SearchResult {
+  id: string;
+  name: string;
+  type: "account" | "contact" | "opportunity" | "task" | "note" | "chat";
+  meta?: string;
+  domain?: string;
+}
+
+interface SearchResults {
+  accounts: SearchResult[];
+  contacts: SearchResult[];
+  opportunities: SearchResult[];
+  tasks: SearchResult[];
+  notes: SearchResult[];
+  chats: SearchResult[];
+}
+
+/* ── Static items ── */
+
 const NAV_ITEMS: CommandItem[] = [
-  { id: "dashboard", label: "Up next", icon: <Search size={16} />, href: "/", section: "Navigation" },
-  { id: "accounts", label: "Accounts", icon: <Building2 size={16} />, href: "/accounts", section: "Navigation" },
-  { id: "contacts", label: "Contacts", icon: <Users size={16} />, href: "/contacts", section: "Navigation" },
-  { id: "opportunities", label: "Opportunities", icon: <CircleDot size={16} />, href: "/opportunities", section: "Navigation" },
-  { id: "sequences", label: "Sequences", icon: <Zap size={16} />, href: "/sequences", section: "Navigation" },
-  { id: "tasks", label: "Tasks", icon: <CheckSquare size={16} />, href: "/tasks", section: "Navigation" },
-  { id: "notes", label: "Notes", icon: <FileText size={16} />, href: "/notes", section: "Navigation" },
-  { id: "chat", label: "Ask LeadSens", icon: <MessageSquare size={16} />, href: "/chat", section: "Navigation" },
-  { id: "settings", label: "Settings", icon: <Settings size={16} />, href: "/settings", section: "Navigation" },
+  { id: "nav-home", label: "Up next", icon: <Clock size={16} />, href: "/", section: "Navigate to" },
+  { id: "nav-accounts", label: "Accounts", icon: <Building2 size={16} />, href: "/accounts", section: "Navigate to" },
+  { id: "nav-contacts", label: "Contacts", icon: <Users size={16} />, href: "/contacts", section: "Navigate to" },
+  { id: "nav-opportunities", label: "Opportunities", icon: <CircleDot size={16} />, href: "/opportunities", section: "Navigate to" },
+  { id: "nav-sequences", label: "Sequences", icon: <Zap size={16} />, href: "/sequences", section: "Navigate to" },
+  { id: "nav-deliverability", label: "Deliverability", icon: <Shield size={16} />, href: "/deliverability", section: "Navigate to" },
+  { id: "nav-reports", label: "Reports", icon: <FileBarChart size={16} />, href: "/reports", section: "Navigate to" },
+  { id: "nav-tasks", label: "Tasks", icon: <CheckSquare size={16} />, href: "/tasks", section: "Navigate to" },
+  { id: "nav-meetings", label: "Meetings", icon: <Calendar size={16} />, href: "/meetings", section: "Navigate to" },
+  { id: "nav-notes", label: "Notes", icon: <FileText size={16} />, href: "/notes", section: "Navigate to" },
+  { id: "nav-voc", label: "Voice of Customer", icon: <MessageCircle size={16} />, href: "/voice-of-customer", section: "Navigate to" },
+  { id: "nav-chat", label: "Ask LeadSens", icon: <MessageSquare size={16} />, href: "/chat", section: "Navigate to" },
+  { id: "nav-settings", label: "Settings", icon: <Settings size={16} />, href: "/settings", section: "Navigate to" },
 ];
+
+const ACTION_ITEMS: CommandItem[] = [
+  { id: "act-new-chat", label: "New chat", icon: <Plus size={16} />, href: "/chat", section: "Actions" },
+  { id: "act-new-account", label: "Create account", icon: <Building2 size={16} />, href: "/accounts?create=true", section: "Actions" },
+  { id: "act-new-contact", label: "Create contact", icon: <Users size={16} />, href: "/contacts?create=true", section: "Actions" },
+  { id: "act-new-deal", label: "Create opportunity", icon: <CircleDot size={16} />, href: "/opportunities?create=true", section: "Actions" },
+  { id: "act-new-task", label: "Create task", icon: <CheckSquare size={16} />, href: "/tasks?create=true", section: "Actions" },
+  { id: "act-new-sequence", label: "Create sequence", icon: <Zap size={16} />, href: "/sequences?create=true", section: "Actions" },
+];
+
+/* ── Icon by record type ── */
+
+const TYPE_ICON: Record<string, React.ReactNode> = {
+  account: <Building2 size={16} />,
+  contact: <Users size={16} />,
+  opportunity: <CircleDot size={16} />,
+  task: <CheckSquare size={16} />,
+  note: <FileText size={16} />,
+  chat: <MessageSquare size={16} />,
+};
+
+const TYPE_HREF: Record<string, (id: string) => string> = {
+  account: (id) => `/accounts/${id}`,
+  contact: (id) => `/contacts/${id}`,
+  opportunity: (id) => `/opportunities/${id}`,
+  task: (id) => `/tasks`,
+  note: (id) => `/notes`,
+  chat: (id) => `/chat?thread=${id}`,
+};
+
+const TYPE_LABELS: Record<string, string> = {
+  accounts: "Accounts",
+  contacts: "Contacts",
+  opportunities: "Opportunities",
+  tasks: "Tasks",
+  notes: "Notes",
+  chats: "Chats",
+};
+
+/* ── Logo with fallback ── */
+
+function ResultIcon({ logoUrl, fallback }: { logoUrl?: string; fallback: React.ReactNode }) {
+  const [failed, setFailed] = useState(false);
+
+  if (logoUrl && !failed) {
+    return (
+      <img
+        src={logoUrl}
+        alt=""
+        className="h-5 w-5 shrink-0 rounded object-contain"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <span
+      className="flex shrink-0 items-center justify-center"
+      style={{ color: "var(--color-text-tertiary)" }}
+    >
+      {fallback}
+    </span>
+  );
+}
+
+/* ── Component ── */
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [searchResults, setSearchResults] = useState<SearchResults | null>(null);
+  const [searching, setSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const router = useRouter();
 
-  const filtered = NAV_ITEMS.filter((item) =>
-    item.label.toLowerCase().includes(query.toLowerCase())
-  );
+  // Build the flat list of all visible items
+  const buildItems = useCallback((): CommandItem[] => {
+    const items: CommandItem[] = [];
 
+    if (!query) {
+      // No query: show nav + actions
+      items.push(...NAV_ITEMS, ...ACTION_ITEMS);
+    } else {
+      // Filter nav items
+      const filteredNav = NAV_ITEMS.filter((item) =>
+        item.label.toLowerCase().includes(query.toLowerCase())
+      );
+      if (filteredNav.length > 0) items.push(...filteredNav);
+
+      // Filter action items
+      const filteredActions = ACTION_ITEMS.filter((item) =>
+        item.label.toLowerCase().includes(query.toLowerCase())
+      );
+      if (filteredActions.length > 0) items.push(...filteredActions);
+
+      // Add search results as items
+      if (searchResults) {
+        for (const [key, results] of Object.entries(searchResults)) {
+          const label = TYPE_LABELS[key];
+          if (!label || !results || results.length === 0) continue;
+          for (const r of results as SearchResult[]) {
+            items.push({
+              id: `search-${r.type}-${r.id}`,
+              label: r.name || "Untitled",
+              icon: TYPE_ICON[r.type] || <Search size={16} />,
+              href: TYPE_HREF[r.type]?.(r.id),
+              section: `${label} (${(results as SearchResult[]).length})`,
+              meta: r.meta,
+              logoUrl: r.domain ? `https://www.google.com/s2/favicons?domain=${r.domain}&sz=128` : undefined,
+            });
+          }
+        }
+      }
+    }
+
+    return items;
+  }, [query, searchResults]);
+
+  const items = buildItems();
+
+  // Group items by section for rendering
+  const sections = items.reduce<Record<string, CommandItem[]>>((acc, item) => {
+    (acc[item.section] ??= []).push(item);
+    return acc;
+  }, {});
+
+  // Debounced search
+  useEffect(() => {
+    if (!query || query.length < 2) {
+      setSearchResults(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      if (abortRef.current) abortRef.current.abort();
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
+      setSearching(true);
+
+      try {
+        const res = await fetch(`/api/search/quick?q=${encodeURIComponent(query)}`, {
+          signal: ctrl.signal,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data.results);
+        }
+      } catch {
+        // aborted or failed
+      } finally {
+        setSearching(false);
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  // Open/close handler
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -43,23 +237,28 @@ export function CommandPalette() {
         setOpen((o) => !o);
       }
       if (!open) return;
-      if (e.key === "Escape") setOpen(false);
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+      }
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1));
+        setSelectedIndex((i) => Math.min(i + 1, items.length - 1));
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelectedIndex((i) => Math.max(i - 1, 0));
       }
-      if (e.key === "Enter" && filtered[selectedIndex]) {
-        const item = filtered[selectedIndex];
+      if (e.key === "Enter" && items[selectedIndex]) {
+        e.preventDefault();
+        const item = items[selectedIndex];
         if (item.href) router.push(item.href);
         if (item.action) item.action();
         setOpen(false);
       }
     },
-    [open, filtered, selectedIndex, router]
+    [open, items, selectedIndex, router]
   );
 
   useEffect(() => {
@@ -71,14 +270,33 @@ export function CommandPalette() {
     if (open) {
       setQuery("");
       setSelectedIndex(0);
+      setSearchResults(null);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
 
+  // Scroll selected item into view
+  useEffect(() => {
+    if (!listRef.current) return;
+    const el = listRef.current.querySelector('[data-selected="true"]');
+    if (el) el.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex]);
+
+  // Allow external open via custom event
+  useEffect(() => {
+    function handleOpen() {
+      setOpen(true);
+    }
+    window.addEventListener("leadsens:command-palette", handleOpen);
+    return () => window.removeEventListener("leadsens:command-palette", handleOpen);
+  }, []);
+
   if (!open) return null;
 
+  let flatIdx = -1;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[20vh]">
       <div
         className="absolute inset-0"
         style={{ background: "var(--color-bg-modal-overlay)" }}
@@ -94,51 +312,129 @@ export function CommandPalette() {
         }}
       >
         {/* Search input */}
-        <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: "1px solid var(--color-border-default)" }}>
+        <div
+          className="flex items-center gap-2.5 px-4 py-3"
+          style={{ borderBottom: "1px solid var(--color-border-default)" }}
+        >
           <Search size={16} style={{ color: "var(--color-text-tertiary)" }} />
           <input
             ref={inputRef}
             value={query}
-            onChange={(e) => { setQuery(e.target.value); setSelectedIndex(0); }}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSelectedIndex(0);
+            }}
             placeholder="Search or jump to..."
-            className="flex-1 bg-transparent text-[14px] outline-none"
+            className="flex-1 bg-transparent text-[14px] outline-none placeholder:text-[var(--color-text-tertiary)]"
             style={{ color: "var(--color-text-primary)" }}
           />
+          {searching && (
+            <div
+              className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
+              style={{ color: "var(--color-text-tertiary)" }}
+            />
+          )}
           <kbd
             className="rounded px-1.5 py-0.5 text-[10px] font-medium"
-            style={{ background: "var(--color-bg-hover)", color: "var(--color-text-tertiary)" }}
+            style={{
+              background: "var(--color-bg-hover)",
+              color: "var(--color-text-tertiary)",
+            }}
           >
             ESC
           </kbd>
         </div>
 
-        {/* Results */}
-        <div className="max-h-72 overflow-auto py-2">
-          {filtered.length === 0 ? (
-            <p className="px-4 py-6 text-center text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
+        {/* Results grouped by section */}
+        <div ref={listRef} className="max-h-80 overflow-auto py-1">
+          {items.length === 0 ? (
+            <p
+              className="px-4 py-8 text-center text-[13px]"
+              style={{ color: "var(--color-text-tertiary)" }}
+            >
               No results found
             </p>
           ) : (
-            filtered.map((item, i) => (
-              <button
-                key={item.id}
-                onClick={() => {
-                  if (item.href) router.push(item.href);
-                  if (item.action) item.action();
-                  setOpen(false);
-                }}
-                className="flex w-full items-center gap-3 px-4 py-2 text-[13px] transition-colors"
-                style={{
-                  color: "var(--color-text-primary)",
-                  background: i === selectedIndex ? "var(--color-bg-hover)" : "transparent",
-                }}
-                onMouseEnter={() => setSelectedIndex(i)}
-              >
-                <span style={{ color: "var(--color-text-tertiary)" }}>{item.icon}</span>
-                {item.label}
-              </button>
+            Object.entries(sections).map(([section, sectionItems]) => (
+              <div key={section}>
+                <div
+                  className="px-4 pb-1 pt-2.5 text-[11px] font-semibold uppercase tracking-wider"
+                  style={{ color: "var(--color-text-tertiary)" }}
+                >
+                  {section}
+                </div>
+                {sectionItems.map((item) => {
+                  flatIdx++;
+                  const idx = flatIdx;
+                  const isSelected = idx === selectedIndex;
+                  return (
+                    <button
+                      key={item.id}
+                      data-selected={isSelected}
+                      onClick={() => {
+                        if (item.href) router.push(item.href);
+                        if (item.action) item.action();
+                        setOpen(false);
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-2 text-[13px] transition-colors"
+                      style={{
+                        color: "var(--color-text-primary)",
+                        background: isSelected
+                          ? "var(--color-bg-hover)"
+                          : "transparent",
+                      }}
+                      onMouseEnter={() => setSelectedIndex(idx)}
+                    >
+                      <ResultIcon logoUrl={item.logoUrl} fallback={item.icon} />
+                      <span className="flex-1 truncate text-left">
+                        {item.label}
+                      </span>
+                      {item.meta && (
+                        <span
+                          className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                          style={{
+                            background: "var(--color-bg-hover)",
+                            color: "var(--color-text-tertiary)",
+                          }}
+                        >
+                          {item.meta}
+                        </span>
+                      )}
+                      {isSelected && (
+                        <ArrowRight
+                          size={12}
+                          className="shrink-0"
+                          style={{ color: "var(--color-text-tertiary)" }}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             ))
           )}
+        </div>
+
+        {/* Footer with keyboard hints */}
+        <div
+          className="flex items-center gap-4 px-4 py-2 text-[11px]"
+          style={{
+            borderTop: "1px solid var(--color-border-default)",
+            color: "var(--color-text-tertiary)",
+          }}
+        >
+          <span className="flex items-center gap-1">
+            <kbd className="rounded px-1 py-0.5 text-[10px]" style={{ background: "var(--color-bg-hover)" }}>↑↓</kbd>
+            navigate
+          </span>
+          <span className="flex items-center gap-1">
+            <kbd className="rounded px-1 py-0.5 text-[10px]" style={{ background: "var(--color-bg-hover)" }}>↵</kbd>
+            select
+          </span>
+          <span className="flex items-center gap-1">
+            <kbd className="rounded px-1 py-0.5 text-[10px]" style={{ background: "var(--color-bg-hover)" }}>esc</kbd>
+            close
+          </span>
         </div>
       </div>
     </div>

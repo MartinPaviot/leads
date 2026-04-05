@@ -40,11 +40,15 @@ import {
   Heart,
   Bookmark,
   Flag,
+  Mail,
+  Inbox,
+  Search,
   type LucideIcon,
 } from "lucide-react";
 import { useTheme } from "@/components/ui/theme-provider";
 import { Avatar } from "@/components/ui/avatar";
 import { NotificationBell } from "@/components/notification-bell";
+import { useRef, useCallback } from "react";
 
 const CUSTOM_ICON_MAP: Record<string, LucideIcon> = {
   Box, Folder, Package, Handshake, Lightbulb, Target, Rocket,
@@ -53,7 +57,10 @@ const CUSTOM_ICON_MAP: Record<string, LucideIcon> = {
 
 interface SidebarProps {
   userName: string;
+  userEmail?: string;
   userInitials: string;
+  userAvatarUrl?: string | null;
+  tenantName?: string | null;
   recentChats: Array<{ id: string; title: string | null }>;
   onSignOut: () => void;
 }
@@ -75,6 +82,7 @@ const navSections = [
   {
     label: "Outreach",
     items: [
+      { label: "Inbox", href: "/inbox", icon: Inbox },
       { label: "Sequences", href: "/sequences", icon: Zap },
       { label: "Deliverability", href: "/deliverability", icon: Shield },
       { label: "Reports", href: "/reports", icon: FileBarChart },
@@ -100,11 +108,157 @@ interface CustomObjectType {
   icon: string;
 }
 
-export function Sidebar({ userName, userInitials, recentChats, onSignOut }: SidebarProps) {
+/* ── User menu: avatar + first name, hover reveals full menu ── */
+function UserMenu({
+  firstName,
+  userName,
+  userEmail,
+  avatarUrl,
+  tenantName,
+  collapsed,
+  theme,
+  onToggleTheme,
+  onSignOut,
+  isSettingsActive,
+}: {
+  firstName: string;
+  userName: string;
+  userEmail?: string;
+  avatarUrl?: string | null;
+  tenantName?: string | null;
+  collapsed: boolean;
+  theme: string;
+  onToggleTheme: () => void;
+  onSignOut: () => void;
+  isSettingsActive: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleEnter = useCallback(() => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setOpen(true);
+  }, []);
+
+  const handleLeave = useCallback(() => {
+    timeoutRef.current = setTimeout(() => setOpen(false), 200);
+  }, []);
+
+  // Company initials for avatar fallback
+  const avatarName = tenantName || userName;
+
+  return (
+    <div
+      className="relative px-2 py-2"
+      style={{ borderTop: "1px solid var(--color-border-default)" }}
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
+    >
+      {/* Always visible: avatar + first name */}
+      <div
+        className={`flex items-center rounded-md transition-colors ${
+          collapsed ? "h-8 w-8 justify-center mx-auto" : "h-8 gap-2.5 px-2.5"
+        }`}
+        style={{ cursor: "default" }}
+      >
+        <Avatar src={avatarUrl} name={avatarName} size="sm" />
+        {!collapsed && (
+          <span
+            className="flex-1 truncate text-[13px] font-medium"
+            style={{ color: "var(--color-text-primary)" }}
+          >
+            {firstName}
+          </span>
+        )}
+      </div>
+
+      {/* Hover popover */}
+      {open && (
+        <div
+          className="absolute z-50 min-w-[200px] rounded-lg py-1.5 shadow-lg"
+          style={{
+            background: "var(--color-bg-card)",
+            border: "1px solid var(--color-border-default)",
+            bottom: "100%",
+            left: collapsed ? "calc(100% + 8px)" : "8px",
+            marginBottom: collapsed ? undefined : "4px",
+            ...(collapsed ? { bottom: "0" } : {}),
+          }}
+          onMouseEnter={handleEnter}
+          onMouseLeave={handleLeave}
+        >
+          {/* User info header */}
+          <div className="px-3 py-2" style={{ borderBottom: "1px solid var(--color-border-default)" }}>
+            <div className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{userName}</div>
+            {userEmail && (
+              <div className="truncate text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{userEmail}</div>
+            )}
+          </div>
+
+          {/* Menu items */}
+          <div className="py-1">
+            {/* Settings */}
+            <Link
+              href="/settings"
+              className="flex items-center gap-2.5 px-3 py-1.5 text-[13px] transition-colors"
+              style={{ color: isSettingsActive ? "var(--color-text-primary)" : "var(--color-text-secondary)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              <Settings size={14} style={{ opacity: 0.6 }} />
+              Settings
+            </Link>
+
+            {/* Dark mode */}
+            <button
+              onClick={onToggleTheme}
+              className="flex w-full items-center gap-2.5 px-3 py-1.5 text-[13px] transition-colors"
+              style={{ color: "var(--color-text-secondary)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              {theme === "light" ? <Moon size={14} style={{ opacity: 0.6 }} /> : <Sun size={14} style={{ opacity: 0.6 }} />}
+              {theme === "light" ? "Dark mode" : "Light mode"}
+            </button>
+
+            {/* Contact the team */}
+            <a
+              href="mailto:support@elevay.dev"
+              className="flex items-center gap-2.5 px-3 py-1.5 text-[13px] transition-colors"
+              style={{ color: "var(--color-text-secondary)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              <Mail size={14} style={{ opacity: 0.6 }} />
+              Contact the team
+            </a>
+          </div>
+
+          {/* Logout */}
+          <div style={{ borderTop: "1px solid var(--color-border-default)" }} className="py-1">
+            <button
+              onClick={onSignOut}
+              className="flex w-full items-center gap-2.5 px-3 py-1.5 text-[13px] transition-colors"
+              style={{ color: "var(--color-text-secondary)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              <LogOut size={14} style={{ opacity: 0.6 }} />
+              Log out
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tenantName, recentChats, onSignOut }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [customObjectTypes, setCustomObjectTypes] = useState<CustomObjectType[]>([]);
   const pathname = usePathname();
   const { theme, toggle: toggleTheme } = useTheme();
+  const firstName = userName.split(" ")[0];
 
   useEffect(() => {
     fetch("/api/custom-objects")
@@ -128,10 +282,13 @@ export function Sidebar({ userName, userInitials, recentChats, onSignOut }: Side
         borderRight: "1px solid var(--color-border-default)",
       }}
     >
-      {/* Logo + User header */}
+      {/* Logo + User header — matches page header height */}
       <div
-        className="flex items-center gap-2.5 px-3 py-3"
-        style={{ borderBottom: "1px solid var(--color-border-default)" }}
+        className="flex shrink-0 items-center gap-2.5 px-3"
+        style={{
+          height: "var(--header-height)",
+          borderBottom: "1px solid var(--color-border-default)",
+        }}
       >
         {!collapsed ? (
           <>
@@ -140,7 +297,16 @@ export function Sidebar({ userName, userInitials, recentChats, onSignOut }: Side
               LeadSens
             </span>
             <div className="flex-1" />
-            <NotificationBell collapsed={false} />
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent("leadsens:command-palette"))}
+              className="flex h-6 w-6 items-center justify-center rounded-md transition-colors"
+              style={{ color: "var(--color-text-tertiary)" }}
+              title="Search (⌘K)"
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              <Search size={14} />
+            </button>
             <button
               onClick={() => setCollapsed(true)}
               className="flex h-6 w-6 items-center justify-center rounded-md transition-colors"
@@ -151,22 +317,36 @@ export function Sidebar({ userName, userInitials, recentChats, onSignOut }: Side
             </button>
           </>
         ) : (
-          <div className="flex flex-col items-center gap-1">
-            <button
-              onClick={() => setCollapsed(false)}
-              className="flex h-7 w-7 items-center justify-center rounded-md transition-colors"
-              style={{ color: "var(--color-text-tertiary)" }}
-              title="Expand sidebar"
-            >
-              <ChevronsRight size={14} />
-            </button>
-            <NotificationBell collapsed={true} />
-          </div>
+          <button
+            onClick={() => setCollapsed(false)}
+            className="flex h-7 w-7 items-center justify-center rounded-md transition-colors mx-auto"
+            style={{ color: "var(--color-text-tertiary)" }}
+            title="Expand sidebar"
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          >
+            <ChevronsRight size={14} />
+          </button>
         )}
       </div>
 
       {/* Navigation */}
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+        {/* Search button — first nav item when collapsed */}
+        {collapsed && (
+          <div className="mb-0.5">
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent("leadsens:command-palette"))}
+              className="group flex h-8 w-8 items-center justify-center rounded-md mx-auto transition-all duration-150"
+              style={{ color: "var(--color-text-secondary)" }}
+              title="Search (⌘K)"
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              <Search size={16} style={{ opacity: 0.6 }} />
+            </button>
+          </div>
+        )}
         {navSections.map((section, sectionIdx) => (
           <div key={section.label || sectionIdx} className={sectionIdx > 0 ? "mt-4" : ""}>
             {section.label && !collapsed && (
@@ -217,6 +397,10 @@ export function Sidebar({ userName, userInitials, recentChats, onSignOut }: Side
                   </Link>
                 );
               })}
+              {/* Notifications nav item — right below "Up next" */}
+              {sectionIdx === 0 && (
+                <NotificationBell collapsed={collapsed} variant="nav" />
+              )}
             </div>
           </div>
         ))}
@@ -328,86 +512,19 @@ export function Sidebar({ userName, userInitials, recentChats, onSignOut }: Side
         </div>
       </nav>
 
-      {/* Footer */}
-      <div
-        className="px-2 py-2"
-        style={{ borderTop: "1px solid var(--color-border-default)" }}
-      >
-        {/* User avatar + name */}
-        {!collapsed && (
-          <div className="mb-2 flex items-center gap-2 px-2">
-            <Avatar name={userName} size="sm" />
-            <span
-              className="flex-1 truncate text-[12px] font-medium"
-              style={{ color: "var(--color-text-primary)" }}
-            >
-              {userName}
-            </span>
-          </div>
-        )}
-
-        {/* Dark mode toggle */}
-        <button
-          onClick={toggleTheme}
-          className={`group flex items-center gap-2.5 rounded-md text-[13px] font-medium transition-colors ${
-            collapsed ? "h-8 w-8 justify-center mx-auto" : "h-8 w-full px-2.5"
-          }`}
-          style={{ color: "var(--color-text-secondary)" }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-          title={collapsed ? "Toggle theme" : undefined}
-        >
-          {theme === "light" ? <Moon size={15} className="shrink-0" style={{ opacity: 0.6 }} /> : <Sun size={15} className="shrink-0" style={{ opacity: 0.6 }} />}
-          {!collapsed && <span>{theme === "light" ? "Dark mode" : "Light mode"}</span>}
-        </button>
-
-        {/* Settings */}
-        <Link
-          href="/settings"
-          className={`group flex items-center gap-2.5 rounded-md text-[13px] font-medium transition-colors ${
-            collapsed ? "h-8 w-8 justify-center mx-auto" : "h-8 px-2.5"
-          }`}
-          style={{
-            color: isActive("/settings") ? "var(--color-text-primary)" : "var(--color-text-secondary)",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-          title={collapsed ? "Settings" : undefined}
-        >
-          <Settings size={15} className="shrink-0" style={{ opacity: 0.6 }} />
-          {!collapsed && <span>Settings</span>}
-        </Link>
-
-        {/* Logout + legal */}
-        {!collapsed && (
-          <div className="mt-1.5 flex items-center gap-2 px-2.5">
-            <button
-              onClick={onSignOut}
-              className="flex items-center gap-1 text-[11px] transition-colors hover:opacity-80"
-              style={{ color: "var(--color-text-tertiary)" }}
-            >
-              <LogOut size={11} />
-              Log out
-            </button>
-            <div className="flex-1" />
-            <Link href="/terms" className="text-[10px] hover:underline" style={{ color: "var(--color-text-tertiary)" }}>Terms</Link>
-            <Link href="/privacy" className="text-[10px] hover:underline" style={{ color: "var(--color-text-tertiary)" }}>Privacy</Link>
-          </div>
-        )}
-
-        {collapsed && (
-          <button
-            onClick={onSignOut}
-            className="mx-auto mt-1 flex h-8 w-8 items-center justify-center rounded-md transition-colors"
-            style={{ color: "var(--color-text-tertiary)" }}
-            title="Log out"
-            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-          >
-            <LogOut size={14} />
-          </button>
-        )}
-      </div>
+      {/* Footer — user profile with hover menu */}
+      <UserMenu
+        firstName={firstName}
+        userName={userName}
+        userEmail={userEmail}
+        avatarUrl={userAvatarUrl}
+        tenantName={tenantName}
+        collapsed={collapsed}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onSignOut={onSignOut}
+        isSettingsActive={!!isActive("/settings")}
+      />
     </aside>
   );
 }

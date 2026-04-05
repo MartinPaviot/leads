@@ -82,7 +82,7 @@ export function EntityLink({ type, id, name, domain }: EntityLinkProps) {
   const initials = getInitials(name);
   const avatarColors = hashColor(name);
   const logoUrl = type === "account" && domain && !logoError
-    ? `https://logo.clearbit.com/${domain}`
+    ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128`
     : null;
 
   async function handleClick(e: React.MouseEvent) {
