@@ -42,10 +42,21 @@ export async function POST(req: Request) {
     updates.emailProvider = data.emailProvider;
   }
 
+  if (data.step === "privacy") {
+    updates.contactCreationMode = data.contactCreationMode;
+    updates.backsyncRange = data.backsyncRange;
+    updates.doNotTrackDomains = data.doNotTrackDomains;
+  }
+
   if (data.step === "icp") {
     updates.targetIndustries = data.industries;
     updates.targetCompanySizes = data.companySizes;
-    updates.targetRoles = data.targetRoles;
+    updates.targetSeniorities = data.targetSeniorities;
+    updates.targetDepartments = data.targetDepartments;
+    // Derive targetRoles string for backward compat with scoring, TAM, chat prompts
+    const seniorities = (data.targetSeniorities || []) as string[];
+    const departments = (data.targetDepartments || []) as string[];
+    updates.targetRoles = [...seniorities, ...departments].join(", ");
     updates.targetGeographies = data.geographies;
     if (data.aiTone) updates.aiTone = data.aiTone;
   }

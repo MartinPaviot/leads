@@ -45,13 +45,17 @@ export async function PUT(
 
   try {
     const body = await req.json();
-    const { name, stage, value, summary } = body;
+    const { name, stage, value, summary, expectedCloseDate, companyId, contactId, ownerId } = body;
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (name) updates.name = name.trim();
     if (stage) updates.stage = stage;
     if (value !== undefined) updates.value = value ? parseInt(value) : null;
     if (summary !== undefined) updates.summary = summary;
+    if (expectedCloseDate !== undefined) updates.expectedCloseDate = expectedCloseDate ? new Date(expectedCloseDate) : null;
+    if (companyId !== undefined) updates.companyId = companyId || null;
+    if (contactId !== undefined) updates.contactId = contactId || null;
+    if (ownerId !== undefined) updates.ownerId = ownerId || null;
 
     const [updated] = await db
       .update(deals)

@@ -17,9 +17,17 @@ export async function GET() {
     }
 
     const settings = (tenant.settings || {}) as Record<string, unknown>;
+    // Merge primary domain from onboarding into companyDomains
+    const primaryDomain = (settings.companyDomain as string) || "";
+    const extraDomains = (settings.companyDomains as string[]) || [];
+    const allDomains = primaryDomain
+      ? [primaryDomain, ...extraDomains.filter((d) => d !== primaryDomain)]
+      : extraDomains;
+
     return Response.json({
       name: tenant.name,
-      companyDomains: settings.companyDomains || [],
+      companyDomain: primaryDomain,
+      companyDomains: allDomains,
       agentApprovalMode: settings.agentApprovalMode || "ask",
     });
   } catch (error) {
@@ -50,7 +58,14 @@ export async function PUT(req: Request) {
     if (body.name !== undefined) {
       await db.update(tenants).set({ name: body.name.trim() }).where(eq(tenants.id, authCtx.tenantId));
     }
-    if (body.companyDomains !== undefined) updates.companyDomains = body.companyDomains;
+    if (body.companyDomain !== undefined) updates.companyDomain = body.companyDomain;
+    if (body.companyDomains !== undefined) {
+      // Keep companyDomains in sync: strip the primary domain from the array
+      const primary = (body.companyDomain ?? updates.companyDomain ?? "") as string;
+      updates.companyDomains = primary
+        ? (body.companyDomains as string[]).filter((d: string) => d !== primary)
+        : body.companyDomains;
+    }
     if (body.agentApprovalMode !== undefined) updates.agentApprovalMode = body.agentApprovalMode;
 
     await db.update(tenants).set({ settings: updates, updatedAt: new Date() }).where(eq(tenants.id, authCtx.tenantId));

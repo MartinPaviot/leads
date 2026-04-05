@@ -149,7 +149,7 @@ export async function POST(req: Request) {
 
     let scored = 0;
 
-    for (const id of companyIds.slice(0, 20)) {
+    for (const id of companyIds) {
       try {
         const [company] = await db
           .select()

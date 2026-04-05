@@ -1,7 +1,7 @@
 import { db } from "@/db";
-import { companies } from "@/db/schema";
+import { companies, activities } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth-utils";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, sql, desc } from "drizzle-orm";
 import { inngest } from "@/inngest/client";
 
 export async function GET(req: Request) {
@@ -31,8 +31,39 @@ export async function GET(req: Request) {
 
     const total = countResult[0]?.count ?? 0;
 
+    // Fetch last interaction per account (most recent activity linked to each company's contacts)
+    const lastInteractions: Record<string, { date: Date; summary: string | null }> = {};
+
+    try {
+      if (accounts.length > 0) {
+        const accountIds = accounts.map((a) => a.id);
+        const interactions = await db.execute(sql`
+          SELECT DISTINCT ON (c.company_id)
+            c.company_id,
+            a.occurred_at,
+            a.summary
+          FROM activities a
+          JOIN contacts c ON c.id = a.entity_id AND a.entity_type = 'contact'
+          WHERE c.company_id = ANY(ARRAY[${sql.join(accountIds.map(id => sql`${id}`), sql`, `)}]::text[])
+            AND a.tenant_id = ${authCtx.tenantId}
+          ORDER BY c.company_id, a.occurred_at DESC
+        `);
+        for (const row of interactions as unknown as Array<{ company_id: string; occurred_at: Date; summary: string | null }>) {
+          lastInteractions[row.company_id] = { date: row.occurred_at, summary: row.summary };
+        }
+      }
+    } catch (e) {
+      // Non-critical: accounts still load without last interaction
+      console.warn("Failed to fetch last interactions:", e);
+    }
+
+    const enrichedAccounts = accounts.map((a) => ({
+      ...a,
+      lastInteraction: lastInteractions[a.id] || null,
+    }));
+
     return Response.json({
-      accounts,
+      accounts: enrichedAccounts,
       pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
     });
   } catch (error) {

@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { deals } from "@/db/schema";
+import { deals, companies, users } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth-utils";
 import { eq } from "drizzle-orm";
 import { logAudit } from "@/lib/audit-log";
@@ -11,7 +11,33 @@ export async function GET() {
   }
 
   try {
-    const result = await db.select().from(deals).where(eq(deals.tenantId, authCtx.tenantId)).limit(100);
+    const result = await db
+      .select({
+        id: deals.id,
+        tenantId: deals.tenantId,
+        name: deals.name,
+        stage: deals.stage,
+        value: deals.value,
+        currency: deals.currency,
+        companyId: deals.companyId,
+        contactId: deals.contactId,
+        ownerId: deals.ownerId,
+        summary: deals.summary,
+        expectedCloseDate: deals.expectedCloseDate,
+        properties: deals.properties,
+        score: deals.score,
+        scoreReasons: deals.scoreReasons,
+        createdAt: deals.createdAt,
+        updatedAt: deals.updatedAt,
+        companyName: companies.name,
+        ownerFirstName: users.firstName,
+        ownerLastName: users.lastName,
+      })
+      .from(deals)
+      .leftJoin(companies, eq(deals.companyId, companies.id))
+      .leftJoin(users, eq(deals.ownerId, users.id))
+      .where(eq(deals.tenantId, authCtx.tenantId))
+      .limit(100);
     return Response.json({ deals: result });
   } catch (error) {
     console.error("Failed to fetch deals:", error);
@@ -27,7 +53,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { name, stage, companyId, value } = body;
+    const { name, stage, companyId, contactId, value, expectedCloseDate, ownerId } = body;
 
     if (!name || typeof name !== "string") {
       return Response.json({ error: "Name is required" }, { status: 400 });
@@ -39,7 +65,10 @@ export async function POST(req: Request) {
         name: name.trim(),
         stage: stage || "lead",
         companyId: companyId || null,
+        contactId: contactId || null,
+        ownerId: ownerId || authCtx.appUserId || null,
         value: value ? parseInt(value) : null,
+        expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate) : null,
         tenantId: authCtx.tenantId,
       })
       .returning();

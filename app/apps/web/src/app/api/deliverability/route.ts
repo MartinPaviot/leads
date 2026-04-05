@@ -1,97 +1,167 @@
 import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { activities, sequenceEnrollments } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { outboundEmails, sequenceEnrollments, connectedMailboxes, sequences } from "@/db/schema";
+import { eq, and, sql, isNotNull, count } from "drizzle-orm";
 
-async function handleDeliverability() {
+async function handleDeliverability(req: Request) {
   const authCtx = await getAuthContext();
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const allActivities = await db.select().from(activities).where(eq(activities.tenantId, authCtx.tenantId));
-    const allEnrollments = await db.select().from(sequenceEnrollments);
+    // Parse optional filters from query params
+    const url = new URL(req.url, "http://localhost");
+    const sequenceId = url.searchParams.get("sequenceId");
 
-    // Email activity breakdown
-    const emailsSent = allActivities.filter((a) => a.activityType === "email_sent");
-    const emailsOpened = allActivities.filter((a) => a.activityType === "email_opened");
-    const emailsReplied = allActivities.filter((a) => a.activityType === "email_replied");
-    const emailsBounced = allActivities.filter((a) => a.activityType === "email_bounced");
+    // Build where clause
+    const baseWhere = sequenceId
+      ? and(eq(outboundEmails.tenantId, authCtx.tenantId), eq(outboundEmails.enrollmentId, sequenceId))
+      : eq(outboundEmails.tenantId, authCtx.tenantId);
 
-    const totalSent = emailsSent.length;
-    const totalOpened = emailsOpened.length;
-    const totalReplied = emailsReplied.length;
-    const totalBounced = emailsBounced.length;
+    // Aggregate metrics from outboundEmails in a single query
+    const [metrics] = await db
+      .select({
+        totalSent: count(),
+        totalOpened: sql<number>`count(*) filter (where ${outboundEmails.openedAt} is not null)`,
+        totalReplied: sql<number>`count(*) filter (where ${outboundEmails.repliedAt} is not null)`,
+        totalBounced: sql<number>`count(*) filter (where ${outboundEmails.status} = 'bounced')`,
+        totalDelivered: sql<number>`count(*) filter (where ${outboundEmails.deliveredAt} is not null)`,
+        totalClicked: sql<number>`count(*) filter (where ${outboundEmails.clickedAt} is not null)`,
+      })
+      .from(outboundEmails)
+      .where(and(baseWhere, isNotNull(outboundEmails.sentAt)));
+
+    const totalSent = Number(metrics?.totalSent || 0);
+    const totalOpened = Number(metrics?.totalOpened || 0);
+    const totalReplied = Number(metrics?.totalReplied || 0);
+    const totalBounced = Number(metrics?.totalBounced || 0);
+    const totalDelivered = Number(metrics?.totalDelivered || 0);
+    const totalClicked = Number(metrics?.totalClicked || 0);
 
     // Rates
     const openRate = totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0;
     const replyRate = totalSent > 0 ? Math.round((totalReplied / totalSent) * 100) : 0;
     const bounceRate = totalSent > 0 ? Math.round((totalBounced / totalSent) * 100) : 0;
+    const clickRate = totalSent > 0 ? Math.round((totalClicked / totalSent) * 100) : 0;
 
-    // Spam complaint rate (from metadata)
-    const spamComplaints = emailsSent.filter(
-      (a) => (a.metadata as Record<string, unknown>)?.spamComplaint === true
-    );
-    const spamRate = totalSent > 0 ? Math.round((spamComplaints.length / totalSent) * 10000) / 100 : 0;
+    // Spam rate from bounced with complaint type
+    const [spamMetrics] = await db
+      .select({ spamCount: count() })
+      .from(outboundEmails)
+      .where(and(baseWhere, eq(outboundEmails.bounceType, "complaint")));
+    const spamCount = Number(spamMetrics?.spamCount || 0);
+    const spamRate = totalSent > 0 ? Math.round((spamCount / totalSent) * 10000) / 100 : 0;
+
+    // Per-step metrics (only when filtering by sequence)
+    let stepMetrics: Array<{
+      stepNumber: number;
+      sent: number;
+      opened: number;
+      replied: number;
+      bounced: number;
+      clicked: number;
+      openRate: number;
+      replyRate: number;
+    }> = [];
+
+    if (sequenceId) {
+      const steps = await db
+        .select({
+          stepNumber: outboundEmails.stepNumber,
+          sent: count(),
+          opened: sql<number>`count(*) filter (where ${outboundEmails.openedAt} is not null)`,
+          replied: sql<number>`count(*) filter (where ${outboundEmails.repliedAt} is not null)`,
+          bounced: sql<number>`count(*) filter (where ${outboundEmails.status} = 'bounced')`,
+          clicked: sql<number>`count(*) filter (where ${outboundEmails.clickedAt} is not null)`,
+        })
+        .from(outboundEmails)
+        .where(and(baseWhere, isNotNull(outboundEmails.sentAt)))
+        .groupBy(outboundEmails.stepNumber)
+        .orderBy(outboundEmails.stepNumber);
+
+      stepMetrics = steps.map((s) => {
+        const stepSent = Number(s.sent);
+        return {
+          stepNumber: s.stepNumber || 0,
+          sent: stepSent,
+          opened: Number(s.opened),
+          replied: Number(s.replied),
+          bounced: Number(s.bounced),
+          clicked: Number(s.clicked),
+          openRate: stepSent > 0 ? Math.round((Number(s.opened) / stepSent) * 100) : 0,
+          replyRate: stepSent > 0 ? Math.round((Number(s.replied) / stepSent) * 100) : 0,
+        };
+      });
+    }
 
     // Enrollment status breakdown
+    const enrollmentRows = sequenceId
+      ? await db.select({ status: sequenceEnrollments.status }).from(sequenceEnrollments).where(eq(sequenceEnrollments.sequenceId, sequenceId))
+      : await db.select({ status: sequenceEnrollments.status }).from(sequenceEnrollments);
+
     const enrollmentsByStatus: Record<string, number> = {};
-    for (const e of allEnrollments) {
+    for (const e of enrollmentRows) {
       const status = e.status || "unknown";
       enrollmentsByStatus[status] = (enrollmentsByStatus[status] || 0) + 1;
     }
 
-    // Health score: 0-100
-    // Penalty for high bounce (>5%), high spam (>0.1%), low open (<10%)
+    // Per-mailbox health (tenant-wide)
+    const mailboxHealth = await db
+      .select({
+        id: connectedMailboxes.id,
+        emailAddress: connectedMailboxes.emailAddress,
+        status: connectedMailboxes.status,
+        healthScore: connectedMailboxes.healthScore,
+        sentToday: connectedMailboxes.sentToday,
+        dailyLimit: connectedMailboxes.dailyLimit,
+        bounceCount7d: connectedMailboxes.bounceCount7d,
+      })
+      .from(connectedMailboxes)
+      .where(eq(connectedMailboxes.tenantId, authCtx.tenantId));
+
+    // Health score
     let healthScore = 100;
     if (bounceRate > 10) healthScore -= 40;
     else if (bounceRate > 5) healthScore -= 20;
     else if (bounceRate > 2) healthScore -= 10;
-
     if (spamRate > 0.3) healthScore -= 30;
     else if (spamRate > 0.1) healthScore -= 15;
-
     if (totalSent > 10 && openRate < 10) healthScore -= 20;
     else if (totalSent > 10 && openRate < 20) healthScore -= 10;
-
-    if (totalSent === 0) healthScore = 0; // No data
+    if (totalSent === 0) healthScore = 0;
 
     const healthLabel =
       healthScore >= 80 ? "excellent" :
       healthScore >= 60 ? "good" :
-      healthScore >= 40 ? "fair" :
-      "poor";
+      healthScore >= 40 ? "fair" : "poor";
 
     // Warnings
     const warnings: string[] = [];
-    if (bounceRate > 5) {
-      warnings.push(`Bounce rate ${bounceRate}% exceeds 5% threshold. Check email list quality.`);
-    }
-    if (spamRate > 0.1) {
-      warnings.push(`Spam complaint rate ${spamRate}% exceeds 0.1% Gmail threshold. Risk of domain blacklisting.`);
-    }
-    if (totalSent > 20 && openRate < 15) {
-      warnings.push(`Open rate ${openRate}% is low. Consider improving subject lines or warming up domains.`);
-    }
-    if (totalSent > 20 && replyRate < 2) {
-      warnings.push(`Reply rate ${replyRate}% is very low. Review email personalization and targeting.`);
-    }
+    if (bounceRate > 5) warnings.push(`Bounce rate ${bounceRate}% exceeds 5% threshold. Check email list quality.`);
+    if (spamRate > 0.1) warnings.push(`Spam complaint rate ${spamRate}% exceeds 0.1% Gmail threshold. Risk of domain blacklisting.`);
+    if (totalSent > 20 && openRate < 15) warnings.push(`Open rate ${openRate}% is low. Consider improving subject lines or warming up domains.`);
+    if (totalSent > 20 && replyRate < 2) warnings.push(`Reply rate ${replyRate}% is very low. Review email personalization and targeting.`);
 
     return Response.json({
       totalSent,
       totalOpened,
       totalReplied,
       totalBounced,
-      spamComplaints: spamComplaints.length,
+      totalDelivered,
+      totalClicked,
+      spamComplaints: spamCount,
       openRate,
       replyRate,
       bounceRate,
+      clickRate,
       spamRate,
       healthScore: Math.max(0, healthScore),
       healthLabel,
       warnings,
       enrollmentsByStatus,
+      stepMetrics,
+      mailboxHealth,
     });
   } catch (error) {
     console.error("Deliverability check failed:", error);
@@ -99,10 +169,10 @@ async function handleDeliverability() {
   }
 }
 
-export async function GET() {
-  return handleDeliverability();
+export async function GET(req: Request) {
+  return handleDeliverability(req);
 }
 
-export async function POST() {
-  return handleDeliverability();
+export async function POST(req: Request) {
+  return handleDeliverability(req);
 }

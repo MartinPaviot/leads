@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { contacts } from "@/db/schema";
+import { contacts, companies, activities } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth-utils";
 import { eq, sql } from "drizzle-orm";
 import { inngest } from "@/inngest/client";
@@ -46,8 +46,58 @@ export async function GET(req: Request) {
 
     const total = countResult[0]?.count ?? 0;
 
+    // Enrich with company info and last interaction
+    const contactIds = result.map((c) => c.id);
+    const companyIds = [...new Set(result.map((c) => c.companyId).filter(Boolean))] as string[];
+
+    // Fetch company names/domains
+    const companyMap: Record<string, { name: string; domain: string | null }> = {};
+    try {
+      if (companyIds.length > 0) {
+        const companyRows = await db
+          .select({ id: companies.id, name: companies.name, domain: companies.domain })
+          .from(companies)
+          .where(sql`${companies.id} = ANY(ARRAY[${sql.join(companyIds.map(id => sql`${id}`), sql`, `)}]::text[])`);
+        for (const c of companyRows) {
+          companyMap[c.id] = { name: c.name, domain: c.domain };
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to fetch companies:", e);
+    }
+
+    // Fetch last interaction per contact
+    const lastInteractions: Record<string, { date: Date; summary: string | null }> = {};
+    try {
+      if (contactIds.length > 0) {
+        const interactions = await db.execute(sql`
+          SELECT DISTINCT ON (entity_id)
+            entity_id,
+            occurred_at,
+            summary
+          FROM activities
+          WHERE entity_id = ANY(ARRAY[${sql.join(contactIds.map(id => sql`${id}`), sql`, `)}]::text[])
+            AND entity_type = 'contact'
+            AND tenant_id = ${authCtx.tenantId}
+          ORDER BY entity_id, occurred_at DESC
+        `);
+        for (const row of interactions as unknown as Array<{ entity_id: string; occurred_at: Date; summary: string | null }>) {
+          lastInteractions[row.entity_id] = { date: row.occurred_at, summary: row.summary };
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to fetch last interactions:", e);
+    }
+
+    const enrichedContacts = result.map((c) => ({
+      ...c,
+      companyName: c.companyId ? companyMap[c.companyId]?.name || null : null,
+      companyDomain: c.companyId ? companyMap[c.companyId]?.domain || null : null,
+      lastInteraction: lastInteractions[c.id] || null,
+    }));
+
     return Response.json({
-      contacts: result,
+      contacts: enrichedContacts,
       pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
     });
   } catch (error) {

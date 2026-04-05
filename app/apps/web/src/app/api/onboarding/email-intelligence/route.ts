@@ -1,12 +1,13 @@
+import { NextResponse } from "next/server";
 import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { contacts, companies, tenants } from "@/db/schema";
+import { contacts, companies, activities } from "@/db/schema";
 import { eq, and, sql, isNotNull } from "drizzle-orm";
 
 export async function GET() {
   const authCtx = await getAuthContext();
   if (!authCtx) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   // Count contacts discovered from email sync
@@ -26,34 +27,42 @@ export async function GET() {
       )
     );
 
-  // Get tenant ICP settings to cross-reference
-  const [tenant] = await db
-    .select({ settings: tenants.settings })
-    .from(tenants)
-    .where(eq(tenants.id, authCtx.tenantId));
+  // Count warm matches: TAM companies where we have email-synced contacts
+  const [warmResult] = await db
+    .select({ count: sql<number>`count(DISTINCT ${companies.id})` })
+    .from(companies)
+    .innerJoin(contacts, eq(contacts.companyId, companies.id))
+    .where(
+      and(
+        eq(companies.tenantId, authCtx.tenantId),
+        sql`${companies.properties}->>'source' = 'tam'`,
+        sql`${contacts.properties}->>'source' = 'email_sync'`
+      )
+    );
+  const warmMatches = warmResult?.count || 0;
 
-  const settings = (tenant?.settings || {}) as Record<string, unknown>;
-  const targetIndustries = (settings.targetIndustries || []) as string[];
+  // Count follow-ups needed: contacts with last activity > 7 days ago
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const [followUpResult] = await db
+    .select({ count: sql<number>`count(DISTINCT ${contacts.id})` })
+    .from(contacts)
+    .innerJoin(activities, and(
+      eq(activities.entityId, contacts.id),
+      eq(activities.entityType, "contact"),
+    ))
+    .where(
+      and(
+        eq(contacts.tenantId, authCtx.tenantId),
+        sql`${contacts.properties}->>'auto_created' = 'true'`,
+        sql`${activities.occurredAt} < ${sevenDaysAgo.toISOString()}::timestamp`,
+      )
+    );
+  const followUps = followUpResult?.count || 0;
 
-  // Cross-reference: companies from email that match ICP industries
-  let icpMatches = 0;
-  if (targetIndustries.length > 0) {
-    const [matchCount] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(companies)
-      .where(
-        and(
-          eq(companies.tenantId, authCtx.tenantId),
-          sql`${companies.industry} = ANY(${targetIndustries})`
-        )
-      );
-    icpMatches = Number(matchCount?.count || 0);
-  }
-
-  return Response.json({
+  return NextResponse.json({
     contacts: Number(contactCount?.count || 0),
     conversations: Number(conversationCount?.count || 0),
-    icpMatches,
-    followUps: 0, // TODO: detect stale conversations once email sync stores timestamps
+    icpMatches: warmMatches,
+    followUps,
   });
 }

@@ -520,6 +520,17 @@ Source citations for interactions:
 Example: "According to your last email with [Sarah Chen](/contacts/abc-123) on March 15, she mentioned a budget of $50K for Q2."
 </citation_rules>
 
+<email_citation>
+When referencing specific email content from queryActivities results, ALWAYS quote the exact text with the sender and date. Use this format:
+
+**[Contact name] on [Month Day]:** "[exact quote from the email body]"
+
+Example:
+**Sarah Chen on March 12:** "We're very interested in the enterprise plan. Can you send pricing for 50 seats?"
+
+This grounds your response in real data and builds trust. Never paraphrase when you can quote directly. If the email body is available in the activity result, prefer quoting it over summarizing.
+</email_citation>
+
 <coaching_behavior>
 When coaching on a deal or account:
 1. Use getDealCoaching or getAccountIntelligence to get ALL data — do not rely on the snapshot alone
@@ -747,6 +758,8 @@ Examples: query="Sarah Chen" finds contacts named Sarah Chen. query="deals over 
               entityId: a.entityId,
               // Include email body for citation
               emailBody: meta.body ? (meta.body as string).slice(0, 2000) : undefined,
+              // Include full email body for citation (from rawContent, now contains full body)
+              body: a.rawContent ? a.rawContent.slice(0, 2000) : undefined,
               emailFrom: meta.from,
               emailTo: meta.to,
               // Include structured notes for meetings

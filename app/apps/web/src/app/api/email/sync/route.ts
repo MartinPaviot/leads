@@ -5,7 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { fetchRecentEmails } from "@/lib/gmail";
 import { ingestEpisode } from "@/lib/context-graph";
 import { embedEntity } from "@/lib/embeddings";
-import { getTenantSettings } from "@/lib/tenant-settings";
+import { getTenantSettings, backsyncRangeToDays, buildIgnoredDomains, shouldAutoCreateContact } from "@/lib/tenant-settings";
 
 export async function POST() {
   const authCtx = await getAuthContext();
@@ -18,10 +18,17 @@ export async function POST() {
     const [user] = await db.select({ email: users.email }).from(users).where(eq(users.id, authCtx.appUserId)).limit(1);
     const userEmail = user?.email || "";
 
+    // Load tenant settings for sync preferences
+    const settings = await getTenantSettings(authCtx.tenantId);
+    const ownDomain = (settings.companyDomain || "").toLowerCase().replace(/^www\./, "");
+    const ignoredDomains = buildIgnoredDomains(settings, ownDomain);
+    const creationMode = settings.contactCreationMode || "selective";
+    const daysBack = backsyncRangeToDays(settings.backsyncRange);
+
     const emails = await fetchRecentEmails(
       authCtx.userId,
       userEmail,
-      30
+      daysBack
     );
 
     // Get all contacts for email matching
@@ -39,17 +46,6 @@ export async function POST() {
         .filter((c) => c.domain)
         .map((c) => [c.domain!.toLowerCase().replace(/^www\./, ""), c])
     );
-
-    // Load tenant settings to get the user's own company domain
-    const settings = await getTenantSettings(authCtx.tenantId);
-    const ownDomain = (settings.companyDomain || "").toLowerCase().replace(/^www\./, "");
-
-    // Domains to ignore for auto-creation (common providers + own domain)
-    const ignoredDomains = new Set([
-      "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com",
-      "icloud.com", "mail.com", "protonmail.com", "live.com", "msn.com",
-    ]);
-    if (ownDomain) ignoredDomains.add(ownDomain);
 
     let created = 0;
     let skipped = 0;
@@ -87,7 +83,11 @@ export async function POST() {
         ? extractEmailFromHeader(email.from)
         : email.to.map(extractEmailFromHeader)[0];
 
-      if (!matchedContact && counterpartyEmail) {
+      if (
+        !matchedContact &&
+        counterpartyEmail &&
+        shouldAutoCreateContact(creationMode, email.direction as "inbound" | "outbound")
+      ) {
         const domain = counterpartyEmail.split("@")[1]?.toLowerCase();
 
         if (domain && !ignoredDomains.has(domain)) {

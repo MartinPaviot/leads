@@ -32,7 +32,7 @@ const candidateSchema = z.object({
       domain: z.string().describe("Company website domain (e.g. 'stripe.com'). Must be a real, active domain."),
       reason: z.string().describe("One sentence: why this company matches the ICP"),
     })
-  ),
+  ).max(50),
 });
 
 export async function POST(req: Request) {
@@ -86,27 +86,59 @@ export async function POST(req: Request) {
       productDescription && `What we sell: ${productDescription}`,
     ].filter(Boolean).join("\n");
 
-    const excludeList = existing.length > 0
-      ? `\n\nDo NOT include these companies (already in our CRM): ${existing.slice(0, 50).map((c) => c.name).join(", ")}`
-      : "";
+    // 3 sequential batches with different angles to generate 100+ candidates
+    const batchAngles = [
+      {
+        count: 40,
+        focus: "Generate companies that are the STRONGEST direct matches for this ICP. These should be obvious, high-fit targets.",
+      },
+      {
+        count: 40,
+        focus: "Generate companies in ADJACENT industries or earlier-stage companies growing into this ICP. Think second-order connections — companies whose customers, partners, or competitors match the ICP. Avoid obvious picks.",
+      },
+      {
+        count: 40,
+        focus: "Generate companies matching this ICP but PRIORITIZE underrepresented geographies and emerging markets. Include companies from regions not yet covered in the exclude list.",
+      },
+    ];
 
-    const { object } = await generateObject({
-      model,
-      schema: candidateSchema,
-      prompt: `Generate a list of 30 real companies that match this Ideal Customer Profile.
+    let allCandidates: { name: string; domain: string; reason: string }[] = [];
+
+    for (const angle of batchAngles) {
+      const currentExclude = [
+        ...Array.from(existingNames),
+        ...allCandidates.map((c) => c.name.toLowerCase()),
+      ];
+      const excludeStr =
+        currentExclude.length > 0
+          ? `\nDo NOT include any of these companies (already in the system): ${currentExclude.slice(0, 100).join(", ")}`
+          : "";
+
+      try {
+        const { object } = await generateObject({
+          model,
+          schema: candidateSchema,
+          prompt: `Generate a list of ${angle.count} real companies that match this Ideal Customer Profile.
 
 ${icpDescription}
-${excludeList}
+${excludeStr}
+
+FOCUS: ${angle.focus}
 
 CRITICAL RULES:
 - Only return REAL companies that actually exist. No made-up names.
-- The domain must be real and active (e.g. "stripe.com", not "stripe.io" if that's not their domain).
-- Focus on companies that would genuinely be a good fit as customers based on the ICP.
-- Prioritize companies that are well-known in their industry but not necessarily household names.
-- Include a mix: some obvious fits and some less obvious but high-potential matches.
-- Do NOT include the seller's own company.`,
-    });
-    const candidates = object as any;
+- The domain must be real and active.
+- Do NOT include the seller's own company.
+- Do NOT repeat any company from the exclude list.`,
+        });
+
+        allCandidates = [...allCandidates, ...object.companies];
+      } catch (err) {
+        console.warn(`TAM batch failed:`, err);
+      }
+    }
+
+    const candidates = { companies: allCandidates };
 
     // Step 2: Enrich each candidate with Apollo (validates they're real + adds data)
     let created = 0;
