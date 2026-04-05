@@ -30,7 +30,7 @@ export default function SignInPage() {
         <form
           action={async () => {
             "use server";
-            await signIn("google", { redirectTo: "/" });
+            await signIn("google", { redirectTo: "/home" });
           }}
         >
           <button
@@ -73,7 +73,7 @@ export default function SignInPage() {
           }}
           className="space-y-4"
         >
-          <input type="hidden" name="redirectTo" value="/" />
+          <input type="hidden" name="redirectTo" value="/home" />
           <div>
             <label htmlFor="email" className="block text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
               Email

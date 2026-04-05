@@ -88,7 +88,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
             className="flex-1"
             action={async () => {
               "use server";
-              await signIn("google", { redirectTo: "/" });
+              await signIn("google", { redirectTo: "/home" });
             }}
           >
             <button
@@ -115,7 +115,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
             className="flex-1"
             action={async () => {
               "use server";
-              await signIn("microsoft-entra-id", { redirectTo: "/" });
+              await signIn("microsoft-entra-id", { redirectTo: "/home" });
             }}
           >
             <button

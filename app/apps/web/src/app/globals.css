@@ -19,27 +19,27 @@
   --detail-panel-width: 400px;
   --kanban-column-width: 260px;
 
-  /* === BADGE CATEGORY COLORS (10 hues) === */
-  --color-badge-0: #2563eb;
-  --color-badge-0-bg: rgba(59, 130, 246, 0.08);
-  --color-badge-1: #16a34a;
-  --color-badge-1-bg: rgba(34, 197, 94, 0.08);
-  --color-badge-2: #9333ea;
-  --color-badge-2-bg: rgba(168, 85, 247, 0.08);
-  --color-badge-3: #ea580c;
-  --color-badge-3-bg: rgba(249, 115, 22, 0.08);
-  --color-badge-4: #0891b2;
-  --color-badge-4-bg: rgba(6, 182, 212, 0.08);
-  --color-badge-5: #dc2626;
-  --color-badge-5-bg: rgba(239, 68, 68, 0.08);
-  --color-badge-6: #65a30d;
-  --color-badge-6-bg: rgba(132, 204, 22, 0.08);
-  --color-badge-7: #4f46e5;
-  --color-badge-7-bg: rgba(99, 102, 241, 0.08);
-  --color-badge-8: #db2777;
-  --color-badge-8-bg: rgba(236, 72, 153, 0.08);
-  --color-badge-9: #d97706;
-  --color-badge-9-bg: rgba(245, 158, 11, 0.08);
+  /* === BADGE CATEGORY COLORS (10 hues — derived from brand gradient) === */
+  --color-badge-0: #2C6BED;
+  --color-badge-0-bg: rgba(44, 107, 237, 0.07);
+  --color-badge-1: #17C3B2;
+  --color-badge-1-bg: rgba(23, 195, 178, 0.07);
+  --color-badge-2: #E8653A;
+  --color-badge-2-bg: rgba(232, 101, 58, 0.07);
+  --color-badge-3: #8B5CF6;
+  --color-badge-3-bg: rgba(139, 92, 246, 0.07);
+  --color-badge-4: #0EA5E9;
+  --color-badge-4-bg: rgba(14, 165, 233, 0.07);
+  --color-badge-5: #F59E0B;
+  --color-badge-5-bg: rgba(245, 158, 11, 0.07);
+  --color-badge-6: #10B981;
+  --color-badge-6-bg: rgba(16, 185, 129, 0.07);
+  --color-badge-7: #6366F1;
+  --color-badge-7-bg: rgba(99, 102, 241, 0.07);
+  --color-badge-8: #EC4899;
+  --color-badge-8-bg: rgba(236, 72, 153, 0.07);
+  --color-badge-9: #F97316;
+  --color-badge-9-bg: rgba(249, 115, 22, 0.07);
 }
 
 /* ================================================================
@@ -298,6 +298,7 @@
   color: var(--color-text-tertiary);
   padding: 8px 12px;
   border-bottom: 1px solid var(--color-border-default);
+  border-right: 1px solid color-mix(in srgb, var(--color-border-default) 40%, transparent);
   text-align: left;
   white-space: nowrap;
   position: sticky;
@@ -305,6 +306,9 @@
   background: var(--color-bg-card);
   z-index: 1;
   cursor: pointer;
+}
+.ls-table th:last-child {
+  border-right: none;
 }
 .ls-table th:hover {
   color: var(--color-text-secondary);
@@ -329,6 +333,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  border-bottom: 1px solid var(--color-border-default);
+  border-right: 1px solid color-mix(in srgb, var(--color-border-default) 40%, transparent);
+}
+.ls-table td:last-child {
+  border-right: none;
 }
 .ls-table td:first-child {
   font-weight: 500;
