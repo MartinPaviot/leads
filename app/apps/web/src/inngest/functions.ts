@@ -266,6 +266,36 @@ export const enrichContact = inngest.createFunction(
   }
 );
 
+// Batch enrich companies — fans out individual company/created events
+export const enrichBatch = inngest.createFunction(
+  {
+    id: "enrich-company-batch",
+    name: "Batch Enrich Companies",
+    retries: 1,
+    concurrency: [{ limit: 3 }],
+    triggers: [{ event: "company/enrich-batch" }],
+  },
+  async ({ event, step }: { event: { data: { companyIds: string[]; tenantId: string } }; step: any }) => {
+    const { companyIds, tenantId } = event.data as {
+      companyIds: string[];
+      tenantId: string;
+    };
+    let enriched = 0;
+
+    for (const companyId of companyIds) {
+      await step.run(`enrich-${companyId}`, async () => {
+        await inngest.send({
+          name: "company/created",
+          data: { companyId, tenantId },
+        });
+        enriched++;
+      });
+    }
+
+    return { enriched, total: companyIds.length };
+  }
+);
+
 const emailSchema = z.object({
   subject: z.string().describe("Email subject line"),
   body: z.string().describe("Email body, professional and personalized"),

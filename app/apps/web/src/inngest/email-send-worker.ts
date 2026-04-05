@@ -15,6 +15,33 @@ const resend = process.env.RESEND_API_KEY
 // Fallback from address using Resend test domain
 const FALLBACK_FROM = "LeadSens <outbound@resend.dev>";
 
+/**
+ * Progressive ramp-up schedule for new mailboxes.
+ * Returns the effective daily limit based on mailbox age and health.
+ */
+function getEffectiveDailyLimit(
+  configuredLimit: number,
+  warmupStartedAt: Date | null,
+  createdAt: Date | null,
+  bounceCount7d: number,
+): number {
+  const startDate = warmupStartedAt || createdAt || new Date();
+  const ageDays = Math.floor((Date.now() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+
+  // Progressive ramp-up schedule
+  let rampLimit: number;
+  if (ageDays < 3) rampLimit = 5;
+  else if (ageDays < 7) rampLimit = 15;
+  else if (ageDays < 14) rampLimit = 30;
+  else rampLimit = configuredLimit;
+
+  // Auto-slow if bounce rate is high (>5% of 7d sends assumed at ~50/day)
+  if (bounceCount7d > 10) rampLimit = Math.min(rampLimit, 5); // severe: throttle hard
+  else if (bounceCount7d > 5) rampLimit = Math.min(rampLimit, Math.floor(rampLimit * 0.5));
+
+  return Math.min(rampLimit, configuredLimit);
+}
+
 // ── Email tracking ──
 
 /** Inject a 1x1 tracking pixel before </body> */
@@ -102,7 +129,7 @@ export const processOutboundEmails = inngest.createFunction(
       const tenantIds = [...new Set(queuedEmails.map((e) => e.tenantId))];
       const map: Record<
         string,
-        { emailAddress: string; displayName: string | null; dailyLimit: number; sentToday: number; status: string | null }
+        { id: string; emailAddress: string; displayName: string | null; dailyLimit: number; sentToday: number; status: string | null; sendWindowStart: string; sendWindowEnd: string; sendDays: string[] }
       > = {};
 
       for (const tid of tenantIds) {
@@ -118,24 +145,42 @@ export const processOutboundEmails = inngest.createFunction(
           .limit(5);
 
         for (const mb of mailboxes) {
+          const effectiveLimit = getEffectiveDailyLimit(
+            mb.dailyLimit, mb.warmupStartedAt, mb.createdAt, mb.bounceCount7d
+          );
           map[`${tid}:${mb.id}`] = {
+            id: mb.id,
             emailAddress: mb.emailAddress,
             displayName: mb.displayName,
-            dailyLimit: mb.dailyLimit,
+            dailyLimit: effectiveLimit,
             sentToday: mb.sentToday,
             status: mb.status,
+            sendWindowStart: mb.sendWindowStart || "08:00",
+            sendWindowEnd: mb.sendWindowEnd || "18:00",
+            sendDays: (mb.sendDays as string[]) || ["mon", "tue", "wed", "thu", "fri"],
           };
         }
 
-        // Also store a default mailbox per tenant (first active one)
+        // Round-robin: pick mailbox with lowest sentToday ratio (most capacity left)
         if (mailboxes.length > 0) {
-          const best = mailboxes.find((m) => m.sentToday < m.dailyLimit) || mailboxes[0];
+          const withLimits = mailboxes.map((m) => ({
+            ...m,
+            effectiveLimit: getEffectiveDailyLimit(m.dailyLimit, m.warmupStartedAt, m.createdAt, m.bounceCount7d),
+          }));
+          const eligible = withLimits
+            .filter((m) => m.sentToday < m.effectiveLimit)
+            .sort((a, b) => (a.sentToday / a.effectiveLimit) - (b.sentToday / b.effectiveLimit));
+          const best = eligible[0] || withLimits[0];
           map[`${tid}:default`] = {
+            id: best.id,
             emailAddress: best.emailAddress,
             displayName: best.displayName,
-            dailyLimit: best.dailyLimit,
+            dailyLimit: best.effectiveLimit,
             sentToday: best.sentToday,
             status: best.status,
+            sendWindowStart: best.sendWindowStart || "08:00",
+            sendWindowEnd: best.sendWindowEnd || "18:00",
+            sendDays: (best.sendDays as string[]) || ["mon", "tue", "wed", "thu", "fri"],
           };
         }
       }
@@ -157,12 +202,30 @@ export const processOutboundEmails = inngest.createFunction(
         const mailbox = mailboxMap[mailboxKey];
 
         if (mailbox) {
+          // Check send window (day of week + time range)
+          const now = new Date();
+          const dayNames = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+          const currentDay = dayNames[now.getUTCDay()];
+          const currentTime = `${String(now.getUTCHours()).padStart(2, "0")}:${String(now.getUTCMinutes()).padStart(2, "0")}`;
+
+          if (!mailbox.sendDays.includes(currentDay) || currentTime < mailbox.sendWindowStart || currentTime > mailbox.sendWindowEnd) {
+            await db
+              .update(outboundEmails)
+              .set({
+                status: "queued",
+                errorMessage: "Outside send window, will retry",
+                updatedAt: new Date(),
+              })
+              .where(eq(outboundEmails.id, email.id));
+            return;
+          }
+
           // Check daily limit
           if (mailbox.sentToday >= mailbox.dailyLimit) {
             await db
               .update(outboundEmails)
               .set({
-                status: "queued", // Re-queue for next run
+                status: "queued",
                 errorMessage: "Mailbox daily limit reached, will retry",
                 updatedAt: new Date(),
               })
@@ -398,5 +461,64 @@ export const sendSingleEmail = inngest.createFunction(
     });
 
     return { emailId, ...result };
+  }
+);
+
+/**
+ * Daily reset cron — runs at midnight UTC.
+ * Resets sentToday counter on all mailboxes.
+ * Transitions warming_up → active for mailboxes that completed ramp-up (14+ days).
+ * Decays 7-day bounce/reply counters.
+ */
+export const cronDailyMailboxReset = inngest.createFunction(
+  {
+    id: "cron-daily-mailbox-reset",
+    name: "Daily Mailbox Counter Reset",
+    triggers: [{ cron: "0 0 * * *" }], // midnight UTC
+  },
+  async ({ step }) => {
+    const result = await step.run("reset-counters", async () => {
+      // Reset sentToday for all mailboxes
+      await db
+        .update(connectedMailboxes)
+        .set({ sentToday: 0, updatedAt: new Date() });
+
+      // Decay 7d counters (reduce by ~1/7 daily to approximate rolling window)
+      await db
+        .update(connectedMailboxes)
+        .set({
+          bounceCount7d: sql`GREATEST(${connectedMailboxes.bounceCount7d} - 1, 0)`,
+          replyCount7d: sql`GREATEST(${connectedMailboxes.replyCount7d} - 1, 0)`,
+        });
+
+      // Auto-transition warming_up → active for mailboxes aged 14+ days
+      const warmingMailboxes = await db
+        .select()
+        .from(connectedMailboxes)
+        .where(eq(connectedMailboxes.status, "warming_up"));
+
+      let transitioned = 0;
+      const now = Date.now();
+      for (const mb of warmingMailboxes) {
+        const startDate = mb.warmupStartedAt || mb.createdAt;
+        if (!startDate) continue;
+        const ageDays = Math.floor((now - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (ageDays >= 14 && mb.bounceCount7d <= 3) {
+          await db
+            .update(connectedMailboxes)
+            .set({
+              status: "active",
+              warmupCompletedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(connectedMailboxes.id, mb.id));
+          transitioned++;
+        }
+      }
+
+      return { reset: true, transitioned };
+    });
+
+    return result;
   }
 );

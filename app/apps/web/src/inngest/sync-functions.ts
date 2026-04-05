@@ -1,11 +1,15 @@
 import { inngest } from "./client";
 import { db } from "@/db";
-import { activities, contacts, companies, users, authAccounts, tenants } from "@/db/schema";
+import { activities, contacts, companies, users, authAccounts, outboundEmails, sequenceEnrollments } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { fetchRecentEmails, type SyncedEmail } from "@/lib/gmail";
 import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/calendar";
-import { embedEntity, activityToText } from "@/lib/embeddings";
-import { getTenantSettings } from "@/lib/tenant-settings";
+import { embedEntity, activityToText, contactToText, companyToText } from "@/lib/embeddings";
+import { getTenantSettings, backsyncRangeToDays, buildIgnoredDomains, shouldAutoCreateContact } from "@/lib/tenant-settings";
+import { generateObject } from "ai";
+import { anthropic } from "@ai-sdk/anthropic";
+import { openai } from "@ai-sdk/openai";
+import { z } from "zod";
 
 // Type for a contact row from the database
 type ContactRow = typeof contacts.$inferSelect;
@@ -29,6 +33,57 @@ function extractName(header: string): { firstName: string; lastName: string } {
   const email = extractEmail(header);
   const prefix = email.split("@")[0] || "";
   return { firstName: prefix, lastName: "" };
+}
+
+const sentimentSchema = z.object({
+  results: z.array(z.object({
+    index: z.number(),
+    sentiment: z.enum(["positive", "neutral", "negative"]),
+    intent: z.array(z.enum([
+      "interested", "not_interested", "question", "objection",
+      "budget_mention", "timeline_mention", "competitor_mention",
+      "decision_pending", "referral", "follow_up_needed"
+    ])),
+  })),
+});
+
+async function analyzeEmailBatch(emails: { index: number; subject: string; body: string; direction: string }[]): Promise<Map<number, { sentiment: "positive" | "neutral" | "negative"; intent: string[] }>> {
+  const results = new Map<number, { sentiment: "positive" | "neutral" | "negative"; intent: string[] }>();
+
+  const model = process.env.ANTHROPIC_API_KEY
+    ? anthropic("claude-haiku-4-5-20251001")
+    : process.env.OPENAI_API_KEY
+      ? openai("gpt-4o-mini")
+      : null;
+
+  if (!model || emails.length === 0) return results;
+
+  try {
+    const prompt = emails.map((e) =>
+      `[${e.index}] ${e.direction.toUpperCase()} | Subject: ${e.subject}\n${e.body.slice(0, 800)}`
+    ).join("\n---\n");
+
+    const { object } = await generateObject({
+      model,
+      schema: sentimentSchema,
+      prompt: `Analyze each email's sentiment and intent. Be concise.
+
+For sentiment: "positive" = interested, thankful, wants to move forward. "negative" = not interested, annoyed, unsubscribe. "neutral" = informational, automated, unclear.
+
+For intent, tag ALL that apply from: interested, not_interested, question, objection, budget_mention, timeline_mention, competitor_mention, decision_pending, referral, follow_up_needed.
+
+Emails:
+${prompt}`,
+    });
+
+    for (const r of object.results) {
+      results.set(r.index, { sentiment: r.sentiment, intent: r.intent });
+    }
+  } catch (err) {
+    console.warn("Sentiment analysis failed:", err);
+  }
+
+  return results;
 }
 
 /** Sync emails for a single user — called by cron and initial sync */
@@ -87,15 +142,22 @@ export const syncEmails = inngest.createFunction(
       }
     }
 
-    // Load tenant settings to get the user's own company domain
+    // Load tenant settings for domain filtering + creation mode
     const tenantSettings = await step.run("get-tenant-settings", async () => {
       const s = await getTenantSettings(tenantId);
-      return { companyDomain: s.companyDomain || "" };
+      return {
+        companyDomain: s.companyDomain || "",
+        contactCreationMode: s.contactCreationMode || "selective",
+        doNotTrackDomains: s.doNotTrackDomains || [],
+      };
     });
     const ownDomain = tenantSettings.companyDomain.toLowerCase().replace(/^www\./, "");
+    const ignoredDomains = buildIgnoredDomains(tenantSettings as any, ownDomain);
+    const creationMode = tenantSettings.contactCreationMode;
 
     let created = 0;
     let contactsCreated = 0;
+    const createdActivities: { id: string; entityId: string; subject: string; body: string; direction: string; metadata: Record<string, unknown> }[] = [];
 
     // Process in batches of 50
     const batches: SyncedEmail[][] = [];
@@ -134,23 +196,22 @@ export const syncEmails = inngest.createFunction(
           // Find or create contact for counterparty
           let matchedContact = contactByEmail.get(counterpartyEmail);
 
-          if (!matchedContact && counterpartyEmail && !counterpartyEmail.includes("noreply") && !counterpartyEmail.includes("no-reply") && !counterpartyEmail.includes("mailer-daemon")) {
+          if (
+            !matchedContact &&
+            counterpartyEmail &&
+            !counterpartyEmail.includes("noreply") &&
+            !counterpartyEmail.includes("no-reply") &&
+            !counterpartyEmail.includes("mailer-daemon") &&
+            shouldAutoCreateContact(creationMode, email.direction as "inbound" | "outbound")
+          ) {
             // Auto-create contact from email
             const { firstName, lastName } = extractName(counterpartyHeader);
             const domain = counterpartyEmail.split("@")[1];
 
-            // Try to find or auto-create company from email domain (S6: Gap 2 Phase 1)
+            // Try to find or auto-create company from email domain
             let companyId: string | null = null;
+            let companyName: string | undefined;
             if (domain) {
-              // Skip common personal email providers
-              const personalDomains = new Set([
-                "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com",
-                "aol.com", "protonmail.com", "mail.com", "live.com", "msn.com",
-                "yandex.com", "zoho.com", "gmx.com", "fastmail.com",
-              ]);
-              // Also skip the user's own company domain
-              if (ownDomain) personalDomains.add(ownDomain);
-
               const [existingCompany] = await db
                 .select({ id: companies.id })
                 .from(companies)
@@ -159,41 +220,36 @@ export const syncEmails = inngest.createFunction(
 
               if (existingCompany) {
                 companyId = existingCompany.id;
-              } else if (!personalDomains.has(domain)) {
-                // Check domain exclusion list from workspace settings
-                const [tenantRow] = await db.select({ settings: tenants.settings })
-                  .from(tenants)
-                  .where(eq(tenants.id, tenantId))
-                  .limit(1);
-                const settings = (tenantRow?.settings || {}) as Record<string, unknown>;
-                const excludedDomains = (settings.excludedDomains || []) as string[];
+              } else if (!ignoredDomains.has(domain)) {
+                // Auto-create company from email domain
+                companyName = domain
+                  .replace(/\.(com|io|co|ai|dev|org|net|app)$/i, "")
+                  .split(".")
+                  .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                  .join(" ");
 
-                if (!excludedDomains.includes(domain)) {
-                  // Auto-create company from email domain
-                  const companyName = domain
-                    .replace(/\.(com|io|co|ai|dev|org|net|app)$/i, "")
-                    .split(".")
-                    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                    .join(" ");
+                const [newCompany] = await db
+                  .insert(companies)
+                  .values({
+                    tenantId,
+                    name: companyName,
+                    domain,
+                    properties: { source: "email_domain_auto", auto_created: true },
+                  })
+                  .returning();
 
-                  const [newCompany] = await db
-                    .insert(companies)
-                    .values({
-                      tenantId,
-                      name: companyName,
-                      domain,
-                      properties: { source: "email_domain_auto", auto_created: true },
-                    })
-                    .returning();
+                companyId = newCompany.id;
 
-                  companyId = newCompany.id;
-
-                  // Fire enrichment for the new company
-                  await inngest.send({
-                    name: "company/created",
-                    data: { companyId: newCompany.id, tenantId },
-                  }).catch(console.warn);
+                // Embed company for RAG
+                if (process.env.OPENAI_API_KEY) {
+                  embedEntity(tenantId, "company", newCompany.id, companyToText({ name: companyName, domain })).catch(() => {});
                 }
+
+                // Fire enrichment for the new company
+                await inngest.send({
+                  name: "company/created",
+                  data: { companyId: newCompany.id, tenantId },
+                }).catch(console.warn);
               }
             }
 
@@ -212,6 +268,11 @@ export const syncEmails = inngest.createFunction(
             matchedContact = newContact;
             contactByEmail.set(counterpartyEmail, newContact);
             batchContacts++;
+
+            // Embed contact for RAG
+            if (process.env.OPENAI_API_KEY) {
+              embedEntity(tenantId, "contact", newContact.id, contactToText({ firstName, lastName, email: counterpartyEmail, companyName: companyName || undefined })).catch(() => {});
+            }
 
             // Fire enrichment event for the new contact
             await inngest.send({
@@ -232,13 +293,15 @@ export const syncEmails = inngest.createFunction(
             direction: email.direction,
             occurredAt: email.date,
             summary: email.subject,
-            rawContent: email.snippet,
+            rawContent: (email.body || email.snippet || "").slice(0, 10000),
+            threadId: email.threadId,
             metadata: {
               gmailMessageId: email.gmailMessageId,
               threadId: email.threadId,
               from: email.from,
               to: email.to,
               snippet: email.snippet,
+              bodyLength: email.body?.length || 0,
             },
           }).returning();
 
@@ -248,7 +311,7 @@ export const syncEmails = inngest.createFunction(
               const text = activityToText({
                 activityType: activity.activityType,
                 summary: activity.summary,
-                rawContent: email.snippet,
+                rawContent: (email.body || email.snippet || "").slice(0, 10000),
                 channel: "email",
                 direction: email.direction,
                 occurredAt: email.date,
@@ -262,6 +325,49 @@ export const syncEmails = inngest.createFunction(
             }
           }
 
+          // Detect replies to outbound sequence emails (match by threadId)
+          if (email.direction === "inbound" && email.threadId && matchedContact?.id) {
+            const [outbound] = await db
+              .select({
+                id: outboundEmails.id,
+                enrollmentId: outboundEmails.enrollmentId,
+                contactId: outboundEmails.contactId,
+              })
+              .from(outboundEmails)
+              .where(
+                and(
+                  eq(outboundEmails.threadId, email.threadId),
+                  eq(outboundEmails.tenantId, tenantId),
+                  eq(outboundEmails.status, "sent"),
+                )
+              )
+              .limit(1);
+
+            if (outbound?.enrollmentId) {
+              // Mark outbound email as replied
+              await db.update(outboundEmails).set({
+                repliedAt: new Date(),
+                replySnippet: (email.body || email.snippet || "").slice(0, 500),
+              }).where(eq(outboundEmails.id, outbound.id));
+
+              // Emit reply event for processReply handler
+              await inngest.send({
+                name: "email/reply-received",
+                data: {
+                  tenantId,
+                  enrollmentId: outbound.enrollmentId,
+                  contactId: outbound.contactId || matchedContact.id,
+                  outboundEmailId: outbound.id,
+                  replyBody: (email.body || email.snippet || "").slice(0, 5000),
+                  replySubject: email.subject || "",
+                  replierEmail: counterpartyEmail,
+                },
+              }).catch(console.warn);
+            }
+          }
+
+          createdActivities.push({ id: activity.id, entityId: activity.entityId, subject: email.subject, body: (email.body || "").slice(0, 2000), direction: email.direction, metadata: activity.metadata as Record<string, unknown> });
+
           batchCreated++;
         }
 
@@ -270,6 +376,45 @@ export const syncEmails = inngest.createFunction(
 
       created += result.created;
       contactsCreated += result.contacts;
+    }
+
+    // Batch sentiment analysis
+    const activitiesToAnalyze = createdActivities.filter(a => a.body);
+    for (let i = 0; i < activitiesToAnalyze.length; i += 5) {
+      const batch = activitiesToAnalyze.slice(i, i + 5);
+      const emailBatch = batch.map((a, idx) => ({
+        index: idx,
+        subject: a.subject,
+        body: a.body,
+        direction: a.direction,
+      }));
+
+      const sentiments = await analyzeEmailBatch(emailBatch);
+
+      for (const [idx, result] of sentiments) {
+        const act = batch[idx];
+        if (act) {
+          await db.update(activities)
+            .set({
+              sentiment: result.sentiment as any,
+              intent: result.intent,
+              metadata: { ...(act.metadata || {}), intent: result.intent },
+            })
+            .where(eq(activities.id, act.id));
+        }
+      }
+    }
+
+    // Auto-score contacts that had new activities
+    if (createdActivities.length > 0) {
+      const contactIds = [...new Set(createdActivities.map(a => a.entityId).filter(Boolean))];
+      if (contactIds.length > 0) {
+        fetch(`${process.env.AUTH_URL || "http://localhost:3000"}/api/score/contacts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contactIds }),
+        }).catch(() => {});
+      }
     }
 
     return { synced: created, contactsCreated, total: emails.length };
@@ -428,11 +573,17 @@ export const onGoogleOAuthConnected = inngest.createFunction(
   async ({ event, step }: { event: { data: { userId: string; tenantId: string; appUserId: string } }; step: any }) => {
     const { userId, tenantId, appUserId } = event.data;
 
-    // Kick off email sync (2 year backfill for first sync)
+    // Read backsync range from tenant settings
+    const daysBack = await step.run("get-backsync-range", async () => {
+      const s = await getTenantSettings(tenantId);
+      return backsyncRangeToDays(s.backsyncRange);
+    });
+
+    // Kick off email sync with user-configured range
     await step.run("trigger-email-sync", async () => {
       await inngest.send({
         name: "email/sync-requested",
-        data: { userId, tenantId, appUserId, daysBack: 730 },
+        data: { userId, tenantId, appUserId, daysBack },
       });
     });
 
@@ -459,11 +610,17 @@ export const onMicrosoftOAuthConnected = inngest.createFunction(
   async ({ event, step }: { event: { data: { userId: string; tenantId: string; appUserId: string } }; step: any }) => {
     const { userId, tenantId, appUserId } = event.data;
 
-    // Kick off email sync (2 year backfill for first sync)
+    // Read backsync range from tenant settings
+    const daysBack = await step.run("get-backsync-range", async () => {
+      const s = await getTenantSettings(tenantId);
+      return backsyncRangeToDays(s.backsyncRange);
+    });
+
+    // Kick off email sync with user-configured range
     await step.run("trigger-email-sync", async () => {
       await inngest.send({
         name: "email/sync-requested",
-        data: { userId, tenantId, appUserId, daysBack: 730, provider: "microsoft" },
+        data: { userId, tenantId, appUserId, daysBack, provider: "microsoft" },
       });
     });
 
