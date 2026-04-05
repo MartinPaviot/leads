@@ -55,6 +55,67 @@ export const SALES_MOTIONS = [
   "Founder-led sales", "Small sales team", "SDR / AE split", "Product-led (PLG)",
 ] as const;
 
+// Apollo seniority + department taxonomy for decision-maker targeting
+export const JOB_SENIORITIES = [
+  "Owner", "Founder", "C-Suite", "Partner", "VP",
+  "Head", "Director", "Manager", "Senior", "Entry",
+] as const;
+
+export const JOB_DEPARTMENTS = [
+  "Engineering", "Sales", "Marketing", "Finance", "Operations",
+  "IT", "Human Resources", "Legal", "Product", "Design",
+  "Customer Success", "Business Development", "Data Science",
+  "Security", "DevOps", "Support", "Research", "Consulting",
+  "Supply Chain", "Procurement", "Communications", "Strategy",
+] as const;
+
+// Combined roles: seniority + department combos + common titles
+export const DECISION_MAKER_ROLES = [
+  // C-level
+  "CEO", "CTO", "CFO", "COO", "CMO", "CIO", "CISO", "CRO", "CPO", "CDO",
+  // VP level
+  "VP Engineering", "VP Sales", "VP Marketing", "VP Product", "VP Operations",
+  "VP Finance", "VP Human Resources", "VP Business Development", "VP IT",
+  "VP Customer Success", "VP Design", "VP Data",
+  // Head / Director
+  "Head of Engineering", "Head of Sales", "Head of Marketing", "Head of Product",
+  "Head of Growth", "Head of Operations", "Head of People", "Head of Design",
+  "Head of Data", "Head of Security", "Head of IT", "Head of Legal",
+  "Director of Engineering", "Director of Sales", "Director of Marketing",
+  "Director of Product", "Director of Operations", "Director of Finance",
+  "Director of IT", "Director of HR", "Director of Business Development",
+  // Founder / Owner
+  "Founder", "Co-Founder", "Owner", "Partner", "Managing Partner",
+  // Manager
+  "Engineering Manager", "Sales Manager", "Marketing Manager",
+  "Product Manager", "Project Manager", "Account Manager",
+  "IT Manager", "Operations Manager",
+] as const;
+
+// Apollo geography taxonomy — regions + major countries
+export const GEOGRAPHIES = [
+  // Regions
+  "North America", "South America", "Europe", "Western Europe", "Eastern Europe",
+  "Northern Europe", "Southern Europe", "Asia", "Southeast Asia", "East Asia",
+  "South Asia", "Middle East", "Africa", "Oceania", "Central America", "Caribbean",
+  // Major countries
+  "United States", "Canada", "United Kingdom", "France", "Germany", "Spain", "Italy",
+  "Netherlands", "Belgium", "Switzerland", "Austria", "Sweden", "Norway", "Denmark",
+  "Finland", "Ireland", "Portugal", "Poland", "Czech Republic", "Romania", "Greece",
+  "Turkey", "Israel", "United Arab Emirates", "Saudi Arabia", "Qatar",
+  "India", "China", "Japan", "South Korea", "Singapore", "Australia", "New Zealand",
+  "Indonesia", "Thailand", "Vietnam", "Philippines", "Malaysia", "Taiwan",
+  "Brazil", "Mexico", "Argentina", "Colombia", "Chile",
+  "South Africa", "Nigeria", "Kenya", "Egypt", "Morocco",
+  // US regions
+  "US - Northeast", "US - Southeast", "US - Midwest", "US - West", "US - Southwest",
+  // US states (top markets)
+  "California", "New York", "Texas", "Florida", "Illinois", "Massachusetts",
+  "Washington", "Colorado", "Georgia", "Pennsylvania", "Virginia", "North Carolina",
+  "Ohio", "Michigan", "New Jersey", "Arizona", "Oregon", "Minnesota", "Maryland",
+  "Connecticut", "Utah", "Tennessee", "Missouri", "Indiana", "Wisconsin",
+] as const;
+
 
 /** Convert UI size labels to Apollo API format: "501-1,000" → "501,1000" */
 export function sizesToApolloRanges(sizes: string[]): string[] {

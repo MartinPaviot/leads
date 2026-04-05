@@ -25,10 +25,17 @@ export interface TenantSettings {
   targetIndustries?: string[];
   targetCompanySizes?: string[];
   targetRoles?: string;
+  targetSeniorities?: string[];
+  targetDepartments?: string[];
   targetGeographies?: string[];
 
   // ── Email provider ──
   emailProvider?: string;
+
+  // ── Email sync preferences (set during onboarding) ──
+  contactCreationMode?: "disabled" | "selective" | "always";
+  backsyncRange?: "1m" | "3m" | "6m" | "12m";
+  doNotTrackDomains?: string[];
 
   // ── Custom schema ──
   customFields?: CustomFieldDef[];
@@ -170,6 +177,43 @@ export async function updateTenantSettings(
 
   // Invalidate so next read picks up the write
   cache.delete(tenantId);
+}
+
+// ── Email Sync Helpers ──
+
+const BACKSYNC_DAYS: Record<string, number> = { "1m": 30, "3m": 90, "6m": 180, "12m": 365 };
+
+/** Convert backsyncRange setting to number of days. Defaults to 90 (3 months). */
+export function backsyncRangeToDays(range: string | undefined): number {
+  return BACKSYNC_DAYS[range || "3m"] || 90;
+}
+
+/** Build the full set of ignored domains for email sync (personal providers + user's own domain + do-not-track). */
+export function buildIgnoredDomains(settings: TenantSettings, ownDomain?: string): Set<string> {
+  const ignored = new Set([
+    "gmail.com", "googlemail.com", "yahoo.com", "yahoo.fr", "hotmail.com",
+    "hotmail.fr", "outlook.com", "outlook.fr", "live.com", "icloud.com",
+    "aol.com", "protonmail.com", "proton.me", "mail.com", "msn.com",
+    "yandex.com", "zoho.com", "gmx.com", "fastmail.com", "me.com",
+  ]);
+  if (ownDomain) ignored.add(ownDomain);
+  if (settings.doNotTrackDomains) {
+    for (const d of settings.doNotTrackDomains) {
+      if (d.trim()) ignored.add(d.trim().toLowerCase());
+    }
+  }
+  return ignored;
+}
+
+/** Check whether a contact should be auto-created based on creation mode and email direction. */
+export function shouldAutoCreateContact(
+  mode: string | undefined,
+  direction: "inbound" | "outbound",
+): boolean {
+  if (mode === "disabled") return false;
+  if (mode === "always") return true;
+  // "selective" (default): only from sent emails
+  return direction === "outbound";
 }
 
 // ── ICP Helpers ──
