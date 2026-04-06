@@ -184,7 +184,7 @@ RULES:
 
       // Find relevant knowledge
       const relevantKnowledge = ctx.knowledge
-        .filter((k) => {
+        .filter((k: { topic: string; content: string }) => {
           const topic = k.topic.toLowerCase();
           return (
             topic.includes("objection") ||
@@ -193,7 +193,7 @@ RULES:
             topic.includes("positioning")
           );
         })
-        .map((k) => `${k.topic}: ${k.content}`)
+        .map((k: { topic: string; content: string }) => `${k.topic}: ${k.content}`)
         .join("\n");
 
       const reply = await step.run("generate-objection-reply", async () => {
