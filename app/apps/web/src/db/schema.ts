@@ -377,6 +377,7 @@ export const sequences = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     status: sequenceStatusEnum("status").default("draft"),
+    campaignConfig: jsonb("campaign_config"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   },

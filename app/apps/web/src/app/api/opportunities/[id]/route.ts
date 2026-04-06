@@ -71,3 +71,50 @@ export async function GET(
     })),
   });
 }
+
+export async function PUT(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const body = await req.json();
+
+  const [existing] = await db
+    .select()
+    .from(deals)
+    .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
+    .limit(1);
+
+  if (!existing) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const updates: Record<string, unknown> = {};
+  if (body.name !== undefined) updates.name = body.name;
+  if (body.stage !== undefined) updates.stage = body.stage;
+  if (body.value !== undefined) updates.value = body.value ? parseInt(body.value) : null;
+  if (body.summary !== undefined) updates.summary = body.summary;
+  if (body.expectedCloseDate !== undefined || body.closeDate !== undefined) {
+    const dateStr = body.expectedCloseDate || body.closeDate;
+    updates.expectedCloseDate = dateStr ? new Date(dateStr) : null;
+  }
+  if (body.companyId !== undefined) updates.companyId = body.companyId;
+  if (body.contactId !== undefined) updates.contactId = body.contactId;
+
+  if (Object.keys(updates).length === 0) {
+    return Response.json({ error: "No fields to update" }, { status: 400 });
+  }
+
+  const [updated] = await db
+    .update(deals)
+    .set(updates)
+    .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
+    .returning();
+
+  return Response.json({ deal: updated });
+}

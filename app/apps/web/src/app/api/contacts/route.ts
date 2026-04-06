@@ -114,7 +114,14 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { firstName, lastName, email, title, phone, companyId, additionalEmails, additionalCompanyIds } = body;
+    let { firstName, lastName, email, title, phone, companyId, additionalEmails, additionalCompanyIds } = body;
+
+    // Parse `name` into firstName/lastName as fallback
+    if (!firstName && !lastName && body.name) {
+      const parts = String(body.name).trim().split(/\s+/);
+      firstName = parts[0] || null;
+      lastName = parts.slice(1).join(" ") || null;
+    }
 
     if (!email && !firstName && !lastName) {
       return Response.json({ error: "At least email or name required" }, { status: 400 });

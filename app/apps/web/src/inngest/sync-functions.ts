@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { activities, contacts, companies, users, authAccounts, outboundEmails, sequenceEnrollments } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { fetchRecentEmails, type SyncedEmail } from "@/lib/gmail";
+import { fetchOutlookEmails } from "@/lib/outlook";
 import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/calendar";
 import { embedEntity, activityToText, contactToText, companyToText } from "@/lib/embeddings";
 import { getTenantSettings, backsyncRangeToDays, buildIgnoredDomains, shouldAutoCreateContact } from "@/lib/tenant-settings";
@@ -90,7 +91,7 @@ ${prompt}`,
 export const syncEmails = inngest.createFunction(
   {
     id: "sync-emails",
-    name: "Sync Gmail Emails",
+    name: "Sync Emails",
     retries: 2,
     concurrency: [{ limit: 1, key: "event.data.userId" }],
     onFailure: async ({ error, event }) => {
@@ -98,8 +99,8 @@ export const syncEmails = inngest.createFunction(
     },
     triggers: [{ event: "email/sync-requested" }],
   },
-  async ({ event, step }: { event: { data: { userId: string; tenantId: string; appUserId: string; daysBack?: number } }; step: any }) => {
-    const { userId, tenantId, appUserId, daysBack = 30 } = event.data;
+  async ({ event, step }: { event: { data: { userId: string; tenantId: string; appUserId: string; daysBack?: number; provider?: string } }; step: any }) => {
+    const { userId, tenantId, appUserId, daysBack = 30, provider } = event.data;
 
     // Get user email for direction detection
     const userEmail = await step.run("get-user-email", async () => {
@@ -109,17 +110,20 @@ export const syncEmails = inngest.createFunction(
 
     if (!userEmail) return { synced: 0, reason: "No user email found" };
 
-    // Fetch emails
+    // Fetch emails — route by provider
     const emails = await step.run("fetch-emails", async () => {
       try {
+        if (provider === "microsoft") {
+          return await fetchOutlookEmails(userId, userEmail, daysBack);
+        }
         return await fetchRecentEmails(userId, userEmail, daysBack);
       } catch (err) {
-        console.error("Gmail fetch failed:", err);
+        console.error(`Email fetch failed (${provider || "google"}):`, err);
         return [];
       }
     });
 
-    if (emails.length === 0) return { synced: 0, reason: "No emails or Gmail not connected" };
+    if (emails.length === 0) return { synced: 0, reason: `No emails or ${provider || "google"} not connected` };
 
     // Get existing contacts for matching
     const existingContacts: ContactRow[] = await step.run("get-contacts", async () => {
@@ -645,17 +649,20 @@ export const cronSyncEmails = inngest.createFunction(
     triggers: [{ cron: "*/15 * * * *" }],
   },
   async ({ step }) => {
-    // Find all users with Google OAuth connected
-    const googleUsers = await step.run("find-google-users", async () => {
+    // Find all users with Google or Microsoft OAuth connected
+    const connectedUsers = await step.run("find-connected-users", async () => {
       const accounts = await db
         .select({
           userId: authAccounts.userId,
+          provider: authAccounts.provider,
         })
         .from(authAccounts)
-        .where(eq(authAccounts.provider, "google"));
+        .where(
+          sql`${authAccounts.provider} IN ('google', 'microsoft-entra-id')`
+        );
 
       // Resolve tenant info for each
-      const results = [];
+      const results: { userId: string; tenantId: string; appUserId: string; provider: string }[] = [];
       for (const account of accounts) {
         const [user] = await db
           .select({ id: users.id, tenantId: users.tenantId })
@@ -667,22 +674,23 @@ export const cronSyncEmails = inngest.createFunction(
             userId: account.userId,
             tenantId: user.tenantId,
             appUserId: user.id,
+            provider: account.provider === "microsoft-entra-id" ? "microsoft" : "google",
           });
         }
       }
       return results;
     });
 
-    // Send sync events for each user
+    // Send sync events for each user with their provider
     await step.run("trigger-syncs", async () => {
-      for (const user of googleUsers) {
+      for (const user of connectedUsers) {
         await inngest.send([
-          { name: "email/sync-requested", data: { ...user, daysBack: 1 } },
-          { name: "calendar/sync-requested", data: user },
+          { name: "email/sync-requested", data: { userId: user.userId, tenantId: user.tenantId, appUserId: user.appUserId, daysBack: 1, provider: user.provider } },
+          { name: "calendar/sync-requested", data: { userId: user.userId, tenantId: user.tenantId, appUserId: user.appUserId, provider: user.provider } },
         ]);
       }
     });
 
-    return { usersTriggered: googleUsers.length };
+    return { usersTriggered: connectedUsers.length };
   }
 );

@@ -53,7 +53,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { name, stage, companyId, contactId, value, expectedCloseDate, ownerId } = body;
+    const { name, stage, companyId, contactId, value, expectedCloseDate, closeDate, ownerId } = body;
 
     if (!name || typeof name !== "string") {
       return Response.json({ error: "Name is required" }, { status: 400 });
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
         contactId: contactId || null,
         ownerId: ownerId || authCtx.appUserId || null,
         value: value ? parseInt(value) : null,
-        expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate) : null,
+        expectedCloseDate: (expectedCloseDate || closeDate) ? new Date(expectedCloseDate || closeDate) : null,
         tenantId: authCtx.tenantId,
       })
       .returning();

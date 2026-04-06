@@ -8,12 +8,12 @@ import { INDUSTRIES, industriesPromptHint, companySizesPromptHint } from "@/lib/
 const icpInferenceSchema = z.object({
   companyDescription: z.string().describe("One-sentence description of what this company does"),
   productDescription: z.string().describe("What the company sells, in plain language. Return an empty string if you cannot determine this — never return placeholders like 'unknown' or 'N/A'."),
-  targetIndustries: z.array(z.enum(INDUSTRIES as unknown as [string, ...string[]])).describe(`Industries this company likely sells to. ${industriesPromptHint()}`),
+  targetIndustries: z.array(z.string()).describe(`Industries this company likely sells to. ${industriesPromptHint()}`),
   targetCompanySizes: z.array(z.string()).describe(`Company sizes they likely target. ${companySizesPromptHint()}`),
   targetRoles: z.string().describe("Job titles/roles of the typical buyer (e.g. 'VP Engineering, CTO, Head of Product')"),
   targetGeographies: z.array(z.string()).describe("Geographic locations they likely target. Use specific names: country, state, or city (e.g. 'United States', 'France', 'California'). Be precise."),
-  suggestedTone: z.enum(["Formal", "Direct", "Casual"]).describe("Suggested email tone based on the company's brand voice"),
-  confidence: z.number().min(0).max(1).describe("Confidence score in the ICP inference (0-1)"),
+  suggestedTone: z.string().describe("Suggested email tone: 'Formal', 'Direct', or 'Casual'"),
+  confidence: z.number().describe("Confidence score in the ICP inference, between 0.0 and 1.0"),
   reasoning: z.string().describe("Brief explanation of why these ICP parameters were chosen"),
 });
 
@@ -27,7 +27,7 @@ async function scrapeWebsite(domain: string): Promise<string | null> {
 
       const res = await fetch(url, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; LeadSens/1.0; +https://leadsens.com)",
+          "User-Agent": "Mozilla/5.0 (compatible; Elevay/1.0; +https://elevay.com)",
           "Accept": "text/html",
         },
         signal: controller.signal,
@@ -153,7 +153,7 @@ export async function POST(req: Request) {
 
   try {
     const { object } = await tracedGenerateObject({
-      model: anthropic("claude-sonnet-4-20250514"),
+      model: anthropic("claude-sonnet-4-6"),
       schema: icpInferenceSchema,
       prompt,
       _trace: { agentId: "icp-analysis", tenantId: authCtx.tenantId },

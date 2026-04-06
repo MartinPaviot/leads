@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
+import { CampaignWizard } from "@/components/campaign-wizard";
+import { Zap } from "lucide-react";
 
 interface Step {
   id: string;
@@ -47,6 +49,9 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
 
   // Status update
   const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  // Campaign wizard
+  const [showCampaignWizard, setShowCampaignWizard] = useState(false);
 
   const fetchSequence = useCallback(async () => {
     try {
@@ -137,6 +142,16 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
         <Badge variant={statusBadgeVariant[sequence.status] || "neutral"} size="md">
           {sequence.status.toUpperCase()}
         </Badge>
+        {sequence.status === "draft" && steps.length > 0 && (
+          <Button
+            variant="gradient"
+            size="sm"
+            onClick={() => setShowCampaignWizard(true)}
+          >
+            <Zap size={14} />
+            Launch Campaign
+          </Button>
+        )}
         <Button
           variant="outline"
           size="sm"
@@ -146,6 +161,19 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
           {sequence.status === "active" ? "Pause" : "Activate"}
         </Button>
       </PageHeader>
+
+      {showCampaignWizard && (
+        <CampaignWizard
+          sequenceId={id}
+          sequenceName={sequence.name}
+          steps={steps}
+          onClose={() => setShowCampaignWizard(false)}
+          onPrepared={() => {
+            setShowCampaignWizard(false);
+            window.location.href = `/sequences/${id}/review`;
+          }}
+        />
+      )}
 
       <div className="flex-1 overflow-auto p-6">
         {/* Steps */}

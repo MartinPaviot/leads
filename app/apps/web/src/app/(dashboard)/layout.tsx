@@ -71,8 +71,8 @@ export default async function DashboardLayout({
             onSignOut={handleSignOut}
           />
 
-          {/* Main content with subtle grid background */}
-          <main className="bg-grid flex flex-1 flex-col overflow-hidden">
+          {/* Main content */}
+          <main className="flex flex-1 flex-col overflow-hidden" style={{ background: "var(--color-bg-page)" }}>
             <div className="flex-1 overflow-auto">{children}</div>
             <PersistentChatBar />
             <PostHogPageTracker userId={session.user.id} />

@@ -131,23 +131,70 @@ export async function searchPeople(params: {
 
 // ── Organization Search ──
 
+export interface OrgSearchParams {
+  /** Apollo keyword tags (e.g. ["saas", "cloud"]) */
+  q_organization_keyword_tags?: string[];
+  /** Employee count ranges in Apollo format: ["1,10", "51,200"] */
+  organization_num_employees_ranges?: string[];
+  /** HQ locations — cities, US states, or countries */
+  organization_locations?: string[];
+  /** Exclude HQ locations */
+  organization_not_locations?: string[];
+  /** Revenue range filter */
+  revenue_range?: { min?: number; max?: number };
+  /** Filter by technologies used (e.g. ["kubernetes", "react"]) */
+  currently_using_any_of_technology_uids?: string[];
+  page?: number;
+  per_page?: number;
+}
+
+export interface OrgSearchOrganization {
+  id: string;
+  name: string;
+  website_url: string | null;
+  linkedin_url: string | null;
+  primary_domain: string | null;
+  industry: string | null;
+  keywords: string[];
+  estimated_num_employees: number | null;
+  annual_revenue: number | null;
+  total_funding: number | null;
+  total_funding_printed: string | null;
+  latest_funding_stage: string | null;
+  founded_year: number | null;
+  technology_names: string[];
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  description: string | null;
+  logo_url: string | null;
+}
+
 export interface OrgSearchResult {
-  organizations: ApolloOrganization[];
+  organizations: OrgSearchOrganization[];
   pagination: { page: number; per_page: number; total_entries: number };
 }
 
-export async function searchOrganizations(params: {
-  q_organization_name?: string;
-  q_organization_keyword_tags?: string[];
-  organization_num_employees_ranges?: string[];
-  organization_locations?: string[];
-  page?: number;
-  per_page?: number;
-}): Promise<OrgSearchResult> {
+export async function searchOrganizations(
+  params: OrgSearchParams
+): Promise<OrgSearchResult> {
   return apolloFetch<OrgSearchResult>("/api/v1/mixed_companies/search", {
     method: "POST",
-    body: { per_page: 25, ...params },
+    body: { per_page: 100, ...params },
   });
+}
+
+/** Check if the Apollo search endpoint is accessible (paid plan required). */
+export async function isSearchAvailable(): Promise<boolean> {
+  try {
+    await apolloFetch<OrgSearchResult>("/api/v1/mixed_companies/search", {
+      method: "POST",
+      body: { organization_num_employees_ranges: ["1,10"], per_page: 1, page: 1 },
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ── Helpers ──

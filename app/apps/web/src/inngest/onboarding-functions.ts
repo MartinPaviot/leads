@@ -1,21 +1,21 @@
 import { inngest } from "./client";
 import { db } from "@/db";
 import { companies, contacts } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { generateObject } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import {
-  enrichOrganization,
-  enrichPerson,
+  searchOrganizations,
   searchPeople,
-  employeeCountToRange,
-  revenueToRange,
   isApolloAvailable,
+  type OrgSearchParams,
+  type OrgSearchOrganization,
 } from "@/lib/apollo-client";
-import { getTenantSettings, parseSizeRange } from "@/lib/tenant-settings";
-import { embedEntity, companyToText, contactToText } from "@/lib/embeddings";
+import { getTenantSettings } from "@/lib/tenant-settings";
+import { sizesToApolloRanges } from "@/lib/icp-constants";
+import { embedEntity, companyToText } from "@/lib/embeddings";
 
 function getLLMModel() {
   if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-6");
@@ -23,19 +23,65 @@ function getLLMModel() {
   return null;
 }
 
-const candidateSchema = z.object({
-  companies: z.array(
+const searchStrategySchema = z.object({
+  strategies: z.array(
     z.object({
-      name: z.string().describe("Exact company name"),
-      domain: z.string().describe("Company website domain (e.g. 'stripe.com')"),
-      reason: z.string().describe("Why this company matches the ICP"),
+      label: z.string().describe("Short label for this search angle"),
+      reasoning: z.string().describe("Why this angle matters for the user's business"),
+      filters: z.object({
+        organization_num_employees_ranges: z
+          .array(z.string())
+          .describe("Apollo employee ranges in 'min,max' format"),
+        organization_locations: z
+          .array(z.string())
+          .optional()
+          .describe("HQ locations — cities, US states, or countries"),
+        q_organization_keyword_tags: z
+          .array(z.string())
+          .optional()
+          .describe("Keywords describing company focus areas"),
+        currently_using_any_of_technology_uids: z
+          .array(z.string())
+          .optional()
+          .describe("Technologies the target companies use"),
+        revenue_range: z
+          .object({ min: z.number().optional(), max: z.number().optional() })
+          .optional()
+          .describe("Revenue range in USD"),
+      }),
     })
-  ),
+  ).describe("Array of 2-3 search strategies"),
 });
+
+function inferSizeFromRanges(ranges: string[]): string | null {
+  if (!ranges?.length) return null;
+  const nums = ranges.flatMap((r) => r.split(",").map(Number).filter((n) => !isNaN(n) && n > 0));
+  if (nums.length === 0) return null;
+  const min = Math.min(...nums);
+  const max = Math.max(...nums);
+  if (max <= 10) return "1-10";
+  if (max <= 20) return "11-20";
+  if (max <= 50) return "21-50";
+  if (max <= 100) return "51-100";
+  if (max <= 200) return "101-200";
+  if (max <= 500) return "201-500";
+  return `${min}-${max}`;
+}
+
+function extractDomain(org: OrgSearchOrganization): string | null {
+  const raw = org.primary_domain || org.website_url;
+  if (!raw) return null;
+  return raw
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\/.*$/, "")
+    .trim() || null;
+}
 
 /**
  * Triggered when onboarding is completed.
- * Auto-builds TAM from ICP settings, enriches companies, and finds key contacts.
+ * Auto-builds TAM using LLM-generated Apollo search criteria, then finds key contacts.
  */
 export const onOnboardingCompleted = inngest.createFunction(
   {
@@ -59,9 +105,9 @@ export const onOnboardingCompleted = inngest.createFunction(
     };
     step: any;
   }) => {
-    const { tenantId, appUserId } = event.data;
+    const { tenantId } = event.data;
 
-    // Step 1: Load tenant settings to get ICP
+    // Step 1: Load tenant settings to get ICP + business context
     const settings = await step.run("load-settings", async () => {
       return getTenantSettings(tenantId);
     });
@@ -72,184 +118,165 @@ export const onOnboardingCompleted = inngest.createFunction(
     const targetRoles = settings.targetRoles || "";
     const productDescription = settings.productDescription || "";
 
-    if (!industries.length && !companySizes.length) {
-      return { tenantId, result: "skipped", reason: "No ICP defined" };
+    if (!industries.length && !companySizes.length && !productDescription) {
+      return { tenantId, result: "skipped", reason: "No ICP or product description defined" };
     }
 
-    // Step 2: Generate candidate companies with LLM
     const model = getLLMModel();
     if (!model) {
       return { tenantId, result: "skipped", reason: "No LLM API key" };
     }
 
-    const candidates = await step.run("generate-candidates", async () => {
+    if (!isApolloAvailable()) {
+      return { tenantId, result: "skipped", reason: "No Apollo API key" };
+    }
+
+    // Step 2: LLM generates structured Apollo search criteria
+    const strategies = await step.run("generate-search-strategies", async () => {
       const ownDomain = settings.companyDomain
         ? settings.companyDomain.toLowerCase().replace(/^www\./, "")
         : null;
 
-      const existing = await db
-        .select({ name: companies.name, domain: companies.domain })
-        .from(companies)
-        .where(eq(companies.tenantId, tenantId))
-        .limit(500);
-      const existingNames = new Set(
-        existing.map((c) => c.name.toLowerCase())
-      );
-      const existingDomains = new Set(
-        existing.map((c) => c.domain?.toLowerCase()).filter(Boolean)
-      );
-
-      const icpDescription = [
-        industries.length && `Industries: ${industries.join(", ")}`,
-        companySizes.length &&
-          `Company sizes (employee count): ${companySizes.join(", ")}`,
-        geographies.length && `Geographies: ${geographies.join(", ")}`,
-        targetRoles && `Buyer roles: ${targetRoles}`,
-        productDescription && `What we sell: ${productDescription}`,
+      const businessContext = [
+        settings.onboardingCompanyName && `Company: ${settings.onboardingCompanyName}`,
+        productDescription && `Product: ${productDescription}`,
+        settings.salesMotion && `Sales motion: ${settings.salesMotion}`,
+        settings.primaryChallenge && `Primary challenge: ${settings.primaryChallenge}`,
+        industries.length && `Target industries: ${industries.join(", ")}`,
+        companySizes.length && `Target company sizes: ${companySizes.join(", ")}`,
+        geographies.length && `Target geographies: ${geographies.join(", ")}`,
+        targetRoles && `Buyer personas: ${targetRoles}`,
+        settings.knowledge?.length &&
+          `Knowledge base:\n${settings.knowledge.map((k: any) => `- ${k.topic}: ${k.content}`).join("\n")}`,
       ]
         .filter(Boolean)
         .join("\n");
 
-      const excludeList =
-        existing.length > 0
-          ? `\n\nDo NOT include these (already in CRM): ${existing
-              .slice(0, 50)
-              .map((c) => c.name)
-              .join(", ")}`
-          : "";
+      const apolloSizeExamples = companySizes.length
+        ? sizesToApolloRanges(companySizes).join(", ")
+        : "";
 
       const { object } = await generateObject({
         model: model!,
-        schema: candidateSchema,
-        prompt: `Generate a list of 30 real companies that match this Ideal Customer Profile.
+        schema: searchStrategySchema,
+        prompt: `You are a sales intelligence expert. Analyze this business and generate 2-3 Apollo.io search strategies to build their initial TAM (Total Addressable Market).
 
-${icpDescription}
-${excludeList}
+BUSINESS CONTEXT:
+${businessContext}
 
-CRITICAL RULES:
-- Only return REAL companies that actually exist. No made-up names.
-- The domain must be real and active.
-- Focus on companies that would genuinely be a good fit as customers.
-- Include a mix: some obvious fits and some less obvious but high-potential matches.`,
+Generate structured search filter sets for Apollo's organization search API:
+1. **Direct fit** — Exact ICP match
+2. **Adjacent segment** — Related industries/company types that would also buy this product
+
+APOLLO FILTER RULES:
+- Employee ranges: "1,10", "11,20", "21,50", "51,100", "101,200", "201,500", "501,1000", "1001,2000", "2001,5000", "5001,10000", "10001,"
+${apolloSizeExamples ? `- User selected sizes: ${apolloSizeExamples}` : ""}
+- Locations: country names, US states, or cities
+- Keywords: specific to the business domain
+- Technologies: only when they're a strong signal of fit
+- Revenue: integers in USD`,
       });
-      const generated = object as any;
 
-      // Filter out duplicates and own company
-      return generated.companies.filter((c: any) => {
-        const domain = c.domain
-          .toLowerCase()
-          .replace(/^www\./, "")
-          .replace(/\/$/, "");
-        if (ownDomain && domain === ownDomain) return false;
-        if (existingNames.has(c.name.toLowerCase())) return false;
-        if (existingDomains.has(domain)) return false;
-        return true;
-      });
+      return { strategies: (object as any).strategies, ownDomain };
     });
 
-    // Step 3: Enrich and insert companies
-    const results = await step.run("enrich-and-insert", async () => {
+    // Step 3: Execute searches and insert companies
+    const results = await step.run("search-and-insert", async () => {
       let created = 0;
-      let enrichFailed = 0;
-      const sizeRange = parseSizeRange(settings);
+      let searchFailed = 0;
       const createdCompanyIds: string[] = [];
 
-      for (const candidate of candidates) {
-        const domain = candidate.domain
-          .toLowerCase()
-          .replace(/^www\./, "")
-          .replace(/\/$/, "");
+      const existing = await db
+        .select({ domain: companies.domain })
+        .from(companies)
+        .where(eq(companies.tenantId, tenantId))
+        .limit(2000);
+      const existingDomains = new Set(
+        existing.map((c) => c.domain?.toLowerCase()).filter(Boolean)
+      );
 
-        if (isApolloAvailable()) {
-          try {
-            const org = await enrichOrganization(domain);
-            if (!org) {
-              enrichFailed++;
-              continue;
-            }
+      for (const strategy of strategies.strategies) {
+        try {
+          const params: OrgSearchParams = {
+            organization_num_employees_ranges:
+              strategy.filters.organization_num_employees_ranges,
+            organization_locations: strategy.filters.organization_locations,
+            q_organization_keyword_tags:
+              strategy.filters.q_organization_keyword_tags,
+            currently_using_any_of_technology_uids:
+              strategy.filters.currently_using_any_of_technology_uids,
+            revenue_range: strategy.filters.revenue_range,
+            per_page: 100,
+            page: 1,
+          };
 
-            // Post-enrich ICP filter
-            const employeeCount = org.estimated_num_employees;
-            if (sizeRange && employeeCount) {
-              const [min, max] = sizeRange;
-              if (employeeCount < min * 0.5 || employeeCount > max * 2) {
-                continue;
+          // Fetch up to 2 pages (200 companies) per strategy for onboarding
+          for (let page = 1; page <= 2; page++) {
+            params.page = page;
+            const result = await searchOrganizations(params);
+            if (result.organizations.length === 0) break;
+
+            for (const org of result.organizations) {
+              const domain = extractDomain(org);
+              if (!domain) continue;
+              if (strategies.ownDomain && domain === strategies.ownDomain) continue;
+              if (existingDomains.has(domain)) continue;
+
+              try {
+                // Search-only: no enrich to save credits. Mark for lazy enrichment.
+                const sizeLabel = inferSizeFromRanges(
+                  strategy.filters.organization_num_employees_ranges
+                );
+
+                const [inserted] = await db
+                  .insert(companies)
+                  .values({
+                    name: org.name,
+                    domain,
+                    industry: null,
+                    size: sizeLabel,
+                    revenue: null,
+                    description: null,
+                    tenantId,
+                    properties: {
+                      source: "tam",
+                      enrichment_source: "apollo_search",
+                      needs_enrichment: true,
+                      apollo_id: org.id,
+                      linkedin_url: org.linkedin_url,
+                      logo_url: org.logo_url,
+                      founded_year: org.founded_year,
+                      search_strategy: strategy.label,
+                      search_reasoning: strategy.reasoning,
+                      auto_onboarding: true,
+                    },
+                  })
+                  .returning({ id: companies.id });
+
+                createdCompanyIds.push(inserted.id);
+                existingDomains.add(domain);
+                created++;
+              } catch {
+                // duplicate or constraint violation
               }
             }
 
-            const [inserted] = await db
-              .insert(companies)
-              .values({
-                name: org.name || candidate.name,
-                domain,
-                industry: org.industry || null,
-                size: employeeCountToRange(employeeCount),
-                revenue: revenueToRange(org.annual_revenue),
-                description: org.description || null,
-                tenantId,
-                properties: {
-                  source: "tam",
-                  enrichment_source: "apollo",
-                  apollo_id: org.id,
-                  linkedin_url: org.linkedin_url,
-                  technologies: org.technology_names,
-                  total_funding: org.total_funding,
-                  total_funding_printed: org.total_funding_printed,
-                  founded_year: org.founded_year,
-                  city: org.city,
-                  state: org.state,
-                  country: org.country,
-                  keywords: org.keywords,
-                  llm_reason: candidate.reason,
-                  enriched_at: new Date().toISOString(),
-                  auto_onboarding: true,
-                },
-              })
-              .returning({ id: companies.id });
-
-            createdCompanyIds.push(inserted.id);
-            created++;
-          } catch {
-            enrichFailed++;
+            if (result.organizations.length < 100) break;
           }
-        } else {
-          // No Apollo — store LLM candidate as unverified
-          try {
-            const [inserted] = await db
-              .insert(companies)
-              .values({
-                name: candidate.name,
-                domain,
-                industry: industries[0] || null,
-                description: candidate.reason,
-                tenantId,
-                properties: {
-                  source: "tam",
-                  enrichment_source: "llm_only",
-                  llm_reason: candidate.reason,
-                  needs_enrichment: true,
-                  auto_onboarding: true,
-                },
-              })
-              .returning({ id: companies.id });
-
-            createdCompanyIds.push(inserted.id);
-            created++;
-          } catch {
-            // duplicate or constraint violation
-          }
+        } catch (err: any) {
+          console.error(`TAM search strategy "${strategy.label}" failed:`, err?.message);
+          searchFailed++;
         }
       }
 
-      return { created, enrichFailed, companyIds: createdCompanyIds };
+      return { created, searchFailed, companyIds: createdCompanyIds };
     });
 
-    // Step 4: Find key contacts at top companies (if Apollo available)
+    // Step 4: Find key contacts at top companies
     let contactsCreated = 0;
     if (isApolloAvailable() && targetRoles && results.companyIds.length > 0) {
       contactsCreated = await step.run("find-contacts", async () => {
         let count = 0;
-        // Get top 10 companies for contact search
         const topCompanyIds = results.companyIds.slice(0, 10);
 
         for (const companyId of topCompanyIds) {
@@ -275,13 +302,10 @@ CRITICAL RULES:
             for (const person of searchResult.people) {
               if (!person.email) continue;
 
-              // Check for duplicate
               const [existing] = await db
                 .select({ id: contacts.id })
                 .from(contacts)
-                .where(
-                  eq(contacts.email, person.email)
-                )
+                .where(eq(contacts.email, person.email))
                 .limit(1);
               if (existing) continue;
 
@@ -313,7 +337,7 @@ CRITICAL RULES:
       });
     }
 
-    // Step 5: Embed new companies for RAG (if OPENAI_API_KEY available)
+    // Step 5: Embed new companies for RAG
     if (process.env.OPENAI_API_KEY && results.companyIds.length > 0) {
       await step.run("embed-companies", async () => {
         for (const companyId of results.companyIds.slice(0, 20)) {
@@ -347,7 +371,7 @@ CRITICAL RULES:
       tenantId,
       result: "success",
       companiesCreated: results.created,
-      enrichFailed: results.enrichFailed,
+      searchFailed: results.searchFailed,
       contactsCreated,
     };
   }

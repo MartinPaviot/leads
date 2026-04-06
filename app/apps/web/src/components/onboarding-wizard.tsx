@@ -22,6 +22,7 @@ interface OnboardingWizardProps {
   hasGoogle: boolean;
   hasMicrosoft?: boolean;
   userEmail?: string;
+  userName?: string;
 }
 
 type Step = "connect" | "privacy" | "welcome" | "product" | "icp" | "building" | "ready";
@@ -224,7 +225,7 @@ const CREATION_OPTIONS = [
 
 /* ═══════════════════════════ MAIN COMPONENT ═══════════════════════════ */
 
-export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmail }: OnboardingWizardProps) {
+export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmail, userName }: OnboardingWizardProps) {
   const [step, setStep] = useState<Step>("welcome");
   const [saving, setSaving] = useState(false);
 
@@ -245,7 +246,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
   const [doNotTrackDomains, setDoNotTrackDomains] = useState<string[]>([...DEFAULT_IGNORED_DOMAINS]);
   const [doNotTrackInput, setDoNotTrackInput] = useState("");
 
-  const [fullName, setFullName] = useState("");
+  const [fullName, setFullName] = useState(userName || "");
   const [companyName, setCompanyName] = useState(() => {
     if (!domain) return "";
     const name = domain.split(".")[0] || "";
@@ -412,7 +413,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
       {/* ── Header ── */}
       <div className="w-full max-w-lg px-4 shrink-0 mb-2">
         <div className="flex items-center justify-between mb-1.5">
-          <h1 className="gradient-text text-lg font-bold tracking-tight">LeadSens</h1>
+          <h1 className="gradient-text text-lg font-bold tracking-tight">Elevay</h1>
           {step !== "ready" && step !== "building" && (
             <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>~{Math.max(1, 5 - stepIndex + 1)} min left</span>
           )}
@@ -634,11 +635,11 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
               </div>
               <div>
                 <span className={label} style={labelStyle}>Seniority level *</span>
-                <PillSelect options={JOB_SENIORITIES} selected={targetSeniorities} onToggle={(val) => togglePill(targetSeniorities, val, setTargetSeniorities)} />
+                <TagInput options={JOB_SENIORITIES} selected={targetSeniorities} onToggle={(val) => togglePill(targetSeniorities, val, setTargetSeniorities)} placeholder="Search seniority levels..." />
               </div>
               <div>
                 <span className={label} style={labelStyle}>Department</span>
-                <PillSelect options={JOB_DEPARTMENTS} selected={targetDepartments} onToggle={(val) => togglePill(targetDepartments, val, setTargetDepartments)} />
+                <TagInput options={JOB_DEPARTMENTS} selected={targetDepartments} onToggle={(val) => togglePill(targetDepartments, val, setTargetDepartments)} placeholder="Search departments..." />
               </div>
             </div>
 

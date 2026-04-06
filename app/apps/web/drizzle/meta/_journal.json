@@ -43,6 +43,13 @@
       "when": 1775329200000,
       "tag": "0005_smooth_silver_fox",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1775432474312,
+      "tag": "0006_peaceful_hex",
+      "breakpoints": true
     }
   ]
 }

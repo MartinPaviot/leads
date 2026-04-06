@@ -58,9 +58,9 @@ export async function GET() {
   const hasGoogle = !!googleAccount;
   const hasMicrosoft = !!msAccount;
 
-  // Get user email for domain extraction
+  // Get user email and name for domain extraction + pre-fill
   const [authUser] = await db
-    .select({ email: authUsers.email })
+    .select({ email: authUsers.email, name: authUsers.name })
     .from(authUsers)
     .where(eq(authUsers.id, authCtx.userId))
     .limit(1);
@@ -74,5 +74,6 @@ export async function GET() {
     hasEmail: hasGoogle || hasMicrosoft,
     needsOnboarding: !onboardingCompleted && isNew,
     email: authUser?.email,
+    name: authUser?.name || null,
   });
 }

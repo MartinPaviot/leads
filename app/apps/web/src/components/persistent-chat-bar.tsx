@@ -10,10 +10,9 @@ export function PersistentChatBar({ forceShow }: { forceShow?: boolean } = {}) {
   const [query, setQuery] = useState("");
 
   if (!forceShow) {
-    // Only show on Up Next (/) and Chat (/chat)
+    // Only show on Up Next (/) — hide on Chat page which has its own input
     const isUpNext = pathname === "/" || pathname === "/home";
-    const isChat = pathname === "/chat" || pathname?.startsWith("/chat?");
-    if (!isUpNext && !isChat) return null;
+    if (!isUpNext) return null;
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -41,7 +40,7 @@ export function PersistentChatBar({ forceShow }: { forceShow?: boolean } = {}) {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Ask LeadSens..."
+          placeholder="Ask Elevay..."
           className="w-full rounded-xl py-2.5 pl-10 pr-10 text-[14px] outline-none transition-all"
           style={{
             background: "var(--color-bg-card)",

@@ -7,6 +7,9 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { embedEntity, companyToText, contactToText } from "@/lib/embeddings";
+import { buildProspectContext } from "@/lib/prospect-context";
+import { personalizeStepEmail } from "@/lib/sequence-generator";
+import { STEP_STRATEGIES } from "@/lib/outbound-methodologies";
 import {
   enrichOrganization,
   enrichPerson,
@@ -389,24 +392,25 @@ export const sendSequenceStep = inngest.createFunction(
       body = body.replace(pattern, value);
     }
 
-    // If LLM available, enhance the email
-    if (model) {
-      const enhanced = await step.run("enhance-email", async () => {
-        const { object } = await tracedGenerateObject({
-          model: model!,
-          schema: emailSchema,
-          prompt: `Personalize this email for ${contactName} (${contact.title || "professional"}).
+    // Personalize with full prospect intelligence
+    const personalized = await step.run("personalize-email", async () => {
+      try {
+        const ctx = await buildProspectContext(contact.id, enrollment.sequenceId ? "default" : "default");
+        if (!ctx) return null;
 
-Subject: ${subject}
-Body: ${body}
+        // Find the step strategy for this step number
+        const strategy = STEP_STRATEGIES.find((s) => s.stepNumber === enrollment.currentStep)
+          || STEP_STRATEGIES[0];
 
-Make it more specific and engaging. Keep the core message but add personal touches.`,
-          _trace: { agentId: "send-sequence-step", tenantId: "default" },
-        });
-        return object as any;
-      });
-      subject = enhanced.subject;
-      body = enhanced.body;
+        return await personalizeStepEmail(ctx, { subject, body }, strategy);
+      } catch {
+        return null; // fallback to template
+      }
+    });
+
+    if (personalized) {
+      subject = personalized.subject;
+      body = personalized.body;
     }
 
     // Check opt-out before sending
@@ -547,24 +551,87 @@ export const processReply = inngest.createFunction(
         const { object } = await tracedGenerateObject({
           model: model!,
           schema: z.object({
-            classification: z.enum(["positive", "negative", "ooo", "unsubscribe", "unknown"]),
+            classification: z.enum([
+              "interested",
+              "meeting_request",
+              "objection_price",
+              "objection_timing",
+              "objection_competitor",
+              "objection_authority",
+              "ooo",
+              "unsubscribe",
+            ]),
             reason: z.string(),
+            objectionDetail: z.string().optional().describe("Specific concern if objection"),
+            nextAction: z.string().describe("Recommended next action"),
+            urgency: z.enum(["high", "medium", "low"]),
           }),
-          prompt: `Classify this email reply:
+          prompt: `Classify this email reply with precision:
 
 "${replyContent.slice(0, 500)}"
 
 Classifications:
-- positive: interested, wants to learn more, asks questions
-- negative: not interested, rejection
+- interested: wants to learn more, asks questions, open to conversation
+- meeting_request: explicitly asks for a call, demo, or meeting
+- objection_price: too expensive, budget concerns, ROI questions
+- objection_timing: not now, maybe later, bad quarter, busy period
+- objection_competitor: already using something else, comparing tools
+- objection_authority: need to check with boss, not the decision-maker, internal process
 - ooo: out of office auto-reply
-- unsubscribe: asks to be removed
-- unknown: unclear intent`,
+- unsubscribe: asks to be removed, stop emailing
+
+Also determine:
+- objectionDetail: the specific concern or question (if applicable)
+- nextAction: what should happen next (e.g., "send case study", "propose meeting times", "follow up in Q2")
+- urgency: high (ready to act), medium (interested but not urgent), low (lukewarm or future)`,
           _trace: { agentId: "process-reply", tenantId: "default" },
         });
         return object as any;
       });
       classification = result.classification;
+
+      // Fire event for intelligent reply handling (if not ooo/unsubscribe)
+      if (!["ooo", "unsubscribe"].includes(classification)) {
+        await step.run("trigger-reply-handler", async () => {
+          await inngest.send({
+            name: "reply/classified",
+            data: {
+              enrollmentId,
+              classification: result.classification,
+              reason: result.reason,
+              objectionDetail: result.objectionDetail,
+              nextAction: result.nextAction,
+              urgency: result.urgency,
+              replyContent: replyContent.slice(0, 1000),
+            },
+          });
+        });
+      }
+
+      // Handle OOO: reschedule next step
+      if (classification === "ooo") {
+        await step.run("reschedule-ooo", async () => {
+          // Try to parse return date from the reply
+          const returnMatch = replyContent.match(/(?:back|return|available|retour)\s+(?:on\s+)?(\w+\s+\d{1,2}|\d{1,2}\/\d{1,2})/i);
+          const rescheduleDate = new Date();
+          if (returnMatch) {
+            const parsed = new Date(returnMatch[1]);
+            if (!isNaN(parsed.getTime())) {
+              rescheduleDate.setTime(parsed.getTime());
+              rescheduleDate.setDate(rescheduleDate.getDate() + 1); // day after return
+            } else {
+              rescheduleDate.setDate(rescheduleDate.getDate() + 7); // default 1 week
+            }
+          } else {
+            rescheduleDate.setDate(rescheduleDate.getDate() + 7);
+          }
+
+          await db
+            .update(sequenceEnrollments)
+            .set({ status: "active", nextStepAt: rescheduleDate })
+            .where(eq(sequenceEnrollments.id, enrollmentId));
+        });
+      }
 
       // If unsubscribe, update enrollment AND add to global opt-out list
       if (classification === "unsubscribe") {
