@@ -73,7 +73,8 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
           boxShadow: "var(--shadow-dialog)",
         }}
       >
-        <div className="text-center">
+        <div className="flex flex-col items-center text-center">
+          <img src="/logo-elevay.svg" alt="Elevay" className="mb-3 h-10 w-10" />
           <h1 className="gradient-text text-2xl font-bold tracking-tight">
             Elevay
           </h1>

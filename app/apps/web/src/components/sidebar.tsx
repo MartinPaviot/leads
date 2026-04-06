@@ -282,10 +282,13 @@ export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tena
       >
         {!collapsed ? (
           <>
-            {/* Gradient logo text */}
-            <span className="gradient-text text-[16px] font-bold tracking-tight">
-              Elevay
-            </span>
+            {/* Logo + text */}
+            <div className="flex items-center gap-2">
+              <img src="/logo-elevay.svg" alt="Elevay" className="h-6 w-6" />
+              <span className="gradient-text text-[16px] font-bold tracking-tight">
+                Elevay
+              </span>
+            </div>
             <div className="flex-1" />
             <button
               onClick={() => window.dispatchEvent(new CustomEvent("elevay:command-palette"))}
