@@ -58,7 +58,7 @@ export const prepareCampaign = inngest.createFunction(
     event,
     step,
   }: {
-    event: { data: { sequenceId: string; tenantId: string; config: CampaignConfig } };
+    event: { data: { sequenceId: string; tenantId: string; userId?: string; config: CampaignConfig } };
     step: any;
   }) => {
     const { sequenceId, tenantId, userId, config } = event.data;
