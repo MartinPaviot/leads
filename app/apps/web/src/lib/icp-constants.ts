@@ -45,10 +45,10 @@ export const INDUSTRIES = [
   "Wine and Spirits", "Wireless", "Writing and Editing",
 ] as const;
 
-// Apollo employee count ranges — exact API buckets
+// Apollo employee count ranges — exact API buckets (8 official ranges)
 export const COMPANY_SIZES = [
-  "1-10", "11-20", "21-50", "51-100", "101-200",
-  "201-500", "501-1,000", "1,001-2,000", "2,001-5,000", "5,001-10,000", "10,001+",
+  "1-10", "11-50", "51-200", "201-500",
+  "501-1,000", "1,001-5,000", "5,001-10,000", "10,001+",
 ] as const;
 
 export const SALES_MOTIONS = [
