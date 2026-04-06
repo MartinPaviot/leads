@@ -95,7 +95,7 @@ export function CampaignWizard({ onClose, onComplete, sequenceId: existingSequen
         });
         if (!createRes.ok) throw new Error("Failed to create campaign");
         const { sequence } = await createRes.json();
-        sid = sequence.id;
+        sid = sequence.id as string;
         setSequenceId(sid);
       }
 
