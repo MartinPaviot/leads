@@ -348,10 +348,16 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
     if (companySizes.length === 0 && websiteAnalysis.targetCompanySizes.length > 0) setCompanySizes(websiteAnalysis.targetCompanySizes.filter((s) => (COMPANY_SIZES as readonly string[]).includes(s)));
     if (targetSeniorities.length === 0 && websiteAnalysis.targetRoles) {
       const parsed = websiteAnalysis.targetRoles.split(/,\s*/).map((r) => r.trim()).filter(Boolean);
-      const matchedSeniorities = parsed.filter((r) => (JOB_SENIORITIES as readonly string[]).includes(r));
-      const matchedDepartments = parsed.filter((r) => (JOB_DEPARTMENTS as readonly string[]).includes(r));
-      if (matchedSeniorities.length > 0) setTargetSeniorities(matchedSeniorities);
-      if (matchedDepartments.length > 0) setTargetDepartments(matchedDepartments);
+      // Fuzzy match: check if any parsed role contains a seniority/department keyword
+      const matchedSeniorities = JOB_SENIORITIES.filter((s) =>
+        parsed.some((r) => r.toLowerCase().includes(s.toLowerCase()) || s.toLowerCase().includes(r.toLowerCase()))
+      );
+      const matchedDepartments = JOB_DEPARTMENTS.filter((d) =>
+        parsed.some((r) => r.toLowerCase().includes(d.toLowerCase()) || d.toLowerCase().includes(r.toLowerCase()))
+      );
+      if (matchedSeniorities.length > 0) setTargetSeniorities([...matchedSeniorities]);
+      else setTargetSeniorities(["C-Suite", "VP", "Director"]); // sensible defaults
+      if (matchedDepartments.length > 0) setTargetDepartments([...matchedDepartments]);
     }
     if (geographies.length === 0 && websiteAnalysis.targetGeographies.length > 0) {
       const valid = websiteAnalysis.targetGeographies.filter((g) => (GEOGRAPHIES as readonly string[]).includes(g));
@@ -417,7 +423,13 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
       }
 
       fetch("/api/embed", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: "companies" }) }).catch(() => {});
-      if (emailConnected) { try { const er = await fetch("/api/onboarding/email-intelligence"); if (er.ok) setEmailIntelligence(await er.json()); } catch {} }
+      // Email intelligence — fire and forget, don't block onboarding
+      if (emailConnected) {
+        fetch("/api/onboarding/email-intelligence")
+          .then((er) => er.ok ? er.json() : null)
+          .then((data) => { if (data) setEmailIntelligence(data); })
+          .catch(() => {});
+      }
       await saveOnboardingData({ step: "complete", onboardingCompleted: true });
 
       setBuildStage(5);
