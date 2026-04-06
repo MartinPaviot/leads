@@ -85,6 +85,7 @@ export async function POST(req: Request) {
       data: {
         sequenceId,
         tenantId: authCtx.tenantId,
+        userId: authCtx.userId,
         config,
       },
     });

@@ -1,6 +1,6 @@
 import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { sequences, sequenceSteps, sequenceEnrollments } from "@/db/schema";
+import { sequences, sequenceSteps, sequenceEnrollments, outboundEmails } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 
 export async function GET() {
@@ -29,10 +29,26 @@ export async function GET() {
           .from(sequenceEnrollments)
           .where(eq(sequenceEnrollments.sequenceId, seq.id));
 
+        // Email stats
+        const emailCounts = await db
+          .select({
+            status: outboundEmails.status,
+            count: sql<number>`count(*)`,
+          })
+          .from(outboundEmails)
+          .where(eq(outboundEmails.campaignId, seq.id))
+          .groupBy(outboundEmails.status);
+
+        const emailStats: Record<string, number> = {};
+        for (const row of emailCounts) {
+          emailStats[row.status as string] = Number(row.count);
+        }
+
         return {
           ...seq,
           stepCount: Number(steps[0]?.count || 0),
           enrolledCount: Number(enrollments[0]?.count || 0),
+          emailStats,
         };
       })
     );

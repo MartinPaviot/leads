@@ -114,10 +114,15 @@ export default function MeetingsPage() {
         {meetings.length === 0 ? (
           <EmptyState
             icon={<Calendar size={24} />}
-            title="No meetings"
-            description="Connect your Google Calendar to sync meetings automatically."
-            actionLabel="Go to settings"
-            onAction={() => window.location.href = "/settings/mail-calendar"}
+            title="No meetings yet"
+            description="Your calendar is syncing. Meetings will appear here automatically as they are detected."
+            actionLabel="Sync now"
+            onAction={async () => {
+              try {
+                await fetch("/api/calendar/sync", { method: "POST" });
+                window.location.reload();
+              } catch {}
+            }}
             actionVariant="outline"
           />
         ) : (

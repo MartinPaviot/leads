@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { outboundEmails, contacts, companies } from "@/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { outboundEmails, contacts, companies, sequenceEnrollments } from "@/db/schema";
+import { eq, and, inArray, sql } from "drizzle-orm";
 
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();
@@ -11,21 +11,37 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status") || "draft";
-  const enrollmentId = searchParams.get("enrollmentId");
+  const sequenceId = searchParams.get("sequenceId");
 
-  let query = db
+  // If sequenceId provided, get enrollment IDs for that sequence
+  let enrollmentIdFilter: string[] | null = null;
+  if (sequenceId) {
+    const enrollments = await db
+      .select({ id: sequenceEnrollments.id })
+      .from(sequenceEnrollments)
+      .where(eq(sequenceEnrollments.sequenceId, sequenceId));
+    enrollmentIdFilter = enrollments.map((e) => e.id);
+    if (enrollmentIdFilter.length === 0) {
+      return Response.json({ emails: [] });
+    }
+  }
+
+  const conditions = [eq(outboundEmails.tenantId, authCtx.tenantId)];
+  if (status !== "all") {
+    conditions.push(eq(outboundEmails.status, status as any));
+  }
+
+  const allEmails = await db
     .select()
     .from(outboundEmails)
-    .where(
-      and(
-        eq(outboundEmails.tenantId, authCtx.tenantId),
-        eq(outboundEmails.status, status as "draft" | "queued" | "sent")
-      )
-    )
-    .orderBy(outboundEmails.createdAt)
-    .limit(50);
+    .where(and(...conditions))
+    .orderBy(sql`created_at DESC`)
+    .limit(500);
 
-  const emails = await query;
+  // Filter by sequence enrollments if needed
+  const emails = enrollmentIdFilter
+    ? allEmails.filter((e) => e.enrollmentId && enrollmentIdFilter!.includes(e.enrollmentId))
+    : allEmails;
 
   // Enrich with contact info
   const contactIds = [...new Set(emails.map((e) => e.contactId).filter(Boolean))];

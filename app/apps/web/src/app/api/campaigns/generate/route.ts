@@ -19,33 +19,43 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { contactId, companyId, stepCount } = body;
+    const { contactId, companyId, sequenceId, stepCount } = body;
 
-    if (!contactId && !companyId) {
-      return Response.json({ error: "contactId or companyId required" }, { status: 400 });
-    }
-
-    // Resolve contact
+    // Resolve contact — auto-pick from TAM if nothing provided
     let resolvedContactId = contactId;
 
     if (!resolvedContactId && companyId) {
-      // Pick the best-scored contact at this company
       const [bestContact] = await db
         .select({ id: contacts.id })
         .from(contacts)
-        .where(
-          and(
-            eq(contacts.companyId, companyId),
-            eq(contacts.tenantId, authCtx.tenantId)
-          )
-        )
+        .where(and(eq(contacts.companyId, companyId), eq(contacts.tenantId, authCtx.tenantId)))
         .orderBy(contacts.score)
         .limit(1);
+      if (bestContact) resolvedContactId = bestContact.id;
+    }
 
-      if (!bestContact) {
-        return Response.json({ error: "No contacts found at this company" }, { status: 404 });
+    if (!resolvedContactId) {
+      // Auto-pick: find top-scored company with contacts
+      const topCompanies = await db
+        .select({ id: companies.id })
+        .from(companies)
+        .where(eq(companies.tenantId, authCtx.tenantId))
+        .orderBy(companies.score)
+        .limit(10);
+
+      for (const comp of topCompanies) {
+        const [contact] = await db
+          .select({ id: contacts.id })
+          .from(contacts)
+          .where(and(eq(contacts.companyId, comp.id), eq(contacts.tenantId, authCtx.tenantId)))
+          .orderBy(contacts.score)
+          .limit(1);
+        if (contact) { resolvedContactId = contact.id; break; }
       }
-      resolvedContactId = bestContact.id;
+
+      if (!resolvedContactId) {
+        return Response.json({ error: "No contacts found in your TAM. Build your TAM first." }, { status: 404 });
+      }
     }
 
     // Build full prospect context
@@ -57,29 +67,51 @@ export async function POST(req: Request) {
     // Generate the sequence
     const generated = await generateSequence(ctx, { stepCount: stepCount || 5 });
 
-    // Create sequence + steps in DB
-    const [sequence] = await db
-      .insert(sequences)
-      .values({
-        name: generated.sequenceName,
-        description: generated.sequenceReasoning,
-        tenantId: authCtx.tenantId,
-        status: "draft",
-      })
-      .returning();
+    let targetSequenceId = sequenceId;
 
-    for (const step of generated.steps) {
-      await db.insert(sequenceSteps).values({
-        sequenceId: sequence.id,
-        stepNumber: step.stepNumber,
-        subjectTemplate: step.subject,
-        bodyTemplate: step.body,
-        delayDays: step.delayDays,
-      });
+    if (sequenceId) {
+      // Update existing sequence steps — delete old, insert new
+      await db.delete(sequenceSteps).where(eq(sequenceSteps.sequenceId, sequenceId));
+      await db.update(sequences).set({
+        description: generated.sequenceReasoning,
+        updatedAt: new Date(),
+      }).where(and(eq(sequences.id, sequenceId), eq(sequences.tenantId, authCtx.tenantId)));
+
+      for (const step of generated.steps) {
+        await db.insert(sequenceSteps).values({
+          sequenceId,
+          stepNumber: step.stepNumber,
+          subjectTemplate: step.subject,
+          bodyTemplate: step.body,
+          delayDays: step.delayDays,
+        });
+      }
+    } else {
+      // Create new sequence + steps
+      const [sequence] = await db
+        .insert(sequences)
+        .values({
+          name: generated.sequenceName,
+          description: generated.sequenceReasoning,
+          tenantId: authCtx.tenantId,
+          status: "draft",
+        })
+        .returning();
+      targetSequenceId = sequence.id;
+
+      for (const step of generated.steps) {
+        await db.insert(sequenceSteps).values({
+          sequenceId: sequence.id,
+          stepNumber: step.stepNumber,
+          subjectTemplate: step.subject,
+          bodyTemplate: step.body,
+          delayDays: step.delayDays,
+        });
+      }
     }
 
     return Response.json({
-      sequenceId: sequence.id,
+      sequenceId: targetSequenceId,
       sequenceName: generated.sequenceName,
       reasoning: generated.sequenceReasoning,
       steps: generated.steps,

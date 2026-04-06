@@ -61,7 +61,7 @@ export const prepareCampaign = inngest.createFunction(
     event: { data: { sequenceId: string; tenantId: string; config: CampaignConfig } };
     step: any;
   }) => {
-    const { sequenceId, tenantId, config } = event.data;
+    const { sequenceId, tenantId, userId, config } = event.data;
     const { segmentFilters, targetRoles, maxCompanies, maxContactsPerCompany } = config;
 
     // ── Step A: Select TAM segment ──
@@ -371,6 +371,21 @@ export const prepareCampaign = inngest.createFunction(
           }
         }
 
+        // Resolve sender email from OAuth account
+        let senderEmail = "pending@rotation";
+        try {
+          const { authAccounts } = await import("@/db/schema");
+          const [oauthAccount] = await db
+            .select({ idToken: authAccounts.id_token })
+            .from(authAccounts)
+            .where(and(eq(authAccounts.userId, userId), sql`${authAccounts.provider} != 'credentials'`))
+            .limit(1);
+          if (oauthAccount?.idToken) {
+            const payload = JSON.parse(Buffer.from(oauthAccount.idToken.split(".")[1], "base64url").toString());
+            if (payload.email) senderEmail = payload.email;
+          }
+        } catch { /* fallback to pending@rotation */ }
+
         // Create draft outbound email
         await db.insert(outboundEmails).values({
           tenantId,
@@ -378,7 +393,7 @@ export const prepareCampaign = inngest.createFunction(
           enrollmentId: enrollment.id,
           contactId: contact.id,
           stepNumber: 1,
-          fromAddress: "pending@rotation",
+          fromAddress: senderEmail,
           toAddress: contact.email,
           subject,
           bodyHtml: `<div>${body.replace(/\n/g, "<br>")}</div>`,
@@ -392,6 +407,92 @@ export const prepareCampaign = inngest.createFunction(
       return { enrolled, drafted };
     });
 
+    // ── Step E2: Generate follow-up step emails (steps 2-N) ──
+    const followUpResult = await step.run("generate-followup-emails", async () => {
+      const allSteps = await db
+        .select()
+        .from(sequenceSteps)
+        .where(eq(sequenceSteps.sequenceId, sequenceId))
+        .orderBy(sequenceSteps.stepNumber);
+
+      if (allSteps.length <= 1) return { drafted: 0 };
+
+      const followUpSteps = allSteps.slice(1); // steps 2, 3, 4...
+      let drafted = 0;
+
+      // Get all enrollments for this sequence
+      const allEnrollments = await db
+        .select()
+        .from(sequenceEnrollments)
+        .where(eq(sequenceEnrollments.sequenceId, sequenceId));
+
+      for (const enrollment of allEnrollments) {
+        const [contact] = await db.select().from(contacts).where(eq(contacts.id, enrollment.contactId)).limit(1);
+        if (!contact?.email) continue;
+
+        let cumulativeDelay = allSteps[0].delayDays || 0;
+
+        for (const followUpStep of followUpSteps) {
+          cumulativeDelay += followUpStep.delayDays || 0;
+
+          let subject = followUpStep.subjectTemplate;
+          let body = followUpStep.bodyTemplate;
+
+          // Try to personalize
+          try {
+            const ctx = await buildProspectContext(contact.id, tenantId);
+            if (ctx) {
+              const strategyIndex = Math.min(followUpStep.stepNumber - 1, STEP_STRATEGIES.length - 1);
+              const personalized = await personalizeStepEmail(ctx, { subject, body }, STEP_STRATEGIES[strategyIndex]);
+              subject = personalized.subject;
+              body = personalized.body;
+            }
+          } catch {
+            // Fallback: simple variable replacement
+            const vars: Record<string, string> = {
+              firstName: contact.firstName || "",
+              lastName: contact.lastName || "",
+              fullName: [contact.firstName, contact.lastName].filter(Boolean).join(" "),
+              title: contact.title || "",
+            };
+            for (const [key, value] of Object.entries(vars)) {
+              subject = subject.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
+              body = body.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
+            }
+          }
+
+          // Resolve sender
+          let senderEmail = "pending@rotation";
+          try {
+            const { authAccounts } = await import("@/db/schema");
+            const [oa] = await db.select({ idToken: authAccounts.id_token }).from(authAccounts)
+              .where(and(eq(authAccounts.userId, userId), sql`${authAccounts.provider} != 'credentials'`)).limit(1);
+            if (oa?.idToken) {
+              const payload = JSON.parse(Buffer.from(oa.idToken.split(".")[1], "base64url").toString());
+              if (payload.email) senderEmail = payload.email;
+            }
+          } catch { /* */ }
+
+          await db.insert(outboundEmails).values({
+            tenantId,
+            campaignId: sequenceId,
+            enrollmentId: enrollment.id,
+            contactId: contact.id,
+            stepNumber: followUpStep.stepNumber,
+            fromAddress: senderEmail,
+            toAddress: contact.email,
+            subject,
+            bodyHtml: `<div>${body.replace(/\n/g, "<br>")}</div>`,
+            bodyText: body,
+            status: "draft",
+          });
+          drafted++;
+        }
+      }
+
+      return { drafted };
+    });
+
     // ── Step F: Finalize ──
     await step.run("finalize", async () => {
       const updatedConfig: CampaignConfig = {
@@ -402,7 +503,7 @@ export const prepareCampaign = inngest.createFunction(
           companiesSelected: selectedCompanies.length,
           companiesEnriched: enrichResult.enriched,
           contactsFound: discoveredContacts.found,
-          emailsDrafted: draftResult.drafted,
+          emailsDrafted: draftResult.drafted + (followUpResult?.drafted || 0),
         },
       };
 

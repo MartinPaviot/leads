@@ -37,7 +37,7 @@ export default function ReviewQueuePage({
 
   async function loadEmails() {
     try {
-      const res = await fetch(`/api/outbound/review?status=${filter}`);
+      const res = await fetch(`/api/outbound/review?sequenceId=${id}&status=${filter}`);
       const data = await res.json();
       setEmails(data.emails || []);
     } catch {

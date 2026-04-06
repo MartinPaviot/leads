@@ -622,7 +622,7 @@ function PreviewSequenceStep({
       const res = await fetch("/api/campaigns/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: null, contactId: null }),
+        body: JSON.stringify({ sequenceId }),
       });
       if (res.ok) {
         const data = await res.json();
