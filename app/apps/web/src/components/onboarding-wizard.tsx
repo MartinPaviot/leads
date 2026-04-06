@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { signIn } from "next-auth/react";
 import { ArrowRight, ArrowLeft, Loader2, Check, Mail, Sparkles, Target, Zap, MessageSquare, Users, Building2, Globe, ChevronDown, Calendar, Shield, Eye, EyeOff, Clock } from "lucide-react";
 import { INDUSTRIES, COMPANY_SIZES, SALES_MOTIONS, GEOGRAPHIES, JOB_SENIORITIES, JOB_DEPARTMENTS, sizesToApolloRanges } from "@/lib/icp-constants";
@@ -81,9 +81,19 @@ function TagInput({ options, selected, onToggle, placeholder }: {
 }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
   const filtered = search.trim()
     ? options.filter((o) => o.toLowerCase().includes(search.toLowerCase()) && !selected.includes(o))
     : options.filter((o) => !selected.includes(o));
+
+  const openDropdown = () => {
+    if (inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    }
+    setOpen(true);
+  };
 
   return (
     <div className="relative">
@@ -97,21 +107,21 @@ function TagInput({ options, selected, onToggle, placeholder }: {
           ))}
         </div>
       )}
-      <input type="text" value={search}
-        onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
+      <input ref={inputRef} type="text" value={search}
+        onChange={(e) => { setSearch(e.target.value); openDropdown(); }}
+        onFocus={openDropdown}
         placeholder={selected.length > 0 ? "Add more..." : placeholder || "Search..."}
         className="auth-input w-full rounded-lg px-3 py-1 text-[12px] outline-none"
         style={{ background: "var(--color-bg-page)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
       />
       {open && filtered.length > 0 && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => { setOpen(false); setSearch(""); }} />
-          <div className="absolute z-20 mt-1 w-full max-h-52 overflow-y-auto rounded-lg py-1"
-            style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)", boxShadow: "var(--shadow-dialog)" }}>
+          <div className="fixed inset-0 z-[9998]" onClick={() => { setOpen(false); setSearch(""); }} />
+          <div className="fixed z-[9999] max-h-52 overflow-y-auto rounded-lg py-1"
+            style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width, background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)", boxShadow: "var(--shadow-dialog)" }}>
             {filtered.map((opt) => (
               <button key={opt} type="button" onClick={() => { onToggle(opt); setSearch(""); }}
-                className="w-full text-left px-3 py-1 text-[12px] hover:brightness-95 transition-colors"
+                className="w-full text-left px-3 py-1.5 text-[12px] transition-colors"
                 style={{ color: "var(--color-text-primary)" }}
                 onMouseEnter={(e) => e.currentTarget.style.background = "var(--color-bg-hover)"}
                 onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
