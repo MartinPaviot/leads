@@ -18,7 +18,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 
-const CALENDLY_URL = "https://calendly.com/elevay";
+const CALENDLY_URL = "https://calendly.com/contact-elevay/30min";
 
 /* =================================================================
    ANIMATION HELPERS
