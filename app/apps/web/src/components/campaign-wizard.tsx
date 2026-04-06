@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -20,9 +20,19 @@ function SearchableSelect({ label, placeholder, options, selected, onToggle }: {
 }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
   const filtered = options.filter((o) =>
     o.toLowerCase().includes(search.toLowerCase()) && !selected.includes(o)
   );
+
+  const openDropdown = () => {
+    if (inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    }
+    setOpen(true);
+  };
 
   return (
     <div>
@@ -38,21 +48,22 @@ function SearchableSelect({ label, placeholder, options, selected, onToggle }: {
           ))}
         </div>
       )}
-      <div className="relative mt-1">
+      <div className="mt-1">
         <input
+          ref={inputRef}
           type="text"
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
+          onChange={(e) => { setSearch(e.target.value); openDropdown(); }}
+          onFocus={openDropdown}
           placeholder={selected.length > 0 ? "Add more..." : placeholder}
           className="w-full rounded-lg px-3 py-2 text-[12px] outline-none"
           style={{ background: "var(--color-bg-page)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
         />
         {open && filtered.length > 0 && (
           <>
-            <div className="fixed inset-0 z-10" onClick={() => { setOpen(false); setSearch(""); }} />
-            <div className="absolute z-20 mt-1 w-full max-h-40 overflow-y-auto rounded-lg py-1"
-              style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)", boxShadow: "var(--shadow-dialog)" }}>
+            <div className="fixed inset-0 z-[9998]" onClick={() => { setOpen(false); setSearch(""); }} />
+            <div className="fixed z-[9999] max-h-48 overflow-y-auto rounded-lg py-1"
+              style={{ top: pos.top, left: pos.left, width: pos.width, background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)", boxShadow: "0 8px 30px rgba(0,0,0,0.12)" }}>
               {filtered.slice(0, 20).map((opt) => (
                 <button key={opt} type="button" onClick={() => { onToggle(opt); setSearch(""); }}
                   className="w-full text-left px-3 py-1.5 text-[12px] transition-colors"
