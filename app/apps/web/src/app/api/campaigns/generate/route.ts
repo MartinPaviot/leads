@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { sequences, sequenceSteps, contacts, companies } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { buildProspectContext } from "@/lib/prospect-context";
 import { generateSequence } from "@/lib/sequence-generator";
 
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { contactId, companyId, sequenceId, stepCount } = body;
 
-    // Resolve contact — auto-pick from TAM if nothing provided
+    // Try to find a contact to personalize from, but fall back to company-only context
     let resolvedContactId = contactId;
 
     if (!resolvedContactId && companyId) {
@@ -35,13 +35,17 @@ export async function POST(req: Request) {
     }
 
     if (!resolvedContactId) {
-      // Auto-pick: find top-scored company with contacts
+      // Auto-pick: find top-scored company, preferably with contacts
       const topCompanies = await db
-        .select({ id: companies.id })
+        .select()
         .from(companies)
         .where(eq(companies.tenantId, authCtx.tenantId))
-        .orderBy(companies.score)
+        .orderBy(sql`score DESC NULLS LAST`)
         .limit(10);
+
+      if (topCompanies.length === 0) {
+        return Response.json({ error: "No accounts in your TAM. Build your TAM first." }, { status: 404 });
+      }
 
       for (const comp of topCompanies) {
         const [contact] = await db
@@ -52,20 +56,62 @@ export async function POST(req: Request) {
           .limit(1);
         if (contact) { resolvedContactId = contact.id; break; }
       }
-
-      if (!resolvedContactId) {
-        return Response.json({ error: "No contacts found in your TAM. Build your TAM first." }, { status: 404 });
-      }
     }
 
-    // Build full prospect context
-    const ctx = await buildProspectContext(resolvedContactId, authCtx.tenantId);
-    if (!ctx) {
-      return Response.json({ error: "Contact not found" }, { status: 404 });
-    }
+    // Build context — either from contact or from company
+    let generated;
+    if (resolvedContactId) {
+      const ctx = await buildProspectContext(resolvedContactId, authCtx.tenantId);
+      if (!ctx) return Response.json({ error: "Contact not found" }, { status: 404 });
+      generated = await generateSequence(ctx, { stepCount: stepCount || 5 });
+    } else {
+      // No contacts yet — generate template sequence from company context
+      const { getTenantSettings } = await import("@/lib/tenant-settings");
+      const settings = await getTenantSettings(authCtx.tenantId);
+      const topCompany = await db.select().from(companies)
+        .where(eq(companies.tenantId, authCtx.tenantId))
+        .orderBy(sql`score DESC NULLS LAST`).limit(1);
 
-    // Generate the sequence
-    const generated = await generateSequence(ctx, { stepCount: stepCount || 5 });
+      const company = topCompany[0];
+      const { getMethodology } = await import("@/lib/outbound-methodologies");
+      const methodology = getMethodology("VP"); // default to VP-level methodology
+
+      // Build a minimal context for template generation
+      const minimalCtx = {
+        contact: {
+          name: "{{firstName}} {{lastName}}",
+          firstName: "{{firstName}}",
+          lastName: "{{lastName}}",
+          title: "{{title}}",
+          seniority: "VP",
+          departments: [],
+          email: "contact@example.com",
+          score: 0,
+          scoreReasons: [],
+        },
+        company: {
+          name: company?.name || "Target Company",
+          domain: company?.domain || "",
+          industry: (company?.industry as string) || "",
+          size: (company?.size as string) || "",
+          description: "",
+        },
+        signals: [],
+        bestSignal: null,
+        technologies: [],
+        funding: null,
+        tenant: {
+          name: settings.companyName || "Our Company",
+          productDescription: settings.productDescription || "",
+          tone: settings.aiTone || "Direct",
+          knowledge: [],
+        },
+        previousEmails: [],
+        activities: [],
+      };
+
+      generated = await generateSequence(minimalCtx as any, { stepCount: stepCount || 5 });
+    }
 
     let targetSequenceId = sequenceId;
 
