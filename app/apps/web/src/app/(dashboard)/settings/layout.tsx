@@ -18,7 +18,6 @@ import {
   Box,
   Plug,
   Target,
-  ShieldCheck,
 } from "lucide-react";
 
 const settingsNav = [
@@ -37,17 +36,11 @@ const settingsNav = [
       { label: "General", href: "/settings/workspace", icon: Building },
       { label: "ICP & Product", href: "/settings/icp", icon: Target },
       { label: "Knowledge", href: "/settings/knowledge", icon: BookOpen },
+      { label: "Mail & Calendar", href: "/settings/mail-calendar", icon: Mail },
       { label: "Members", href: "/settings/members", icon: Users },
       { label: "Notifications", href: "/settings/notifications", icon: Bell },
       { label: "Opportunity Stages", href: "/settings/stages", icon: GitBranch },
-      { label: "Privacy & Sync", href: "/settings/privacy", icon: ShieldCheck },
       { label: "Workflows", href: "/settings/workflows", icon: Workflow },
-    ],
-  },
-  {
-    label: "Outbound",
-    items: [
-      { label: "Mailboxes", href: "/settings/mailboxes", icon: Mail },
     ],
   },
   {
