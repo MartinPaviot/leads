@@ -1,14 +1,9 @@
 import type { NextConfig } from "next";
-import path from "path";
 
 const nextConfig: NextConfig = {
   // Do NOT set output: "standalone" for Vercel — it uses its own build output.
   // standalone is only needed for Docker / self-hosted Node.js deployments.
   poweredByHeader: false,
-
-  // Fix workspace root detection — prevents Next.js from walking up to C:\Users\marti\
-  // which has its own package.json/pnpm-lock.yaml that confuses route discovery.
-  outputFileTracingRoot: path.join(__dirname, "../../"),
 
   async headers() {
     return [
