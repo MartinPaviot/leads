@@ -162,9 +162,9 @@ export async function POST(req: Request) {
       reasoning: generated.sequenceReasoning,
       steps: generated.steps,
       methodology: {
-        seniority: ctx.contact.seniority,
-        signalUsed: ctx.bestSignal?.type || null,
-        signalTitle: ctx.bestSignal?.title || null,
+        seniority: resolvedContactId ? "detected" : "VP",
+        signalUsed: null,
+        signalTitle: null,
       },
     }, { status: 201 });
   } catch (error: any) {
