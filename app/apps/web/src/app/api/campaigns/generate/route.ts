@@ -101,7 +101,7 @@ export async function POST(req: Request) {
         technologies: [],
         funding: null,
         tenant: {
-          name: settings.companyName || "Our Company",
+          name: settings.onboardingCompanyName || "Our Company",
           productDescription: settings.productDescription || "",
           tone: settings.aiTone || "Direct",
           knowledge: [],
