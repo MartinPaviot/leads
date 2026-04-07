@@ -9,6 +9,9 @@ import { ChatMarkdown } from "@/components/chat-markdown";
 import { ToolCallGroup } from "@/components/tool-call-panel";
 import { ActionCard, parseToolResultForCard } from "@/components/action-card";
 import { EmailComposer } from "@/components/email-composer";
+import { StreamingSkeleton } from "@/components/chat/streaming-skeleton";
+import { FollowUpPills, extractFollowUps } from "@/components/chat/follow-up-pills";
+import { CopyButton } from "@/components/chat/copy-button";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Send, Mail, Check } from "lucide-react";
 
@@ -316,7 +319,7 @@ export default function ChatPage() {
                 </div>
               ) : (
                 /* AI message — left-aligned, NO background, with "Elevay" sparkle label */
-                <div className="min-w-0 max-w-full">
+                <div className="group/msg min-w-0 max-w-full">
                   {/* AI label */}
                   <div
                     className="mb-2 flex items-center gap-1.5 text-[12px]"
@@ -484,25 +487,48 @@ export default function ChatPage() {
                       ))}
                   </div>
 
-                  {/* Email composer button */}
+                  {/* Email composer button + copy button */}
                   {(() => {
                     const fullText = message.parts
                       .filter((p) => p.type === "text")
                       .map((p) => ("text" in p ? p.text : ""))
                       .join("");
                     const emailData = detectEmail(fullText);
-                    if (!emailData) return null;
                     return (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        icon={<Mail size={13} />}
-                        onClick={() => setEmailComposer(emailData)}
-                        className="mt-3"
-                        style={{ color: "var(--color-accent)" }}
-                      >
-                        Open in Composer
-                      </Button>
+                      <div className="mt-2 flex items-center gap-1.5">
+                        {emailData && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            icon={<Mail size={13} />}
+                            onClick={() => setEmailComposer(emailData)}
+                            style={{ color: "var(--color-accent)" }}
+                          >
+                            Open in Composer
+                          </Button>
+                        )}
+                        <div className="opacity-0 transition-opacity group-hover/msg:opacity-100">
+                          <CopyButton text={fullText} />
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Follow-up suggestions after last assistant message */}
+                  {(() => {
+                    const isLastAssistant = chat.messages[chat.messages.length - 1]?.id === message.id;
+                    if (!isLastAssistant || chat.status === "streaming") return null;
+                    const fullText = message.parts
+                      .filter((p) => p.type === "text")
+                      .map((p) => ("text" in p ? p.text : ""))
+                      .join("");
+                    const followUps = extractFollowUps(fullText);
+                    return (
+                      <FollowUpPills
+                        suggestions={followUps}
+                        onSelect={(s) => useSuggestion(s)}
+                        disabled={chat.status !== "ready"}
+                      />
                     );
                   })()}
                 </div>
@@ -510,18 +536,8 @@ export default function ChatPage() {
             </div>
           ))}
 
-          {/* Streaming indicator */}
-          {chat.status === "streaming" && (
-            <div className="mb-6">
-              <div
-                className="flex items-center gap-1.5 text-[12px]"
-                style={{ color: "var(--color-text-tertiary)" }}
-              >
-                <Sparkles size={13} className="animate-pulse" style={{ color: "var(--color-accent)" }} />
-                <span style={{ fontWeight: 500 }}>Elevay is thinking...</span>
-              </div>
-            </div>
-          )}
+          {/* Streaming skeleton */}
+          {chat.status === "streaming" && <StreamingSkeleton />}
 
           <div ref={messagesEndRef} />
         </div>

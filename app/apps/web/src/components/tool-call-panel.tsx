@@ -155,8 +155,8 @@ export function ToolCallPanel({ toolName, args, result, isStreaming }: ToolCallP
       >
         {isStreaming ? (
           <span
-            className="inline-block h-3 w-3 animate-spin rounded-full"
-            style={{ border: "1.5px solid var(--color-text-tertiary)", borderTopColor: "var(--color-accent)" }}
+            className="inline-block h-2 w-2 rounded-full animate-pulse"
+            style={{ background: "var(--color-accent)" }}
           />
         ) : expanded ? (
           <ChevronDown size={12} />
