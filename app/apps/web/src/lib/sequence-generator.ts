@@ -5,7 +5,7 @@
  * using the methodology library for structure and signals for angles.
  */
 
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
@@ -20,6 +20,10 @@ import {
   type ProspectContext,
   formatContextForPrompt,
 } from "@/lib/prospect-context";
+import {
+  getExamplesForMethodology,
+  formatExamplesForPrompt,
+} from "@/lib/prompts/email-examples";
 
 function getLLMModel() {
   if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-6");
@@ -50,7 +54,7 @@ export type GeneratedSequence = z.infer<typeof generatedSequenceSchema>;
  */
 export async function generateSequence(
   ctx: ProspectContext,
-  options?: { stepCount?: number; meetingSlots?: string }
+  options?: { stepCount?: number; meetingSlots?: string; tenantId?: string }
 ): Promise<GeneratedSequence> {
   const model = getLLMModel();
   if (!model) throw new Error("No LLM API key configured");
@@ -62,10 +66,15 @@ export async function generateSequence(
 
   const prompt = buildGenerationPrompt(ctx, methodology, signalAngle, strategies, options?.meetingSlots);
 
-  const { object } = await generateObject({
+  const { object } = await tracedGenerateObject({
     model,
     schema: generatedSequenceSchema,
     prompt,
+    _trace: {
+      agentId: "generate-sequence",
+      tenantId: options?.tenantId,
+      inputPreview: `Sequence for ${ctx.contact.fullName} at ${ctx.company?.name || "unknown"} (${methodology.name})`,
+    },
   });
 
   return object as GeneratedSequence;
@@ -113,13 +122,23 @@ function buildGenerationPrompt(
     ? `\nAVAILABLE MEETING TIMES (use in step 3 or 4 if appropriate):\n${meetingSlots}`
     : "";
 
+  // Build personalization brief — tells the LLM exactly what signals to use
+  const personalizationBrief = buildPersonalizationBrief(ctx);
+
+  // Get relevant golden examples for this methodology
+  const examples = getExamplesForMethodology(methodology.name);
+  const examplesBlock = formatExamplesForPrompt(examples);
+
   return `You are a world-class SDR at ${ctx.companyName || "our company"}. You write cold outreach that converts at 3x industry average because every email demonstrates you deeply understand the prospect's world. You never sound like a template. You never "follow up" — each email brings fresh value.
 
 ${contextBlock}
 
+${personalizationBrief}
+
 ${methodologyBlock}
 
 ${signalBlock}
+${examplesBlock}
 
 SEQUENCE STRUCTURE — Generate ${strategies.length} emails:
 
@@ -135,7 +154,58 @@ CRITICAL RULES:
 - Each step must have a DIFFERENT angle — never repeat the same value prop
 - Reference specific facts: company name, tech stack, funding, industry — not generic placeholders
 - The tone is "${ctx.aiTone}" — match this throughout
-- Write in the language that matches the prospect's location (English for US/UK, French for France, etc.)`;
+- Write in the language that matches the prospect's location (English for US/UK, French for France, etc.)
+- Study the golden examples above — match that level of specificity and conciseness`;
+}
+
+/**
+ * Build a personalization brief that tells the LLM exactly which
+ * facts to weave into the email. This prevents generic output.
+ */
+function buildPersonalizationBrief(ctx: ProspectContext): string {
+  const facts: string[] = [];
+
+  // Signal-based hooks
+  if (ctx.bestSignal) {
+    facts.push(`- SIGNAL TO USE: ${ctx.bestSignal.type} — "${ctx.bestSignal.title}". ${ctx.bestSignal.description}`);
+  }
+
+  // Company-specific facts
+  if (ctx.funding?.stage) {
+    facts.push(`- FUNDING: ${ctx.funding.stage}${ctx.funding.amountPrinted ? ` (${ctx.funding.amountPrinted})` : ""} — reference the growth trajectory this implies`);
+  }
+  if (ctx.technologies && ctx.technologies.length > 0) {
+    facts.push(`- TECH STACK: ${ctx.technologies.slice(0, 5).join(", ")} — use to show you understand their technical world`);
+  }
+  if (ctx.company?.size) {
+    facts.push(`- COMPANY SIZE: ${ctx.company.size} employees — calibrate complexity of pain points to this scale`);
+  }
+  if (ctx.company?.industry) {
+    facts.push(`- INDUSTRY: ${ctx.company.industry} — use industry-specific language, not generic B2B`);
+  }
+
+  // Contact-specific facts
+  if (ctx.contact.title) {
+    facts.push(`- THEIR ROLE: ${ctx.contact.title} — frame everything from this person's daily priorities`);
+  }
+  if (ctx.contact.seniority) {
+    facts.push(`- SENIORITY: ${ctx.contact.seniority} — match communication style to this level`);
+  }
+
+  // Previous interactions
+  if (ctx.recentActivities && ctx.recentActivities.length > 0) {
+    const lastActivity = ctx.recentActivities[0];
+    facts.push(`- LAST INTERACTION: ${lastActivity.type} on ${lastActivity.occurredAt} — "${lastActivity.summary}"`);
+  }
+
+  if (facts.length === 0) {
+    return "PERSONALIZATION BRIEF: Limited data available. Use company name, industry, and role to personalize.";
+  }
+
+  return `PERSONALIZATION BRIEF — Use ALL of these specific facts in the emails:
+${facts.join("\n")}
+
+DO NOT use generic placeholders like "[specific problem]" or "[relevant metric]". Every reference must use REAL data from the brief above.`;
 }
 
 /**
@@ -146,6 +216,7 @@ export async function personalizeStepEmail(
   ctx: ProspectContext,
   stepTemplate: { subject: string; body: string },
   stepStrategy: StepStrategy,
+  tenantId?: string,
 ): Promise<{ subject: string; body: string }> {
   const model = getLLMModel();
   if (!model) return stepTemplate; // fallback to template
@@ -153,7 +224,7 @@ export async function personalizeStepEmail(
   const methodology = getMethodology(ctx.contact.seniority);
   const contextBlock = formatContextForPrompt(ctx);
 
-  const { object } = await generateObject({
+  const { object } = await tracedGenerateObject({
     model,
     schema: z.object({
       subject: z.string(),
@@ -181,6 +252,11 @@ RULES:
 - Reference specific facts about their company, role, or signals
 - Keep the core message but make it feel personally researched
 - ${methodology.whatNotToDo.join("\n- ")}`,
+    _trace: {
+      agentId: "send-sequence-step",
+      tenantId,
+      inputPreview: `Personalize step for ${ctx.contact.fullName} at ${ctx.company?.name || "unknown"}`,
+    },
   });
 
   return object as { subject: string; body: string };

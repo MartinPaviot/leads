@@ -5,7 +5,7 @@ import { companies } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
 
 const signalInterpretationSchema = z.object({
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
         }
 
         // Claude INTERPRETS real facts into sales signals
-        const { object } = await generateObject({
+        const { object } = await tracedGenerateObject({
           model,
           schema: signalInterpretationSchema,
           prompt: `Analyze these VERIFIED FACTS about ${company.name} (${company.domain || "no domain"}) and identify buying signals relevant to B2B sales outreach.
@@ -109,6 +109,7 @@ RULES:
 - If the facts don't support a signal type, skip it — return fewer signals rather than invented ones
 
 Return only signals you can directly support with the facts provided.`,
+          _trace: { agentId: "detect-signals", tenantId: authCtx.tenantId, inputPreview: `Signals for ${company.name}` },
         });
         const result = object as any;
 

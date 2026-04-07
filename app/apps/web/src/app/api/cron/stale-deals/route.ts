@@ -3,7 +3,7 @@ import { activities, deals, notifications, tenants, contacts, companies, users, 
 import { eq, and, desc, sql, or, ne } from "drizzle-orm";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
 
 const revivalEmailSchema = z.object({
@@ -197,7 +197,7 @@ async function detectStaleDealsByTenant(tenantId: string) {
 
       try {
         const contactFirstName = contact.firstName || "there";
-        const { object: email } = await generateObject({
+        const { object: email } = await tracedGenerateObject({
           model,
           schema: revivalEmailSchema,
           prompt: `Draft a short, warm revival email for a stale sales deal.
@@ -212,6 +212,7 @@ Last activity type: ${staleDeal.lastActivityType || "unknown"}
 Write a brief, personal check-in email (3-4 sentences max). Be warm and helpful, not pushy. Reference the deal context naturally. End with a soft call to action (e.g., "Would love to reconnect" or "Happy to pick up where we left off").
 
 Use the contact's first name. Do not use placeholder brackets. Keep the subject line under 50 characters.`,
+          _trace: { agentId: "deal-analyze", tenantId, inputPreview: `Revival email for stale deal: ${staleDeal.dealName}` },
         });
 
         // Insert as queued outbound email

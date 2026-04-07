@@ -5,7 +5,7 @@ import { companies } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
 import {
   searchOrganizations,
@@ -135,7 +135,7 @@ export async function POST(req: Request) {
       : "";
 
     // Step 1: LLM generates structured Apollo search strategies
-    const { object: strategyResult } = await generateObject({
+    const { object: strategyResult } = await tracedGenerateObject({
       model,
       schema: searchStrategySchema,
       prompt: `You are a sales intelligence expert. Analyze this business and generate 3-5 Apollo.io search strategies to build their Total Addressable Market (TAM).
@@ -159,6 +159,7 @@ ${apolloSizeExamples ? `- The user selected these sizes: ${apolloSizeExamples} â
 - Revenue range is in USD (integers)
 
 Generate strategies that maximize COVERAGE while maintaining RELEVANCE. Each strategy should return meaningful, distinct results.`,
+      _trace: { agentId: "build-tam", tenantId: authCtx.tenantId, inputPreview: "Generate TAM search strategies from business context" },
     });
 
     // Step 2: Execute each search strategy against Apollo

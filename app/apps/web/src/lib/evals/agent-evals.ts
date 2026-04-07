@@ -273,6 +273,26 @@ Score 0.0-1.0. End with SCORE: X.XX`,
           { type: "llm_judge", weight: 0.4, config: {} },
         ],
       },
+      {
+        id: "chat-no-filler",
+        input: "Show me my contacts",
+        tags: ["personality", "no_filler"],
+        graders: [
+          { type: "tool_used", weight: 0.2, config: { toolName: "queryContacts" } },
+          { type: "forbidden_pattern", weight: 0.4, config: { pattern: "Great question|Sure,? I can|Absolutely|Let me|Of course|I'd be happy to" } },
+          { type: "llm_judge", weight: 0.4, config: {} },
+        ],
+      },
+      {
+        id: "chat-proactive-intelligence",
+        input: "Show me the details on our deal with the highest value",
+        tags: ["proactive", "deal_coaching"],
+        graders: [
+          { type: "tool_used", weight: 0.2, config: { toolName: "queryDeals" } },
+          { type: "pattern_match", weight: 0.3, config: { pattern: "---|\\.\\.\\.also|worth noting|also notice|you might want" } },
+          { type: "llm_judge", weight: 0.5, config: {} },
+        ],
+      },
     ],
   },
 
@@ -705,7 +725,102 @@ Score 0.0-1.0. End with SCORE: X.XX`,
     ],
   },
 
-  // === 18-25: Non-LLM agents (background/sync) — simplified evals ===
+  // === 18. GENERATE SEQUENCE (Full outreach sequence generation) ===
+  {
+    agentId: "generate-sequence",
+    description: "5-step cold outreach sequence generation with methodology framework",
+    passThreshold: 0.7,
+    llmJudgeModel: "gpt-4o-mini",
+    llmJudgePrompt: `Grade this outbound email sequence on:
+- Personalization (30%): Each email references specific company/contact facts, not generic templates
+- Methodology adherence (20%): Follows the assigned framework (BASHO, Challenger, etc.)
+- Variety (20%): Each step has a genuinely different angle — no repeated value props
+- Conciseness (15%): Emails are within word limits, punchy, no filler
+- Anti-patterns (15%): No "I hope this finds you well", "I noticed that", "Just wanted to", exclamation marks
+Score 0.0-1.0. End with SCORE: X.XX`,
+    cases: [
+      {
+        id: "sequence-csuite-funding",
+        input: JSON.stringify({
+          contact: { fullName: "Marie Laurent", title: "CEO", seniority: "c_suite" },
+          company: { name: "DataPulse", industry: "Developer Tools", size: "51-100" },
+          signal: { type: "funding", title: "Series B $25M" },
+          methodology: "BASHO",
+        }),
+        tags: ["sequence", "c_suite", "basho", "funding"],
+        graders: [
+          { type: "contains_all", weight: 0.2, config: { strings: ["Marie", "DataPulse"] } },
+          { type: "word_count", weight: 0.1, config: { min: 100, max: 800 } },
+          { type: "forbidden_pattern", weight: 0.2, config: { pattern: "I hope this finds you|I noticed that|Just wanted to|I'd love to|!!!" } },
+          { type: "pattern_match", weight: 0.1, config: { pattern: "Series B|25M|funding|scale" } },
+          { type: "llm_judge", weight: 0.4, config: {} },
+        ],
+      },
+      {
+        id: "sequence-vp-hiring",
+        input: JSON.stringify({
+          contact: { fullName: "Laura Martinez", title: "VP Sales", seniority: "vp" },
+          company: { name: "CloudStack", industry: "SaaS", size: "101-200" },
+          signal: { type: "hiring", title: "Hiring 8 SDRs" },
+          methodology: "Challenger",
+        }),
+        tags: ["sequence", "vp", "challenger", "hiring"],
+        graders: [
+          { type: "contains_all", weight: 0.2, config: { strings: ["Laura", "CloudStack"] } },
+          { type: "forbidden_pattern", weight: 0.2, config: { pattern: "I hope this finds you|I noticed that|Just wanted to" } },
+          { type: "pattern_match", weight: 0.1, config: { pattern: "SDR|hiring|scaling|team" } },
+          { type: "llm_judge", weight: 0.5, config: {} },
+        ],
+      },
+      {
+        id: "sequence-manager-minimal",
+        input: JSON.stringify({
+          contact: { fullName: "Rachel Kim", title: "Sales Manager", seniority: "manager" },
+          company: { name: "LogiTech Solutions", industry: "Logistics", size: "51-100" },
+          signal: null,
+          methodology: "Product-Led",
+        }),
+        tags: ["sequence", "manager", "product_led", "no_signal"],
+        graders: [
+          { type: "contains_all", weight: 0.2, config: { strings: ["Rachel", "LogiTech"] } },
+          { type: "word_count", weight: 0.1, config: { min: 80, max: 700 } },
+          { type: "forbidden_pattern", weight: 0.2, config: { pattern: "I hope this finds you|I noticed that" } },
+          { type: "llm_judge", weight: 0.5, config: {} },
+        ],
+      },
+    ],
+  },
+
+  // === 19. DETECT SIGNALS (Signal interpretation from Apollo data) ===
+  {
+    agentId: "detect-signals",
+    description: "Interpret Apollo enrichment data into buying signals",
+    passThreshold: 0.75,
+    llmJudgeModel: "gpt-4o-mini",
+    llmJudgePrompt: `Grade these buying signal interpretations on:
+- Evidence-grounded (40%): Each signal directly references a specific fact from the input
+- Business relevance (30%): Signals are genuinely useful for sales outreach timing
+- No fabrication (30%): Nothing invented beyond what the facts support
+Score 0.0-1.0. End with SCORE: X.XX`,
+    cases: [
+      {
+        id: "signals-series-a-hiring",
+        input: JSON.stringify({
+          company: "TechFlow",
+          facts: ["Total funding: $15M Series A", "Employee count: 45", "Founded: 2021", "Technologies: React, Node.js, AWS", "Industry: Developer Tools"],
+        }),
+        tags: ["signals", "funding", "tech"],
+        graders: [
+          { type: "json_schema", weight: 0.2, config: {} },
+          { type: "pattern_match", weight: 0.3, config: { pattern: "funding|Series A|15M|scale|growth" } },
+          { type: "forbidden_pattern", weight: 0.2, config: { pattern: "IPO|acquisition|layoff" } },
+          { type: "llm_judge", weight: 0.3, config: {} },
+        ],
+      },
+    ],
+  },
+
+  // === 20-27: Non-LLM agents (background/sync) — simplified evals ===
   ...(["enrich-company", "enrich-contact", "calendar-sync", "sync-emails", "cron-email-sync", "google-oauth-connected", "auto-meeting-prep", "execute-workflow"] as const).map((agentId) => ({
     agentId,
     description: `Background agent: ${agentId}`,

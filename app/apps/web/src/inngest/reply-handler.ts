@@ -14,7 +14,7 @@ import {
   outboundEmails,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
@@ -126,7 +126,7 @@ export const handleReplyIntelligently = inngest.createFunction(
       });
 
       const reply = await step.run("generate-positive-reply", async () => {
-        const { object } = await generateObject({
+        const { object } = await tracedGenerateObject({
           model,
           schema: replyEmailSchema,
           prompt: `You are replying to a POSITIVE response from a prospect. They are interested or want a meeting.
@@ -155,6 +155,7 @@ RULES:
 - Do NOT restate the product pitch — they already know
 - Do NOT use "Thanks for getting back to me"
 - Match the tone: "${ctx.aiTone}"`,
+          _trace: { agentId: "follow-up-email", tenantId, inputPreview: `Positive reply from ${ctx.contact.fullName}` },
         });
         return object as { subject: string; body: string };
       });
@@ -197,7 +198,7 @@ RULES:
         .join("\n");
 
       const reply = await step.run("generate-objection-reply", async () => {
-        const { object } = await generateObject({
+        const { object } = await tracedGenerateObject({
           model,
           schema: replyEmailSchema,
           prompt: `You are replying to an OBJECTION from a prospect. Handle it with empathy and intelligence.
@@ -229,6 +230,7 @@ RULES:
 - Keep it under 120 words
 - Subject: "Re: ${lastEmail?.subject || "our conversation"}"
 - Tone: "${ctx.aiTone}" — empathetic but confident`,
+          _trace: { agentId: "follow-up-email", tenantId, inputPreview: `Objection (${objectionType}) from ${ctx.contact.fullName}` },
         });
         return object as { subject: string; body: string };
       });

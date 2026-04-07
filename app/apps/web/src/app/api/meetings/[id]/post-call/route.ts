@@ -3,7 +3,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { db } from "@/db";
 import { activities, tasks, deals, contacts, companies } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { generateText } from "ai";
+import { tracedGenerateText } from "@/lib/traced-ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 
@@ -142,7 +142,7 @@ export async function POST(
         }
       }
 
-      const { text } = await generateText({
+      const { text } = await tracedGenerateText({
         model,
         prompt: `Write a professional follow-up email after this sales meeting.
 
@@ -170,6 +170,7 @@ RULES:
 - Do NOT use placeholder brackets like [Name] — use actual names if available
 - Start with "Hi" not "Subject:"
 - Output ONLY the email body, no subject line`,
+        _trace: { agentId: "process-transcript", tenantId: authCtx.tenantId, inputPreview: `Follow-up email for meeting: ${activity.summary}` },
       });
 
       followUpDraft = text;

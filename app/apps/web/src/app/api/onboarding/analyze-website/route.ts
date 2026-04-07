@@ -5,16 +5,30 @@ import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
 import { INDUSTRIES, industriesPromptHint, companySizesPromptHint } from "@/lib/icp-constants";
 
-const icpInferenceSchema = z.object({
+// Step 1: Extract structured intelligence from the website
+const websiteIntelligenceSchema = z.object({
   companyDescription: z.string().describe("One-sentence description of what this company does"),
-  productDescription: z.string().describe("What the company sells, in plain language. Return an empty string if you cannot determine this — never return placeholders like 'unknown' or 'N/A'."),
+  productDescription: z.string().describe("What the company sells, in plain language. Return empty string if unclear — never placeholders."),
+  pricingModel: z.enum(["self_serve", "sales_led", "hybrid", "unknown"]).describe("How they sell: self-serve (free trial/signup), sales-led (book demo/contact sales), or hybrid"),
+  targetMarketSignals: z.array(z.string()).describe("Direct evidence of who they target: customer logos, testimonials, case studies, pricing tiers, language used"),
+  competitorClues: z.array(z.string()).describe("Any competitors or alternatives mentioned or implied"),
+  maturitySignals: z.array(z.string()).describe("Signs of company maturity: team size mentions, office locations, funding announcements, compliance badges"),
+});
+
+// Step 2: Infer ICP with confidence gaps
+const icpInferenceSchema = z.object({
   targetIndustries: z.array(z.string()).describe(`Industries this company likely sells to. ${industriesPromptHint()}`),
   targetCompanySizes: z.array(z.string()).describe(`Company sizes they likely target. ${companySizesPromptHint()}`),
   targetRoles: z.string().describe("Job titles/roles of the typical buyer (e.g. 'VP Engineering, CTO, Head of Product')"),
   targetGeographies: z.array(z.string()).describe("Geographic locations they likely target. Use specific names: country, state, or city (e.g. 'United States', 'France', 'California'). Be precise."),
-  suggestedTone: z.string().describe("Suggested email tone: 'Formal', 'Direct', or 'Casual'"),
-  confidence: z.number().describe("Confidence score in the ICP inference, between 0.0 and 1.0"),
-  reasoning: z.string().describe("Brief explanation of why these ICP parameters were chosen"),
+  suggestedTone: z.enum(["Formal", "Direct", "Casual"]).describe("Suggested email tone based on brand voice"),
+  confidence: z.number().describe("Overall confidence in the ICP inference, between 0.0 and 1.0"),
+  reasoning: z.string().describe("2-3 sentence explanation of the evidence that drove these ICP parameters"),
+  confidenceGaps: z.array(z.object({
+    field: z.string().describe("Which ICP field has low confidence"),
+    question: z.string().describe("A specific question to ask the founder to fill this gap"),
+    currentGuess: z.string().describe("What we inferred, so the founder can correct it"),
+  })).describe("Fields where confidence is below 0.7 — the UI will ask the founder these questions"),
 });
 
 async function scrapeWebsite(domain: string): Promise<string | null> {
@@ -134,36 +148,84 @@ export async function POST(req: Request) {
   // Scrape website
   const websiteContent = await scrapeWebsite(cleanDomain);
 
-  const prompt = [
-    `Analyze this company and infer their ideal customer profile (ICP) — who they should be selling to.`,
-    ``,
-    `Company domain: ${cleanDomain}`,
-    productDescription ? `Product description (from founder): ${productDescription}` : "",
-    ``,
-    websiteContent
-      ? `Website content:\n${websiteContent}`
-      : `Could not scrape website. Infer ICP from the domain name and product description only.`,
-    ``,
-    `Based on ALL available signals (what they sell, their pricing model, their existing customers, their market positioning), infer who their ideal customer is.`,
-    `Be specific: pick exact industries, company sizes, buyer roles, and geographies.`,
-    `If the website shows customer logos or testimonials, use those to validate the ICP.`,
-    `If the website has "contact sales" or "book a demo", the target is likely mid-market/enterprise.`,
-    `If the website has "sign up free" or "free trial", the target likely includes SMBs.`,
-  ].filter(Boolean).join("\n");
-
   try {
-    const { object } = await tracedGenerateObject({
+    // ── Step 1: Extract structured intelligence from the website ──
+    const intelligencePrompt = [
+      `Extract structured intelligence from this company's website. Be precise — only report what you can directly observe.`,
+      ``,
+      `Company domain: ${cleanDomain}`,
+      productDescription ? `Product description (from founder): ${productDescription}` : "",
+      ``,
+      websiteContent
+        ? `Website content:\n${websiteContent}`
+        : `Could not scrape website. Extract what you can from the domain name and product description only.`,
+      ``,
+      `<few_shot_examples>`,
+      `<example>`,
+      `Domain: notion.so — PLG SaaS, self-serve signup, team collaboration. Targets: knowledge workers, startups to enterprise.`,
+      `Pricing model: hybrid (free tier + sales-led enterprise). Customer logos: Toyota, Figma, Pixar = enterprise social proof.`,
+      `</example>`,
+      `<example>`,
+      `Domain: gong.io — Sales-led, "book a demo" CTA, revenue intelligence platform.`,
+      `Pricing model: sales_led. Customer logos: LinkedIn, Hubspot = mid-market/enterprise B2B SaaS.`,
+      `</example>`,
+      `<example>`,
+      `Domain: lemlist.com — Self-serve cold outreach tool, free trial CTA.`,
+      `Pricing model: self_serve. Targets: SDRs, sales teams at SMBs. No enterprise logos.`,
+      `</example>`,
+      `</few_shot_examples>`,
+    ].filter(Boolean).join("\n");
+
+    const { object: intelligence } = await tracedGenerateObject({
+      model: anthropic("claude-sonnet-4-6"),
+      schema: websiteIntelligenceSchema,
+      prompt: intelligencePrompt,
+      _trace: { agentId: "icp-analysis", tenantId: authCtx.tenantId, inputPreview: `Step 1: Extract intelligence from ${cleanDomain}` },
+    });
+
+    // ── Step 2: Infer ICP from the extracted intelligence ──
+    const icpPrompt = `You are an expert GTM strategist. Based on the structured intelligence below, infer this company's ideal customer profile (ICP) — who they should be selling to.
+
+COMPANY: ${cleanDomain}
+${productDescription ? `FOUNDER'S DESCRIPTION: ${productDescription}` : ""}
+
+EXTRACTED INTELLIGENCE:
+- What they do: ${(intelligence as any).companyDescription}
+- What they sell: ${(intelligence as any).productDescription}
+- Pricing model: ${(intelligence as any).pricingModel}
+- Target market signals: ${(intelligence as any).targetMarketSignals.join("; ")}
+- Competitor clues: ${(intelligence as any).competitorClues.join("; ") || "none detected"}
+- Maturity signals: ${(intelligence as any).maturitySignals.join("; ") || "none detected"}
+
+INFERENCE RULES:
+- self_serve pricing → include SMB sizes (1-10, 11-50). sales_led → include mid-market/enterprise (51-200, 201-500, 501-1000+).
+- If customer logos include Fortune 500 companies → enterprise target.
+- If the product is technical (APIs, dev tools) → target technical buyers (CTO, VP Eng, developers).
+- If the product is business-focused (CRM, marketing) → target business buyers (VP Sales, CMO, RevOps).
+- Be SPECIFIC with geographies: if the website is in English with US pricing → "United States". If multi-language → list specific countries.
+- For each ICP dimension where you're less than 70% confident, add a confidenceGap with a specific question for the founder.
+
+Think step by step about what the evidence tells you, then produce your inference.`;
+
+    const { object: icpResult } = await tracedGenerateObject({
       model: anthropic("claude-sonnet-4-6"),
       schema: icpInferenceSchema,
-      prompt,
-      _trace: { agentId: "icp-analysis", tenantId: authCtx.tenantId },
+      prompt: icpPrompt,
+      providerOptions: {
+        anthropic: {
+          thinking: { type: "enabled", budgetTokens: 4000 },
+        },
+      },
+      _trace: { agentId: "icp-analysis", tenantId: authCtx.tenantId, inputPreview: `Step 2: Infer ICP for ${cleanDomain}` },
     });
-    const result = object as any;
 
     return Response.json({
-      ...result,
+      ...(icpResult as any),
+      companyDescription: (intelligence as any).companyDescription,
+      productDescription: (intelligence as any).productDescription || productDescription || "",
       domain: cleanDomain,
       hadWebsiteContent: !!websiteContent,
+      pricingModel: (intelligence as any).pricingModel,
     });
   } catch (error) {
     console.error("Website analysis failed:", error);

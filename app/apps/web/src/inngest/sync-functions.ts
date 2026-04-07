@@ -7,7 +7,7 @@ import { fetchOutlookEmails } from "@/lib/outlook";
 import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/calendar";
 import { embedEntity, activityToText, contactToText, companyToText } from "@/lib/embeddings";
 import { getTenantSettings, backsyncRangeToDays, buildIgnoredDomains, shouldAutoCreateContact } from "@/lib/tenant-settings";
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
@@ -64,7 +64,7 @@ async function analyzeEmailBatch(emails: { index: number; subject: string; body:
       `[${e.index}] ${e.direction.toUpperCase()} | Subject: ${e.subject}\n${e.body.slice(0, 800)}`
     ).join("\n---\n");
 
-    const { object } = await generateObject({
+    const { object } = await tracedGenerateObject({
       model,
       schema: sentimentSchema,
       prompt: `Analyze each email's sentiment and intent. Be concise.
@@ -75,6 +75,7 @@ For intent, tag ALL that apply from: interested, not_interested, question, objec
 
 Emails:
 ${prompt}`,
+      _trace: { agentId: "sync-emails", inputPreview: `Sentiment analysis for ${emails.length} emails` },
     });
 
     for (const r of object.results) {

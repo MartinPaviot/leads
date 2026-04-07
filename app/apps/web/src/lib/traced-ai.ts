@@ -28,6 +28,35 @@ interface TraceMetadata {
   inputPreview?: string; // short description of what was sent
 }
 
+/**
+ * Inject few-shot examples from the flywheel into the messages array.
+ * Examples are prepended as user/assistant pairs so the model learns
+ * from the best production outputs curated by the flywheel.
+ */
+function injectFewShotExamples(
+  aiParams: any,
+  examples: Array<{ input: string; output: string }>,
+): void {
+  if (!examples || examples.length === 0) return;
+
+  const fewShotMessages = examples.flatMap((ex) => [
+    { role: "user" as const, content: ex.input },
+    { role: "assistant" as const, content: ex.output },
+  ]);
+
+  if (aiParams.messages) {
+    // Prepend few-shot examples before the real conversation
+    aiParams.messages = [...fewShotMessages, ...aiParams.messages];
+  } else if (aiParams.prompt) {
+    // Convert prompt-based call to messages-based with few-shots
+    aiParams.messages = [
+      ...fewShotMessages,
+      { role: "user" as const, content: aiParams.prompt },
+    ];
+    delete aiParams.prompt;
+  }
+}
+
 // ─── tracedGenerateText ──────────────────────────────────────
 
 export async function tracedGenerateText(
@@ -36,10 +65,13 @@ export async function tracedGenerateText(
   const { _trace, ...aiParams } = params;
   const start = Date.now();
 
-  // Inject versioned prompt if available
+  // Inject versioned prompt + few-shot examples from flywheel
   const activePrompt = await getActivePrompt(_trace.agentId).catch(() => null);
-  if (activePrompt && !aiParams.system) {
-    (aiParams as any).system = activePrompt.prompt;
+  if (activePrompt) {
+    if (!aiParams.system) {
+      (aiParams as any).system = activePrompt.prompt;
+    }
+    injectFewShotExamples(aiParams, activePrompt.fewShotExamples);
   }
 
   try {
@@ -99,8 +131,11 @@ export async function tracedGenerateObject(
   const start = Date.now();
 
   const activePrompt = await getActivePrompt(_trace.agentId).catch(() => null);
-  if (activePrompt && !aiParams.system) {
-    aiParams.system = activePrompt.prompt;
+  if (activePrompt) {
+    if (!aiParams.system) {
+      aiParams.system = activePrompt.prompt;
+    }
+    injectFewShotExamples(aiParams, activePrompt.fewShotExamples);
   }
 
   try {
@@ -143,11 +178,20 @@ export async function tracedGenerateObject(
  * For streamText, we can't wrap the whole call. Instead, this returns
  * the stream result and records the trace via onFinish callback.
  */
-export function tracedStreamText(
+export async function tracedStreamText(
   params: AnyStreamParams & { _trace: TraceMetadata },
 ) {
   const { _trace, ...aiParams } = params;
   const start = Date.now();
+
+  // Inject versioned prompt + few-shot examples from flywheel
+  const activePrompt = await getActivePrompt(_trace.agentId).catch(() => null);
+  if (activePrompt) {
+    if (!(aiParams as any).system) {
+      (aiParams as any).system = activePrompt.prompt;
+    }
+    injectFewShotExamples(aiParams, activePrompt.fewShotExamples);
+  }
 
   const originalOnFinish = (aiParams as any).onFinish;
 

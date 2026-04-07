@@ -5,7 +5,7 @@ import { companies } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
 import { embedEntity, companyToText } from "@/lib/embeddings";
 import {

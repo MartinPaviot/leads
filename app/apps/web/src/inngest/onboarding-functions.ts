@@ -2,7 +2,7 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import { companies, contacts } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { generateObject } from "ai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
@@ -156,7 +156,7 @@ export const onOnboardingCompleted = inngest.createFunction(
         ? sizesToApolloRanges(companySizes).join(", ")
         : "";
 
-      const { object } = await generateObject({
+      const { object } = await tracedGenerateObject({
         model: model!,
         schema: searchStrategySchema,
         prompt: `You are a sales intelligence expert. Analyze this business and generate 2-3 Apollo.io search strategies to build their initial TAM (Total Addressable Market).
@@ -175,6 +175,7 @@ ${apolloSizeExamples ? `- User selected sizes: ${apolloSizeExamples}` : ""}
 - Keywords: specific to the business domain
 - Technologies: only when they're a strong signal of fit
 - Revenue: integers in USD`,
+        _trace: { agentId: "build-tam", tenantId, inputPreview: "Generate Apollo search strategies from ICP" },
       });
 
       return { strategies: (object as any).strategies, ownDomain };
