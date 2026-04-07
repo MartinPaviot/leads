@@ -100,15 +100,33 @@ export async function POST(req: Request) {
 VERIFIED FACTS (from Apollo.io enrichment):
 ${facts.map((f) => `- ${f}`).join("\n")}
 
+<examples>
+<example>
+FACTS: Total funding: $12M Series A, Employee count: 45, Founded: 2021, Technologies: React, AWS
+SIGNALS:
+- type: "funding", title: "Recent Series A ($12M)", relevance: "high", reasoning: "Post-Series A companies typically invest in scaling infrastructure within 6 months", dataSource: "Total funding: $12M Series A"
+- type: "hiring", title: "Fast-growing startup (45 employees, founded 2021)", relevance: "medium", reasoning: "Growing from 0 to 45 employees in 3 years indicates rapid scaling and likely process gaps", dataSource: "Employee count: 45, Founded: 2021"
+</example>
+<example>
+FACTS: Industry: Financial Services, Employee count: 500, Technologies: Salesforce, HubSpot
+SIGNALS:
+- type: "tech_change", title: "Dual CRM stack (Salesforce + HubSpot)", relevance: "medium", reasoning: "Running two CRM systems often indicates a recent acquisition or department misalignment — both create tool consolidation opportunities", dataSource: "Technologies: Salesforce, HubSpot"
+</example>
+</examples>
+
 RULES:
-- ONLY generate signals based on the facts above
-- Do NOT invent any information not in the facts
-- Each signal must reference which fact it's based on (in dataSource)
+- ONLY generate signals based on the facts above — never invent information
+- Each signal must reference which fact it's based on (in dataSource field)
 - Focus on signals that indicate buying intent, budget availability, or good timing
-- Example: "Total funding: $12M Series A" → signal "Recent funding suggests budget for new tools"
 - If the facts don't support a signal type, skip it — return fewer signals rather than invented ones
+- Think about WHY each fact is a signal: what does it imply about the company's needs RIGHT NOW?
 
 Return only signals you can directly support with the facts provided.`,
+          providerOptions: {
+            anthropic: {
+              thinking: { type: "enabled", budgetTokens: 3000 },
+            },
+          },
           _trace: { agentId: "detect-signals", tenantId: authCtx.tenantId, inputPreview: `Signals for ${company.name}` },
         });
         const result = object as any;

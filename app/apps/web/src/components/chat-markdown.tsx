@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, memo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import { EntityLink, parseEntityHref } from "./entity-link";
 import { CopyButton } from "./chat/copy-button";
@@ -9,8 +10,8 @@ interface ChatMarkdownProps {
 }
 
 /** Custom markdown renderer with rich entity links, polished typography, and copy support */
-export function ChatMarkdown({ children }: ChatMarkdownProps) {
-  const components: Components = {
+export const ChatMarkdown = memo(function ChatMarkdown({ children }: ChatMarkdownProps) {
+  const components: Components = useMemo(() => ({
     a({ href, children: linkChildren }) {
       if (!href) return <span>{linkChildren}</span>;
 
@@ -217,14 +218,14 @@ export function ChatMarkdown({ children }: ChatMarkdownProps) {
         </li>
       );
     },
-  };
+  }), []);
 
   return (
     <ReactMarkdown components={components}>
       {children}
     </ReactMarkdown>
   );
-}
+});
 
 /** Extract plain text from a code block's children for the copy button */
 function extractCodeText(children: React.ReactNode): string {

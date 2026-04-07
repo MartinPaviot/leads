@@ -549,6 +549,36 @@ export default function ChatPage() {
         </div>
       </div>
 
+      {/* Error banner */}
+      {chat.error && (
+        <div className="shrink-0 px-4">
+          <div
+            className="mx-auto max-w-[740px] rounded-lg px-4 py-2.5 text-[13px] flex items-center justify-between"
+            style={{
+              background: "oklch(0.97 0.015 25)",
+              border: "1px solid oklch(0.85 0.06 25)",
+              color: "oklch(0.5 0.14 25)",
+            }}
+          >
+            <span>Something went wrong. Please try again.</span>
+            <button
+              onClick={() => {
+                // Re-send the last user message
+                const lastUserMsg = chat.messages.filter(m => m.role === "user").pop();
+                if (lastUserMsg) {
+                  const text = lastUserMsg.parts.filter(p => p.type === "text").map(p => "text" in p ? p.text : "").join("");
+                  if (text) chat.sendMessage({ text });
+                }
+              }}
+              className="rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
+              style={{ background: "oklch(0.92 0.04 25)", color: "oklch(0.45 0.14 25)" }}
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Chat input bar — bottom, same max-w as messages */}
       <div className="relative shrink-0 px-4 pb-4 pt-3">
         {/* Fade gradient so messages dissolve behind the input */}

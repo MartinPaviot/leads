@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       return Response.json({ error: "emailContent required" }, { status: 400 });
     }
 
-    const prompt = `Generate 3 reply options for this incoming email. Each reply should have a different tone.
+    const prompt = `Generate 3 reply options for this incoming email. Each reply should have a different tone and serve a different purpose.
 
 FROM: ${senderName || "Unknown"} <${senderEmail || "unknown"}>
 
@@ -50,17 +50,26 @@ EMAIL CONTENT:
 ${emailContent}
 
 Generate exactly 3 replies:
-1. "brief" — A short, friendly acknowledgment (2-3 sentences max)
-2. "detailed" — A thorough, comprehensive response addressing all points raised
-3. "decline" — A polite decline or deferral, suggesting an alternative if appropriate
+1. "brief" — A short, friendly reply that moves things forward (2-3 sentences max). Must include a concrete next step.
+2. "detailed" — A thorough response addressing every question or topic raised. Shows you read carefully.
+3. "decline" — A gracious decline or deferral. Suggests an alternative path or timeline. Zero guilt, door stays open.
+
+<examples>
+<example>
+INCOMING: "Hi, can you send me your pricing? We're evaluating tools this quarter."
+BRIEF: "Hi Sarah, our Pro plan starts at $299/mo for teams up to 20. I'll send the full breakdown with a comparison sheet — should land in your inbox within the hour."
+DETAILED: "Hi Sarah, happy to share pricing details. We have three tiers: Starter ($99/mo, up to 5 users), Pro ($299/mo, up to 20 users, includes API access and priority support), and Enterprise (custom pricing for 20+ users with SSO, dedicated CSM, and SLA guarantees). Since you mentioned you're evaluating this quarter, I can also set up a sandbox environment so your team can test it hands-on. Would a 20-minute walkthrough be helpful? I have availability Thursday or Friday afternoon."
+DECLINE: "Hi Sarah, thanks for reaching out. We're actually at capacity for new onboardings this month — I want to make sure every customer gets proper attention during setup. Can I circle back the first week of next month? In the meantime, here's a self-serve demo that might answer some of your initial questions: [link]"
+</example>
+</examples>
 
 RULES:
-- Each reply should be professional and appropriate for a B2B sales context
-- Reference specific points from the original email
-- The "brief" reply should be actionable despite being short
-- The "detailed" reply should address every question or topic raised
-- The "decline" reply should be gracious and leave the door open
-- Use the sender's name naturally in the replies`;
+- Reference specific points from the original email — never give a generic reply
+- Use ${senderName || "the sender"}'s name naturally (once, not repeatedly)
+- Match formality to the incoming email's tone
+- No "I hope this finds you well" or "Thanks for reaching out" openers
+- Every reply must have a clear call-to-action or next step
+- Keep the brief reply under 40 words, the detailed reply under 150 words`;
 
     const { object } = await tracedGenerateObject({
       model,
