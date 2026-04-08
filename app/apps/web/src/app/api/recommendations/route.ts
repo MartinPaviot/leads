@@ -189,6 +189,54 @@ export async function GET(req: Request) {
       });
     }
 
+    // 5. Campaign recommendation — high-score accounts with no recent outreach
+    // fourteenDaysAgo already declared above
+    const highScoreAccounts = await db
+      .select({
+        id: companies.id,
+        name: companies.name,
+        score: companies.score,
+        industry: companies.industry,
+      })
+      .from(companies)
+      .where(and(
+        eq(companies.tenantId, authCtx.tenantId),
+        sql`${companies.score} >= 60`,
+      ))
+      .orderBy(desc(companies.score))
+      .limit(50);
+
+    if (highScoreAccounts.length >= 3) {
+      // Check which ones have no recent email activity
+      const untouched: typeof highScoreAccounts = [];
+      for (const acc of highScoreAccounts.slice(0, 20)) {
+        const [recent] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(activities)
+          .where(and(
+            eq(activities.tenantId, authCtx.tenantId),
+            eq(activities.entityType, "company"),
+            eq(activities.entityId, acc.id),
+            sql`${activities.activityType} IN ('email_sent', 'email_received')`,
+            sql`${activities.occurredAt} >= ${fourteenDaysAgo}`,
+          ));
+        if (Number(recent?.count || 0) === 0) untouched.push(acc);
+        if (untouched.length >= 5) break;
+      }
+
+      if (untouched.length >= 2) {
+        const topIndustry = untouched[0]?.industry || "your ICP";
+        recommendations.push({
+          title: `Campaign: ${untouched.length} high-score accounts idle`,
+          description: `${untouched.map(a => a.name).slice(0, 3).join(", ")} and ${Math.max(0, untouched.length - 3)} more haven't been contacted in 14+ days`,
+          urgency: 3,
+          entityType: "campaign",
+          entityId: "new",
+          suggestedAction: `Launch an outreach campaign targeting ${topIndustry} accounts`,
+        });
+      }
+    }
+
     // Sort by urgency (1 = most urgent)
     recommendations.sort((a, b) => a.urgency - b.urgency);
 

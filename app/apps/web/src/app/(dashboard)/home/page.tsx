@@ -552,6 +552,7 @@ export default function DashboardPage() {
                       if (r.entityType === "contact") window.location.href = `/contacts/${r.entityId}`;
                       else if (r.entityType === "company") window.location.href = `/accounts`;
                       else if (r.entityType === "deal") window.location.href = `/opportunities`;
+                      else if (r.entityType === "campaign") window.location.href = `/sequences`;
                     }}>
                       <CardBody className="!py-2.5">
                         <p className="text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>{r.title}</p>

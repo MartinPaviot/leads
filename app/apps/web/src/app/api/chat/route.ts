@@ -383,6 +383,7 @@ export async function POST(req: Request) {
     memoriesContext,
     agentApprovalMode,
     userName: tenantSettings.onboardingCompanyName || undefined,
+    preferredLanguage: tenantSettings.language || undefined,
   });
 
   // Define tools for the chat to interact with CRM
@@ -1187,7 +1188,7 @@ Examples: "What did we discuss with Acme last call?" "What were the action items
           .limit(100);
 
         // Simple keyword matching on the target description
-        const desc = input.targetDescription.toLowerCase();
+        const targetDesc = input.targetDescription.toLowerCase();
         let matched = allAccounts;
 
         // Filter by industry keywords
@@ -1195,15 +1196,15 @@ Examples: "What did we discuss with Acme last call?" "What were the action items
           .map((a) => a.industry)
           .filter(Boolean)
           .map((i) => i!.toLowerCase());
-        const industryMatch = industryKeywords.find((i) => desc.includes(i));
+        const industryMatch = industryKeywords.find((i) => targetDesc.includes(i));
         if (industryMatch) {
           matched = matched.filter((a) => a.industry?.toLowerCase() === industryMatch);
         }
 
         // Filter by score if mentioned
-        if (desc.includes("score a") || desc.includes("grade a")) {
+        if (targetDesc.includes("score a") || targetDesc.includes("grade a")) {
           matched = matched.filter((a) => (a.score || 0) >= 80);
-        } else if (desc.includes("score b") || desc.includes("grade b") || desc.includes("b or above") || desc.includes("b+")) {
+        } else if (targetDesc.includes("score b") || targetDesc.includes("grade b") || targetDesc.includes("b or above") || targetDesc.includes("b+")) {
           matched = matched.filter((a) => (a.score || 0) >= 60);
         }
 

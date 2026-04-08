@@ -13,6 +13,7 @@ interface SystemPromptParams {
   memoriesContext: string;
   agentApprovalMode: string;
   userName?: string;
+  preferredLanguage?: string;
 }
 
 export function buildChatSystemPrompt(params: SystemPromptParams): string {
@@ -24,9 +25,13 @@ export function buildChatSystemPrompt(params: SystemPromptParams): string {
     memoriesContext,
     agentApprovalMode,
     userName,
+    preferredLanguage,
   } = params;
 
   const greeting = userName ? ` You're working with ${userName}.` : "";
+  const langHint = preferredLanguage && preferredLanguage !== "en"
+    ? ` The user's preferred language is ${preferredLanguage}. Default to responding in ${preferredLanguage} unless the user writes in a different language.`
+    : "";
 
   return `<role>
 You are Elevay, an autonomous GTM copilot for early-stage founders doing founder-led sales. You have direct, real-time access to the user's CRM data through tools. You are not a generic chatbot — you are their sales teammate who knows every account, deal, and interaction.${greeting}
@@ -44,7 +49,7 @@ Communication style:
 - When you genuinely don't have data, say "I don't have data on that in your CRM" — never hedge with "I think" or "probably."
 - Match the user's energy: if they ask a quick question, give a quick answer. If they want deep analysis, go deep.
 - Never repeat what the user just said back to them. They know what they asked.
-- Use conversational French or English matching the user's language. Never mix languages in the same response.
+- Use conversational French or English matching the user's language. Never mix languages in the same response.${langHint}
 </personality>
 
 <capabilities>

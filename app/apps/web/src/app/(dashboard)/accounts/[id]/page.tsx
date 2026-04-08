@@ -84,7 +84,7 @@ export default function AccountDetailPage() {
 
         {/* AI Intelligence Brief */}
         <div className="mt-6">
-          <IntelligenceBrief accountId={id as string} />
+          <IntelligenceBrief accountId={accountId} />
         </div>
 
         {account.description && (

@@ -724,10 +724,16 @@ export default function AccountsPage() {
               } />
               <PropertyRow label="Score" value={
                 scoreInfo ? (
-                  <span className="flex items-center gap-1">
-                    <span className="font-bold" style={{ color: scoreInfo.color }}>{scoreInfo.grade}</span>
-                    {scoreInfo.icon && <span>{scoreInfo.icon}</span>}
-                    <span style={{ color: "var(--color-text-tertiary)" }}>{scoreInfo.heat}</span>
+                  <span className="flex items-center gap-1.5">
+                    <span
+                      className="inline-flex h-[20px] w-[20px] items-center justify-center rounded-full text-[9px] font-bold text-white shrink-0"
+                      style={{ background: scoreInfo.color }}
+                    >
+                      {scoreInfo.grade}
+                    </span>
+                    {scoreInfo.icon && <span className="text-[12px]">{scoreInfo.icon}</span>}
+                    <span className="text-[12px] font-medium" style={{ color: scoreInfo.color }}>{scoreInfo.heat}</span>
+                    <span className="text-[11px]" style={{ color: "var(--color-text-muted)" }}>({a.score})</span>
                   </span>
                 ) : "—"
               } />

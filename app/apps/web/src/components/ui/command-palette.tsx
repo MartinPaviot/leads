@@ -180,7 +180,7 @@ export function CommandPalette() {
               href: TYPE_HREF[r.type]?.(r.id),
               section: `${label} (${(results as SearchResult[]).length})`,
               meta: r.meta,
-              logoUrl: r.domain ? `https://www.google.com/s2/favicons?domain=${r.domain}&sz=128` : undefined,
+              logoUrl: r.domain ? `https://logo.clearbit.com/${r.domain}` : undefined,
             });
           }
         }
