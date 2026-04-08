@@ -11,6 +11,8 @@ export default function ProfileSettingsPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [language, setLanguage] = useState("en");
+  const [timezone, setTimezone] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -23,6 +25,8 @@ export default function ProfileSettingsPage() {
         setFirstName(data.firstName || "");
         setLastName(data.lastName || "");
         setEmail(data.email || "");
+        setLanguage(data.language || "en");
+        setTimezone(data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone);
         setLoaded(true);
       })
       .catch(() => { setError("Failed to load profile"); setLoaded(true); });
@@ -35,7 +39,7 @@ export default function ProfileSettingsPage() {
       const res = await fetch("/api/settings/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName: firstName.trim(), lastName: lastName.trim() }),
+        body: JSON.stringify({ firstName: firstName.trim(), lastName: lastName.trim(), language, timezone }),
       });
       if (res.ok) {
         setSaved(true);
@@ -85,6 +89,46 @@ export default function ProfileSettingsPage() {
 
         <div>
           <Input label="Email" value={email} disabled />
+        </div>
+
+        <div className="flex gap-4">
+          <div className="flex-1">
+            <label className="mb-1 block text-[11px] font-medium" style={{ color: "var(--color-text-secondary)" }}>Language</label>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="w-full rounded-lg px-3 py-1.5 text-[12px] outline-none"
+              style={{ background: "var(--color-bg-page)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
+            >
+              <option value="en">English</option>
+              <option value="fr">Fran\u00e7ais</option>
+              <option value="de">Deutsch</option>
+              <option value="es">Espa\u00f1ol</option>
+              <option value="pt">Portugu\u00eas</option>
+              <option value="it">Italiano</option>
+              <option value="nl">Nederlands</option>
+              <option value="ja">\u65e5\u672c\u8a9e</option>
+              <option value="ko">\ud55c\uad6d\uc5b4</option>
+              <option value="zh">\u4e2d\u6587</option>
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="mb-1 block text-[11px] font-medium" style={{ color: "var(--color-text-secondary)" }}>Timezone</label>
+            <select
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              className="w-full rounded-lg px-3 py-1.5 text-[12px] outline-none"
+              style={{ background: "var(--color-bg-page)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
+            >
+              {Intl.supportedValuesOf?.("timeZone")?.map((tz: string) => (
+                <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>
+              )) || [
+                "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+                "Europe/London", "Europe/Paris", "Europe/Berlin", "Asia/Tokyo", "Asia/Shanghai",
+                "Australia/Sydney", "Pacific/Auckland",
+              ].map((tz) => <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>)}
+            </select>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">

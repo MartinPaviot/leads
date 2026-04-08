@@ -6,7 +6,7 @@ import { tracedStreamText } from "@/lib/traced-ai";
 import { searchSimilar } from "@/lib/embeddings";
 import { searchContextGraph, exploreGraphAroundEntity } from "@/lib/context-graph";
 import { db } from "@/db";
-import { companies, contacts, deals, activities, notes, tenants, tasks, chatMemories } from "@/db/schema";
+import { companies, contacts, deals, activities, notes, tenants, tasks, chatMemories, sequences, sequenceSteps } from "@/db/schema";
 import { and, eq, desc, sql, ilike, or } from "drizzle-orm";
 import { z } from "zod";
 import type { CustomFieldDef, PipelineStageDef } from "@/lib/custom-fields";
@@ -1158,6 +1158,99 @@ Examples: "What did we discuss with Acme last call?" "What were the action items
               followUpDraft: meta.followUpEmailDraft || null,
             };
           }),
+        };
+      },
+    }),
+
+    proposeCampaign: makeTool({
+      description: `Propose an outbound email campaign targeting specific accounts. Use when user asks to "launch a campaign", "reach out to", "start outreach", or "email my top accounts". Creates a draft sequence and returns a proposal for user approval.`,
+      inputSchema: z.object({
+        targetDescription: z.string().describe("Description of who to target, e.g. 'fintech companies with score B or above'"),
+        campaignGoal: z.string().describe("What the campaign aims to achieve, e.g. 'book demo meetings'"),
+        stepCount: z.number().optional().describe("Number of email steps (default 3)"),
+      }),
+      execute: async (input) => {
+        const steps = input.stepCount || 3;
+
+        // Find matching accounts based on description
+        const allAccounts = await db
+          .select({
+            id: companies.id,
+            name: companies.name,
+            domain: companies.domain,
+            industry: companies.industry,
+            score: companies.score,
+          })
+          .from(companies)
+          .where(eq(companies.tenantId, tenantId))
+          .orderBy(desc(companies.score))
+          .limit(100);
+
+        // Simple keyword matching on the target description
+        const desc = input.targetDescription.toLowerCase();
+        let matched = allAccounts;
+
+        // Filter by industry keywords
+        const industryKeywords = allAccounts
+          .map((a) => a.industry)
+          .filter(Boolean)
+          .map((i) => i!.toLowerCase());
+        const industryMatch = industryKeywords.find((i) => desc.includes(i));
+        if (industryMatch) {
+          matched = matched.filter((a) => a.industry?.toLowerCase() === industryMatch);
+        }
+
+        // Filter by score if mentioned
+        if (desc.includes("score a") || desc.includes("grade a")) {
+          matched = matched.filter((a) => (a.score || 0) >= 80);
+        } else if (desc.includes("score b") || desc.includes("grade b") || desc.includes("b or above") || desc.includes("b+")) {
+          matched = matched.filter((a) => (a.score || 0) >= 60);
+        }
+
+        // Take top 20
+        matched = matched.slice(0, 20);
+
+        if (matched.length === 0) {
+          return {
+            type: "campaign_proposal",
+            status: "no_matches",
+            message: `No accounts match "${input.targetDescription}". Try broadening your criteria or check your TAM.`,
+            targetCount: 0,
+          };
+        }
+
+        // Create a draft sequence
+        const [seq] = await db.insert(sequences).values({
+          tenantId,
+          name: `Campaign: ${input.campaignGoal}`,
+          description: `Auto-generated campaign targeting: ${input.targetDescription}`,
+          status: "draft",
+        }).returning();
+
+        // Create placeholder steps
+        for (let i = 1; i <= steps; i++) {
+          const delay = i === 1 ? 0 : (i === 2 ? 3 : 5);
+          await db.insert(sequenceSteps).values({
+            sequenceId: seq.id,
+            stepNumber: i,
+            delayDays: delay,
+            subjectTemplate: `[To be generated] Step ${i}`,
+            bodyTemplate: `[AI will generate personalized content for step ${i}]`,
+          });
+        }
+
+        return {
+          type: "campaign_proposal",
+          status: "proposed",
+          sequenceId: seq.id,
+          sequenceName: seq.name,
+          targetCount: matched.length,
+          targets: matched.slice(0, 5).map((a) => ({ name: a.name, industry: a.industry, score: a.score })),
+          stepCount: steps,
+          goal: input.campaignGoal,
+          message: `Campaign proposed: ${matched.length} accounts, ${steps} email steps. The user can review and launch from the Campaigns page at /sequences/${seq.id}.`,
+          isProposal: true,
+          proposalAction: "campaign",
         };
       },
     }),

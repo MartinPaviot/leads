@@ -892,3 +892,26 @@ export const agentFailurePatterns = pgTable(
     index("afp_type_idx").on(table.agentId, table.patternType),
   ]
 );
+
+// ── Import History ────────────────────────────────────
+export const importHistory = pgTable(
+  "import_history",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    userId: text("user_id").references(() => users.id).notNull(),
+    fileName: text("file_name").notNull(),
+    recordType: text("record_type").notNull(), // "contacts", "companies"
+    totalRows: integer("total_rows").notNull().default(0),
+    createdCount: integer("created_count").notNull().default(0),
+    skippedCount: integer("skipped_count").notNull().default(0),
+    companiesCreated: integer("companies_created").notNull().default(0),
+    status: text("status").notNull().default("completed"), // "completed", "partial", "failed"
+    errors: jsonb("errors").default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("import_history_tenant_idx").on(table.tenantId),
+    index("import_history_created_idx").on(table.createdAt),
+  ]
+);

@@ -44,6 +44,10 @@ export interface TenantSettings {
   // ── Knowledge base ──
   knowledge?: KnowledgeEntry[];
 
+  // ── Locale ──
+  language?: string; // e.g. "en", "fr", "de"
+  timezone?: string; // e.g. "America/New_York", "Europe/Paris"
+
   // ── Agent behavior ──
   agentApprovalMode?: "auto" | "ask" | "manual";
 

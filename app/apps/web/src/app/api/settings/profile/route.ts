@@ -1,7 +1,8 @@
 import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { users, connectedMailboxes, authAccounts } from "@/db/schema";
+import { users, connectedMailboxes, authAccounts, tenants } from "@/db/schema";
 import { eq, and, ne } from "drizzle-orm";
+import { getTenantSettings } from "@/lib/tenant-settings";
 
 export async function GET() {
   const authCtx = await getAuthContext();
@@ -82,10 +83,15 @@ export async function GET() {
       }
     }
 
+    // Get locale settings from tenant
+    const settings = await getTenantSettings(authCtx.tenantId);
+
     return Response.json({
       firstName: user.firstName || "",
       lastName: user.lastName || "",
       email: user.email,
+      language: settings.language || "en",
+      timezone: settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
       connectedMailboxes: result,
     });
   } catch (error) {
@@ -106,6 +112,17 @@ export async function PUT(req: Request) {
     if (body.lastName !== undefined) updates.lastName = body.lastName.trim();
 
     await db.update(users).set(updates).where(eq(users.id, authCtx.appUserId));
+
+    // Save locale settings to tenant settings
+    if (body.language !== undefined || body.timezone !== undefined) {
+      const settings = await getTenantSettings(authCtx.tenantId);
+      const [tenant] = await db.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, authCtx.tenantId)).limit(1);
+      const currentSettings = (tenant?.settings || {}) as Record<string, unknown>;
+      const updatedSettings = { ...currentSettings };
+      if (body.language !== undefined) updatedSettings.language = body.language;
+      if (body.timezone !== undefined) updatedSettings.timezone = body.timezone;
+      await db.update(tenants).set({ settings: updatedSettings }).where(eq(tenants.id, authCtx.tenantId));
+    }
 
     return Response.json({ success: true });
   } catch (error) {

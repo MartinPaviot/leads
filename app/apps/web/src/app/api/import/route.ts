@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { companies, contacts } from "@/db/schema";
+import { companies, contacts, importHistory } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth-utils";
 import { eq } from "drizzle-orm";
 import Papa from "papaparse";
@@ -151,6 +151,19 @@ export async function POST(req: Request) {
 
       created++;
     }
+
+    // Log import history
+    await db.insert(importHistory).values({
+      tenantId: authCtx.tenantId,
+      userId: authCtx.appUserId,
+      fileName: "csv_import",
+      recordType: "contacts",
+      totalRows: rows.length,
+      createdCount: created,
+      skippedCount: skipped,
+      companiesCreated: companyCache.size,
+      status: "completed",
+    });
 
     return Response.json({
       success: true,
