@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calculateFitScore, calculateContactFitScore } from "@/lib/scoring";
+import { calculateFitScore, calculateContactFitScore, getGrade, GRADE_THRESHOLDS } from "@/lib/scoring";
 import { parseSizeRange, parseRoleKeywords } from "@/lib/tenant-settings";
 import { sizesToApolloRanges } from "@/lib/icp-constants";
 
@@ -195,5 +195,50 @@ describe("sizesToApolloRanges", () => {
   it("handles multiple ranges", () => {
     const result = sizesToApolloRanges(["11-20", "21-50", "51-100"]);
     expect(result).toEqual(["11,20", "21,50", "51,100"]);
+  });
+});
+
+// ─── getGrade (shared threshold source of truth) ───────────────────
+
+describe("getGrade", () => {
+  it("maps score 65 to B (aligned with backend)", () => {
+    expect(getGrade(65).grade).toBe("B");
+  });
+
+  it("maps score 92 to A+", () => {
+    expect(getGrade(92).grade).toBe("A+");
+  });
+
+  it("maps exact boundaries correctly", () => {
+    expect(getGrade(90).grade).toBe("A+");
+    expect(getGrade(80).grade).toBe("A");
+    expect(getGrade(60).grade).toBe("B");
+    expect(getGrade(40).grade).toBe("C");
+    expect(getGrade(20).grade).toBe("D");
+    expect(getGrade(0).grade).toBe("F");
+  });
+
+  it("returns correct heat levels", () => {
+    expect(getGrade(85).heat).toBe("Burning");
+    expect(getGrade(65).heat).toBe("Warm");
+    expect(getGrade(45).heat).toBe("Cool");
+    expect(getGrade(10).heat).toBe("Cold");
+  });
+
+  it("returns fire emoji only for Burning", () => {
+    expect(getGrade(80).icon).toBe("🔥");
+    expect(getGrade(60).icon).toBe("☀️");
+    expect(getGrade(40).icon).toBe("");
+  });
+
+  it("rounds fractional scores before grading", () => {
+    expect(getGrade(79.5).grade).toBe("A"); // rounds to 80
+    expect(getGrade(59.4).grade).toBe("C"); // rounds to 59
+  });
+
+  it("GRADE_THRESHOLDS is ordered descending", () => {
+    for (let i = 1; i < GRADE_THRESHOLDS.length; i++) {
+      expect(GRADE_THRESHOLDS[i - 1].min).toBeGreaterThan(GRADE_THRESHOLDS[i].min);
+    }
   });
 });

@@ -16,6 +16,8 @@ interface ActionCardProps {
   status: "pending" | "approved" | "dismissed";
   onApprove?: (editedFields: Record<string, string | number | null>) => void;
   onDismiss?: () => void;
+  /** Campaign, contact, account, deal — affects card rendering */
+  proposalAction?: string;
 }
 
 const entityIcons: Record<EntityType, typeof Building2> = {
@@ -53,9 +55,11 @@ export function ActionCard({
   status,
   onApprove,
   onDismiss,
+  proposalAction,
 }: ActionCardProps) {
+  const isCampaign = proposalAction === "campaign";
   const Icon = entityIcons[entityType];
-  const label = entityLabels[entityType];
+  const label = isCampaign ? "Campaign" : entityLabels[entityType];
   const isUpdate = actionType === "update";
   const isPending = status === "pending";
 
@@ -141,8 +145,30 @@ export function ActionCard({
           {entityName}
         </div>
 
+        {/* Campaign-specific rendering */}
+        {isCampaign && (
+          <div className="space-y-2 mb-2">
+            <div className="flex items-center gap-3">
+              <div className="text-center">
+                <div className="text-[18px] font-bold" style={{ color: "var(--color-accent)" }}>{fields.targets}</div>
+                <div className="text-[10px] uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>Targets</div>
+              </div>
+              <div className="h-6" style={{ width: 1, background: "var(--color-border-default)" }} />
+              <div className="text-center">
+                <div className="text-[18px] font-bold" style={{ color: "var(--color-text-primary)" }}>{fields.steps}</div>
+                <div className="text-[10px] uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>Steps</div>
+              </div>
+            </div>
+            {fields.goal && (
+              <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                Goal: {fields.goal}
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="space-y-1">
-          {Object.entries(isPending ? editedFields : fields).map(([key, value]) => {
+          {Object.entries(isPending ? editedFields : fields).filter(([key]) => !isCampaign || !["targets", "steps", "goal", "sequenceId"].includes(key)).map(([key, value]) => {
             if (value === undefined) return null;
             const oldValue = oldFields?.[key];
             const hasChanged = isUpdate && oldValue !== undefined && oldValue !== value;
@@ -243,7 +269,7 @@ export function ActionCard({
               style={{ background: "var(--color-accent)" }}
             >
               <Check size={12} />
-              {isUpdate ? "Approve" : "Create"}
+              {isCampaign ? "Review & Launch" : isUpdate ? "Approve" : "Create"}
             </button>
           </div>
         </div>

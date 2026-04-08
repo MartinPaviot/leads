@@ -1228,16 +1228,52 @@ Examples: "What did we discuss with Acme last call?" "What were the action items
           status: "draft",
         }).returning();
 
-        // Create placeholder steps
-        for (let i = 1; i <= steps; i++) {
-          const delay = i === 1 ? 0 : (i === 2 ? 3 : 5);
-          await db.insert(sequenceSteps).values({
-            sequenceId: seq.id,
-            stepNumber: i,
-            delayDays: delay,
-            subjectTemplate: `[To be generated] Step ${i}`,
-            bodyTemplate: `[AI will generate personalized content for step ${i}]`,
-          });
+        // Try to generate real AI email steps using the top company's best contact
+        let generatedSteps = false;
+        const topCompany = matched[0];
+        if (topCompany) {
+          const [bestContact] = await db.select({ id: contacts.id })
+            .from(contacts)
+            .where(and(eq(contacts.companyId, topCompany.id), eq(contacts.tenantId, tenantId)))
+            .orderBy(desc(contacts.score))
+            .limit(1);
+
+          if (bestContact) {
+            try {
+              const { buildProspectContext } = await import("@/lib/prospect-context");
+              const { generateSequence } = await import("@/lib/sequence-generator");
+              const ctx = await buildProspectContext(bestContact.id, tenantId);
+              if (ctx) {
+                const generated = await generateSequence(ctx, { stepCount: steps, tenantId });
+                for (const step of generated.steps) {
+                  await db.insert(sequenceSteps).values({
+                    sequenceId: seq.id,
+                    stepNumber: step.stepNumber,
+                    delayDays: step.delayDays,
+                    subjectTemplate: step.subject,
+                    bodyTemplate: step.body,
+                  });
+                }
+                generatedSteps = true;
+              }
+            } catch (err) {
+              console.warn("Failed to generate AI steps, using placeholders:", err);
+            }
+          }
+        }
+
+        // Fallback: create placeholder steps if AI generation failed
+        if (!generatedSteps) {
+          for (let i = 1; i <= steps; i++) {
+            const delay = i === 1 ? 0 : (i === 2 ? 3 : 5);
+            await db.insert(sequenceSteps).values({
+              sequenceId: seq.id,
+              stepNumber: i,
+              delayDays: delay,
+              subjectTemplate: `Step ${i} — ${input.campaignGoal}`,
+              bodyTemplate: `[Visit /sequences/${seq.id} to generate personalized content]`,
+            });
+          }
         }
 
         return {

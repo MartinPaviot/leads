@@ -469,6 +469,7 @@ export default function ChatPage() {
                                     entityName={cardData.entityName}
                                     fields={cardData.fields}
                                     status={cardStatus}
+                                    proposalAction={cardData.proposalAction}
                                     onApprove={cardData.isProposal
                                       ? (editedFields) => approveCard(cardKey, cardData.proposalAction, editedFields, cardData.entityName)
                                       : undefined

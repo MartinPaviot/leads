@@ -35,6 +35,10 @@
     {
       "path": "/api/cron/mailbox-reset",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/deal-progression",
+      "schedule": "0 9,21 * * *"
     }
   ]
 }

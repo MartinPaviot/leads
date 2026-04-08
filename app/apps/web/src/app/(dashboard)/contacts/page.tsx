@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Users, Search, Plus, Zap, X, Sparkles, Mail, Briefcase, Phone, Gauge, ExternalLink, Clock, type LucideIcon } from "lucide-react";
+import { Users, Search, Plus, Zap, X, Sparkles, Mail, Briefcase, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, type LucideIcon } from "lucide-react";
 import { SmartImport } from "@/components/smart-import";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { formatScore, ENRICHMENT_COLORS } from "@/lib/ui-utils";
@@ -63,6 +63,8 @@ export default function ContactsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const [showSmartImport, setShowSmartImport] = useState(false);
+  const [importHistory, setImportHistory] = useState<Array<{ id: string; fileName: string; recordType: string; totalRows: number; createdCount: number; skippedCount: number; companiesCreated: number; status: string; createdAt: string }>>([]);
+  const [showImportHistory, setShowImportHistory] = useState(false);
   const { fields: customFields } = useCustomFields("contact");
 
   const fetchContacts = useCallback(async () => {
@@ -75,7 +77,10 @@ export default function ContactsPage() {
     } catch { /* */ } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetchContacts(); }, [fetchContacts]);
+  useEffect(() => {
+    fetchContacts();
+    fetch("/api/import/history").then(r => r.ok ? r.json() : { imports: [] }).then(d => setImportHistory(d.imports || [])).catch(() => {});
+  }, [fetchContacts]);
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -327,6 +332,43 @@ export default function ContactsPage() {
           </table>
         )}
       </div>
+
+      {/* Import History */}
+      {importHistory.length > 0 && (
+        <div className="shrink-0 px-4 pb-4">
+          <button
+            onClick={() => setShowImportHistory(!showImportHistory)}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-medium transition-colors"
+            style={{ color: "var(--color-text-tertiary)", background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}
+          >
+            <History size={13} />
+            Import history ({importHistory.length})
+            {showImportHistory ? <ChevronUp size={12} className="ml-auto" /> : <ChevronDown size={12} className="ml-auto" />}
+          </button>
+          {showImportHistory && (
+            <div className="mt-2 space-y-1.5">
+              {importHistory.map((imp) => (
+                <div key={imp.id} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}>
+                  <div>
+                    <p className="text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+                      {imp.createdCount} contacts created
+                      {imp.companiesCreated > 0 && `, ${imp.companiesCreated} companies`}
+                      {imp.skippedCount > 0 && ` (${imp.skippedCount} skipped)`}
+                    </p>
+                    <p className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                      {new Date(imp.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      {" · "}{imp.totalRows} rows · {imp.status}
+                    </p>
+                  </div>
+                  <Badge variant={imp.status === "completed" ? "success" : imp.status === "partial" ? "warning" : "error"} size="sm">
+                    {imp.status}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {showSmartImport && <SmartImport onClose={() => setShowSmartImport(false)} onComplete={fetchContacts} />}
     </div>
