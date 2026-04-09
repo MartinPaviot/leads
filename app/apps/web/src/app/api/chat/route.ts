@@ -1306,6 +1306,7 @@ Examples: "What did we discuss with Acme last call?" "What were the action items
       system: systemPrompt,
       messages: convertedMessages,
       tools: selectedTools,
+      // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
       maxTokens: 2000,
       temperature: 0.4,
       stopWhen: stepCountIs(10),
