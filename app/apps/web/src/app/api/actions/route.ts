@@ -8,7 +8,23 @@ export async function GET(req: Request) {
   const authCtx = await getAuthContext();
   if (!authCtx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const actions: { action: string; why: string; priority: "critical" | "high" | "medium" | "low"; category: string; entityType?: string; entityId?: string }[] = [];
+  const actions: {
+    action: string;
+    why: string;
+    priority: "critical" | "high" | "medium" | "low";
+    category: string;
+    entityType?: string;
+    entityId?: string;
+    contactEmail?: string;
+    contactTitle?: string;
+    companyName?: string;
+    companyDomain?: string;
+    dealValue?: number;
+    dealStage?: string;
+    daysSilent?: number;
+    lastEmailSubject?: string;
+    lastEmailSnippet?: string;
+  }[] = [];
 
   // Shared date thresholds
   const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
@@ -41,6 +57,16 @@ export async function GET(req: Request) {
   for (const fu of followUps) {
     const name = [fu.firstName, fu.lastName].filter(Boolean).join(" ");
     const daysSince = Math.floor((Date.now() - new Date(fu.lastActivity).getTime()) / (1000 * 60 * 60 * 24));
+
+    // Fetch contact email + last email activity for inline preview
+    const [contactDetail] = await db.select({ email: contacts.email, title: contacts.title, companyDomain: companies.domain })
+      .from(contacts).leftJoin(companies, eq(contacts.companyId, companies.id))
+      .where(eq(contacts.id, fu.contactId)).limit(1);
+    const [lastEmail] = await db.select({ summary: activities.summary, rawContent: activities.rawContent })
+      .from(activities)
+      .where(and(eq(activities.entityId, fu.contactId), eq(activities.entityType, "contact"), sql`${activities.activityType} IN ('email_sent', 'email_received')`))
+      .orderBy(desc(activities.occurredAt)).limit(1);
+
     actions.push({
       action: `Follow up with ${name}${fu.companyName ? ` at ${fu.companyName}` : ""}`,
       why: `Positive sentiment, no reply in ${daysSince} days`,
@@ -48,6 +74,13 @@ export async function GET(req: Request) {
       category: "follow_up",
       entityType: "contact",
       entityId: fu.contactId,
+      contactEmail: contactDetail?.email || undefined,
+      contactTitle: contactDetail?.title || undefined,
+      companyName: fu.companyName || undefined,
+      companyDomain: contactDetail?.companyDomain || undefined,
+      daysSilent: daysSince,
+      lastEmailSubject: lastEmail?.summary || undefined,
+      lastEmailSnippet: lastEmail?.rawContent ? String(lastEmail.rawContent).slice(0, 200) : undefined,
     });
   }
 
@@ -146,6 +179,7 @@ export async function GET(req: Request) {
       dealName: deals.name,
       stage: deals.stage,
       value: deals.value,
+      updatedAt: deals.updatedAt,
     })
     .from(deals)
     .where(and(
@@ -156,13 +190,17 @@ export async function GET(req: Request) {
     .limit(2);
 
   for (const deal of stalledDeals) {
+    const stalledDays = deal.updatedAt ? Math.floor((Date.now() - new Date(deal.updatedAt as unknown as string).getTime()) / (1000 * 60 * 60 * 24)) : 14;
     actions.push({
       action: `Revive stalled deal: ${deal.dealName}`,
-      why: `${deal.stage} stage, no activity in 14+ days${deal.value ? `, $${deal.value} at risk` : ""}`,
+      why: `${deal.stage} stage, silent ${stalledDays} days${deal.value ? `, $${deal.value.toLocaleString()} at risk` : ""}`,
       priority: "critical",
       category: "rescue",
       entityType: "deal",
       entityId: deal.dealId,
+      dealValue: deal.value || undefined,
+      dealStage: deal.stage || undefined,
+      daysSilent: stalledDays,
     });
   }
 

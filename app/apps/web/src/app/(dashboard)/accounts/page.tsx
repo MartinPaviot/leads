@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Building2, Search, Plus, Zap, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, type LucideIcon } from "lucide-react";
+import { Building2, Search, Plus, Zap, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, type LucideIcon } from "lucide-react";
 
 function LinkedInIcon({ size = 13 }: { size?: number }) {
   return (
@@ -411,6 +411,7 @@ export default function AccountsPage() {
                   { label: "Stage", icon: GitBranch },
                   { label: "Score", icon: Gauge },
                   { label: "Last Interaction", icon: Clock },
+                  { label: "Connected to", icon: Users },
                   ...signalTypeColumns.map((t) => ({ label: t.replace(/_/g, " "), icon: Radio as LucideIcon })),
                   ...customBoolColumns.map((c) => ({ label: c, icon: Target as LucideIcon })),
                   ...customFields.map((f) => ({ label: f.name, icon: null as LucideIcon | null })),
@@ -572,6 +573,25 @@ export default function AccountsPage() {
                         </div>
                       ) : (
                         <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>
+                      )}
+                    </td>
+
+                    {/* Connected to (owner) */}
+                    <td>
+                      {(account as any).ownerFirstName ? (
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[8px] font-bold text-white shrink-0"
+                            style={{ background: `hsl(${((account as any).ownerFirstName?.charCodeAt(0) || 0) * 37 % 360}, 60%, 55%)` }}
+                          >
+                            {((account as any).ownerFirstName?.[0] || "").toUpperCase()}
+                          </span>
+                          <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                            {(account as any).ownerFirstName}{(account as any).ownerLastName ? ` ${(account as any).ownerLastName[0]}.` : ""}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px]" style={{ color: "var(--color-text-muted)", opacity: 0.5 }}>Unassigned</span>
                       )}
                     </td>
 

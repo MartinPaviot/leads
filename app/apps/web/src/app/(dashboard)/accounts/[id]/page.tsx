@@ -35,6 +35,8 @@ export default function AccountDetailPage() {
   const [account, setAccount] = useState<Account | null>(null);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -86,6 +88,61 @@ export default function AccountDetailPage() {
         <div className="mt-6">
           <IntelligenceBrief accountId={accountId} />
         </div>
+
+        {/* Meeting Intel Card (structured extraction from calls) */}
+        {(() => {
+          const props = (account as any).properties || {};
+          const intel = props.meetingIntel as Record<string, unknown> | undefined;
+          if (!intel || Object.keys(intel).length <= 2) return null; // skip if only lastExtracted+sourceDeal
+          return (
+            <div className="mt-4 rounded-lg p-3" style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}>
+              <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--color-text-tertiary)" }}>Meeting Intelligence</p>
+              <div className="grid grid-cols-2 gap-2">
+                {intel.teamSize && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[14px]">👥</span>
+                    <div>
+                      <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>Team Size</p>
+                      <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{String(intel.teamSize)}</p>
+                    </div>
+                  </div>
+                )}
+                {intel.budget && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[14px]">💰</span>
+                    <div>
+                      <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>Budget</p>
+                      <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{String(intel.budget)}</p>
+                    </div>
+                  </div>
+                )}
+                {intel.currentTools && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[14px]">📋</span>
+                    <div>
+                      <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>Current Tools</p>
+                      <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{Array.isArray(intel.currentTools) ? (intel.currentTools as string[]).join(", ") : String(intel.currentTools)}</p>
+                    </div>
+                  </div>
+                )}
+                {intel.competitors && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[14px]">🔧</span>
+                    <div>
+                      <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>Competitors</p>
+                      <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{Array.isArray(intel.competitors) ? (intel.competitors as string[]).join(", ") : String(intel.competitors)}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {intel.lastExtracted && (
+                <p className="mt-2 text-[10px]" style={{ color: "var(--color-text-muted)" }}>
+                  Extracted {new Date(intel.lastExtracted as string).toLocaleDateString()}
+                </p>
+              )}
+            </div>
+          );
+        })()}
 
         {account.description && (
           <div className="mt-4">
@@ -139,26 +196,51 @@ export default function AccountDetailPage() {
           Account details
         </h3>
         <div className="mt-4 space-y-3">
-          <div>
-            <p className="text-xs text-[var(--color-text-tertiary)]">Name</p>
-            <p className="text-sm text-[var(--color-text-primary)]">{account.name}</p>
-          </div>
-          <div>
-            <p className="text-xs text-[var(--color-text-tertiary)]">Domain</p>
-            <p className="text-sm text-[var(--color-text-primary)]">{account.domain || "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-[var(--color-text-tertiary)]">Industry</p>
-            <p className="text-sm text-[var(--color-text-primary)]">{account.industry || "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-[var(--color-text-tertiary)]">Size</p>
-            <p className="text-sm text-[var(--color-text-primary)]">{account.size || "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-[var(--color-text-tertiary)]">Revenue</p>
-            <p className="text-sm text-[var(--color-text-primary)]">{account.revenue || "—"}</p>
-          </div>
+          {([
+            { key: "name", label: "Name", value: account.name },
+            { key: "domain", label: "Domain", value: account.domain },
+            { key: "industry", label: "Industry", value: account.industry },
+            { key: "size", label: "Size", value: account.size },
+            { key: "revenue", label: "Revenue", value: account.revenue },
+          ] as Array<{ key: string; label: string; value: string | null }>).map((field) => (
+            <div key={field.key}>
+              <p className="text-xs text-[var(--color-text-tertiary)]">{field.label}</p>
+              {editingField === field.key ? (
+                <div className="flex items-center gap-1 mt-0.5">
+                  <input
+                    autoFocus
+                    className="flex-1 rounded border px-2 py-0.5 text-sm outline-none"
+                    style={{ borderColor: "var(--color-accent)", color: "var(--color-text-primary)", background: "var(--color-bg-card)" }}
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onKeyDown={async (e) => {
+                      if (e.key === "Enter") {
+                        await fetch(`/api/accounts/${accountId}`, {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ [field.key]: editValue || null }),
+                        });
+                        setAccount((prev) => prev ? { ...prev, [field.key]: editValue || null } : prev);
+                        setEditingField(null);
+                      } else if (e.key === "Escape") {
+                        setEditingField(null);
+                      }
+                    }}
+                    onBlur={() => setEditingField(null)}
+                  />
+                </div>
+              ) : (
+                <p
+                  className="text-sm cursor-pointer rounded px-1 -mx-1 transition-colors hover:bg-[var(--color-bg-hover)]"
+                  style={{ color: field.value ? "var(--color-text-primary)" : "var(--color-text-muted)" }}
+                  onClick={() => { setEditingField(field.key); setEditValue(field.value || ""); }}
+                  title="Click to edit"
+                >
+                  {field.value || `Set ${field.label.toLowerCase()}`}
+                </p>
+              )}
+            </div>
+          ))}
           {account.score != null && (
             <div>
               <p className="text-xs text-[var(--color-text-tertiary)]">Score</p>

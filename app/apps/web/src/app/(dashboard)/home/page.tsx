@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Clock, Calendar, CheckSquare, Zap, MessageSquare, TrendingUp, Users, Sparkles, Building2, DollarSign, AlertTriangle, ArrowRight } from "lucide-react";
+import { Clock, Calendar, CheckSquare, Zap, MessageSquare, TrendingUp, Users, Sparkles, Building2, DollarSign, AlertTriangle, ArrowRight, X, Mail, Send } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +18,15 @@ interface Action {
   category: string;
   entityType?: string;
   entityId?: string;
+  contactEmail?: string;
+  contactTitle?: string;
+  companyName?: string;
+  companyDomain?: string;
+  dealValue?: number;
+  dealStage?: string;
+  daysSilent?: number;
+  lastEmailSubject?: string;
+  lastEmailSnippet?: string;
 }
 
 interface Insight {
@@ -105,6 +114,7 @@ export default function DashboardPage() {
   const [priorities, setPriorities] = useState<{ contactId: string; name: string; title: string | null; company: string | null; companyDomain: string | null; emailCount: number; topReason: string }[]>([]);
   const [recommendations, setRecommendations] = useState<{ title: string; description: string; urgency: number; entityType: string; entityId: string; suggestedAction: string }[]>([]);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [selectedAction, setSelectedAction] = useState<Action | null>(null);
 
   useEffect(() => {
     // Detect first-time visit after onboarding
@@ -328,13 +338,7 @@ export default function DashboardPage() {
                   <Card
                     key={i}
                     interactive={!!action.entityId}
-                    onClick={() => {
-                      if (action.entityType === "contact" && action.entityId) {
-                        window.location.href = `/contacts/${action.entityId}`;
-                      } else if (action.entityType === "deal" && action.entityId) {
-                        window.location.href = `/opportunities`;
-                      }
-                    }}
+                    onClick={() => setSelectedAction(action)}
                   >
                     <CardBody className="!py-3">
                       <div className="flex items-start justify-between gap-2">
@@ -607,6 +611,97 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Inline Priority Preview Panel */}
+      {selectedAction && (
+        <>
+          <div className="fixed inset-0 z-40" style={{ background: "rgba(0,0,0,0.3)" }} onClick={() => setSelectedAction(null)} />
+          <div className="slide-in-right fixed right-0 top-0 z-50 flex h-full w-[400px] flex-col" style={{ background: "var(--color-bg-card)", borderLeft: "1px solid var(--color-border-default)" }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--color-border-default)" }}>
+              <div className="flex items-center gap-2">
+                {selectedAction.companyDomain && <CompanyLogo domain={selectedAction.companyDomain} name={selectedAction.companyName || "?"} size={20} />}
+                <div>
+                  <p className="text-[14px] font-semibold" style={{ color: "var(--color-text-primary)" }}>{selectedAction.action}</p>
+                  {selectedAction.contactTitle && <p className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{selectedAction.contactTitle}{selectedAction.companyName ? ` at ${selectedAction.companyName}` : ""}</p>}
+                </div>
+              </div>
+              <button onClick={() => setSelectedAction(null)} className="rounded p-1" style={{ color: "var(--color-text-muted)" }}><X size={16} /></button>
+            </div>
+
+            {/* Context */}
+            <div className="flex-1 overflow-auto px-4 py-3 space-y-4">
+              {/* Priority + reason */}
+              <div className="flex items-center gap-2">
+                <Badge variant={priorityVariants[selectedAction.priority] || "neutral"} size="sm">{selectedAction.priority}</Badge>
+                {selectedAction.category === "rescue" && <Badge variant="error" size="sm">Stalled{selectedAction.daysSilent ? ` ${selectedAction.daysSilent}d` : ""}</Badge>}
+                {selectedAction.dealValue && <span className="text-[12px] font-medium" style={{ color: "var(--color-success)" }}>${selectedAction.dealValue.toLocaleString()}</span>}
+              </div>
+              <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{selectedAction.why}</p>
+
+              {/* Last email */}
+              {selectedAction.lastEmailSubject && (
+                <div className="rounded-lg p-3" style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Mail size={12} style={{ color: "var(--color-text-tertiary)" }} />
+                    <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>Last email</span>
+                  </div>
+                  <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{selectedAction.lastEmailSubject}</p>
+                  {selectedAction.lastEmailSnippet && (
+                    <p className="mt-1 text-[12px] line-clamp-4" style={{ color: "var(--color-text-secondary)" }}>{selectedAction.lastEmailSnippet}</p>
+                  )}
+                </div>
+              )}
+
+              {/* AI-drafted nudge */}
+              {selectedAction.entityType === "contact" && selectedAction.contactEmail && (
+                <div className="rounded-lg p-3" style={{ background: "var(--color-accent-soft)", border: "1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)" }}>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Sparkles size={12} style={{ color: "var(--color-accent)" }} />
+                    <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--color-accent)" }}>Suggested follow-up</span>
+                  </div>
+                  <p className="text-[13px] font-medium mb-1" style={{ color: "var(--color-text-primary)" }}>
+                    Re: {selectedAction.lastEmailSubject || "Following up"}
+                  </p>
+                  <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                    Hi — I wanted to follow up on my previous message. {selectedAction.daysSilent && selectedAction.daysSilent > 7 ? "It's been a while and I wanted to make sure this didn't slip through the cracks." : "Do you have a few minutes to connect this week?"} Would love to find a time that works.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer actions */}
+            <div className="shrink-0 flex items-center gap-2 px-4 py-3" style={{ borderTop: "1px solid var(--color-border-default)" }}>
+              {selectedAction.contactEmail ? (
+                <button
+                  onClick={() => {
+                    setEmailComposer({
+                      to: selectedAction.contactEmail || "",
+                      subject: `Re: ${selectedAction.lastEmailSubject || "Following up"}`,
+                      body: `Hi,\n\nI wanted to follow up on my previous message. ${selectedAction.daysSilent && selectedAction.daysSilent > 7 ? "It's been a while — wanted to make sure this didn't fall through the cracks." : "Do you have a few minutes to connect this week?"}\n\nBest regards`,
+                    });
+                    setSelectedAction(null);
+                  }}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-[13px] font-semibold text-white gradient-brand"
+                >
+                  <Send size={14} /> Send follow-up
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    const href = selectedAction.entityType === "contact" ? `/contacts/${selectedAction.entityId}` : `/opportunities`;
+                    window.location.href = href;
+                  }}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-[13px] font-medium"
+                  style={{ color: "var(--color-accent)", background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}
+                >
+                  View details <ArrowRight size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       {emailComposer && (
         <EmailComposer

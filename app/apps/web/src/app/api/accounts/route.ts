@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { companies, activities } from "@/db/schema";
+import { companies, activities, users } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth-utils";
 import { and, eq, sql, desc } from "drizzle-orm";
 import { inngest } from "@/inngest/client";
@@ -18,8 +18,26 @@ export async function GET(req: Request) {
 
     const [accounts, countResult] = await Promise.all([
       db
-        .select()
+        .select({
+          id: companies.id,
+          name: companies.name,
+          domain: companies.domain,
+          industry: companies.industry,
+          size: companies.size,
+          revenue: companies.revenue,
+          description: companies.description,
+          score: companies.score,
+          scoreReasons: companies.scoreReasons,
+          ownerId: companies.ownerId,
+          properties: companies.properties,
+          createdAt: companies.createdAt,
+          updatedAt: companies.updatedAt,
+          tenantId: companies.tenantId,
+          ownerFirstName: users.firstName,
+          ownerLastName: users.lastName,
+        })
         .from(companies)
+        .leftJoin(users, eq(companies.ownerId, users.id))
         .where(eq(companies.tenantId, authCtx.tenantId))
         .limit(pageSize)
         .offset(offset),
