@@ -189,15 +189,20 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
                 </CardBody>
               </Card>
             ) : (
-              <div className="space-y-0">
+              <div className="relative space-y-0" style={{ paddingLeft: 14 }}>
+                {/* Continuous vertical connector line */}
+                {steps.length > 1 && (
+                  <div className="absolute" style={{ left: 14, top: 20, bottom: 20, width: 2, background: "var(--color-border-default)", borderRadius: 1 }} />
+                )}
                 {steps.map((step, i) => {
                   const isExpanded = expandedStep === i;
                   return (
-                    <div key={step.id}>
+                    <div key={step.id} className="relative">
+                      {/* Step dot on the timeline */}
+                      <div className="absolute" style={{ left: -7, top: 18, width: 8, height: 8, borderRadius: "50%", background: isExpanded ? "var(--color-accent)" : "var(--color-border-moderate)", zIndex: 1 }} />
                       {/* Delay indicator */}
                       {i > 0 && (
                         <div className="flex items-center gap-2 py-2 pl-6">
-                          <div className="w-px h-4" style={{ background: "var(--color-border-default)" }} />
                           <Clock size={11} style={{ color: "var(--color-text-muted)" }} />
                           <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
                             Wait {step.delayDays} day{step.delayDays !== 1 ? "s" : ""}

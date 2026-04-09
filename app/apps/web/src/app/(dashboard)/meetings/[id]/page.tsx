@@ -105,6 +105,8 @@ export default function MeetingDetailPage() {
   const [processingPostCall, setProcessingPostCall] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [meetingPrep, setMeetingPrep] = useState<string | null>(null);
+  const [generatingPrep, setGeneratingPrep] = useState(false);
 
   const fetchMeeting = useCallback(async () => {
     try {
@@ -517,14 +519,46 @@ export default function MeetingDetailPage() {
           )}
         </div>
       ) : (
-        /* Upcoming meeting — show prep if available */
+        /* Upcoming meeting — show prep or generate button */
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <div className="flex items-center gap-2 text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">
             <Sparkles className="h-4 w-4" /> Upcoming Meeting
           </div>
-          <p className="text-sm text-blue-700 dark:text-blue-400">
-            Meeting prep will be auto-generated 24 hours before the call.
-          </p>
+          {meetingPrep ? (
+            <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-blue-700 dark:text-blue-400 whitespace-pre-wrap">
+              {meetingPrep}
+            </div>
+          ) : (
+            <div>
+              <p className="text-sm text-blue-700 dark:text-blue-400 mb-3">
+                Generate a briefing with account context, key contacts, active deals, and recent interactions.
+              </p>
+              <button
+                onClick={async () => {
+                  setGeneratingPrep(true);
+                  try {
+                    const meetingAny = meeting as Record<string, unknown>;
+                    const res = await fetch("/api/meetings/prep", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        accountId: meetingAny.entityId || meetingAny.accountId,
+                        contactId: meetingAny.contactId,
+                      }),
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      setMeetingPrep(data.prep || data.briefing || "Prep generated. Check the meeting details.");
+                    }
+                  } catch { /* */ } finally { setGeneratingPrep(false); }
+                }}
+                disabled={generatingPrep}
+                className="flex items-center gap-2 rounded-md px-3 py-1.5 text-[12px] font-medium text-white gradient-brand"
+              >
+                {generatingPrep ? <><Loader2 className="h-3 w-3 animate-spin" /> Generating...</> : <><Sparkles className="h-3 w-3" /> Generate Prep Now</>}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

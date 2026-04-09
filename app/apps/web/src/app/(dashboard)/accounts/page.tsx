@@ -57,6 +57,7 @@ export default function AccountsPage() {
   const [searchResults, setSearchResults] = useState<string[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [activeSignalPopover, setActiveSignalPopover] = useState<string | null>(null);
+  const [signalPopoverTab, setSignalPopoverTab] = useState<"reasoning" | "sources">("reasoning");
   const [slideOverAccount, setSlideOverAccount] = useState<Account | null>(null);
   const { fields: customFields } = useCustomFields("company");
 
@@ -598,22 +599,48 @@ export default function AccountsPage() {
                                     </span>
                                   </div>
                                   <p className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>{signal.description}</p>
-                                  {signal.reasoning && (
+                                  {/* Tabs: Reasoning / Sources */}
+                                  {(signal.reasoning || (signal.sources && signal.sources.length > 0)) && (
                                     <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--color-border-default)" }}>
-                                      <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Reasoning</p>
-                                      <p className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>{signal.reasoning}</p>
-                                    </div>
-                                  )}
-                                  {signal.sources && signal.sources.length > 0 && (
-                                    <div className="mt-2 space-y-1 pt-2" style={{ borderTop: "1px solid var(--color-border-default)" }}>
-                                      <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Sources</p>
-                                      {signal.sources.map((src, si) => (
-                                        <a key={si} href={src.url} target="_blank" rel="noopener noreferrer"
-                                          className="flex items-center gap-1.5 text-[11px] hover:underline" style={{ color: "var(--color-accent)" }}>
-                                          <span className="shrink-0">&#8599;</span>
-                                          <span className="truncate">{src.title}</span>
-                                        </a>
-                                      ))}
+                                      <div className="mb-2 flex gap-1">
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setSignalPopoverTab("reasoning"); }}
+                                          className="rounded px-2 py-0.5 text-[10px] font-medium transition-colors"
+                                          style={{
+                                            background: signalPopoverTab === "reasoning" ? "var(--color-accent-soft)" : "transparent",
+                                            color: signalPopoverTab === "reasoning" ? "var(--color-accent)" : "var(--color-text-tertiary)",
+                                          }}
+                                        >
+                                          Reasoning
+                                        </button>
+                                        {signal.sources && signal.sources.length > 0 && (
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setSignalPopoverTab("sources"); }}
+                                            className="rounded px-2 py-0.5 text-[10px] font-medium transition-colors"
+                                            style={{
+                                              background: signalPopoverTab === "sources" ? "var(--color-accent-soft)" : "transparent",
+                                              color: signalPopoverTab === "sources" ? "var(--color-accent)" : "var(--color-text-tertiary)",
+                                            }}
+                                          >
+                                            Sources ({signal.sources.length})
+                                          </button>
+                                        )}
+                                      </div>
+                                      {signalPopoverTab === "reasoning" && signal.reasoning && (
+                                        <p className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>{signal.reasoning}</p>
+                                      )}
+                                      {signalPopoverTab === "sources" && signal.sources && signal.sources.length > 0 && (
+                                        <div className="space-y-1.5">
+                                          {signal.sources.map((src, si) => (
+                                            <a key={si} href={src.url} target="_blank" rel="noopener noreferrer"
+                                              className="flex items-center gap-2 text-[11px] hover:underline" style={{ color: "var(--color-accent)" }}>
+                                              <img src={`https://logo.clearbit.com/${new URL(src.url).hostname}`} alt="" className="h-3.5 w-3.5 rounded shrink-0"
+                                                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                                              <span className="truncate">{src.title}</span>
+                                            </a>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                   <button onClick={(e) => { e.stopPropagation(); setActiveSignalPopover(null); }}

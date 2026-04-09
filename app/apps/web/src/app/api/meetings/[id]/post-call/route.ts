@@ -107,6 +107,33 @@ export async function POST(
             })
             .where(eq(deals.id, dealId));
           dealUpdated = true;
+
+          // Also write extracted intel to the account record
+          if (deal.companyId) {
+            const [company] = await db
+              .select()
+              .from(companies)
+              .where(and(eq(companies.id, deal.companyId), eq(companies.tenantId, authCtx.tenantId)))
+              .limit(1);
+            if (company) {
+              const companyProps = (company.properties || {}) as Record<string, unknown>;
+              await db
+                .update(companies)
+                .set({
+                  properties: {
+                    ...companyProps,
+                    meetingIntel: {
+                      ...((companyProps.meetingIntel || {}) as Record<string, unknown>),
+                      ...extracted,
+                      lastExtracted: new Date().toISOString(),
+                      sourceDeal: dealId,
+                    },
+                  },
+                  updatedAt: new Date(),
+                })
+                .where(eq(companies.id, deal.companyId));
+            }
+          }
         }
       }
     }

@@ -44,13 +44,26 @@ export async function GET() {
         now - new Date(d.updatedAt).getTime() > 14 * dayMs
     );
     if (stallingDeals.length > 0) {
+      // Sort by value descending so highest-value stalled deals appear first
+      const sorted = [...stallingDeals].sort((a, b) => (b.value || 0) - (a.value || 0));
+      const totalAtRisk = sorted.reduce((s, d) => s + (d.value || 0), 0);
+      const topDeal = sorted[0];
+      const topDealDays = topDeal.updatedAt ? Math.floor((now - new Date(topDeal.updatedAt).getTime()) / dayMs) : 14;
+
+      const dealDetails = sorted.slice(0, 3).map((d) => {
+        const days = d.updatedAt ? Math.floor((now - new Date(d.updatedAt).getTime()) / dayMs) : 14;
+        return `${d.name}${d.value ? ` ($${d.value.toLocaleString()})` : ""} — ${days}d silent`;
+      });
+
       insights.push({
         id: nextId(),
-        title: `${stallingDeals.length} deal${stallingDeals.length > 1 ? "s" : ""} stalling`,
-        description: `${stallingDeals.map((d) => d.name).slice(0, 3).join(", ")}${stallingDeals.length > 3 ? ` and ${stallingDeals.length - 3} more` : ""} haven't progressed in 14+ days.`,
-        severity: stallingDeals.length >= 3 ? "critical" : "high",
+        title: `${stallingDeals.length} deal${stallingDeals.length > 1 ? "s" : ""} stalling${totalAtRisk > 0 ? ` — $${totalAtRisk.toLocaleString()} at risk` : ""}`,
+        description: dealDetails.join(". ") + (stallingDeals.length > 3 ? `. +${stallingDeals.length - 3} more.` : "."),
+        severity: stallingDeals.length >= 3 || totalAtRisk >= 50000 ? "critical" : "high",
         category: "alert",
-        suggestedAction: "Review stalling deals and either advance, re-engage, or close them.",
+        suggestedAction: topDeal.value
+          ? `Priority: re-engage ${topDeal.name} ($${topDeal.value.toLocaleString()}, ${topDealDays}d silent) with a new angle.`
+          : `Re-engage ${topDeal.name} (${topDealDays}d silent) — try a different approach or escalate to a champion.`,
       });
     }
 
@@ -61,13 +74,17 @@ export async function GET() {
         (d.properties as Record<string, unknown>)?.riskLevel === "high"
     );
     if (highRiskDeals.length > 0) {
+      const riskValue = highRiskDeals.reduce((s, d) => s + (d.value || 0), 0);
+      const riskDetails = highRiskDeals.slice(0, 3).map((d) =>
+        `${d.name}${d.value ? ` ($${d.value.toLocaleString()})` : ""} in ${d.stage}`
+      );
       insights.push({
         id: nextId(),
-        title: `${highRiskDeals.length} high-risk deal${highRiskDeals.length > 1 ? "s" : ""}`,
-        description: `${highRiskDeals.map((d) => d.name).slice(0, 3).join(", ")} flagged as high risk.`,
+        title: `${highRiskDeals.length} high-risk deal${highRiskDeals.length > 1 ? "s" : ""}${riskValue > 0 ? ` — $${riskValue.toLocaleString()} at stake` : ""}`,
+        description: riskDetails.join(". ") + ".",
         severity: "high",
         category: "alert",
-        suggestedAction: "Run pipeline analysis to identify specific risks and plan rescue actions.",
+        suggestedAction: `Review ${highRiskDeals[0].name} first — identify the blocker and schedule a champion call.`,
       });
     }
 
