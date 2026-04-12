@@ -1,16 +1,10 @@
 {
-  "current_phase": "FINAL",
+  "current_phase": "COMPLETE",
   "started_at": "2026-04-12T10:00:00Z",
-  "last_updated": "2026-04-12T12:30:00Z",
-  "phases_completed": [0, 1, 2],
+  "last_updated": "2026-04-12T13:00:00Z",
+  "phases_completed": [0, 1, 2, "FINAL"],
   "current_skill": null,
-  "skills_queue": [
-    {"slug": "champion-tracker", "category": "signals", "effort": "Nouveau", "priority": "P1"},
-    {"slug": "job-posting-intent", "category": "signals", "effort": "Nouveau", "priority": "P1"},
-    {"slug": "funding-signal-monitor", "category": "signals", "effort": "Nouveau", "priority": "P1"},
-    {"slug": "leadership-change-outreach", "category": "outreach", "effort": "Adapt", "priority": "P1"},
-    {"slug": "expansion-signal-spotter", "category": "signals", "effort": "Nouveau", "priority": "P1"}
-  ],
+  "skills_queue": [],
   "skills_completed": [
     "tam-builder", "apollo-lead-finder", "company-contact-finder",
     "cold-email-outreach", "email-drafting", "inbound-lead-enrichment",
@@ -18,60 +12,24 @@
     "inbound-lead-qualification", "contact-cache",
     "meeting-brief", "sales-call-prep", "pipeline-review",
     "sequence-performance", "sales-coaching",
-    "battlecard-generator", "competitor-intel", "churn-risk-detector"
+    "battlecard-generator", "competitor-intel", "churn-risk-detector",
+    "champion-tracker", "job-posting-intent", "funding-signal-monitor",
+    "leadership-change-outreach", "expansion-signal-spotter"
   ],
   "skills_failed": [],
   "audit_complete": true,
   "infra_complete": true,
-  "total_skills_implemented": 19,
+  "total_skills_implemented": 24,
   "decisions_log": [
-    {
-      "timestamp": "2026-04-12T10:15:00Z",
-      "phase": 0,
-      "decision": "Use Drizzle ORM patterns (not Prisma) — codebase uses Drizzle with pgTable",
-      "reason": "Schema is in apps/web/src/db/schema.ts using Drizzle, not Prisma"
-    },
-    {
-      "timestamp": "2026-04-12T10:20:00Z",
-      "phase": 0,
-      "decision": "Skills are lightweight modules plugging into existing traceAgent + Zod infrastructure",
-      "reason": "Elevay already has mature observability, no need for new framework"
-    },
-    {
-      "timestamp": "2026-04-12T10:25:00Z",
-      "phase": 0,
-      "decision": "24 skills in queue ordered by effort (Wrapper first) then priority (P0 first)",
-      "reason": "Quick wins with Wrappers validate infra; P0 covers core GTM flow"
-    },
-    {
-      "timestamp": "2026-04-12T10:40:00Z",
-      "phase": 1,
-      "decision": "tracedGenerateObject uses _trace field, not separate agentId/tenantId params",
-      "reason": "Read traced-ai.ts source — it destructures { _trace, ...aiParams } from params"
-    },
-    {
-      "timestamp": "2026-04-12T11:00:00Z",
-      "phase": 2,
-      "decision": "Wrappers call real Apollo/scoring/sequence-generator functions directly",
-      "reason": "Zero abstraction layer needed — existing code is already well-structured"
-    },
-    {
-      "timestamp": "2026-04-12T11:30:00Z",
-      "phase": 2,
-      "decision": "Signal scanner uses diff-based activity comparison (recent vs older half) for engagement spikes",
-      "reason": "Matches goose-skills pattern of diff-based detection without external APIs"
-    },
-    {
-      "timestamp": "2026-04-12T12:00:00Z",
-      "phase": 2,
-      "decision": "Created unified /api/skills/[slug] route for all skills",
-      "reason": "Single entry point with dryRun default=true for safety; GET /api/skills/list for discovery"
-    },
-    {
-      "timestamp": "2026-04-12T12:15:00Z",
-      "phase": 2,
-      "decision": "All LLM-using skills fallback from Anthropic to OpenAI if ANTHROPIC_API_KEY not set",
-      "reason": "Matches existing pattern in sequence-generator.ts"
-    }
+    {"timestamp": "2026-04-12T10:15:00Z", "phase": 0, "decision": "Use Drizzle ORM patterns (not Prisma)", "reason": "Schema is in apps/web/src/db/schema.ts using Drizzle"},
+    {"timestamp": "2026-04-12T10:20:00Z", "phase": 0, "decision": "Skills are lightweight modules plugging into existing traceAgent + Zod infrastructure", "reason": "Elevay already has mature observability"},
+    {"timestamp": "2026-04-12T10:25:00Z", "phase": 0, "decision": "24 skills in queue ordered by effort then priority", "reason": "Quick wins with Wrappers validate infra"},
+    {"timestamp": "2026-04-12T10:40:00Z", "phase": 1, "decision": "tracedGenerateObject uses _trace field", "reason": "Read traced-ai.ts source"},
+    {"timestamp": "2026-04-12T11:00:00Z", "phase": 2, "decision": "Wrappers call real functions directly", "reason": "Zero abstraction needed"},
+    {"timestamp": "2026-04-12T11:30:00Z", "phase": 2, "decision": "Diff-based signal detection for engagement spikes", "reason": "Matches goose-skills pattern"},
+    {"timestamp": "2026-04-12T12:00:00Z", "phase": 2, "decision": "Unified /api/skills/[slug] route", "reason": "Single entry point with dryRun default"},
+    {"timestamp": "2026-04-12T12:15:00Z", "phase": 2, "decision": "LLM fallback Anthropic -> OpenAI", "reason": "Matches existing pattern"},
+    {"timestamp": "2026-04-12T12:45:00Z", "phase": 2, "decision": "Champion/funding/growth signals use Apollo re-enrichment diff", "reason": "No Apify in codebase; Apollo provides sufficient data for diff-based detection"},
+    {"timestamp": "2026-04-12T12:55:00Z", "phase": 2, "decision": "Leadership change detection compares Apollo People Search against existing contacts", "reason": "New people at tracked companies = leadership change signal"}
   ]
 }
