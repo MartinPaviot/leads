@@ -1292,6 +1292,161 @@ Examples: "What did we discuss with Acme last call?" "What were the action items
         };
       },
     }),
+
+    // === SKILLS: GTM Intelligence Tools ===
+
+    analyzePipeline: makeTool({
+      description: `Analyze the entire deal pipeline: stage breakdown, stuck deals, win rate, average deal value, velocity. Use when user asks "how's my pipeline", "pipeline review", "deal health", "what's stuck", or "forecast".`,
+      inputSchema: z.object({
+        periodDays: z.number().optional().describe("Analysis period in days (default 30)"),
+        stuckThresholdDays: z.number().optional().describe("Days before a deal is considered stuck (default 14)"),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { pipelineReviewSkill } = await import("@/skills/intelligence/pipeline-review");
+        const result = await runSkill(pipelineReviewSkill, {
+          periodDays: input.periodDays ?? 30,
+          stuckThresholdDays: input.stuckThresholdDays ?? 14,
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    scanSignals: makeTool({
+      description: `Scan companies for buying signals: funding events, engagement spikes, stalled deals, tech adoption. Use when user asks "any signals?", "who's showing intent?", "what companies are active?", or "buying signals".`,
+      inputSchema: z.object({
+        companyIds: z.array(z.string()).optional().describe("Specific company IDs to scan, or omit to scan top-scored companies"),
+        signalTypes: z.array(z.string()).optional().describe("Signal types: funding, engagement_spike, deal_stall, tech_adoption"),
+        lookbackDays: z.number().optional().describe("Days to look back (default 30)"),
+      }),
+      execute: async (input) => {
+        // If no company IDs provided, scan top 50 companies by score
+        let ids = input.companyIds;
+        if (!ids || ids.length === 0) {
+          const topCompanies = await db
+            .select({ id: companies.id })
+            .from(companies)
+            .where(eq(companies.tenantId, tenantId))
+            .orderBy(desc(companies.score))
+            .limit(50);
+          ids = topCompanies.map((c) => c.id);
+        }
+        if (ids.length === 0) return { signals: [], message: "No companies to scan" };
+
+        const { runSkill } = await import("@/skills/runner");
+        const { signalScannerSkill } = await import("@/skills/signals/signal-scanner");
+        const result = await runSkill(signalScannerSkill, {
+          companyIds: ids,
+          signalTypes: input.signalTypes ?? ["funding", "engagement_spike", "deal_stall", "tech_adoption"],
+          lookbackDays: input.lookbackDays ?? 30,
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    generateBattlecard: makeTool({
+      description: `Generate a competitive sales battlecard against a competitor. Use when user asks "battlecard for X", "how do we compete with X", "competitive analysis of X", or "what are X's weaknesses".`,
+      inputSchema: z.object({
+        competitorDomain: z.string().describe("Competitor website domain (e.g. competitor.com)"),
+        competitorName: z.string().optional(),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { battlecardGeneratorSkill } = await import("@/skills/intelligence/battlecard-generator");
+        const result = await runSkill(battlecardGeneratorSkill, {
+          competitorDomain: input.competitorDomain,
+          competitorName: input.competitorName,
+          ourProductDescription: tenantSettings.productDescription,
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    researchCompetitor: makeTool({
+      description: `Research a competitor: team, funding, tech stack, positioning, vulnerabilities. Use when user asks "tell me about X", "research X company", "who are X's leaders", or "competitor intel on X".`,
+      inputSchema: z.object({
+        competitorDomain: z.string().describe("Competitor domain (e.g. competitor.com)"),
+        competitorName: z.string().optional(),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { competitorIntelSkill } = await import("@/skills/intelligence/competitor-intel");
+        const result = await runSkill(competitorIntelSkill, {
+          competitorDomain: input.competitorDomain,
+          competitorName: input.competitorName,
+          focusAreas: ["product", "positioning", "team", "funding", "tech_stack"],
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    detectChurnRisk: makeTool({
+      description: `Scan all accounts for churn risk: inactivity, negative sentiment, engagement drops. Use when user asks "who's at risk?", "churn risk", "which accounts are going dark?", or "customer health".`,
+      inputSchema: z.object({
+        lookbackDays: z.number().optional().describe("Analysis period (default 60)"),
+        inactivityThresholdDays: z.number().optional().describe("Days of inactivity before flagging (default 21)"),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { churnRiskDetectorSkill } = await import("@/skills/intelligence/churn-risk-detector");
+        const result = await runSkill(churnRiskDetectorSkill, {
+          lookbackDays: input.lookbackDays ?? 60,
+          inactivityThresholdDays: input.inactivityThresholdDays ?? 21,
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    analyzeSequencePerformance: makeTool({
+      description: `Analyze email sequence/campaign performance: open rates, reply rates, bounce rates per step. Use when user asks "how are my campaigns doing?", "sequence performance", "email stats", or "which campaign works best?".`,
+      inputSchema: z.object({
+        sequenceId: z.string().optional().describe("Specific sequence ID, or omit for all"),
+        periodDays: z.number().optional().describe("Analysis period (default 30)"),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { sequencePerformanceSkill } = await import("@/skills/intelligence/sequence-performance");
+        const result = await runSkill(sequencePerformanceSkill, {
+          sequenceId: input.sequenceId,
+          periodDays: input.periodDays ?? 30,
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    findLeadsAtCompany: makeTool({
+      description: `Find decision-makers at a specific company using Apollo. Use when user asks "find contacts at X", "who works at X", "get me the VP Sales at X", or "decision makers at X".`,
+      inputSchema: z.object({
+        companyDomain: z.string().describe("Company domain to search"),
+        targetTitles: z.array(z.string()).optional().describe("Specific titles to look for"),
+        targetSeniorities: z.array(z.string()).optional().describe("Seniority levels: c_suite, vp, director, manager"),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { companyContactFinderSkill } = await import("@/skills/enrichment/company-contact-finder");
+        const result = await runSkill(companyContactFinderSkill, {
+          companyDomain: input.companyDomain,
+          targetTitles: input.targetTitles,
+          targetSeniorities: input.targetSeniorities ?? ["c_suite", "vp", "director"],
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    detectExpansionOpportunities: makeTool({
+      description: `Find upsell/expansion opportunities among existing customers: new departments engaging, positive sentiment, activity increases, headcount growth. Use when user asks "expansion opportunities", "who can we upsell?", "growth signals from customers".`,
+      inputSchema: z.object({
+        lookbackDays: z.number().optional().describe("Analysis period (default 30)"),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { expansionSignalSpotterSkill } = await import("@/skills/signals/expansion-signal-spotter");
+        const result = await runSkill(expansionSignalSpotterSkill, {
+          lookbackDays: input.lookbackDays ?? 30,
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
   };
 
   // ── Include all tools — Claude handles tool selection better than regex ──
