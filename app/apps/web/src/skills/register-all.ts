@@ -9,6 +9,7 @@ import { inboundLeadEnrichmentSkill } from "./enrichment/inbound-lead-enrichment
 // Outreach
 import { coldEmailOutreachSkill } from "./outreach/cold-email-outreach";
 import { emailDraftingSkill } from "./outreach/email-drafting";
+import { leadershipChangeOutreachSkill } from "./outreach/leadership-change-outreach";
 
 // Scoring
 import { leadQualificationSkill } from "./scoring/lead-qualification";
@@ -18,6 +19,10 @@ import { inboundLeadQualificationSkill } from "./scoring/inbound-lead-qualificat
 // Signals
 import { signalScannerSkill } from "./signals/signal-scanner";
 import { contactCacheSkill } from "./signals/contact-cache";
+import { championTrackerSkill } from "./signals/champion-tracker";
+import { jobPostingIntentSkill } from "./signals/job-posting-intent";
+import { fundingSignalMonitorSkill } from "./signals/funding-signal-monitor";
+import { expansionSignalSpotterSkill } from "./signals/expansion-signal-spotter";
 
 // Intelligence
 import { meetingBriefSkill } from "./intelligence/meeting-brief";
@@ -49,4 +54,9 @@ export function registerAllSkills() {
   registerSkill(battlecardGeneratorSkill);
   registerSkill(competitorIntelSkill);
   registerSkill(churnRiskDetectorSkill);
+  registerSkill(championTrackerSkill);
+  registerSkill(jobPostingIntentSkill);
+  registerSkill(fundingSignalMonitorSkill);
+  registerSkill(leadershipChangeOutreachSkill);
+  registerSkill(expansionSignalSpotterSkill);
 }
