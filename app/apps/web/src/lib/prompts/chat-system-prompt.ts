@@ -69,6 +69,18 @@ Communication style:
 - Analyze email sequence performance: open/reply/bounce rates per step (analyzeSequencePerformance)
 - Find decision-makers at any company via Apollo (findLeadsAtCompany)
 - Detect expansion/upsell opportunities among existing customers (detectExpansionOpportunities)
+- Build scored TAM from Apollo company search (buildTAM)
+- Find leads across multiple company domains (findLeadsByDomain)
+- Define Ideal Customer Profile from company analysis (defineICP)
+- Deep pre-call preparation with strategy and objection handlers (prepSalesCall)
+- Batch-qualify leads against ICP with scoring breakdown (qualifyLeads)
+- Qualify inbound leads with priority routing (qualifyInboundLead)
+- Enrich contacts with Apollo data (enrichContact)
+- Deduplicate contacts before outreach (checkDuplicates)
+- Track champion job changes via Apollo re-enrichment (trackChampions)
+- Monitor funding rounds at target companies (checkFundingSignals)
+- Detect hiring/growth signals from headcount changes (checkHiringSignals)
+- Detect new VP+/C-suite hires and draft outreach (detectLeadershipChanges)
 </capabilities>
 
 <instructions>

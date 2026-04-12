@@ -12,6 +12,8 @@ import { cronTriggerSequenceSteps } from "@/inngest/sequence-cron";
 import { cronFailureToEvalCases, cronFlywheelCycle, runAgentFlywheel, asyncOnlineEval } from "@/inngest/eval-functions";
 import { prepareCampaign } from "@/inngest/campaign-functions";
 import { handleReplyIntelligently } from "@/inngest/reply-handler";
+import { weeklySignalScan, weeklyChurnRiskScan, weeklyExpansionScan, weeklyFundingMonitor, monthlyChampionTracker } from "@/inngest/skill-crons";
+import { onContactCreatedEnrichAndQualify } from "@/inngest/skill-events";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -45,5 +47,13 @@ export const { GET, POST, PUT } = serve({
     cronFlywheelCycle,
     runAgentFlywheel,
     asyncOnlineEval,
+    // Skills: scheduled scans
+    weeklySignalScan,
+    weeklyChurnRiskScan,
+    weeklyExpansionScan,
+    weeklyFundingMonitor,
+    monthlyChampionTracker,
+    // Skills: event-driven
+    onContactCreatedEnrichAndQualify,
   ],
 });

@@ -1447,6 +1447,242 @@ Examples: "What did we discuss with Acme last call?" "What were the action items
         return result.data ?? { error: result.error };
       },
     }),
+
+    buildTAM: makeTool({
+      description: `Build a scored Total Addressable Market using Apollo. Use when user asks "build my TAM", "find companies matching my ICP", "search for target companies", "prospect list for fintech".`,
+      inputSchema: z.object({
+        keywords: z.array(z.string()).optional().describe("Company keyword tags (e.g. ['saas', 'fintech'])"),
+        employeeRanges: z.array(z.string()).optional().describe("Apollo ranges like ['51,200', '201,500']"),
+        locations: z.array(z.string()).optional().describe("Locations like ['United States', 'France']"),
+        maxPages: z.number().optional().describe("Pages to search (default 5, each = 100 companies)"),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { tamBuilderSkill } = await import("@/skills/enrichment/tam-builder");
+        const result = await runSkill(tamBuilderSkill, {
+          mode: "build",
+          companyFilters: {
+            q_organization_keyword_tags: input.keywords,
+            organization_num_employees_ranges: input.employeeRanges,
+            organization_locations: input.locations,
+          },
+          maxPages: input.maxPages ?? 5,
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    findLeadsByDomain: makeTool({
+      description: `Find leads across multiple company domains using Apollo. Two-phase: free search then optional paid enrichment. Use when user asks "find leads at these companies", "prospect across domains", "get contacts for my target list".`,
+      inputSchema: z.object({
+        domains: z.array(z.string()).describe("Company domains to search"),
+        personTitles: z.array(z.string()).optional().describe("Job titles to filter"),
+        personSeniorities: z.array(z.string()).optional().describe("Seniority levels"),
+        enrichEmails: z.boolean().optional().describe("Enrich for verified emails (costs credits)"),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { apolloLeadFinderSkill } = await import("@/skills/enrichment/apollo-lead-finder");
+        const result = await runSkill(apolloLeadFinderSkill, {
+          domains: input.domains,
+          personTitles: input.personTitles,
+          personSeniorities: input.personSeniorities ?? ["c_suite", "vp", "director"],
+          enrichEmails: input.enrichEmails ?? false,
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    defineICP: makeTool({
+      description: `Analyze a company and define its Ideal Customer Profile. Use when user asks "define ICP for X", "who should we target?", "ideal customer for our product", "ICP analysis".`,
+      inputSchema: z.object({
+        companyDomain: z.string().describe("Company domain to analyze"),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { icpIdentificationSkill } = await import("@/skills/scoring/icp-identification");
+        const result = await runSkill(icpIdentificationSkill, {
+          companyDomain: input.companyDomain,
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    prepSalesCall: makeTool({
+      description: `Deep pre-call preparation: person insights, company intel, competitive landscape, call strategy, opening hook, discovery questions, objection handlers. Use when user asks "prep for call with X", "call strategy for X", "how to approach this meeting".`,
+      inputSchema: z.object({
+        contactId: z.string().describe("Contact ID for the call"),
+        dealId: z.string().optional().describe("Associated deal ID"),
+        callType: z.enum(["discovery", "demo", "follow_up", "negotiation", "close"]).optional(),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { salesCallPrepSkill } = await import("@/skills/intelligence/sales-call-prep");
+        const result = await runSkill(salesCallPrepSkill, {
+          contactId: input.contactId,
+          dealId: input.dealId,
+          callType: input.callType ?? "discovery",
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    qualifyLeads: makeTool({
+      description: `Batch-qualify contacts against ICP: seniority, engagement, sentiment, fit scoring. Use when user asks "qualify these leads", "score my contacts", "which leads are worth pursuing?", "rank contacts by fit".`,
+      inputSchema: z.object({
+        contactIds: z.array(z.string()).describe("Contact IDs to qualify"),
+        minScoreThreshold: z.number().optional().describe("Minimum score to be qualified (default 40)"),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { leadQualificationSkill } = await import("@/skills/scoring/lead-qualification");
+        const result = await runSkill(leadQualificationSkill, {
+          contactIds: input.contactIds,
+          minScoreThreshold: input.minScoreThreshold ?? 40,
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    qualifyInboundLead: makeTool({
+      description: `Qualify a single inbound lead: score, detect duplicates, determine priority (hot/warm/nurture/disqualified), recommend action. Use when user asks "qualify this lead", "is this lead worth it?", "triage this inbound".`,
+      inputSchema: z.object({
+        contactId: z.string().describe("Contact ID of the inbound lead"),
+        source: z.enum(["form", "demo_request", "trial", "content_download", "webinar", "chatbot", "referral", "unknown"]).optional(),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { inboundLeadQualificationSkill } = await import("@/skills/scoring/inbound-lead-qualification");
+        const result = await runSkill(inboundLeadQualificationSkill, {
+          contactId: input.contactId,
+          source: input.source ?? "unknown",
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    enrichContact: makeTool({
+      description: `Enrich a contact with Apollo data: fills missing title, LinkedIn, phone, seniority, departments. Also enriches company. Use when user asks "enrich this contact", "get more data on X", "fill in missing info for X".`,
+      inputSchema: z.object({
+        contactId: z.string().describe("Contact ID to enrich"),
+        enrichCompany: z.boolean().optional().describe("Also enrich associated company (default true)"),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { inboundLeadEnrichmentSkill } = await import("@/skills/enrichment/inbound-lead-enrichment");
+        const result = await runSkill(inboundLeadEnrichmentSkill, {
+          contactId: input.contactId,
+          enrichCompany: input.enrichCompany ?? true,
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    checkDuplicates: makeTool({
+      description: `Check if contacts already exist in the CRM to prevent duplicate outreach. Use when user asks "are these duplicates?", "check for existing contacts", "dedup this list".`,
+      inputSchema: z.object({
+        contacts: z.array(z.object({
+          email: z.string().optional(),
+          linkedinUrl: z.string().optional(),
+          name: z.string().optional(),
+        })).describe("Contacts to check"),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { contactCacheSkill } = await import("@/skills/signals/contact-cache");
+        const result = await runSkill(contactCacheSkill, {
+          action: "check",
+          contacts: input.contacts,
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    trackChampions: makeTool({
+      description: `Check if known champions/advocates have changed jobs or titles. Use when user asks "check my champions", "did anyone change jobs?", "champion tracking", "job change alerts".`,
+      inputSchema: z.object({
+        contactIds: z.array(z.string()).describe("Contact IDs of champions to track"),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { championTrackerSkill } = await import("@/skills/signals/champion-tracker");
+        const result = await runSkill(championTrackerSkill, {
+          contactIds: input.contactIds,
+          detectJobChange: true,
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    checkFundingSignals: makeTool({
+      description: `Check companies for new funding rounds. Use when user asks "any funding news?", "who just raised?", "funding signals", "recently funded companies".`,
+      inputSchema: z.object({
+        companyIds: z.array(z.string()).optional().describe("Specific company IDs, or omit for top companies"),
+      }),
+      execute: async (input) => {
+        let ids = input.companyIds;
+        if (!ids || ids.length === 0) {
+          const topCompanies = await db.select({ id: companies.id }).from(companies)
+            .where(eq(companies.tenantId, tenantId)).orderBy(desc(companies.score)).limit(100);
+          ids = topCompanies.map((c) => c.id);
+        }
+        if (ids.length === 0) return { signals: [], message: "No companies to check" };
+        const { runSkill } = await import("@/skills/runner");
+        const { fundingSignalMonitorSkill } = await import("@/skills/signals/funding-signal-monitor");
+        const result = await runSkill(fundingSignalMonitorSkill, {
+          companyIds: ids,
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    checkHiringSignals: makeTool({
+      description: `Detect growth/hiring signals from employee count changes. Use when user asks "who's hiring?", "growth signals", "hiring intent", "which companies are growing?".`,
+      inputSchema: z.object({
+        companyIds: z.array(z.string()).optional().describe("Specific company IDs, or omit for top companies"),
+        targetKeywords: z.array(z.string()).optional().describe("Job title keywords indicating buying intent"),
+      }),
+      execute: async (input) => {
+        let ids = input.companyIds;
+        if (!ids || ids.length === 0) {
+          const topCompanies = await db.select({ id: companies.id }).from(companies)
+            .where(eq(companies.tenantId, tenantId)).orderBy(desc(companies.score)).limit(50);
+          ids = topCompanies.map((c) => c.id);
+        }
+        if (ids.length === 0) return { signals: [], message: "No companies to check" };
+        const { runSkill } = await import("@/skills/runner");
+        const { jobPostingIntentSkill } = await import("@/skills/signals/job-posting-intent");
+        const result = await runSkill(jobPostingIntentSkill, {
+          companyIds: ids,
+          targetKeywords: input.targetKeywords ?? [],
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    detectLeadershipChanges: makeTool({
+      description: `Detect new VP+ and C-suite hires at tracked companies and draft outreach. Use when user asks "any new leaders?", "leadership changes", "new VPs at target accounts", "executive changes".`,
+      inputSchema: z.object({
+        companyIds: z.array(z.string()).optional().describe("Specific company IDs, or omit for top companies"),
+        generateOutreach: z.boolean().optional().describe("Auto-generate outreach emails (default true)"),
+      }),
+      execute: async (input) => {
+        let ids = input.companyIds;
+        if (!ids || ids.length === 0) {
+          const topCompanies = await db.select({ id: companies.id }).from(companies)
+            .where(eq(companies.tenantId, tenantId)).orderBy(desc(companies.score)).limit(30);
+          ids = topCompanies.map((c) => c.id);
+        }
+        if (ids.length === 0) return { changes: [], message: "No companies to check" };
+        const { runSkill } = await import("@/skills/runner");
+        const { leadershipChangeOutreachSkill } = await import("@/skills/outreach/leadership-change-outreach");
+        const result = await runSkill(leadershipChangeOutreachSkill, {
+          companyIds: ids,
+          generateOutreach: input.generateOutreach ?? true,
+        }, { tenantId, dryRun: false });
+        return result.data ?? { error: result.error };
+      },
+    }),
   };
 
   // ── Include all tools — Claude handles tool selection better than regex ──
