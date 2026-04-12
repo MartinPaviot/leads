@@ -167,8 +167,12 @@ export async function POST(req: Request) {
         // Calculate Engagement score (from activities)
         const engagement = await calculateEngagementScore(authCtx.tenantId, id);
 
-        // Combined score: Fit × 0.5 + Engagement × 0.5
-        const totalScore = Math.round(fit.score * 0.5 + engagement.score * 0.5);
+        // Adaptive weighting: if no engagement yet (new TAM company), weight fit 100%.
+        // As engagement grows, blend in up to 40% engagement weight.
+        const hasEngagement = engagement.score > 0;
+        const fitWeight = hasEngagement ? 0.6 : 1.0;
+        const engWeight = hasEngagement ? 0.4 : 0.0;
+        const totalScore = Math.round(fit.score * fitWeight + engagement.score * engWeight);
         const allReasons = [...fit.reasons, ...engagement.reasons];
 
         // Determine grade using shared thresholds

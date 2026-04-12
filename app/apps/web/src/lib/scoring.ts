@@ -46,7 +46,19 @@ export interface FitScoreResult {
   reasons: string[];
 }
 
-/** Score a company against an ICP. Pure function, no DB. */
+/**
+ * Score a company against an ICP. Pure function, no DB.
+ *
+ * Scoring (100 pts total):
+ *   Industry:   30 pts — core ICP signal
+ *   Size:       25 pts — core ICP signal
+ *   Geography:  20 pts — core ICP signal
+ *   Funding:    10 pts — budget/growth signal
+ *   Revenue:    10 pts — scale signal
+ *   Data:        5 pts — enrichment completeness
+ *
+ * 75 pts depend on ICP criteria. No free "neutral" points — a mismatch scores 0.
+ */
 export function calculateFitScore(
   company: Record<string, unknown>,
   props: Record<string, unknown>,
@@ -55,109 +67,92 @@ export function calculateFitScore(
   let score = 0;
   const reasons: string[] = [];
 
-  // Industry match (0-20)
+  // ── Industry (0-30) ──
   const industry = company.industry as string | null;
-  if (industry) {
-    const targetIndustries = icp?.industries;
-    if (targetIndustries && targetIndustries.length > 0) {
-      if (targetIndustries.some((t) => industry.toLowerCase().includes(t.toLowerCase()))) {
-        score += 20;
-        reasons.push(`Industry match: ${industry}`);
-      } else {
-        score += 3;
-      }
-    } else {
-      score += 5; // No industry preference set — neutral
+  const targetIndustries = icp?.industries;
+  if (targetIndustries && targetIndustries.length > 0) {
+    if (industry && targetIndustries.some((t) => industry.toLowerCase().includes(t.toLowerCase()))) {
+      score += 30;
+      reasons.push(`Industry match: ${industry}`);
+    } else if (industry) {
+      reasons.push(`Industry mismatch: ${industry}`);
     }
+  } else if (industry) {
+    score += 15; // No preference set — moderate credit
   }
 
-  // Size in range (0-20)
-  // Try props.employee_count first, then parse company.size string (e.g. "51-100")
+  // ── Size (0-25) ──
   let employeeCount = props.employee_count as number | null;
   if (!employeeCount && company.size) {
     const nums = String(company.size).replace(/,/g, "").split("-").map(Number).filter((n) => !isNaN(n) && n > 0);
     if (nums.length > 0) employeeCount = Math.round((Math.min(...nums) + Math.max(...nums)) / 2);
   }
-  if (employeeCount) {
-    if (icp?.sizeRange) {
-      const [minSize, maxSize] = icp.sizeRange;
+  if (icp?.sizeRange) {
+    const [minSize, maxSize] = icp.sizeRange;
+    if (employeeCount) {
       if (employeeCount >= minSize && employeeCount <= maxSize) {
-        score += 20;
-        reasons.push(`Size in range: ${employeeCount} employees`);
+        score += 25;
+        reasons.push(`Size match: ${employeeCount} employees`);
       } else if (employeeCount >= minSize * 0.5 && employeeCount <= maxSize * 2) {
-        score += 10;
+        score += 12;
+        reasons.push(`Size adjacent: ${employeeCount} employees`);
       } else {
-        score += 3;
+        reasons.push(`Size mismatch: ${employeeCount} (target: ${minSize}-${maxSize})`);
       }
-    } else {
-      score += 5; // No size preference set — neutral
     }
+  } else if (employeeCount) {
+    score += 12;
   }
 
-  // Revenue in range (0-15)
+  // ── Geography (0-20) ──
+  const country = props.country as string | null;
+  const city = props.city as string | null;
+  const loc = [city, country].filter(Boolean).join(", ").toLowerCase();
+  const preferredGeos = icp?.geographies || [];
+  if (preferredGeos.length > 0) {
+    if (loc && preferredGeos.some((g) => loc.includes(g.toLowerCase()) || g.toLowerCase().includes(loc))) {
+      score += 20;
+      reasons.push(`Geography match: ${[city, country].filter(Boolean).join(", ")}`);
+    } else if (loc) {
+      reasons.push(`Geography mismatch: ${[city, country].filter(Boolean).join(", ")}`);
+    }
+  } else if (loc) {
+    score += 10;
+  }
+
+  // ── Funding (0-10) ──
+  const totalFunding = props.total_funding as number | null;
+  const fundingStage = props.latest_funding_stage as string | null;
+  if (totalFunding && totalFunding > 0) {
+    const pts = totalFunding >= 10_000_000 ? 10 : totalFunding >= 1_000_000 ? 7 : 3;
+    score += pts;
+    reasons.push(`Funded: ${props.total_funding_printed || `$${(totalFunding / 1_000_000).toFixed(1)}M`} (${fundingStage || "undisclosed"})`);
+  }
+
+  // ── Revenue (0-10) ──
   const annualRevenue = props.annual_revenue as number | null;
   if (annualRevenue) {
     if (icp?.revenueRange) {
       const [minRev, maxRev] = icp.revenueRange;
       if (annualRevenue >= minRev && annualRevenue <= maxRev) {
-        score += 15;
+        score += 10;
         reasons.push(`Revenue in range: ${props.annual_revenue_printed || `$${(annualRevenue / 1_000_000).toFixed(0)}M`}`);
       } else if (annualRevenue >= minRev * 0.5) {
-        score += 7;
+        score += 5;
       }
     } else {
-      score += 5; // No revenue preference — neutral
+      score += annualRevenue >= 10_000_000 ? 8 : annualRevenue >= 1_000_000 ? 5 : 2;
     }
   }
 
-  // Tech stack match (0-15)
-  const technologies = (props.technologies as string[]) || [];
-  if (technologies.length > 0 && icp?.technologies && icp.technologies.length > 0) {
-    const matches = technologies.filter((t) =>
-      icp.technologies!.some((tt) => t.toLowerCase().includes(tt.toLowerCase()))
-    );
-    if (matches.length >= 3) {
-      score += 15;
-      reasons.push(`Tech stack match: ${matches.slice(0, 3).join(", ")}`);
-    } else if (matches.length >= 1) {
-      score += 8;
-      reasons.push(`Some tech overlap: ${matches.join(", ")}`);
-    }
-  }
-
-  // Recent funding (0-10)
-  const totalFunding = props.total_funding as number | null;
-  const fundingStage = props.latest_funding_stage as string | null;
-  if (totalFunding && totalFunding > 0) {
-    score += 10;
-    reasons.push(`Funded: ${props.total_funding_printed || `$${(totalFunding / 1_000_000).toFixed(0)}M`} (${fundingStage || "undisclosed"})`);
-  }
-
-  // LinkedIn presence (0-5)
-  if (props.linkedin_url) {
-    score += 5;
-  }
-  // Apollo enrichment (0-5)
-  if (props.enrichment_source === "apollo") {
-    score += 5;
-    reasons.push("Verified by Apollo.io enrichment");
-  }
-
-  // Location (0-10)
-  const country = props.country as string | null;
-  if (country) {
-    const preferredGeos = icp?.geographies || [];
-    if (preferredGeos.length > 0) {
-      if (preferredGeos.some((g) => country.toLowerCase().includes(g.toLowerCase()) || g.toLowerCase().includes(country.toLowerCase()))) {
-        score += 10;
-        reasons.push(`Geography match: ${country}`);
-      } else {
-        score += 3;
-      }
-    } else {
-      score += 5; // No geo preference set — neutral score
-    }
-  }
+  // ── Data quality (0-5) ──
+  let dq = 0;
+  if (company.industry) dq++;
+  if (employeeCount) dq++;
+  if (company.description) dq++;
+  if (props.linkedin_url) dq++;
+  if (props.enrichment_source === "apollo") dq++;
+  score += dq;
 
   return { score: Math.min(100, score), reasons };
 }
