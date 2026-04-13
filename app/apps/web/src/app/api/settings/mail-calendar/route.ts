@@ -2,6 +2,27 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { authAccounts, connectedMailboxes, tenants } from "@/db/schema";
 import { eq, and, ne } from "drizzle-orm";
+import { updateTenantSettings } from "@/lib/tenant-settings";
+
+const CONTACT_CREATION_MODES = ["disabled", "selective", "always"] as const;
+const BACKSYNC_RANGES = ["1m", "3m", "6m", "12m"] as const;
+type ContactCreationMode = (typeof CONTACT_CREATION_MODES)[number];
+type BacksyncRange = (typeof BACKSYNC_RANGES)[number];
+
+function sanitizeDomains(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of input) {
+    if (typeof raw !== "string") continue;
+    const cleaned = raw.trim().toLowerCase();
+    if (!cleaned || seen.has(cleaned)) continue;
+    seen.add(cleaned);
+    out.push(cleaned);
+    if (out.length >= 200) break;
+  }
+  return out;
+}
 
 /**
  * Unified Mail & Calendar API — merges OAuth accounts (reading/sync)
@@ -151,5 +172,66 @@ export async function GET() {
   } catch (error) {
     console.error("Failed to fetch mail-calendar settings:", error);
     return Response.json({ error: "Failed to fetch settings" }, { status: 500 });
+  }
+}
+
+/**
+ * Update sync preferences (contactCreationMode, backsyncRange, doNotTrackDomains).
+ * Available to any authenticated workspace member — these settings affect the
+ * whole workspace's sync behavior, not user-private data.
+ */
+export async function PUT(req: Request) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const contactCreationMode = body.contactCreationMode;
+  if (
+    typeof contactCreationMode !== "string" ||
+    !CONTACT_CREATION_MODES.includes(contactCreationMode as ContactCreationMode)
+  ) {
+    return Response.json(
+      { error: `contactCreationMode must be one of ${CONTACT_CREATION_MODES.join(", ")}` },
+      { status: 400 },
+    );
+  }
+
+  const backsyncRange = body.backsyncRange;
+  if (
+    typeof backsyncRange !== "string" ||
+    !BACKSYNC_RANGES.includes(backsyncRange as BacksyncRange)
+  ) {
+    return Response.json(
+      { error: `backsyncRange must be one of ${BACKSYNC_RANGES.join(", ")}` },
+      { status: 400 },
+    );
+  }
+
+  const doNotTrackDomains = sanitizeDomains(body.doNotTrackDomains);
+
+  try {
+    await updateTenantSettings(authCtx.tenantId, {
+      contactCreationMode: contactCreationMode as ContactCreationMode,
+      backsyncRange: backsyncRange as BacksyncRange,
+      doNotTrackDomains,
+    });
+
+    return Response.json({
+      success: true,
+      syncPreferences: {
+        contactCreationMode,
+        backsyncRange,
+        doNotTrackDomains,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to update mail-calendar sync preferences:", error);
+    return Response.json({ error: "Failed to update sync preferences" }, { status: 500 });
   }
 }

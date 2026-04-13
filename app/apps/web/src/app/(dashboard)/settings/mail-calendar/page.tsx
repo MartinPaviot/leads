@@ -148,7 +148,7 @@ export default function MailCalendarPage() {
     setSaving(true);
     setError("");
     try {
-      const res = await fetch("/api/settings/privacy", {
+      const res = await fetch("/api/settings/mail-calendar", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contactCreationMode, backsyncRange, doNotTrackDomains }),
