@@ -186,13 +186,13 @@ export default function DashboardPage() {
           </h1>
           <p className="mt-0.5 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
             {summary?.challenge === "Finding the right leads"
-              ? "Let\u2019s find your next best prospects."
+              ? "Your top prospects by fit score."
               : summary?.challenge === "Getting responses"
-                ? "Let\u2019s get more replies today."
+                ? "Reply rates and follow-up gaps."
                 : summary?.challenge === "Closing deals"
-                  ? "Let\u2019s move your deals forward."
+                  ? "Pipeline velocity and next steps."
                   : summary?.challenge === "Expanding accounts"
-                    ? "Let\u2019s grow your accounts."
+                    ? "Expansion signals across your accounts."
                     : today}
           </p>
         </div>
@@ -415,7 +415,7 @@ export default function DashboardPage() {
                                 {fm.totalContacts} contacts ready for outreach
                               </p>
                               <p className="mt-0.5 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-                                Launch your first campaign to start conversations
+                                Launch a campaign to reach your top prospects
                               </p>
                             </div>
                             <ArrowRight size={14} style={{ color: "var(--color-accent)" }} />

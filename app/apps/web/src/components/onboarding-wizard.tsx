@@ -510,7 +510,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
         {/* ════ STEP 2 : CONNECT ════ */}
         {step === "connect" && (
           <div className="flex flex-col h-full">
-            <StepHeader icon={<Mail size={15} />} title="Connect your email & calendar" subtitle="We sync your conversations and meetings to build your customer memory." />
+            <StepHeader icon={<Mail size={15} />} title="Connect your email & calendar" subtitle="We sync your conversations and meetings to keep full context on every deal." />
 
             <div className="flex-1 space-y-4">
               <div className="space-y-2">

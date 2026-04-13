@@ -122,7 +122,7 @@ The pattern I see is that RevOps teams spend 60% of their time cleaning data ins
 
 Armis solved this by automating contact and activity capture before their Series C push — their RevOps team went from data janitors to strategic operators, and forecast accuracy improved from 65% to 89%.
 
-If data quality is on your radar ahead of the next board meeting, I'd be happy to share the Armis framework.`,
+If data quality is on your radar ahead of the next board meeting, I can send you the Armis framework.`,
     whyItWorks: "Names the exact tension between board expectations and operational reality. The 'data janitor' framing resonates viscerally with RevOps. Peer proof with dramatic metric improvement. CTA tied to a real deadline (board meeting). 128 words.",
   },
 

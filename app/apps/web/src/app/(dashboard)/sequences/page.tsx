@@ -81,7 +81,7 @@ export default function CampaignsPage() {
           <EmptyState
             icon={<Zap size={24} />}
             title="No campaigns yet"
-            description="Select your targets, let AI write the emails, review, and launch — all in one flow."
+            description="Pick your targets, draft personalized emails, review, and launch."
             actionLabel="Create your first campaign"
             onAction={() => setShowWizard(true)}
           />

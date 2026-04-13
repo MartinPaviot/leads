@@ -7,9 +7,9 @@
 // Used by both backend (score/route.ts) and frontend (ui-utils.ts).
 // Ordered descending by min — first match wins.
 export const GRADE_THRESHOLDS = [
-  { min: 90, grade: "A+", heat: "Burning" as const, icon: "🔥" },
-  { min: 80, grade: "A",  heat: "Burning" as const, icon: "🔥" },
-  { min: 60, grade: "B",  heat: "Warm" as const,    icon: "☀️" },
+  { min: 90, grade: "A+", heat: "Burning" as const, icon: "" },
+  { min: 80, grade: "A",  heat: "Burning" as const, icon: "" },
+  { min: 60, grade: "B",  heat: "Warm" as const,    icon: "" },
   { min: 40, grade: "C",  heat: "Cool" as const,    icon: "" },
   { min: 20, grade: "D",  heat: "Cold" as const,    icon: "" },
   { min: 0,  grade: "F",  heat: "Cold" as const,    icon: "" },
