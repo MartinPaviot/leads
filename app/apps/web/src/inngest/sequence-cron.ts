@@ -30,7 +30,7 @@ export const cronTriggerSequenceSteps = inngest.createFunction(
             lte(sequenceEnrollments.nextStepAt, new Date())
           )
         )
-        .limit(50);
+        .limit(200);
     });
 
     if (dueEnrollments.length === 0) {

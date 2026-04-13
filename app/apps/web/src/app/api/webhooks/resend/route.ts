@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { outboundEmails, connectedMailboxes, sequenceEnrollments, emailOptouts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { createHmac, timingSafeEqual } from "crypto";
+import { pauseEnrollment } from "@/lib/enrollment";
 
 /**
  * Verify a Resend (Svix) webhook signature.
@@ -153,14 +154,12 @@ export async function POST(req: Request) {
 
         // Hard bounce: pause enrollment + add to optout list
         if (bounceType === "permanent" && email.enrollmentId) {
-          await db.update(sequenceEnrollments).set({
-            status: "paused",
-          }).where(eq(sequenceEnrollments.id, email.enrollmentId));
+          await pauseEnrollment(email.enrollmentId, "bounced");
 
           // Add to optout list
           await db.insert(emailOptouts).values({
             tenantId: email.tenantId,
-            emailAddress: email.toAddress,
+            emailAddress: email.toAddress.toLowerCase(),
             reason: "bounce_hard",
           }).onConflictDoNothing();
         }
@@ -180,15 +179,13 @@ export async function POST(req: Request) {
         // Add to global optout list
         await db.insert(emailOptouts).values({
           tenantId: email.tenantId,
-          emailAddress: email.toAddress,
+          emailAddress: email.toAddress.toLowerCase(),
           reason: "unsubscribe",
         }).onConflictDoNothing();
 
         // Pause enrollment
         if (email.enrollmentId) {
-          await db.update(sequenceEnrollments).set({
-            status: "paused",
-          }).where(eq(sequenceEnrollments.id, email.enrollmentId));
+          await pauseEnrollment(email.enrollmentId, "complained");
         }
 
         // Update mailbox health

@@ -2,6 +2,9 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import { companies, contacts, sequenceSteps, sequenceEnrollments, activities, outboundEmails, emailOptouts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { addBusinessDays } from "@/lib/business-days";
+import { getTenantSettings } from "@/lib/tenant-settings";
+import { pauseEnrollment } from "@/lib/enrollment";
 import { tracedGenerateObject } from "@/lib/traced-ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
@@ -371,6 +374,28 @@ export const sendSequenceStep = inngest.createFunction(
       return { enrollmentId, sent: false, reason: "No contact email" };
     }
 
+    const tenantId = contact.tenantId;
+
+    // Idempotency: if we've already created an outbound for this enrollment+step,
+    // skip. Protects against duplicate `sequence/step-due` events from cron
+    // overlaps or Inngest retries that re-deliver the trigger.
+    const existingOutbound = await step.run("check-duplicate", async () => {
+      const [row] = await db
+        .select({ id: outboundEmails.id })
+        .from(outboundEmails)
+        .where(
+          and(
+            eq(outboundEmails.enrollmentId, enrollmentId),
+            eq(outboundEmails.stepNumber, enrollment.currentStep),
+          ),
+        )
+        .limit(1);
+      return row || null;
+    });
+    if (existingOutbound) {
+      return { enrollmentId, sent: false, reason: "Outbound already exists for this step" };
+    }
+
     // Generate personalized email using template + LLM
     const model = getLLMModel();
     let subject = stepTemplate.subjectTemplate;
@@ -413,15 +438,15 @@ export const sendSequenceStep = inngest.createFunction(
       body = personalized.body;
     }
 
-    // Check opt-out before sending
+    // Check opt-out before sending (within the contact's actual tenant)
     const optedOut = await step.run("check-optout", async () => {
       const [opt] = await db
         .select()
         .from(emailOptouts)
         .where(
           and(
-            eq(emailOptouts.tenantId, "default"),
-            eq(emailOptouts.emailAddress, contact.email!)
+            eq(emailOptouts.tenantId, tenantId),
+            eq(emailOptouts.emailAddress, contact.email!.toLowerCase())
           )
         )
         .limit(1);
@@ -437,7 +462,7 @@ export const sendSequenceStep = inngest.createFunction(
       const [email] = await db
         .insert(outboundEmails)
         .values({
-          tenantId: "default",
+          tenantId,
           enrollmentId,
           contactId: enrollment.contactId,
           stepNumber: enrollment.currentStep,
@@ -456,7 +481,7 @@ export const sendSequenceStep = inngest.createFunction(
     // Log activity
     await step.run("log-send", async () => {
       await db.insert(activities).values({
-        tenantId: "default",
+        tenantId,
         actorType: "system",
         actorId: null,
         entityType: "contact",
@@ -493,8 +518,18 @@ export const sendSequenceStep = inngest.createFunction(
         .limit(1);
 
       if (nextStepTemplate) {
-        const nextStepAt = new Date();
-        nextStepAt.setDate(nextStepAt.getDate() + (nextStepTemplate.delayDays || 2));
+        // Skip weekends unless tenant explicitly opts out — recipients
+        // shouldn't get a Tuesday follow-up landing in their Saturday inbox.
+        const settings = await getTenantSettings(tenantId).catch(() => ({} as Record<string, unknown>));
+        const skipWeekends = (settings as { sequencesSkipWeekends?: boolean }).sequencesSkipWeekends !== false;
+        const delayDays = nextStepTemplate.delayDays || 2;
+        const nextStepAt = skipWeekends
+          ? addBusinessDays(new Date(), delayDays)
+          : (() => {
+              const d = new Date();
+              d.setDate(d.getDate() + delayDays);
+              return d;
+            })();
 
         await db
           .update(sequenceEnrollments)
@@ -534,12 +569,9 @@ export const processReply = inngest.createFunction(
   async ({ event, step }: { event: { data: { enrollmentId: string; replyContent: string } }; step: any }) => {
     const { enrollmentId, replyContent } = event.data;
 
-    // Mark enrollment as replied
+    // Mark enrollment as replied (centralised — also writes audit activity)
     await step.run("mark-replied", async () => {
-      await db
-        .update(sequenceEnrollments)
-        .set({ status: "replied" })
-        .where(eq(sequenceEnrollments.id, enrollmentId));
+      await pauseEnrollment(enrollmentId, "replied");
     });
 
     // Classify the reply if LLM available

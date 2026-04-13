@@ -37,6 +37,10 @@ export interface TenantSettings {
   backsyncRange?: "1m" | "3m" | "6m" | "12m";
   doNotTrackDomains?: string[];
 
+  // ── Sequence behavior ──
+  /** When true (default), sequence step delays skip Saturdays and Sundays. */
+  sequencesSkipWeekends?: boolean;
+
   // ── Custom schema ──
   customFields?: CustomFieldDef[];
   pipelineStages?: PipelineStageDef[];

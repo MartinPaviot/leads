@@ -1,42 +1,16 @@
 import { db } from "@/db";
-import { emailOptouts, tenants, contacts, sequenceEnrollments, activities } from "@/db/schema";
-import { and, eq, inArray } from "drizzle-orm";
+import { emailOptouts, tenants, contacts } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
 import { verifyUnsubscribeToken as verifyToken } from "@/lib/unsubscribe-token";
+import { pauseEnrollmentsForContacts } from "@/lib/enrollment";
 
 async function pauseActiveEnrollmentsForEmail(tenantId: string, emailLower: string) {
-  // Find every contact in this tenant with this email, then pause any of
-  // their active enrollments. Cheap because emails are unique-ish per tenant.
   const matching = await db
     .select({ id: contacts.id })
     .from(contacts)
     .where(and(eq(contacts.tenantId, tenantId), eq(contacts.email, emailLower)));
-
   if (matching.length === 0) return;
-  const contactIds = matching.map((c) => c.id);
-
-  await db
-    .update(sequenceEnrollments)
-    .set({ status: "paused" })
-    .where(
-      and(
-        inArray(sequenceEnrollments.contactId, contactIds),
-        eq(sequenceEnrollments.status, "active"),
-      ),
-    );
-
-  // One activity entry per affected contact for the audit trail
-  for (const id of contactIds) {
-    await db.insert(activities).values({
-      tenantId,
-      actorType: "contact",
-      actorId: id,
-      entityType: "contact",
-      entityId: id,
-      activityType: "system_event",
-      summary: "Unsubscribed — active sequence enrollments paused",
-      metadata: { reason: "unsubscribe" },
-    });
-  }
+  await pauseEnrollmentsForContacts(tenantId, matching.map((c) => c.id), "unsubscribed");
 }
 
 function htmlResponse(title: string, message: string, status = 200) {
