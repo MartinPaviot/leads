@@ -57,6 +57,13 @@
       "when": 1775657417205,
       "tag": "0007_jittery_vector",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1776110614923,
+      "tag": "0008_silky_rhodey",
+      "breakpoints": true
     }
   ]
 }

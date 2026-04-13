@@ -915,3 +915,31 @@ export const importHistory = pgTable(
     index("import_history_created_idx").on(table.createdAt),
   ]
 );
+
+// ── Pending Invitations ────────────────────────────────
+export const pendingInvites = pgTable(
+  "pending_invites",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id, { onDelete: "cascade" }).notNull(),
+    email: text("email").notNull(),
+    role: text("role").notNull().default("member"), // "admin" | "member"
+    /** 24-byte base64url random token, unique across all tenants. */
+    token: text("token").notNull().unique(),
+    invitedByUserId: text("invited_by_user_id").references(() => users.id),
+    /** "pending" | "accepted" | "cancelled" | "expired" */
+    status: text("status").notNull().default("pending"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSentAt: timestamp("last_sent_at", { withTimezone: true }).notNull().defaultNow(),
+    resendCount: integer("resend_count").notNull().default(0),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    acceptedByUserId: text("accepted_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("pending_invites_tenant_status_idx").on(table.tenantId, table.status),
+    index("pending_invites_email_idx").on(table.tenantId, table.email),
+  ]
+);

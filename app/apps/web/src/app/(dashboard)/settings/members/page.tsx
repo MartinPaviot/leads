@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/toast";
+import { useSafeFetch } from "@/lib/use-safe-fetch";
 
 interface Member {
   id: string;
@@ -14,38 +16,114 @@ interface Member {
   avatarUrl: string | null;
 }
 
+interface PendingInvite {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  sentAt: string;
+  lastSentAt: string;
+  expiresAt: string;
+  resendCount: number;
+}
+
 export default function MembersSettingsPage() {
   const [members, setMembers] = useState<Member[]>([]);
+  const [invites, setInvites] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
+  const [inviting, setInviting] = useState(false);
   const [error, setError] = useState("");
 
+  const sfetch = useSafeFetch();
+  const { toast } = useToast();
+
+  const loadInvites = useCallback(async () => {
+    const { data } = await sfetch<{ invites: PendingInvite[] }>(
+      "/api/settings/members/invites",
+      { silent: true },
+    );
+    if (data) setInvites(data.invites || []);
+  }, [sfetch]);
+
   useEffect(() => {
-    fetch("/api/settings/members")
-      .then((r) => r.json())
-      .then((data) => {
-        setMembers(data.members || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+    Promise.all([
+      sfetch<{ members: Member[] }>("/api/settings/members", { errorMessage: "Failed to load members" }),
+      sfetch<{ invites: PendingInvite[] }>("/api/settings/members/invites", { silent: true }),
+    ]).then(([m, i]) => {
+      if (m.data) setMembers(m.data.members || []);
+      if (i.data) setInvites(i.data.invites || []);
+      setLoading(false);
+    });
+  }, [sfetch]);
 
   async function handleRoleChange(memberId: string, role: string) {
     setError("");
-    try {
-      const res = await fetch("/api/settings/members", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberId, role }),
-      });
-      if (res.ok) {
-        setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, role } : m)));
+    const { error: err } = await sfetch("/api/settings/members", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId, role }),
+      errorMessage: "Failed to update member role",
+    });
+    if (!err) {
+      setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, role } : m)));
+    } else {
+      setError(err);
+    }
+  }
+
+  async function handleInvite() {
+    const email = inviteEmail.trim();
+    if (!email) return;
+    setInviting(true);
+    setError("");
+    const { data, error: err } = await sfetch<{
+      invite?: { email: string };
+      emailSent?: boolean;
+      emailError?: string;
+      error?: string;
+    }>("/api/settings/members/invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, role: inviteRole }),
+      errorMessage: "Failed to send invitation",
+    });
+    setInviting(false);
+    if (err) return;
+    if (data?.invite) {
+      if (data.emailSent === false) {
+        toast(`Invite created but email failed: ${data.emailError ?? "unknown"}`, "warning");
       } else {
-        setError("Failed to update member role");
+        toast(`Invitation sent to ${data.invite.email}`, "success");
       }
-    } catch {
-      setError("Failed to update member role");
+      setInviteEmail("");
+      setInviteRole("member");
+      await loadInvites();
+    }
+  }
+
+  async function handleResend(id: string) {
+    const { data, error: err } = await sfetch<{ emailSent?: boolean; emailError?: string }>(
+      `/api/settings/members/invites/${id}`,
+      { method: "POST", errorMessage: "Failed to resend invitation" },
+    );
+    if (!err && data) {
+      toast(data.emailSent ? "Invitation resent" : `Resend failed: ${data.emailError ?? "unknown"}`,
+        data.emailSent ? "success" : "warning");
+      await loadInvites();
+    }
+  }
+
+  async function handleCancel(id: string) {
+    if (!confirm("Cancel this invitation? The link will stop working.")) return;
+    const { error: err } = await sfetch(`/api/settings/members/invites/${id}`, {
+      method: "DELETE",
+      errorMessage: "Failed to cancel invitation",
+    });
+    if (!err) {
+      setInvites((prev) => prev.filter((i) => i.id !== id));
+      toast("Invitation cancelled", "success");
     }
   }
 
@@ -79,15 +157,67 @@ export default function MembersSettingsPage() {
               { value: "admin", label: "Admin" },
             ]}
           />
-          <Button variant="gradient" disabled={!inviteEmail.trim()}>
-            Invite
+          <Button
+            variant="gradient"
+            disabled={!inviteEmail.trim() || inviting}
+            onClick={handleInvite}
+          >
+            {inviting ? "Inviting..." : "Invite"}
           </Button>
         </div>
-        <p className="mt-1.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-          Invite functionality coming soon.
-        </p>
         {error && <p className="mt-1.5 text-[12px]" style={{ color: "var(--color-error)" }}>{error}</p>}
       </div>
+
+      {invites.length > 0 && (
+        <div className="mt-6">
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
+            Pending invitations ({invites.length})
+          </div>
+          <div className="space-y-2">
+            {invites.map((inv) => {
+              const expires = new Date(inv.expiresAt);
+              const expired = expires.getTime() < Date.now();
+              return (
+                <Card key={inv.id}>
+                  <CardBody>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+                            {inv.email}
+                          </p>
+                          <Badge variant={inv.role === "admin" ? "warning" : "info"} size="sm">
+                            {inv.role}
+                          </Badge>
+                          {expired && <Badge variant="error" size="sm">expired</Badge>}
+                        </div>
+                        <p className="mt-0.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                          Sent {new Date(inv.lastSentAt).toLocaleDateString()} · expires {expires.toLocaleDateString()}
+                          {inv.resendCount > 0 && ` · resent ${inv.resendCount}×`}
+                        </p>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleResend(inv.id)}
+                          disabled={inv.resendCount >= 3}
+                          title={inv.resendCount >= 3 ? "Resend limit reached" : "Resend invitation"}
+                        >
+                          Resend
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleCancel(inv.id)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </CardBody>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 space-y-2">
         {loading ? (
