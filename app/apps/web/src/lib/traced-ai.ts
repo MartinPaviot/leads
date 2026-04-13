@@ -93,7 +93,7 @@ export async function tracedGenerateText(
           .map((tc: any) => ({ name: tc.toolName })),
         status: "ok",
       },
-    ).catch(() => {});
+    ).catch((e) => console.warn("traced-ai: recordTrace failed (non-blocking)", e));
 
     return result;
   } catch (err) {
@@ -107,7 +107,7 @@ export async function tracedGenerateText(
         status: String(err).includes("timeout") ? "timeout" : "error",
         errorMessage: String(err).slice(0, 500),
       },
-    ).catch(() => {});
+    ).catch((e) => console.warn("traced-ai: recordTrace failed (non-blocking)", e));
     throw err;
   }
 }
@@ -153,7 +153,7 @@ export async function tracedGenerateObject(
         latencyMs,
         status: "ok",
       },
-    ).catch(() => {});
+    ).catch((e) => console.warn("traced-ai: recordTrace failed (non-blocking)", e));
 
     return result;
   } catch (err) {
@@ -167,7 +167,7 @@ export async function tracedGenerateObject(
         status: String(err).includes("timeout") ? "timeout" : "error",
         errorMessage: String(err).slice(0, 500),
       },
-    ).catch(() => {});
+    ).catch((e) => console.warn("traced-ai: recordTrace failed (non-blocking)", e));
     throw err;
   }
 }
@@ -214,7 +214,7 @@ export async function tracedStreamText(
         toolCalls,
         status: "ok",
       },
-    ).catch(() => {});
+    ).catch((e) => console.warn("traced-ai: recordTrace failed (non-blocking)", e));
 
     // Call original onFinish if exists
     if (originalOnFinish) await originalOnFinish(event);
@@ -233,7 +233,7 @@ export async function tracedStreamText(
         status: "error",
         errorMessage: String(err).slice(0, 500),
       },
-    ).catch(() => {});
+    ).catch((e) => console.warn("traced-ai: recordTrace failed (non-blocking)", e));
     throw err;
   }
 }

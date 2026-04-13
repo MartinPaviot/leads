@@ -19,7 +19,7 @@ export async function GET(req: Request) {
 
   if (emailId) {
     // Fire-and-forget: don't block pixel response
-    recordOpen(emailId).catch(() => {});
+    recordOpen(emailId).catch((e) => console.warn("track/open: recordOpen failed", e));
   }
 
   return new Response(PIXEL, {

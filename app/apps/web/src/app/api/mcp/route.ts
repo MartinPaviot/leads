@@ -264,7 +264,7 @@ async function authenticateMcpRequest(
           })
           .where(eq(tenants.id, tenant.id))
           .then(() => {})
-          .catch(() => {});
+          .catch((e) => console.warn("mcp: lastUsedAt update failed (non-blocking)", e));
 
         return { tenantId: tenant.id, keyId: key.id };
       }

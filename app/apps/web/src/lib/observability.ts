@@ -413,7 +413,7 @@ export async function recordTrace(
         outputTokens,
         tenantId: ctx.tenantId,
         feature: ctx.agentId,
-      }).catch(() => {});
+      }).catch((e) => console.warn("observability: trackTokenUsage failed (non-blocking)", e));
     }
 
     // Check alert thresholds

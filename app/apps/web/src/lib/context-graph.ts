@@ -235,7 +235,7 @@ export async function resolveEntity(
     await rawSql`
       UPDATE context_graph_nodes SET embedding = ${vectorStr}::vector
       WHERE id = ${newNode.id}
-    `.catch(() => {});
+    `.catch((e) => console.warn("context-graph: embedding update failed (non-blocking)", e));
   }
 
   return newNode.id;

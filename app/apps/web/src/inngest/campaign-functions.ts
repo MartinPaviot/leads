@@ -471,7 +471,12 @@ export const prepareCampaign = inngest.createFunction(
               const payload = JSON.parse(Buffer.from(oa.idToken.split(".")[1], "base64url").toString());
               if (payload.email) senderEmail = payload.email;
             }
-          } catch { /* */ }
+          } catch (e) {
+            // Falling back to "pending@rotation" is acceptable — the send
+            // worker resolves a real From address from the connectedMailbox
+            // round-robin pool at send time.
+            console.warn("campaign: failed to derive sender email from OAuth token", e);
+          }
 
           await db.insert(outboundEmails).values({
             tenantId,

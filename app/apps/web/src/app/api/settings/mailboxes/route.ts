@@ -126,13 +126,16 @@ export async function DELETE(req: Request) {
     return Response.json({ error: "mailbox not found" }, { status: 404 });
   }
 
-  // Delete from EmailEngine
+  // Delete from EmailEngine. Best-effort: if EmailEngine is unreachable
+  // we still want to remove our local rows so the user is unblocked.
   const eeBase = process.env.EMAILENGINE_URL || "http://localhost:3100";
   try {
     await fetch(`${eeBase}/v1/account/${mailbox.eeAccountId}`, { method: "DELETE" });
-  } catch {}
+  } catch (err) {
+    console.warn("mailboxes DELETE: EmailEngine unreachable, continuing local cleanup", err);
+  }
 
-  // Delete dependent records first to avoid FK constraint violations
+  // Delete dependent records first to avoid FK constraint violations.
   try {
     await db.delete(warmupEmails).where(
       or(
@@ -141,7 +144,13 @@ export async function DELETE(req: Request) {
       )
     );
     await db.delete(outboundEmails).where(eq(outboundEmails.mailboxId, id));
-  } catch {}
+  } catch (err) {
+    console.error("mailboxes DELETE: failed to clear dependent rows", err);
+    return Response.json(
+      { error: "Failed to delete mailbox — could not clear dependent emails. Try again." },
+      { status: 500 },
+    );
+  }
 
   // Delete the mailbox itself
   try {

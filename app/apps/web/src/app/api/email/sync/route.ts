@@ -164,7 +164,8 @@ export async function POST() {
       // Ingest into context graph (async, non-blocking)
       if (email.body) {
         const graphContent = `Email from ${email.from} to ${email.to.join(", ")}:\nSubject: ${email.subject}\n\n${email.body.slice(0, 3000)}`;
-        ingestEpisode(authCtx.tenantId, graphContent, "email", email.gmailMessageId).catch(() => {});
+        ingestEpisode(authCtx.tenantId, graphContent, "email", email.gmailMessageId)
+          .catch((e) => console.warn("email/sync: ingestEpisode failed (non-blocking)", e));
       }
 
       created++;

@@ -30,7 +30,7 @@ export async function GET(req: Request) {
 
   if (emailId) {
     // Fire-and-forget: don't block redirect
-    recordClick(emailId, targetUrl).catch(() => {});
+    recordClick(emailId, targetUrl).catch((e) => console.warn("track/click: recordClick failed", e));
   }
 
   return NextResponse.redirect(parsed.toString());

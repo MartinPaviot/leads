@@ -75,7 +75,8 @@ export async function GET(req: Request) {
           // Ingest into context graph (async, non-blocking)
           if (email.body) {
             const graphContent = `Email from ${email.from} to ${email.to.join(", ")}:\nSubject: ${email.subject}\n\n${email.body.slice(0, 3000)}`;
-            ingestEpisode(mailbox.tenantId, graphContent, "email", email.gmailMessageId).catch(() => {});
+            ingestEpisode(mailbox.tenantId, graphContent, "email", email.gmailMessageId)
+              .catch((e) => console.warn("cron/email-sync: ingestEpisode failed (non-blocking)", e));
           }
 
           created++;

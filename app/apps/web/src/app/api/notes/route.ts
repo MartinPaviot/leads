@@ -54,7 +54,8 @@ export async function POST(req: Request) {
     // Ingest into context graph (async, non-blocking)
     if (content.trim().length > 20) {
       const graphContent = `Note: ${title || "Untitled"}\n\n${content.trim().slice(0, 3000)}`;
-      ingestEpisode(authCtx.tenantId, graphContent, "note", note.id).catch(() => {});
+      ingestEpisode(authCtx.tenantId, graphContent, "note", note.id)
+        .catch((e) => console.warn("notes: ingestEpisode failed (non-blocking)", e));
     }
 
     return Response.json({ note }, { status: 201 });

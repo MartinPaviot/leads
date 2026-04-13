@@ -101,7 +101,9 @@ export async function GET(req: Request) {
         process.env.RECALL_API_KEY &&
         activity
       ) {
-        scheduleRecallBot(m.meetingLink, activity.id, meta).catch(() => {});
+        scheduleRecallBot(m.meetingLink, activity.id, meta).catch((e) =>
+          console.warn("meetings: scheduleRecallBot failed (non-blocking)", e),
+        );
       }
 
       enriched.push({

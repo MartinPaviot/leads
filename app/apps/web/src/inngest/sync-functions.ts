@@ -247,7 +247,8 @@ export const syncEmails = inngest.createFunction(
 
                 // Embed company for RAG
                 if (process.env.OPENAI_API_KEY) {
-                  embedEntity(tenantId, "company", newCompany.id, companyToText({ name: companyName, domain })).catch(() => {});
+                  embedEntity(tenantId, "company", newCompany.id, companyToText({ name: companyName, domain }))
+                    .catch((e) => console.warn("sync: embedEntity company failed (non-blocking)", e));
                 }
 
                 // Fire enrichment for the new company
@@ -276,7 +277,8 @@ export const syncEmails = inngest.createFunction(
 
             // Embed contact for RAG
             if (process.env.OPENAI_API_KEY) {
-              embedEntity(tenantId, "contact", newContact.id, contactToText({ firstName, lastName, email: counterpartyEmail, companyName: companyName || undefined })).catch(() => {});
+              embedEntity(tenantId, "contact", newContact.id, contactToText({ firstName, lastName, email: counterpartyEmail, companyName: companyName || undefined }))
+                .catch((e) => console.warn("sync: embedEntity contact failed (non-blocking)", e));
             }
 
             // Fire enrichment event for the new contact
@@ -418,7 +420,7 @@ export const syncEmails = inngest.createFunction(
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ contactIds }),
-        }).catch(() => {});
+        }).catch((e) => console.warn("sync: enrich-contacts trigger failed (non-blocking)", e));
       }
     }
 
