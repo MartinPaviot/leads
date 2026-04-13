@@ -51,6 +51,15 @@ export async function GET() {
 
   const settings = (tenant?.settings || {}) as Record<string, unknown>;
   const onboardingCompleted = !!settings.onboardingCompleted;
+  const rawCurrentStep =
+    typeof settings.onboardingCurrentStep === "string"
+      ? settings.onboardingCurrentStep
+      : null;
+  // "building" is transient — the async TAM build runs via Inngest and isn't
+  // something the user can usefully resume mid-flight. Snap them back to
+  // "icp" so they can re-submit and re-trigger.
+  const onboardingCurrentStep =
+    rawCurrentStep === "building" ? "icp" : rawCurrentStep;
 
   const accounts = Number(accountCount?.count || 0);
   const contactTotal = Number(contactCount?.count || 0);
@@ -73,6 +82,7 @@ export async function GET() {
     hasMicrosoft,
     hasEmail: hasGoogle || hasMicrosoft,
     needsOnboarding: !onboardingCompleted,
+    onboardingCurrentStep,
     email: authUser?.email,
     name: authUser?.name || null,
   });

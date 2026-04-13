@@ -106,6 +106,7 @@ export default function DashboardPage() {
   const [onboardingHasMicrosoft, setOnboardingHasMicrosoft] = useState(false);
   const [onboardingEmail, setOnboardingEmail] = useState<string | undefined>();
   const [onboardingName, setOnboardingName] = useState<string | undefined>();
+  const [onboardingInitialStep, setOnboardingInitialStep] = useState<string | null>(null);
   const [emailComposer, setEmailComposer] = useState<{
     to: string;
     subject: string;
@@ -134,6 +135,11 @@ export default function DashboardPage() {
           setOnboardingHasMicrosoft(data.hasMicrosoft || false);
           setOnboardingEmail(data.email);
           setOnboardingName(data.name);
+          setOnboardingInitialStep(
+            typeof data.onboardingCurrentStep === "string"
+              ? data.onboardingCurrentStep
+              : null
+          );
         }
       })
       .catch((e) => console.warn("home: dashboard fetch failed", e));
@@ -718,6 +724,7 @@ export default function DashboardPage() {
           hasMicrosoft={onboardingHasMicrosoft}
           userEmail={onboardingEmail}
           userName={onboardingName}
+          initialStep={onboardingInitialStep as never}
           onComplete={() => {
             setShowOnboarding(false);
             window.location.href = "/?firstTime=true";

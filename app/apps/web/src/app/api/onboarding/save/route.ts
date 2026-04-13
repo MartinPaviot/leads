@@ -14,6 +14,21 @@ export async function POST(req: Request) {
   const data = await req.json();
   const updates: Partial<TenantSettings> = {};
 
+  // Persist the step the user is currently viewing so we can re-open the
+  // wizard in the same spot after a reload. `currentStep` arrives either
+  // on its own (pure position update, `step === "_current"`) or piggy-backed
+  // on the normal per-step saves below.
+  if (typeof data.currentStep === "string" && data.currentStep.length > 0) {
+    updates.onboardingCurrentStep = data.currentStep;
+  }
+
+  if (data.step === "_current") {
+    if (updates.onboardingCurrentStep) {
+      await updateTenantSettings(authCtx.tenantId, updates);
+    }
+    return Response.json({ ok: true });
+  }
+
   if (data.step === "welcome") {
     updates.onboardingFullName = data.fullName;
     updates.onboardingCompanyName = data.companyName;
@@ -64,6 +79,9 @@ export async function POST(req: Request) {
   if (data.step === "complete") {
     updates.onboardingCompleted = true;
     updates.onboardingCompletedAt = new Date().toISOString();
+    // Clear the resume marker on completion — no point remembering a step
+    // once the wizard is done.
+    updates.onboardingCurrentStep = undefined;
   }
 
   await updateTenantSettings(authCtx.tenantId, updates);

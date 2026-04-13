@@ -30,9 +30,21 @@ interface OnboardingWizardProps {
   hasMicrosoft?: boolean;
   userEmail?: string;
   userName?: string;
+  /** Persisted step from `/api/onboarding/status`. When present on mount, the
+   * wizard resumes at that step and flashes a "Welcome back" banner. */
+  initialStep?: Step | null;
 }
 
-type Step = "connect" | "privacy" | "welcome" | "product" | "icp" | "building" | "ready";
+export type Step = "connect" | "privacy" | "welcome" | "product" | "icp" | "building" | "ready";
+
+const RESUMABLE_STEPS: ReadonlySet<Step> = new Set([
+  "welcome",
+  "connect",
+  "privacy",
+  "product",
+  "icp",
+  "ready",
+]);
 
 const STEPS: { key: Step; label: string }[] = [
   { key: "welcome", label: "Your profile" },
@@ -265,8 +277,14 @@ const CREATION_OPTIONS = [
 
 /* ═══════════════════════════ MAIN COMPONENT ═══════════════════════════ */
 
-export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmail, userName }: OnboardingWizardProps) {
-  const [step, setStep] = useState<Step>("welcome");
+export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmail, userName, initialStep }: OnboardingWizardProps) {
+  // Resume from a prior session if the status endpoint handed us a step.
+  // The server already clamps "building" → "icp"; we double-check via
+  // RESUMABLE_STEPS to guard against future transient states.
+  const resumeStep =
+    initialStep && RESUMABLE_STEPS.has(initialStep) ? initialStep : null;
+  const [step, setStep] = useState<Step>(resumeStep ?? "welcome");
+  const [showResumeBanner, setShowResumeBanner] = useState<boolean>(!!resumeStep);
   const [saving, setSaving] = useState(false);
 
   const [websiteAnalysis, setWebsiteAnalysis] = useState<WebsiteAnalysis | null>(null);
@@ -322,6 +340,22 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
   const saveOnboardingData = async (data: Record<string, unknown>) => {
     await fetch("/api/onboarding/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
   };
+
+  // Persist the current step on every navigation so a reload can resume
+  // here. Fire-and-forget — a lost position update is not worth blocking
+  // the UI for; the user will re-save on the next click anyway.
+  const persistedStepRef = useRef<Step | null>(resumeStep);
+  useEffect(() => {
+    if (persistedStepRef.current === step) return;
+    persistedStepRef.current = step;
+    // Skip "building" — that state is transient and cleared by the server.
+    if (step === "building") return;
+    fetch("/api/onboarding/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ step: "_current", currentStep: step }),
+    }).catch((err) => console.warn("onboarding: persist step failed", err));
+  }, [step]);
 
   /* ── Handlers ── */
 
@@ -506,6 +540,28 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
           )}
         </div>
         {step !== "ready" && <ProgressBar current={stepIndex} total={7} />}
+        {showResumeBanner && (
+          <div
+            role="status"
+            className="mt-2 flex items-center justify-between rounded-md px-2.5 py-1.5 text-[11px]"
+            style={{
+              background: "var(--color-accent-subtle, rgba(99,102,241,0.08))",
+              color: "var(--color-text-secondary)",
+              border: "1px solid var(--color-border-default)",
+            }}
+          >
+            <span>Welcome back — picking up where you left off.</span>
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={() => setShowResumeBanner(false)}
+              className="opacity-60 hover:opacity-100"
+              style={{ background: "transparent", border: "none", cursor: "pointer", color: "inherit" }}
+            >
+              ×
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── Card — flex-1 fills all remaining space ── */}

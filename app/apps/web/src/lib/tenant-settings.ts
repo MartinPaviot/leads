@@ -14,6 +14,10 @@ export interface TenantSettings {
   onboardingRole?: string;
   onboardingCompleted?: boolean;
   onboardingCompletedAt?: string;
+  /** Last wizard step the user was on. Persisted on every `setStep` so the
+   * wizard can be re-opened at the same place after a reload. Cleared when
+   * onboarding completes. */
+  onboardingCurrentStep?: string;
 
   // ── Product context ──
   productDescription?: string;

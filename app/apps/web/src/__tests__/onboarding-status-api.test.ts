@@ -174,4 +174,67 @@ describe("GET /api/onboarding/status", () => {
     expect(data.isNew).toBe(false);
     expect(data.needsOnboarding).toBe(false);
   });
+
+  it("returns persisted onboardingCurrentStep so wizard can resume (T0.2)", async () => {
+    vi.mocked(getAuthContext).mockResolvedValue({
+      userId: "u1",
+      tenantId: "t1",
+      appUserId: "u1",
+      role: "admin",
+    });
+    mockSelectChain({
+      accountCount: 0,
+      contactCount: 0,
+      google: true,
+      microsoft: false,
+      tenantSettings: { onboardingCompleted: false, onboardingCurrentStep: "product" },
+      userEmail: "founder@example.com",
+    });
+
+    const res = await statusModule.GET();
+    const data = await res.json();
+    expect(data.onboardingCurrentStep).toBe("product");
+  });
+
+  it("clamps transient 'building' step back to 'icp' on resume (T0.2)", async () => {
+    vi.mocked(getAuthContext).mockResolvedValue({
+      userId: "u1",
+      tenantId: "t1",
+      appUserId: "u1",
+      role: "admin",
+    });
+    mockSelectChain({
+      accountCount: 0,
+      contactCount: 0,
+      google: true,
+      microsoft: false,
+      tenantSettings: { onboardingCompleted: false, onboardingCurrentStep: "building" },
+      userEmail: "founder@example.com",
+    });
+
+    const res = await statusModule.GET();
+    const data = await res.json();
+    expect(data.onboardingCurrentStep).toBe("icp");
+  });
+
+  it("returns onboardingCurrentStep=null when never set (T0.2)", async () => {
+    vi.mocked(getAuthContext).mockResolvedValue({
+      userId: "u1",
+      tenantId: "t1",
+      appUserId: "u1",
+      role: "admin",
+    });
+    mockSelectChain({
+      accountCount: 0,
+      contactCount: 0,
+      google: false,
+      microsoft: false,
+      tenantSettings: {},
+      userEmail: "founder@example.com",
+    });
+
+    const res = await statusModule.GET();
+    const data = await res.json();
+    expect(data.onboardingCurrentStep).toBeNull();
+  });
 });
