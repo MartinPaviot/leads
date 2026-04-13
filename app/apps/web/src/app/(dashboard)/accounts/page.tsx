@@ -25,6 +25,7 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { chunkedBulkCall } from "@/lib/chunk-bulk";
 
 interface Account {
   id: string;
@@ -140,11 +141,38 @@ export default function AccountsPage() {
     const ids = unenriched.map((a) => a.id);
     for (const id of ids) setEnrichStatus((prev) => ({ ...prev, [id]: "enriching" }));
     try {
-      const res = await fetch("/api/enrich", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyIds: ids }) });
-      for (const id of ids) setEnrichStatus((prev) => ({ ...prev, [id]: res.ok ? "done" : "failed" }));
-      if (res.ok) await fetchAccounts();
-    } catch { for (const id of ids) setEnrichStatus((prev) => ({ ...prev, [id]: "failed" })); }
-    finally { setEnrichAllRunning(false); }
+      // Server caps at 20 ids per call. Chunk client-side so every selected
+      // account is actually enriched instead of silently dropped.
+      const result = await chunkedBulkCall({
+        ids,
+        endpoint: "/api/enrich",
+        buildPayload: (chunk) => ({ companyIds: chunk }),
+        onProgress: (done, total) => {
+          toast(`Enriching ${done} / ${total} accounts…`, "info");
+        },
+      });
+      // Per-id status: ids belonging to failed chunks are marked failed; the rest done.
+      const failedIds = new Set(result.errors.flatMap((e) => e.ids));
+      setEnrichStatus((prev) => {
+        const next = { ...prev };
+        for (const id of ids) next[id] = failedIds.has(id) ? "failed" : "done";
+        return next;
+      });
+      if (result.succeeded > 0) await fetchAccounts();
+      if (result.failed === 0) {
+        toast(`Enriched ${result.succeeded} accounts.`, "success");
+      } else if (result.succeeded > 0) {
+        toast(`Enriched ${result.succeeded} of ${result.total}. ${result.failed} failed.`, "warning");
+        console.warn("accounts: enrichAll partial failure", result.errors);
+      } else {
+        toast(`Failed to enrich accounts.`, "error");
+        console.warn("accounts: enrichAll all chunks failed", result.errors);
+      }
+    } catch (e) {
+      for (const id of ids) setEnrichStatus((prev) => ({ ...prev, [id]: "failed" }));
+      toast("Bulk enrichment failed.", "error");
+      console.warn("accounts: enrichAll crashed", e);
+    } finally { setEnrichAllRunning(false); }
   }
 
   async function scoreAll() {
@@ -152,16 +180,27 @@ export default function AccountsPage() {
     if (ids.length === 0) return;
     setScoreAllRunning(true);
     try {
-      const res = await fetch("/api/score", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyIds: ids }) });
-      if (res.ok) {
-        await fetchAccounts();
-        toast(`Scored ${ids.length} accounts`, "success");
+      const result = await chunkedBulkCall({
+        ids,
+        endpoint: "/api/score",
+        buildPayload: (chunk) => ({ companyIds: chunk }),
+        onProgress: (done, total) => {
+          if (total > 20) toast(`Scoring ${done} / ${total} accounts…`, "info");
+        },
+      });
+      if (result.succeeded > 0) await fetchAccounts();
+      if (result.failed === 0) {
+        toast(`Scored ${result.succeeded} accounts.`, "success");
+      } else if (result.succeeded > 0) {
+        toast(`Scored ${result.succeeded} of ${result.total}. ${result.failed} failed.`, "warning");
+        console.warn("accounts: score-all partial failure", result.errors);
       } else {
-        toast("Failed to score accounts", "error");
+        toast("Failed to score accounts.", "error");
+        console.warn("accounts: score-all all chunks failed", result.errors);
       }
     } catch (e) {
-      toast("Failed to score accounts", "error");
-      console.warn("accounts: score-all failed", e);
+      toast("Failed to score accounts.", "error");
+      console.warn("accounts: score-all crashed", e);
     } finally { setScoreAllRunning(false); }
   }
 
@@ -170,16 +209,27 @@ export default function AccountsPage() {
     if (ids.length === 0) return;
     setDetectingSignals(true);
     try {
-      const res = await fetch("/api/signals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyIds: ids }) });
-      if (res.ok) {
-        await fetchAccounts();
-        toast(`Detected signals for ${ids.length} accounts`, "success");
+      const result = await chunkedBulkCall({
+        ids,
+        endpoint: "/api/signals",
+        buildPayload: (chunk) => ({ companyIds: chunk }),
+        onProgress: (done, total) => {
+          if (total > 20) toast(`Detecting signals ${done} / ${total}…`, "info");
+        },
+      });
+      if (result.succeeded > 0) await fetchAccounts();
+      if (result.failed === 0) {
+        toast(`Detected signals for ${result.succeeded} accounts.`, "success");
+      } else if (result.succeeded > 0) {
+        toast(`Signals for ${result.succeeded} of ${result.total}. ${result.failed} failed.`, "warning");
+        console.warn("accounts: detect-signals partial failure", result.errors);
       } else {
-        toast("Failed to detect signals", "error");
+        toast("Failed to detect signals.", "error");
+        console.warn("accounts: detect-signals all chunks failed", result.errors);
       }
     } catch (e) {
-      toast("Failed to detect signals", "error");
-      console.warn("accounts: detect-signals failed", e);
+      toast("Failed to detect signals.", "error");
+      console.warn("accounts: detect-signals crashed", e);
     } finally { setDetectingSignals(false); }
   }
 
