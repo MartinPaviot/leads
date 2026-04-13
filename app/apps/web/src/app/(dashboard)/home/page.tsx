@@ -204,10 +204,10 @@ export default function DashboardPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-[14px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
-                    Your GTM engine is ready
+                    Your sales engine is ready
                   </p>
                   <p className="mt-1 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-                    We found {summary.founderMetrics.totalAccounts} prospects and {summary.founderMetrics.totalContacts} contacts matching your ICP.
+                    We found {summary.founderMetrics.totalAccounts} prospects and {summary.founderMetrics.totalContacts} contacts matching your criteria.
                   </p>
                   <div className="mt-3 flex items-center gap-3">
                     <button
@@ -228,7 +228,7 @@ export default function DashboardPage() {
                       className="rounded-md px-3 py-1.5 text-[12px] font-medium"
                       style={{ color: "var(--color-accent)", background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}
                     >
-                      Ask the AI
+                      Ask Elevay
                     </button>
                   </div>
                 </div>
@@ -430,7 +430,7 @@ export default function DashboardPage() {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-                              Ask the AI for suggestions
+                              Ask Elevay for suggestions
                             </p>
                             <p className="mt-0.5 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
                               Get personalized next steps based on your pipeline

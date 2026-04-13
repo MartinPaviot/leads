@@ -40,7 +40,7 @@ export function PersistentChatBar({ forceShow }: { forceShow?: boolean } = {}) {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Ask Elevay..."
+          placeholder="e.g. Show my best prospects, Pipeline health, Draft email to..."
           className="w-full rounded-xl py-2.5 pl-10 pr-10 text-[14px] outline-none transition-all"
           style={{
             background: "var(--color-bg-card)",

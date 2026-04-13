@@ -317,7 +317,7 @@ export default function AccountsPage() {
                 color: filter === f ? "var(--color-accent)" : "var(--color-text-tertiary)",
               }}
             >
-              {f === "all" ? "All" : f === "tam" ? `TAM (${tamCount})` : "Manual"}
+              {f === "all" ? "All" : f === "tam" ? `Prospects (${tamCount})` : "Manual"}
             </button>
           ))}
         </div>

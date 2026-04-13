@@ -23,7 +23,7 @@ export default function SignInPage() {
             Elevay
           </h1>
           <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-            Sign in to your GTM engine
+            Sign in to your sales engine
           </p>
         </div>
 

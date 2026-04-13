@@ -517,8 +517,8 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
                 {[
                   { icon: <Mail size={12} />, t: "Email conversations", d: "Auto-create contacts from your inbox" },
                   { icon: <Calendar size={12} />, t: "Calendar & meetings", d: "Prep, summaries, and follow-ups" },
-                  { icon: <MessageSquare size={12} />, t: "Customer memory", d: "Every interaction searchable" },
-                  { icon: <Zap size={12} />, t: "Smart outbound", d: "AI references your actual history" },
+                  { icon: <MessageSquare size={12} />, t: "Full context", d: "Every interaction searchable" },
+                  { icon: <Zap size={12} />, t: "Personalized outreach", d: "Emails reference your actual history" },
                 ].map((item) => (
                   <div key={item.t} className="flex items-start gap-2">
                     <span className="shrink-0 mt-0.5" style={{ color: "var(--color-accent)" }}>{item.icon}</span>
@@ -622,7 +622,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
         {/* ════ STEP 1 : WELCOME / PROFILE ════ */}
         {step === "welcome" && (
           <div className="flex flex-col h-full">
-            <StepHeader icon={<Globe size={15} />} title="Let's set up your GTM engine" subtitle="Tell us about you and your company." />
+            <StepHeader icon={<Globe size={15} />} title="Set up your sales engine" subtitle="Tell us about you and your company." />
 
             <div className="flex-1 space-y-3">
               <div>
@@ -651,7 +651,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
                   <p className="mt-0.5 text-[10px]" style={{ color: "#ef4444" }}>Enter a valid domain (e.g., yourcompany.com)</p>
                 )}
                 {domainValid && (
-                  <p className="mt-0.5 text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>We&apos;ll analyze your website to pre-fill your ICP</p>
+                  <p className="mt-0.5 text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>We&apos;ll analyze your website to pre-fill your ideal customer profile</p>
                 )}
               </div>
               <div>
@@ -696,7 +696,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
               icon={<Target size={15} />}
               title="Define your ideal customer"
               subtitle={websiteAnalysis
-                ? `Based on your website, we pre-filled your ICP. Adjust anything that doesn't fit.`
+                ? `Based on your website, we pre-filled your ideal customer profile. Adjust anything that doesn't fit.`
                 : `We'll find companies that match${emailConnected ? " and flag warm ones" : ""}.`}
             />
 
@@ -708,7 +708,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
                 <div className="flex items-center gap-1.5 mb-2">
                   <Target size={13} style={{ color: "var(--color-accent)" }} />
                   <span className="text-[12px] font-medium" style={{ color: "var(--color-accent)" }}>
-                    Quick questions to refine your ICP
+                    Quick questions to refine your targeting
                   </span>
                 </div>
                 <div className="space-y-2">
@@ -755,9 +755,9 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
         {step === "building" && (() => {
           const stages = [
             { label: "Searching company databases...", icon: <Globe size={13} /> },
-            { label: "Validating with Apollo...", icon: <Target size={13} /> },
+            { label: "Validating company data...", icon: <Target size={13} /> },
             { label: "Enriching company profiles...", icon: <Building2 size={13} /> },
-            { label: emailConnected ? "Cross-referencing your inbox..." : "Scoring against your ICP...", icon: emailConnected ? <Mail size={13} /> : <Zap size={13} /> },
+            { label: emailConnected ? "Cross-referencing your inbox..." : "Scoring against your criteria...", icon: emailConnected ? <Mail size={13} /> : <Zap size={13} /> },
             { label: `Found ${tamProgress.found} companies`, icon: <Check size={13} /> },
             { label: "Building your pipeline...", icon: <Check size={13} /> },
           ];
@@ -818,7 +818,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
               <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full" style={{ background: "rgba(34,197,94,.1)" }}>
                 <Check size={18} style={{ color: "#22c55e" }} />
               </div>
-              <h2 className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>Your GTM engine is ready</h2>
+              <h2 className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>Your sales engine is ready</h2>
             </div>
 
             <div className="flex-1 space-y-3">
