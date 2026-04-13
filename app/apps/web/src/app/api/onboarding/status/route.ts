@@ -72,7 +72,7 @@ export async function GET() {
     hasGoogle,
     hasMicrosoft,
     hasEmail: hasGoogle || hasMicrosoft,
-    needsOnboarding: !onboardingCompleted && isNew,
+    needsOnboarding: !onboardingCompleted,
     email: authUser?.email,
     name: authUser?.name || null,
   });

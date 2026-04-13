@@ -1,0 +1,2 @@
+2026-04-13T00:00:00Z | SESSION | STARTED | branch=fix/T0-saignements base=ba9746b
+2026-04-13T00:00:00Z | T0.1 | STARTED
