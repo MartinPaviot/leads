@@ -876,7 +876,6 @@ export default function AccountsPage() {
                                     {c.title && <span className="ml-1.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>— {c.title}</span>}
                                   </div>
                                   {c.email && <span className="text-[11px] shrink-0" style={{ color: "var(--color-text-muted)" }}>{c.email}</span>}
-                                  <Badge variant="success" size="sm">Suggested</Badge>
                                 </div>
                               ))}
                             </div>
