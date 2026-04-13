@@ -7,7 +7,11 @@ import Link from "next/link";
 import { PasswordInput } from "@/components/ui/password-input";
 import { signIn } from "@/auth";
 
-export default async function SignUpPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function SignUpPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; invite?: string; email?: string }>;
+}) {
   const params = await searchParams;
   const errorMessages: Record<string, string> = {
     EmailExists: "An account with this email already exists.",
@@ -15,19 +19,34 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
     PasswordTooShort: "Password must be at least 6 characters.",
   };
   const errorMessage = params.error ? errorMessages[params.error] ?? "Something went wrong." : null;
+  const inviteToken = (params.invite || "").trim();
+  const presetEmail = (params.email || "").trim();
+
+  // After credentials sign-up: if invite present, send to accept-invite (which
+  // prompts sign-in then accepts). Otherwise the legacy "registered" message.
+  const credentialsRedirectAfter = inviteToken
+    ? `/sign-in?registered=true&callbackUrl=${encodeURIComponent(`/accept-invite?token=${inviteToken}`)}`
+    : "/sign-in?registered=true";
+  const oauthRedirectTo = inviteToken
+    ? `/accept-invite?token=${inviteToken}`
+    : "/home";
+
   async function handleSignUp(formData: FormData) {
     "use server";
 
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
     const name = formData.get("name") as string;
+    const inviteFromForm = ((formData.get("invite") as string) || "").trim();
 
     if (!email || !password || !name) {
-      redirect("/sign-up?error=MissingFields");
+      const q = inviteFromForm ? `&invite=${encodeURIComponent(inviteFromForm)}` : "";
+      redirect(`/sign-up?error=MissingFields${q}`);
     }
 
     if (password.length < 6) {
-      redirect("/sign-up?error=PasswordTooShort");
+      const q = inviteFromForm ? `&invite=${encodeURIComponent(inviteFromForm)}` : "";
+      redirect(`/sign-up?error=PasswordTooShort${q}`);
     }
 
     const [existing] = await db
@@ -37,7 +56,8 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
       .limit(1);
 
     if (existing) {
-      redirect("/sign-up?error=EmailExists");
+      const q = inviteFromForm ? `&invite=${encodeURIComponent(inviteFromForm)}` : "";
+      redirect(`/sign-up?error=EmailExists${q}`);
     }
 
     const userId = crypto.randomUUID();
@@ -57,6 +77,14 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
       access_token: passwordHash,
     });
 
+    if (inviteFromForm) {
+      // Funnel through sign-in (registered=true) and then to accept-invite.
+      // The accept-invite page validates email-match and switches the user's
+      // tenantId + role server-side.
+      redirect(
+        `/sign-in?registered=true&callbackUrl=${encodeURIComponent(`/accept-invite?token=${inviteFromForm}`)}`,
+      );
+    }
     redirect("/sign-in?registered=true");
   }
 
@@ -89,7 +117,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
             className="flex-1"
             action={async () => {
               "use server";
-              await signIn("google", { redirectTo: "/home" });
+              await signIn("google", { redirectTo: oauthRedirectTo });
             }}
           >
             <button
@@ -116,7 +144,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
             className="flex-1"
             action={async () => {
               "use server";
-              await signIn("microsoft-entra-id", { redirectTo: "/home" });
+              await signIn("microsoft-entra-id", { redirectTo: oauthRedirectTo });
             }}
           >
             <button
@@ -158,7 +186,22 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
           </div>
         )}
 
+        {inviteToken && (
+          <div
+            className="rounded-lg px-3 py-2 text-[12px]"
+            style={{
+              background: "var(--color-accent-soft, rgba(99,102,241,0.08))",
+              color: "var(--color-text-secondary)",
+              border: "1px solid var(--color-accent, #6366f1)",
+            }}
+          >
+            You&apos;re creating an account to accept a workspace invitation. Use the invited
+            email address.
+          </div>
+        )}
+
         <form action={handleSignUp} className="space-y-2.5">
+          {inviteToken && <input type="hidden" name="invite" value={inviteToken} />}
           <div>
             <label htmlFor="name" className="block text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
               Full name
@@ -186,6 +229,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
               name="email"
               type="email"
               required
+              defaultValue={presetEmail}
               placeholder="you@company.com"
               className="auth-input mt-1.5 w-full rounded-lg px-3 py-2 text-[13px] outline-none transition-colors"
               style={{
