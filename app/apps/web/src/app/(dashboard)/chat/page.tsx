@@ -13,11 +13,13 @@ import { StreamingSkeleton } from "@/components/chat/streaming-skeleton";
 import { FollowUpPills, extractFollowUps } from "@/components/chat/follow-up-pills";
 import { CopyButton } from "@/components/chat/copy-button";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 import { Compass, Send, Mail, Check, Paperclip, Mic, MicOff, Loader2 } from "lucide-react";
 
 export default function ChatPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { toast } = useToast();
   const [threadId, setThreadId] = useState<string | null>(searchParams.get("thread"));
   const [threadLoaded, setThreadLoaded] = useState(!searchParams.get("thread"));
 
@@ -434,6 +436,9 @@ export default function ChatPage() {
                                 : proposalAction === "createDeal" ? "/api/deals"
                                 : null;
                               if (endpoint) {
+                                const entityType = proposalAction === "createContact" ? "contact"
+                                  : proposalAction === "createAccount" ? "account"
+                                  : proposalAction === "createDeal" ? "deal" : "record";
                                 const res = await fetch(endpoint, {
                                   method: "POST",
                                   headers: { "Content-Type": "application/json" },
@@ -444,19 +449,60 @@ export default function ChatPage() {
                                   setCardStatuses((prev) => ({ ...prev, [cardKey]: "approved" }));
 
                                   // Trigger sequential workflow: notify LLM so it can propose linked records
-                                  const entityType = proposalAction === "createContact" ? "contact"
-                                    : proposalAction === "createAccount" ? "account"
-                                    : proposalAction === "createDeal" ? "deal" : "record";
                                   const createdId = created.id || created.contact?.id || created.account?.id || created.deal?.id || "";
                                   if (createdId) {
                                     chat.sendMessage({
                                       text: `[Approved: ${entityType} "${entityName || "record"}" created with id ${createdId}. If there are related records to create (e.g., a contact for a new account), propose them now.]`,
                                     });
                                   }
+                                } else {
+                                  // Surface server errors so the user knows the create didn't
+                                  // happen and can either retry or fix the payload.
+                                  const errorBody = (await res
+                                    .json()
+                                    .catch(() => ({}))) as { error?: string };
+                                  const serverMsg = errorBody.error ?? null;
+                                  if (res.status === 409) {
+                                    toast(
+                                      `A ${entityType} with this identifier already exists.`,
+                                      "error"
+                                    );
+                                  } else if (res.status === 422 || res.status === 400) {
+                                    toast(
+                                      `Validation failed: ${serverMsg ?? "check required fields"}.`,
+                                      "error"
+                                    );
+                                  } else {
+                                    toast(
+                                      `Failed to create ${entityType} (${res.status})${serverMsg ? `: ${serverMsg}` : ""}. Click Approve to retry.`,
+                                      "error"
+                                    );
+                                  }
+                                  console.warn("chat: approveCard server error", {
+                                    cardKey,
+                                    proposalAction,
+                                    status: res.status,
+                                    serverMsg,
+                                  });
+                                  // Keep state "pending" so the user can retry from the same card.
                                 }
                               }
-                            } catch {
-                              // Silent fail
+                            } catch (err) {
+                              // Network or unexpected client-side failure.
+                              const entityType = proposalAction === "createContact" ? "contact"
+                                : proposalAction === "createAccount" ? "account"
+                                : proposalAction === "createDeal" ? "deal" : "record";
+                              toast(
+                                err instanceof Error
+                                  ? `Failed to create ${entityType}: ${err.message}`
+                                  : `Failed to create ${entityType}. Please try again.`,
+                                "error"
+                              );
+                              console.warn("chat: approveCard failed", {
+                                cardKey,
+                                proposalAction,
+                                err,
+                              });
                             } finally {
                               setCardExecuting((prev) => ({ ...prev, [cardKey]: false }));
                             }
