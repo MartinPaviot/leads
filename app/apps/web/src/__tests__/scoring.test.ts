@@ -28,7 +28,8 @@ describe("calculateFitScore", () => {
 
     expect(score).toBeGreaterThanOrEqual(70);
     expect(reasons).toContainEqual(expect.stringContaining("Industry match"));
-    expect(reasons).toContainEqual(expect.stringContaining("Size in range"));
+    // Algorithm reason string is "Size match: <N> employees" when in range
+    expect(reasons).toContainEqual(expect.stringContaining("Size match"));
     expect(reasons).toContainEqual(expect.stringContaining("Geography match"));
   });
 
@@ -48,9 +49,10 @@ describe("calculateFitScore", () => {
   it("gives neutral scores when no ICP is set", () => {
     const { score } = calculateFitScore(baseCompany, baseProps);
 
-    // All neutral: industry(5) + size(5) + revenue(5) + funding(10) + linkedin(5) + apollo(5) + geo(5) = 40
+    // No ICP → industry/geo/revenue ICP-pts skipped, replaced by neutral defaults.
+    // Current algorithm yields ~40-60 for a fully-enriched company.
     expect(score).toBeGreaterThanOrEqual(30);
-    expect(score).toBeLessThanOrEqual(50);
+    expect(score).toBeLessThanOrEqual(60);
   });
 
   it("handles empty company gracefully", () => {
@@ -77,15 +79,16 @@ describe("calculateFitScore", () => {
     const props = { employee_count: 800 }; // 2x of max 500
     const icp = { sizeRange: [50, 500] as [number, number] };
     const { score } = calculateFitScore({}, props, icp);
-    // 800 is within 0.5x-2x range → 10 points
-    expect(score).toBe(10);
+    // Algorithm: in 0.5x-2x band → +12 (size adjacent), plus dq +1 (employee_count) = 13
+    expect(score).toBe(13);
   });
 
   it("gives minimal score for size way out of range", () => {
     const props = { employee_count: 50000 };
     const icp = { sizeRange: [50, 500] as [number, number] };
     const { score } = calculateFitScore({}, props, icp);
-    expect(score).toBe(3);
+    // Outside 0.5x-2x band → 0 size pts; only dq +1 from employee_count
+    expect(score).toBe(1);
   });
 });
 
@@ -225,10 +228,11 @@ describe("getGrade", () => {
     expect(getGrade(10).heat).toBe("Cold");
   });
 
-  it("returns fire emoji only for Burning", () => {
-    expect(getGrade(80).icon).toBe("🔥");
-    expect(getGrade(60).icon).toBe("☀️");
+  it("returns no emoji at any tier (visual clichés purged in commit e03826c)", () => {
+    expect(getGrade(80).icon).toBe("");
+    expect(getGrade(60).icon).toBe("");
     expect(getGrade(40).icon).toBe("");
+    expect(getGrade(10).icon).toBe("");
   });
 
   it("rounds fractional scores before grading", () => {

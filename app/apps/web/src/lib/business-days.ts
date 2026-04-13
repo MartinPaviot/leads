@@ -20,7 +20,8 @@ export function addBusinessDays(date: Date, days: number): Date {
 /** Roll a date forward to the next business day if it falls on a weekend. */
 export function rollToBusinessDay(date: Date): Date {
   const dow = date.getUTCDay();
-  if (dow === 6) return addBusinessDays(date, 2);  // Sat -> Mon
-  if (dow === 0) return addBusinessDays(date, 1);  // Sun -> Mon
+  // `addBusinessDays(_, 1)` skips weekend days entirely, so from Sat or
+  // Sun the +1 business day always lands on the following Monday.
+  if (dow === 0 || dow === 6) return addBusinessDays(date, 1);
   return new Date(date.getTime());
 }

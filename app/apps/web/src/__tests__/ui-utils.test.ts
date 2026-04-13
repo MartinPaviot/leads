@@ -136,19 +136,21 @@ describe("letterGrade", () => {
   });
 });
 
+// NOTE: emojis were removed from heat labels in commit e03826c
+// ("purge all AI-generated visual clichés from UI"). All icons are now "".
 describe("heatLabel", () => {
   it("returns Burning for 80+", () => {
     const result = heatLabel(80);
     expect(result.label).toBe("Burning");
     expect(result.color).toBe("var(--color-success)");
-    expect(result.icon).toBe("🔥");
+    expect(result.icon).toBe("");
   });
 
   it("returns Warm for 60-79", () => {
     const result = heatLabel(60);
     expect(result.label).toBe("Warm");
     expect(result.color).toBe("var(--color-warning)");
-    expect(result.icon).toBe("☀️");
+    expect(result.icon).toBe("");
   });
 
   it("returns Cool for 40-59", () => {
@@ -181,7 +183,7 @@ describe("formatScore", () => {
     expect(result!.grade).toBe("A");
     expect(result!.heat).toBe("Burning");
     expect(result!.color).toBe("var(--color-success)");
-    expect(result!.icon).toBe("🔥");
+    expect(result!.icon).toBe("");
   });
 
   it("rounds fractional scores", () => {
