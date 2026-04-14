@@ -1,9 +1,53 @@
-import { signIn } from "@/auth";
+import { signIn, auth } from "@/auth";
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { PasswordInput } from "@/components/ui/password-input";
+import {
+  sanitizeCallbackUrl,
+  SIGN_IN_ERROR_COPY,
+  SIGN_IN_REASON_COPY,
+} from "@/lib/auth-callback";
 
-export default function SignInPage() {
+/**
+ * Credentials + OAuth sign-in page. Reads `searchParams` (I1):
+ *   - `callbackUrl` — where to send the user after auth (I2). Must be
+ *     a same-origin relative path, otherwise we ignore it to avoid
+ *     open-redirect exposure.
+ *   - `registered` — "true" after a sign-up completion, show a
+ *     success banner.
+ *   - `reason` — e.g. "password-reset-success". Human-friendly banners
+ *     for known reasons.
+ *   - `error` — NextAuth error type. Rendered as a friendly message.
+ *
+ * Also implements I4: if `auth()` already resolves to a valid session,
+ * redirect to the requested `callbackUrl` (or `/home`).
+ */
+
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    callbackUrl?: string;
+    registered?: string;
+    reason?: string;
+    error?: string;
+  }>;
+}) {
+  const params = await searchParams;
+  const callbackUrl = sanitizeCallbackUrl(params.callbackUrl);
+
+  // I4: bounce away if already authenticated.
+  const session = await auth();
+  if (session?.user) {
+    redirect(callbackUrl);
+  }
+
+  const registered = params.registered === "true";
+  const reason = params.reason ? SIGN_IN_REASON_COPY[params.reason] ?? null : null;
+  const errorMessage = params.error
+    ? SIGN_IN_ERROR_COPY[params.error] ?? "Sign-in failed. Please try again."
+    : null;
+
   return (
     <div
       className="bg-grid flex min-h-screen items-center justify-center"
@@ -27,13 +71,53 @@ export default function SignInPage() {
           </p>
         </div>
 
+        {registered && (
+          <div
+            role="status"
+            className="rounded-lg px-3 py-2 text-[12px]"
+            style={{
+              background: "rgba(16,185,129,0.08)",
+              color: "var(--color-success, #059669)",
+              border: "1px solid rgba(16,185,129,0.25)",
+            }}
+          >
+            Account created. Sign in to continue.
+          </div>
+        )}
+        {reason && (
+          <div
+            role="status"
+            className="rounded-lg px-3 py-2 text-[12px]"
+            style={{
+              background: "var(--color-bg-hover)",
+              color: "var(--color-text-secondary)",
+              border: "1px solid var(--color-border-default)",
+            }}
+          >
+            {reason}
+          </div>
+        )}
+        {errorMessage && (
+          <div
+            role="alert"
+            className="rounded-lg px-3 py-2 text-[12px]"
+            style={{
+              background: "rgba(220,38,38,0.08)",
+              color: "var(--color-error, #b91c1c)",
+              border: "1px solid rgba(220,38,38,0.25)",
+            }}
+          >
+            {errorMessage}
+          </div>
+        )}
+
         {/* OAuth buttons */}
         <div className="flex gap-3">
           <form
             className="flex-1"
             action={async () => {
               "use server";
-              await signIn("google", { redirectTo: "/home" });
+              await signIn("google", { redirectTo: callbackUrl });
             }}
           >
             <button
@@ -58,7 +142,7 @@ export default function SignInPage() {
             className="flex-1"
             action={async () => {
               "use server";
-              await signIn("microsoft-entra-id", { redirectTo: "/home" });
+              await signIn("microsoft-entra-id", { redirectTo: callbackUrl });
             }}
           >
             <button
@@ -95,14 +179,17 @@ export default function SignInPage() {
               await signIn("credentials", formData);
             } catch (error) {
               if (error instanceof AuthError) {
-                redirect(`/sign-in?error=${error.type}`);
+                const params = new URLSearchParams();
+                params.set("error", error.type);
+                if (callbackUrl !== "/home") params.set("callbackUrl", callbackUrl);
+                redirect(`/sign-in?${params.toString()}`);
               }
               throw error;
             }
           }}
           className="space-y-4"
         >
-          <input type="hidden" name="redirectTo" value="/home" />
+          <input type="hidden" name="redirectTo" value={callbackUrl} />
           <div>
             <label htmlFor="email" className="block text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
               Email
@@ -147,7 +234,15 @@ export default function SignInPage() {
 
         <p className="text-center text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
           Don&apos;t have an account?{" "}
-          <a href="/sign-up" className="font-medium hover:underline" style={{ color: "var(--color-accent)" }}>
+          <a
+            href={
+              callbackUrl === "/home"
+                ? "/sign-up"
+                : `/sign-up?callbackUrl=${encodeURIComponent(callbackUrl)}`
+            }
+            className="font-medium hover:underline"
+            style={{ color: "var(--color-accent)" }}
+          >
             Sign up
           </a>
         </p>
@@ -162,3 +257,4 @@ export default function SignInPage() {
     </div>
   );
 }
+
