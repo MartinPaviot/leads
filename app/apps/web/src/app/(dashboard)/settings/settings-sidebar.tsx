@@ -20,6 +20,8 @@ import {
   Target,
   Video,
   FlaskConical,
+  Lock,
+  Shield,
 } from "lucide-react";
 
 interface NavSection {
@@ -33,6 +35,8 @@ const settingsNav: NavSection[] = [
     label: "Account",
     items: [
       { label: "Agent", href: "/settings/agent", icon: Activity },
+      { label: "Privacy & data", href: "/settings/privacy", icon: Shield },
+      { label: "Security", href: "/settings/security", icon: Lock },
       { label: "Settings", href: "/settings", icon: User },
     ],
   },
