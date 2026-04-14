@@ -25,3 +25,8 @@
 2026-04-13T00:00:00Z | T1-F2 | MERGED main (ff) at 7271887
 2026-04-13T00:00:00Z | T1-F13 | MERGED main (ff) at 8931830
 2026-04-13T00:00:00Z | T1-PHASE-1 | COMPLETE | 13/13 foundations merged; report at _reports/t1-phase1-completion.md
+2026-04-13T00:00:00Z | T1-P2-signin-I1-I2-I4 | MERGED main (ff) at e9ef0b6
+2026-04-13T00:00:00Z | T1-P2-signup-S1-S3 | MERGED main (ff) at 89a65a6
+2026-04-13T00:00:00Z | T1-P2-chat-C2-C3 | MERGED main (ff) at 8bb2a01
+2026-04-13T00:00:00Z | T1-P2-errors-E2-E3-E5 | MERGED main (ff) at cc83a75
+2026-04-13T00:00:00Z | SESSION | END | 4/12 Phase-2 branches shipped; 8 remaining, ~122h est; report at _reports/t1-session-completion.md
