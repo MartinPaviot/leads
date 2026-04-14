@@ -55,6 +55,10 @@ export default auth((req) => {
     "/api/webhooks",
     "/api/inngest",
     "/api/track",
+    // E2E test seed / cleanup endpoints. The routes themselves 404
+    // when ENABLE_E2E_SEED != "1", so exposing the path in prod leaks
+    // nothing — a prod request gets a plain 404 before any DB work.
+    "/api/test-e2e",
   ];
 
   const isPublic = publicPaths.some((p) => pathname.startsWith(p));
