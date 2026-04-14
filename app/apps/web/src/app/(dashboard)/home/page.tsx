@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Clock, Calendar, CheckSquare, Zap, MessageSquare, TrendingUp, Users, Building2, DollarSign, AlertTriangle, ArrowRight, X, Mail, Send } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -96,6 +97,7 @@ const severityVariants: Record<string, "error" | "warning" | "info" | "success">
 };
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [actions, setActions] = useState<Action[]>([]);
   const [insights, setInsights] = useState<Insight[]>([]);
@@ -126,50 +128,99 @@ export default function DashboardPage() {
       window.history.replaceState({}, "", "/");
     }
 
-    fetch("/api/onboarding/status")
+    let cancelled = false;
+
+    // Push the onboarding-payload → state fanout into a shared helper
+    // so the main hydrate path and the legacy fallback don't drift.
+    type OnboardingPayload = {
+      needsOnboarding?: boolean;
+      hasGoogle?: boolean;
+      hasMicrosoft?: boolean;
+      email?: string;
+      name?: string;
+      onboardingCurrentStep?: string | null;
+    };
+    function applyOnboarding(onb: OnboardingPayload | null) {
+      if (!onb?.needsOnboarding) return;
+      setShowOnboarding(true);
+      setOnboardingHasGoogle(onb.hasGoogle || false);
+      setOnboardingHasMicrosoft(onb.hasMicrosoft || false);
+      setOnboardingEmail(onb.email);
+      setOnboardingName(onb.name);
+      setOnboardingInitialStep(
+        typeof onb.onboardingCurrentStep === "string" ? onb.onboardingCurrentStep : null
+      );
+    }
+
+    // H1 — single hydrate round-trip. Server fans out to the six
+    // underlying handlers in parallel; any section that fails server-
+    // side comes back as `null` and we keep the pre-existing
+    // "unloaded section" UX for that bucket.
+    fetch("/api/home/hydrate")
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.needsOnboarding) {
-          setShowOnboarding(true);
-          setOnboardingHasGoogle(data.hasGoogle || false);
-          setOnboardingHasMicrosoft(data.hasMicrosoft || false);
-          setOnboardingEmail(data.email);
-          setOnboardingName(data.name);
-          setOnboardingInitialStep(
-            typeof data.onboardingCurrentStep === "string"
-              ? data.onboardingCurrentStep
-              : null
-          );
+      .then((payload) => {
+        if (cancelled) return;
+        if (!payload) {
+          void fallbackLegacyFetches();
+          return;
         }
+        applyOnboarding(payload.onboarding as OnboardingPayload | null);
+        setSummary((payload.summary as DashboardSummary | null) ?? null);
+        setLoadingSummary(false);
+        setActions(((payload.actions as { actions?: Action[] } | null)?.actions) ?? []);
+        setLoadingActions(false);
+        setInsights(((payload.insights as { insights?: Insight[] } | null)?.insights) ?? []);
+        setPriorities(
+          ((payload.priorities as {
+            priorities?: { contactId: string; name: string; title: string | null; company: string | null; companyDomain: string | null; emailCount: number; topReason: string }[];
+          } | null)?.priorities) ?? []
+        );
+        setRecommendations(
+          ((payload.recommendations as {
+            recommendations?: { title: string; description: string; urgency: number; entityType: string; entityId: string; suggestedAction: string }[];
+          } | null)?.recommendations) ?? []
+        );
       })
-      .catch((e) => console.warn("home: dashboard fetch failed", e));
+      .catch((err) => {
+        if (cancelled) return;
+        console.warn("home: hydrate fetch failed", err);
+        void fallbackLegacyFetches();
+      });
 
-    fetch("/api/dashboard/summary")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => setSummary(data))
-      .catch((e) => console.warn("home: dashboard fetch failed", e))
-      .finally(() => setLoadingSummary(false));
+    async function fallbackLegacyFetches() {
+      const settled = await Promise.allSettled([
+        fetch("/api/onboarding/status").then((r) => (r.ok ? r.json() : null)),
+        fetch("/api/dashboard/summary").then((r) => (r.ok ? r.json() : null)),
+        fetch("/api/actions").then((r) => (r.ok ? r.json() : { actions: [] })),
+        fetch("/api/insights").then((r) => (r.ok ? r.json() : { insights: [] })),
+        fetch("/api/priorities").then((r) => (r.ok ? r.json() : { priorities: [] })),
+        fetch("/api/recommendations").then((r) => (r.ok ? r.json() : { recommendations: [] })),
+      ]);
+      if (cancelled) return;
+      const [onb, sum, act, ins, prio, rec] = settled.map((s) =>
+        s.status === "fulfilled" ? s.value : null
+      );
+      applyOnboarding(onb as OnboardingPayload | null);
+      setSummary((sum as DashboardSummary | null) ?? null);
+      setLoadingSummary(false);
+      setActions(((act as { actions?: Action[] } | null)?.actions) ?? []);
+      setLoadingActions(false);
+      setInsights(((ins as { insights?: Insight[] } | null)?.insights) ?? []);
+      setPriorities(
+        ((prio as {
+          priorities?: { contactId: string; name: string; title: string | null; company: string | null; companyDomain: string | null; emailCount: number; topReason: string }[];
+        } | null)?.priorities) ?? []
+      );
+      setRecommendations(
+        ((rec as {
+          recommendations?: { title: string; description: string; urgency: number; entityType: string; entityId: string; suggestedAction: string }[];
+        } | null)?.recommendations) ?? []
+      );
+    }
 
-    fetch("/api/actions")
-      .then((res) => (res.ok ? res.json() : { actions: [] }))
-      .then((data) => setActions(data.actions || []))
-      .catch((e) => console.warn("home: dashboard fetch failed", e))
-      .finally(() => setLoadingActions(false));
-
-    fetch("/api/insights")
-      .then((res) => (res.ok ? res.json() : { insights: [] }))
-      .then((data) => setInsights(data.insights || []))
-      .catch((e) => console.warn("home: dashboard fetch failed", e));
-
-    fetch("/api/priorities")
-      .then((res) => (res.ok ? res.json() : { priorities: [] }))
-      .then((data) => setPriorities(data.priorities || []))
-      .catch((e) => console.warn("home: dashboard fetch failed", e));
-
-    fetch("/api/recommendations")
-      .then((res) => (res.ok ? res.json() : { recommendations: [] }))
-      .then((data) => setRecommendations(data.recommendations || []))
-      .catch((e) => console.warn("home: dashboard fetch failed", e));
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const today = new Date().toLocaleDateString("en-US", {
@@ -217,20 +268,20 @@ export default function DashboardPage() {
                   </p>
                   <div className="mt-3 flex items-center gap-3">
                     <button
-                      onClick={() => { localStorage.setItem("leadsens_welcomed", "1"); setShowWelcome(false); window.location.href = "/accounts?sort=score&dir=desc"; }}
+                      onClick={() => { localStorage.setItem("leadsens_welcomed", "1"); setShowWelcome(false); router.push("/accounts?sort=score&dir=desc"); }}
                       className="rounded-md px-3 py-1.5 text-[12px] font-medium text-white gradient-brand"
                     >
                       Review top accounts
                     </button>
                     <button
-                      onClick={() => { localStorage.setItem("leadsens_welcomed", "1"); setShowWelcome(false); window.location.href = "/sequences"; }}
+                      onClick={() => { localStorage.setItem("leadsens_welcomed", "1"); setShowWelcome(false); router.push("/sequences"); }}
                       className="rounded-md px-3 py-1.5 text-[12px] font-medium"
                       style={{ color: "var(--color-accent)", background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}
                     >
                       Launch a campaign
                     </button>
                     <button
-                      onClick={() => { localStorage.setItem("leadsens_welcomed", "1"); setShowWelcome(false); window.location.href = "/chat?q=Summarize my top prospects"; }}
+                      onClick={() => { localStorage.setItem("leadsens_welcomed", "1"); setShowWelcome(false); router.push("/chat?q=Summarize my top prospects"); }}
                       className="rounded-md px-3 py-1.5 text-[12px] font-medium"
                       style={{ color: "var(--color-accent)", background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}
                     >
@@ -299,7 +350,7 @@ export default function DashboardPage() {
             </h2>
             <div className="space-y-1.5">
               {summary.founderMetrics.dealsAtRisk.slice(0, 3).map((deal) => (
-                <Card key={deal.id} interactive onClick={() => { window.location.href = `/opportunities`; }}>
+                <Card key={deal.id} interactive onClick={() => { router.push(`/opportunities`); }}>
                   <CardBody className="!py-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{deal.name}</span>
@@ -394,7 +445,7 @@ export default function DashboardPage() {
                   const fm = summary?.founderMetrics;
                   if (fm && fm.totalAccounts > 0 && fm.totalContacts === 0) {
                     return (
-                      <Card interactive onClick={() => { window.location.href = "/accounts"; }}>
+                      <Card interactive onClick={() => { router.push("/accounts"); }}>
                         <CardBody className="!py-3">
                           <div className="flex items-center justify-between">
                             <div>
@@ -413,7 +464,7 @@ export default function DashboardPage() {
                   }
                   if (fm && fm.totalContacts > 0 && fm.emailsSent7d === 0) {
                     return (
-                      <Card interactive onClick={() => { window.location.href = "/sequences"; }}>
+                      <Card interactive onClick={() => { router.push("/sequences"); }}>
                         <CardBody className="!py-3">
                           <div className="flex items-center justify-between">
                             <div>
@@ -431,7 +482,7 @@ export default function DashboardPage() {
                     );
                   }
                   return (
-                    <Card interactive onClick={() => { window.location.href = "/chat?q=What should I focus on today?"; }}>
+                    <Card interactive onClick={() => { router.push("/chat?q=What should I focus on today?"); }}>
                       <CardBody className="!py-3">
                         <div className="flex items-center justify-between">
                           <div>
@@ -531,7 +582,7 @@ export default function DashboardPage() {
                 </h2>
                 <div className="mt-3 space-y-1.5">
                   {priorities.slice(0, 5).map((p) => (
-                    <Card key={p.contactId} interactive onClick={() => { window.location.href = `/contacts/${p.contactId}`; }}>
+                    <Card key={p.contactId} interactive onClick={() => { router.push(`/contacts/${p.contactId}`); }}>
                       <CardBody className="!py-2.5">
                         <div className="flex items-center gap-2">
                           <CompanyLogo domain={p.companyDomain} name={p.name} size={20} />
@@ -559,10 +610,10 @@ export default function DashboardPage() {
                 <div className="mt-3 space-y-1.5">
                   {recommendations.slice(0, 3).map((r, i) => (
                     <Card key={i} interactive onClick={() => {
-                      if (r.entityType === "contact") window.location.href = `/contacts/${r.entityId}`;
-                      else if (r.entityType === "company") window.location.href = `/accounts`;
-                      else if (r.entityType === "deal") window.location.href = `/opportunities`;
-                      else if (r.entityType === "campaign") window.location.href = `/sequences`;
+                      if (r.entityType === "contact") router.push(`/contacts/${r.entityId}`);
+                      else if (r.entityType === "company") router.push(`/accounts`);
+                      else if (r.entityType === "deal") router.push(`/opportunities`);
+                      else if (r.entityType === "campaign") router.push(`/sequences`);
                     }}>
                       <CardBody className="!py-2.5">
                         <p className="text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>{r.title}</p>
@@ -727,6 +778,10 @@ export default function DashboardPage() {
           initialStep={onboardingInitialStep as never}
           onComplete={() => {
             setShowOnboarding(false);
+            // Hard reload after onboarding completion so the just-run
+            // Inngest TAM-build job has its results picked up by a
+            // fresh hydrate pass. SPA push would keep the stale
+            // pre-onboarding state.
             window.location.href = "/?firstTime=true";
           }}
         />
