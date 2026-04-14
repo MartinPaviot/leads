@@ -8,3 +8,8 @@ credentials/
 .playwright-mcp/
 .turbo/
 tsconfig.tsbuildinfo
+# Playwright outputs
+playwright-report/
+test-results/
+# Auto-generated Next.js ambient types
+app/apps/admin/next-env.d.ts
