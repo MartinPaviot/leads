@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { ArrowRight, ArrowLeft, Loader2, Check, Mail, Target, Zap, MessageSquare, Users, Building2, Globe, ChevronDown, Calendar, Shield, Eye, EyeOff, Clock } from "lucide-react";
 import { INDUSTRIES, COMPANY_SIZES, SALES_MOTIONS, GEOGRAPHIES, JOB_SENIORITIES, JOB_DEPARTMENTS, sizesToApolloRanges } from "@/lib/icp-constants";
 import { CompanyLogo } from "@/components/ui/company-logo";
+import { chunkedBulkCall } from "@/lib/chunk-bulk";
 
 interface WebsiteAnalysis {
   companyDescription: string;
@@ -359,8 +360,31 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
 
   /* ── Handlers ── */
 
-  const handleConnectGoogle = () => { saveOnboardingData({ emailProvider: "google", step: "connect" }); signIn("google", { callbackUrl: "/home" }); };
-  const handleConnectMicrosoft = () => { saveOnboardingData({ emailProvider: "microsoft", step: "connect" }); signIn("microsoft-entra-id", { callbackUrl: "/home" }); };
+  // O5 — When the user clicks Connect Google/Microsoft mid-wizard, NextAuth
+  // redirects them off-site for OAuth. On return they land on `/home`,
+  // which re-fetches `/api/onboarding/status`; thanks to T0.2 persisting
+  // `onboardingCurrentStep = "connect"`, the wizard re-opens on the
+  // connect step and auto-detects the freshly-connected provider (via
+  // `hasGoogle || hasMicrosoft`). The callbackUrl is `/home?firstTime=connect`
+  // so the effect can detect the OAuth return and skip to the next step.
+  const handleConnectGoogle = async () => {
+    // Persist currentStep BEFORE signIn — the browser hop means the
+    // component unmounts before the useEffect's position-update runs.
+    await saveOnboardingData({
+      emailProvider: "google",
+      step: "connect",
+      currentStep: "connect",
+    });
+    signIn("google", { callbackUrl: "/home?onboarding=resume-connect" });
+  };
+  const handleConnectMicrosoft = async () => {
+    await saveOnboardingData({
+      emailProvider: "microsoft",
+      step: "connect",
+      currentStep: "connect",
+    });
+    signIn("microsoft-entra-id", { callbackUrl: "/home?onboarding=resume-connect" });
+  };
   const handleConnectContinue = () => { setStep(emailConnected ? "privacy" : "product"); };
   const handleConnectSkip = () => { setStep("product"); };
 
@@ -478,11 +502,24 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
         setTopCompanies(accounts.slice(0, 5).map((a: { name: string; domain?: string; industry?: string }) => ({
           name: a.name, domain: a.domain || "", industry: a.industry,
         })));
-        // Score ALL companies — await so scores are ready before "Ready" screen
+        // O4 — Score ALL companies and AWAIT full completion before the
+        // "Ready" screen renders. Using `chunkedBulkCall` so a 200-company
+        // TAM doesn't slam the scoring endpoint in a single request and
+        // so partial failures don't silently drop half the TAM.
         const ids = accounts.map((a: { id: string }) => a.id);
         if (ids.length > 0) {
-          await fetch("/api/score", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyIds: ids }) })
-            .catch((e) => console.warn("onboarding: scoring failed", e));
+          const scoreResult = await chunkedBulkCall({
+            ids,
+            endpoint: "/api/score",
+            buildPayload: (chunk) => ({ companyIds: chunk }),
+          });
+          if (scoreResult.failed > 0) {
+            console.warn("onboarding: scoring had partial failures", {
+              failed: scoreResult.failed,
+              total: scoreResult.total,
+              errors: scoreResult.errors,
+            });
+          }
         }
       }
 
@@ -761,7 +798,31 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
                 : `We'll find companies that match${emailConnected ? " and flag warm ones" : ""}.`}
             />
 
-            {buildError && <div className="mb-2 rounded-lg p-1.5 text-[11px]" style={{ background: "rgba(239,68,68,.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,.2)" }}>{buildError}</div>}
+            {buildError && (
+              <div
+                role="alert"
+                className="mb-2 flex items-start gap-2 rounded-lg p-2 text-[11px]"
+                style={{ background: "rgba(239,68,68,.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,.2)" }}
+              >
+                <span className="flex-1">
+                  <strong>Build failed.</strong> {buildError}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleBuildTAM}
+                  disabled={!canContinueICP}
+                  className="shrink-0 rounded px-2 py-0.5 text-[11px] font-medium"
+                  style={{
+                    background: "#ef4444",
+                    color: "white",
+                    cursor: canContinueICP ? "pointer" : "not-allowed",
+                    opacity: canContinueICP ? 1 : 0.6,
+                  }}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
 
             {/* Confidence gaps — targeted questions when AI needs clarification */}
             {websiteAnalysis?.confidenceGaps && websiteAnalysis.confidenceGaps.length > 0 && (
