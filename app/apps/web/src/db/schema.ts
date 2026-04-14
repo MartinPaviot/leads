@@ -72,6 +72,35 @@ export const authVerificationTokens = pgTable(
   ]
 );
 
+// Per-user, per-resource preferences (T1-F5). Keyed by userId + resource
+// (e.g. "accounts" | "contacts" | "opportunities") + key name. Stores
+// JSONB so callers own their schema. Used by the DisplayPanel to
+// remember column visibility / order / density between sessions.
+export const userPreferences = pgTable(
+  "user_preferences",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    resource: text("resource").notNull(),
+    key: text("key").notNull(),
+    value: jsonb("value").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("user_preferences_user_resource_key_idx").on(
+      table.userId,
+      table.resource,
+      table.key
+    ),
+  ]
+);
+
 // Password reset tokens for the Credentials provider (T0.8). The raw token
 // is never stored — only a SHA-256 hex digest — so a DB leak can't be used
 // to hijack pending resets.

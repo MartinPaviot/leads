@@ -71,6 +71,13 @@
       "when": 1776123647592,
       "tag": "0009_broad_golden_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1776127723213,
+      "tag": "0010_dashing_human_robot",
+      "breakpoints": true
     }
   ]
 }
