@@ -26,6 +26,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { chunkedBulkCall } from "@/lib/chunk-bulk";
+import { BulkActionsBar } from "@/components/ui/bulk-actions-bar";
 
 interface Account {
   id: string;
@@ -204,6 +205,72 @@ export default function AccountsPage() {
     } finally { setScoreAllRunning(false); }
   }
 
+  // A3 — bulk actions that operate on the current selection. If nothing
+  // is selected we fall back to the all-eligible-accounts set (matching
+  // the old `Enrich all` / `Score all` semantics) so the header-level
+  // buttons keep working as before.
+  async function bulkEnrichSelected() {
+    const targets =
+      selectedRows.size > 0
+        ? accounts.filter((a) => selectedRows.has(a.id))
+        : accounts.filter((a) => !a.industry && !a.description);
+    if (targets.length === 0) {
+      toast("No accounts to enrich in the current selection.", "info");
+      return;
+    }
+    const ids = targets.map((t) => t.id);
+    for (const id of ids) setEnrichStatus((p) => ({ ...p, [id]: "enriching" }));
+    try {
+      const r = await chunkedBulkCall({
+        ids,
+        endpoint: "/api/enrich",
+        buildPayload: (chunk) => ({ companyIds: chunk }),
+      });
+      const failed = new Set(r.errors.flatMap((e) => e.ids));
+      setEnrichStatus((prev) => {
+        const next = { ...prev };
+        for (const id of ids) next[id] = failed.has(id) ? "failed" : "done";
+        return next;
+      });
+      if (r.succeeded > 0) await fetchAccounts();
+      toast(
+        r.failed === 0
+          ? `Enriched ${r.succeeded} accounts.`
+          : `Enriched ${r.succeeded} of ${r.total}. ${r.failed} failed.`,
+        r.failed === 0 ? "success" : "warning"
+      );
+    } catch (e) {
+      toast("Bulk enrichment failed.", "error");
+      console.warn("accounts: bulk enrich selected failed", e);
+    }
+  }
+
+  async function bulkScoreSelected() {
+    const targets =
+      selectedRows.size > 0
+        ? accounts.filter((a) => selectedRows.has(a.id))
+        : accounts.filter((a) => a.score == null);
+    if (targets.length === 0) return;
+    const ids = targets.map((t) => t.id);
+    try {
+      const r = await chunkedBulkCall({
+        ids,
+        endpoint: "/api/score",
+        buildPayload: (chunk) => ({ companyIds: chunk }),
+      });
+      if (r.succeeded > 0) await fetchAccounts();
+      toast(
+        r.failed === 0
+          ? `Scored ${r.succeeded} accounts.`
+          : `Scored ${r.succeeded} of ${r.total}. ${r.failed} failed.`,
+        r.failed === 0 ? "success" : "warning"
+      );
+    } catch (e) {
+      toast("Failed to score accounts.", "error");
+      console.warn("accounts: bulk score selected failed", e);
+    }
+  }
+
   async function detectSignals() {
     const ids = accounts.filter((a) => isEnriched(a)).map((a) => a.id);
     if (ids.length === 0) return;
@@ -336,6 +403,16 @@ export default function AccountsPage() {
   // === RENDER ===
   return (
     <div className="flex h-full flex-col" style={{ background: "var(--color-bg-page)" }}>
+      {/* A3 — bulk actions bar appears when one or more rows are checked. */}
+      <BulkActionsBar
+        count={selectedRows.size}
+        onClear={() => setSelectedRows(new Set())}
+        actions={[
+          { label: "Enrich", icon: <Zap size={13} />, onClick: bulkEnrichSelected },
+          { label: "Score", icon: <Target size={13} />, onClick: bulkScoreSelected },
+          { label: "Detect signals", icon: <Radio size={13} />, onClick: detectSignals },
+        ]}
+      />
       {/* Page header */}
       <PageHeader
         icon={<Building2 size={16} />}

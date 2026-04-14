@@ -80,9 +80,23 @@ export async function GET(req: Request) {
       lastInteraction: lastInteractions[a.id] || null,
     }));
 
+    // A1 — dual shape: the old keys (`accounts`, `pagination.totalPages`)
+    // stay for the existing dashboard page, plus the canonical
+    // `PaginatedResponse<T>` fields (`items`, `pagination.hasMore`) so
+    // `usePaginatedList<Account>({ endpoint: "/api/accounts" })` can
+    // consume this endpoint without a client-side shim. Callers can
+    // migrate off `accounts` when they rewrite to the hook.
+    const hasMore = page * pageSize < total;
     return Response.json({
       accounts: enrichedAccounts,
-      pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      items: enrichedAccounts,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+        hasMore,
+      },
     });
   } catch (error) {
     console.error("Failed to fetch accounts:", error);
