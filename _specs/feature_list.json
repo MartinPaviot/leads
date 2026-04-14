@@ -1,0 +1,159 @@
+{
+  "$schema": "https://leadsens.dev/schemas/feature_list.v1.json",
+  "initiative": "Attio-parity chat",
+  "goal": "Chat LeadSens peut répondre à n'importe quelle requête CRM et exécuter n'importe quelle action (fond + forme), atteignant puis dépassant la parité Attio sur Ask Attio + Universal Context + Thread Agent.",
+  "reference_competitor": "Attio (Ask Attio, Universal Context, Thread Agent, 35-tool public MCP, AI Attributes, Workflow Agent blocks)",
+  "created": "2026-04-14",
+  "features": [
+    {
+      "id": "CHAT-00",
+      "title": "Coverage audit — endpoint × tool gap matrix",
+      "description": "Documentation-only phase that catalogs all 129 mutating API endpoints, the 51 existing chat tools, gaps tiered A/B/C/excluded, and drives the tool-creation plan for CHAT-01.",
+      "dependencies": [],
+      "milestone": "M1-foundations",
+      "status": "completed",
+      "branch": "feat/CHAT-00-coverage-audit",
+      "deliverables": [
+        "_specs/CHAT-00-coverage-audit/office-hours.md",
+        "_specs/CHAT-00-coverage-audit/requirements.md",
+        "_specs/CHAT-00-coverage-audit/design.md",
+        "_specs/CHAT-00-coverage-audit/coverage-matrix.md",
+        "_specs/CHAT-00-coverage-audit/tasks.md",
+        "_specs/feature_list.json"
+      ],
+      "estimate_days": 3,
+      "checkpoint": false
+    },
+    {
+      "id": "CHAT-01",
+      "title": "Tool registry completeness — ~50 new tools across waves 1/2/3",
+      "description": "Ship all Gap-A and Gap-B tools (non-destructive), plus the new-tool-needs-new-endpoint set (schema introspection, comments, semantic search variants, run-basic-report). Refactor registry from monolithic route.ts into lib/chat/tools/*.ts by category.",
+      "dependencies": ["CHAT-00"],
+      "milestone": "M1-foundations",
+      "status": "pending",
+      "estimate_days": 14,
+      "tools_added_target": 50,
+      "acceptance": "≥95 total chat tools, 100% Gap-A non-destructive shipped, all 264 tests pass + ~100 new tests, phase-6 eval action-completeness ≥0.8",
+      "checkpoint": true
+    },
+    {
+      "id": "CHAT-02",
+      "title": "Capability resolver — per-turn tool filtering + context inference",
+      "description": "Introduce lib/agents/capability-resolver.ts that, per chat turn, filters the tool registry by (user role, plan, feature flags, surface context, entity context). Replace static registry in /api/chat/route.ts with resolver invocation. Ship streaming tool-call cards rendered per category.",
+      "dependencies": ["CHAT-01"],
+      "milestone": "M2-intelligence",
+      "status": "pending",
+      "estimate_days": 7,
+      "acceptance": "10+ scenario tests (surface × role × plan) return distinct allowed-tool sets; system prompt mentions entity when opened from record page; telemetry logs surfaceContext in agentTraces.",
+      "checkpoint": true
+    },
+    {
+      "id": "CHAT-03",
+      "title": "Ubiquitous surfaces — chat on every detail page + list + meeting transcript",
+      "description": "Ship per-record chat side panel on contacts/accounts/opportunities/meetings detail pages; per-list chat on list views with saved-view context injected; highlight-transcript → Ask from meeting pages; unified ⌘K routing Ask vs search with Tab switch.",
+      "dependencies": ["CHAT-02"],
+      "milestone": "M2-intelligence",
+      "status": "pending",
+      "estimate_days": 10,
+      "acceptance": "5/5 detail pages have side-panel chat; Playwright test: from each surface, 'update the stage to negotiation' produces correctly-prefilled ActionCard.",
+      "checkpoint": false
+    },
+    {
+      "id": "CHAT-04",
+      "title": "Persistence + audit + undo — toolCallEvents + reverse ops",
+      "description": "New table toolCallEvents logs every tool invocation. Wrapper executeToolCall records before/after state. Undo supported on create/update/link ops via snapshot-based reverse. Audit UI at /settings/audit. Destructive tools (merge/delete/revoke) gated until this ships.",
+      "dependencies": ["CHAT-01"],
+      "milestone": "M2-intelligence",
+      "status": "pending",
+      "estimate_days": 7,
+      "acceptance": "E2E test: create contact → undo → contact soft-deleted → re-do → contact visible. All 10+ destructive tools flagged in CHAT-01 can now be ungated.",
+      "checkpoint": true
+    },
+    {
+      "id": "CHAT-05",
+      "title": "Tree/fork conversation + shared prompts",
+      "description": "DAG-ify chatMessages with parentMessageId + branchId. UI: Edit user message regenerates as fork, breadcrumb of branches, compare mode. sharedPrompts table (user/team/workspace scope). Prompts palette on '/' in chat input.",
+      "dependencies": ["CHAT-03"],
+      "milestone": "M3-collaboration",
+      "status": "pending",
+      "estimate_days": 7,
+      "acceptance": "Editing a prior user message forks without overwriting; shared workspace prompt visible to all tenant users via palette.",
+      "checkpoint": false
+    },
+    {
+      "id": "CHAT-06",
+      "title": "Long-running Research Agent + AI Attributes column-based",
+      "description": "New tool researchAgent runs Inngest job streaming back via SSE (plan → search → read → summarize sub-steps). UI progress card with ETA + cancel. Extend customFields type ai_computed (summarize|classify|prompt|research). Column 'Run AI autofill' bulk. Credits ledger + billing hooks.",
+      "dependencies": ["CHAT-02", "CHAT-04"],
+      "milestone": "M3-collaboration",
+      "status": "pending",
+      "estimate_days": 14,
+      "acceptance": "researchAgent on deal with prompt 'latest funding + recent hires' returns text with web citations < 60s. AI attribute 'ICP fit score' bulk on 500 records < 5min.",
+      "checkpoint": true
+    },
+    {
+      "id": "CHAT-07",
+      "title": "Memory system — user + team + workspace memory + auto-extraction",
+      "description": "Extend chatMemories with scope (user|team|workspace) + visibility. Auto-extract facts after conversations via Inngest function, propose save with approval. Inject scoped memories into system prompt. Destructive tools (removeMailbox, deleteCustomObjectType, etc.) deferred from CHAT-06.",
+      "dependencies": ["CHAT-04"],
+      "milestone": "M3-collaboration",
+      "status": "pending",
+      "estimate_days": 7,
+      "acceptance": "Declaring 'our ICP is B2B startups 10-50 FTE Series A' in chat → save proposal (team scope) → applied → reused in other members' chats.",
+      "checkpoint": false
+    },
+    {
+      "id": "CHAT-08",
+      "title": "External reach — Slack bot (read+write) + public MCP server (OAuth)",
+      "description": "Slack app: /leadsens query + @leadsens mentions, WITH write support (beat Attio's read-only limitation). Interactive buttons for approvals. Public MCP at mcp.leadsens.com, OAuth-only, exposes ≥50 tools (parity + enrich). Tested against Claude Desktop, Cursor, ChatGPT.",
+      "dependencies": ["CHAT-02", "CHAT-04"],
+      "milestone": "M4-external",
+      "status": "pending",
+      "estimate_days": 14,
+      "acceptance": "'@leadsens create a task for Acme follow-up next Tuesday' in Slack → Slack interactive approval button → task created. Claude Desktop connecting to mcp.leadsens.com lists 50+ tools.",
+      "checkpoint": true
+    },
+    {
+      "id": "CHAT-09",
+      "title": "Observability + continuous evaluation",
+      "description": "Evaluation suite _calibration/chat-suite.jsonl (100+ cases: query simple/complex, mutation, error recovery, multi-turn, custom schema). CI runs per PR + nightly. /admin/evals dashboard extended with pass-rate per tool, latency P50/P95, failure patterns clustering. Slack alert on tool failure rate > 5%. Weekly coverage-drift Inngest job via _tools/coverage-audit.js.",
+      "dependencies": ["CHAT-01"],
+      "milestone": "M4-external",
+      "status": "pending",
+      "estimate_days": 7,
+      "acceptance": "Commit breaking createContact fails CI. Dashboard shows per-tool daily success rate. Drift job opens PR when coverage matrix is stale.",
+      "checkpoint": false,
+      "continuous": true
+    }
+  ],
+  "milestones": [
+    {
+      "id": "M1-foundations",
+      "name": "Foundations — tool coverage",
+      "description": "Atteindre la complétude du tool registry. Base pour tout le reste.",
+      "features": ["CHAT-00", "CHAT-01"],
+      "checkpoint": true
+    },
+    {
+      "id": "M2-intelligence",
+      "name": "Intelligence + surface",
+      "description": "Resolver + surfaces ubiquitaires + undo. Le chat devient 'jamais bloqué'.",
+      "features": ["CHAT-02", "CHAT-03", "CHAT-04"],
+      "checkpoint": true
+    },
+    {
+      "id": "M3-collaboration",
+      "name": "Collaboration + long-running",
+      "description": "Tree/fork, AI Attributes, research agent, team memory.",
+      "features": ["CHAT-05", "CHAT-06", "CHAT-07"],
+      "checkpoint": true
+    },
+    {
+      "id": "M4-external",
+      "name": "External reach + ops",
+      "description": "Slack, public MCP, observabilité continue.",
+      "features": ["CHAT-08", "CHAT-09"],
+      "checkpoint": true
+    }
+  ]
+}
