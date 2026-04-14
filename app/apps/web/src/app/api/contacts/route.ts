@@ -96,9 +96,20 @@ export async function GET(req: Request) {
       lastInteraction: lastInteractions[c.id] || null,
     }));
 
+    // K1 — dual shape (same pattern as /api/accounts A1): legacy keys
+    // preserved for current consumers + canonical `items` / `hasMore`
+    // added so `usePaginatedList<Contact>` consumes it without a shim.
+    const hasMore = page * pageSize < total;
     return Response.json({
       contacts: enrichedContacts,
-      pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      items: enrichedContacts,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+        hasMore,
+      },
     });
   } catch (error) {
     console.error("Failed to fetch contacts:", error);
