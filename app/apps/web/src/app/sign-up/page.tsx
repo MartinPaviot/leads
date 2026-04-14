@@ -5,31 +5,41 @@ import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import Link from "next/link";
 import { PasswordInput } from "@/components/ui/password-input";
-import { signIn } from "@/auth";
+import { signIn, auth } from "@/auth";
+import { sanitizeCallbackUrl } from "@/lib/auth-callback";
+import { isPasswordAcceptable as isPasswordStrong } from "@/lib/password-reset";
 
 export default async function SignUpPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; invite?: string; email?: string }>;
+  searchParams: Promise<{ error?: string; invite?: string; email?: string; callbackUrl?: string }>;
 }) {
   const params = await searchParams;
   const errorMessages: Record<string, string> = {
     EmailExists: "An account with this email already exists.",
     MissingFields: "Please fill in all fields.",
-    PasswordTooShort: "Password must be at least 6 characters.",
+    PasswordTooShort: "Password must be at least 10 characters, with a digit, a lowercase, and an uppercase letter.",
   };
   const errorMessage = params.error ? errorMessages[params.error] ?? "Something went wrong." : null;
   const inviteToken = (params.invite || "").trim();
   const presetEmail = (params.email || "").trim();
+  const callbackUrl = sanitizeCallbackUrl(params.callbackUrl);
 
-  // After credentials sign-up: if invite present, send to accept-invite (which
-  // prompts sign-in then accepts). Otherwise the legacy "registered" message.
-  const credentialsRedirectAfter = inviteToken
-    ? `/sign-in?registered=true&callbackUrl=${encodeURIComponent(`/accept-invite?token=${inviteToken}`)}`
-    : "/sign-in?registered=true";
+  // S3: if already authed, go straight to the intended destination.
+  const session = await auth();
+  if (session?.user) {
+    redirect(inviteToken ? `/accept-invite?token=${inviteToken}` : callbackUrl);
+  }
+
+  // After successful credentials sign-up we auto-sign-in (S1) and land the
+  // user directly on their destination. The invite flow still needs the
+  // `/accept-invite` hop so the tenant swap happens server-side.
+  const postSignupRedirect = inviteToken
+    ? `/accept-invite?token=${inviteToken}`
+    : callbackUrl;
   const oauthRedirectTo = inviteToken
     ? `/accept-invite?token=${inviteToken}`
-    : "/home";
+    : callbackUrl;
 
   async function handleSignUp(formData: FormData) {
     "use server";
@@ -38,21 +48,30 @@ export default async function SignUpPage({
     const password = formData.get("password") as string;
     const name = formData.get("name") as string;
     const inviteFromForm = ((formData.get("invite") as string) || "").trim();
+    const callbackFromForm = sanitizeCallbackUrl(
+      (formData.get("callbackUrl") as string) || undefined
+    );
 
     if (!email || !password || !name) {
       const q = inviteFromForm ? `&invite=${encodeURIComponent(inviteFromForm)}` : "";
       redirect(`/sign-up?error=MissingFields${q}`);
     }
 
-    if (password.length < 6) {
+    // Matches the password-reset + credentials-provider policy (T0.8):
+    // ≥10 chars with at least one digit, lower, upper. The credentials
+    // provider itself is agnostic on length, but this keeps the two
+    // sign-up / reset paths from diverging.
+    if (!isPasswordStrong(password)) {
       const q = inviteFromForm ? `&invite=${encodeURIComponent(inviteFromForm)}` : "";
       redirect(`/sign-up?error=PasswordTooShort${q}`);
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+
     const [existing] = await db
       .select()
       .from(authUsers)
-      .where(eq(authUsers.email, email.toLowerCase().trim()))
+      .where(eq(authUsers.email, normalizedEmail))
       .limit(1);
 
     if (existing) {
@@ -65,27 +84,31 @@ export default async function SignUpPage({
 
     await db.insert(authUsers).values({
       id: userId,
-      email: email.toLowerCase().trim(),
+      email: normalizedEmail,
       name: name.trim(),
     });
 
     await db.insert(authAccounts).values({
       userId,
-      type: "credentials" as any,
+      type: "credentials" as never,
       provider: "credentials",
-      providerAccountId: email.toLowerCase().trim(),
+      providerAccountId: normalizedEmail,
       access_token: passwordHash,
     });
 
-    if (inviteFromForm) {
-      // Funnel through sign-in (registered=true) and then to accept-invite.
-      // The accept-invite page validates email-match and switches the user's
-      // tenantId + role server-side.
-      redirect(
-        `/sign-in?registered=true&callbackUrl=${encodeURIComponent(`/accept-invite?token=${inviteFromForm}`)}`,
-      );
-    }
-    redirect("/sign-in?registered=true");
+    // S1: auto-login. `signIn` with redirect=true internally calls
+    // `redirect(...)` — which throws a special NEXT_REDIRECT — so we
+    // MUST NOT wrap it in try/catch that swallows everything, or
+    // we'll eat the redirect and leave the user stranded. The call
+    // site below (no try/catch) is correct.
+    const postRedirect = inviteFromForm
+      ? `/accept-invite?token=${inviteFromForm}`
+      : callbackFromForm;
+    await signIn("credentials", {
+      email: normalizedEmail,
+      password,
+      redirectTo: postRedirect,
+    });
   }
 
   return (
@@ -243,8 +266,11 @@ export default async function SignUpPage({
             <label htmlFor="password" className="block text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
               Password
             </label>
-            <PasswordInput id="password" name="password" required minLength={6} placeholder="Min 6 characters" />
+            <PasswordInput id="password" name="password" required minLength={10} placeholder="Min 10 chars, 1 digit, upper + lower" />
           </div>
+          {callbackUrl !== "/home" && (
+            <input type="hidden" name="callbackUrl" value={callbackUrl} />
+          )}
           <button
             type="submit"
             className="gradient-brand w-full rounded-lg px-4 py-2.5 text-[14px] font-semibold text-white shadow-sm transition-all hover:brightness-110"
@@ -255,7 +281,11 @@ export default async function SignUpPage({
 
         <p className="text-center text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
           Already have an account?{" "}
-          <Link href="/sign-in" className="font-medium hover:underline" style={{ color: "var(--color-accent)" }}>
+          <Link
+            href={callbackUrl === "/home" ? "/sign-in" : `/sign-in?callbackUrl=${encodeURIComponent(callbackUrl)}`}
+            className="font-medium hover:underline"
+            style={{ color: "var(--color-accent)" }}
+          >
             Sign in
           </Link>
         </p>
