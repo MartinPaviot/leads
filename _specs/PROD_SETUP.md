@@ -105,3 +105,50 @@ Quick manual checks that the BUGFIX work didn't regress:
   `/api/settings/mailboxes` DELETE are now logged on failure but still
   best-effort. If we ever observe orphaned mailboxes in prod, harden the
   cleanup with retries + alerting.
+
+---
+
+## 8. T0 + T1 Phase 1 additions (2026-04-13)
+
+### Manual SQL (data cleanup)
+
+Apply **once per environment**:
+
+```bash
+psql "$DATABASE_URL" -f app/apps/web/drizzle/manual/0001_fix_challenge_label.sql
+```
+
+Normalises legacy `primaryChallenge = "Finding the right leads"` →
+`"Finding leads"` so the home subtitle renders (T0.3).
+
+Tracking log lives in `app/apps/web/drizzle/manual/README.md`.
+
+### New Drizzle migrations (auto-applied by `drizzle-kit migrate`)
+
+| File | Purpose |
+|---|---|
+| `0009_broad_golden_guardian.sql` | `password_reset_tokens` (T0.8) |
+| `0010_dashing_human_robot.sql`   | `user_preferences` (T1-F5) |
+| `0011_fast_rictor.sql`           | `saved_views` (T1-F4) |
+
+### New environment variables
+
+| Var | Purpose | Required for | Notes |
+|---|---|---|---|
+| `NEXT_PUBLIC_SENTRY_DSN` | Client + server Sentry DSN | T1-F13 | Unset = Sentry disabled. |
+| `SENTRY_DSN` | Server-only DSN override | T1-F13 | Falls back to `NEXT_PUBLIC_SENTRY_DSN` if unset. |
+| `SENTRY_ORG` | Sentry org slug | T1-F13 | Only needed when uploading source maps. |
+| `SENTRY_PROJECT` | Sentry project slug | T1-F13 | Only needed when uploading source maps. |
+| `SENTRY_AUTH_TOKEN` | API token for source map upload | T1-F13 (prod) | Set in CI. Not required locally. |
+| `NEXT_PUBLIC_APP_ENV` | Env tag (dev/staging/prod) | T1-F13 | Defaults to `NODE_ENV`. |
+
+### Smoke tests (T0 + T1)
+
+| What | How |
+|---|---|
+| Password reset flow (T0.8) | `/sign-in` → "Forgot password?" → submit email → receive link → open in incognito → submit new pwd → `/sign-in?reason=password-reset-success` → sign in with new pwd. |
+| Onboarding resume (T0.2) | Start wizard, advance to "Product" step, close tab, log back in → wizard reopens at "Product" with "Welcome back" banner. |
+| Chat approveCard error toast (T0.4) | Throttle network to Offline, approve a proposed contact card → error toast, card stays in "pending" state. |
+| Accounts bulk enrich progress (T0.5) | Select ~30 accounts, "Enrich all" → progress toast updates in chunks of 20, final toast reports enriched count. |
+| SkipLink (T1-F11) | Tab into any page from a cold load → "Skip to main content" appears → Enter → focus jumps past the sidebar. |
+| Sentry (T1-F13, post-DSN) | Trigger an intentional error in `/sign-in` via DevTools → Sentry project shows the event with the user + URL breadcrumbs. |
