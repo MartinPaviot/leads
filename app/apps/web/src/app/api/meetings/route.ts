@@ -1,8 +1,9 @@
 import { getAuthContext } from "@/lib/auth-utils";
 import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/calendar";
 import { db } from "@/db";
-import { activities } from "@/db/schema";
+import { activities, authAccounts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { logger } from "@/lib/logger";
 
 /**
  * GET /api/meetings
@@ -24,7 +25,30 @@ export async function GET(req: Request) {
   const daysForward = Number(url.searchParams.get("daysForward")) || 14;
 
   try {
-    const calendarMeetings = await fetchRecentMeetings(authCtx.userId, daysBack, daysForward);
+    const calendarMeetings = await fetchRecentMeetings(
+      authCtx.userId,
+      daysBack,
+      daysForward
+    );
+
+    // M3 — detect which OAuth providers the user has linked so the UI
+    // can explain where the meetings list is coming from. Microsoft
+    // Calendar feed via Graph API is a TODO (tracked in
+    // `_specs/REQUIREMENTS/10-meetings.md`); for now Microsoft users
+    // see just the tracked activities instead of an error.
+    const linkedAccounts = await db
+      .select({ provider: authAccounts.provider })
+      .from(authAccounts)
+      .where(eq(authAccounts.userId, authCtx.userId));
+    const hasGoogle = linkedAccounts.some((a) => a.provider === "google");
+    const hasMicrosoft = linkedAccounts.some(
+      (a) => a.provider === "microsoft-entra-id"
+    );
+    if (!hasGoogle && hasMicrosoft) {
+      logger.info("meetings: microsoft-only user, MS Graph feed not implemented", {
+        userId: authCtx.userId,
+      });
+    }
 
     // Load existing activities indexed by calendar event ID
     const meetingActivities = await db
@@ -131,7 +155,11 @@ export async function GET(req: Request) {
       meetings: enriched,
       upcoming: enriched.filter((m) => !m.isPast).length,
       past: enriched.filter((m) => m.isPast).length,
-      calendarConnected: true,
+      calendarConnected: hasGoogle || hasMicrosoft,
+      // M3 — so the UI can render a "Microsoft Calendar feed coming
+      // soon" affordance for MS-only users instead of an empty state.
+      provider: hasGoogle ? "google" : hasMicrosoft ? "microsoft" : null,
+      microsoftFeedPending: !hasGoogle && hasMicrosoft,
     });
   } catch (err: any) {
     if (err.message?.includes("not connected")) {

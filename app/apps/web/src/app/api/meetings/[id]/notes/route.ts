@@ -2,6 +2,8 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { activities, tasks } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
+import { logger } from "@/lib/logger";
+import { z } from "zod";
 
 export async function GET(
   req: Request,
@@ -51,7 +53,11 @@ export async function GET(
       attendees: meta.attendees || [],
       location: meta.location,
       meetingLink: meta.meetingLink,
-      calendarSource: meta.calendarSource || "google",
+      // M3 — surface the underlying calendar provider so the UI can
+      // label "From Microsoft Calendar" vs Google, instead of the old
+      // hard-coded "google" fallback pretending every meeting came
+      // from Gmail.
+      calendarSource: meta.calendarSource || "unknown",
     },
     hasTranscript: !!meta.hasTranscript || !!meta.structuredNotes,
     transcriptSource: meta.transcriptSource,
@@ -60,4 +66,92 @@ export async function GET(
     tasks: linkedTasks,
     matchedContacts: meta.matchedContacts || [],
   });
+}
+
+/**
+ * PATCH /api/meetings/:id/notes — M1. Update the structured notes
+ * blob (summary, action items, decisions) OR the follow-up email draft
+ * on an existing meeting activity. Partial updates are supported;
+ * whichever keys the client sends get merged into
+ * `activities.metadata`, the rest stay as-is.
+ *
+ * No LLM round-trip here — this is the straight "user saved their
+ * edits" path. Re-generation goes through the post-call pipeline.
+ */
+const patchSchema = z.object({
+  structuredNotes: z.unknown().optional(),
+  followUpEmailDraft: z
+    .object({
+      subject: z.string().optional(),
+      body: z.string().optional(),
+    })
+    .optional(),
+});
+
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  const [activity] = await db
+    .select()
+    .from(activities)
+    .where(
+      and(eq(activities.id, id), eq(activities.tenantId, authCtx.tenantId))
+    )
+    .limit(1);
+
+  if (!activity) {
+    return Response.json({ error: "Meeting not found" }, { status: 404 });
+  }
+
+  const parsed = patchSchema.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) {
+    return Response.json(
+      { error: "Invalid input", details: parsed.error.flatten() },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const currentMeta = (activity.metadata ?? {}) as Record<string, unknown>;
+    const nextMeta: Record<string, unknown> = { ...currentMeta };
+    if (parsed.data.structuredNotes !== undefined) {
+      nextMeta.structuredNotes = parsed.data.structuredNotes;
+    }
+    if (parsed.data.followUpEmailDraft !== undefined) {
+      const currentDraft = (currentMeta.followUpEmailDraft ?? {}) as Record<
+        string,
+        unknown
+      >;
+      nextMeta.followUpEmailDraft = {
+        ...currentDraft,
+        ...parsed.data.followUpEmailDraft,
+      };
+    }
+    nextMeta.notesEditedAt = new Date().toISOString();
+
+    await db
+      .update(activities)
+      .set({ metadata: nextMeta })
+      .where(eq(activities.id, id));
+
+    return Response.json({ ok: true });
+  } catch (err) {
+    logger.error("meetings: notes PATCH failed", {
+      err,
+      meetingId: id,
+      tenantId: authCtx.tenantId,
+    });
+    return Response.json(
+      { error: "Failed to update notes. Please try again." },
+      { status: 500 }
+    );
+  }
 }

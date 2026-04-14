@@ -73,7 +73,13 @@ export async function fetchRecentMeetings(
   daysForward: number = 7
 ): Promise<SyncedMeeting[]> {
   const calendar = await getCalendarClient(userId);
-  if (!calendar) throw new Error("Google Calendar not connected");
+  // M3 — Users with only a Microsoft Entra ID OAuth connection don't
+  // have a `google` account row, so the calendar client is null. Until
+  // the Graph API integration lands, silently return an empty list
+  // instead of throwing "Google Calendar not connected" — the UI then
+  // falls back to the activities table and the meetings list still
+  // renders.
+  if (!calendar) return [];
 
   const timeMin = new Date();
   timeMin.setDate(timeMin.getDate() - daysBack);
