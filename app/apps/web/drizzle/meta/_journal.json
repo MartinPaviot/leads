@@ -78,6 +78,13 @@
       "when": 1776127723213,
       "tag": "0010_dashing_human_robot",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1776127886596,
+      "tag": "0011_fast_rictor",
+      "breakpoints": true
     }
   ]
 }

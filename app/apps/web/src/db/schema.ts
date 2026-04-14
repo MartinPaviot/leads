@@ -72,6 +72,37 @@ export const authVerificationTokens = pgTable(
   ]
 );
 
+// Saved filter / sort / column views per user per resource (T1-F4).
+// Each row is a named view like "My high-intent SaaS" that combines a
+// filter tree + sort + columns. The `is_default` flag picks which view
+// auto-loads for the user on navigation.
+export const savedViews = pgTable(
+  "saved_views",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    resource: text("resource").notNull(),
+    name: text("name").notNull(),
+    filters: jsonb("filters").notNull(),
+    sort: jsonb("sort"),
+    columns: jsonb("columns"),
+    isDefault: boolean("is_default").default(false).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("saved_views_user_resource_idx").on(table.userId, table.resource),
+  ]
+);
+
 // Per-user, per-resource preferences (T1-F5). Keyed by userId + resource
 // (e.g. "accounts" | "contacts" | "opportunities") + key name. Stores
 // JSONB so callers own their schema. Used by the DisplayPanel to
