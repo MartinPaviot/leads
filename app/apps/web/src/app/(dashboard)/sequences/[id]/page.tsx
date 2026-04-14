@@ -7,9 +7,12 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { CampaignWizard } from "@/components/campaign-wizard";
+import { DestructiveConfirm } from "@/components/ui/destructive-confirm";
+import { useToast } from "@/components/ui/toast";
 import {
   Zap, ArrowLeft, Mail, Clock, Users, Play, Pause,
   ChevronDown, ChevronRight, Loader2, FileText, Send,
+  Edit2, Trash2, BarChart3, Check, X,
 } from "lucide-react";
 
 interface Step {
@@ -41,9 +44,19 @@ interface Sequence {
   };
 }
 
+interface Analytics {
+  sequenceId: string;
+  enrollment: Record<string, number>;
+  emails: Record<string, number> & { totalOpened: number; totalClicked: number };
+  rates: { openRate: number; clickRate: number; bounceRate: number; replyRate: number };
+}
+
+type DetailTab = "steps" | "analytics";
+
 export default function SequenceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const { toast } = useToast();
   const [sequence, setSequence] = useState<Sequence | null>(null);
   const [steps, setSteps] = useState<Step[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
@@ -51,6 +64,13 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [showCampaignWizard, setShowCampaignWizard] = useState(false);
   const [expandedStep, setExpandedStep] = useState<number | null>(null);
+  const [tab, setTab] = useState<DetailTab>("steps");
+  const [editingStepId, setEditingStepId] = useState<string | null>(null);
+  const [stepDraft, setStepDraft] = useState<{ subjectTemplate: string; bodyTemplate: string; delayDays: number } | null>(null);
+  const [savingStep, setSavingStep] = useState(false);
+  const [confirmDeleteStepId, setConfirmDeleteStepId] = useState<string | null>(null);
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   // Campaign status polling
   const [campaignStatus, setCampaignStatus] = useState<string>("idle");
@@ -133,6 +153,94 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
     }
   }
 
+  const fetchAnalytics = useCallback(async () => {
+    setAnalyticsLoading(true);
+    try {
+      const res = await fetch(`/api/sequences/${id}/analytics`);
+      if (res.ok) {
+        setAnalytics(await res.json());
+      } else {
+        toast("Failed to load analytics.", "error");
+      }
+    } catch (e) {
+      console.warn("sequence-detail: analytics fetch failed", e);
+      toast("Failed to load analytics.", "error");
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, [id, toast]);
+
+  useEffect(() => {
+    if (tab === "analytics" && !analytics && !analyticsLoading) {
+      fetchAnalytics();
+    }
+  }, [tab, analytics, analyticsLoading, fetchAnalytics]);
+
+  function startEditStep(step: Step) {
+    setEditingStepId(step.id);
+    setStepDraft({
+      subjectTemplate: step.subjectTemplate,
+      bodyTemplate: step.bodyTemplate,
+      delayDays: step.delayDays,
+    });
+  }
+
+  function cancelEditStep() {
+    setEditingStepId(null);
+    setStepDraft(null);
+  }
+
+  async function saveStep(step: Step) {
+    if (!stepDraft) return;
+    const changes: Record<string, unknown> = {};
+    if (stepDraft.subjectTemplate.trim() !== step.subjectTemplate) changes.subjectTemplate = stepDraft.subjectTemplate.trim();
+    if (stepDraft.bodyTemplate.trim() !== step.bodyTemplate) changes.bodyTemplate = stepDraft.bodyTemplate.trim();
+    if (stepDraft.delayDays !== step.delayDays && stepDraft.delayDays >= 0) changes.delayDays = stepDraft.delayDays;
+    if (Object.keys(changes).length === 0) {
+      cancelEditStep();
+      return;
+    }
+    setSavingStep(true);
+    try {
+      const res = await fetch(`/api/sequences/${id}/steps/${step.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(changes),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast((body as { error?: string }).error || "Failed to update step.", "error");
+        return;
+      }
+      toast("Step updated.", "success");
+      cancelEditStep();
+      await fetchSequence();
+    } catch (e) {
+      console.warn("sequence-detail: saveStep failed", e);
+      toast("Failed to update step — network error.", "error");
+    } finally {
+      setSavingStep(false);
+    }
+  }
+
+  async function deleteStep(stepId: string) {
+    setConfirmDeleteStepId(null);
+    try {
+      const res = await fetch(`/api/sequences/${id}/steps/${stepId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast((body as { error?: string }).error || "Failed to delete step.", "error");
+        return;
+      }
+      toast("Step deleted.", "success");
+      if (editingStepId === stepId) cancelEditStep();
+      await fetchSequence();
+    } catch (e) {
+      console.warn("sequence-detail: deleteStep failed", e);
+      toast("Failed to delete step — network error.", "error");
+    }
+  }
+
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--color-text-tertiary)" }} /></div>;
   if (!sequence) return <div className="p-6 text-sm" style={{ color: "var(--color-error)" }}>Sequence not found</div>;
 
@@ -175,8 +283,34 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
         />
       )}
 
+      <div role="tablist" aria-label="Sequence sections" className="flex items-center gap-1 border-b px-6 pt-2" style={{ borderColor: "var(--color-border-default)" }}>
+        {([
+          { id: "steps" as const, label: "Steps", icon: Mail },
+          { id: "analytics" as const, label: "Analytics", icon: BarChart3 },
+        ]).map((t) => {
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={active}
+              onClick={() => setTab(t.id)}
+              className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium"
+              style={{
+                color: active ? "var(--color-text-primary)" : "var(--color-text-tertiary)",
+                borderBottom: active ? "2px solid var(--color-accent)" : "2px solid transparent",
+                marginBottom: -1,
+              }}
+            >
+              <t.icon size={13} />
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="flex-1 overflow-auto p-6">
-        <div className="mx-auto max-w-3xl space-y-8">
+        <div className="mx-auto max-w-3xl space-y-8" hidden={tab !== "steps"}>
 
           {/* ── STEP TIMELINE ── */}
           <section>
@@ -202,6 +336,7 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
                 )}
                 {steps.map((step, i) => {
                   const isExpanded = expandedStep === i;
+                  const isEditing = editingStepId === step.id;
                   return (
                     <div key={step.id} className="relative">
                       {/* Step dot on the timeline */}
@@ -217,15 +352,22 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
                       )}
 
                       {/* Step card */}
-                      <button
-                        onClick={() => setExpandedStep(isExpanded ? null : i)}
-                        className="w-full text-left rounded-lg p-4 transition-all"
+                      <div
+                        className="rounded-lg p-4 transition-all"
                         style={{
                           background: "var(--color-bg-card)",
                           border: `1px solid ${isExpanded ? "var(--color-accent)" : "var(--color-border-default)"}`,
                         }}
                       >
-                        <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isEditing) return;
+                            setExpandedStep(isExpanded ? null : i);
+                          }}
+                          className="flex w-full items-center gap-3 text-left"
+                          aria-expanded={isExpanded}
+                        >
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
                             style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
                             {step.stepNumber}
@@ -236,17 +378,73 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
                             </p>
                           </div>
                           {isExpanded ? <ChevronDown size={14} style={{ color: "var(--color-text-muted)" }} /> : <ChevronRight size={14} style={{ color: "var(--color-text-muted)" }} />}
-                        </div>
+                        </button>
 
-                        {isExpanded && (
+                        {isExpanded && !isEditing && (
                           <div className="mt-3 pl-10">
                             <div className="rounded-md p-3 text-[12px] leading-relaxed whitespace-pre-wrap"
                               style={{ background: "var(--color-bg-page)", color: "var(--color-text-secondary)" }}>
                               {step.bodyTemplate}
                             </div>
+                            <div className="mt-2 flex items-center gap-2">
+                              <Button variant="outline" size="sm" icon={<Edit2 size={12} />} onClick={() => startEditStep(step)}>
+                                Edit step
+                              </Button>
+                              <Button variant="ghost" size="sm" icon={<Trash2 size={12} />} onClick={() => setConfirmDeleteStepId(step.id)}>
+                                Delete
+                              </Button>
+                            </div>
                           </div>
                         )}
-                      </button>
+
+                        {isExpanded && isEditing && stepDraft && (
+                          <div className="mt-3 pl-10 space-y-2">
+                            <label className="block text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
+                              Subject
+                            </label>
+                            <input
+                              type="text"
+                              value={stepDraft.subjectTemplate}
+                              onChange={(e) => setStepDraft({ ...stepDraft, subjectTemplate: e.target.value })}
+                              className="w-full rounded-md px-2.5 py-1.5 text-[12px]"
+                              style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)", color: "var(--color-text-primary)" }}
+                            />
+                            <label className="block pt-1 text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
+                              Body
+                            </label>
+                            <textarea
+                              value={stepDraft.bodyTemplate}
+                              onChange={(e) => setStepDraft({ ...stepDraft, bodyTemplate: e.target.value })}
+                              rows={10}
+                              className="w-full rounded-md px-2.5 py-1.5 text-[12px] leading-relaxed"
+                              style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)", color: "var(--color-text-primary)" }}
+                            />
+                            {i > 0 && (
+                              <div>
+                                <label className="block pt-1 text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
+                                  Delay (business days after previous step)
+                                </label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={stepDraft.delayDays}
+                                  onChange={(e) => setStepDraft({ ...stepDraft, delayDays: Math.max(0, parseInt(e.target.value || "0", 10) || 0) })}
+                                  className="w-24 rounded-md px-2.5 py-1.5 text-[12px]"
+                                  style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)", color: "var(--color-text-primary)" }}
+                                />
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 pt-2">
+                              <Button variant="gradient" size="sm" icon={<Check size={12} />} onClick={() => saveStep(step)} loading={savingStep} disabled={savingStep}>
+                                Save
+                              </Button>
+                              <Button variant="outline" size="sm" icon={<X size={12} />} onClick={cancelEditStep} disabled={savingStep}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -368,7 +566,111 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
           )}
 
         </div>
+
+        <div className="mx-auto max-w-3xl" hidden={tab !== "analytics"}>
+          <AnalyticsPanel loading={analyticsLoading} data={analytics} />
+        </div>
       </div>
+
+      {confirmDeleteStepId && (
+        <DestructiveConfirm
+          open
+          title="Delete this step?"
+          description="Queued emails for this step will not be sent. Already-sent emails are not affected. This action cannot be undone."
+          confirmLabel="Delete step"
+          onConfirm={() => deleteStep(confirmDeleteStepId)}
+          onCancel={() => setConfirmDeleteStepId(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function AnalyticsPanel({ loading, data }: { loading: boolean; data: Analytics | null }) {
+  if (loading && !data) {
+    return <div className="py-10 text-center text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>Loading analytics…</div>;
+  }
+  if (!data) {
+    return <div className="py-10 text-center text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>No analytics yet.</div>;
+  }
+  const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
+  const funnel = [
+    { label: "Enrolled", value: data.enrollment.total || 0 },
+    { label: "Sent", value: (data.emails.sent || 0) + (data.emails.delivered || 0) + (data.emails.bounced || 0) },
+    { label: "Opened", value: data.emails.totalOpened || 0 },
+    { label: "Clicked", value: data.emails.totalClicked || 0 },
+    { label: "Replied", value: data.enrollment.replied || 0 },
+  ];
+  const max = Math.max(...funnel.map((f) => f.value), 1);
+  return (
+    <div className="space-y-6">
+      <section>
+        <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
+          Funnel
+        </h2>
+        <Card>
+          <CardBody>
+            <div className="space-y-2">
+              {funnel.map((f) => (
+                <div key={f.label} className="flex items-center gap-3">
+                  <div className="w-20 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>{f.label}</div>
+                  <div className="flex h-5 flex-1 items-center rounded" style={{ background: "var(--color-bg-page)" }}>
+                    <div
+                      className="h-full rounded"
+                      style={{
+                        width: `${(f.value / max) * 100}%`,
+                        background: "var(--color-accent)",
+                        minWidth: f.value > 0 ? 4 : 0,
+                      }}
+                    />
+                  </div>
+                  <div className="w-14 text-right text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+                    {f.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardBody>
+        </Card>
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
+          Rates
+        </h2>
+        <div className="grid grid-cols-4 gap-3">
+          {[
+            { label: "Open rate", value: pct(data.rates.openRate) },
+            { label: "Click rate", value: pct(data.rates.clickRate) },
+            { label: "Reply rate", value: pct(data.rates.replyRate) },
+            { label: "Bounce rate", value: pct(data.rates.bounceRate) },
+          ].map((s) => (
+            <div key={s.label} className="rounded-lg p-3 text-center" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}>
+              <p className="text-[18px] font-bold" style={{ color: "var(--color-text-primary)" }}>{s.value}</p>
+              <p className="mt-1 text-[10px] uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
+          Enrollment breakdown
+        </h2>
+        <div className="grid grid-cols-4 gap-3">
+          {[
+            { label: "Active", value: data.enrollment.active || 0 },
+            { label: "Paused", value: data.enrollment.paused || 0 },
+            { label: "Completed", value: data.enrollment.completed || 0 },
+            { label: "Replied", value: data.enrollment.replied || 0 },
+          ].map((s) => (
+            <div key={s.label} className="rounded-lg p-3 text-center" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}>
+              <p className="text-[18px] font-bold" style={{ color: "var(--color-text-primary)" }}>{s.value}</p>
+              <p className="mt-1 text-[10px] uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
