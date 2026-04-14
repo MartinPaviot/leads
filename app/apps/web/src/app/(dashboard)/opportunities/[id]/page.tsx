@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { ArrowRight, Gauge, Sparkles } from "lucide-react";
 import { ScopedChat } from "@/components/scoped-chat";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import { useToast } from "@/components/ui/toast";
 
 interface Deal {
   id: string;
@@ -29,12 +31,67 @@ interface Activity {
   occurredAt: string;
 }
 
+interface HealthData {
+  score: number;
+  band: "strong" | "ok" | "at-risk" | "stalled" | string;
+  components: {
+    engagement: { score: number; rationale: string };
+    freshness: { score: number; rationale: string };
+    completeness: { score: number; rationale: string };
+  };
+}
+
+interface StageSuggestion {
+  next: string;
+  reason: string;
+  confidence: "low" | "medium" | "high";
+}
+
 export default function DealDetailPage() {
   const params = useParams();
+  const { toast } = useToast();
   const dealId = params.id as string;
   const [deal, setDeal] = useState<Deal | null>(null);
   const [timeline, setTimeline] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Y1/Y2/Y3 — detail-panel data (loaded in parallel after the deal)
+  const [narrative, setNarrative] = useState<string[] | null>(null);
+  const [health, setHealth] = useState<HealthData | null>(null);
+  const [suggestion, setSuggestion] = useState<StageSuggestion | null>(null);
+  const [currentStageFromSuggestion, setCurrentStageFromSuggestion] = useState<string | null>(null);
+  const [applyingStage, setApplyingStage] = useState(false);
+  const [intelLoaded, setIntelLoaded] = useState(false);
+
+  const fetchIntel = useCallback(async () => {
+    try {
+      const [timelineRes, healthRes, progressRes] = await Promise.all([
+        fetch(`/api/opportunities/${dealId}/timeline`),
+        fetch(`/api/opportunities/${dealId}/health`),
+        fetch(`/api/opportunities/${dealId}/auto-progress`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        }),
+      ]);
+      if (timelineRes.ok) {
+        const d = await timelineRes.json();
+        setNarrative(d.narrative || null);
+      }
+      if (healthRes.ok) {
+        setHealth(await healthRes.json());
+      }
+      if (progressRes.ok) {
+        const d = await progressRes.json();
+        setSuggestion(d.suggestion || null);
+        setCurrentStageFromSuggestion(d.currentStage || null);
+      }
+    } catch (e) {
+      console.warn("opps-detail: intel fetch failed", e);
+    } finally {
+      setIntelLoaded(true);
+    }
+  }, [dealId]);
 
   useEffect(() => {
     async function load() {
@@ -52,7 +109,34 @@ export default function DealDetailPage() {
       }
     }
     load();
-  }, [dealId]);
+    fetchIntel();
+  }, [dealId, fetchIntel]);
+
+  async function applySuggestion() {
+    if (!suggestion) return;
+    setApplyingStage(true);
+    try {
+      const res = await fetch(`/api/opportunities/${dealId}/auto-progress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apply: true }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast((body as { error?: string }).error || "Failed to advance stage.", "error");
+        return;
+      }
+      toast(`Advanced to ${suggestion.next}.`, "success");
+      setDeal((prev) => (prev ? { ...prev, stage: suggestion.next } : prev));
+      setSuggestion(null);
+      await fetchIntel();
+    } catch (e) {
+      console.warn("opps-detail: applySuggestion failed", e);
+      toast("Failed to advance stage — network error.", "error");
+    } finally {
+      setApplyingStage(false);
+    }
+  }
 
   if (loading) return <p className="p-6 text-sm text-[var(--color-text-tertiary)]">Loading...</p>;
   if (!deal) return <p className="p-6 text-sm text-red-400">Deal not found</p>;
@@ -84,6 +168,45 @@ export default function DealDetailPage() {
             {deal.stage.toUpperCase()}
           </Badge>
         </div>
+
+        {/* Y3 — auto-progress suggestion banner */}
+        {suggestion && currentStageFromSuggestion && (
+          <div
+            className="mt-4 flex items-start gap-3 rounded-lg p-4"
+            style={{
+              background: "var(--color-accent-soft, rgba(37,99,235,0.08))",
+              border: "1px solid var(--color-accent)",
+            }}
+          >
+            <Sparkles size={16} className="mt-0.5 shrink-0" style={{ color: "var(--color-accent)" }} />
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+                Suggested: advance this deal
+              </p>
+              <p className="mt-1 flex items-center gap-2 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                <span className="rounded px-1.5 py-0.5 text-[11px] font-medium uppercase" style={{ background: "var(--color-bg-card)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border-default)" }}>
+                  {currentStageFromSuggestion}
+                </span>
+                <ArrowRight size={12} style={{ color: "var(--color-text-tertiary)" }} />
+                <span className="rounded px-1.5 py-0.5 text-[11px] font-medium uppercase" style={{ background: "var(--color-accent)", color: "#fff" }}>
+                  {suggestion.next}
+                </span>
+                <span>· {suggestion.reason}</span>
+                <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                  ({suggestion.confidence} confidence)
+                </span>
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="gradient" size="sm" onClick={applySuggestion} loading={applyingStage} disabled={applyingStage}>
+                Apply
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setSuggestion(null)} disabled={applyingStage}>
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        )}
 
         {deal.companyName && (
           <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{deal.companyName}</p>
@@ -182,6 +305,26 @@ export default function DealDetailPage() {
           );
         })()}
 
+        {/* Y1 — timeline narrative: human sentences distilled from raw activity rows */}
+        {narrative && narrative.length > 0 && (
+          <Card className="mt-6">
+            <CardBody>
+              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] mb-2">Deal narrative</p>
+              <ul className="space-y-1">
+                {narrative.map((line, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-[var(--color-text-secondary)]">
+                    <span className="mt-0.5 text-[var(--color-text-tertiary)]">·</span>
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardBody>
+          </Card>
+        )}
+        {intelLoaded && narrative && narrative.length === 0 && (
+          <p className="mt-6 text-xs text-[var(--color-text-tertiary)]">No narrative yet — waiting on activity.</p>
+        )}
+
         {/* G8: Deal Timeline */}
         <div className="mt-6">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
@@ -234,7 +377,10 @@ export default function DealDetailPage() {
 
       {/* Right panel */}
       <div className="w-[280px] flex-shrink-0 p-6" style={{ borderLeft: "1px solid var(--color-border-default)" }}>
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">Deal details</h3>
+        {/* Y2 — health score card */}
+        {health && <HealthCard data={health} />}
+
+        <h3 className="mt-6 text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">Deal details</h3>
         <div className="mt-4 space-y-3">
           <div>
             <p className="text-xs text-[var(--color-text-tertiary)]">Value</p>
@@ -257,6 +403,60 @@ export default function DealDetailPage() {
             <p className="text-sm text-[var(--color-text-primary)]">{deal.companyName || "—"}</p>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Y2 — health score card rendered in the right-hand panel.
+function HealthCard({ data }: { data: HealthData }) {
+  const bandColor: Record<string, string> = {
+    strong: "var(--color-success, #059669)",
+    ok: "var(--color-accent, #2563eb)",
+    "at-risk": "var(--color-warning, #d97706)",
+    stalled: "var(--color-error, #b91c1c)",
+  };
+  const color = bandColor[data.band] || "var(--color-text-secondary)";
+  const components: Array<{ label: string; score: number; rationale: string; max: number }> = [
+    { label: "Engagement", score: data.components.engagement.score, rationale: data.components.engagement.rationale, max: 40 },
+    { label: "Freshness", score: data.components.freshness.score, rationale: data.components.freshness.rationale, max: 40 },
+    { label: "Completeness", score: data.components.completeness.score, rationale: data.components.completeness.rationale, max: 20 },
+  ];
+  return (
+    <div>
+      <h3 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
+        <Gauge size={13} /> Health
+      </h3>
+      <div
+        className="mt-3 flex items-center gap-3 rounded-lg p-3"
+        style={{ background: "var(--color-bg-card)", border: `1px solid ${color}` }}
+      >
+        <div
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[16px] font-bold text-white"
+          style={{ background: color }}
+        >
+          {data.score}
+        </div>
+        <div className="min-w-0">
+          <p className="text-[12px] font-semibold uppercase tracking-wider" style={{ color }}>
+            {data.band}
+          </p>
+          <p className="text-[11px] text-[var(--color-text-tertiary)]">out of 100</p>
+        </div>
+      </div>
+      <div className="mt-2 space-y-1.5">
+        {components.map((c) => (
+          <div key={c.label}>
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-[var(--color-text-secondary)]">{c.label}</span>
+              <span className="font-medium text-[var(--color-text-primary)]">{c.score}/{c.max}</span>
+            </div>
+            <div className="mt-0.5 h-1 w-full rounded-full" style={{ background: "var(--color-bg-page)" }}>
+              <div className="h-1 rounded-full" style={{ width: `${(c.score / c.max) * 100}%`, background: color }} />
+            </div>
+            <p className="mt-0.5 text-[10px] text-[var(--color-text-tertiary)]">{c.rationale}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
