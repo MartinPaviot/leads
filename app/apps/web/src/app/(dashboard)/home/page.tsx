@@ -50,6 +50,14 @@ interface DashboardSummary {
     meetingsBooked: number;
     opportunitiesClosed: number;
   };
+  // H6 — optional prev-window counts. Older server builds may not
+  // return this; delta rendering skips gracefully when absent.
+  weekSummaryPrev?: {
+    sequencesLaunched: number;
+    responsesReceived: number;
+    meetingsBooked: number;
+    opportunitiesClosed: number;
+  };
   founderMetrics?: {
     pipelineValue: number;
     activeDeals: number;
@@ -314,13 +322,24 @@ export default function DashboardPage() {
           const outboundTotal = (ws?.sequencesLaunched || 0) + (ws?.responsesReceived || 0) + (ws?.meetingsBooked || 0) + (ws?.opportunitiesClosed || 0);
           const fm = summary.founderMetrics;
           const hasFounderData = fm && (fm.totalAccounts > 0 || fm.totalContacts > 0 || fm.pipelineValue > 0);
+          const wsPrev = summary.weekSummaryPrev;
 
-          const stats = outboundTotal > 0
+          // H6 — delta is a pure number difference vs the same-length
+          // window 7 days earlier. Outbound stats get deltas; founder
+          // stats are "running totals" so a delta doesn't read cleanly
+          // (totalContacts only goes up) and we omit them.
+          type Stat = {
+            value: string | number;
+            label: string;
+            icon: React.ReactNode;
+            delta?: number;
+          };
+          const stats: Stat[] | null = outboundTotal > 0
             ? [
-                { value: ws!.sequencesLaunched, label: "sequences", icon: <Zap size={14} /> },
-                { value: ws!.responsesReceived, label: "responses", icon: <MessageSquare size={14} /> },
-                { value: ws!.meetingsBooked, label: "meetings", icon: <Calendar size={14} /> },
-                { value: ws!.opportunitiesClosed, label: "closed", icon: <TrendingUp size={14} /> },
+                { value: ws!.sequencesLaunched, label: "sequences", icon: <Zap size={14} />, delta: wsPrev ? ws!.sequencesLaunched - wsPrev.sequencesLaunched : undefined },
+                { value: ws!.responsesReceived, label: "responses", icon: <MessageSquare size={14} />, delta: wsPrev ? ws!.responsesReceived - wsPrev.responsesReceived : undefined },
+                { value: ws!.meetingsBooked, label: "meetings", icon: <Calendar size={14} />, delta: wsPrev ? ws!.meetingsBooked - wsPrev.meetingsBooked : undefined },
+                { value: ws!.opportunitiesClosed, label: "closed", icon: <TrendingUp size={14} />, delta: wsPrev ? ws!.opportunitiesClosed - wsPrev.opportunitiesClosed : undefined },
               ]
             : hasFounderData
               ? [
@@ -342,6 +361,27 @@ export default function DashboardPage() {
                       <span style={{ color: "var(--color-text-tertiary)" }}>{stat.icon}</span>
                       <span className="text-[18px] font-bold" style={{ color: "var(--color-text-primary)" }}>{stat.value}</span>
                       <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>{stat.label}</span>
+                      {/* H6 — WoW delta chip. "→ same" when zero,
+                          coloured green/red when non-zero. Suppressed
+                          when the prev window data isn't returned
+                          (older server) or when prev+current are both
+                          zero (a "noise" delta is worse than none). */}
+                      {typeof stat.delta === "number" && !(stat.delta === 0 && stat.value === 0) && (
+                        <span
+                          className="text-[11px] font-medium tabular-nums"
+                          style={{
+                            color:
+                              stat.delta > 0
+                                ? "var(--color-success)"
+                                : stat.delta < 0
+                                  ? "var(--color-error)"
+                                  : "var(--color-text-tertiary)",
+                          }}
+                          title={`${stat.delta > 0 ? "+" : ""}${stat.delta} vs last week`}
+                        >
+                          {stat.delta > 0 ? `↑ +${stat.delta}` : stat.delta < 0 ? `↓ ${stat.delta}` : "→ same"}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
