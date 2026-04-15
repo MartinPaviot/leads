@@ -11,6 +11,8 @@ import { eq, and, desc, ilike, or, sql } from "drizzle-orm";
 import { searchSimilar } from "@/lib/embeddings";
 import type { TenantSettings, McpApiKeyEntry } from "@/lib/tenant-settings";
 import { compare } from "bcryptjs";
+import { guardedInsertContact } from "@/lib/pricing/enforce";
+import { QuotaExceededError } from "@/lib/pricing/quota";
 
 // ── MCP Tool Definitions ──
 
@@ -689,18 +691,20 @@ async function handleCreateContact(params: ToolParams, tenantId: string) {
     throw new McpError(-32602, "At least email or name is required");
   }
 
-  const [contact] = await db
-    .insert(contacts)
-    .values({
-      tenantId,
-      firstName,
-      lastName,
-      email,
-      title,
-      phone,
-      companyId,
-    })
-    .returning();
+  const [contact] = await guardedInsertContact(tenantId, () =>
+    db
+      .insert(contacts)
+      .values({
+        tenantId,
+        firstName,
+        lastName,
+        email,
+        title,
+        phone,
+        companyId,
+      })
+      .returning()
+  );
 
   return {
     id: contact.id,
@@ -855,13 +859,14 @@ interface JsonRpcRequest {
 function jsonRpcError(
   id: string | number | null | undefined,
   code: number,
-  message: string
+  message: string,
+  data?: Record<string, unknown>
 ) {
   return Response.json(
     {
       jsonrpc: "2.0",
       id: id ?? null,
-      error: { code, message },
+      error: data ? { code, message, data } : { code, message },
     },
     { status: code === -32600 || code === -32700 ? 400 : 200 }
   );
@@ -972,6 +977,17 @@ export async function POST(req: Request) {
   } catch (err) {
     if (err instanceof McpError) {
       return jsonRpcError(id, err.code, err.message);
+    }
+    if (err instanceof QuotaExceededError) {
+      // MCP uses JSON-RPC, not HTTP status codes — surface the quota code
+      // as a JSON-RPC error with the structured data in the message payload.
+      return jsonRpcError(id, -32010, err.message, {
+        code: err.code,
+        feature: err.feature,
+        current: err.current,
+        limit: err.limit,
+        plan: err.plan,
+      });
     }
     console.error("MCP tool error:", err);
     return jsonRpcError(

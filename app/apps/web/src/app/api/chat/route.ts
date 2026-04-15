@@ -12,6 +12,10 @@ import { getTenantSettings, type TenantSettings } from "@/lib/tenant-settings";
 import { buildChatSystemPrompt } from "@/lib/prompts/chat-system-prompt";
 import { buildAllChatTools, type ToolContext } from "@/lib/chat/tools";
 import { resolveCapabilities, type SurfaceContext } from "@/lib/agents/capability-resolver";
+import { assertAiQueryHeadroom } from "@/lib/pricing/enforce";
+import { QuotaExceededError } from "@/lib/pricing/quota";
+import { quotaExceededResponse } from "@/lib/pricing/http";
+import { trackUsage } from "@/lib/billing";
 
 export const maxDuration = 60;
 
@@ -299,6 +303,21 @@ export async function POST(req: Request) {
   const { rateLimit, rateLimitResponse } = await import("@/lib/rate-limit");
   const rl = rateLimit(`chat:${authCtx.userId}`, 30, 60 * 1000);
   if (!rl.success) return rateLimitResponse(rl.resetAt);
+
+  // Tenant AI-query quota (pre-flight, before any streaming starts — we want
+  // to fail fast with 402 rather than mid-stream, which the client can't
+  // recover from gracefully).
+  try {
+    await assertAiQueryHeadroom(authCtx.tenantId);
+  } catch (e) {
+    if (e instanceof QuotaExceededError) return quotaExceededResponse(e);
+    throw e;
+  }
+  // Record the billable query up front. Tracked regardless of the enforcement
+  // flag so usage stats remain accurate during the banner-only rollout.
+  trackUsage(authCtx.tenantId, "ai_query", 1).catch((err) => {
+    console.warn("trackUsage(ai_query) failed", err);
+  });
 
   const {
     messages,

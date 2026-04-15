@@ -23,6 +23,7 @@ import {
 } from "@/lib/tenant-settings";
 import { logToolCall } from "@/lib/chat/tool-call-log";
 import { makeTool, type ToolContext } from "./context";
+import { guardedInsertContact } from "@/lib/pricing/enforce";
 
 export function buildCreateTools(ctx: ToolContext) {
   const { tenantId, userId, agentApprovalMode, authCtx } = ctx;
@@ -68,10 +69,12 @@ export function buildCreateTools(ctx: ToolContext) {
             fields: input,
           };
         }
-        const [created] = await db
-          .insert(contacts)
-          .values({ tenantId, ...input })
-          .returning();
+        const [created] = await guardedInsertContact(tenantId, () =>
+          db
+            .insert(contacts)
+            .values({ tenantId, ...input })
+            .returning()
+        );
         await logToolCall({
           tenantId,
           userId,
@@ -527,19 +530,21 @@ export function buildCreateTools(ctx: ToolContext) {
           };
         }
 
-        const [created] = await db
-          .insert(contacts)
-          .values({
-            tenantId,
-            email: emailLower,
-            firstName: input.firstName,
-            lastName: input.lastName,
-            title: input.title,
-            phone: input.phone,
-            companyId: input.companyId,
-            linkedinUrl: input.linkedinUrl,
-          })
-          .returning();
+        const [created] = await guardedInsertContact(tenantId, () =>
+          db
+            .insert(contacts)
+            .values({
+              tenantId,
+              email: emailLower,
+              firstName: input.firstName,
+              lastName: input.lastName,
+              title: input.title,
+              phone: input.phone,
+              companyId: input.companyId,
+              linkedinUrl: input.linkedinUrl,
+            })
+            .returning()
+        );
 
         return {
           upserted: {

@@ -9,6 +9,9 @@ import {
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { Resend } from "resend";
 import { buildUnsubscribeUrl } from "@/lib/unsubscribe-token";
+import { assertEmailsHeadroom } from "@/lib/pricing/enforce";
+import { QuotaExceededError } from "@/lib/pricing/quota";
+import { trackUsage } from "@/lib/billing";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -305,6 +308,28 @@ export const processOutboundEmails = inngest.createFunction(
         }
 
         try {
+          // Tenant quota check. A trial tenant at 50/50 emails for the month
+          // is blocked here — we mark the row and refuse to retry (an inngest
+          // retry would just bounce off the same limit next minute).
+          try {
+            await assertEmailsHeadroom(email.tenantId);
+          } catch (quotaErr) {
+            if (quotaErr instanceof QuotaExceededError) {
+              await db
+                .update(outboundEmails)
+                .set({
+                  status: "failed",
+                  failedAt: new Date(),
+                  errorMessage: `Quota exceeded: ${quotaErr.current}/${quotaErr.limit} emails on plan ${quotaErr.plan}`,
+                  updatedAt: new Date(),
+                })
+                .where(eq(outboundEmails.id, email.id));
+              failed++;
+              return;
+            }
+            throw quotaErr;
+          }
+
           // Build unsubscribe URL with HMAC token (the unsubscribe route
           // requires a valid token, so unsigned URLs would 403)
           const appUrl =
@@ -362,6 +387,12 @@ export const processOutboundEmails = inngest.createFunction(
               updatedAt: new Date(),
             })
             .where(eq(outboundEmails.id, email.id));
+
+          // Record the billable event. Always tracked, independent of the
+          // enforcement flag — usage numbers drive the in-app banner too.
+          await trackUsage(email.tenantId, "email_sent", 1).catch((err) => {
+            console.warn("trackUsage(email_sent) failed", err);
+          });
 
           // Update mailbox sent count
           if (mailbox && email.mailboxId) {
@@ -478,6 +509,25 @@ export const sendSingleEmail = inngest.createFunction(
       return { emailId, sent: false, reason: "RESEND_API_KEY not configured" };
     }
 
+    // Quota check (event-driven path). Mark blocked + exit before send.
+    try {
+      await assertEmailsHeadroom(email.tenantId);
+    } catch (quotaErr) {
+      if (quotaErr instanceof QuotaExceededError) {
+        await db
+          .update(outboundEmails)
+          .set({
+            status: "failed",
+            failedAt: new Date(),
+            errorMessage: `Quota exceeded: ${quotaErr.current}/${quotaErr.limit} emails on plan ${quotaErr.plan}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(outboundEmails.id, emailId));
+        return { emailId, sent: false, reason: "Email quota exceeded" };
+      }
+      throw quotaErr;
+    }
+
     const result = await step.run("send", async () => {
       const appUrl =
         process.env.NEXT_PUBLIC_APP_URL || "https://app.elevay.com";
@@ -531,6 +581,10 @@ export const sendSingleEmail = inngest.createFunction(
           updatedAt: new Date(),
         })
         .where(eq(outboundEmails.id, emailId));
+
+      await trackUsage(email.tenantId, "email_sent", 1).catch((err) => {
+        console.warn("trackUsage(email_sent) failed", err);
+      });
 
       return { sent: true, messageId: data?.id };
     });

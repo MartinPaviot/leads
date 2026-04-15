@@ -4,6 +4,9 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { eq, sql } from "drizzle-orm";
 import { inngest } from "@/inngest/client";
 import { embedEntity, contactToText } from "@/lib/embeddings";
+import { guardedInsertContact } from "@/lib/pricing/enforce";
+import { QuotaExceededError } from "@/lib/pricing/quota";
+import { quotaExceededResponse } from "@/lib/pricing/http";
 
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();
@@ -151,19 +154,21 @@ export async function POST(req: Request) {
       );
     }
 
-    const [contact] = await db
-      .insert(contacts)
-      .values({
-        tenantId: authCtx.tenantId,
-        firstName: firstName?.trim() || null,
-        lastName: lastName?.trim() || null,
-        email: email?.trim()?.toLowerCase() || null,
-        title: title?.trim() || null,
-        phone: phone?.trim() || null,
-        companyId: companyId || null,
-        properties,
-      })
-      .returning();
+    const [contact] = await guardedInsertContact(authCtx.tenantId, () =>
+      db
+        .insert(contacts)
+        .values({
+          tenantId: authCtx.tenantId,
+          firstName: firstName?.trim() || null,
+          lastName: lastName?.trim() || null,
+          email: email?.trim()?.toLowerCase() || null,
+          title: title?.trim() || null,
+          phone: phone?.trim() || null,
+          companyId: companyId || null,
+          properties,
+        })
+        .returning()
+    );
 
     // Fire enrichment event
     await inngest.send({
@@ -187,6 +192,7 @@ export async function POST(req: Request) {
 
     return Response.json({ contact }, { status: 201 });
   } catch (error) {
+    if (error instanceof QuotaExceededError) return quotaExceededResponse(error);
     console.error("Failed to create contact:", error);
     return Response.json({ error: "Failed to create contact" }, { status: 500 });
   }

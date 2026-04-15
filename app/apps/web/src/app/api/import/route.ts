@@ -3,6 +3,9 @@ import { companies, contacts, importHistory } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth-utils";
 import { eq } from "drizzle-orm";
 import Papa from "papaparse";
+import { assertContactsHeadroom } from "@/lib/pricing/enforce";
+import { QuotaExceededError } from "@/lib/pricing/quota";
+import { quotaExceededResponse } from "@/lib/pricing/http";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
@@ -81,6 +84,16 @@ export async function POST(req: Request) {
         { error: "CSV exceeds 10,000 row limit" },
         { status: 400 }
       );
+    }
+
+    // Reject atomically if the full batch would exceed the tenant's contact
+    // quota. Done before any insert so a 2000-row import on an 800/1000
+    // tenant doesn't leave 200 orphaned rows behind.
+    try {
+      await assertContactsHeadroom(authCtx.tenantId, rows.length);
+    } catch (e) {
+      if (e instanceof QuotaExceededError) return quotaExceededResponse(e);
+      throw e;
     }
 
     // Map columns — flexible matching

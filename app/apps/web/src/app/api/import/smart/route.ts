@@ -2,6 +2,9 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { db } from "@/db";
 import { companies, contacts, deals } from "@/db/schema";
+import { assertContactsHeadroom } from "@/lib/pricing/enforce";
+import { QuotaExceededError } from "@/lib/pricing/quota";
+import { quotaExceededResponse } from "@/lib/pricing/http";
 
 /**
  * Smart Import — AI-powered CRM data import.
@@ -53,6 +56,18 @@ export async function POST(req: Request) {
     // Parse all rows
     const allRows = lines.slice(1).map(parseCSVLine);
     const results = { created: 0, skipped: 0, errors: 0 };
+
+    // Quota check only for contact imports. Accounts / deals aren't gated
+    // by the "contacts" quota. We pre-flight the full batch so we reject
+    // atomically rather than leaving half the import in the table.
+    if (mapping.entityType === "contact") {
+      try {
+        await assertContactsHeadroom(authCtx.tenantId, allRows.length);
+      } catch (e) {
+        if (e instanceof QuotaExceededError) return quotaExceededResponse(e);
+        throw e;
+      }
+    }
 
     for (const row of allRows) {
       try {

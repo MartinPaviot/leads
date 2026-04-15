@@ -6,6 +6,9 @@ import { runSkill } from "@/skills/runner";
 import { companyContactFinderSkill } from "@/skills/enrichment/company-contact-finder";
 import { leadQualificationSkill } from "@/skills/scoring/lead-qualification";
 import { getTenantSettings } from "@/lib/tenant-settings";
+import { guardedInsertContact } from "@/lib/pricing/enforce";
+import { QuotaExceededError } from "@/lib/pricing/quota";
+import { quotaExceededResponse } from "@/lib/pricing/http";
 
 /**
  * Find decision-makers at top TAM companies during onboarding.
@@ -18,6 +21,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  try {
   const settings = await getTenantSettings(authCtx.tenantId);
   const targetRoles = settings.targetRoles || "";
   const roleTitles = targetRoles.split(/[,;]/).map((r) => r.trim()).filter(Boolean);
@@ -62,21 +66,23 @@ export async function POST(req: Request) {
       if (existing) continue;
 
       const nameParts = person.name?.split(" ") ?? [];
-      const [inserted] = await db.insert(contacts).values({
-        tenantId: authCtx.tenantId,
-        companyId: company.id,
-        firstName: nameParts[0] || null,
-        lastName: nameParts.slice(1).join(" ") || null,
-        email: person.email,
-        title: person.title || null,
-        properties: {
-          enrichment_source: "apollo",
-          seniority: person.seniority,
-          departments: person.departments,
-          linkedin_url: person.linkedinUrl,
-          auto_onboarding: true,
-        },
-      }).returning({ id: contacts.id });
+      const [inserted] = await guardedInsertContact(authCtx.tenantId, () =>
+        db.insert(contacts).values({
+          tenantId: authCtx.tenantId,
+          companyId: company.id,
+          firstName: nameParts[0] || null,
+          lastName: nameParts.slice(1).join(" ") || null,
+          email: person.email,
+          title: person.title || null,
+          properties: {
+            enrichment_source: "apollo",
+            seniority: person.seniority,
+            departments: person.departments,
+            linkedin_url: person.linkedinUrl,
+            auto_onboarding: true,
+          },
+        }).returning({ id: contacts.id })
+      );
 
       createdContactIds.push(inserted.id);
       totalCreated++;
@@ -126,4 +132,8 @@ export async function POST(req: Request) {
       score: c.score,
     })),
   });
+  } catch (error) {
+    if (error instanceof QuotaExceededError) return quotaExceededResponse(error);
+    throw error;
+  }
 }
