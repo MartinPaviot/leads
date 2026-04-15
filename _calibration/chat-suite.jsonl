@@ -38,3 +38,54 @@
 {"id":"EV038","tags":["members"],"surface":{"type":"global"},"prompt":"List my teammates","expectedTool":"listWorkspaceMembers","notes":"Member listing"}
 {"id":"EV039","tags":["batch-get"],"surface":{"type":"global"},"prompt":"Fetch deals c1, c2, c3","expectedTool":"getRecordsByIds","notes":"Batch get"}
 {"id":"EV040","tags":["meeting","update-notes"],"surface":{"type":"meeting","entityId":"m_demo"},"prompt":"Update the action items for this meeting: send pricing deck, book follow-up","expectedTool":"updateMeetingNotes","notes":"Meeting notes patch"}
+{"id":"EV041","tags":["undo","update"],"surface":{"type":"contact","entityId":"c_demo"},"prompt":"Actually revert my last change to this contact","expectedTool":"undoLastAction","notes":"Undo update"}
+{"id":"EV042","tags":["semantic","calls"],"surface":{"type":"global"},"prompt":"Find calls where the buyer pushed back on price","expectedTool":"semanticSearchCallRecordings","notes":"Semantic over transcripts"}
+{"id":"EV043","tags":["semantic","emails"],"surface":{"type":"global"},"prompt":"Show emails discussing integration concerns","expectedTool":"semanticSearchEmails","notes":"Semantic over emails"}
+{"id":"EV044","tags":["get","content"],"surface":{"type":"meeting","entityId":"m_demo"},"prompt":"Show me the full transcript of this meeting","expectedTool":"getCallRecording","notes":"Full transcript fetch"}
+{"id":"EV045","tags":["get","content"],"surface":{"type":"global"},"prompt":"Show full content of email email_123","expectedTool":"getEmailContent","notes":"Full email body"}
+{"id":"EV046","tags":["get","content"],"surface":{"type":"global"},"prompt":"Show full body of note note_abc","expectedTool":"getNoteBody","notes":"Full note content"}
+{"id":"EV047","tags":["intel","expansion"],"surface":{"type":"global"},"prompt":"Which customers could we upsell?","expectedTool":"detectExpansionOpportunities","notes":"Expansion signals"}
+{"id":"EV048","tags":["intel","hiring"],"surface":{"type":"global"},"prompt":"Who's hiring recently?","expectedTool":"checkHiringSignals","notes":"Growth signals"}
+{"id":"EV049","tags":["intel","funding"],"surface":{"type":"global"},"prompt":"Any companies that just raised a round?","expectedTool":"checkFundingSignals","notes":"Funding signals"}
+{"id":"EV050","tags":["intel","leadership"],"surface":{"type":"global"},"prompt":"Any new VPs or execs at our target accounts?","expectedTool":"detectLeadershipChanges","notes":"Leadership moves"}
+{"id":"EV051","tags":["intel","champions"],"surface":{"type":"global"},"prompt":"Did any of my champions change jobs?","expectedTool":"trackChampions","notes":"Champion tracking"}
+{"id":"EV052","tags":["intel","qualify"],"surface":{"type":"global"},"prompt":"Qualify these 20 inbound leads","expectedTool":"qualifyLeads","notes":"Batch qualification"}
+{"id":"EV053","tags":["intel","icp"],"surface":{"type":"global"},"prompt":"Analyze the ICP for our product","expectedTool":"defineICP","notes":"ICP analysis"}
+{"id":"EV054","tags":["intel","battlecard"],"surface":{"type":"global"},"planTier":"pro","prompt":"Generate a battlecard against Salesforce","expectedTool":"generateBattlecard","notes":"Competitor battlecard"}
+{"id":"EV055","tags":["enrich","contact"],"surface":{"type":"contact","entityId":"c_demo"},"prompt":"Enrich her data with Apollo","expectedTool":"enrichContact","notes":"Apollo enrichment"}
+{"id":"EV056","tags":["dedup"],"surface":{"type":"global"},"prompt":"Check if these emails are already in the CRM: a@x.com, b@y.com","expectedTool":"checkDuplicates","notes":"Dedup check"}
+{"id":"EV057","tags":["intel","analyze","sequence"],"surface":{"type":"global"},"prompt":"How are my email sequences performing?","expectedTool":"analyzeSequencePerformance","notes":"Sequence analytics"}
+{"id":"EV058","tags":["intel","seq","leads"],"surface":{"type":"global"},"planTier":"pro","prompt":"Find decision-makers across these domains: acme.com, beta.io","expectedTool":"findLeadsByDomain","notes":"Apollo multi-domain"}
+{"id":"EV059","tags":["intel","leads","company"],"surface":{"type":"global"},"prompt":"Find the VP Engineering at acme.com","expectedTool":"findLeadsAtCompany","notes":"Single-company leader search"}
+{"id":"EV060","tags":["update","workspace","admin"],"surface":{"type":"global"},"role":"admin","prompt":"Switch agent approval mode to auto","expectedTool":"updateWorkspace","notes":"Workspace settings"}
+{"id":"EV061","tags":["update","profile"],"surface":{"type":"global"},"prompt":"Set my timezone to Europe/Paris","expectedTool":"updateUserProfile","notes":"Profile update"}
+{"id":"EV062","tags":["update","privacy","admin"],"surface":{"type":"global"},"role":"admin","prompt":"Add acme.com to do-not-track","expectedTool":"updatePrivacySettings","notes":"Privacy settings"}
+{"id":"EV063","tags":["update","stages","admin"],"surface":{"type":"global"},"role":"admin","prompt":"Rename the Demo stage to Discovery","expectedTool":"updatePipelineStages","notes":"Pipeline stages"}
+{"id":"EV064","tags":["create","knowledge","admin"],"surface":{"type":"global"},"role":"admin","prompt":"Add to our knowledge base: our enterprise contract minimum is $50k ARR","expectedTool":"createKnowledgeEntry","notes":"KB add"}
+{"id":"EV065","tags":["update","knowledge","admin"],"surface":{"type":"global"},"role":"admin","prompt":"Update the pricing entry to include the new Starter plan","expectedTool":"updateKnowledgeEntry","notes":"KB update"}
+{"id":"EV066","tags":["update","custom-fields","admin"],"surface":{"type":"global"},"role":"admin","prompt":"Add a 'deal_source' select field on deals","expectedTool":"updateCustomFieldSchema","notes":"Custom field schema"}
+{"id":"EV067","tags":["update","workflows","admin"],"surface":{"type":"global"},"role":"admin","prompt":"Create a workflow: when a deal is won, create a task for onboarding","expectedTool":"updateWorkflows","notes":"Workflow definition"}
+{"id":"EV068","tags":["member","invite","admin"],"surface":{"type":"global"},"role":"admin","prompt":"Invite sarah@acme.com as an admin","expectedTool":"inviteMember","notes":"Member invite"}
+{"id":"EV069","tags":["member","resend","admin"],"surface":{"type":"global"},"role":"admin","prompt":"Resend the invite for Sarah","expectedTool":"resendInvite","notes":"Re-send invite"}
+{"id":"EV070","tags":["member","role","admin"],"surface":{"type":"global"},"role":"admin","prompt":"Make Jane an admin","expectedTool":"updateMemberRole","notes":"Role change"}
+{"id":"EV071","tags":["mailbox","add"],"surface":{"type":"global"},"prompt":"Connect my smtp mailbox at outreach@acme.com","expectedTool":"addMailbox","notes":"Mailbox add"}
+{"id":"EV072","tags":["mailbox","skip-warmup"],"surface":{"type":"global"},"prompt":"Skip the warmup on mailbox mb_123","expectedTool":"updateMailboxSettings","notes":"Warmup skip"}
+{"id":"EV073","tags":["mail-calendar","sync-prefs"],"surface":{"type":"global"},"prompt":"Only create contacts for people I've replied to","expectedTool":"updateMailCalendarIntegration","notes":"Sync preferences"}
+{"id":"EV074","tags":["custom-object","create","admin"],"surface":{"type":"global"},"role":"admin","prompt":"Create a custom object type called Projects with fields name, status, dueDate","expectedTool":"createCustomObjectType","notes":"Custom object"}
+{"id":"EV075","tags":["saved-view","create"],"surface":{"type":"list","listResource":"deals"},"prompt":"Save this filter as 'My Q2 closings'","expectedTool":"createSavedView","notes":"Saved view"}
+{"id":"EV076","tags":["shared-prompt","list"],"surface":{"type":"global"},"prompt":"What prompt templates do I have?","expectedTool":"listSharedPrompts","notes":"Shared prompts palette"}
+{"id":"EV077","tags":["memory","recall"],"surface":{"type":"global"},"prompt":"What do you remember about our ICP?","expectedTool":"recallMemories","notes":"Memory recall"}
+{"id":"EV078","tags":["memory","forget"],"surface":{"type":"global"},"prompt":"Forget that I prefer bullets","expectedTool":"forgetMemory","notes":"Memory forget"}
+{"id":"EV079","tags":["schema","list"],"surface":{"type":"global"},"prompt":"What's in our workspace schema?","expectedTool":"listSchema","notes":"Schema introspection"}
+{"id":"EV080","tags":["ai-attribute","run"],"surface":{"type":"contact","entityId":"c_demo"},"prompt":"Recompute the AI classification on this contact","expectedTool":"runAiAttribute","notes":"AI attribute recompute"}
+{"id":"EV081","tags":["meetings","search"],"surface":{"type":"global"},"prompt":"Meetings with Acme in the last month","expectedTool":"searchMeetings","notes":"Meeting search"}
+{"id":"EV082","tags":["bulk","contacts"],"surface":{"type":"list","listResource":"contacts"},"prompt":"Tag all Acme contacts as 'top-priority'","expectedTool":"bulkUpdateContacts","notes":"Bulk tag"}
+{"id":"EV083","tags":["bulk","deals"],"surface":{"type":"list","listResource":"deals"},"prompt":"Move all stalled deals to lost","expectedTool":"bulkUpdateDeals","notes":"Bulk stage"}
+{"id":"EV084","tags":["context-graph"],"surface":{"type":"global"},"prompt":"Show me connections around Acme","expectedTool":"exploreGraph","notes":"Graph explore"}
+{"id":"EV085","tags":["meeting","prep"],"surface":{"type":"account","entityId":"a_demo"},"prompt":"Prepare me for my meeting with this account","expectedTool":"generateMeetingPrep","notes":"Meeting prep"}
+{"id":"EV086","tags":["get-notes","meeting"],"surface":{"type":"global"},"prompt":"What were the action items from the last Acme call?","expectedTool":"getMeetingNotes","notes":"Meeting notes query"}
+{"id":"EV087","tags":["search","notes","metadata"],"surface":{"type":"account","entityId":"a_demo"},"prompt":"Notes about this account","expectedTool":"queryNotes","notes":"Structured notes query"}
+{"id":"EV088","tags":["tasks","query"],"surface":{"type":"global"},"prompt":"What's on my todo for this week?","expectedTool":"queryTasks","notes":"Task query"}
+{"id":"EV089","tags":["sequences","update-step"],"surface":{"type":"global"},"prompt":"Change step 2 of the warm intro sequence to 3-day delay","expectedTool":"updateSequenceStep","notes":"Step edit"}
+{"id":"EV090","tags":["sequences","toggle-autopilot"],"surface":{"type":"global"},"planTier":"pro","prompt":"Autopilot: enroll top 20 in the Q2 sequence","expectedTool":"runSequenceAutopilot","notes":"Autopilot enrollment"}
+
