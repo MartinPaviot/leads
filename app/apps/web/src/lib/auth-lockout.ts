@@ -1,4 +1,10 @@
-import { createHash } from "node:crypto";
+// Use the bare `crypto` specifier (not `node:crypto`): this file is
+// reachable from `src/auth.ts`, which Next.js walks for its edge-runtime
+// bundle pass. Webpack's handler for `node:*` schemes trips even when
+// the module actually stays server-side at runtime ("UnhandledSchemeError:
+// node:crypto"). The plain `"crypto"` specifier resolves to the same
+// Node built-in and bypasses the handler.
+import { createHash } from "crypto";
 import { and, eq, gt, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { failedSignInAttempts } from "@/db/schema";

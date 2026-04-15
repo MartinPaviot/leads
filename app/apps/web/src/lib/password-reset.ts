@@ -1,4 +1,6 @@
-import { randomBytes, createHash } from "node:crypto";
+// Bare `crypto` specifier — see auth-lockout.ts for why `node:crypto`
+// trips webpack's edge-runtime pass.
+import { randomBytes, createHash } from "crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { passwordResetTokens } from "@/db/schema";

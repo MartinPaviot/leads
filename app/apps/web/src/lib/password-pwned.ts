@@ -1,4 +1,6 @@
-import { createHash } from "node:crypto";
+// Bare `crypto` specifier — see auth-lockout.ts for why `node:crypto`
+// trips webpack's edge-runtime pass.
+import { createHash } from "crypto";
 
 /**
  * S5 — Have I Been Pwned k-anonymity check.
