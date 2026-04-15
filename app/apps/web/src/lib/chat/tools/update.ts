@@ -14,7 +14,11 @@ import {
 } from "@/db/schema";
 import { and, eq, ilike, or } from "drizzle-orm";
 import { z } from "zod";
-import { updateTenantSettings } from "@/lib/tenant-settings";
+import {
+  getTenantSettings,
+  updateTenantSettings,
+  type CustomObjectTypeDef,
+} from "@/lib/tenant-settings";
 import { makeTool, type ToolContext } from "./context";
 
 export function buildUpdateTools(ctx: ToolContext) {
@@ -1291,6 +1295,59 @@ export function buildUpdateTools(ctx: ToolContext) {
             doNotTrackDomains: sanitized,
           },
         };
+      },
+    }),
+
+    updateCustomObjectType: makeTool({
+      description:
+        "Update an existing custom object type (name, nameSingular, icon, fields). Admin-only. Pass the id of the type + any fields to change. Fields array replaces the whole fields set if provided.",
+      inputSchema: z.object({
+        id: z.string().describe("Existing object type id"),
+        name: z.string().optional(),
+        nameSingular: z.string().optional(),
+        icon: z.string().optional(),
+        fields: z
+          .array(
+            z.object({
+              id: z.string().optional(),
+              name: z.string(),
+              type: z.string().optional(),
+              options: z.array(z.string()).optional(),
+              required: z.boolean().optional(),
+            })
+          )
+          .optional(),
+      }),
+      execute: async (input) => {
+        if (!isAdmin) return { error: "Admin access required" };
+
+        const settings = await getTenantSettings(tenantId);
+        const existing = settings.customObjectTypes || [];
+        const idx = existing.findIndex((t) => t.id === input.id);
+        if (idx === -1) return { error: "Object type not found" };
+
+        const updated: CustomObjectTypeDef[] = [...existing];
+        updated[idx] = {
+          ...updated[idx],
+          name: input.name?.trim() || updated[idx].name,
+          nameSingular: input.nameSingular?.trim() || updated[idx].nameSingular,
+          icon: input.icon || updated[idx].icon,
+          fields: input.fields
+            ? input.fields.map((f) => ({
+                id: f.id || crypto.randomUUID(),
+                name: f.name,
+                type: (f.type || "text") as CustomObjectTypeDef["fields"][number]["type"],
+                options: f.options,
+                required: f.required || false,
+              }))
+            : updated[idx].fields,
+        };
+
+        await updateTenantSettings(tenantId, {
+          customObjectTypes: updated,
+        });
+
+        return { updated: updated[idx] };
       },
     }),
   };

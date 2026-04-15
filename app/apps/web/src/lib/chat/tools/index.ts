@@ -1,4 +1,5 @@
 import type { ToolContext } from "./context";
+import { buildSchemaTools } from "./schema";
 import { buildQueryTools } from "./query";
 import { buildCreateTools } from "./create";
 import { buildUpdateTools } from "./update";
@@ -12,6 +13,7 @@ export { makeTool } from "./context";
 
 export function buildAllChatTools(ctx: ToolContext) {
   return {
+    ...buildSchemaTools(ctx),
     ...buildQueryTools(ctx),
     ...buildCreateTools(ctx),
     ...buildUpdateTools(ctx),

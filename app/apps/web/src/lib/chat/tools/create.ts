@@ -5,6 +5,7 @@ import {
   contacts,
   deals,
   notes,
+  savedViews,
   sequences,
   sequenceSteps,
   tasks,
@@ -13,6 +14,11 @@ import {
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { ingestEpisode } from "@/lib/context-graph";
+import {
+  getTenantSettings,
+  updateTenantSettings,
+  type CustomObjectTypeDef,
+} from "@/lib/tenant-settings";
 import { makeTool, type ToolContext } from "./context";
 
 export function buildCreateTools(ctx: ToolContext) {
@@ -402,6 +408,130 @@ export function buildCreateTools(ctx: ToolContext) {
           .where(eq(tenants.id, tenantId));
 
         return { created: newEntry };
+      },
+    }),
+
+    createCustomObjectType: makeTool({
+      description:
+        "Create a new custom object type (e.g. 'Projects', 'Partners', 'Assets'). Admin-only. Custom object types are workspace-defined and extend the standard CRM schema. Each type has an id (auto-slug-sanitized), a display name (plural + singular), an icon, and a list of fields.",
+      inputSchema: z.object({
+        id: z.string().describe("Slug id (lowercased, dashes only — auto-sanitized)"),
+        name: z.string().describe("Plural display name (e.g. 'Projects')"),
+        nameSingular: z.string().describe("Singular display name (e.g. 'Project')"),
+        icon: z.string().optional().describe("Icon name (default 'Box')"),
+        fields: z
+          .array(
+            z.object({
+              id: z.string().optional(),
+              name: z.string(),
+              type: z.string().optional().describe("text|number|date|select|boolean"),
+              options: z.array(z.string()).optional(),
+              required: z.boolean().optional(),
+            })
+          )
+          .optional(),
+      }),
+      execute: async (input) => {
+        if (!isAdmin) return { error: "Admin access required" };
+
+        const slug = input.id
+          .toLowerCase()
+          .replace(/[^a-z0-9_-]/g, "-")
+          .replace(/-+/g, "-")
+          .replace(/^-|-$/g, "");
+        if (!slug) return { error: "Invalid id" };
+
+        const settings = await getTenantSettings(tenantId);
+        const existing = settings.customObjectTypes || [];
+        if (existing.some((t) => t.id === slug)) {
+          return { error: `Object type "${slug}" already exists` };
+        }
+
+        const newType: CustomObjectTypeDef = {
+          id: slug,
+          name: input.name.trim(),
+          nameSingular: input.nameSingular.trim(),
+          icon: input.icon || "Box",
+          fields: (input.fields || []).map((f) => ({
+            id: f.id || crypto.randomUUID(),
+            name: f.name,
+            type: (f.type || "text") as CustomObjectTypeDef["fields"][number]["type"],
+            options: f.options,
+            required: f.required || false,
+          })),
+        };
+
+        await updateTenantSettings(tenantId, {
+          customObjectTypes: [...existing, newType],
+        });
+
+        return { created: newType };
+      },
+    }),
+
+    createSavedView: makeTool({
+      description:
+        "Save a filter/sort/columns view for a resource (accounts, contacts, deals, etc.) scoped to the current user. Use when the user says 'save this view as X', 'bookmark these filters'. isDefault=true will unset the default on sibling views so at most one default per (user, resource).",
+      inputSchema: z.object({
+        resource: z
+          .string()
+          .describe(
+            "Resource type: accounts, contacts, deals, opportunities, meetings, tasks, notes, sequences, ..."
+          ),
+        name: z.string().describe("View name (max 120 chars)"),
+        filters: z
+          .array(
+            z.object({
+              field: z.string(),
+              operator: z.string(),
+              value: z.unknown(),
+            })
+          )
+          .describe("Filter clauses"),
+        sort: z
+          .object({
+            field: z.string(),
+            dir: z.enum(["asc", "desc"]),
+          })
+          .nullable()
+          .optional(),
+        columns: z.array(z.string()).optional().describe("Visible column IDs"),
+        isDefault: z.boolean().optional(),
+      }),
+      execute: async (input) => {
+        if (input.isDefault) {
+          await db
+            .update(savedViews)
+            .set({ isDefault: false })
+            .where(
+              and(
+                eq(savedViews.userId, authCtx.userId),
+                eq(savedViews.resource, input.resource)
+              )
+            );
+        }
+
+        const [inserted] = await db
+          .insert(savedViews)
+          .values({
+            userId: authCtx.userId,
+            resource: input.resource,
+            name: input.name,
+            filters: input.filters as never,
+            sort: (input.sort ?? null) as never,
+            columns: (input.columns ?? null) as never,
+            isDefault: Boolean(input.isDefault),
+          })
+          .returning();
+
+        return {
+          created: {
+            id: inserted.id,
+            resource: inserted.resource,
+            name: inserted.name,
+            isDefault: inserted.isDefault,
+          },
+        };
       },
     }),
   };
