@@ -19,32 +19,48 @@
 import { db } from "@/db";
 import {
   activities,
+  comments,
   companies,
   contacts,
   deals,
   notes,
   sequenceEnrollments,
+  sequenceSteps,
+  sequences,
+  sharedPrompts,
   tasks,
   toolCallEvents,
 } from "@/db/schema";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
+type ReversibleEntityLoose =
+  | "contact"
+  | "company"
+  | "deal"
+  | "note"
+  | "task"
+  | "activity"
+  | "sequence"
+  | "sequence_step"
+  | "comment"
+  | "shared_prompt";
+
 export type ReversibleSnapshot =
-  | { type: "create"; entity: "contact" | "company" | "deal" | "note" | "task"; id: string }
+  | { type: "create"; entity: ReversibleEntityLoose; id: string }
   | {
       type: "update";
-      entity: "contact" | "company" | "deal" | "note" | "task";
+      entity: ReversibleEntityLoose;
       id: string;
       before: Record<string, unknown>;
     }
   | {
       type: "delete";
-      entity: "contact" | "company" | "deal" | "note" | "task";
+      entity: ReversibleEntityLoose;
       before: Record<string, unknown>;
     }
   | {
       type: "bulk_update";
-      entity: "contact" | "company" | "deal" | "note" | "task";
+      entity: ReversibleEntityLoose;
       rows: Array<{ id: string; before: Record<string, unknown> }>;
     }
   | {
@@ -298,7 +314,17 @@ export async function reverseToolCall(
   }
 }
 
-type ReversibleEntity = "contact" | "company" | "deal" | "note" | "task";
+type ReversibleEntity =
+  | "contact"
+  | "company"
+  | "deal"
+  | "note"
+  | "task"
+  | "activity"
+  | "sequence"
+  | "sequence_step"
+  | "comment"
+  | "shared_prompt";
 
 async function deleteByEntityId(
   entity: ReversibleEntity,
@@ -315,6 +341,25 @@ async function deleteByEntityId(
     await db.delete(notes).where(and(eq(notes.id, id), eq(notes.tenantId, tenantId)));
   } else if (entity === "task") {
     await db.delete(tasks).where(and(eq(tasks.id, id), eq(tasks.tenantId, tenantId)));
+  } else if (entity === "activity") {
+    await db
+      .delete(activities)
+      .where(and(eq(activities.id, id), eq(activities.tenantId, tenantId)));
+  } else if (entity === "sequence") {
+    await db
+      .delete(sequences)
+      .where(and(eq(sequences.id, id), eq(sequences.tenantId, tenantId)));
+  } else if (entity === "sequence_step") {
+    // sequence_steps has no tenantId — FK via sequenceId is authoritative
+    await db.delete(sequenceSteps).where(eq(sequenceSteps.id, id));
+  } else if (entity === "comment") {
+    await db
+      .delete(comments)
+      .where(and(eq(comments.id, id), eq(comments.tenantId, tenantId)));
+  } else if (entity === "shared_prompt") {
+    await db
+      .delete(sharedPrompts)
+      .where(and(eq(sharedPrompts.id, id), eq(sharedPrompts.tenantId, tenantId)));
   }
 }
 
@@ -368,6 +413,16 @@ function pickTable(entity: string) {
       return notes;
     case "task":
       return tasks;
+    case "activity":
+      return activities;
+    case "sequence":
+      return sequences;
+    case "sequence_step":
+      return sequenceSteps;
+    case "comment":
+      return comments;
+    case "shared_prompt":
+      return sharedPrompts;
     default:
       return null;
   }

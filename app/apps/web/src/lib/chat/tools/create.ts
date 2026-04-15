@@ -276,6 +276,15 @@ export function buildCreateTools(ctx: ToolContext) {
           })
           .returning();
 
+        await logToolCall({
+          tenantId,
+          userId,
+          toolName: "logActivity",
+          args: input as unknown as Record<string, unknown>,
+          result: { id: activity.id },
+          snapshot: { type: "create", entity: "activity", id: activity.id },
+        });
+
         return {
           logged: {
             id: activity.id,
@@ -307,6 +316,14 @@ export function buildCreateTools(ctx: ToolContext) {
             description: input.description?.trim() || null,
           })
           .returning();
+        await logToolCall({
+          tenantId,
+          userId,
+          toolName: "createSequence",
+          args: input as unknown as Record<string, unknown>,
+          result: { id: sequence.id },
+          snapshot: { type: "create", entity: "sequence", id: sequence.id },
+        });
         return {
           created: {
             id: sequence.id,
@@ -356,6 +373,15 @@ export function buildCreateTools(ctx: ToolContext) {
             delayDays: input.delayDays ?? 2,
           })
           .returning();
+
+        await logToolCall({
+          tenantId,
+          userId,
+          toolName: "addSequenceStep",
+          args: input as unknown as Record<string, unknown>,
+          result: { id: step.id },
+          snapshot: { type: "create", entity: "sequence_step", id: step.id },
+        });
 
         return {
           created: {
@@ -823,6 +849,15 @@ export function buildCreateTools(ctx: ToolContext) {
           })
           .returning();
 
+        await logToolCall({
+          tenantId,
+          userId,
+          toolName: "createComment",
+          args: input as unknown as Record<string, unknown>,
+          result: { id: created.id },
+          snapshot: { type: "create", entity: "comment", id: created.id },
+        });
+
         return {
           created: {
             id: created.id,
@@ -858,6 +893,14 @@ export function buildCreateTools(ctx: ToolContext) {
             scope,
           })
           .returning();
+        await logToolCall({
+          tenantId,
+          userId,
+          toolName: "createSharedPrompt",
+          args: input as unknown as Record<string, unknown>,
+          result: { id: created.id },
+          snapshot: { type: "create", entity: "shared_prompt", id: created.id },
+        });
         return {
           created: {
             id: created.id,
