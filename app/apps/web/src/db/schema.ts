@@ -432,10 +432,43 @@ export const chatMessages = pgTable(
     role: text("role").notNull(), // "user" | "assistant" | "system"
     content: text("content").notNull(),
     metadata: jsonb("metadata").default({}),
+    // CHAT-05: Tree/fork conversation. parentMessageId references the
+    // message in the same thread that preceded this one. branchId
+    // groups messages that belong to a specific branch (editing a
+    // prior user message regenerates in a new branch rather than
+    // overwriting). Legacy linear messages keep parentMessageId=NULL
+    // and branchId='main'.
+    parentMessageId: text("parent_message_id"),
+    branchId: text("branch_id").notNull().default("main"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (table) => [
     index("chat_messages_thread_id_idx").on(table.threadId),
+    index("chat_messages_branch_idx").on(table.threadId, table.branchId),
+    index("chat_messages_parent_idx").on(table.parentMessageId),
+  ]
+);
+
+// CHAT-05: Shared prompts — reusable prompt templates scoped to user,
+// team, or workspace. Exposes `/` palette in the chat input for quick
+// invocation of codified queries.
+export const sharedPrompts = pgTable(
+  "shared_prompts",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    authorId: text("author_id").references(() => users.id).notNull(),
+    title: text("title").notNull(),
+    prompt: text("prompt").notNull(),
+    // Visibility scope: 'user' (private to author), 'workspace' (all
+    // members). 'team' reserved for future team support.
+    scope: text("scope").notNull().default("user"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("shared_prompts_tenant_scope_idx").on(table.tenantId, table.scope),
+    index("shared_prompts_author_idx").on(table.authorId),
   ]
 );
 

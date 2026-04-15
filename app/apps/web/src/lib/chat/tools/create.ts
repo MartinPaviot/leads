@@ -8,6 +8,7 @@ import {
   savedViews,
   sequences,
   sequenceSteps,
+  sharedPrompts,
   tasks,
   tenants,
 } from "@/db/schema";
@@ -792,6 +793,39 @@ export function buildCreateTools(ctx: ToolContext) {
             resource: inserted.resource,
             name: inserted.name,
             isDefault: inserted.isDefault,
+          },
+        };
+      },
+    }),
+
+    createSharedPrompt: makeTool({
+      description:
+        "Save a reusable prompt template under a short title. Scope defaults to 'user' (private); admins can set scope='workspace' to share with the whole team. Surfaces in the '/' palette of the chat input. Use when the user says 'save this prompt as X', 'codify this into a template', 'let the team use this'.",
+      inputSchema: z.object({
+        title: z.string().min(1).max(120),
+        prompt: z.string().min(1),
+        scope: z.enum(["user", "workspace"]).optional(),
+      }),
+      execute: async (input) => {
+        const scope = input.scope || "user";
+        if (scope === "workspace" && !isAdmin) {
+          return { error: "Admin access required to publish workspace prompts" };
+        }
+        const [created] = await db
+          .insert(sharedPrompts)
+          .values({
+            tenantId,
+            authorId: userId,
+            title: input.title.trim(),
+            prompt: input.prompt.trim(),
+            scope,
+          })
+          .returning();
+        return {
+          created: {
+            id: created.id,
+            title: created.title,
+            scope: created.scope,
           },
         };
       },

@@ -5,6 +5,7 @@ import {
   contacts,
   deals,
   notes,
+  sharedPrompts,
   tasks,
   users,
 } from "@/db/schema";
@@ -936,6 +937,92 @@ Examples: query="Sarah Chen" finds contacts named Sarah Chen. query="deals over 
           default:
             return { error: "Unknown objectType" };
         }
+      },
+    }),
+
+    listSharedPrompts: makeTool({
+      description:
+        "List reusable prompt templates available to the current user — includes personal (private) prompts plus any workspace-shared ones. Use when the user asks 'what prompts do I have', 'show shared prompts', 'list team templates'.",
+      inputSchema: z.object({
+        scope: z.enum(["user", "workspace", "all"]).optional().describe("Filter scope (default 'all')"),
+        search: z.string().optional().describe("Substring match on title"),
+      }),
+      execute: async (input) => {
+        const scopeFilter = input.scope || "all";
+        const scopeClause =
+          scopeFilter === "user"
+            ? and(
+                eq(sharedPrompts.scope, "user"),
+                eq(sharedPrompts.authorId, authCtx.appUserId)
+              )
+            : scopeFilter === "workspace"
+              ? eq(sharedPrompts.scope, "workspace")
+              : or(
+                  eq(sharedPrompts.scope, "workspace"),
+                  and(
+                    eq(sharedPrompts.scope, "user"),
+                    eq(sharedPrompts.authorId, authCtx.appUserId)
+                  )
+                );
+
+        const conditions = [eq(sharedPrompts.tenantId, tenantId), scopeClause!];
+        if (input.search) {
+          conditions.push(ilike(sharedPrompts.title, `%${input.search}%`));
+        }
+
+        const rows = await db
+          .select()
+          .from(sharedPrompts)
+          .where(and(...conditions))
+          .orderBy(desc(sharedPrompts.updatedAt))
+          .limit(50);
+
+        return {
+          prompts: rows.map((p) => ({
+            id: p.id,
+            title: p.title,
+            prompt: p.prompt,
+            scope: p.scope,
+            authorId: p.authorId,
+            createdAt: p.createdAt,
+            updatedAt: p.updatedAt,
+          })),
+        };
+      },
+    }),
+
+    deleteSharedPrompt: makeTool({
+      description:
+        "Delete a shared prompt by id. User-scope prompts can be deleted by their author. Workspace-scope prompts require admin. Use when the user says 'remove that prompt', 'delete the X template'.",
+      inputSchema: z.object({
+        id: z.string(),
+      }),
+      execute: async (input) => {
+        const [prompt] = await db
+          .select()
+          .from(sharedPrompts)
+          .where(
+            and(eq(sharedPrompts.id, input.id), eq(sharedPrompts.tenantId, tenantId))
+          )
+          .limit(1);
+        if (!prompt) return { error: "Prompt not found" };
+
+        if (prompt.scope === "workspace" && authCtx.role !== "admin") {
+          return { error: "Admin access required to delete workspace prompts" };
+        }
+        if (
+          prompt.scope === "user" &&
+          prompt.authorId !== authCtx.appUserId
+        ) {
+          return { error: "You can only delete your own user-scope prompts" };
+        }
+
+        await db
+          .delete(sharedPrompts)
+          .where(
+            and(eq(sharedPrompts.id, input.id), eq(sharedPrompts.tenantId, tenantId))
+          );
+        return { deleted: { id: input.id, title: prompt.title, scope: prompt.scope } };
       },
     }),
   };
