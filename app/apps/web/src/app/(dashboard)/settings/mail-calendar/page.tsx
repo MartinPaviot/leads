@@ -155,6 +155,31 @@ export default function MailCalendarPage() {
     if (!err) loadData();
   }
 
+  // N15 — OAuth-only accounts (Google/Microsoft calendar + Gmail sync
+  // without a sending mailbox) get a "Disconnect" action that wipes
+  // the auth_account row. Stored as { email, provider } so the dialog
+  // can tell the user exactly which integration is about to stop
+  // syncing. `null` closes.
+  const [disconnectOauth, setDisconnectOauth] = useState<
+    { email: string; provider: "google" | "microsoft-entra-id" } | null
+  >(null);
+  const [disconnectingOauth, setDisconnectingOauth] = useState(false);
+
+  async function confirmDisconnectOauth() {
+    if (!disconnectOauth) return;
+    setDisconnectingOauth(true);
+    const { error: err } = await sfetch(
+      `/api/settings/oauth?provider=${disconnectOauth.provider}`,
+      {
+        method: "DELETE",
+        errorMessage: "Failed to disconnect",
+      }
+    );
+    setDisconnectingOauth(false);
+    setDisconnectOauth(null);
+    if (!err) loadData();
+  }
+
   async function skipWarmup(id: string) {
     const { error: err } = await sfetch(`/api/settings/mailboxes?id=${id}&action=skip-warmup`, {
       method: "PATCH",
@@ -361,6 +386,29 @@ export default function MailCalendarPage() {
                         {acct.mailboxConnected && (
                           <Button variant="icon" size="sm" onClick={() => deleteAccount(acct.id)}>
                             <Trash2 size={14} />
+                          </Button>
+                        )}
+                        {/* N15 — OAuth-only: sync is active but there's no
+                             sending mailbox, so the mailbox-delete path
+                             doesn't apply. Offer a Disconnect to revoke
+                             the access + refresh tokens and stop the
+                             cron. Infer provider from emailProvider or
+                             the account shape. */}
+                        {acct.oauthConnected && !acct.mailboxConnected && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              setDisconnectOauth({
+                                email: acct.emailAddress,
+                                provider:
+                                  providerName.toLowerCase().includes("microsoft")
+                                    ? "microsoft-entra-id"
+                                    : "google",
+                              })
+                            }
+                          >
+                            Disconnect
                           </Button>
                         )}
                       </div>
@@ -596,6 +644,21 @@ export default function MailCalendarPage() {
         onConfirm={confirmDeleteAccount}
         onCancel={() => setRemoveMailboxId(null)}
         busy={removingMailbox}
+      />
+
+      <ConfirmDialog
+        open={disconnectOauth !== null}
+        title="Disconnect this account?"
+        description={
+          disconnectOauth
+            ? `Calendar and email sync for ${disconnectOauth.email} will stop. To fully revoke access you'll also want to remove Elevay from your ${disconnectOauth.provider === "google" ? "Google" : "Microsoft"} account security settings.`
+            : ""
+        }
+        confirmLabel="Disconnect"
+        variant="destructive"
+        onConfirm={confirmDisconnectOauth}
+        onCancel={() => setDisconnectOauth(null)}
+        busy={disconnectingOauth}
       />
     </>
   );
