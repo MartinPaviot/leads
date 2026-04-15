@@ -18,6 +18,9 @@ export interface TenantSettings {
    * wizard can be re-opened at the same place after a reload. Cleared when
    * onboarding completes. */
   onboardingCurrentStep?: string;
+  /** ISO timestamp of the welcome-email send. Set once on completion so a
+   * resume / re-completion (rare but possible) can't mailbomb the user. */
+  welcomeEmailSentAt?: string;
 
   // ── Product context ──
   productDescription?: string;
@@ -40,6 +43,18 @@ export interface TenantSettings {
   contactCreationMode?: "disabled" | "selective" | "always";
   backsyncRange?: "1m" | "3m" | "6m" | "12m";
   doNotTrackDomains?: string[];
+
+  /**
+   * O7 — default visibility for newly captured records (emails, meetings,
+   * notes, contacts).
+   * - "everyone": all tenant members can see (current behavior).
+   * - "team": shared with the user's team only — placeholder for future
+   *   team scoping; today behaves like "everyone".
+   * - "private": only the creating user can see — used by founders who
+   *   demo or share screens publicly and don't want a teammate's leads
+   *   to leak in.
+   */
+  defaultDataVisibility?: "everyone" | "team" | "private";
 
   // ── Sequence behavior ──
   /** When true (default), sequence step delays skip Saturdays and Sundays. */

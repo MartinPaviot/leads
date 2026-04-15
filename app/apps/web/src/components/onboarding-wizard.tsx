@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { signIn } from "next-auth/react";
-import { ArrowRight, ArrowLeft, Loader2, Check, Mail, Target, Zap, MessageSquare, Users, Building2, Globe, ChevronDown, Calendar, Shield, Eye, EyeOff, Clock } from "lucide-react";
+import { ArrowRight, ArrowLeft, Loader2, Check, Mail, Target, Zap, MessageSquare, Users, Building2, Globe, ChevronDown, Calendar, Shield, Eye, EyeOff, Clock, Send, Inbox, Database } from "lucide-react";
 import { INDUSTRIES, COMPANY_SIZES, SALES_MOTIONS, GEOGRAPHIES, JOB_SENIORITIES, JOB_DEPARTMENTS, sizesToApolloRanges } from "@/lib/icp-constants";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { chunkedBulkCall } from "@/lib/chunk-bulk";
@@ -203,12 +203,12 @@ function FreeTagInput({ tags, setTags, placeholder }: { tags: string[]; setTags:
 
 /* ── Shared layout pieces ── */
 
-function StepHeader({ icon, title, subtitle }: { icon: React.ReactNode; title: string; subtitle: string }) {
+function StepHeader({ icon, title, subtitle, headingId }: { icon: React.ReactNode; title: string; subtitle: string; headingId?: string }) {
   return (
     <div className="shrink-0 mb-3">
       <div className="flex items-center gap-1.5 mb-0.5">
         <span style={{ color: "var(--color-accent)" }}>{icon}</span>
-        <h2 className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>{title}</h2>
+        <h2 id={headingId} className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>{title}</h2>
       </div>
       <p className="text-[12px] leading-snug" style={{ color: "var(--color-text-tertiary)" }}>{subtitle}</p>
     </div>
@@ -247,14 +247,23 @@ const labelStyle = { color: "var(--color-text-secondary)" };
 /* ── Progress bar ── */
 
 function ProgressBar({ current, total }: { current: number; total: number }) {
+  const label = STEPS[current - 1]?.label ?? "";
   return (
     <div className="w-full">
       <div className="flex items-center justify-between mb-1">
         <span className="text-[11px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>
-          {current}/{total} · {STEPS[current - 1]?.label}
+          {current}/{total} · {label}
         </span>
       </div>
-      <div className="h-0.5 w-full rounded-full overflow-hidden" style={{ background: "var(--color-border-default)" }}>
+      <div
+        role="progressbar"
+        aria-label={`Onboarding step ${current} of ${total}: ${label}`}
+        aria-valuenow={current}
+        aria-valuemin={1}
+        aria-valuemax={total}
+        className="h-0.5 w-full rounded-full overflow-hidden"
+        style={{ background: "var(--color-border-default)" }}
+      >
         <div className="h-full rounded-full transition-all duration-500 ease-out" style={{ width: `${(current / total) * 100}%`, background: "var(--color-accent)" }} />
       </div>
     </div>
@@ -274,6 +283,15 @@ const CREATION_OPTIONS = [
   { value: "selective", label: "Selective", desc: "Emails you send & meetings you organize", icon: <Eye size={13} /> },
   { value: "always", label: "Always", desc: "All incoming and outgoing emails", icon: <Users size={13} /> },
   { value: "disabled", label: "Disabled", desc: "No automatic record creation", icon: <EyeOff size={13} /> },
+] as const;
+
+// O7 — visibility default for newly captured records. Defaults to
+// "everyone" so single-tenant founders see no behavior change; multi-user
+// tenants can lock down here on day one.
+const VISIBILITY_OPTIONS = [
+  { value: "everyone", label: "Everyone", desc: "All workspace members see new records", icon: <Users size={13} /> },
+  { value: "team", label: "Team", desc: "Only your team can see them", icon: <Shield size={13} /> },
+  { value: "private", label: "Private", desc: "Only you can see them", icon: <EyeOff size={13} /> },
 ] as const;
 
 /* ═══════════════════════════ MAIN COMPONENT ═══════════════════════════ */
@@ -302,6 +320,8 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
 
   const [contactCreation, setContactCreation] = useState<"disabled" | "selective" | "always">("selective");
   const [backsyncRange, setBacksyncRange] = useState<"1m" | "3m" | "6m" | "12m">("3m");
+  const [defaultVisibility, setDefaultVisibility] =
+    useState<"everyone" | "team" | "private">("everyone");
   const [doNotTrackDomains, setDoNotTrackDomains] = useState<string[]>([...DEFAULT_IGNORED_DOMAINS]);
   const [doNotTrackInput, setDoNotTrackInput] = useState("");
 
@@ -336,6 +356,77 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
   const stepIndex = STEPS.findIndex((s) => s.key === step) + 1;
   const togglePill = useCallback((list: string[], val: string, setter: (v: string[]) => void) => {
     setter(list.includes(val) ? list.filter((v) => v !== val) : [...list, val]);
+  }, []);
+
+  /* ── O10 — modal a11y ──
+   * The wizard is a fullscreen takeover with no close affordance: the
+   * user is locked in until completion (or reload). To stay WCAG AA
+   * compliant we still need:
+   *   - role="dialog" + aria-modal="true" + aria-labelledby pointing at
+   *     the per-step heading
+   *   - focus trap so Tab can't escape into background DOM
+   *   - aria-live region announcing step transitions to screen readers
+   *   - role="progressbar" with valuenow/valuemax on the indicator
+   *
+   * A heavier focus-trap lib isn't worth pulling in for one modal — a
+   * 30-line cycle-on-Tab handler covers it.
+   */
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const stepHeadingId = `onboarding-step-heading-${step}`;
+  const liveRegionRef = useRef<HTMLDivElement | null>(null);
+
+  // Announce step changes to screen readers.
+  useEffect(() => {
+    const label = STEPS[stepIndex - 1]?.label ?? step;
+    if (liveRegionRef.current) {
+      liveRegionRef.current.textContent = `Step ${stepIndex} of ${STEPS.length}: ${label}`;
+    }
+  }, [step, stepIndex]);
+
+  // Move focus to the dialog on mount so screen-reader users land inside
+  // the modal rather than at the document root.
+  useEffect(() => {
+    const root = dialogRef.current;
+    if (!root) return;
+    // Defer one tick so React has rendered the per-step content.
+    const t = setTimeout(() => {
+      const first = root.querySelector<HTMLElement>(
+        "h2, [data-autofocus], button, [href], input, textarea, select"
+      );
+      first?.focus();
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Cycle Tab inside the modal so keyboard users can't tab into the
+  // background page (which is fully visually obscured but still in the
+  // accessibility tree).
+  useEffect(() => {
+    const root = dialogRef.current;
+    if (!root) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Tab") return;
+      const focusables = root!.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey) {
+        if (active === first || !root!.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+    root.addEventListener("keydown", onKeyDown);
+    return () => root.removeEventListener("keydown", onKeyDown);
   }, []);
 
   const saveOnboardingData = async (data: Record<string, unknown>) => {
@@ -390,7 +481,13 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
 
   const handlePrivacyContinue = async () => {
     setSaving(true);
-    await saveOnboardingData({ step: "privacy", contactCreationMode: contactCreation, backsyncRange, doNotTrackDomains: doNotTrackDomains.filter((d) => d.trim()) });
+    await saveOnboardingData({
+      step: "privacy",
+      contactCreationMode: contactCreation,
+      backsyncRange,
+      defaultDataVisibility: defaultVisibility,
+      doNotTrackDomains: doNotTrackDomains.filter((d) => d.trim()),
+    });
     setSaving(false);
     setStep("product");
   };
@@ -566,7 +663,34 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
   /* ═══════════════════════════ RENDER ═══════════════════════════ */
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", alignItems: "center", padding: "16px 0", background: "var(--color-bg-page)" }}>
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={stepHeadingId}
+      style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", alignItems: "center", padding: "16px 0", background: "var(--color-bg-page)" }}
+    >
+      {/* O10 — polite live region for step transitions; visually hidden
+          but read by screen readers. `key` retired in favour of textContent
+          mutation so React doesn't replace the node and reset the polite
+          announcement queue. */}
+      <div
+        ref={liveRegionRef}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        style={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: "hidden",
+          clip: "rect(0,0,0,0)",
+          whiteSpace: "nowrap",
+          border: 0,
+        }}
+      />
 
       {/* ── Header ── */}
       <div className="w-full max-w-lg px-4 shrink-0 mb-2">
@@ -608,7 +732,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
         {/* ════ STEP 2 : CONNECT ════ */}
         {step === "connect" && (
           <div className="flex flex-col h-full">
-            <StepHeader icon={<Mail size={15} />} title="Connect your email & calendar" subtitle="We sync your conversations and meetings to keep full context on every deal." />
+            <StepHeader headingId={stepHeadingId} icon={<Mail size={15} />} title="Connect your email & calendar" subtitle="We sync your conversations and meetings to keep full context on every deal." />
 
             <div className="flex-1 space-y-4">
               <div className="space-y-2">
@@ -653,7 +777,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
         {/* ════ STEP 3 : PRIVACY ════ */}
         {step === "privacy" && (
           <div className="flex flex-col h-full">
-            <StepHeader icon={<Shield size={15} />} title="Control what gets synced" subtitle="You can change these anytime in Settings." />
+            <StepHeader headingId={stepHeadingId} icon={<Shield size={15} />} title="Control what gets synced" subtitle="You can change these anytime in Settings." />
 
             <div className="flex-1 space-y-3">
               {/* Record creation — compact rows */}
@@ -694,6 +818,42 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
                 </div>
               </div>
 
+              {/* O7 — Visibility default */}
+              <div>
+                <span className={label} style={labelStyle}>Default visibility</span>
+                <div className="space-y-1">
+                  {VISIBILITY_OPTIONS.map((opt) => {
+                    const active = defaultVisibility === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setDefaultVisibility(opt.value)}
+                        className="flex items-center gap-2 w-full rounded-lg px-2.5 py-1.5 text-left transition-all"
+                        style={{
+                          background: active ? "rgba(44,107,237,.06)" : "var(--color-bg-page)",
+                          border: `1px solid ${active ? "var(--color-accent)" : "var(--color-border-default)"}`,
+                        }}
+                      >
+                        <span
+                          className="shrink-0"
+                          style={{ color: active ? "var(--color-accent)" : "var(--color-text-tertiary)" }}
+                        >
+                          {opt.icon}
+                        </span>
+                        <span className="text-[11px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+                          {opt.label}
+                        </span>
+                        <span className="text-[11px] truncate" style={{ color: "var(--color-text-tertiary)" }}>
+                          {opt.desc}
+                        </span>
+                        {active && <Check size={11} className="ml-auto shrink-0" style={{ color: "var(--color-accent)" }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Do not track */}
               <div>
                 <span className={label} style={labelStyle}>Do not track</span>
@@ -720,7 +880,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
         {/* ════ STEP 1 : WELCOME / PROFILE ════ */}
         {step === "welcome" && (
           <div className="flex flex-col h-full">
-            <StepHeader icon={<Globe size={15} />} title="Set up your sales engine" subtitle="Tell us about you and your company." />
+            <StepHeader headingId={stepHeadingId} icon={<Globe size={15} />} title="Set up your sales engine" subtitle="Tell us about you and your company." />
 
             <div className="flex-1 space-y-3">
               <div>
@@ -765,7 +925,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
         {/* ════ STEP 4 : PRODUCT ════ */}
         {step === "product" && (
           <div className="flex flex-col h-full">
-            <StepHeader icon={<Target size={15} />} title="Tell us about what you sell" subtitle={`Helps write relevant, personalized emails and coach you.${analyzingWebsite ? " Analyzing your site..." : ""}`} />
+            <StepHeader headingId={stepHeadingId} icon={<Target size={15} />} title="Tell us about what you sell" subtitle={`Helps write relevant, personalized emails and coach you.${analyzingWebsite ? " Analyzing your site..." : ""}`} />
 
             <div className="flex-1 space-y-3">
               <div>
@@ -791,6 +951,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
         {step === "icp" && (
           <div className="flex flex-col h-full">
             <StepHeader
+              headingId={stepHeadingId}
               icon={<Target size={15} />}
               title="Define your ideal customer"
               subtitle={websiteAnalysis
@@ -886,7 +1047,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
           return (
             <div className="flex flex-col h-full">
               <div className="text-center shrink-0 mb-4">
-                <h2 className="text-[15px] font-semibold mb-0.5" style={{ color: "var(--color-text-primary)" }}>Building your pipeline...</h2>
+                <h2 id={stepHeadingId} className="text-[15px] font-semibold mb-0.5" style={{ color: "var(--color-text-primary)" }}>Building your pipeline...</h2>
                 <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>This takes about 30 seconds.</p>
               </div>
 
@@ -940,7 +1101,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
               <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full" style={{ background: "rgba(34,197,94,.1)" }}>
                 <Check size={18} style={{ color: "#22c55e" }} />
               </div>
-              <h2 className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>Your sales engine is ready</h2>
+              <h2 id={stepHeadingId} className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>Your sales engine is ready</h2>
             </div>
 
             <div className="flex-1 space-y-3">
@@ -1004,11 +1165,41 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
                   </div>
                 </div>
               )}
+
+              {/* O8 — Quick wins panel (5 high-leverage actions to start
+                   activation immediately rather than dropping users on a
+                   blank dashboard). Kept dense on purpose — this is the
+                   last screen before the app, not a marketing surface. */}
+              <div className="rounded-lg p-3" style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}>
+                <span className="text-[10px] font-medium uppercase tracking-wide block mb-2" style={{ color: "var(--color-text-tertiary)" }}>
+                  Quick wins to get started
+                </span>
+                <div className="space-y-1">
+                  {[
+                    { href: "/accounts?sort=score", icon: <Target size={12} />, label: "Review your top accounts" },
+                    { href: "/sequences", icon: <Send size={12} />, label: "Launch your first sequence" },
+                    { href: "/settings/mailboxes", icon: <Inbox size={12} />, label: "Connect a sending mailbox" },
+                    { href: "/settings/data-model", icon: <Database size={12} />, label: "Customize your data model" },
+                    { href: "/chat", icon: <MessageSquare size={12} />, label: "Ask Elevay anything" },
+                  ].map((q) => (
+                    <a
+                      key={q.href}
+                      href={q.href}
+                      className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] hover:opacity-80 transition-opacity"
+                      style={{ color: "var(--color-text-primary)" }}
+                    >
+                      <span style={{ color: "var(--color-accent)" }}>{q.icon}</span>
+                      <span>{q.label}</span>
+                      <ArrowRight size={11} className="ml-auto shrink-0" style={{ color: "var(--color-text-tertiary)" }} />
+                    </a>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className="shrink-0 pt-3 mt-auto">
               <button onClick={onComplete} className="flex w-full items-center justify-center gap-2 rounded-lg py-2 text-[13px] font-semibold text-white gradient-brand">
-                Go to your dashboard <ArrowRight size={14} />
+                Go to your engine <ArrowRight size={14} />
               </button>
             </div>
           </div>
