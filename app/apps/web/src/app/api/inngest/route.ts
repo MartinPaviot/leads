@@ -15,6 +15,7 @@ import { handleReplyIntelligently } from "@/inngest/reply-handler";
 import { weeklySignalScan, weeklyChurnRiskScan, weeklyExpansionScan, weeklyFundingMonitor, monthlyChampionTracker } from "@/inngest/skill-crons";
 import { onContactCreatedEnrichAndQualify } from "@/inngest/skill-events";
 import { researchAgent } from "@/inngest/research-agent";
+import { memoryAutoExtract } from "@/inngest/memory-auto-extract";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -57,5 +58,7 @@ export const { GET, POST, PUT } = serve({
     onContactCreatedEnrichAndQualify,
     // CHAT-06: Research agent (AI attribute long-running compute)
     researchAgent,
+    // CHAT-07: Memory auto-extraction from conversations
+    memoryAutoExtract,
   ],
 });
