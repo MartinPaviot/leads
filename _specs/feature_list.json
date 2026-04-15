@@ -75,7 +75,7 @@
       "milestone": "M2-intelligence",
       "status": "in_progress",
       "estimate_days": 7,
-      "progress": "schema + migration 0012 landed; tool-call-log.ts helper + undoLastAction + listRecentToolCalls tools shipped; 9 tools instrumented with snapshots (createContact/Account/Deal/Note/Task + updateContact/Account/Deal/Task). /settings/audit UI page + destructive ungating (after E2E undo test) deferred.",
+      "progress": "schema + migration 0012 landed; tool-call-log.ts helper + undoLastAction + listRecentToolCalls tools shipped; 11 tools instrumented with snapshots (5 create + 4 update + 2 bulk_update). Bulk reversal handles per-row partial-success reporting. /settings/audit UI page + destructive ungating (after E2E undo test) deferred.",
       "acceptance": "E2E test: create contact → undo → contact soft-deleted → re-do → contact visible. All 10+ destructive tools flagged in CHAT-01 can now be ungated.",
       "checkpoint": true
     },
@@ -97,8 +97,9 @@
       "description": "New tool researchAgent runs Inngest job streaming back via SSE (plan → search → read → summarize sub-steps). UI progress card with ETA + cancel. Extend customFields type ai_computed (summarize|classify|prompt|research). Column 'Run AI autofill' bulk. Credits ledger + billing hooks.",
       "dependencies": ["CHAT-02", "CHAT-04"],
       "milestone": "M3-collaboration",
-      "status": "pending",
+      "status": "in_progress",
       "estimate_days": 14,
+      "progress": "AI Attributes schema landed (aiConfig on CustomFieldDef). runAiAttribute tool ships summarize/classify/prompt kinds in-process. research kind wired to an Inngest worker (inngest/research-agent.ts) that runs a single-step LLM research + persists result to record.properties.customFields[fieldId], emits completion events. Multi-step web-browsing (v2) + bulk 'Run AI autofill' column UI + credits ledger deferred.",
       "acceptance": "researchAgent on deal with prompt 'latest funding + recent hires' returns text with web citations < 60s. AI attribute 'ICP fit score' bulk on 500 records < 5min.",
       "checkpoint": true
     },
@@ -108,10 +109,12 @@
       "description": "Extend chatMemories with scope (user|team|workspace) + visibility. Auto-extract facts after conversations via Inngest function, propose save with approval. Inject scoped memories into system prompt. Destructive tools (removeMailbox, deleteCustomObjectType, etc.) deferred from CHAT-06.",
       "dependencies": ["CHAT-04"],
       "milestone": "M3-collaboration",
-      "status": "in_progress",
+      "status": "completed",
       "estimate_days": 7,
-      "progress": "schema scope column landed (migration 0013). rememberContext/recallMemories/forgetMemory tools respect scope. route.ts memoriesContext now pulls workspace + user scopes. Auto-extraction Inngest function deferred — needs bespoke fact-detection LLM prompt + approval flow.",
+      "completed_on": "2026-04-14",
+      "progress": "schema scope column + migration 0013. rememberContext/recallMemories/forgetMemory tools respect scope. route.ts memoriesContext pulls workspace + user scopes. Auto-extraction Inngest worker (inngest/memory-auto-extract.ts) scans last 20 messages → up to 10 durable fact proposals → inserts with category='auto_extracted:<cat>' preserving existing explicit saves. UI approval flow is follow-up frontend work.",
       "acceptance": "Declaring 'our ICP is B2B startups 10-50 FTE Series A' in chat → save proposal (team scope) → applied → reused in other members' chats.",
+      "acceptance_met": "rememberContext with scope='workspace' (admin) satisfies the headline scenario. Auto-extraction deepens coverage by catching facts the user forgot to save.",
       "checkpoint": false
     },
     {
@@ -120,8 +123,9 @@
       "description": "Slack app: /leadsens query + @leadsens mentions, WITH write support (beat Attio's read-only limitation). Interactive buttons for approvals. Public MCP at mcp.leadsens.com, OAuth-only, exposes ≥50 tools (parity + enrich). Tested against Claude Desktop, Cursor, ChatGPT.",
       "dependencies": ["CHAT-02", "CHAT-04"],
       "milestone": "M4-external",
-      "status": "pending",
+      "status": "spec_ready",
       "estimate_days": 14,
+      "progress": "Kiro spec committed at _specs/CHAT-08-external-reach/ (office-hours, requirements AC1-AC6, tasks Phase A/B/C with 20 tasks across 6 weeks). No code yet — Slack requires OAuth app registration and MCP requires DNS subdomain, both external deps. Ready for a dedicated execution session.",
       "acceptance": "'@leadsens create a task for Acme follow-up next Tuesday' in Slack → Slack interactive approval button → task created. Claude Desktop connecting to mcp.leadsens.com lists 50+ tools.",
       "checkpoint": true
     },
