@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { authUsers, authAccounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@/lib/password-hash";
 import Link from "next/link";
 import { PasswordInput } from "@/components/ui/password-input";
 import { AuthSubmitButton } from "@/components/ui/auth-submit-button";
@@ -117,12 +117,17 @@ export default async function SignUpPage({
     }
 
     const userId = crypto.randomUUID();
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await hashPassword(password);
 
+    // H12 — password hash goes in the dedicated column on `authUsers`
+    // (not reused `authAccounts.access_token`). We still insert a
+    // credentials row on `authAccounts` so NextAuth sees a provider
+    // binding; the `access_token` on that row is intentionally empty.
     await db.insert(authUsers).values({
       id: userId,
       email: normalizedEmail,
       name: name.trim(),
+      passwordHash,
     });
 
     await db.insert(authAccounts).values({
@@ -130,7 +135,6 @@ export default async function SignUpPage({
       type: "credentials" as never,
       provider: "credentials",
       providerAccountId: normalizedEmail,
-      access_token: passwordHash,
     });
 
     // S2: issue a verification token + email immediately. Best-effort —

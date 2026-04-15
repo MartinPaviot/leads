@@ -14,7 +14,7 @@ export async function GET() {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const rlResponse = checkRateLimit("llm", authCtx.userId);
+  const rlResponse = await checkRateLimit("llm", authCtx.userId);
   if (rlResponse) return rlResponse;
 
   try {

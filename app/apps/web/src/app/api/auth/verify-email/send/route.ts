@@ -36,8 +36,8 @@ export async function POST(req: Request) {
     "unknown";
   const ua = req.headers.get("user-agent") ?? "";
 
-  const emailLimit = rateLimitVerifyEmail(normalizedEmail);
-  const ipLimit = rateLimitVerifyEmailIp(ip);
+  const emailLimit = await rateLimitVerifyEmail(normalizedEmail);
+  const ipLimit = await rateLimitVerifyEmailIp(ip);
   if (!emailLimit.success || !ipLimit.success) {
     logger.warn("verify-email/send: rate limited", {
       email: normalizedEmail,

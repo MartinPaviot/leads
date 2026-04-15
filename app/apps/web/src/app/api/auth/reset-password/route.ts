@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
-import bcrypt from "bcryptjs";
 import { db } from "@/db";
 import { authAccounts, authUsers } from "@/db/schema";
 import {
@@ -9,6 +8,7 @@ import {
   isPasswordAcceptable,
   validateResetToken,
 } from "@/lib/password-reset";
+import { hashPassword } from "@/lib/password-hash";
 import { isPasswordPwned } from "@/lib/password-pwned";
 import { sendPasswordChangedEmail } from "@/lib/emails/password-changed";
 import { logger } from "@/lib/logger";
@@ -71,11 +71,17 @@ export async function POST(req: Request) {
       );
     }
 
-    const hash = await bcrypt.hash(password, 10);
+    const hash = await hashPassword(password);
 
-    // Update the credentials account's stored hash. If a credentials row
-    // doesn't exist (e.g. user signed up via Google and later added a
-    // password via this flow), create it.
+    // H12 — canonical password hash lives on authUsers.passwordHash.
+    // We still ensure a credentials row exists on authAccounts for
+    // NextAuth's provider-binding expectations, but we no longer use
+    // its access_token column for the hash.
+    await db
+      .update(authUsers)
+      .set({ passwordHash: hash })
+      .where(eq(authUsers.id, row.userId));
+
     const [existing] = await db
       .select({ provider: authAccounts.provider })
       .from(authAccounts)
@@ -88,9 +94,10 @@ export async function POST(req: Request) {
       .limit(1);
 
     if (existing) {
+      // Clear the legacy field so only one source of truth remains.
       await db
         .update(authAccounts)
-        .set({ access_token: hash })
+        .set({ access_token: null })
         .where(
           and(
             eq(authAccounts.userId, row.userId),
@@ -98,17 +105,16 @@ export async function POST(req: Request) {
           )
         );
     } else {
-      // No credentials account exists yet — the user signed up via OAuth
-      // and is adding a password via this flow. Adapter's AdapterAccountType
-      // union doesn't include "credentials" (only oauth/oidc/email/webauthn),
-      // but the existing sign-up flow stores it with the same cast — see
-      // `src/app/sign-up/page.tsx`. Staying consistent.
+      // User signed up via OAuth and is adding a password via this
+      // flow — mint an empty credentials row so the provider binding
+      // exists. Adapter's AdapterAccountType union doesn't include
+      // "credentials" (only oauth/oidc/email/webauthn), but the
+      // sign-up flow stores it with the same cast.
       await db.insert(authAccounts).values({
         userId: row.userId,
         type: "credentials" as never,
         provider: "credentials",
         providerAccountId: row.userId,
-        access_token: hash,
       });
     }
 
@@ -116,6 +122,37 @@ export async function POST(req: Request) {
     // and then the update threw, the user would be locked out without
     // a way to retry.
     await consumeResetToken(row.id);
+
+    // H7 — privileged-action audit trail. Security reviews (SOC 2
+    // CC7.2 / ISO 27001 A.8.15) require a record of every credential
+    // rotation with who, when, and source IP. We can't resolve the
+    // tenant from here without another lookup, so we use the authUser
+    // id as the entity and store a lightweight record on the activity
+    // feed. Best-effort — never block the reset on audit-log errors.
+    try {
+      const { logAudit } = await import("@/lib/audit-log");
+      const { db: appDb } = await import("@/db");
+      const { users } = await import("@/db/schema");
+      const { eq: eq2 } = await import("drizzle-orm");
+      const [appUser] = await appDb
+        .select({ tenantId: users.tenantId, id: users.id })
+        .from(users)
+        .where(eq2(users.clerkId, row.userId))
+        .limit(1);
+      if (appUser) {
+        const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null;
+        await logAudit({
+          tenantId: appUser.tenantId,
+          userId: appUser.id,
+          action: "update",
+          entityType: "auth_user",
+          entityId: row.userId,
+          metadata: { event: "password_reset", ip, ua: req.headers.get("user-agent") ?? null },
+        });
+      }
+    } catch (err) {
+      logger.warn("reset-password: audit-log write failed (non-fatal)", { err });
+    }
 
     // Notification email — best-effort. We don't want a flaky Resend
     // outage to block a user from signing back in.

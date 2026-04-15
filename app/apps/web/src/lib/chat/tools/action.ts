@@ -29,6 +29,7 @@ import { sendInviteEmail } from "@/lib/email-invite";
 import { runAiAttribute } from "@/lib/chat/ai-attributes";
 import { logToolCall } from "@/lib/chat/tool-call-log";
 import { escapeForPrompt, wrapUntrustedInput } from "@/lib/chat/prompt-safety";
+import { generateInviteToken } from "@/lib/invite-token";
 import { makeTool, type ToolContext } from "./context";
 
 function pickModel() {
@@ -990,7 +991,9 @@ RULES:
           .limit(1);
 
         const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
-        const token = randomBytes(24).toString("base64url");
+        // H5 — same rule as the REST invite route: DB stores the hash,
+        // raw token only flows out via email.
+        const { raw: rawToken, hash: tokenHash } = generateInviteToken();
 
         let inviteId: string;
         if (existing) {
@@ -998,7 +1001,7 @@ RULES:
             .update(pendingInvites)
             .set({
               role,
-              token,
+              token: tokenHash,
               expiresAt,
               lastSentAt: new Date(),
               invitedByUserId: userId,
@@ -1013,7 +1016,7 @@ RULES:
               tenantId,
               email: rawEmail,
               role,
-              token,
+              token: tokenHash,
               expiresAt,
               invitedByUserId: userId,
             })
@@ -1022,7 +1025,7 @@ RULES:
         }
 
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
-        const acceptUrl = `${appUrl}/accept-invite?token=${token}`;
+        const acceptUrl = `${appUrl}/accept-invite?token=${rawToken}`;
 
         const sendResult = await sendInviteEmail({
           to: rawEmail,
@@ -1049,7 +1052,7 @@ RULES:
 
     resendInvite: makeTool({
       description:
-        "Resend a pending workspace invitation email (keeps the same token). Admin-only. Caps at 3 resends per invite. Use when the user says 'resend Jane's invite'.",
+        "Resend a pending workspace invitation email (rotates the token so any prior link stops working). Admin-only. Caps at 3 resends per invite. Use when the user says 'resend Jane's invite'.",
       inputSchema: z.object({
         inviteId: z.string().describe("Invite ID"),
       }),
@@ -1090,8 +1093,11 @@ RULES:
           inviter?.email ||
           "A teammate";
 
+        // H5 — DB has only the hash; resend rotates the token so the
+        // old link stops working and the new one is emailed.
+        const { raw: rawToken, hash: tokenHash } = generateInviteToken();
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
-        const acceptUrl = `${appUrl}/accept-invite?token=${invite.token}`;
+        const acceptUrl = `${appUrl}/accept-invite?token=${rawToken}`;
 
         const sendResult = await sendInviteEmail({
           to: invite.email,
@@ -1106,6 +1112,7 @@ RULES:
         await db
           .update(pendingInvites)
           .set({
+            token: tokenHash,
             lastSentAt: new Date(),
             resendCount: invite.resendCount + 1,
             updatedAt: new Date(),

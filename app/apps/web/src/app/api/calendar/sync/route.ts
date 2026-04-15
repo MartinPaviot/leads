@@ -106,6 +106,8 @@ export async function POST() {
       );
     }
 
-    return Response.json({ error: `Calendar sync failed: ${message}` }, { status: 500 });
+    // `message` can contain Google API error JSON with tokens; log but
+    // don't echo it back to the client.
+    return Response.json({ error: "Calendar sync failed" }, { status: 500 });
   }
 }

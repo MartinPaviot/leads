@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { pendingInvites, tenants, users } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { sendInviteEmail } from "@/lib/email-invite";
+import { generateInviteToken } from "@/lib/invite-token";
 
 const MAX_RESENDS = 3;
 
@@ -30,7 +31,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   return Response.json({ success: true });
 }
 
-/** Resend an invite email (with same token). Body: { action: "resend" } optional. */
+/** Resend an invite email (rotates the token so prior links stop working). Body: { action: "resend" } optional. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const authCtx = await getAuthContext();
   if (!authCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -67,8 +68,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .limit(1);
   const inviterName = [inviter?.firstName, inviter?.lastName].filter(Boolean).join(" ") || inviter?.email || "A teammate";
 
+  // H5 — we only store the SHA-256 hash of the invite token, so the
+  // raw one from the original send is unrecoverable. Resend rotates
+  // the token: a fresh raw token is minted, emailed, and its hash
+  // replaces the prior one in the DB. Side benefit: if the previous
+  // link ever leaked (shoulder-surfed an email, forwarded share), it
+  // stops working as soon as the admin clicks "Resend".
+  const { raw: rawToken, hash: tokenHash } = generateInviteToken();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
-  const acceptUrl = `${appUrl}/accept-invite?token=${invite.token}`;
+  const acceptUrl = `${appUrl}/accept-invite?token=${rawToken}`;
 
   const sendResult = await sendInviteEmail({
     to: invite.email,
@@ -83,6 +91,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   await db
     .update(pendingInvites)
     .set({
+      token: tokenHash,
       lastSentAt: new Date(),
       resendCount: invite.resendCount + 1,
       updatedAt: new Date(),

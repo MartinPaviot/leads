@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const rlResponse = checkRateLimit("enrich", authCtx.userId);
+  const rlResponse = await checkRateLimit("enrich", authCtx.userId);
   if (rlResponse) return rlResponse;
 
   try {

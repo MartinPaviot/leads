@@ -109,7 +109,7 @@ describe("GET /api/gdpr/export", () => {
 
   it("401 unauthenticated", async () => {
     vi.mocked(getAuthContext).mockResolvedValue(null);
-    const res = await exportMod.GET();
+    const res = await exportMod.GET(new Request("http://localhost/api/gdpr/export"));
     expect(res.status).toBe(401);
   });
 
@@ -120,7 +120,7 @@ describe("GET /api/gdpr/export", () => {
     const fromFn = vi.fn().mockReturnValue({ where: whereFn });
     vi.mocked(db.select).mockReturnValueOnce({ from: fromFn } as never);
 
-    const res = await exportMod.GET();
+    const res = await exportMod.GET(new Request("http://localhost/api/gdpr/export"));
     expect(res.status).toBe(404);
   });
 
@@ -158,7 +158,7 @@ describe("GET /api/gdpr/export", () => {
       } as never);
     }
 
-    const res = await exportMod.GET();
+    const res = await exportMod.GET(new Request("http://localhost/api/gdpr/export"));
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toContain("application/json");
     expect(res.headers.get("Content-Disposition")).toContain("attachment");

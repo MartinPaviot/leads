@@ -13,7 +13,7 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
-  authUsers: { id: "id", email: "email" },
+  authUsers: { id: "id", email: "email", passwordHash: "password_hash" },
   authAccounts: {
     userId: "userId",
     provider: "provider",
@@ -44,8 +44,8 @@ vi.mock("@/lib/emails/password-changed", () => ({
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
-  rateLimitPasswordResetEmail: vi.fn().mockReturnValue({ success: true, remaining: 5, resetAt: Date.now() + 60_000 }),
-  rateLimitPasswordResetIp: vi.fn().mockReturnValue({ success: true, remaining: 5, resetAt: Date.now() + 60_000 }),
+  rateLimitPasswordResetEmail: vi.fn().mockResolvedValue({ success: true, remaining: 5, resetAt: Date.now() + 60_000 }),
+  rateLimitPasswordResetIp: vi.fn().mockResolvedValue({ success: true, remaining: 5, resetAt: Date.now() + 60_000 }),
 }));
 
 vi.mock("bcryptjs", () => ({
@@ -104,8 +104,8 @@ function jsonReq(url: string, body?: unknown, headers: Record<string, string> = 
 describe("POST /api/auth/forgot-password", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(rateLimitPasswordResetEmail).mockReturnValue({ success: true, remaining: 5, resetAt: Date.now() + 60_000 });
-    vi.mocked(rateLimitPasswordResetIp).mockReturnValue({ success: true, remaining: 5, resetAt: Date.now() + 60_000 });
+    vi.mocked(rateLimitPasswordResetEmail).mockResolvedValue({ success: true, remaining: 5, resetAt: Date.now() + 60_000 });
+    vi.mocked(rateLimitPasswordResetIp).mockResolvedValue({ success: true, remaining: 5, resetAt: Date.now() + 60_000 });
     vi.mocked(sendPasswordResetEmail).mockResolvedValue({ sent: true });
     vi.mocked(createResetTokenForUser).mockResolvedValue("plain-token-123");
   });
@@ -119,7 +119,7 @@ describe("POST /api/auth/forgot-password", () => {
   });
 
   it("returns 200 {ok:true} on rate-limited request without sending email", async () => {
-    vi.mocked(rateLimitPasswordResetEmail).mockReturnValue({
+    vi.mocked(rateLimitPasswordResetEmail).mockResolvedValue({
       success: false,
       remaining: 0,
       resetAt: Date.now() + 60_000,
@@ -207,15 +207,15 @@ describe("POST /api/auth/reset-password", () => {
     expect(body.error).toMatch(/invalid or has expired/i);
   });
 
-  it("happy path: updates existing credentials hash + consumes token + sends notification", async () => {
+  it("happy path: writes passwordHash on authUsers, clears legacy access_token, consumes token, sends notification (H12)", async () => {
     vi.mocked(validateResetToken).mockResolvedValue({
       id: "tok-id",
       userId: "u-1",
     } as never);
-    mockSelectOnce([{ provider: "credentials" }]); // existing creds row
     const updateWhere = vi.fn().mockResolvedValue(undefined);
     const setFn = vi.fn().mockReturnValue({ where: updateWhere });
     vi.mocked(db.update).mockReturnValue({ set: setFn } as never);
+    mockSelectOnce([{ provider: "credentials" }]); // existing creds row
     mockSelectOnce([{ email: "bob@acme.com" }]); // user lookup for notification
 
     const res = await resetMod.POST(
@@ -225,16 +225,22 @@ describe("POST /api/auth/reset-password", () => {
       })
     );
     expect(res.status).toBe(200);
-    expect(setFn).toHaveBeenCalledWith({ access_token: "hashed-pw" });
+    // Two update calls: (1) authUsers.passwordHash = new hash,
+    // (2) authAccounts.access_token = null (legacy column cleared).
+    expect(setFn).toHaveBeenNthCalledWith(1, { passwordHash: "hashed-pw" });
+    expect(setFn).toHaveBeenNthCalledWith(2, { access_token: null });
     expect(consumeResetToken).toHaveBeenCalledWith("tok-id");
     expect(sendPasswordChangedEmail).toHaveBeenCalledWith("bob@acme.com", null);
   });
 
-  it("happy path: inserts a new credentials account when none exists (OAuth-only user)", async () => {
+  it("happy path: inserts a NEW empty credentials account when none exists (OAuth-only user) (H12)", async () => {
     vi.mocked(validateResetToken).mockResolvedValue({
       id: "tok-id",
       userId: "u-1",
     } as never);
+    const updateWhere = vi.fn().mockResolvedValue(undefined);
+    const setFn = vi.fn().mockReturnValue({ where: updateWhere });
+    vi.mocked(db.update).mockReturnValue({ set: setFn } as never);
     mockSelectOnce([]); // no creds row
     const valuesFn = vi.fn().mockResolvedValue(undefined);
     vi.mocked(db.insert).mockReturnValue({ values: valuesFn } as never);
@@ -247,13 +253,15 @@ describe("POST /api/auth/reset-password", () => {
       })
     );
     expect(res.status).toBe(200);
-    expect(valuesFn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: "u-1",
-        provider: "credentials",
-        access_token: "hashed-pw",
-      })
-    );
+    expect(setFn).toHaveBeenCalledWith({ passwordHash: "hashed-pw" });
+    // The new credentials row must NOT carry a hash — the hash lives
+    // on authUsers now.
+    const insertedRow = valuesFn.mock.calls[0]?.[0];
+    expect(insertedRow).toMatchObject({
+      userId: "u-1",
+      provider: "credentials",
+    });
+    expect(insertedRow).not.toHaveProperty("access_token");
   });
 });
 
@@ -301,7 +309,8 @@ describe("POST /api/account/password", () => {
 
   it("400 + SSO message when no credentials row exists", async () => {
     vi.mocked(getAuthContext).mockResolvedValue(authCtx);
-    mockSelectOnce([]); // no credentials account
+    mockSelectOnce([{ id: "u-1", hash: null }]); // authUsers row, no hash
+    mockSelectOnce([]); // legacy authAccounts lookup — no creds row either
     const res = await changeMod.POST(
       jsonReq("http://localhost/api/account/password", {
         currentPassword: "old",
@@ -312,7 +321,7 @@ describe("POST /api/account/password", () => {
     expect((await res.json()).error).toMatch(/SSO/i);
   });
 
-  it("400 when current password doesn't match", async () => {
+  it("400 when current password doesn't match (reads from authUsers.passwordHash)", async () => {
     vi.mocked(getAuthContext).mockResolvedValue(authCtx);
     mockSelectOnce([{ id: "u-1", hash: "stored-hash" }]);
     vi.mocked(bcrypt.compare).mockResolvedValue(false as never);
@@ -326,7 +335,7 @@ describe("POST /api/account/password", () => {
     expect((await res.json()).error).toMatch(/incorrect/i);
   });
 
-  it("happy path: writes new hash and returns 200", async () => {
+  it("happy path (H12): writes passwordHash on authUsers, clears legacy access_token", async () => {
     vi.mocked(getAuthContext).mockResolvedValue(authCtx);
     mockSelectOnce([{ id: "u-1", hash: "stored-hash" }]);
     const updateWhere = vi.fn().mockResolvedValue(undefined);
@@ -340,6 +349,27 @@ describe("POST /api/account/password", () => {
       })
     );
     expect(res.status).toBe(200);
-    expect(setFn).toHaveBeenCalledWith({ access_token: "hashed-pw" });
+    expect(setFn).toHaveBeenNthCalledWith(1, { passwordHash: "hashed-pw" });
+    expect(setFn).toHaveBeenNthCalledWith(2, { access_token: null });
+  });
+
+  it("backcompat: reads from legacy authAccounts.access_token when authUsers.passwordHash is null (H12 fallback)", async () => {
+    vi.mocked(getAuthContext).mockResolvedValue(authCtx);
+    mockSelectOnce([{ id: "u-1", hash: null }]); // not migrated yet
+    mockSelectOnce([{ hash: "legacy-hash" }]);   // legacy column has it
+    const updateWhere = vi.fn().mockResolvedValue(undefined);
+    const setFn = vi.fn().mockReturnValue({ where: updateWhere });
+    vi.mocked(db.update).mockReturnValue({ set: setFn } as never);
+
+    const res = await changeMod.POST(
+      jsonReq("http://localhost/api/account/password", {
+        currentPassword: "old",
+        newPassword: "StrongPass1ABC",
+      })
+    );
+    expect(res.status).toBe(200);
+    // New hash goes in the canonical place; legacy column cleared.
+    expect(setFn).toHaveBeenNthCalledWith(1, { passwordHash: "hashed-pw" });
+    expect(setFn).toHaveBeenNthCalledWith(2, { access_token: null });
   });
 });

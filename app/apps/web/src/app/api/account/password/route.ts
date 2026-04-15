@@ -3,9 +3,10 @@ import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db } from "@/db";
-import { authAccounts } from "@/db/schema";
+import { authAccounts, authUsers } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth-utils";
 import { isPasswordAcceptable } from "@/lib/password-reset";
+import { hashPassword } from "@/lib/password-hash";
 import { logger } from "@/lib/logger";
 
 const schema = z.object({
@@ -42,18 +43,31 @@ export async function POST(req: Request) {
   }
 
   try {
-    const [cred] = await db
-      .select({ id: authAccounts.userId, hash: authAccounts.access_token })
-      .from(authAccounts)
-      .where(
-        and(
-          eq(authAccounts.userId, authCtx.userId),
-          eq(authAccounts.provider, "credentials")
-        )
-      )
+    // H12 — read from the new `authUsers.passwordHash` column, fall
+    // back to the legacy `authAccounts.access_token` until the
+    // migration sweep + sign-in roll-forward have touched every row.
+    const [user] = await db
+      .select({ id: authUsers.id, hash: authUsers.passwordHash })
+      .from(authUsers)
+      .where(eq(authUsers.id, authCtx.userId))
       .limit(1);
 
-    if (!cred || !cred.hash) {
+    let storedHash = user?.hash ?? null;
+    if (!storedHash) {
+      const [cred] = await db
+        .select({ hash: authAccounts.access_token })
+        .from(authAccounts)
+        .where(
+          and(
+            eq(authAccounts.userId, authCtx.userId),
+            eq(authAccounts.provider, "credentials")
+          )
+        )
+        .limit(1);
+      storedHash = cred?.hash ?? null;
+    }
+
+    if (!storedHash) {
       return NextResponse.json(
         {
           error:
@@ -63,7 +77,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const valid = await bcrypt.compare(currentPassword, cred.hash);
+    const valid = await bcrypt.compare(currentPassword, storedHash);
     if (!valid) {
       return NextResponse.json(
         { error: "Current password is incorrect." },
@@ -71,10 +85,17 @@ export async function POST(req: Request) {
       );
     }
 
-    const newHash = await bcrypt.hash(newPassword, 10);
+    const newHash = await hashPassword(newPassword);
+    // Write the new hash to the canonical location. Also clear the
+    // legacy column so a later backfill or debug query sees only one
+    // source of truth.
+    await db
+      .update(authUsers)
+      .set({ passwordHash: newHash })
+      .where(eq(authUsers.id, authCtx.userId));
     await db
       .update(authAccounts)
-      .set({ access_token: newHash })
+      .set({ access_token: null })
       .where(
         and(
           eq(authAccounts.userId, authCtx.userId),

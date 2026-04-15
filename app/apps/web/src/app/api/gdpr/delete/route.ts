@@ -18,6 +18,7 @@ import {
   emailOptouts,
 } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import { logAudit } from "@/lib/audit-log";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
@@ -49,6 +50,24 @@ export async function POST(req: Request) {
     if (!user) {
       return Response.json({ error: "User not found" }, { status: 404 });
     }
+
+    // H7 — log the GDPR delete BEFORE the cascading deletes execute.
+    // Once we wipe the tenant's tables (including `activities`, where
+    // the audit entry lives), the trail is gone. The entry is tiny
+    // and survives in the tenant's activity feed up to the moment
+    // the feed itself is deleted — which is exactly when the user
+    // asked us to forget them, so this is the right semantics.
+    await logAudit({
+      tenantId,
+      userId: authCtx.appUserId,
+      action: "delete",
+      entityType: "tenant",
+      entityId: tenantId,
+      metadata: {
+        event: "gdpr_delete_initiated",
+        ip: (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null,
+      },
+    });
 
     // Delete in dependency order (children before parents)
 

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { authAccounts, authUsers, tenants, users } from "@/db/schema";
+import { hashPassword } from "@/lib/password-hash";
 
 /**
  * E2E-only seed endpoint.
@@ -55,17 +56,22 @@ export async function POST(req: Request) {
       .values({ email, name: `${slug} user` })
       .returning();
 
-    const hash = await bcrypt.hash(password, 10);
+    const hash = await hashPassword(password);
+    // H12 — e2e mirrors real sign-up: password_hash on authUsers,
+    // empty credentials row on authAccounts for provider binding.
+    await db
+      .update(authUsers)
+      .set({ passwordHash: hash })
+      .where(eq(authUsers.id, authUser.id));
     await db.insert(authAccounts).values({
       userId: authUser.id,
       // `credentials` isn't in AdapterAccountType's union, but the
       // DrizzleAdapter stores arbitrary strings here. The existing
       // credentials sign-in path reads provider === "credentials"
-      // at runtime (src/auth.ts:118), so the cast is safe.
+      // at runtime (src/auth.ts), so the cast is safe.
       type: "credentials" as unknown as "oauth",
       provider: "credentials",
       providerAccountId: authUser.id,
-      access_token: hash,
     });
 
     const [appUser] = await db
@@ -87,10 +93,10 @@ export async function POST(req: Request) {
       role,
     });
   } catch (err) {
+    // Route is dev/e2e-only so leaking `err` isn't a prod risk, but
+    // we keep the response shape consistent with other routes — log
+    // the detail server-side, return a generic message.
     console.error("_test/seed: failed", err);
-    return NextResponse.json(
-      { error: "Seed failed", detail: String(err) },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Seed failed" }, { status: 500 });
   }
 }

@@ -26,6 +26,14 @@ export const authUsers = pgTable("auth_user", {
   email: text("email").unique(),
   emailVerified: timestamp("emailVerified", { mode: "date" }),
   image: text("image"),
+  // H12 — dedicated bcrypt hash storage. Historically the credentials
+  // provider re-used `authAccounts.access_token`, which mixed OAuth
+  // tokens and password hashes in a single column. Any future code
+  // that read `access_token` for an OAuth flow could have grabbed a
+  // bcrypt hash by accident; keeping them apart removes the footgun.
+  // Read/write sites use the helpers in `src/lib/password-hash.ts`.
+  // Old rows are migrated opportunistically on successful sign-in.
+  passwordHash: text("password_hash"),
 });
 
 export const authAccounts = pgTable(

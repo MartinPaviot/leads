@@ -10,8 +10,9 @@ import {
   tasks,
 } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import { logAudit } from "@/lib/audit-log";
 
-export async function GET() {
+export async function GET(req: Request) {
   const authCtx = await getAuthContext();
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -73,6 +74,21 @@ export async function GET() {
         },
       },
     };
+
+    // H7 — GDPR data-subject access request. Log what was exported
+    // and by whom for SOC 2 CC6.7 / ISO 27001 A.5.34 compliance.
+    await logAudit({
+      tenantId,
+      userId: authCtx.appUserId,
+      action: "create",
+      entityType: "gdpr_export",
+      entityId: user.id,
+      metadata: {
+        event: "gdpr_export",
+        counts: exportData.metadata.counts,
+        ip: (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null,
+      },
+    });
 
     return new Response(JSON.stringify(exportData, null, 2), {
       status: 200,

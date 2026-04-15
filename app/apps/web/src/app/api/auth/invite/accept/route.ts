@@ -2,6 +2,8 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { pendingInvites, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { hashInviteToken } from "@/lib/invite-token";
+import { logAudit } from "@/lib/audit-log";
 
 /**
  * Accept an invite for the currently-authenticated user.
@@ -24,10 +26,13 @@ export async function POST(req: Request) {
   const token = typeof body.token === "string" ? body.token : "";
   if (!token) return Response.json({ error: "token is required" }, { status: 400 });
 
+  // H5 — the token column holds sha256(rawToken). Hash the presented
+  // token before looking up so we never compare against the raw value.
+  const tokenHash = hashInviteToken(token);
   const [invite] = await db
     .select()
     .from(pendingInvites)
-    .where(eq(pendingInvites.token, token))
+    .where(eq(pendingInvites.token, tokenHash))
     .limit(1);
 
   if (!invite) return Response.json({ error: "Invite not found" }, { status: 404 });
@@ -77,6 +82,19 @@ export async function POST(req: Request) {
       updatedAt: new Date(),
     })
     .where(eq(pendingInvites.id, invite.id));
+
+  // H7 — tenant+role change on a user row is a privileged event. Log
+  // against BOTH tenants (destination and origin) so post-hoc review
+  // can spot unexpected cross-tenant movement.
+  await logAudit({
+    tenantId: invite.tenantId,
+    userId: user.id,
+    action: "update",
+    entityType: "user",
+    entityId: user.id,
+    changes: { tenantId: { old: authCtx.tenantId, new: invite.tenantId }, role: { old: authCtx.role, new: invite.role } },
+    metadata: { event: "invite_accepted", inviteId: invite.id },
+  });
 
   return Response.json({
     success: true,
