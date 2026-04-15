@@ -1,12 +1,20 @@
 import { db } from "@/db";
-import { activities, companies, contacts, deals, notes, tasks } from "@/db/schema";
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import {
+  activities,
+  companies,
+  contacts,
+  deals,
+  notes,
+  tasks,
+  users,
+} from "@/db/schema";
+import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { searchSimilar } from "@/lib/embeddings";
 import { makeTool, type ToolContext } from "./context";
 
 export function buildQueryTools(ctx: ToolContext) {
-  const { tenantId } = ctx;
+  const { tenantId, authCtx } = ctx;
 
   return {
     searchCRM: makeTool({
@@ -256,6 +264,269 @@ Examples: query="Sarah Chen" finds contacts named Sarah Chen. query="deals over 
             entityId: t.entityId,
           })),
         };
+      },
+    }),
+
+    whoami: makeTool({
+      description:
+        "Return the current authenticated user's identity and workspace context (userId, tenantId, email, role). Use at the start of a chat to ground the assistant about who it's talking to and what permissions they have.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const [user] = await db
+          .select({
+            id: users.id,
+            email: users.email,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            role: users.role,
+          })
+          .from(users)
+          .where(eq(users.id, authCtx.appUserId))
+          .limit(1);
+        return {
+          userId: authCtx.appUserId,
+          tenantId,
+          role: authCtx.role,
+          email: user?.email,
+          name: [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email,
+        };
+      },
+    }),
+
+    listWorkspaceMembers: makeTool({
+      description:
+        "List all workspace members (users) with id, name, email, role, avatarUrl, createdAt. Use when the user asks 'who's on my team?', 'list teammates', 'show workspace members'.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const members = await db
+          .select({
+            id: users.id,
+            email: users.email,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            role: users.role,
+            avatarUrl: users.avatarUrl,
+            createdAt: users.createdAt,
+          })
+          .from(users)
+          .where(eq(users.tenantId, tenantId));
+        return {
+          members: members.map((m) => ({
+            id: m.id,
+            name: [m.firstName, m.lastName].filter(Boolean).join(" ") || m.email,
+            email: m.email,
+            role: m.role || "member",
+            avatarUrl: m.avatarUrl,
+            createdAt: m.createdAt,
+          })),
+        };
+      },
+    }),
+
+    searchMeetings: makeTool({
+      description:
+        "Search meeting activities by attendee name, summary keywords, or date range. Returns meetings with their structured notes, attendees, and follow-up state. Use for 'meetings with X', 'calls last week', 'discussions about pricing'.",
+      inputSchema: z.object({
+        search: z.string().optional().describe("Substring match on summary or attendee name"),
+        startDate: z.string().optional().describe("ISO date — only meetings on or after this"),
+        endDate: z.string().optional().describe("ISO date — only meetings on or before this"),
+        limit: z.number().optional().describe("Max results (default 10)"),
+      }),
+      execute: async (input) => {
+        const conditions = [
+          eq(activities.tenantId, tenantId),
+          eq(activities.channel, "meeting"),
+        ];
+        if (input.startDate) {
+          conditions.push(gte(activities.occurredAt, new Date(input.startDate)));
+        }
+        if (input.endDate) {
+          conditions.push(lte(activities.occurredAt, new Date(input.endDate)));
+        }
+        if (input.search) {
+          conditions.push(ilike(activities.summary, `%${input.search}%`));
+        }
+
+        const rows = await db
+          .select()
+          .from(activities)
+          .where(and(...conditions))
+          .orderBy(desc(activities.occurredAt))
+          .limit(input.limit ?? 10);
+
+        return {
+          meetings: rows.map((a) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const meta = (a.metadata || {}) as any;
+            return {
+              id: a.id,
+              title: a.summary,
+              date: meta.startTime || a.occurredAt,
+              attendees: (meta.attendees || []).map(
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (att: any) => att.displayName || att.email
+              ),
+              hasNotes: !!meta.structuredNotes,
+              followUpSent: !!meta.followUpSentAt,
+              calendarSource: meta.calendarSource,
+            };
+          }),
+        };
+      },
+    }),
+
+    searchEmailsByMetadata: makeTool({
+      description:
+        "Search email activities by sender/recipient/subject substring or date range. Returns matching email activities with from/to/subject/preview. Use for 'emails from X', 'emails about Y', 'emails last week'.",
+      inputSchema: z.object({
+        fromEmail: z.string().optional(),
+        toEmail: z.string().optional(),
+        subjectContains: z.string().optional(),
+        startDate: z.string().optional().describe("ISO date"),
+        endDate: z.string().optional().describe("ISO date"),
+        direction: z.enum(["inbound", "outbound"]).optional(),
+        limit: z.number().optional().describe("Max results (default 20)"),
+      }),
+      execute: async (input) => {
+        const conditions = [
+          eq(activities.tenantId, tenantId),
+          eq(activities.channel, "email"),
+        ];
+        if (input.direction) {
+          conditions.push(eq(activities.direction, input.direction));
+        }
+        if (input.startDate) {
+          conditions.push(gte(activities.occurredAt, new Date(input.startDate)));
+        }
+        if (input.endDate) {
+          conditions.push(lte(activities.occurredAt, new Date(input.endDate)));
+        }
+        if (input.subjectContains) {
+          conditions.push(ilike(activities.summary, `%${input.subjectContains}%`));
+        }
+        if (input.fromEmail) {
+          conditions.push(
+            sql`(metadata->>'from') ILIKE ${"%" + input.fromEmail + "%"}`
+          );
+        }
+        if (input.toEmail) {
+          conditions.push(
+            sql`(metadata->>'to') ILIKE ${"%" + input.toEmail + "%"}`
+          );
+        }
+
+        const rows = await db
+          .select()
+          .from(activities)
+          .where(and(...conditions))
+          .orderBy(desc(activities.occurredAt))
+          .limit(input.limit ?? 20);
+
+        return {
+          emails: rows.map((a) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const meta = (a.metadata || {}) as any;
+            return {
+              id: a.id,
+              subject: a.summary,
+              from: meta.from,
+              to: meta.to,
+              direction: a.direction,
+              occurredAt: a.occurredAt,
+              preview: (a.rawContent || "").slice(0, 200),
+              entityType: a.entityType,
+              entityId: a.entityId,
+            };
+          }),
+        };
+      },
+    }),
+
+    getRecordsByIds: makeTool({
+      description:
+        "Batch-get records of a given type by their IDs. More efficient than multiple single reads. Supports contact, company, deal, task, note, activity. Returns array of records (missing ids omitted silently).",
+      inputSchema: z.object({
+        objectType: z
+          .enum(["contact", "company", "deal", "task", "note", "activity"])
+          .describe("Entity type"),
+        ids: z.array(z.string()).min(1).max(100).describe("Max 100 ids"),
+      }),
+      execute: async (input) => {
+        const limited = input.ids.slice(0, 100);
+        switch (input.objectType) {
+          case "contact": {
+            const rows = await db
+              .select()
+              .from(contacts)
+              .where(and(eq(contacts.tenantId, tenantId), inArray(contacts.id, limited)));
+            return {
+              objectType: input.objectType,
+              records: rows.map((c) => ({
+                id: c.id,
+                name: [c.firstName, c.lastName].filter(Boolean).join(" "),
+                email: c.email,
+                title: c.title,
+                companyId: c.companyId,
+              })),
+            };
+          }
+          case "company": {
+            const rows = await db
+              .select()
+              .from(companies)
+              .where(and(eq(companies.tenantId, tenantId), inArray(companies.id, limited)));
+            return {
+              objectType: input.objectType,
+              records: rows.map((c) => ({
+                id: c.id,
+                name: c.name,
+                domain: c.domain,
+                industry: c.industry,
+                score: c.score,
+              })),
+            };
+          }
+          case "deal": {
+            const rows = await db
+              .select()
+              .from(deals)
+              .where(and(eq(deals.tenantId, tenantId), inArray(deals.id, limited)));
+            return {
+              objectType: input.objectType,
+              records: rows.map((d) => ({
+                id: d.id,
+                name: d.name,
+                stage: d.stage,
+                value: d.value,
+                companyId: d.companyId,
+                contactId: d.contactId,
+              })),
+            };
+          }
+          case "task": {
+            const rows = await db
+              .select()
+              .from(tasks)
+              .where(and(eq(tasks.tenantId, tenantId), inArray(tasks.id, limited)));
+            return { objectType: input.objectType, records: rows };
+          }
+          case "note": {
+            const rows = await db
+              .select()
+              .from(notes)
+              .where(and(eq(notes.tenantId, tenantId), inArray(notes.id, limited)));
+            return { objectType: input.objectType, records: rows };
+          }
+          case "activity": {
+            const rows = await db
+              .select()
+              .from(activities)
+              .where(and(eq(activities.tenantId, tenantId), inArray(activities.id, limited)));
+            return { objectType: input.objectType, records: rows };
+          }
+          default:
+            return { error: "Unknown objectType" };
+        }
       },
     }),
   };
