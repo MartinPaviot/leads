@@ -31,6 +31,14 @@ export interface PipelineStageDef {
   description: string;
   category: "in_progress" | "done";
   aiFillMode: "auto" | "suggest" | "off";
+  /**
+   * Y9 — optional WIP (work-in-progress) limit. When set, the kanban
+   * column badges "Over capacity" once the deal count in this stage
+   * exceeds the limit. Null / undefined = no limit (default).
+   * Only applies to in_progress stages; Won/Lost are outcomes, not
+   * in-flight work.
+   */
+  wipLimit?: number | null;
 }
 
 /** Format a custom field value for display */

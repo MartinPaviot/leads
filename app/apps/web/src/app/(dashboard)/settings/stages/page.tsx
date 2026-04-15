@@ -10,6 +10,8 @@ interface Stage {
   description: string;
   category: "in_progress" | "done";
   aiFillMode: "auto" | "suggest" | "off";
+  // Y9 — optional WIP limit, in-progress stages only.
+  wipLimit?: number | null;
 }
 
 export default function StagesSettingsPage() {
@@ -28,6 +30,15 @@ export default function StagesSettingsPage() {
 
   function updateStage(id: string, field: keyof Stage, value: string) {
     setStages(stages.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
+  }
+
+  // Y9 — wipLimit is numeric + nullable, so it can't go through the
+  // string-keyed updateStage helper. Empty / zero / non-numeric clears
+  // the limit (returns to "no cap" on the kanban).
+  function updateStageWipLimit(id: string, raw: string) {
+    const parsed = Number.parseInt(raw, 10);
+    const next = raw.trim() === "" || !Number.isFinite(parsed) || parsed <= 0 ? null : parsed;
+    setStages(stages.map((s) => (s.id === id ? { ...s, wipLimit: next } : s)));
   }
 
   function addStage(category: "in_progress" | "done") {
@@ -126,6 +137,22 @@ export default function StagesSettingsPage() {
                             {mode}
                           </button>
                         ))}
+                        {/* Y9 — WIP limit input. Blank = no cap. */}
+                        <span className="ml-3 text-[10px] font-medium" style={{ color: "var(--color-text-muted)" }}>WIP limit:</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={stage.wipLimit ?? ""}
+                          onChange={(e) => updateStageWipLimit(stage.id, e.target.value)}
+                          placeholder="—"
+                          className="w-14 rounded px-1 py-0.5 text-[10px]"
+                          style={{
+                            background: "var(--color-bg-page)",
+                            color: "var(--color-text-primary)",
+                            border: "1px solid var(--color-border-default)",
+                          }}
+                          aria-label={`WIP limit for ${stage.name || "stage"}`}
+                        />
                       </div>
                     </div>
                     <button

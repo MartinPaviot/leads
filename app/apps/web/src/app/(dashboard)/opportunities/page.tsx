@@ -347,9 +347,11 @@ export default function OpportunitiesPage() {
 
   /* ── Computed ── */
 
+  // Y9 — carry `wipLimit` through to the column header so we can badge
+  // over-capacity columns. Built-in stages have no WIP limit by default.
   const activeStages = pipelineStages.length > 0
-    ? pipelineStages.map((s) => ({ id: s.id, name: s.name, description: s.description }))
-    : STAGES.map((s) => ({ id: s, name: STAGE_LABELS[s] || s, description: "" }));
+    ? pipelineStages.map((s) => ({ id: s.id, name: s.name, description: s.description, wipLimit: s.wipLimit ?? null }))
+    : STAGES.map((s) => ({ id: s, name: STAGE_LABELS[s] || s, description: "", wipLimit: null as number | null }));
 
   const stageOptions = activeStages.map((s) => ({ value: s.id, label: s.name }));
 
@@ -834,7 +836,24 @@ export default function OpportunitiesPage() {
                     <div className="flex items-center gap-2">
                       {(() => { const Icon = STAGE_ICONS[stage.id] || CircleDot; return <Icon size={14} style={{ color: dotColor }} />; })()}
                       <span className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>{stage.name}</span>
-                      <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>{stageDeals.length}</span>
+                      <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                        {stage.wipLimit ? `${stageDeals.length}/${stage.wipLimit}` : stageDeals.length}
+                      </span>
+                      {/* Y9 — over-capacity badge. Amber so it reads as a
+                          nudge, not a hard error; the limit is advisory,
+                          not enforced. */}
+                      {stage.wipLimit != null && stageDeals.length > stage.wipLimit && (
+                        <span
+                          className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider"
+                          style={{
+                            background: "var(--color-warning-soft)",
+                            color: "var(--color-warning)",
+                          }}
+                          title={`${stageDeals.length} deals in this stage — WIP limit is ${stage.wipLimit}. Move some forward before adding more.`}
+                        >
+                          Over capacity
+                        </span>
+                      )}
                     </div>
                     <button onClick={() => openCreateForStage(stage.id)}
                       className="flex h-6 w-6 items-center justify-center rounded-md transition-colors"
