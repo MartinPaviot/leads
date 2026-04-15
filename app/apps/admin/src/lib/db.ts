@@ -28,4 +28,8 @@ export {
   connectedMailboxes,
   contextGraphNodes,
   contextGraphEdges,
+  notetakerExposures,
+  tenantReferralCredits,
+  referralCreditEvents,
+  tenants,
 } from "../../web/src/db/schema";

@@ -2,7 +2,7 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import { activities } from "@/db/schema";
 import { eq, and, sql, gte, lte } from "drizzle-orm";
-import { createBot } from "@/lib/recall";
+import { createBotForActivity } from "@/lib/recording/bot-deployment";
 
 /**
  * Safety-net cron — schedules Recall.ai bots for meetings starting soon
@@ -55,18 +55,13 @@ export const scheduleRecallBots = inngest.createFunction(
       if (!meetingLink) continue;
 
       try {
-        const bot = await createBot(meetingLink);
-
-        await db.update(activities).set({
-          metadata: {
-            ...meta,
-            recallBotId: bot.id,
-            recordingStatus: "scheduled",
-          },
-        }).where(eq(activities.id, meeting.id));
-
-        scheduled++;
-        console.log(`[Recall] Scheduled bot ${bot.id} for meeting ${meeting.id}`);
+        const outcome = await createBotForActivity(meeting.id);
+        if (outcome.status === "created") {
+          scheduled++;
+          console.log(`[Recall] Scheduled bot ${outcome.bot.id} for meeting ${meeting.id} (${outcome.decision.mode})`);
+        } else {
+          console.log(`[Recall] Skipped bot for meeting ${meeting.id}: ${outcome.reason}`);
+        }
       } catch (err) {
         console.warn(`[Recall] Failed to schedule bot for meeting ${meeting.id}:`, err);
         errors++;

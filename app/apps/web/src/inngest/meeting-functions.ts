@@ -125,10 +125,8 @@ export const cronCalendarSync = inngest.createFunction(
                 meeting.startTime.getTime() - Date.now() < 30 * 60 * 1000 // within 30 min
               ) {
                 try {
-                  const bot = await createBot(meeting.meetingLink);
-                  // Re-read the activity we just created to get its ID
                   const [created] = await db
-                    .select({ id: activities.id, metadata: activities.metadata })
+                    .select({ id: activities.id })
                     .from(activities)
                     .where(
                       and(
@@ -138,13 +136,8 @@ export const cronCalendarSync = inngest.createFunction(
                     )
                     .limit(1);
                   if (created) {
-                    await db.update(activities).set({
-                      metadata: {
-                        ...((created.metadata || {}) as Record<string, unknown>),
-                        recallBotId: bot.id,
-                        recordingStatus: "scheduled",
-                      },
-                    }).where(eq(activities.id, created.id));
+                    const { createBotForActivity } = await import("@/lib/recording/bot-deployment");
+                    await createBotForActivity(created.id);
                   }
                 } catch (recallErr) {
                   console.warn(`[Recall] Failed to schedule bot for meeting ${meeting.calendarEventId}:`, recallErr);

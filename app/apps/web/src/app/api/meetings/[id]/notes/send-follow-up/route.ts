@@ -5,6 +5,7 @@ import { activities, contacts } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth-utils";
 import { logger } from "@/lib/logger";
 import { Resend } from "resend";
+import { buildCtaFootersForActivity, appendFooterIfExternal } from "@/lib/recording/cta";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -99,34 +100,81 @@ export async function POST(
 
   const toEmails = recipients.length > 0 ? recipients : Array.from(attendeeEmails);
 
+  // WS-1: per-recipient CTA footer for externals with exposures. Non-fatal
+  // if the lookup fails — we fall back to the original bulk send.
+  let footers: Awaited<ReturnType<typeof buildCtaFootersForActivity>>["footerByRecipient"];
+  let footerCount = 0;
   try {
-    const { data, error } = await resend.emails.send({
-      from: FROM_ADDRESS,
-      to: toEmails,
-      subject: draft.subject,
-      text: draft.body,
+    const result = await buildCtaFootersForActivity(id);
+    footers = result.footerByRecipient;
+    footerCount = result.footerCount;
+  } catch (err) {
+    logger.warn("meetings: CTA footer lookup failed, sending without CTA", {
+      err,
+      meetingId: id,
     });
-    if (error) {
-      logger.error("meetings: follow-up send returned error", {
-        err: error.message,
-        meetingId: id,
+    footers = new Map();
+  }
+
+  try {
+    const messageIds: string[] = [];
+    if (footers.size === 0) {
+      // No external exposures — keep the cheap bulk send.
+      const { data, error } = await resend.emails.send({
+        from: FROM_ADDRESS,
+        to: toEmails,
+        subject: draft.subject,
+        text: draft.body,
       });
-      return NextResponse.json(
-        { error: "Failed to send follow-up. Please try again." },
-        { status: 500 }
-      );
+      if (error) {
+        logger.error("meetings: follow-up send returned error", {
+          err: error.message,
+          meetingId: id,
+        });
+        return NextResponse.json(
+          { error: "Failed to send follow-up. Please try again." },
+          { status: 500 }
+        );
+      }
+      if (data?.id) messageIds.push(data.id);
+    } else {
+      // Per-recipient send so each external gets a unique tracked link,
+      // and internals get the clean body without a footer.
+      for (const recipient of toEmails) {
+        const body = appendFooterIfExternal(draft.body, recipient, footers);
+        const { data, error } = await resend.emails.send({
+          from: FROM_ADDRESS,
+          to: [recipient],
+          subject: draft.subject,
+          text: body,
+        });
+        if (error) {
+          logger.error("meetings: follow-up send returned error", {
+            err: error.message,
+            meetingId: id,
+            recipient,
+          });
+          return NextResponse.json(
+            { error: "Failed to send follow-up. Please try again." },
+            { status: 500 }
+          );
+        }
+        if (data?.id) messageIds.push(data.id);
+      }
     }
     const nextMeta: Record<string, unknown> = {
       ...meta,
       followUpSentAt: new Date().toISOString(),
-      followUpMessageId: data?.id ?? null,
+      followUpMessageId: messageIds[0] ?? null,
+      followUpMessageIds: messageIds,
       followUpRecipients: toEmails,
+      followUpCtaFootersSent: footerCount,
     };
     await db
       .update(activities)
       .set({ metadata: nextMeta })
       .where(eq(activities.id, id));
-    return NextResponse.json({ ok: true, recipients: toEmails });
+    return NextResponse.json({ ok: true, recipients: toEmails, ctaFootersSent: footerCount });
   } catch (err) {
     logger.error("meetings: follow-up send threw", { err, meetingId: id });
     return NextResponse.json(

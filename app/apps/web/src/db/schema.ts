@@ -1116,6 +1116,62 @@ export const importHistory = pgTable(
   ]
 );
 
+// ── Notetaker Channel (WS-1) ──────────────────────────
+// Exposures recorded when the branded meeting bot joins a call with external
+// participants. Enables attribution of new signups to the meetings where they
+// were exposed to the Elevay brand, so the recorder becomes a measurable
+// acquisition channel rather than just a feature.
+export const notetakerExposures = pgTable(
+  "notetaker_exposures",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    // The meeting activity this exposure belongs to.
+    activityId: text("activity_id").notNull(), // FK defined in migration (activities table cascade delete)
+    // Tenant whose bot generated the exposure.
+    referringTenantId: text("referring_tenant_id").references(() => tenants.id, { onDelete: "cascade" }).notNull(),
+    participantEmail: text("participant_email").notNull(),
+    participantEmailNormalized: text("participant_email_normalized").notNull(),
+    exposureAt: timestamp("exposure_at", { withTimezone: true }).defaultNow().notNull(),
+    brandingMode: text("branding_mode").notNull(), // 'full' | 'silent' — only 'full' counts for attribution
+    botDisplayName: text("bot_display_name").notNull(),
+    ctaClickedAt: timestamp("cta_clicked_at", { withTimezone: true }),
+    signupAttributedTenantId: text("signup_attributed_tenant_id").references(() => tenants.id, { onDelete: "set null" }),
+    signupAttributedAt: timestamp("signup_attributed_at", { withTimezone: true }),
+    metadata: jsonb("metadata").default({}).notNull(),
+  },
+  (table) => [
+    index("notetaker_exposures_email_at_idx").on(table.participantEmailNormalized, table.exposureAt),
+    index("notetaker_exposures_referring_at_idx").on(table.referringTenantId, table.exposureAt),
+    index("notetaker_exposures_activity_idx").on(table.activityId),
+    uniqueIndex("notetaker_exposures_activity_email_uniq").on(table.activityId, table.participantEmailNormalized),
+  ]
+);
+
+export const tenantReferralCredits = pgTable("tenant_referral_credits", {
+  tenantId: text("tenant_id").primaryKey().references(() => tenants.id, { onDelete: "cascade" }),
+  creditsEarnedCount: integer("credits_earned_count").default(0).notNull(),
+  creditsConsumedCount: integer("credits_consumed_count").default(0).notNull(),
+  lastCreditEarnedAt: timestamp("last_credit_earned_at", { withTimezone: true }),
+  metadata: jsonb("metadata").default({}).notNull(),
+});
+
+export const referralCreditEvents = pgTable(
+  "referral_credit_events",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id, { onDelete: "cascade" }).notNull(),
+    eventType: text("event_type").notNull(), // 'attribution_earned' | 'credit_granted' | 'credit_consumed'
+    triggeredByAttributionTenantId: text("triggered_by_attribution_tenant_id").references(() => tenants.id, { onDelete: "set null" }),
+    triggeredByExposureId: text("triggered_by_exposure_id").references(() => notetakerExposures.id, { onDelete: "set null" }),
+    amountCents: integer("amount_cents").default(0).notNull(),
+    description: text("description"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("referral_credit_events_tenant_created_idx").on(table.tenantId, table.createdAt),
+  ]
+);
+
 // ── Pending Invitations ────────────────────────────────
 export const pendingInvites = pgTable(
   "pending_invites",

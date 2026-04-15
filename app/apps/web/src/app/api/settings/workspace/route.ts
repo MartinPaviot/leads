@@ -29,6 +29,15 @@ export async function GET() {
       companyDomain: primaryDomain,
       companyDomains: allDomains,
       agentApprovalMode: settings.agentApprovalMode || "ask",
+      // Recording / notetaker channel (WS-1)
+      settings: {
+        recordingEnabled: settings.recordingEnabled ?? true,
+        recordingBotName: settings.recordingBotName ?? "Elevay Notetaker",
+        recordingPolicy: settings.recordingPolicy ?? "branded",
+        recordingOptOutReason: settings.recordingOptOutReason ?? null,
+        primaryDomain: settings.primaryDomain ?? primaryDomain ?? null,
+        domainAliases: settings.domainAliases ?? [],
+      },
     });
   } catch (error) {
     console.error("Failed to fetch workspace settings:", error);
@@ -67,6 +76,35 @@ export async function PUT(req: Request) {
         : body.companyDomains;
     }
     if (body.agentApprovalMode !== undefined) updates.agentApprovalMode = body.agentApprovalMode;
+
+    // Recording / notetaker channel (WS-1)
+    if (body.recordingEnabled !== undefined) updates.recordingEnabled = !!body.recordingEnabled;
+    if (body.recordingBotName !== undefined) {
+      const trimmed = String(body.recordingBotName).trim();
+      if (trimmed.length > 0 && trimmed.length <= 60) updates.recordingBotName = trimmed;
+    }
+    if (body.recordingPolicy !== undefined) {
+      const v = String(body.recordingPolicy);
+      if (["branded", "always_silent", "per_meeting_choice"].includes(v)) {
+        updates.recordingPolicy = v;
+      }
+    }
+    if (body.recordingOptOutReason !== undefined) {
+      updates.recordingOptOutReason = body.recordingOptOutReason
+        ? String(body.recordingOptOutReason).slice(0, 80)
+        : null;
+    }
+    if (body.primaryDomain !== undefined) {
+      updates.primaryDomain = body.primaryDomain
+        ? String(body.primaryDomain).trim().toLowerCase()
+        : null;
+    }
+    if (body.domainAliases !== undefined && Array.isArray(body.domainAliases)) {
+      updates.domainAliases = body.domainAliases
+        .map((d: unknown) => String(d).trim().toLowerCase())
+        .filter((d: string) => d.length > 0)
+        .slice(0, 10);
+    }
 
     await db.update(tenants).set({ settings: updates, updatedAt: new Date() }).where(eq(tenants.id, authCtx.tenantId));
 

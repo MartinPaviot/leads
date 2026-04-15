@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Zap, BarChart3, Network, Sparkles } from "lucide-react";
+import { Activity, Zap, BarChart3, Network, Sparkles, Radio } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Agents", icon: Activity },
   { href: "/flywheel", label: "Flywheel", icon: Zap },
+  { href: "/channel", label: "Channel", icon: Radio },
   { href: "/graph", label: "Graph", icon: Network },
   { href: "/business", label: "Business", icon: BarChart3 },
 ];

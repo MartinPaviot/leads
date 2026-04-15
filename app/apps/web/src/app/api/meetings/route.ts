@@ -176,29 +176,22 @@ export async function GET(req: Request) {
 }
 
 /**
- * Schedule a Recall.ai bot for a meeting. Fire-and-forget.
+ * Schedule a Recall.ai bot for a meeting via the branded-deployment wrapper.
+ * Fire-and-forget.
  */
 async function scheduleRecallBot(
-  meetingLink: string,
+  _meetingLink: string,
   activityId: string,
-  existingMeta: Record<string, unknown>
+  _existingMeta: Record<string, unknown>
 ) {
   try {
-    const { createBot } = await import("@/lib/recall");
-    const bot = await createBot(meetingLink);
-
-    await db
-      .update(activities)
-      .set({
-        metadata: {
-          ...existingMeta,
-          recallBotId: bot.id,
-          recordingStatus: "scheduled",
-        },
-      })
-      .where(eq(activities.id, activityId));
-
-    console.log(`[Meetings] Recall bot ${bot.id} scheduled for activity ${activityId}`);
+    const { createBotForActivity } = await import("@/lib/recording/bot-deployment");
+    const outcome = await createBotForActivity(activityId);
+    if (outcome.status === "created") {
+      console.log(`[Meetings] Recall bot ${outcome.bot.id} scheduled for activity ${activityId} (${outcome.decision.mode})`);
+    } else {
+      console.log(`[Meetings] Bot not scheduled for activity ${activityId}: ${outcome.reason}`);
+    }
   } catch (err: any) {
     console.warn(`[Meetings] Failed to schedule Recall bot:`, err.message);
   }

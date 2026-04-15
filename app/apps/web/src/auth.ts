@@ -42,6 +42,18 @@ async function resolveUserTenant(authUserId: string, email: string) {
     })
     .returning();
 
+  // WS-1: attribute the signup if this email was previously exposed to an
+  // Elevay-branded meeting bot. Non-blocking — never fail signup.
+  try {
+    const { attributeSignupFromExposure } = await import("@/lib/recording/channel");
+    const result = await attributeSignupFromExposure(tenant.id, email);
+    if (result.status === "attributed") {
+      console.log(`[WS-1] Signup attributed: tenant=${tenant.id} referrer=${result.referringTenantId} exposures=${result.exposureCount}`);
+    }
+  } catch (err) {
+    console.warn(`[WS-1] Signup attribution failed for tenant ${tenant.id}:`, err);
+  }
+
   return { tenantId: tenant.id, userId: user.id, role: user.role || "member" };
 }
 
