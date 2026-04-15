@@ -1249,6 +1249,85 @@ RULES:
       },
     }),
 
+    deleteSequenceStep: makeTool({
+      description:
+        "Delete a step from a sequence by its id. Remaining steps are renumbered so step_number stays contiguous. DESTRUCTIVE — filtered by the resolver unless allowDestructive=true. Snapshot captures the full pre-delete step set so undoLastAction can restore the exact numbering.",
+      inputSchema: z.object({
+        sequenceId: z.string().describe("Parent sequence id"),
+        stepId: z.string().describe("Step id to delete"),
+      }),
+      execute: async (input) => {
+        const [seq] = await db
+          .select({ id: sequences.id })
+          .from(sequences)
+          .where(
+            and(eq(sequences.id, input.sequenceId), eq(sequences.tenantId, tenantId))
+          )
+          .limit(1);
+        if (!seq) return { error: "Sequence not found" };
+
+        // Full snapshot of steps in this sequence BEFORE delete
+        const stepsBefore = await db
+          .select()
+          .from(sequenceSteps)
+          .where(eq(sequenceSteps.sequenceId, input.sequenceId))
+          .orderBy(sequenceSteps.stepNumber);
+        const target = stepsBefore.find((s) => s.id === input.stepId);
+        if (!target) return { error: "Step not found in this sequence" };
+
+        // Delete the target step
+        await db
+          .delete(sequenceSteps)
+          .where(
+            and(
+              eq(sequenceSteps.id, input.stepId),
+              eq(sequenceSteps.sequenceId, input.sequenceId)
+            )
+          );
+
+        // Re-number remaining steps so step_number stays dense (matches
+        // the existing /api/sequences/[id]/steps/[stepId] DELETE endpoint)
+        const remaining = await db
+          .select({ id: sequenceSteps.id, stepNumber: sequenceSteps.stepNumber })
+          .from(sequenceSteps)
+          .where(eq(sequenceSteps.sequenceId, input.sequenceId))
+          .orderBy(sequenceSteps.stepNumber);
+        for (let i = 0; i < remaining.length; i++) {
+          const want = i + 1;
+          if (remaining[i].stepNumber !== want) {
+            await db
+              .update(sequenceSteps)
+              .set({ stepNumber: want })
+              .where(eq(sequenceSteps.id, remaining[i].id));
+          }
+        }
+
+        await logToolCall({
+          tenantId,
+          userId,
+          toolName: "deleteSequenceStep",
+          args: input as unknown as Record<string, unknown>,
+          result: { deletedStepId: input.stepId, remainingCount: remaining.length },
+          snapshot: {
+            type: "delete_sequence_step",
+            sequenceId: input.sequenceId,
+            stepsBefore: stepsBefore.map(
+              (s) => s as unknown as Record<string, unknown>
+            ),
+          },
+        });
+
+        return {
+          deleted: {
+            stepId: input.stepId,
+            sequenceId: input.sequenceId,
+            stepNumber: target.stepNumber,
+            remainingCount: remaining.length,
+          },
+        };
+      },
+    }),
+
     mergeContacts: makeTool({
       description:
         "Merge N duplicate contacts into a survivor. Re-points every FK (activities, deals, sequenceEnrollments, tasks) to the survivor and DELETES the merged rows. Logs a merge_contacts snapshot so undoLastAction can re-insert + re-point on reversal. DESTRUCTIVE — filtered by the resolver unless allowDestructive=true. Use when the user says 'these are the same person, merge them into <survivor>'.",

@@ -79,6 +79,16 @@ export type ReversibleSnapshot =
         sequenceEnrollments: Array<{ id: string; originalContactId: string }>;
         tasks: Array<{ id: string; originalEntityId: string }>;
       };
+    }
+  | {
+      /**
+       * deleteSequenceStep snapshot. The DELETE path renumbers
+       * remaining steps so we snapshot the full pre-delete set and
+       * on reverse wipe the current steps + re-insert from snapshot.
+       */
+      type: "delete_sequence_step";
+      sequenceId: string;
+      stepsBefore: Array<Record<string, unknown>>;
     };
 
 export interface LogToolCallInput {
@@ -270,6 +280,31 @@ export async function reverseToolCall(
         reverseEventId: null,
         reversedAction: `mergeContacts (restored ${restoredRows} contact(s), reverted ${repointedCount} FK(s))`,
       };
+    } else if (snapshot.type === "delete_sequence_step") {
+      // Wipe current steps of the sequence, then re-insert from
+      // snapshot to restore the exact pre-delete numbering.
+      await db
+        .delete(sequenceSteps)
+        .where(eq(sequenceSteps.sequenceId, snapshot.sequenceId));
+      let restored = 0;
+      for (const s of snapshot.stepsBefore) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await db.insert(sequenceSteps).values(s as any);
+          restored++;
+        } catch {
+          // skip
+        }
+      }
+      await db
+        .update(toolCallEvents)
+        .set({ status: "reverted", revertedAt: new Date() })
+        .where(eq(toolCallEvents.id, eventId));
+      return {
+        ok: true,
+        reverseEventId: null,
+        reversedAction: `deleteSequenceStep (restored ${restored} step(s))`,
+      };
     } else if (snapshot.type === "bulk_update") {
       // Restore every row in the bulk set. Best-effort: errors on any
       // single row are swallowed so we still revert as much as possible.
@@ -397,8 +432,15 @@ async function reinsertEntity(
 ): Promise<void> {
   const table = pickTable(entity);
   if (!table) throw new Error(`Unknown entity: ${entity}`);
+  // Spread the full snapshot. If it carried tenantId, we enforce the
+  // caller's; otherwise (tables without tenantId column, e.g.
+  // sequence_step, sequence_enrollment) we leave the spread as-is.
+  const payload: Record<string, unknown> = { ...before };
+  if ("tenantId" in payload || "tenant_id" in payload) {
+    payload.tenantId = tenantId;
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await db.insert(table as any).values({ ...before, tenantId });
+  await db.insert(table as any).values(payload);
 }
 
 function pickTable(entity: string) {
