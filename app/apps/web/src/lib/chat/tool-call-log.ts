@@ -18,10 +18,12 @@
 
 import { db } from "@/db";
 import {
+  activities,
   companies,
   contacts,
   deals,
   notes,
+  sequenceEnrollments,
   tasks,
   toolCallEvents,
 } from "@/db/schema";
@@ -44,6 +46,23 @@ export type ReversibleSnapshot =
       type: "bulk_update";
       entity: "contact" | "company" | "deal" | "note" | "task";
       rows: Array<{ id: string; before: Record<string, unknown> }>;
+    }
+  | {
+      /**
+       * mergeContacts snapshot. Reversal re-inserts merged rows and
+       * re-points FKs back to their original contactId. Best-effort:
+       * if any FK target row has been deleted in the meantime, it's
+       * skipped.
+       */
+      type: "merge_contacts";
+      survivorId: string;
+      mergedRows: Array<Record<string, unknown>>;
+      repoints: {
+        activities: Array<{ id: string; originalEntityId: string }>;
+        deals: Array<{ id: string; originalContactId: string }>;
+        sequenceEnrollments: Array<{ id: string; originalContactId: string }>;
+        tasks: Array<{ id: string; originalEntityId: string }>;
+      };
     };
 
 export interface LogToolCallInput {
@@ -166,6 +185,75 @@ export async function reverseToolCall(
       await restoreEntity(snapshot.entity, snapshot.id, snapshot.before, tenantId);
     } else if (snapshot.type === "delete") {
       await reinsertEntity(snapshot.entity, snapshot.before, tenantId);
+    } else if (snapshot.type === "merge_contacts") {
+      // Re-insert merged contacts first (so FK revert targets exist)
+      let restoredRows = 0;
+      let repointedCount = 0;
+      for (const row of snapshot.mergedRows) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await db.insert(contacts).values(row as any);
+          restoredRows++;
+        } catch {
+          // Row may already exist (partial previous un-merge) — skip
+        }
+      }
+      // Revert FK repoints
+      for (const r of snapshot.repoints.activities) {
+        try {
+          await db
+            .update(activities)
+            .set({ entityId: r.originalEntityId })
+            .where(
+              and(eq(activities.id, r.id), eq(activities.tenantId, tenantId))
+            );
+          repointedCount++;
+        } catch {
+          // skip
+        }
+      }
+      for (const r of snapshot.repoints.deals) {
+        try {
+          await db
+            .update(deals)
+            .set({ contactId: r.originalContactId })
+            .where(and(eq(deals.id, r.id), eq(deals.tenantId, tenantId)));
+          repointedCount++;
+        } catch {
+          // skip
+        }
+      }
+      for (const r of snapshot.repoints.sequenceEnrollments) {
+        try {
+          await db
+            .update(sequenceEnrollments)
+            .set({ contactId: r.originalContactId })
+            .where(eq(sequenceEnrollments.id, r.id));
+          repointedCount++;
+        } catch {
+          // skip
+        }
+      }
+      for (const r of snapshot.repoints.tasks) {
+        try {
+          await db
+            .update(tasks)
+            .set({ entityId: r.originalEntityId })
+            .where(and(eq(tasks.id, r.id), eq(tasks.tenantId, tenantId)));
+          repointedCount++;
+        } catch {
+          // skip
+        }
+      }
+      await db
+        .update(toolCallEvents)
+        .set({ status: "reverted", revertedAt: new Date() })
+        .where(eq(toolCallEvents.id, eventId));
+      return {
+        ok: true,
+        reverseEventId: null,
+        reversedAction: `mergeContacts (restored ${restoredRows} contact(s), reverted ${repointedCount} FK(s))`,
+      };
     } else if (snapshot.type === "bulk_update") {
       // Restore every row in the bulk set. Best-effort: errors on any
       // single row are swallowed so we still revert as much as possible.
@@ -210,8 +298,10 @@ export async function reverseToolCall(
   }
 }
 
+type ReversibleEntity = "contact" | "company" | "deal" | "note" | "task";
+
 async function deleteByEntityId(
-  entity: ReversibleSnapshot["entity"] extends string ? string : never,
+  entity: ReversibleEntity,
   id: string,
   tenantId: string
 ): Promise<void> {

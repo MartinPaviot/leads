@@ -2,6 +2,8 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { connectedMailboxes, outboundEmails, warmupEmails } from "@/db/schema";
 import { and, eq, or } from "drizzle-orm";
+import { logger } from "@/lib/logger";
+import { retryWithBackoff } from "@/lib/retry";
 
 export async function GET() {
   const authCtx = await getAuthContext();
@@ -126,13 +128,36 @@ export async function DELETE(req: Request) {
     return Response.json({ error: "mailbox not found" }, { status: 404 });
   }
 
-  // Delete from EmailEngine. Best-effort: if EmailEngine is unreachable
-  // we still want to remove our local rows so the user is unblocked.
+  // Delete from EmailEngine. Best-effort with bounded retries — if EE
+  // stays unreachable we still want to free the local rows so the user
+  // is unblocked, but we surface the orphan to Sentry via logger.error
+  // so an operator can reconcile EE state on their side.
   const eeBase = process.env.EMAILENGINE_URL || "http://localhost:3100";
+  let eeOrphaned = false;
   try {
-    await fetch(`${eeBase}/v1/account/${mailbox.eeAccountId}`, { method: "DELETE" });
+    await retryWithBackoff(
+      async () => {
+        const res = await fetch(`${eeBase}/v1/account/${mailbox.eeAccountId}`, {
+          method: "DELETE",
+        });
+        // 404 from EE = already gone, treat as success. Anything else
+        // 4xx/5xx is retryable noise (EE rolling restart, transient
+        // network blip, etc).
+        if (!res.ok && res.status !== 404) {
+          throw new Error(`EmailEngine responded ${res.status}`);
+        }
+      },
+      { attempts: 3, baseDelayMs: 200, maxDelayMs: 1_500 }
+    );
   } catch (err) {
-    console.warn("mailboxes DELETE: EmailEngine unreachable, continuing local cleanup", err);
+    eeOrphaned = true;
+    logger.error("mailboxes DELETE: EmailEngine remote delete failed after retries", {
+      err,
+      tenantId: authCtx.tenantId,
+      mailboxId: id,
+      eeAccountId: mailbox.eeAccountId,
+      eeBase,
+    });
   }
 
   // Delete dependent records first to avoid FK constraint violations.
@@ -145,7 +170,11 @@ export async function DELETE(req: Request) {
     );
     await db.delete(outboundEmails).where(eq(outboundEmails.mailboxId, id));
   } catch (err) {
-    console.error("mailboxes DELETE: failed to clear dependent rows", err);
+    logger.error("mailboxes DELETE: failed to clear dependent rows", {
+      err,
+      tenantId: authCtx.tenantId,
+      mailboxId: id,
+    });
     return Response.json(
       { error: "Failed to delete mailbox — could not clear dependent emails. Try again." },
       { status: 500 },
@@ -158,11 +187,15 @@ export async function DELETE(req: Request) {
       and(eq(connectedMailboxes.id, id), eq(connectedMailboxes.tenantId, authCtx.tenantId))
     );
   } catch (err) {
-    console.error("Failed to delete mailbox:", err);
+    logger.error("mailboxes DELETE: failed to delete mailbox row", {
+      err,
+      tenantId: authCtx.tenantId,
+      mailboxId: id,
+    });
     return Response.json({ error: "Failed to delete mailbox — it may have dependent records" }, { status: 500 });
   }
 
-  return Response.json({ success: true });
+  return Response.json({ success: true, eeOrphaned });
 }
 
 export async function PATCH(req: Request) {
