@@ -11,7 +11,7 @@ green. **Database migrations 0008–0011 applied + journal seeded.**
 |---|---|---|
 | Production build | `cd app/apps/web && npx next build` | ✅ Compiled successfully (71s warm rebuild) |
 | Typecheck | `npx tsc --noEmit -p .` | ✅ 0 errors |
-| Unit / hook tests | `npx vitest run` | ✅ 534 / 534 (+133 added this session) |
+| Unit / hook tests | `npx vitest run` | ✅ 549 / 549 (+148 added this session) |
 | E2E (in-process) | `npx playwright test` | ✅ 6 passed, 6 skipped, 0 failed |
 | Dev server (`next dev --turbopack`) | curl /api/health | ✅ 200 in 5.3s |
 | Dev server (`next dev --turbopack`) | curl /sign-in | ✅ 200 (compiled in 17.8s) |
@@ -132,9 +132,12 @@ Smoke tests once deployed: section 6 of `_specs/PROD_SETUP.md`.
   endpoints they call), but the UI assertions need a deterministic
   app-shell-ready signal before clicking. Not a product bug — test
   flake.
-- **Mailbox DELETE cleanup is best-effort.** If we observe orphaned
-  mailboxes in prod, harden with retries + Sentry alerting. Tracked
-  in `_specs/NEXT_SESSION.md`.
+- ~~**Mailbox DELETE cleanup is best-effort.**~~ ✅ Done — wraps EE
+  delete in `retryWithBackoff(attempts:3, baseDelayMs:200, maxDelayMs:1500)`,
+  treats 404 as success, switches all failure logs to `logger.error`
+  so they auto-forward to Sentry. Response surfaces `eeOrphaned: true`
+  when local cleanup completes but EE reconciliation needs a manual
+  follow-up. NEXT_SESSION.md priority B closed.
 
 ## Today's commits on `main`
 
@@ -172,6 +175,11 @@ Smoke tests once deployed: section 6 of `_specs/PROD_SETUP.md`.
   checkout.session.completed / customer.subscription.updated /
   deleted / invoice.payment_failed / invoice.paid all propagate
   correctly to the subscriptions + tenants tables.
+- `feat(mailboxes): harden DELETE with EE retry + Sentry orphan
+  alerting` — closes NEXT_SESSION.md priority B. New `lib/retry.ts`
+  + 9 cases on the route + 6 cases on the helper. Also fixed a
+  pre-existing TS2339 in `lib/chat/tool-call-log.ts` that surfaced
+  during the regression check.
 - DB: applied 0008-0011 + seeded `__drizzle_migrations` directly
   via the postgres client; no separate commit (DB-only change).
 
