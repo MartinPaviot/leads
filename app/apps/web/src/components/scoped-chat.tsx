@@ -5,10 +5,15 @@ import { TextStreamChatTransport } from "ai";
 import { useRef, useEffect, useState } from "react";
 import { ChatMarkdown } from "./chat-markdown";
 import { ToolCallGroup } from "./tool-call-panel";
-import { Compass, Send, Building2, Users, TrendingUp, Calendar, X, Maximize2, Minimize2, Loader2 } from "lucide-react";
+import { Compass, Send, Building2, Users, TrendingUp, Calendar, List, X, Maximize2, Minimize2, Loader2 } from "lucide-react";
 
 interface ScopedChatProps {
-  contextType: "account" | "contact" | "deal" | "meeting";
+  /**
+   * Surface kind. "account"/"contact"/"deal"/"meeting" seed the CHAT-02
+   * resolver with the specific record; "list" seeds it with a list-view
+   * resource (contextId = resource name, e.g. "deals", "contacts").
+   */
+  contextType: "account" | "contact" | "deal" | "meeting" | "list";
   contextId: string;
   contextLabel: string;
 }
@@ -18,6 +23,7 @@ const contextIcons = {
   contact: Users,
   deal: TrendingUp,
   meeting: Calendar,
+  list: List,
 };
 
 const contextColors = {
@@ -25,6 +31,7 @@ const contextColors = {
   contact: "oklch(0.65 0.15 145)",
   deal: "oklch(0.65 0.15 30)",
   meeting: "oklch(0.65 0.15 300)",
+  list: "oklch(0.65 0.15 200)",
 };
 
 export function ScopedChat({ contextType, contextId, contextLabel }: ScopedChatProps) {
