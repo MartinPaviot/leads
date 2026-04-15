@@ -231,6 +231,9 @@ export const tenants = pgTable("tenants", {
   name: text("name").notNull(),
   plan: text("plan").default("trial"),
   settings: jsonb("settings").default({}),
+  // WS-2: per-tenant quota overrides. See lib/pricing/tiers.ts#getLimitsForTenant
+  // for merge semantics (null = inherit, 0 = hard block, garbage = ignored).
+  quotaOverrides: jsonb("quota_overrides").default({}).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
