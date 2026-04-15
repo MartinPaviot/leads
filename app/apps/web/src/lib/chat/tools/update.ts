@@ -1,5 +1,13 @@
 import { db } from "@/db";
-import { activities, companies, contacts, deals, tasks } from "@/db/schema";
+import {
+  activities,
+  companies,
+  contacts,
+  deals,
+  sequences,
+  sequenceSteps,
+  tasks,
+} from "@/db/schema";
 import { and, eq, ilike, or } from "drizzle-orm";
 import { z } from "zod";
 import { makeTool, type ToolContext } from "./context";
@@ -338,6 +346,106 @@ export function buildUpdateTools(ctx: ToolContext) {
             meetingId: input.meetingId,
             notesUpdated: input.structuredNotes !== undefined,
             draftUpdated: input.followUpDraft !== undefined,
+          },
+        };
+      },
+    }),
+
+    updateSequence: makeTool({
+      description:
+        "Update a sequence's metadata: name, description, status (draft|active|paused|completed|archived). Use when the user asks to 'rename this sequence', 'pause the Q2 campaign', 'archive this'.",
+      inputSchema: z.object({
+        sequenceId: z.string().describe("Sequence ID"),
+        name: z.string().optional(),
+        description: z.string().nullable().optional(),
+        status: z
+          .enum(["draft", "active", "paused", "completed", "archived"])
+          .optional(),
+      }),
+      execute: async (input) => {
+        const updates: Record<string, unknown> = { updatedAt: new Date() };
+        if (input.name) updates.name = input.name.trim();
+        if (input.description !== undefined) {
+          updates.description = input.description?.trim() || null;
+        }
+        if (input.status) updates.status = input.status;
+
+        if (Object.keys(updates).length === 1) {
+          return { error: "No fields to update" };
+        }
+
+        const [updated] = await db
+          .update(sequences)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .set(updates as any)
+          .where(
+            and(eq(sequences.id, input.sequenceId), eq(sequences.tenantId, tenantId))
+          )
+          .returning();
+        if (!updated) return { error: "Sequence not found" };
+
+        return {
+          updated: {
+            id: updated.id,
+            name: updated.name,
+            status: updated.status,
+            description: updated.description,
+          },
+        };
+      },
+    }),
+
+    updateSequenceStep: makeTool({
+      description:
+        "Edit a sequence step's subject/body/delayDays. Tenant-scoped. Edits apply to future send-time for contacts not yet at this step; already-sent emails are historical.",
+      inputSchema: z.object({
+        sequenceId: z.string().describe("Parent sequence ID"),
+        stepId: z.string().describe("Step ID to edit"),
+        subjectTemplate: z.string().optional(),
+        bodyTemplate: z.string().optional(),
+        delayDays: z.number().optional().describe("Must be ≥ 0"),
+      }),
+      execute: async (input) => {
+        const [sequence] = await db
+          .select({ id: sequences.id })
+          .from(sequences)
+          .where(
+            and(eq(sequences.id, input.sequenceId), eq(sequences.tenantId, tenantId))
+          )
+          .limit(1);
+        if (!sequence) return { error: "Sequence not found" };
+
+        const updates: Record<string, unknown> = {};
+        if (typeof input.subjectTemplate === "string") {
+          updates.subjectTemplate = input.subjectTemplate.trim();
+        }
+        if (typeof input.bodyTemplate === "string") {
+          updates.bodyTemplate = input.bodyTemplate.trim();
+        }
+        if (typeof input.delayDays === "number" && input.delayDays >= 0) {
+          updates.delayDays = input.delayDays;
+        }
+        if (Object.keys(updates).length === 0) {
+          return { error: "No valid fields to update" };
+        }
+
+        const [updated] = await db
+          .update(sequenceSteps)
+          .set(updates)
+          .where(
+            and(
+              eq(sequenceSteps.id, input.stepId),
+              eq(sequenceSteps.sequenceId, input.sequenceId)
+            )
+          )
+          .returning();
+        if (!updated) return { error: "Step not found" };
+
+        return {
+          updated: {
+            id: updated.id,
+            stepNumber: updated.stepNumber,
+            delayDays: updated.delayDays,
           },
         };
       },

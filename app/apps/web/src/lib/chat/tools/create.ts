@@ -1,5 +1,15 @@
 import { db } from "@/db";
-import { activities, companies, contacts, deals, notes, tasks } from "@/db/schema";
+import {
+  activities,
+  companies,
+  contacts,
+  deals,
+  notes,
+  sequences,
+  sequenceSteps,
+  tasks,
+} from "@/db/schema";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { ingestEpisode } from "@/lib/context-graph";
 import { makeTool, type ToolContext } from "./context";
@@ -229,6 +239,86 @@ export function buildCreateTools(ctx: ToolContext) {
             entityType: activity.entityType,
             entityId: activity.entityId,
             occurredAt: activity.occurredAt,
+          },
+        };
+      },
+    }),
+
+    createSequence: makeTool({
+      description:
+        "Create an outbound email sequence/campaign shell. Creates the parent record only — add steps via addSequenceStep afterwards. Use when the user asks to 'create a new sequence', 'set up a campaign', 'start a drip'.",
+      inputSchema: z.object({
+        name: z.string().describe("Sequence name (e.g. 'Q2 warm intros')"),
+        description: z.string().optional().describe("Short description of the sequence's goal"),
+      }),
+      execute: async (input) => {
+        if (!input.name || input.name.trim().length === 0) {
+          return { error: "Name is required" };
+        }
+        const [sequence] = await db
+          .insert(sequences)
+          .values({
+            tenantId,
+            name: input.name.trim(),
+            description: input.description?.trim() || null,
+          })
+          .returning();
+        return {
+          created: {
+            id: sequence.id,
+            name: sequence.name,
+            status: sequence.status,
+            _sourceLink: `/sequences/${sequence.id}`,
+          },
+        };
+      },
+    }),
+
+    addSequenceStep: makeTool({
+      description:
+        "Append an email step to an existing sequence. Auto-assigns the next stepNumber. Use when the user asks to 'add a step', 'add another email', 'append follow-up #N'.",
+      inputSchema: z.object({
+        sequenceId: z.string().describe("Sequence ID"),
+        subjectTemplate: z
+          .string()
+          .describe("Subject line template (supports {{firstName}} etc.)"),
+        bodyTemplate: z.string().describe("Body template"),
+        delayDays: z
+          .number()
+          .optional()
+          .describe("Days to wait after previous step (default 2, 0 for immediate)"),
+      }),
+      execute: async (input) => {
+        const [sequence] = await db
+          .select()
+          .from(sequences)
+          .where(and(eq(sequences.id, input.sequenceId), eq(sequences.tenantId, tenantId)))
+          .limit(1);
+        if (!sequence) return { error: "Sequence not found" };
+
+        const [maxStep] = await db
+          .select({ max: sql<number>`coalesce(max(step_number), 0)` })
+          .from(sequenceSteps)
+          .where(eq(sequenceSteps.sequenceId, input.sequenceId));
+        const stepNumber = (maxStep?.max || 0) + 1;
+
+        const [step] = await db
+          .insert(sequenceSteps)
+          .values({
+            sequenceId: input.sequenceId,
+            stepNumber,
+            subjectTemplate: input.subjectTemplate.trim(),
+            bodyTemplate: input.bodyTemplate.trim(),
+            delayDays: input.delayDays ?? 2,
+          })
+          .returning();
+
+        return {
+          created: {
+            id: step.id,
+            sequenceId: step.sequenceId,
+            stepNumber: step.stepNumber,
+            delayDays: step.delayDays,
           },
         };
       },

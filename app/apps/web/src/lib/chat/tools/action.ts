@@ -3,16 +3,20 @@ import {
   activities,
   companies,
   contacts,
-  sequences,
+  emailOptouts,
+  outboundEmails,
+  sequenceEnrollments,
   sequenceSteps,
+  sequences,
 } from "@/db/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, sql } from "drizzle-orm";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
 import { buildProspectContext } from "@/lib/prospect-context";
 import { generateSequence } from "@/lib/sequence-generator";
+import { pauseEnrollmentsForContacts } from "@/lib/enrollment";
 import { makeTool, type ToolContext } from "./context";
 
 function pickModel() {
@@ -478,6 +482,281 @@ RULES:
             contactName,
             contactEmail: contact.email,
             startTime: input.startTime,
+          },
+        };
+      },
+    }),
+
+    enrollInSequence: makeTool({
+      description:
+        "Enroll contacts in an existing sequence. Skips contacts without an email or already enrolled. Caps at 100 per call. Use when the user says 'enroll these in X', 'add contacts to the Q2 sequence', 'start outreach to this list'.",
+      inputSchema: z.object({
+        sequenceId: z.string().describe("Sequence ID"),
+        contactIds: z.array(z.string()).describe("Contact IDs to enroll (max 100)"),
+      }),
+      execute: async (input) => {
+        const [sequence] = await db
+          .select()
+          .from(sequences)
+          .where(and(eq(sequences.id, input.sequenceId), eq(sequences.tenantId, tenantId)))
+          .limit(1);
+        if (!sequence) return { error: "Sequence not found" };
+
+        const [stepCount] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(sequenceSteps)
+          .where(eq(sequenceSteps.sequenceId, input.sequenceId));
+        if (!stepCount || Number(stepCount.count) === 0) {
+          return { error: "Sequence has no steps — add steps before enrolling" };
+        }
+
+        const steps = await db
+          .select()
+          .from(sequenceSteps)
+          .where(eq(sequenceSteps.sequenceId, input.sequenceId))
+          .orderBy(sequenceSteps.stepNumber)
+          .limit(1);
+        const firstDelay = steps[0]?.delayDays || 0;
+
+        let enrolled = 0;
+        let skipped = 0;
+        for (const contactId of input.contactIds.slice(0, 100)) {
+          const [contact] = await db
+            .select()
+            .from(contacts)
+            .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, tenantId)))
+            .limit(1);
+          if (!contact || !contact.email) {
+            skipped++;
+            continue;
+          }
+
+          const [existing] = await db
+            .select()
+            .from(sequenceEnrollments)
+            .where(
+              and(
+                eq(sequenceEnrollments.sequenceId, input.sequenceId),
+                eq(sequenceEnrollments.contactId, contactId)
+              )
+            )
+            .limit(1);
+          if (existing) {
+            skipped++;
+            continue;
+          }
+
+          const nextStepAt = new Date();
+          nextStepAt.setDate(nextStepAt.getDate() + firstDelay);
+          await db.insert(sequenceEnrollments).values({
+            sequenceId: input.sequenceId,
+            contactId,
+            currentStep: 1,
+            nextStepAt,
+          });
+          enrolled++;
+        }
+
+        return { enrolled, skipped, sequenceId: input.sequenceId };
+      },
+    }),
+
+    runSequenceAutopilot: makeTool({
+      description:
+        "Auto-enroll the top eligible contacts in a sequence (scored, has email, not yet enrolled). Use when the user says 'run autopilot on X', 'auto-enroll my best leads in this sequence'. Caps at 100 enrollments per call, defaults min score 50 and max enroll 20.",
+      inputSchema: z.object({
+        sequenceId: z.string().describe("Sequence ID"),
+        minScore: z.number().optional().describe("Minimum contact score to enroll (default 50)"),
+        maxEnroll: z.number().optional().describe("Max contacts to enroll (default 20, cap 100)"),
+      }),
+      execute: async (input) => {
+        const [sequence] = await db
+          .select()
+          .from(sequences)
+          .where(and(eq(sequences.id, input.sequenceId), eq(sequences.tenantId, tenantId)))
+          .limit(1);
+        if (!sequence) return { error: "Sequence not found" };
+
+        const [stepCount] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(sequenceSteps)
+          .where(eq(sequenceSteps.sequenceId, input.sequenceId));
+        if (!stepCount || Number(stepCount.count) === 0) {
+          return { error: "Sequence has no steps" };
+        }
+
+        const minScore = input.minScore ?? 50;
+        const maxEnroll = Math.min(input.maxEnroll ?? 20, 100);
+
+        const alreadyEnrolled = await db
+          .select({ contactId: sequenceEnrollments.contactId })
+          .from(sequenceEnrollments)
+          .where(eq(sequenceEnrollments.sequenceId, input.sequenceId));
+        const enrolledIds = new Set(alreadyEnrolled.map((e) => e.contactId));
+
+        const eligible = await db
+          .select()
+          .from(contacts)
+          .where(
+            and(
+              eq(contacts.tenantId, tenantId),
+              isNotNull(contacts.email),
+              gte(contacts.score, minScore)
+            )
+          )
+          .orderBy(sql`score DESC NULLS LAST`)
+          .limit(maxEnroll * 2);
+
+        const steps = await db
+          .select()
+          .from(sequenceSteps)
+          .where(eq(sequenceSteps.sequenceId, input.sequenceId))
+          .orderBy(sequenceSteps.stepNumber)
+          .limit(1);
+        const firstDelay = steps[0]?.delayDays || 0;
+
+        let enrolledCount = 0;
+        let skippedCount = 0;
+        for (const contact of eligible) {
+          if (enrolledCount >= maxEnroll) break;
+          if (enrolledIds.has(contact.id)) {
+            skippedCount++;
+            continue;
+          }
+          const nextStepAt = new Date();
+          nextStepAt.setDate(nextStepAt.getDate() + firstDelay);
+          await db.insert(sequenceEnrollments).values({
+            sequenceId: input.sequenceId,
+            contactId: contact.id,
+            currentStep: 1,
+            nextStepAt,
+          });
+          enrolledCount++;
+        }
+
+        return {
+          enrolled: enrolledCount,
+          skipped: skippedCount,
+          eligibleConsidered: eligible.length,
+        };
+      },
+    }),
+
+    launchCampaign: makeTool({
+      description:
+        "Launch a prepared campaign — transitions all approved draft emails to 'queued' so the send worker picks them up. Requires sequence.campaignConfig.status === 'ready'. Use when the user confirms 'launch it', 'send the campaign', 'go live with X'.",
+      inputSchema: z.object({
+        sequenceId: z.string().describe("Sequence/campaign ID"),
+      }),
+      execute: async (input) => {
+        const [sequence] = await db
+          .select()
+          .from(sequences)
+          .where(and(eq(sequences.id, input.sequenceId), eq(sequences.tenantId, tenantId)))
+          .limit(1);
+        if (!sequence) return { error: "Sequence not found" };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const config = (sequence.campaignConfig || {}) as any;
+        if (config.status !== "ready") {
+          return {
+            error: `Campaign is not ready to launch (current status: ${config.status || "idle"}). Run the prepare step first.`,
+          };
+        }
+
+        await db
+          .update(outboundEmails)
+          .set({ status: "queued", queuedAt: new Date(), updatedAt: new Date() })
+          .where(
+            and(
+              eq(outboundEmails.tenantId, tenantId),
+              eq(outboundEmails.campaignId, input.sequenceId),
+              eq(outboundEmails.status, "draft")
+            )
+          );
+
+        const [queuedCount] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(outboundEmails)
+          .where(
+            and(
+              eq(outboundEmails.tenantId, tenantId),
+              eq(outboundEmails.campaignId, input.sequenceId),
+              eq(outboundEmails.status, "queued")
+            )
+          );
+
+        await db
+          .update(sequences)
+          .set({
+            campaignConfig: { ...config, status: "launched" },
+            status: "active",
+            updatedAt: new Date(),
+          })
+          .where(eq(sequences.id, input.sequenceId));
+
+        return {
+          launched: true,
+          sequenceId: input.sequenceId,
+          emailsQueued: Number(queuedCount?.count || 0),
+        };
+      },
+    }),
+
+    unsubscribeContact: makeTool({
+      description:
+        "Mark a contact as unsubscribed — inserts an opt-out for the email address and pauses any active sequence enrollments for matching contacts. Use when the user says 'Jane asked to unsub', 'remove X from outbound', 'unsubscribe this contact'.",
+      inputSchema: z.object({
+        contactId: z.string().optional().describe("Contact ID (preferred)"),
+        email: z
+          .string()
+          .optional()
+          .describe("Email address to opt out (if contactId not supplied)"),
+        reason: z.string().optional().describe("Short reason (default 'unsubscribe')"),
+      }),
+      execute: async (input) => {
+        let emailLower: string | null = null;
+        let matchedContactIds: string[] = [];
+
+        if (input.contactId) {
+          const [contact] = await db
+            .select()
+            .from(contacts)
+            .where(and(eq(contacts.id, input.contactId), eq(contacts.tenantId, tenantId)))
+            .limit(1);
+          if (!contact) return { error: "Contact not found" };
+          if (!contact.email) return { error: "Contact has no email to opt out" };
+          emailLower = contact.email.toLowerCase();
+        } else if (input.email) {
+          emailLower = input.email.toLowerCase();
+        } else {
+          return { error: "Provide contactId or email" };
+        }
+
+        const matching = await db
+          .select({ id: contacts.id })
+          .from(contacts)
+          .where(and(eq(contacts.tenantId, tenantId), eq(contacts.email, emailLower)));
+        matchedContactIds = matching.map((c) => c.id);
+
+        await db
+          .insert(emailOptouts)
+          .values({
+            tenantId,
+            emailAddress: emailLower,
+            reason: input.reason || "unsubscribe",
+          })
+          .onConflictDoNothing();
+
+        if (matchedContactIds.length > 0) {
+          await pauseEnrollmentsForContacts(tenantId, matchedContactIds, "unsubscribed");
+        }
+
+        return {
+          unsubscribed: {
+            email: emailLower,
+            contactsMatched: matchedContactIds.length,
+            enrollmentsPaused: matchedContactIds.length > 0,
           },
         };
       },
