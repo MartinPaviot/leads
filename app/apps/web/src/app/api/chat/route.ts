@@ -305,11 +305,18 @@ export async function POST(req: Request) {
     contextType,
     contextId,
     surface: surfaceInput,
+    threadId,
   }: {
     messages: UIMessage[];
     contextType?: string;
     contextId?: string;
     surface?: SurfaceContext;
+    /**
+     * Optional current chat thread id. When set, every ~20 turns we
+     * fire the `memory/auto-extract` Inngest event so the worker can
+     * propose durable memories from recent conversation history.
+     */
+    threadId?: string;
   } = await req.json();
 
   const primaryModel = process.env.ANTHROPIC_API_KEY
@@ -438,6 +445,23 @@ export async function POST(req: Request) {
   // ── Context Management: compact long conversations ──
   const compactedMessages = compactMessages(messages);
   const convertedMessages = await convertToModelMessages(compactedMessages);
+
+  // CHAT-07: fire auto-extract every ~20 turns on a thread. Fire-and-
+  // forget — the chat response doesn't wait on it. The worker dedupes
+  // via (tenant, scope, key) existence checks so re-firing is safe.
+  if (threadId && messages.length > 0 && messages.length % 20 === 0) {
+    void (async () => {
+      try {
+        const { inngest } = await import("@/inngest/client");
+        await inngest.send({
+          name: "memory/auto-extract",
+          data: { tenantId, userId: authCtx.appUserId, threadId },
+        });
+      } catch (err) {
+        console.warn("chat: memory/auto-extract emit failed (non-fatal)", err);
+      }
+    })();
+  }
 
   try {
     const result = await tracedStreamText({
