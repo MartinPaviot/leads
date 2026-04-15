@@ -56,7 +56,10 @@ Drizzle:
 quotaOverrides: jsonb("quota_overrides").default({}).notNull(),
 ```
 
-Migration file: `app/apps/web/drizzle/0017_quota_overrides.sql`.
+Migration file: `app/apps/web/drizzle/0018_quota_overrides.sql`.
+(Renumbered from the originally-designed 0017 to avoid collision with
+Martin's parallel `0017_email_verification_and_lockout.sql`. The
+companion migration for T8 moved 0018 → 0019.)
 
 ### 2. `referral_credit_events.stripe_balance_txn_id` text (new column)
 

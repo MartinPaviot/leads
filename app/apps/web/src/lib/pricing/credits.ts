@@ -11,7 +11,7 @@
  *      least once): we call customers.createBalanceTransaction with a
  *      negative amount and store the returned transaction id on the ledger
  *      row. Stripe's own idempotency guarantees + our column-level unique
- *      partial index (migration 0018) prevent double-crediting on replay.
+ *      partial index (migration 0019) prevent double-crediting on replay.
  *   4. If the tenant has no Stripe customer yet (trial-only, never checked
  *      out): leave stripeBalanceTxnId null. backfillPendingCredits runs from
  *      the checkout route after customer creation and picks up every row

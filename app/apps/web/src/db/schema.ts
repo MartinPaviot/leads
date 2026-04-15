@@ -1173,7 +1173,7 @@ export const referralCreditEvents = pgTable(
     // attempted" or "attempted but no Stripe customer yet" — backfill
     // re-runs idempotently so distinguishing isn't needed. Non-null value
     // is the idempotency marker: credits.ts refuses to re-push a row that
-    // already has one. See migration 0018 for the unique partial index.
+    // already has one. See migration 0019 for the unique partial index.
     stripeBalanceTxnId: text("stripe_balance_txn_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },

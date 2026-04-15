@@ -53,10 +53,13 @@ page but is the closest regression).
 
 ---
 
-## T3 — Migration 0017: `tenants.quota_overrides` column
+## T3 — Migration 0018: `tenants.quota_overrides` column
+
+(Originally planned as 0017; renumbered post-build to 0018 to avoid
+collision with Martin's parallel `0017_email_verification_and_lockout.sql`.)
 
 **Do:**
-- New SQL: `app/apps/web/drizzle/0017_quota_overrides.sql`:
+- New SQL: `app/apps/web/drizzle/0018_quota_overrides.sql`:
   ```sql
   ALTER TABLE tenants
     ADD COLUMN quota_overrides jsonb NOT NULL DEFAULT '{}'::jsonb;
@@ -218,10 +221,12 @@ at 51/50 → red banner with Upgrade button.
 
 ---
 
-## T8 — Migration 0018: `referral_credit_events.stripe_balance_txn_id`
+## T8 — Migration 0019: `referral_credit_events.stripe_balance_txn_id`
+
+(Originally planned as 0018; renumbered post-build to 0019 — see T3.)
 
 **Do:**
-- New SQL `app/apps/web/drizzle/0018_referral_stripe_txn.sql`:
+- New SQL `app/apps/web/drizzle/0019_referral_stripe_txn.sql`:
   ```sql
   ALTER TABLE referral_credit_events
     ADD COLUMN stripe_balance_txn_id text;

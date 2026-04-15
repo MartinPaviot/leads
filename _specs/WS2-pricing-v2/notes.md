@@ -51,11 +51,19 @@ called from any code path WS-1 ships (the 3 former call sites moved).
 ### 5. Drizzle meta journal is stale
 
 `drizzle/meta/_journal.json` stops at migration `0011_fast_rictor` but
-SQL migrations `0012` through `0018` exist. WS-2 added `0017_quota_overrides`
-and `0018_referral_stripe_txn` without snapshot regeneration, matching
+SQL migrations `0012` through `0019` exist. WS-2 added `0018_quota_overrides`
+and `0019_referral_stripe_txn` without snapshot regeneration, matching
 the pattern of `0012`–`0016`. Someone will need to regenerate snapshots
 (`pnpm drizzle-kit generate` after reconciling) before the next time we
 touch the journal properly.
+
+### 6. Migration number collision with `feat/journey-audit-haute`
+
+Martin's parallel branch added `0017_email_verification_and_lockout.sql`.
+WS-2 originally used slot 0017 for `quota_overrides`, which would have
+collided on merge. Renumbered proactively to **0018_quota_overrides** and
+**0019_referral_stripe_txn** so both branches can merge to main in any
+order without further rebasing.
 
 ## Martin's interleaved commits on `feat/WS2-pricing-v2`
 
