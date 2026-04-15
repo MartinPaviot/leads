@@ -5,10 +5,10 @@ import { TextStreamChatTransport } from "ai";
 import { useRef, useEffect, useState } from "react";
 import { ChatMarkdown } from "./chat-markdown";
 import { ToolCallGroup } from "./tool-call-panel";
-import { Compass, Send, Building2, Users, TrendingUp, X, Maximize2, Minimize2, Loader2 } from "lucide-react";
+import { Compass, Send, Building2, Users, TrendingUp, Calendar, X, Maximize2, Minimize2, Loader2 } from "lucide-react";
 
 interface ScopedChatProps {
-  contextType: "account" | "contact" | "deal";
+  contextType: "account" | "contact" | "deal" | "meeting";
   contextId: string;
   contextLabel: string;
 }
@@ -17,12 +17,14 @@ const contextIcons = {
   account: Building2,
   contact: Users,
   deal: TrendingUp,
+  meeting: Calendar,
 };
 
 const contextColors = {
   account: "oklch(0.65 0.15 250)",
   contact: "oklch(0.65 0.15 145)",
   deal: "oklch(0.65 0.15 30)",
+  meeting: "oklch(0.65 0.15 300)",
 };
 
 export function ScopedChat({ contextType, contextId, contextLabel }: ScopedChatProps) {
