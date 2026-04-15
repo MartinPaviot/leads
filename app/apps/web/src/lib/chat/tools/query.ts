@@ -7,6 +7,7 @@ import {
   notes,
   sharedPrompts,
   tasks,
+  toolCallEvents,
   users,
 } from "@/db/schema";
 import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
@@ -937,6 +938,53 @@ Examples: query="Sarah Chen" finds contacts named Sarah Chen. query="deals over 
           default:
             return { error: "Unknown objectType" };
         }
+      },
+    }),
+
+    listRecentToolCalls: makeTool({
+      description:
+        "Audit trail: list the current user's recent chat tool calls with args, result, status (executed/reverted/failed), and whether they're reversible. Use when the user asks 'what did I just do?', 'show my action history', 'what has the chat done for me today?'.",
+      inputSchema: z.object({
+        limit: z.number().optional().describe("Max results (default 20, cap 100)"),
+        status: z
+          .enum(["executed", "reverted", "failed", "all"])
+          .optional()
+          .describe("Filter by status (default 'all')"),
+        toolName: z.string().optional().describe("Filter by a specific tool"),
+      }),
+      execute: async (input) => {
+        const limit = Math.min(input.limit ?? 20, 100);
+        const conditions = [
+          eq(toolCallEvents.tenantId, tenantId),
+          eq(toolCallEvents.userId, authCtx.appUserId),
+        ];
+        if (input.status && input.status !== "all") {
+          conditions.push(eq(toolCallEvents.status, input.status));
+        }
+        if (input.toolName) {
+          conditions.push(eq(toolCallEvents.toolName, input.toolName));
+        }
+        const rows = await db
+          .select()
+          .from(toolCallEvents)
+          .where(and(...conditions))
+          .orderBy(desc(toolCallEvents.executedAt))
+          .limit(limit);
+
+        return {
+          events: rows.map((e) => ({
+            id: e.id,
+            toolName: e.toolName,
+            status: e.status,
+            executedAt: e.executedAt,
+            revertedAt: e.revertedAt,
+            reversible: !!e.snapshot && !e.revertedAt,
+            surfaceType: e.surfaceType,
+            args: e.args,
+            result: e.result,
+            errorMessage: e.errorMessage,
+          })),
+        };
       },
     }),
 
