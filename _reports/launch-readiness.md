@@ -11,7 +11,7 @@ green. **Database migrations 0008–0011 applied + journal seeded.**
 |---|---|---|
 | Production build | `cd app/apps/web && npx next build` | ✅ Compiled successfully (71s warm rebuild) |
 | Typecheck | `npx tsc --noEmit -p .` | ✅ 0 errors |
-| Unit / hook tests | `npx vitest run` | ✅ 498 / 498 (+97 added this session) |
+| Unit / hook tests | `npx vitest run` | ✅ 534 / 534 (+133 added this session) |
 | E2E (in-process) | `npx playwright test` | ✅ 6 passed, 6 skipped, 0 failed |
 | Dev server (`next dev --turbopack`) | curl /api/health | ✅ 200 in 5.3s |
 | Dev server (`next dev --turbopack`) | curl /sign-in | ✅ 200 (compiled in 17.8s) |
@@ -161,6 +161,17 @@ Smoke tests once deployed: section 6 of `_specs/PROD_SETUP.md`.
 - `test(api): cover destructive account DELETE + GDPR data export`
   — 8 vitest cases on the right-to-erase + right-to-export legal
   endpoints.
+- `test(api): cover Resend webhook event handling + signature gates`
+  — 12 vitest cases covering open/click/bounce/complaint events +
+  the dev-vs-prod signature gating.
+- `test(api): cover EmailEngine webhook (replies + bounces)`
+  — 11 vitest cases covering messageNew (reply detection) and
+  messageBounce (hard/soft) with full HMAC signature path.
+- `test(api): cover Stripe webhook (billing state propagation)`
+  — 13 vitest cases mocking the Stripe SDK to verify
+  checkout.session.completed / customer.subscription.updated /
+  deleted / invoice.payment_failed / invoice.paid all propagate
+  correctly to the subscriptions + tenants tables.
 - DB: applied 0008-0011 + seeded `__drizzle_migrations` directly
   via the postgres client; no separate commit (DB-only change).
 
