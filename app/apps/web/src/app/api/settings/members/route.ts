@@ -1,7 +1,7 @@
 import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 export async function GET() {
   const authCtx = await getAuthContext();
@@ -60,7 +60,19 @@ export async function PUT(req: Request) {
       return Response.json({ error: "Cannot change your own role" }, { status: 400 });
     }
 
-    await db.update(users).set({ role, updatedAt: new Date() }).where(eq(users.id, memberId));
+    // Scope the update to this tenant — without the tenant clause a
+    // tenant-A admin could PUT a userId that belongs to tenant B and
+    // flip their role. `returning()` lets us detect the 0-row case and
+    // respond with 404 instead of a false 200.
+    const updated = await db
+      .update(users)
+      .set({ role, updatedAt: new Date() })
+      .where(and(eq(users.id, memberId), eq(users.tenantId, authCtx.tenantId)))
+      .returning({ id: users.id });
+
+    if (updated.length === 0) {
+      return Response.json({ error: "Member not found" }, { status: 404 });
+    }
 
     return Response.json({ success: true });
   } catch (error) {

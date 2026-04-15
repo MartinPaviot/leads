@@ -15,6 +15,12 @@ export async function GET(
   const { id } = await params;
 
   try {
+    // IMPORTANT — tenant scope lives here. `sequenceSteps` and
+    // `sequenceEnrollments` carry no `tenantId` column of their own; the
+    // only thing anchoring them to a tenant is `sequenceId`. By first
+    // proving the parent sequence belongs to `authCtx.tenantId` and
+    // bailing with 404 if not, every subsequent query keyed on `id`
+    // stays tenant-safe. Do not delete this check.
     const [sequence] = await db
       .select()
       .from(sequences)
@@ -31,13 +37,23 @@ export async function GET(
       .where(eq(sequenceSteps.sequenceId, id))
       .orderBy(sequenceSteps.stepNumber);
 
+    // Enrollment rows only reference contacts — cross-check that the
+    // joined contact is also tenant-scoped so a malformed enrollment
+    // row pointing at a contact from another tenant (shouldn't be
+    // possible, but belt-and-braces) can't leak PII.
     const enrollments = await db
       .select({
         enrollment: sequenceEnrollments,
         contact: contacts,
       })
       .from(sequenceEnrollments)
-      .leftJoin(contacts, eq(sequenceEnrollments.contactId, contacts.id))
+      .leftJoin(
+        contacts,
+        and(
+          eq(sequenceEnrollments.contactId, contacts.id),
+          eq(contacts.tenantId, authCtx.tenantId)
+        )
+      )
       .where(eq(sequenceEnrollments.sequenceId, id));
 
     return Response.json({

@@ -5,6 +5,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
 import { getTenantSettings, type PipelineStageDef } from "@/lib/tenant-settings";
+import { verifyCronRequest } from "@/lib/cron-auth";
 
 const progressionSchema = z.object({
   shouldProgress: z.boolean().describe("Whether the deal should move to the next stage"),
@@ -20,10 +21,8 @@ const progressionSchema = z.object({
  * Run as cron every 12-24h or on-demand.
  */
 export async function GET(req: Request) {
-  const secret = req.headers.get("authorization")?.replace("Bearer ", "");
-  if (secret !== process.env.CRON_SECRET && process.env.NODE_ENV === "production") {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const unauthorized = verifyCronRequest(req);
+  if (unauthorized) return unauthorized;
 
   try {
     const allTenants = await db.select({ id: tenants.id }).from(tenants);

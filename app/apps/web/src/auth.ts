@@ -86,7 +86,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           Google({
             clientId: process.env.GOOGLE_CLIENT_ID,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-            allowDangerousEmailAccountLinking: true,
+            // Explicitly OFF. With this set to true an attacker who
+            // registers first via credentials on a victim's email
+            // would have their account silently linked the moment the
+            // victim OAuth-signs-in → takeover. Users that hit the
+            // "email already in use" error go through the explicit
+            // link flow (current-password reauth) instead.
+            allowDangerousEmailAccountLinking: false,
             authorization: {
               params: {
                 scope:
@@ -104,7 +110,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           MicrosoftEntraId({
             clientId: process.env.MICROSOFT_CLIENT_ID,
             clientSecret: process.env.MICROSOFT_CLIENT_SECRET!,
-            allowDangerousEmailAccountLinking: true,
+            // See Google provider above for the rationale.
+            allowDangerousEmailAccountLinking: false,
             authorization: {
               params: {
                 scope: "openid email profile offline_access Mail.Read Calendars.Read",

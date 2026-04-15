@@ -1,4 +1,37 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createHmac } from "node:crypto";
+
+const RECALL_TEST_SECRET = "whsec_" + Buffer.from("recall-test-secret-32-bytes-long!").toString("base64");
+
+/**
+ * Build a Recall (Svix-style) webhook request with a valid signature.
+ * Mirrors the verifier in `app/api/webhooks/recall/route.ts`.
+ */
+function signedRecallRequest(
+  body: unknown,
+  opts: { secret?: string; skewSeconds?: number; id?: string } = {}
+): Request {
+  const rawBody = typeof body === "string" ? body : JSON.stringify(body);
+  const secret = opts.secret ?? RECALL_TEST_SECRET;
+  const id = opts.id ?? "msg_test_1";
+  const timestamp = String(Math.floor(Date.now() / 1000) + (opts.skewSeconds ?? 0));
+  const secretBytes = secret.startsWith("whsec_")
+    ? Buffer.from(secret.slice("whsec_".length), "base64")
+    : Buffer.from(secret, "utf8");
+  const sig = createHmac("sha256", secretBytes)
+    .update(`${id}.${timestamp}.${rawBody}`)
+    .digest("base64");
+  return new Request("http://localhost/api/webhooks/recall", {
+    method: "POST",
+    body: rawBody,
+    headers: {
+      "Content-Type": "application/json",
+      "svix-id": id,
+      "svix-timestamp": timestamp,
+      "svix-signature": `v1,${sig}`,
+    },
+  });
+}
 
 // Hoisted mocks — accessible inside vi.mock factories
 const { mockSelect, mockUpdate, mockGetBotTranscript, mockGetBotStatus, mockTranscriptToText, mockMapBotStatus } = vi.hoisted(() => {
@@ -147,6 +180,7 @@ describe("Recall.ai Webhook → Process Transcript → CRM Pipeline", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.ANTHROPIC_API_KEY = "test-key";
+    process.env.RECALL_WEBHOOK_SECRET = RECALL_TEST_SECRET;
 
     mockMapBotStatus.mockReturnValue("done");
     mockGetBotStatus.mockResolvedValue({
@@ -181,18 +215,12 @@ describe("Recall.ai Webhook → Process Transcript → CRM Pipeline", () => {
   it("should handle bot.status_change event and update activity metadata", async () => {
     mockMapBotStatus.mockReturnValueOnce("recording");
 
-    const webhookPayload = {
+    const req = signedRecallRequest({
       event: "bot.status_change",
       data: {
         data: { code: "in_call_recording", sub_code: null, updated_at: "2026-04-05T14:00:05Z" },
         bot: { id: "bot-789", metadata: {} },
       },
-    };
-
-    const req = new Request("http://localhost/api/webhooks/recall", {
-      method: "POST",
-      body: JSON.stringify(webhookPayload),
-      headers: { "Content-Type": "application/json" },
     });
 
     const res = await POST(req);
@@ -206,18 +234,12 @@ describe("Recall.ai Webhook → Process Transcript → CRM Pipeline", () => {
   });
 
   it("should handle call_ended event and trigger transcript processing", async () => {
-    const webhookPayload = {
+    const req = signedRecallRequest({
       event: "bot.status_change",
       data: {
         data: { code: "call_ended", sub_code: null, updated_at: "2026-04-05T14:45:00Z" },
         bot: { id: "bot-789", metadata: {} },
       },
-    };
-
-    const req = new Request("http://localhost/api/webhooks/recall", {
-      method: "POST",
-      body: JSON.stringify(webhookPayload),
-      headers: { "Content-Type": "application/json" },
     });
 
     const res = await POST(req);
@@ -236,25 +258,67 @@ describe("Recall.ai Webhook → Process Transcript → CRM Pipeline", () => {
   });
 
   it("should return 400 for invalid JSON", async () => {
-    const req = new Request("http://localhost/api/webhooks/recall", {
-      method: "POST",
-      body: "not json",
-      headers: { "Content-Type": "application/json" },
-    });
+    const req = signedRecallRequest("not json");
 
     const res = await POST(req);
     expect(res.status).toBe(400);
   });
 
   it("should return 400 for missing bot ID", async () => {
+    const req = signedRecallRequest({ event: "bot.status_change", data: { data: {}, bot: {} } });
+
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+  });
+
+  // ── Security regression tests (C2) ──
+
+  it("rejects requests with no signature headers at all", async () => {
     const req = new Request("http://localhost/api/webhooks/recall", {
       method: "POST",
-      body: JSON.stringify({ event: "bot.status_change", data: { data: {}, bot: {} } }),
+      body: JSON.stringify({ event: "bot.status_change", data: { data: { code: "done" }, bot: { id: "bot-789" } } }),
       headers: { "Content-Type": "application/json" },
     });
 
     const res = await POST(req);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(401);
+    // Must NOT have touched the DB before signature verification.
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects requests signed with the wrong secret", async () => {
+    const req = signedRecallRequest(
+      { event: "bot.status_change", data: { data: { code: "done" }, bot: { id: "bot-789" } } },
+      { secret: "whsec_" + Buffer.from("some-other-secret-totally-wrong!").toString("base64") }
+    );
+
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects replay attacks older than 5 minutes", async () => {
+    const req = signedRecallRequest(
+      { event: "bot.status_change", data: { data: { code: "done" }, bot: { id: "bot-789" } } },
+      { skewSeconds: -600 } // 10 min old
+    );
+
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 when RECALL_WEBHOOK_SECRET is not configured", async () => {
+    delete process.env.RECALL_WEBHOOK_SECRET;
+    const req = signedRecallRequest({
+      event: "bot.status_change",
+      data: { data: { code: "done" }, bot: { id: "bot-789" } },
+    });
+
+    const res = await POST(req);
+    // Fail-closed: missing secret must NOT default to accept in any env.
+    expect(res.status).toBe(503);
+    expect(mockUpdate).not.toHaveBeenCalled();
   });
 
   it("should handle unknown bot gracefully", async () => {
@@ -269,18 +333,12 @@ describe("Recall.ai Webhook → Process Transcript → CRM Pipeline", () => {
       return chain;
     });
 
-    const webhookPayload = {
+    const req = signedRecallRequest({
       event: "bot.status_change",
       data: {
         data: { code: "in_call_recording", sub_code: null, updated_at: "2026-04-05T14:00:05Z" },
         bot: { id: "unknown-bot", metadata: {} },
       },
-    };
-
-    const req = new Request("http://localhost/api/webhooks/recall", {
-      method: "POST",
-      body: JSON.stringify(webhookPayload),
-      headers: { "Content-Type": "application/json" },
     });
 
     const res = await POST(req);

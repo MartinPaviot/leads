@@ -4,17 +4,16 @@ import { eq, and } from "drizzle-orm";
 import { fetchRecentEmails } from "@/lib/gmail";
 import { embedEntity } from "@/lib/embeddings";
 import { ingestEpisode } from "@/lib/context-graph";
+import { verifyCronRequest } from "@/lib/cron-auth";
 
 /**
  * Cron endpoint: sync emails for all active mailboxes.
  * Call via Vercel Cron or external scheduler every 5-15 minutes.
- * Protected by CRON_SECRET header.
+ * Protected by CRON_SECRET header — fail-closed in every environment.
  */
 export async function GET(req: Request) {
-  const secret = req.headers.get("authorization")?.replace("Bearer ", "");
-  if (secret !== process.env.CRON_SECRET && process.env.NODE_ENV === "production") {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const unauthorized = verifyCronRequest(req);
+  if (unauthorized) return unauthorized;
 
   try {
     // Get all active mailboxes with their tenant's user
@@ -84,12 +83,14 @@ export async function GET(req: Request) {
 
         results.push({ mailbox: mailbox.emailAddress, created, total: emails.length });
       } catch (err) {
-        results.push({ mailbox: mailbox.emailAddress, error: String(err) });
+        console.error("cron/email-sync: mailbox failed", { mailbox: mailbox.emailAddress, err });
+        results.push({ mailbox: mailbox.emailAddress, error: "sync_failed" });
       }
     }
 
     return Response.json({ success: true, synced: results.length, results });
   } catch (error) {
-    return Response.json({ error: String(error) }, { status: 500 });
+    console.error("cron/email-sync: top-level failure", error);
+    return Response.json({ error: "Cron execution failed" }, { status: 500 });
   }
 }

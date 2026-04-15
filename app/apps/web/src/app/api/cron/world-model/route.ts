@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { activities, companies, contacts, deals, tenants } from "@/db/schema";
 import { eq, desc, sql, gte } from "drizzle-orm";
+import { verifyCronRequest } from "@/lib/cron-auth";
 
 /**
  * World Model Generator — analyzes accumulated interactions to auto-build
@@ -10,10 +11,8 @@ import { eq, desc, sql, gte } from "drizzle-orm";
  * buyer personas, deal patterns, communication style.
  */
 export async function GET(req: Request) {
-  const secret = req.headers.get("authorization")?.replace("Bearer ", "");
-  if (secret !== process.env.CRON_SECRET && process.env.NODE_ENV === "production") {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const unauthorized = verifyCronRequest(req);
+  if (unauthorized) return unauthorized;
 
   // Also support per-tenant generation via query param
   const url = new URL(req.url);

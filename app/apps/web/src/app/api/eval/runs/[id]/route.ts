@@ -1,7 +1,7 @@
 import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { evalRuns, evalResults, evalCases } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const authCtx = await getAuthContext();
@@ -10,7 +10,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (adminCheck) return adminCheck;
   const { id } = await params;
 
-  const [run] = await db.select().from(evalRuns).where(eq(evalRuns.id, id)).limit(1);
+  const [run] = await db
+    .select()
+    .from(evalRuns)
+    .where(and(eq(evalRuns.id, id), eq(evalRuns.tenantId, authCtx.tenantId)))
+    .limit(1);
   if (!run) return Response.json({ error: "Run not found" }, { status: 404 });
 
   const results = await db.select({

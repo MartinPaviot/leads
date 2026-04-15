@@ -4,6 +4,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
 import { INDUSTRIES, industriesPromptHint, companySizesPromptHint } from "@/lib/icp-constants";
+import { assertPublicUrl } from "@/lib/ssrf-guard";
 
 // Step 1: Extract structured intelligence from the website
 const websiteIntelligenceSchema = z.object({
@@ -31,26 +32,54 @@ const icpInferenceSchema = z.object({
   })).describe("Fields where confidence is below 0.7 — the UI will ask the founder these questions"),
 });
 
-async function scrapeWebsite(domain: string): Promise<string | null> {
-  const urls = [`https://${domain}`, `https://www.${domain}`];
+async function safeFetch(url: string, init: RequestInit): Promise<Response | null> {
+  // Follow up to 3 redirects manually, validating each hop against the
+  // SSRF guard. `fetch({ redirect: "follow" })` would happily chase a
+  // 302 back into the private network we just rejected.
+  let current = url;
+  for (let hop = 0; hop < 4; hop++) {
+    const check = await assertPublicUrl(current);
+    if (!check.ok || !check.url) {
+      console.warn("analyze-website: refused redirect target", { hop, current, reason: check.reason });
+      return null;
+    }
+    const res = await fetch(check.url, { ...init, redirect: "manual" });
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get("location");
+      if (!loc) return null;
+      current = new URL(loc, check.url).toString();
+      continue;
+    }
+    return res;
+  }
+  return null;
+}
 
-  for (const url of urls) {
+async function scrapeWebsite(domain: string): Promise<string | null> {
+  // SSRF guard — `domain` is user-supplied. Without validation a caller
+  // could pass `169.254.169.254`, `localhost:8080`, or an internal
+  // hostname to make our server scrape the cloud metadata service or
+  // another internal network target. `safeFetch` parses, resolves DNS,
+  // and rejects anything that lands on a private/link-local/metadata
+  // range — on every hop, not just the first.
+  const candidates = [`https://${domain}`, `https://www.${domain}`];
+
+  for (const url of candidates) {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
 
-      const res = await fetch(url, {
+      const res = await safeFetch(url, {
         headers: {
           "User-Agent": "Mozilla/5.0 (compatible; Elevay/1.0; +https://elevay.com)",
           "Accept": "text/html",
         },
         signal: controller.signal,
-        redirect: "follow",
       });
 
       clearTimeout(timeout);
 
-      if (!res.ok) continue;
+      if (!res || !res.ok) continue;
 
       const html = await res.text();
 
