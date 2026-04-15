@@ -1,7 +1,26 @@
 # NEXT_ACTIONS — ce qu'on fait de l'analyse FuseAI
-_v1 · 2026-04-15 · pour Martin · basé sur findings ANALYSIS.md §12-13ter + audit LeadSens 2026-04-15_
+_v1.1 · 2026-04-15 · pour Martin · basé sur findings ANALYSIS.md §12-13ter + audit LeadSens 2026-04-15_
 
 Classement par **ROI réel** (impact × faisabilité, pas par taille). Deadlines indicatives si on part demain.
+
+## État (2026-04-15 19h)
+
+| # | Statut | Notes |
+|---|---|---|
+| N1 — Publier BATTLECARD | 🟡 Produit | `fuse-analysis/BATTLECARD.md` livré, en attente de diffusion |
+| N2 — Taxonomie 3-adversaires homepage | ✅ **Shipped** | Commit `bca94b0` — nouvelle section "Landscape" entre WHY ELEVAY et FOUNDATIONS. TypeScript check OK. |
+| N3 — Fix label "6-digit code" | ✅ **N/A, déjà mieux** | Audité : LeadSens utilise magic link (base64url, 24h TTL) et copy dit "verification link". On fait déjà mieux que Fuse — aucune action. |
+| N4 — check-email.js scan multi-folders | ✅ **Shipped** | Commit `f62129b` — scanne INBOX+Notification+Newsletter+Spam, extrait alphanumériques. Validé regex. |
+| N5 — Pricing v3 AI Credits pool | 🔴 **Attend décision** | Touche Stripe prod. Accord Martin requis avant spec/build. |
+| N6 — 30-day performance guarantee | 🔴 **Attend décision** | Légal/CGV — nécessite review conseil juridique. |
+| N7.1 — Page SEO vs-FuseAI FR | ✅ **Draft shipped** | `fuse-analysis/seo-pages/leadsens-vs-fuseai-fr.md` (200 lignes). Ready for review + CMS publication. |
+| N7.2–N7.10 — 9 autres pages SEO vs | 🟡 En attente | ~3-4h/page ; peut être exécuté une par une |
+| **N8 — Person-level email waterfall** | 🟡 **Kiro spec ready** | `_specs/FUSE-GAP-1-person-email-waterfall/` — office-hours + requirements + design + tasks (965 lignes). Attend : (1) décision Dropcontact/Hunter contrats, (2) accord sur caps par plan. |
+| N9 — Signals externes | 🔴 Attend décision | Spec Kiro à écrire si accord de principe |
+| N10 — Website visitor ID | 🔴 Attend décision | Spec Kiro à écrire si accord de principe |
+| N11 — Power Dialer | ✅ **SKIP 2026 confirmé** | Recommandation assumée : refuser le terrain, ce n'est pas notre ICP. |
+
+
 
 ## 🟢 À faire maintenant (cette semaine — effort < 2 jours)
 
