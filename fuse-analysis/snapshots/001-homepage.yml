@@ -1,0 +1,683 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - generic [ref=e6]:
+      - paragraph [ref=e8]: News |
+      - paragraph [ref=e10]: Backed by Y Combinator
+      - link "Read More" [ref=e13] [cursor=pointer]:
+        - /url: https://www.ycombinator.com/companies/fuseai
+        - paragraph [ref=e15]: Read More
+    - generic [ref=e21] [cursor=pointer]:
+      - link [ref=e23]:
+        - /url: ./
+      - generic [ref=e26]:
+        - link "Company" [ref=e28]:
+          - /url: ./manifesto
+          - paragraph [ref=e30]: Company
+        - paragraph [ref=e34]: Products
+        - paragraph [ref=e39]: Solutions
+        - link "Pricing" [ref=e42]:
+          - /url: ./pricing
+          - paragraph [ref=e44]: Pricing
+        - link "Blog" [ref=e46]:
+          - /url: ./blog
+          - paragraph [ref=e48]: Blog
+      - generic [ref=e49]:
+        - link "Login" [ref=e51]:
+          - /url: https://app.tryfuse.ai/signin
+          - paragraph [ref=e54]: Login
+        - link "Get a demo" [ref=e56]:
+          - /url: https://cal.com/saurav-bubber-ec6oxt/30min
+          - paragraph [ref=e59]: Get a demo
+        - link "Signup" [ref=e61]:
+          - /url: https://app.tryfuse.ai/signup
+          - paragraph [ref=e64]: Signup
+    - generic [ref=e66]:
+      - generic [ref=e67]:
+        - heading "S u p e r p o w e r y o u r o u t b o u n d s a l e s t e a m ." [level=1] [ref=e70]:
+          - generic [ref=e71]:
+            - generic [ref=e72]:
+              - generic [ref=e73]: S
+              - generic [ref=e74]: u
+              - generic [ref=e75]: p
+              - generic [ref=e76]: e
+              - generic [ref=e77]: r
+              - generic [ref=e78]: p
+              - generic [ref=e79]: o
+              - generic [ref=e80]: w
+              - generic [ref=e81]: e
+              - generic [ref=e82]: r
+            - generic [ref=e83]:
+              - generic [ref=e84]: "y"
+              - generic [ref=e85]: o
+              - generic [ref=e86]: u
+              - generic [ref=e87]: r
+          - generic [ref=e88]:
+            - generic [ref=e89]: o
+            - generic [ref=e90]: u
+            - generic [ref=e91]: t
+            - generic [ref=e92]: b
+            - generic [ref=e93]: o
+            - generic [ref=e94]: u
+            - generic [ref=e95]: "n"
+            - generic [ref=e96]: d
+          - generic [ref=e97]:
+            - generic [ref=e98]: s
+            - generic [ref=e99]: a
+            - generic [ref=e100]: l
+            - generic [ref=e101]: e
+            - generic [ref=e102]: s
+          - generic [ref=e103]:
+            - generic [ref=e104]: t
+            - generic [ref=e105]: e
+            - generic [ref=e106]: a
+            - generic [ref=e107]: m
+            - generic [ref=e108]: .
+        - heading "T h e f i r s t s a l e s p l a t f o r m w h e r e r e p s w o r k a l o n g s i d e A I a g e n t s t o b u i l d a q u a l i t y p i p e l i n e - a u t o m a t e l e a d d i s c o v e r y , d a t a e n r i c h m e n t , a n d m u l t i - c h a n n e l o u t r e a c h i n m i n u t e s ." [level=6] [ref=e111]:
+          - generic [ref=e112]:
+            - generic [ref=e113]: T
+            - generic [ref=e114]: h
+            - generic [ref=e115]: e
+          - generic [ref=e116]:
+            - generic [ref=e117]: f
+            - generic [ref=e118]: i
+            - generic [ref=e119]: r
+            - generic [ref=e120]: s
+            - generic [ref=e121]: t
+          - generic [ref=e122]:
+            - generic [ref=e123]: s
+            - generic [ref=e124]: a
+            - generic [ref=e125]: l
+            - generic [ref=e126]: e
+            - generic [ref=e127]: s
+          - generic [ref=e128]:
+            - generic [ref=e129]: p
+            - generic [ref=e130]: l
+            - generic [ref=e131]: a
+            - generic [ref=e132]: t
+            - generic [ref=e133]: f
+            - generic [ref=e134]: o
+            - generic [ref=e135]: r
+            - generic [ref=e136]: m
+          - generic [ref=e137]:
+            - generic [ref=e138]: w
+            - generic [ref=e139]: h
+            - generic [ref=e140]: e
+            - generic [ref=e141]: r
+            - generic [ref=e142]: e
+          - generic [ref=e143]:
+            - generic [ref=e144]: r
+            - generic [ref=e145]: e
+            - generic [ref=e146]: p
+            - generic [ref=e147]: s
+          - generic [ref=e148]:
+            - generic [ref=e149]: w
+            - generic [ref=e150]: o
+            - generic [ref=e151]: r
+            - generic [ref=e152]: k
+          - generic [ref=e153]:
+            - generic [ref=e154]: a
+            - generic [ref=e155]: l
+            - generic [ref=e156]: o
+            - generic [ref=e157]: "n"
+            - generic [ref=e158]: g
+            - generic [ref=e159]: s
+            - generic [ref=e160]: i
+            - generic [ref=e161]: d
+            - generic [ref=e162]: e
+          - generic [ref=e163]:
+            - generic [ref=e164]: A
+            - generic [ref=e165]: I
+          - generic [ref=e166]:
+            - generic [ref=e167]: a
+            - generic [ref=e168]: g
+            - generic [ref=e169]: e
+            - generic [ref=e170]: "n"
+            - generic [ref=e171]: t
+            - generic [ref=e172]: s
+          - generic [ref=e173]:
+            - generic [ref=e174]: t
+            - generic [ref=e175]: o
+          - generic [ref=e176]:
+            - generic [ref=e177]: b
+            - generic [ref=e178]: u
+            - generic [ref=e179]: i
+            - generic [ref=e180]: l
+            - generic [ref=e181]: d
+          - generic [ref=e183]: a
+          - generic [ref=e184]:
+            - generic [ref=e185]: q
+            - generic [ref=e186]: u
+            - generic [ref=e187]: a
+            - generic [ref=e188]: l
+            - generic [ref=e189]: i
+            - generic [ref=e190]: t
+            - generic [ref=e191]: "y"
+          - generic [ref=e192]:
+            - generic [ref=e193]: p
+            - generic [ref=e194]: i
+            - generic [ref=e195]: p
+            - generic [ref=e196]: e
+            - generic [ref=e197]: l
+            - generic [ref=e198]: i
+            - generic [ref=e199]: "n"
+            - generic [ref=e200]: e
+          - generic [ref=e202]: "-"
+          - generic [ref=e203]:
+            - generic [ref=e204]: a
+            - generic [ref=e205]: u
+            - generic [ref=e206]: t
+            - generic [ref=e207]: o
+            - generic [ref=e208]: m
+            - generic [ref=e209]: a
+            - generic [ref=e210]: t
+            - generic [ref=e211]: e
+          - generic [ref=e212]:
+            - generic [ref=e213]: l
+            - generic [ref=e214]: e
+            - generic [ref=e215]: a
+            - generic [ref=e216]: d
+          - generic [ref=e217]:
+            - generic [ref=e218]: d
+            - generic [ref=e219]: i
+            - generic [ref=e220]: s
+            - generic [ref=e221]: c
+            - generic [ref=e222]: o
+            - generic [ref=e223]: v
+            - generic [ref=e224]: e
+            - generic [ref=e225]: r
+            - generic [ref=e226]: "y"
+            - generic [ref=e227]: ","
+          - generic [ref=e228]:
+            - generic [ref=e229]: d
+            - generic [ref=e230]: a
+            - generic [ref=e231]: t
+            - generic [ref=e232]: a
+          - generic [ref=e233]:
+            - generic [ref=e234]: e
+            - generic [ref=e235]: "n"
+            - generic [ref=e236]: r
+            - generic [ref=e237]: i
+            - generic [ref=e238]: c
+            - generic [ref=e239]: h
+            - generic [ref=e240]: m
+            - generic [ref=e241]: e
+            - generic [ref=e242]: "n"
+            - generic [ref=e243]: t
+            - generic [ref=e244]: ","
+          - generic [ref=e245]:
+            - generic [ref=e246]: a
+            - generic [ref=e247]: "n"
+            - generic [ref=e248]: d
+          - generic [ref=e249]:
+            - generic [ref=e250]: m
+            - generic [ref=e251]: u
+            - generic [ref=e252]: l
+            - generic [ref=e253]: t
+            - generic [ref=e254]: i
+            - generic [ref=e255]: "-"
+            - generic [ref=e256]: c
+            - generic [ref=e257]: h
+            - generic [ref=e258]: a
+            - generic [ref=e259]: "n"
+            - generic [ref=e260]: "n"
+            - generic [ref=e261]: e
+            - generic [ref=e262]: l
+          - generic [ref=e263]:
+            - generic [ref=e264]: o
+            - generic [ref=e265]: u
+            - generic [ref=e266]: t
+            - generic [ref=e267]: r
+            - generic [ref=e268]: e
+            - generic [ref=e269]: a
+            - generic [ref=e270]: c
+            - generic [ref=e271]: h
+          - generic [ref=e272]:
+            - generic [ref=e273]: i
+            - generic [ref=e274]: "n"
+          - generic [ref=e275]:
+            - generic [ref=e276]: m
+            - generic [ref=e277]: i
+            - generic [ref=e278]: "n"
+            - generic [ref=e279]: u
+            - generic [ref=e280]: t
+            - generic [ref=e281]: e
+            - generic [ref=e282]: s
+            - generic [ref=e283]: .
+      - generic [ref=e284]:
+        - link "Launch AI agents for free" [ref=e287] [cursor=pointer]:
+          - /url: https://app.tryfuse.ai/signup
+          - paragraph [ref=e290]: Launch AI agents for free
+          - generic [ref=e291]:
+            - img [ref=e294]
+            - img [ref=e298]
+        - link "Get a demo" [ref=e302] [cursor=pointer]:
+          - /url: https://cal.com/saurav-bubber-ec6oxt/30min
+          - paragraph [ref=e305]: Get a demo
+    - generic [ref=e313]:
+      - heading "The autonomous revenue engine. Built for performance. Built for the AI era." [level=2] [ref=e315]:
+        - text: The autonomous revenue engine.
+        - text: Built for performance. Built for the AI era.
+      - generic [ref=e317]:
+        - generic [ref=e319] [cursor=pointer]:
+          - generic [ref=e320]:
+            - generic [ref=e321]:
+              - heading "Signals" [level=4] [ref=e323]
+              - img [ref=e327]
+            - link "Learn more" [ref=e330]:
+              - /url: ./product/signals
+              - paragraph [ref=e333]: Learn more
+              - generic [ref=e334]:
+                - img [ref=e337]
+                - img [ref=e341]
+          - paragraph [ref=e345]:
+            - generic [ref=e346]:
+              - generic [ref=e347]: R
+              - generic [ref=e348]: e
+              - generic [ref=e349]: v
+              - generic [ref=e350]: e
+              - generic [ref=e351]: a
+              - generic [ref=e352]: l
+            - generic [ref=e353]:
+              - generic [ref=e354]: "y"
+              - generic [ref=e355]: o
+              - generic [ref=e356]: u
+              - generic [ref=e357]: r
+            - generic [ref=e358]:
+              - generic [ref=e359]: p
+              - generic [ref=e360]: e
+              - generic [ref=e361]: o
+              - generic [ref=e362]: p
+              - generic [ref=e363]: l
+              - generic [ref=e364]: e
+            - generic [ref=e365]:
+              - generic [ref=e366]: a
+              - generic [ref=e367]: "n"
+              - generic [ref=e368]: d
+            - generic [ref=e369]:
+              - generic [ref=e370]: c
+              - generic [ref=e371]: o
+              - generic [ref=e372]: m
+              - generic [ref=e373]: p
+              - generic [ref=e374]: a
+              - generic [ref=e375]: "n"
+              - generic [ref=e376]: "y"
+            - generic [ref=e377]:
+              - generic [ref=e378]: w
+              - generic [ref=e379]: e
+              - generic [ref=e380]: b
+              - generic [ref=e381]: s
+              - generic [ref=e382]: i
+              - generic [ref=e383]: t
+              - generic [ref=e384]: e
+            - generic [ref=e385]:
+              - generic [ref=e386]: v
+              - generic [ref=e387]: i
+              - generic [ref=e388]: s
+              - generic [ref=e389]: i
+              - generic [ref=e390]: t
+              - generic [ref=e391]: o
+              - generic [ref=e392]: r
+              - generic [ref=e393]: s
+              - generic [ref=e394]: ","
+            - generic [ref=e395]:
+              - generic [ref=e396]: t
+              - generic [ref=e397]: h
+              - generic [ref=e398]: e
+              - generic [ref=e399]: "n"
+            - generic [ref=e400]:
+              - generic [ref=e401]: c
+              - generic [ref=e402]: o
+              - generic [ref=e403]: m
+              - generic [ref=e404]: b
+              - generic [ref=e405]: i
+              - generic [ref=e406]: "n"
+              - generic [ref=e407]: e
+            - generic [ref=e408]:
+              - generic [ref=e409]: t
+              - generic [ref=e410]: h
+              - generic [ref=e411]: i
+              - generic [ref=e412]: s
+            - generic [ref=e413]:
+              - generic [ref=e414]: w
+              - generic [ref=e415]: i
+              - generic [ref=e416]: t
+              - generic [ref=e417]: h
+            - generic [ref=e418]:
+              - generic [ref=e419]: s
+              - generic [ref=e420]: e
+              - generic [ref=e421]: v
+              - generic [ref=e422]: e
+              - generic [ref=e423]: r
+              - generic [ref=e424]: a
+              - generic [ref=e425]: l
+            - generic [ref=e426]:
+              - generic [ref=e427]: o
+              - generic [ref=e428]: t
+              - generic [ref=e429]: h
+              - generic [ref=e430]: e
+              - generic [ref=e431]: r
+            - generic [ref=e432]:
+              - generic [ref=e433]: r
+              - generic [ref=e434]: e
+              - generic [ref=e435]: a
+              - generic [ref=e436]: l
+              - generic [ref=e437]: "-"
+              - generic [ref=e438]: t
+              - generic [ref=e439]: i
+              - generic [ref=e440]: m
+              - generic [ref=e441]: e
+            - generic [ref=e442]:
+              - generic [ref=e443]: m
+              - generic [ref=e444]: o
+              - generic [ref=e445]: "n"
+              - generic [ref=e446]: i
+              - generic [ref=e447]: t
+              - generic [ref=e448]: o
+              - generic [ref=e449]: r
+              - generic [ref=e450]: i
+              - generic [ref=e451]: "n"
+              - generic [ref=e452]: g
+            - generic [ref=e453]:
+              - generic [ref=e454]: s
+              - generic [ref=e455]: i
+              - generic [ref=e456]: g
+              - generic [ref=e457]: "n"
+              - generic [ref=e458]: a
+              - generic [ref=e459]: l
+              - generic [ref=e460]: s
+            - generic [ref=e461]:
+              - generic [ref=e462]: t
+              - generic [ref=e463]: o
+            - generic [ref=e464]:
+              - generic [ref=e465]: c
+              - generic [ref=e466]: l
+              - generic [ref=e467]: o
+              - generic [ref=e468]: s
+              - generic [ref=e469]: e
+            - generic [ref=e470]:
+              - generic [ref=e471]: m
+              - generic [ref=e472]: o
+              - generic [ref=e473]: r
+              - generic [ref=e474]: e
+            - generic [ref=e475]:
+              - generic [ref=e476]: d
+              - generic [ref=e477]: e
+              - generic [ref=e478]: a
+              - generic [ref=e479]: l
+              - generic [ref=e480]: s
+              - generic [ref=e481]: .
+            - generic [ref=e482]:
+              - generic [ref=e483]: W
+              - generic [ref=e484]: e
+            - generic [ref=e485]:
+              - generic [ref=e486]: f
+              - generic [ref=e487]: i
+              - generic [ref=e488]: "n"
+              - generic [ref=e489]: d
+            - generic [ref=e490]:
+              - generic [ref=e491]: "y"
+              - generic [ref=e492]: o
+              - generic [ref=e493]: u
+            - generic [ref=e494]:
+              - generic [ref=e495]: t
+              - generic [ref=e496]: h
+              - generic [ref=e497]: e
+            - generic [ref=e498]:
+              - generic [ref=e499]: p
+              - generic [ref=e500]: e
+              - generic [ref=e501]: r
+              - generic [ref=e502]: f
+              - generic [ref=e503]: e
+              - generic [ref=e504]: c
+              - generic [ref=e505]: t
+            - generic [ref=e506]:
+              - generic [ref=e507]: b
+              - generic [ref=e508]: u
+              - generic [ref=e509]: "y"
+              - generic [ref=e510]: e
+              - generic [ref=e511]: r
+              - generic [ref=e512]: s
+            - generic [ref=e513]:
+              - generic [ref=e514]: e
+              - generic [ref=e515]: x
+              - generic [ref=e516]: a
+              - generic [ref=e517]: c
+              - generic [ref=e518]: t
+              - generic [ref=e519]: l
+              - generic [ref=e520]: "y"
+            - generic [ref=e521]:
+              - generic [ref=e522]: w
+              - generic [ref=e523]: h
+              - generic [ref=e524]: e
+              - generic [ref=e525]: "n"
+            - generic [ref=e526]:
+              - generic [ref=e527]: t
+              - generic [ref=e528]: h
+              - generic [ref=e529]: e
+              - generic [ref=e530]: "y"
+              - generic [ref=e531]: ’
+              - generic [ref=e532]: r
+              - generic [ref=e533]: e
+            - generic [ref=e534]:
+              - generic [ref=e535]: l
+              - generic [ref=e536]: o
+              - generic [ref=e537]: o
+              - generic [ref=e538]: k
+              - generic [ref=e539]: i
+              - generic [ref=e540]: "n"
+              - generic [ref=e541]: g
+            - generic [ref=e542]:
+              - generic [ref=e543]: t
+              - generic [ref=e544]: o
+            - generic [ref=e545]:
+              - generic [ref=e546]: b
+              - generic [ref=e547]: u
+              - generic [ref=e548]: "y"
+            - generic [ref=e549]:
+              - generic [ref=e550]: "y"
+              - generic [ref=e551]: o
+              - generic [ref=e552]: u
+              - generic [ref=e553]: r
+            - generic [ref=e554]:
+              - generic [ref=e555]: p
+              - generic [ref=e556]: r
+              - generic [ref=e557]: o
+              - generic [ref=e558]: d
+              - generic [ref=e559]: u
+              - generic [ref=e560]: c
+              - generic [ref=e561]: t
+              - generic [ref=e562]: .
+        - generic [ref=e566] [cursor=pointer]:
+          - generic [ref=e569]:
+            - img [ref=e572]
+            - img [ref=e576]
+            - img [ref=e580]
+            - img [ref=e584]
+          - heading "Prospect" [level=4] [ref=e587]
+        - generic [ref=e591] [cursor=pointer]:
+          - heading "Engage" [level=4] [ref=e593]
+          - generic [ref=e596]:
+            - img [ref=e599]
+            - img [ref=e603]
+    - generic [ref=e609]:
+      - heading "The modern way to run outbound. Less complexity. Authentic conversations." [level=2] [ref=e612]:
+        - text: The modern way to run outbound.
+        - text: Less complexity. Authentic conversations.
+      - generic [ref=e613]:
+        - generic [ref=e620]:
+          - heading "90%+ Email & Phone Data Accuracy" [level=6] [ref=e622]
+          - paragraph [ref=e624]: Leverage 20+ data providers and only pay for validated emails that don't bounce.
+        - generic [ref=e631]:
+          - heading "Hyper Personalized Outbound Messages" [level=6] [ref=e633]
+          - paragraph [ref=e635]: Context-aware messaging designed to sound human, not automated.
+        - generic [ref=e642]:
+          - heading "Real-time B2B Signal Data" [level=6] [ref=e644]
+          - paragraph [ref=e646]: Access real-time event data to connect with your buyers at the perfect timing.
+        - generic [ref=e653]:
+          - heading "Proven ROI" [level=6] [ref=e655]
+          - paragraph [ref=e657]:
+            - text: See measurable results within 90 days.
+            - text: If not, keep access until you do.
+        - generic [ref=e664]:
+          - heading "Unified Execution Platform" [level=6] [ref=e666]
+          - paragraph [ref=e668]: Centralized data, engagement, and signals without stitching together tools.
+        - generic [ref=e675]:
+          - heading "Clear, predictable pricing" [level=6] [ref=e677]
+          - paragraph [ref=e679]: Transparent plans with no hidden fees or surprise add-ons.
+    - generic [ref=e681]:
+      - heading "Upgrade your legacy outbound stack with one AI-native platform." [level=2] [ref=e683]
+      - generic [ref=e684]:
+        - generic [ref=e685]:
+          - generic [ref=e686]:
+            - heading "Prospect" [level=5] [ref=e688]
+            - generic [ref=e689]:
+              - paragraph [ref=e692]: Waterfall Enrichment
+              - paragraph [ref=e714]: B2B Contact Database
+              - paragraph [ref=e736]: Email Validation
+              - paragraph [ref=e759]: Automated Prospecting
+          - generic [ref=e783]:
+            - heading "Engage" [level=5] [ref=e785]
+            - generic [ref=e786]:
+              - paragraph [ref=e789]: Email Automation
+              - paragraph [ref=e815]: LinkedIn Automation
+              - paragraph [ref=e838]: Power Dialer
+              - paragraph [ref=e864]: Consolidated Inbox
+          - generic [ref=e885]:
+            - heading "Signals" [level=5] [ref=e887]
+            - generic [ref=e888]:
+              - paragraph [ref=e891]: People Website Visits
+              - paragraph [ref=e913]: Company Website Visits
+              - paragraph [ref=e936]: Real-time Intent Signals
+              - paragraph [ref=e961]: Job Change Alerts
+        - generic [ref=e986]:
+          - generic [ref=e988]:
+            - paragraph [ref=e990]: Legacy stack
+            - paragraph [ref=e992]: $1,500/month
+          - generic [ref=e994]:
+            - generic [ref=e995]:
+              - paragraph [ref=e997]: With
+              - img [ref=e1000]
+            - paragraph [ref=e1003]: $159/month
+    - generic [ref=e1005]:
+      - heading "Join startups and enterprises across the world replacing their legacy sales technology with FuseAI" [level=2] [ref=e1010]
+      - generic [ref=e1011]:
+        - generic [ref=e1012]:
+          - generic [ref=e1013]:
+            - heading "“The signal monitoring agents are excellent. We built a pipeline we didn't even know existed.”" [level=2] [ref=e1016]:
+              - text: “The signal monitoring agents are
+              - emphasis [ref=e1017]:
+                - strong [ref=e1018]: excellent.
+              - text: We built a pipeline we didn't even know existed.”
+            - generic [ref=e1019]:
+              - heading "Rob Thayer, Sr. Director Growth & Revenue" [level=5] [ref=e1022]
+              - heading "Blackfin Square Group (Managed Telecom Provider)" [level=6] [ref=e1024]
+          - generic [ref=e1025]:
+            - heading "“Fuse eliminated 90% of the manual work we do, instantly doubling response and close rates\"" [level=5] [ref=e1028]:
+              - text: “
+              - emphasis [ref=e1029]:
+                - strong [ref=e1030]: Fuse eliminated
+              - text: 90% of the manual work we do, instantly doubling response and close rates"
+            - generic [ref=e1031]:
+              - heading "Arman, CEO & Co-Founder" [level=5] [ref=e1034]
+              - heading "Vetnio (Veterinarian Operations Software)" [level=6] [ref=e1037]
+        - generic [ref=e1038]:
+          - generic [ref=e1039]:
+            - heading "1,000%+" [level=1] [ref=e1041]
+            - heading "\"ROI accrued to startups using Fuse to book demos and build pipeline.”" [level=5] [ref=e1043]:
+              - text: "\"ROI accrued to startups using Fuse to book demos and build pipeline"
+              - emphasis [ref=e1044]:
+                - strong [ref=e1045]: .
+              - text: ”
+            - heading "Startups using FuseAI" [level=6] [ref=e1048]
+          - generic [ref=e1049]:
+            - heading "\"This is the first sales software I've used that just works. Everything we need, from prospecting to engagement is in one platform. Once you sign up, there is no going back!\"" [level=3] [ref=e1052]:
+              - text: "\"This is the first sales software I've used that just"
+              - emphasis [ref=e1053]: works
+              - text: . Everything we need, from
+              - emphasis [ref=e1054]: prospecting to engagement
+              - text: is in one platform. Once you sign up, there is no going back!"
+            - generic [ref=e1055]:
+              - heading "Adam Cohen, CEO & Co-Founder" [level=5] [ref=e1058]
+              - heading "Weave (Software Developer Tooling)" [level=6] [ref=e1061]
+      - link "Read Our Manifesto" [ref=e1064] [cursor=pointer]:
+        - /url: ./manifesto
+        - paragraph [ref=e1067]: Read Our Manifesto
+        - generic [ref=e1068]:
+          - img [ref=e1071]
+          - img [ref=e1075]
+    - generic [ref=e1077]:
+      - heading "FAQ" [level=2] [ref=e1079]
+      - generic [ref=e1080]:
+        - generic [ref=e1084]:
+          - heading "How is FuseAI different from classic automation tools?" [level=6] [ref=e1090] [cursor=pointer]
+          - paragraph [ref=e1093]: "FuseAI helps you build pipeline intelligently. Instead of relying on static lists or basic sequencing, FuseAI uses AI agents to: Discover leads automatically Enrich and verify contact data in real time Identify buying signals and intent Personalize outreach across channels You don’t just automate tasks, you automate outcomes. With FuseAI, you send fewer, smarter messages, and create more meaningful conversations that convert."
+        - generic [ref=e1097]:
+          - heading "Is this for sales teams, agencies or founders?" [level=6] [ref=e1103] [cursor=pointer]
+          - paragraph [ref=e1106]: "FuseAI is built for anyone responsible for outbound revenue growth: Sales teams scaling outbound Agencies managing multiple client pipelines Founders doing founder-led sales Whether you're a team of 1 or 100, Fuse replaces fragmented tools with one unified platform for prospecting, outreach, and pipeline management."
+        - generic [ref=e1110]:
+          - heading "How does FuseAI find high-intent leads?" [level=6] [ref=e1116] [cursor=pointer]
+          - paragraph [ref=e1119]: "FuseAI combines multiple data layers to identify the right prospects: Real-time signal tracking (job changes, hiring, activity) Access to a massive contact database (800M+ profiles) AI-driven lead scoring and enrichment Multi-source data validation for accuracy This means you’re not guessing who to reach out to, you’re targeting people who are already likely to convert."
+        - generic [ref=e1123]:
+          - heading "How safe is it and does FuseAI risk my LinkedIn account?" [level=6] [ref=e1129] [cursor=pointer]
+          - paragraph [ref=e1132]: "FuseAI is designed to operate safely within platform limits by: Using controlled automation flows Managing outreach pacing intelligently Avoiding spam-like behavior with human-like messaging Centralizing activity instead of using risky third-party hacks The goal is sustainable outbound — not aggressive automation that puts accounts at risk."
+        - generic [ref=e1136]:
+          - heading "What kind of results can I realistically expect?" [level=6] [ref=e1142] [cursor=pointer]
+          - paragraph [ref=e1145]: "FuseAI is built to drive measurable pipeline outcomes, not vanity metrics. Typical results include: Higher reply and conversion rates through personalization Faster pipeline generation with AI-led prospecting Reduced manual work (up to ~90% automation in workflows) ROI visibility within weeks, not months Instead of doing more work, your team focuses on closing — not chasing leads."
+    - generic [ref=e1150]:
+      - generic [ref=e1151]:
+        - heading "Built to Make you Extraordinarily Productive" [level=3] [ref=e1153]
+        - link "Book a Demo" [ref=e1155] [cursor=pointer]:
+          - /url: https://cal.com/saurav-bubber-ec6oxt/30min
+          - paragraph [ref=e1158]: Book a Demo
+          - generic [ref=e1159]:
+            - img [ref=e1162]
+            - img [ref=e1166]
+      - generic [ref=e1168]:
+        - paragraph [ref=e1175]: FuseAI © 2025. All rights reserved.
+        - generic [ref=e1176]:
+          - generic [ref=e1177]:
+            - paragraph [ref=e1179]: Product
+            - link "Prospect" [ref=e1181] [cursor=pointer]:
+              - /url: ./product/prospect
+              - paragraph [ref=e1183]: Prospect
+            - link "Engage" [ref=e1185] [cursor=pointer]:
+              - /url: ./product/engage
+              - paragraph [ref=e1187]: Engage
+            - link "Signals" [ref=e1189] [cursor=pointer]:
+              - /url: ./product/signals
+              - paragraph [ref=e1191]: Signals
+          - generic [ref=e1192]:
+            - paragraph [ref=e1194]: Resources
+            - link "Pricing" [ref=e1196] [cursor=pointer]:
+              - /url: ./pricing
+              - paragraph [ref=e1198]: Pricing
+            - link "Directory" [ref=e1200] [cursor=pointer]:
+              - /url: ./
+              - paragraph [ref=e1202]: Directory
+            - link "API" [ref=e1204] [cursor=pointer]:
+              - /url: ./api
+              - paragraph [ref=e1206]: API
+            - link "Blog" [ref=e1208] [cursor=pointer]:
+              - /url: ./blog
+              - paragraph [ref=e1210]: Blog
+          - generic [ref=e1211]:
+            - paragraph [ref=e1213]: Company
+            - link "Legal Terms & Conditions" [ref=e1215] [cursor=pointer]:
+              - /url: ./legal/terms-of-service
+              - paragraph [ref=e1217]: Legal Terms & Conditions
+            - link "Privacy Policy" [ref=e1219] [cursor=pointer]:
+              - /url: ./legal/privacy-policy
+              - paragraph [ref=e1221]: Privacy Policy
+            - link "Sending Policy" [ref=e1223] [cursor=pointer]:
+              - /url: ./legal/sending-policy
+              - paragraph [ref=e1225]: Sending Policy
+            - paragraph [ref=e1229] [cursor=pointer]: Opt Out of the Email List
+          - generic [ref=e1230]:
+            - paragraph [ref=e1232]: Social
+            - link "/X" [ref=e1234] [cursor=pointer]:
+              - /url: https://x.com/tryfuseai
+              - paragraph [ref=e1236]: /X
+            - link "/LinkedIn" [ref=e1238] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/tryfuseai/?viewAsMember=true
+              - paragraph [ref=e1240]: /LinkedIn
+  - img [ref=e1251]

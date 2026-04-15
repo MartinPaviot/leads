@@ -1,0 +1,13 @@
+- generic [active] [ref=e1]:
+  - region "Notifications alt+T"
+  - alert [ref=e49]
+  - main [ref=e108]:
+    - img "welcome" [ref=e114]
+    - generic [ref=e109]:
+      - paragraph [ref=e110]:
+        - text: Are you ready to
+        - text: 10x your sales productivity?
+      - button "Get Started" [ref=e111]:
+        - generic [ref=e112]:
+          - text: Get Started
+          - img

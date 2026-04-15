@@ -1,0 +1,48 @@
+- generic [active] [ref=e1]:
+  - region "Notifications alt+T"
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - img "Fuse AI logo" [ref=e4]
+      - button [ref=e5]:
+        - generic [ref=e6]:
+          - img
+    - generic [ref=e8]:
+      - tablist [ref=e10]:
+        - link "Sign In" [ref=e11] [cursor=pointer]:
+          - /url: /signin
+          - tab "Sign In" [ref=e12]
+        - link "Sign Up" [ref=e13] [cursor=pointer]:
+          - /url: /signup
+          - tab "Sign Up" [selected] [ref=e14]
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - heading "Create your free account" [level=1] [ref=e17]
+          - textbox "Email" [ref=e20]
+          - textbox "Full Name" [ref=e23]
+          - generic [ref=e25]:
+            - textbox "Password" [ref=e27]
+            - button [ref=e28]:
+              - generic [ref=e29]:
+                - img
+          - generic [ref=e31]:
+            - textbox "Confirm Password" [ref=e33]
+            - button [ref=e34]:
+              - generic [ref=e35]:
+                - img
+          - iframe [ref=e43]:
+            - generic [ref=f51e2]:
+              - generic [ref=f51e3]:
+                - checkbox "Je ne suis pas un robot" [ref=f51e7]
+                - generic [ref=f51e11]: Je ne suis pas un robot
+              - generic [ref=f51e15]: reCAPTCHA
+          - button "Get Started" [ref=e44]:
+            - generic [ref=e45]: Get Started
+        - paragraph [ref=e46]:
+          - text: By logging in, I agree to the
+          - link "Terms of Service" [ref=e47] [cursor=pointer]:
+            - /url: https://tryfuse.ai/legal/terms-of-service
+          - text: and
+          - link "Privacy Policy" [ref=e48] [cursor=pointer]:
+            - /url: https://tryfuse.ai/legal/privacy-policy
+          - text: . I also agree to receive emails and communication relating to FuseAI services and offers.
+  - alert [ref=e49]

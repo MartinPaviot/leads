@@ -1,0 +1,14 @@
+- generic [ref=e1]:
+  - region "Notifications alt+T"
+  - alert [ref=e49]
+  - main [ref=e108]:
+    - img "welcome" [ref=e114]
+    - generic [ref=e115]:
+      - paragraph [ref=e116]: What would you like to be called?
+      - generic [ref=e117]:
+        - generic [ref=e118]:
+          - textbox "Enter your name" [active] [ref=e119]: Martin Paviot
+          - generic:
+            - img
+        - button "Continue" [ref=e120]:
+          - generic [ref=e121]: Continue

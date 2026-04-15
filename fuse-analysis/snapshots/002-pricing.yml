@@ -1,0 +1,425 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e7] [cursor=pointer]:
+      - link [ref=e9]:
+        - /url: ./
+      - generic [ref=e12]:
+        - link "Company" [ref=e14]:
+          - /url: ./manifesto
+          - paragraph [ref=e16]: Company
+        - paragraph [ref=e20]: Products
+        - paragraph [ref=e25]: Solutions
+        - link "Pricing" [ref=e28]:
+          - /url: ./pricing
+          - paragraph [ref=e30]: Pricing
+        - link "Blog" [ref=e32]:
+          - /url: ./blog
+          - paragraph [ref=e34]: Blog
+      - generic [ref=e35]:
+        - link "Login" [ref=e37]:
+          - /url: https://app.tryfuse.ai/signin
+          - paragraph [ref=e40]: Login
+        - link "Get a demo" [ref=e42]:
+          - /url: https://cal.com/saurav-bubber-ec6oxt/30min
+          - paragraph [ref=e45]: Get a demo
+        - link "Signup" [ref=e47]:
+          - /url: https://app.tryfuse.ai/signup
+          - paragraph [ref=e50]: Signup
+    - generic [ref=e51]:
+      - generic [ref=e54]:
+        - heading "Start for Free. See the difference in minutes." [level=1] [ref=e57]:
+          - text: Start for Free.
+          - text: See the difference in minutes.
+        - heading "Stop juggling 5+ legacy tools. Start closing with one." [level=6] [ref=e59]
+      - generic [ref=e60]:
+        - generic [ref=e64]:
+          - generic [ref=e66]:
+            - generic [ref=e67]:
+              - heading "Annual (25% off)" [level=6] [ref=e71] [cursor=pointer]
+              - heading "Monthly" [level=6] [ref=e75] [cursor=pointer]
+            - generic [ref=e76]:
+              - generic [ref=e77] [cursor=pointer]:
+                - generic [ref=e78]:
+                  - generic [ref=e80]:
+                    - generic [ref=e81]:
+                      - heading "Free" [level=4] [ref=e84]
+                      - heading "$0/mo" [level=3] [ref=e86]
+                      - paragraph [ref=e88]: Try Fuse for free to experience AI-powered sales.
+                      - link "Get started for free" [ref=e90]:
+                        - /url: https://app.tryfuse.ai/signup
+                        - paragraph [ref=e93]: Get started for free
+                        - generic [ref=e94]:
+                          - img [ref=e97]
+                          - img [ref=e101]
+                    - generic [ref=e103]:
+                      - generic [ref=e104]:
+                        - paragraph [ref=e106]: "Plan details:"
+                        - generic [ref=e107]:
+                          - generic [ref=e108]:
+                            - paragraph [ref=e110]: Credits/mo
+                            - paragraph [ref=e112]: Seats Included
+                          - generic [ref=e113]:
+                            - paragraph [ref=e116]: 2,000
+                            - paragraph [ref=e121]: "1"
+                      - generic [ref=e122]:
+                        - generic [ref=e123]:
+                          - img [ref=e127]
+                          - paragraph [ref=e130]: Website visitor identification (people & company-level)
+                        - generic [ref=e131]:
+                          - img [ref=e135]
+                          - paragraph [ref=e138]: Premium contact data enrichment with 20+ data providers
+                        - generic [ref=e139]:
+                          - img [ref=e143]
+                          - paragraph [ref=e146]: 2 automated sequences (email, LinkedIn, power dialer)
+                  - generic [ref=e148]:
+                    - generic [ref=e149]:
+                      - heading "Launch" [level=4] [ref=e152]
+                      - heading "$159/mo" [level=3] [ref=e154]
+                      - paragraph [ref=e156]: Made for founders and solo SDRs looking to validate outbound.
+                      - link "Get started for free" [ref=e158]:
+                        - /url: https://app.tryfuse.ai/signup
+                        - paragraph [ref=e161]: Get started for free
+                        - generic [ref=e162]:
+                          - img [ref=e165]
+                          - img [ref=e169]
+                    - generic [ref=e171]:
+                      - generic [ref=e172]:
+                        - paragraph [ref=e174]: "Everything in Free, plus:"
+                        - generic [ref=e175]:
+                          - generic [ref=e176]:
+                            - paragraph [ref=e178]: Credits/mo
+                            - paragraph [ref=e180]: Seats Included
+                          - generic [ref=e181]:
+                            - paragraph [ref=e184]: 60,000
+                            - paragraph [ref=e189]: "1"
+                      - generic [ref=e190]:
+                        - generic [ref=e191]:
+                          - img [ref=e195]
+                          - paragraph [ref=e198]: Unlimited AI research agents and real-time buying intent signals
+                        - generic [ref=e199]:
+                          - img [ref=e203]
+                          - paragraph [ref=e206]: Unlimited automated sequences (email, LinkedIn, power dialer)
+                        - generic [ref=e207]:
+                          - img [ref=e211]
+                          - paragraph [ref=e214]: CRM and Slack Integrations
+                        - generic [ref=e215]:
+                          - img [ref=e219]
+                          - paragraph [ref=e222]: API Access for B2B Contact Data
+                - generic [ref=e223]:
+                  - generic [ref=e225]:
+                    - generic [ref=e226]:
+                      - generic [ref=e228]:
+                        - heading "Scale" [level=4] [ref=e230]
+                        - paragraph [ref=e233]: Popular
+                      - heading "$399/mo" [level=3] [ref=e235]
+                      - paragraph [ref=e237]: Designed for small teams looking to accelerate outbound.
+                      - link "Get started for free" [ref=e239]:
+                        - /url: https://app.tryfuse.ai/signup
+                        - paragraph [ref=e242]: Get started for free
+                        - generic [ref=e243]:
+                          - img [ref=e246]
+                          - img [ref=e250]
+                    - generic [ref=e252]:
+                      - generic [ref=e253]:
+                        - paragraph [ref=e255]: "Everything in Launch, plus:"
+                        - generic [ref=e256]:
+                          - generic [ref=e257]:
+                            - paragraph [ref=e259]: Credits/mo
+                            - paragraph [ref=e261]: Seats Included
+                          - generic [ref=e262]:
+                            - paragraph [ref=e265]: 200,000
+                            - paragraph [ref=e270]: Unlimited
+                      - generic [ref=e271]:
+                        - generic [ref=e272]:
+                          - img [ref=e276]
+                          - paragraph [ref=e279]: Shared team workspace
+                        - generic [ref=e280]:
+                          - img [ref=e284]
+                          - paragraph [ref=e287]: Multi-line parallel phone dialer with unlimited connected numbers
+                    - generic [ref=e288]:
+                      - img [ref=e292]
+                      - paragraph [ref=e295]: Advanced AI deep research queries (SalesGPT)
+                  - generic [ref=e297]:
+                    - generic [ref=e298]:
+                      - heading "Copilot" [level=4] [ref=e302]
+                      - heading "$799/mo" [level=3] [ref=e304]
+                      - paragraph [ref=e306]: Built for teams running outbound as a repeatable system.
+                      - link "Contact Sales" [ref=e308]:
+                        - /url: https://cal.com/saurav-bubber-ec6oxt/30min
+                        - paragraph [ref=e311]: Contact Sales
+                        - generic [ref=e312]:
+                          - img [ref=e315]
+                          - img [ref=e319]
+                    - generic [ref=e321]:
+                      - generic [ref=e322]:
+                        - paragraph [ref=e324]: "Everything in Scale, plus:"
+                        - generic [ref=e325]:
+                          - generic [ref=e326]:
+                            - paragraph [ref=e328]: Credits/mo
+                            - paragraph [ref=e330]: Seats Included
+                          - generic [ref=e331]:
+                            - paragraph [ref=e334]: 500,000
+                            - paragraph [ref=e339]: Unlimited
+                      - generic [ref=e340]:
+                        - generic [ref=e341]:
+                          - img [ref=e345]
+                          - paragraph [ref=e348]: Dedicated onboarding & priority slack-based support channel
+                        - generic [ref=e349]:
+                          - img [ref=e353]
+                          - paragraph [ref=e356]: Fully managed email and LinkedIn infrastructure setup
+                        - generic [ref=e357]:
+                          - img [ref=e361]
+                          - paragraph [ref=e364]: Priority access to new features
+              - generic [ref=e369] [cursor=pointer]:
+                - generic [ref=e370]:
+                  - generic [ref=e371]:
+                    - heading "Enterprise" [level=4] [ref=e373]
+                    - heading "Custom" [level=4] [ref=e375]
+                    - paragraph [ref=e377]:
+                      - text: Large teams running
+                      - text: serious outbound
+                  - generic [ref=e378]:
+                    - generic [ref=e379]:
+                      - paragraph [ref=e383]: Custom credit packages
+                      - paragraph [ref=e387]: Volume discounts
+                      - paragraph [ref=e391]: Dedicated GTM engineer support
+                    - generic [ref=e392]:
+                      - paragraph [ref=e396]: SLA and security review
+                      - paragraph [ref=e400]: Custom workflow setup
+                      - paragraph [ref=e404]: Fully autonomous sales execution
+                - link "Contact Sales" [ref=e406]:
+                  - /url: https://cal.com/saurav-bubber-ec6oxt/30min
+                  - paragraph [ref=e409]: Contact Sales
+                  - generic [ref=e410]:
+                    - img [ref=e413]
+                    - img [ref=e417]
+          - generic [ref=e420]:
+            - heading "Total monthly usage limits by feature" [level=3] [ref=e422]
+            - generic [ref=e423]:
+              - generic [ref=e424]:
+                - heading "Free" [level=6] [ref=e426]
+                - paragraph [ref=e428]: 2,000 Credits
+                - link "Get started for free" [ref=e430] [cursor=pointer]:
+                  - /url: https://app.tryfuse.ai/signup
+                  - paragraph [ref=e433]: Get started for free
+              - generic [ref=e434]:
+                - heading "Launch" [level=6] [ref=e436]
+                - paragraph [ref=e438]: 60,000 Credits
+                - link "Get Started" [ref=e440] [cursor=pointer]:
+                  - /url: https://app.tryfuse.ai/signup
+                  - paragraph [ref=e443]: Get Started
+              - generic [ref=e444]:
+                - heading "Scale" [level=6] [ref=e446]
+                - paragraph [ref=e448]: 200,000 Credits
+                - link "Get Started" [ref=e450] [cursor=pointer]:
+                  - /url: https://app.tryfuse.ai/signup
+                  - paragraph [ref=e453]: Get Started
+              - generic [ref=e454]:
+                - heading "Copilot" [level=6] [ref=e456]
+                - paragraph [ref=e458]: 500,000 Credits
+                - link "Contact Sales" [ref=e460] [cursor=pointer]:
+                  - /url: https://cal.com/saurav-bubber-ec6oxt/30min
+                  - paragraph [ref=e463]: Contact Sales
+          - generic [ref=e464]:
+            - generic [ref=e465]:
+              - paragraph [ref=e467]: Products (Credits per Action)
+              - heading "Usage Limits per Product" [level=5] [ref=e469]
+            - generic [ref=e470]:
+              - generic [ref=e471]:
+                - generic [ref=e472]:
+                  - paragraph [ref=e474]: Basic Email Enrichment
+                  - paragraph [ref=e477]: 20 Credits
+                - generic [ref=e478]:
+                  - paragraph [ref=e480]: "100"
+                  - paragraph [ref=e482]: 3,000
+                  - paragraph [ref=e484]: 10,000
+                  - paragraph [ref=e486]: 25,000
+              - generic [ref=e487]:
+                - generic [ref=e488]:
+                  - paragraph [ref=e490]: Waterfall Email Enrichment
+                  - paragraph [ref=e493]: 50 Credits
+                - generic [ref=e494]:
+                  - paragraph [ref=e496]: "40"
+                  - paragraph [ref=e498]: 1,200
+                  - paragraph [ref=e500]: 4,000
+                  - paragraph [ref=e502]: 10,000
+              - generic [ref=e503]:
+                - generic [ref=e504]:
+                  - paragraph [ref=e506]: Waterfall Phone Enrichment
+                  - paragraph [ref=e509]: 200 Credits
+                - generic [ref=e510]:
+                  - paragraph [ref=e512]: "10"
+                  - paragraph [ref=e514]: "300"
+                  - paragraph [ref=e516]: 1,000
+                  - paragraph [ref=e518]: 2,500
+              - generic [ref=e519]:
+                - generic [ref=e520]:
+                  - paragraph [ref=e522]: Contact Save / Search
+                  - paragraph [ref=e525]: 2 Credits
+                - generic [ref=e526]:
+                  - paragraph [ref=e528]: 1,000
+                  - paragraph [ref=e530]: 30,000
+                  - paragraph [ref=e532]: 100,000
+                  - paragraph [ref=e534]: 250,000
+              - generic [ref=e535]:
+                - generic [ref=e536]:
+                  - paragraph [ref=e538]: Email Messages
+                  - paragraph [ref=e541]: 5 Credits
+                - generic [ref=e542]:
+                  - paragraph [ref=e544]: "400"
+                  - paragraph [ref=e546]: 12,000
+                  - paragraph [ref=e548]: 40,000
+                  - paragraph [ref=e550]: 100,000
+              - generic [ref=e551]:
+                - generic [ref=e552]:
+                  - paragraph [ref=e554]: LinkedIn Messages
+                  - paragraph [ref=e557]: 5 credits
+                - generic [ref=e558]:
+                  - paragraph [ref=e560]: "400"
+                  - paragraph [ref=e562]: 12,000
+                  - paragraph [ref=e564]: 40,000
+                  - paragraph [ref=e566]: 100,000
+              - generic [ref=e567]:
+                - generic [ref=e568]:
+                  - paragraph [ref=e570]: Person & Company Website Visitors
+                  - paragraph [ref=e573]: 5 credits
+                - generic [ref=e574]:
+                  - paragraph [ref=e576]: "400"
+                  - paragraph [ref=e578]: 12,000
+                  - paragraph [ref=e580]: 40,000
+                  - paragraph [ref=e582]: 100,000
+              - generic [ref=e583]:
+                - generic [ref=e584]:
+                  - paragraph [ref=e586]: Signal Monitoring Agents
+                  - paragraph [ref=e589]: 100 Credits
+                - generic [ref=e590]:
+                  - paragraph [ref=e592]: "20"
+                  - paragraph [ref=e594]: "600"
+                  - paragraph [ref=e596]: 2,000
+                  - paragraph [ref=e598]: 5,000
+              - generic [ref=e599]:
+                - generic [ref=e600]:
+                  - paragraph [ref=e602]: Agent Research Queries (SalesGPT)
+                  - paragraph [ref=e605]: 10 Credits
+                - generic [ref=e606]:
+                  - paragraph [ref=e608]: "200"
+                  - paragraph [ref=e610]: 6,000
+                  - paragraph [ref=e612]: 20,000
+                  - paragraph [ref=e614]: 50,000
+              - generic [ref=e615]:
+                - generic [ref=e616]:
+                  - paragraph [ref=e618]: Power dialer
+                  - paragraph [ref=e621]: 10 Credits per minute
+                - generic [ref=e622]:
+                  - paragraph [ref=e624]: 200 min
+                  - paragraph [ref=e626]: 6,000 min
+                  - paragraph [ref=e628]: 20,000 min
+                  - paragraph [ref=e630]: 50,000 min
+        - generic [ref=e631]:
+          - generic [ref=e633]:
+            - heading "Replace your entire outbound stack for $159/month" [level=2] [ref=e635]
+            - heading "Here's how FuseAI compares to the alternatives for building a best-in-class outbound stack." [level=6] [ref=e637]
+          - generic [ref=e639]:
+            - generic [ref=e640]:
+              - generic [ref=e641]:
+                - generic [ref=e642]:
+                  - heading "Traditional Legacy Tools" [level=6] [ref=e644]
+                  - paragraph [ref=e646]: Zoominfo, 6Sense, Nooks, Instantly, Heyreach
+                - generic [ref=e647]:
+                  - heading "$400-$1500+" [level=5] [ref=e650]
+                  - paragraph [ref=e652]: total per year per seat, excluding maintenance costs
+              - paragraph [ref=e654]: Annual contact required. Workflows are often broken. Minimal AI capabilities.
+            - generic [ref=e655]:
+              - generic [ref=e656]:
+                - generic [ref=e657]:
+                  - heading "GTM Agencies" [level=6] [ref=e659]
+                  - paragraph [ref=e661]: Setting-up and managing legacy tools
+                - generic [ref=e662]:
+                  - heading "$5,000+/mo" [level=5] [ref=e665]
+                  - paragraph [ref=e667]: to setup and manage outbound infrastructure
+              - paragraph [ref=e669]: You don't own your revenue infrastructure. Difficult to manage post-implementation.
+            - generic [ref=e670]:
+              - generic [ref=e671]:
+                - generic [ref=e672]:
+                  - heading "FuseAI" [level=6] [ref=e674]
+                  - paragraph [ref=e676]: B2B Data, multi-channel outreach, and signals
+                - generic [ref=e677]:
+                  - heading "from $159/month" [level=5] [ref=e680]
+                  - paragraph [ref=e682]: 50,000 credits inbuilt for tasks
+              - paragraph [ref=e684]: Setup in minutes. Scale volumes with usage. End-to-end workflows. AI-native.
+    - generic [ref=e685]:
+      - heading "FAQ" [level=2] [ref=e687]
+      - generic [ref=e688]:
+        - generic [ref=e692]:
+          - heading "How is FuseAI different from classic automation tools?" [level=6] [ref=e698] [cursor=pointer]
+          - paragraph [ref=e701]: "FuseAI helps you build pipeline intelligently. Instead of relying on static lists or basic sequencing, FuseAI uses AI agents to: Discover leads automatically Enrich and verify contact data in real time Identify buying signals and intent Personalize outreach across channels You don’t just automate tasks, you automate outcomes. With FuseAI, you send fewer, smarter messages, and create more meaningful conversations that convert."
+        - generic [ref=e705]:
+          - heading "Is this for sales teams, agencies or founders?" [level=6] [ref=e711] [cursor=pointer]
+          - paragraph [ref=e714]: "FuseAI is built for anyone responsible for outbound revenue growth: Sales teams scaling outbound Agencies managing multiple client pipelines Founders doing founder-led sales Whether you're a team of 1 or 100, Fuse replaces fragmented tools with one unified platform for prospecting, outreach, and pipeline management."
+        - generic [ref=e718]:
+          - heading "How does FuseAI find high-intent leads?" [level=6] [ref=e724] [cursor=pointer]
+          - paragraph [ref=e727]: "FuseAI combines multiple data layers to identify the right prospects: Real-time signal tracking (job changes, hiring, activity) Access to a massive contact database (800M+ profiles) AI-driven lead scoring and enrichment Multi-source data validation for accuracy This means you’re not guessing who to reach out to, you’re targeting people who are already likely to convert."
+        - generic [ref=e731]:
+          - heading "How safe is it and does FuseAI risk my LinkedIn account?" [level=6] [ref=e737] [cursor=pointer]
+          - paragraph [ref=e740]: "FuseAI is designed to operate safely within platform limits by: Using controlled automation flows Managing outreach pacing intelligently Avoiding spam-like behavior with human-like messaging Centralizing activity instead of using risky third-party hacks The goal is sustainable outbound — not aggressive automation that puts accounts at risk."
+        - generic [ref=e744]:
+          - heading "What kind of results can I realistically expect?" [level=6] [ref=e750] [cursor=pointer]
+          - paragraph [ref=e753]: "FuseAI is built to drive measurable pipeline outcomes, not vanity metrics. Typical results include: Higher reply and conversion rates through personalization Faster pipeline generation with AI-led prospecting Reduced manual work (up to ~90% automation in workflows) ROI visibility within weeks, not months Instead of doing more work, your team focuses on closing — not chasing leads."
+    - generic [ref=e758]:
+      - generic [ref=e759]:
+        - heading "Built to Make you Extraordinarily Productive" [level=3] [ref=e761]
+        - link "Book a Demo" [ref=e763] [cursor=pointer]:
+          - /url: https://cal.com/saurav-bubber-ec6oxt/30min
+          - paragraph [ref=e766]: Book a Demo
+          - generic [ref=e767]:
+            - img [ref=e770]
+            - img [ref=e774]
+      - generic [ref=e776]:
+        - paragraph [ref=e783]: FuseAI © 2025. All rights reserved.
+        - generic [ref=e784]:
+          - generic [ref=e785]:
+            - paragraph [ref=e787]: Product
+            - link "Prospect" [ref=e789] [cursor=pointer]:
+              - /url: ./product/prospect
+              - paragraph [ref=e791]: Prospect
+            - link "Engage" [ref=e793] [cursor=pointer]:
+              - /url: ./product/engage
+              - paragraph [ref=e795]: Engage
+            - link "Signals" [ref=e797] [cursor=pointer]:
+              - /url: ./product/signals
+              - paragraph [ref=e799]: Signals
+          - generic [ref=e800]:
+            - paragraph [ref=e802]: Resources
+            - link "Pricing" [ref=e804] [cursor=pointer]:
+              - /url: ./pricing
+              - paragraph [ref=e806]: Pricing
+            - link "Directory" [ref=e808] [cursor=pointer]:
+              - /url: ./
+              - paragraph [ref=e810]: Directory
+            - link "API" [ref=e812] [cursor=pointer]:
+              - /url: ./api
+              - paragraph [ref=e814]: API
+            - link "Blog" [ref=e816] [cursor=pointer]:
+              - /url: ./blog
+              - paragraph [ref=e818]: Blog
+          - generic [ref=e819]:
+            - paragraph [ref=e821]: Company
+            - link "Legal Terms & Conditions" [ref=e823] [cursor=pointer]:
+              - /url: ./legal/terms-of-service
+              - paragraph [ref=e825]: Legal Terms & Conditions
+            - link "Privacy Policy" [ref=e827] [cursor=pointer]:
+              - /url: ./legal/privacy-policy
+              - paragraph [ref=e829]: Privacy Policy
+            - link "Sending Policy" [ref=e831] [cursor=pointer]:
+              - /url: ./legal/sending-policy
+              - paragraph [ref=e833]: Sending Policy
+            - paragraph [ref=e837] [cursor=pointer]: Opt Out of the Email List
+          - generic [ref=e838]:
+            - paragraph [ref=e840]: Social
+            - link "/X" [ref=e842] [cursor=pointer]:
+              - /url: https://x.com/tryfuseai
+              - paragraph [ref=e844]: /X
+            - link "/LinkedIn" [ref=e846] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/tryfuseai/?viewAsMember=true
+              - paragraph [ref=e848]: /LinkedIn
+  - img [ref=e852]
