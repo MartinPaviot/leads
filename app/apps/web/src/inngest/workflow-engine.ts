@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { tenants, tasks, activities, outboundEmails, contacts, companies, sequenceEnrollments } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { sendNotification } from "@/lib/notifications";
-import type { WorkflowDef } from "@/app/api/settings/workflows/route";
+import type { WorkflowDef } from "@/lib/workflow-types";
 
 /**
  * Minimum viable workflow engine.

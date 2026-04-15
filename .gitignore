@@ -1,6 +1,7 @@
 _credentials/
 node_modules/
 .env*
+!.env.example
 .next/
 dist/
 harness/

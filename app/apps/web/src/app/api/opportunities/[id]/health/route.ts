@@ -105,4 +105,3 @@ export async function GET(_req: Request, { params }: RouteCtx) {
 // `computeHealthScore` + its types live in `@/lib/opportunity-health`
 // so tests can import them without the `@/auth` graph pulling next-auth
 // into vitest's module loader.
-export { computeHealthScore } from "@/lib/opportunity-health";

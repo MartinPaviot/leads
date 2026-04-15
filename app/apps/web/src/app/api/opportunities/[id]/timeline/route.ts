@@ -87,4 +87,3 @@ export async function GET(_req: Request, { params }: RouteCtx) {
   }
 }
 
-export { buildNarrative } from "@/lib/opportunity-health";

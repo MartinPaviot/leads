@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-export interface CustomSignal {
+interface CustomSignal {
   name: string;
   enabled: boolean;
 }

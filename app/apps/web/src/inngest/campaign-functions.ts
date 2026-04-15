@@ -13,7 +13,7 @@ import { and, eq, sql, gte, inArray, isNotNull } from "drizzle-orm";
 import { enrichOrganization, searchPeople, isApolloAvailable } from "@/lib/apollo-client";
 import { scoreContact } from "@/lib/contact-scoring";
 import { getTenantSettings } from "@/lib/tenant-settings";
-import type { CampaignConfig } from "@/app/api/campaigns/prepare/route";
+import type { CampaignConfig } from "@/lib/campaign-types";
 import { buildProspectContext } from "@/lib/prospect-context";
 import { personalizeStepEmail } from "@/lib/sequence-generator";
 import { STEP_STRATEGIES } from "@/lib/outbound-methodologies";

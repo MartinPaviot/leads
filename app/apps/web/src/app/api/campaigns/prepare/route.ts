@@ -3,26 +3,7 @@ import { db } from "@/db";
 import { sequences, sequenceSteps } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { inngest } from "@/inngest/client";
-
-export interface CampaignConfig {
-  segmentFilters: {
-    industries?: string[];
-    sizes?: string[];
-    geographies?: string[];
-    minScore?: number;
-  };
-  targetRoles: string[];
-  maxCompanies: number;
-  maxContactsPerCompany: number;
-  status: "idle" | "preparing" | "ready" | "launched";
-  preparedAt?: string;
-  stats?: {
-    companiesSelected: number;
-    companiesEnriched: number;
-    contactsFound: number;
-    emailsDrafted: number;
-  };
-}
+import type { CampaignConfig } from "@/lib/campaign-types";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();

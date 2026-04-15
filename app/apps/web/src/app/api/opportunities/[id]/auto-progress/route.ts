@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { activities, deals } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth-utils";
 import { logger } from "@/lib/logger";
+import { suggestNextStage } from "@/lib/opportunity-health";
 
 /**
  * POST /api/opportunities/:id/auto-progress — Y3.
@@ -109,94 +110,3 @@ export async function POST(req: Request, { params }: RouteCtx) {
   }
 }
 
-interface Recent {
-  type: string | null;
-  direction: string | null;
-  occurredAt: Date | null;
-  summary: string | null;
-}
-
-export interface StageSuggestion {
-  next: string;
-  reason: string;
-  confidence: "low" | "medium" | "high";
-}
-
-/**
- * Pure stage-transition rule engine. Exported for tests.
- */
-export function suggestNextStage(
-  stage: string,
-  recent: Recent[]
-): StageSuggestion | null {
-  const has = (pred: (r: Recent) => boolean) => recent.some(pred);
-  const count = (pred: (r: Recent) => boolean) => recent.filter(pred).length;
-  const withinDays = (days: number, r: Recent): boolean =>
-    r.occurredAt !== null && Date.now() - r.occurredAt.getTime() < days * 86400000;
-
-  switch (stage) {
-    case "lead":
-      if (has((r) => r.type === "email_replied" && r.direction === "inbound")) {
-        return {
-          next: "qualification",
-          reason: "Contact replied to outreach",
-          confidence: "high",
-        };
-      }
-      return null;
-
-    case "qualification":
-      if (has((r) => r.type === "meeting_scheduled")) {
-        return {
-          next: "demo",
-          reason: "Discovery / demo meeting is on the calendar",
-          confidence: "high",
-        };
-      }
-      return null;
-
-    case "demo":
-      if (
-        has((r) => r.type === "meeting_completed") &&
-        has((r) => r.type === "email_sent" && withinDays(7, r))
-      ) {
-        return {
-          next: "trial",
-          reason: "Demo completed + follow-up email sent within 7 days",
-          confidence: "medium",
-        };
-      }
-      return null;
-
-    case "trial":
-      if (
-        has((r) => {
-          const s = r.summary?.toLowerCase() ?? "";
-          return s.includes("proposal") || s.includes("contract");
-        })
-      ) {
-        return {
-          next: "proposal",
-          reason: "Proposal or contract mentioned in an activity",
-          confidence: "medium",
-        };
-      }
-      return null;
-
-    case "proposal":
-      if (count((r) => r.type === "email_replied" && r.direction === "inbound") >= 2) {
-        return {
-          next: "negotiation",
-          reason: "Multiple replies after proposal signals negotiation",
-          confidence: "medium",
-        };
-      }
-      return null;
-
-    default:
-      // `negotiation`, `won`, `lost` — never auto-advance. The user
-      // confirms these explicitly to avoid flipping revenue numbers
-      // without a human in the loop.
-      return null;
-  }
-}
