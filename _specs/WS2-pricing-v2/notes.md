@@ -65,6 +65,29 @@ collided on merge. Renumbered proactively to **0018_quota_overrides** and
 **0019_referral_stripe_txn** so both branches can merge to main in any
 order without further rebasing.
 
+### 7. History rewrite — `git filter-repo` pass
+
+Before the first push to GitHub we discovered the `.git` was 822MB,
+dominated by 10 `app/.turbo/cache/*.tar.zst` build-cache tarballs (3 of
+them over GitHub's 100MB per-blob limit) plus assorted `*.tsbuildinfo`
+incremental-compile outputs. The initial HTTPS push stalled silently
+because the rejected blobs never finished uploading.
+
+Fix: `git filter-repo --path app/.turbo --path-glob '*.tsbuildinfo'
+--invert-paths --force` across all refs. `.git` dropped 822MB → 129MB.
+Content unchanged, every commit SHA rewritten. A pre-filter bundle is
+saved at `C:/Users/marti/leads-backups/pre-filter-*.bundle` in case we
+ever need to reconstruct the original blobs.
+
+Both paths are already in `.gitignore`, so new commits won't reintroduce
+them.
+
+Side effect: any branch that existed at the time of the filter got its
+SHAs rewritten too (including Martin's parallel `feat/journey-audit-haute`
+and the chore/feat branches). If he had already pushed those somewhere
+else, he'd need to force-push; since nothing was published yet, no
+external coordination needed.
+
 ## Martin's interleaved commits on `feat/WS2-pricing-v2`
 
 Two unrelated commits landed on this branch during the WS-2 build session:

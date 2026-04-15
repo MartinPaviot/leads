@@ -126,7 +126,7 @@ and `notes.md`. None block launch.
 - Yearly billing toggle, proration UX, seat pricing, `automatic_tax`.
 - Bulk editor on the admin page.
 - Removal of `lib/billing.ts` shims — partially done (`checkPlanLimit`
-  deleted in commit `81f2f9f`); the remaining three functions
+  deleted in commit `82d5258`); the remaining three functions
   (`getSubscription`, `isTrialActive`, `trackUsage`) have real callers
   and stay.
 
@@ -142,17 +142,22 @@ and `notes.md`. None block launch.
 
 ## Commit map
 
+(SHAs reflect the repo after the `git filter-repo` pass that stripped
+`app/.turbo/` and `*.tsbuildinfo` from history — see `notes.md` §7. The
+content and order of the commits is unchanged from the original 9-commit
+sequence.)
+
 | Commit | What to focus on |
 |---|---|
-| `5ab8f2d` T1+T2 | The new `tiers.ts` file; the 3 consumers migrate onto it. |
-| `58035dd` T3+T4 | Migration 0018 + the resource-vs-metered split in `quota.ts`. |
-| `d868842` T5+T6 | 7 call sites + the `PRICING_V2_ENFORCEMENT` gate. |
-| `936ee9a` T7 | `/api/billing/quota` endpoint + `QuotaBanner` mount. |
-| `3a7f340` T8+T9 | `credits.ts` Stripe push + `channel.ts` wiring + checkout backfill. |
-| `bd17a07` T10 | Docs + a test-file TypeScript fix. |
-| `359831e` WS-2.1 | Admin UI + shared `admin-validation.ts`. |
-| `81f2f9f` cleanup | `checkPlanLimit` removal. |
-| `7b267d6` renumber | Migration number shift for the collision with Martin's parallel branch. |
+| `042f773` T1+T2 | The new `tiers.ts` file; the 3 consumers migrate onto it. |
+| `5c2b77d` T3+T4 | Migration 0018 + the resource-vs-metered split in `quota.ts`. |
+| `1022ba5` T5+T6 | 7 call sites + the `PRICING_V2_ENFORCEMENT` gate. |
+| `845270f` T7 | `/api/billing/quota` endpoint + `QuotaBanner` mount. |
+| `8fc5208` T8+T9 | `credits.ts` Stripe push + `channel.ts` wiring + checkout backfill. |
+| `d796037` T10 | Docs + a test-file TypeScript fix. |
+| `3881773` WS-2.1 | Admin UI + shared `admin-validation.ts`. |
+| `82d5258` cleanup | `checkPlanLimit` removal. |
+| `5cd51bf` renumber | Migration number shift for the collision with Martin's parallel branch. |
 
 ## If you only review one diff
 
