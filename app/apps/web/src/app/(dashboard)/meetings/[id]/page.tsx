@@ -120,6 +120,10 @@ export default function MeetingDetailPage() {
   const [editingKeyPoints, setEditingKeyPoints] = useState(false);
   const [keyPointsDraft, setKeyPointsDraft] = useState<string[]>([]);
   const [savingKeyPoints, setSavingKeyPoints] = useState(false);
+  // M1 — decisions inline edit, same list-of-strings shape as keyPoints.
+  const [editingDecisions, setEditingDecisions] = useState(false);
+  const [decisionsDraft, setDecisionsDraft] = useState<string[]>([]);
+  const [savingDecisions, setSavingDecisions] = useState(false);
 
   // M1 — follow-up draft edit state.
   const [editingDraft, setEditingDraft] = useState(false);
@@ -244,6 +248,25 @@ export default function MeetingDetailPage() {
     if (ok) {
       toast("Key points updated.", "success");
       setEditingKeyPoints(false);
+      await fetchMeeting();
+    }
+  }
+
+  // M1 — decisions persist via the same PATCH path as keyPoints. No
+  // diff → no request; same "clean empty strings out" policy.
+  async function saveDecisions() {
+    if (!data?.notes) return;
+    const cleaned = decisionsDraft.map((d) => d.trim()).filter(Boolean);
+    if (JSON.stringify(cleaned) === JSON.stringify(data.notes.decisions)) {
+      setEditingDecisions(false);
+      return;
+    }
+    setSavingDecisions(true);
+    const ok = await patchNotes({ decisions: cleaned });
+    setSavingDecisions(false);
+    if (ok) {
+      toast("Decisions updated.", "success");
+      setEditingDecisions(false);
       await fetchMeeting();
     }
   }
@@ -635,18 +658,74 @@ export default function MeetingDetailPage() {
             </CollapsibleSection>
           )}
 
-          {/* Decisions */}
-          {notes.decisions.length > 0 && (
-            <CollapsibleSection title={`Decisions (${notes.decisions.length})`} icon={MessageSquare} defaultOpen={false}>
-              <ul className="space-y-1.5">
-                {notes.decisions.map((d, i) => (
-                  <li key={i} className="text-sm text-gray-700 dark:text-gray-300 flex items-start gap-2">
-                    <span className="text-gray-400 mt-0.5">-</span> {d}
-                  </li>
+          {/* Decisions — inline editable (M1). Section always renders
+               so the user can add decisions the extractor missed. */}
+          <CollapsibleSection title={`Decisions (${notes.decisions.length})`} icon={MessageSquare} defaultOpen={false}>
+            {editingDecisions ? (
+              <div className="space-y-2">
+                {decisionsDraft.map((d, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={d}
+                      onChange={(e) => {
+                        const next = [...decisionsDraft];
+                        next[i] = e.target.value;
+                        setDecisionsDraft(next);
+                      }}
+                      className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 p-1.5 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      onClick={() => setDecisionsDraft(decisionsDraft.filter((_, j) => j !== i))}
+                      aria-label="Remove decision"
+                      className="rounded-md p-1 text-gray-400 hover:text-red-500"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
                 ))}
-              </ul>
-            </CollapsibleSection>
-          )}
+                <Button variant="ghost" size="sm" onClick={() => setDecisionsDraft([...decisionsDraft, ""])}>
+                  <Plus className="h-3 w-3 mr-1" /> Add decision
+                </Button>
+                <div className="flex items-center gap-2 pt-1">
+                  <Button size="sm" onClick={saveDecisions} disabled={savingDecisions}>
+                    {savingDecisions ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+                    Save
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setEditingDecisions(false)} disabled={savingDecisions}>
+                    <X className="h-3 w-3 mr-1" /> Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                {notes.decisions.length > 0 ? (
+                  <ul className="space-y-1.5">
+                    {notes.decisions.map((d, i) => (
+                      <li key={i} className="text-sm text-gray-700 dark:text-gray-300 flex items-start gap-2">
+                        <span className="text-gray-400 mt-0.5">-</span> {d}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    No decisions captured. Click Edit to add the outcomes of this meeting.
+                  </p>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => {
+                    setDecisionsDraft(notes.decisions.length > 0 ? [...notes.decisions] : [""]);
+                    setEditingDecisions(true);
+                  }}
+                >
+                  <Edit2 className="h-3 w-3 mr-1" /> Edit
+                </Button>
+              </div>
+            )}
+          </CollapsibleSection>
 
           {/* Buying Signals */}
           {notes.buyingSignals && (
