@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { motion, useInView } from "framer-motion";
+import { motion, useInView, useReducedMotion } from "framer-motion";
 import {
   Mail,
   MessageSquare,
@@ -16,6 +16,8 @@ import {
   Clock,
   Play,
   ArrowRight,
+  Menu,
+  X,
 } from "lucide-react";
 
 const CALENDLY_URL = "https://calendly.com/contact-elevay/30min";
@@ -40,16 +42,22 @@ function Section({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-80px 0px" });
+  // L15 — respect prefers-reduced-motion. When the user opts out of
+  // motion at the OS level, we render the section as-is from the start
+  // (no fade-in / slide-up) instead of letting the animation chain
+  // play. Framer's hook returns null on the server, which is why the
+  // fallback `?? false` matters.
+  const reduced = useReducedMotion();
 
   return (
     <motion.section
       ref={ref}
       id={id}
       className={className}
-      initial="hidden"
-      animate={inView ? "visible" : "hidden"}
+      initial={reduced ? "visible" : "hidden"}
+      animate={reduced ? "visible" : inView ? "visible" : "hidden"}
       variants={{
-        visible: { transition: { staggerChildren: 0.1 } },
+        visible: { transition: { staggerChildren: reduced ? 0 : 0.1 } },
       }}
     >
       {children}
@@ -64,11 +72,12 @@ function Animate({
   children: React.ReactNode;
   className?: string;
 }) {
+  const reduced = useReducedMotion();
   return (
     <motion.div
       className={className}
       variants={fadeInUp}
-      transition={{ duration: 0.4, ease: "easeOut" }}
+      transition={{ duration: reduced ? 0 : 0.4, ease: "easeOut" }}
     >
       {children}
     </motion.div>
@@ -157,22 +166,43 @@ const faqs = [
 
 function FAQItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
+  // L10 — stable id derived from the question so screen readers get a
+  // meaningful aria-controls target. Slug-cased to keep it valid HTML
+  // id syntax and human-readable in DevTools.
+  const slug = q
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+  const buttonId = `faq-button-${slug}`;
+  const panelId = `faq-panel-${slug}`;
 
   return (
     <div className="border-b border-gray-200">
       <button
+        id={buttonId}
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
         onClick={() => setOpen(!open)}
         className="flex w-full items-center justify-between py-5 text-left transition-colors hover:text-gray-900"
       >
         <span className="pr-8 text-base font-medium text-gray-900">{q}</span>
         <ChevronDown
           size={20}
+          aria-hidden="true"
           className={`shrink-0 text-gray-400 transition-transform duration-200 ${
             open ? "rotate-180" : ""
           }`}
         />
       </button>
       <div
+        id={panelId}
+        role="region"
+        aria-labelledby={buttonId}
+        hidden={!open}
         className={`overflow-hidden transition-all duration-300 ${
           open ? "max-h-96 pb-5" : "max-h-0"
         }`}
@@ -189,6 +219,11 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
+  // L5 — mobile menu open state. Lives at the page level so the close
+  // handler can target it from anywhere (overlay tap, ESC key, link
+  // click). Body scroll is locked while the menu is open so the page
+  // behind the sheet doesn't drift.
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -196,10 +231,27 @@ export default function LandingPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMobileMenuOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [mobileMenuOpen]);
+
   return (
     <div className="min-h-screen bg-white">
       {/* NAV */}
-      <nav className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? "bg-white/95 shadow-[0_1px_3px_rgba(0,0,0,0.06)] backdrop-blur-md" : "bg-white"}`}>
+      <nav
+        aria-label="Primary"
+        className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? "bg-white/95 shadow-[0_1px_3px_rgba(0,0,0,0.06)] backdrop-blur-md" : "bg-white"}`}
+      >
         <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center gap-2">
             <img src="/logo-Elevay.svg" alt="Elevay" className="h-7 w-7" />
@@ -209,12 +261,94 @@ export default function LandingPage() {
             <Link href="#how-it-works" className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900">How it works</Link>
             <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900">Book a demo</a>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="hidden items-center gap-4 md:flex">
             <Link href="/sign-in" className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900">Log in</Link>
             <Link href="/sign-up" className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Try free</Link>
           </div>
+          {/* L5 — mobile hamburger. Visible below md only. */}
+          <button
+            type="button"
+            aria-label="Open menu"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-menu"
+            onClick={() => setMobileMenuOpen(true)}
+            className="rounded-md p-2 text-gray-700 hover:bg-gray-100 md:hidden"
+          >
+            <Menu size={22} />
+          </button>
         </div>
       </nav>
+
+      {/* L5 — mobile menu sheet. Slide-in from the right with a backdrop
+          overlay; ESC + overlay tap close it. The links pull the same
+          set as the desktop nav so the two stay in sync. */}
+      {mobileMenuOpen && (
+        <div
+          id="mobile-menu"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Site navigation"
+          className="fixed inset-0 z-[60] md:hidden"
+        >
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setMobileMenuOpen(false)}
+            className="absolute inset-0 h-full w-full cursor-default bg-black/40 transition-opacity"
+            tabIndex={-1}
+          />
+          <div className="absolute right-0 top-0 flex h-full w-[80%] max-w-[320px] flex-col bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+              <span className="text-sm font-semibold text-gray-900">Menu</span>
+              <button
+                type="button"
+                aria-label="Close menu"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <nav aria-label="Mobile" className="flex flex-1 flex-col px-5 py-4">
+              <Link
+                href="#how-it-works"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-md px-2 py-3 text-base font-medium text-gray-700 hover:bg-gray-100"
+              >
+                How it works
+              </Link>
+              <a
+                href={CALENDLY_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-md px-2 py-3 text-base font-medium text-gray-700 hover:bg-gray-100"
+              >
+                Book a demo
+              </a>
+              <Link
+                href="/sign-in"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-md px-2 py-3 text-base font-medium text-gray-700 hover:bg-gray-100"
+              >
+                Log in
+              </Link>
+              <Link
+                href="/sign-up"
+                onClick={() => setMobileMenuOpen(false)}
+                className="mt-4 rounded-lg px-4 py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                style={{
+                  background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)",
+                  backgroundSize: "120% 100%",
+                  backgroundPosition: "center",
+                }}
+              >
+                Try free
+              </Link>
+            </nav>
+          </div>
+        </div>
+      )}
 
       {/* HERO */}
       <Section className="relative pb-24 pt-20">
