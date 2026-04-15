@@ -2,6 +2,7 @@ import { signIn, auth } from "@/auth";
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { PasswordInput } from "@/components/ui/password-input";
+import { AuthSubmitButton } from "@/components/ui/auth-submit-button";
 import {
   sanitizeCallbackUrl,
   SIGN_IN_ERROR_COPY,
@@ -199,6 +200,7 @@ export default async function SignInPage({
               name="email"
               type="email"
               required
+              autoComplete="username"
               placeholder="you@company.com"
               className="auth-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-[13px] outline-none transition-colors"
               style={{
@@ -221,15 +223,16 @@ export default async function SignInPage({
                 Forgot password?
               </a>
             </div>
-            <PasswordInput id="password" name="password" required placeholder="Enter password" />
+            <PasswordInput
+              id="password"
+              name="password"
+              required
+              autoComplete="current-password"
+              placeholder="Enter password"
+            />
           </div>
-          {/* Gradient CTA button */}
-          <button
-            type="submit"
-            className="gradient-brand w-full rounded-lg px-4 py-2.5 text-[14px] font-semibold text-white shadow-sm transition-all hover:brightness-110"
-          >
-            Sign in
-          </button>
+          {/* Gradient CTA button — disables itself while pending (I7). */}
+          <AuthSubmitButton label="Sign in" busyLabel="Signing in…" />
         </form>
 
         <p className="text-center text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>

@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import Link from "next/link";
 import { PasswordInput } from "@/components/ui/password-input";
+import { AuthSubmitButton } from "@/components/ui/auth-submit-button";
 import { signIn, auth } from "@/auth";
 import { sanitizeCallbackUrl } from "@/lib/auth-callback";
 import { isPasswordAcceptable as isPasswordStrong } from "@/lib/password-reset";
@@ -234,6 +235,7 @@ export default async function SignUpPage({
               name="name"
               type="text"
               required
+              autoComplete="name"
               placeholder="Martin Paviot"
               className="auth-input mt-1.5 w-full rounded-lg px-3 py-2 text-[13px] outline-none transition-colors"
               style={{
@@ -252,6 +254,7 @@ export default async function SignUpPage({
               name="email"
               type="email"
               required
+              autoComplete="email"
               defaultValue={presetEmail}
               placeholder="you@company.com"
               className="auth-input mt-1.5 w-full rounded-lg px-3 py-2 text-[13px] outline-none transition-colors"
@@ -266,17 +269,19 @@ export default async function SignUpPage({
             <label htmlFor="password" className="block text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
               Password
             </label>
-            <PasswordInput id="password" name="password" required minLength={10} placeholder="Min 10 chars, 1 digit, upper + lower" />
+            <PasswordInput
+              id="password"
+              name="password"
+              required
+              minLength={10}
+              autoComplete="new-password"
+              placeholder="Min 10 chars, 1 digit, upper + lower"
+            />
           </div>
           {callbackUrl !== "/home" && (
             <input type="hidden" name="callbackUrl" value={callbackUrl} />
           )}
-          <button
-            type="submit"
-            className="gradient-brand w-full rounded-lg px-4 py-2.5 text-[14px] font-semibold text-white shadow-sm transition-all hover:brightness-110"
-          >
-            Create account
-          </button>
+          <AuthSubmitButton label="Create account" busyLabel="Creating account…" />
         </form>
 
         <p className="text-center text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>

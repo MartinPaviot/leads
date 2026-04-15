@@ -8,12 +8,16 @@ export function PasswordInput({
   required,
   minLength,
   placeholder,
+  autoComplete,
 }: {
   id: string;
   name: string;
   required?: boolean;
   minLength?: number;
   placeholder?: string;
+  /** Password-manager hint. Use "current-password" on sign-in,
+   *  "new-password" on sign-up / reset / change-password. */
+  autoComplete?: "current-password" | "new-password" | "off";
 }) {
   const [visible, setVisible] = useState(false);
 
@@ -26,6 +30,7 @@ export function PasswordInput({
         required={required}
         minLength={minLength}
         placeholder={placeholder}
+        autoComplete={autoComplete}
         className="auth-input mt-1.5 w-full rounded-lg px-3 py-2.5 pr-10 text-[13px] outline-none transition-colors"
         style={{
           background: "var(--color-bg-page)",
