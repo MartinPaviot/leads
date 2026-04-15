@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { companies, contacts, deals, notes, tasks } from "@/db/schema";
+import { activities, companies, contacts, deals, notes, tasks } from "@/db/schema";
 import { z } from "zod";
 import { ingestEpisode } from "@/lib/context-graph";
 import { makeTool, type ToolContext } from "./context";
@@ -169,6 +169,66 @@ export function buildCreateTools(ctx: ToolContext) {
                   : note.entityType === "deal"
                     ? `/opportunities/${note.entityId}`
                     : undefined,
+          },
+        };
+      },
+    }),
+
+    logActivity: makeTool({
+      description:
+        "Log a manual activity against a contact, account, or deal (call, meeting, note, touchpoint). Use when the user says 'I just called Jane', 'had a call with Acme', 'log a touch with X', or similar. Distinct from createNote (which is a long-form note).",
+      inputSchema: z.object({
+        entityType: z
+          .enum(["contact", "company", "deal"])
+          .describe("The entity this activity is attached to"),
+        entityId: z.string().describe("The entity ID"),
+        activityType: z
+          .string()
+          .describe(
+            "Activity type: call_completed, meeting_completed, note_added, email_sent, email_received, or a custom label"
+          ),
+        channel: z
+          .enum(["email", "phone", "meeting", "linkedin", "manual", "system", "other"])
+          .optional()
+          .describe("Channel of the activity (default: manual)"),
+        direction: z
+          .enum(["inbound", "outbound", "internal"])
+          .optional()
+          .describe("Direction (default: internal)"),
+        summary: z.string().optional().describe("Short summary of what happened"),
+        metadata: z
+          .record(z.string(), z.unknown())
+          .optional()
+          .describe("Optional structured fields (attendees, duration, etc.)"),
+      }),
+      execute: async (input) => {
+        const [activity] = await db
+          .insert(activities)
+          .values({
+            tenantId,
+            actorType: "user",
+            actorId: userId,
+            entityType: input.entityType,
+            entityId: input.entityId,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            activityType: input.activityType as any,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            channel: (input.channel || "manual") as any,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            direction: (input.direction || "internal") as any,
+            summary: input.summary || null,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            metadata: (input.metadata || {}) as any,
+          })
+          .returning();
+
+        return {
+          logged: {
+            id: activity.id,
+            activityType: activity.activityType,
+            entityType: activity.entityType,
+            entityId: activity.entityId,
+            occurredAt: activity.occurredAt,
           },
         };
       },

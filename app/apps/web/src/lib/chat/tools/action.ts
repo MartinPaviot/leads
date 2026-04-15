@@ -7,10 +7,21 @@ import {
   sequenceSteps,
 } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
+import { anthropic } from "@ai-sdk/anthropic";
+import { openai } from "@ai-sdk/openai";
+import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
 import { buildProspectContext } from "@/lib/prospect-context";
 import { generateSequence } from "@/lib/sequence-generator";
 import { makeTool, type ToolContext } from "./context";
+
+function pickModel() {
+  return process.env.ANTHROPIC_API_KEY
+    ? anthropic("claude-sonnet-4-6")
+    : process.env.OPENAI_API_KEY
+      ? openai("gpt-4o-mini")
+      : null;
+}
 
 export function buildActionTools(ctx: ToolContext) {
   const { tenantId } = ctx;
@@ -83,6 +94,144 @@ export function buildActionTools(ctx: ToolContext) {
             stylePrompt ? `\n\n${stylePrompt}` : ""
           }\n\nReturn the draft in your response.`,
         };
+      },
+    }),
+
+    generateFollowUpEmail: makeTool({
+      description:
+        "Generate a follow-up email draft based on meeting notes or last interaction context. Extracts action items and references specific discussion points. Use when the user asks to 'draft a follow-up to X after our meeting', 'write a follow-up based on these notes', etc. Returns subject + body + actionItems for review in the email composer.",
+      inputSchema: z.object({
+        contactId: z.string().describe("Contact ID to follow up with"),
+        context: z
+          .string()
+          .describe(
+            "Meeting notes or last-interaction summary that the follow-up should reference"
+          ),
+      }),
+      execute: async (input) => {
+        const model = pickModel();
+        if (!model) return { error: "No LLM API key configured" };
+
+        const [contact] = await db
+          .select()
+          .from(contacts)
+          .where(and(eq(contacts.id, input.contactId), eq(contacts.tenantId, tenantId)))
+          .limit(1);
+        if (!contact) return { error: "Contact not found" };
+
+        let company = null;
+        if (contact.companyId) {
+          const [c] = await db
+            .select()
+            .from(companies)
+            .where(and(eq(companies.id, contact.companyId), eq(companies.tenantId, tenantId)))
+            .limit(1);
+          company = c || null;
+        }
+
+        const contactName = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
+        const prompt = `Write a follow-up email based on the meeting notes or last interaction summary below.
+Extract specific action items from the context and reference them in the email.
+
+RECIPIENT:
+- Name: ${contactName || "Unknown"}
+- Title: ${contact.title || "Unknown"}
+- Email: ${contact.email || "Unknown"}
+${company ? `- Company: ${company.name}` : ""}
+
+MEETING NOTES / LAST INTERACTION:
+${input.context}
+
+RULES:
+- Extract all action items mentioned or implied in the context
+- Reference specific discussion points from the meeting
+- Keep the tone professional but warm
+- Include a clear summary of agreed next steps
+- Keep the email concise (under 250 words)
+- End with a specific call-to-action tied to the next steps`;
+
+        const followUpSchema = z.object({
+          subject: z.string(),
+          body: z.string(),
+          actionItems: z.array(z.string()),
+        });
+
+        const { object } = await tracedGenerateObject({
+          model,
+          schema: followUpSchema,
+          prompt,
+          _trace: { agentId: "follow-up-email", tenantId },
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result = object as any;
+
+        return {
+          emailDraft: {
+            to: contact.email,
+            contactName,
+            company: company?.name,
+            subject: result.subject,
+            body: result.body,
+            actionItems: result.actionItems,
+          },
+          instruction:
+            "Preview the draft in the email composer. User can edit before sending.",
+        };
+      },
+    }),
+
+    suggestEmailReply: makeTool({
+      description:
+        "Suggest 3 reply options (brief / detailed / decline) to an incoming email. Use when the user asks 'how should I reply to this?', 'suggest a response', 'draft replies to this email'. Returns three distinct drafts with different tones for the user to pick from.",
+      inputSchema: z.object({
+        emailContent: z.string().describe("The incoming email body to reply to"),
+        senderName: z.string().optional().describe("Name of the sender (for personalization)"),
+        senderEmail: z.string().optional().describe("Email of the sender"),
+      }),
+      execute: async (input) => {
+        const model = pickModel();
+        if (!model) return { error: "No LLM API key configured" };
+
+        const prompt = `Generate 3 reply options for this incoming email. Each reply should have a different tone and serve a different purpose.
+
+FROM: ${input.senderName || "Unknown"} <${input.senderEmail || "unknown"}>
+
+EMAIL CONTENT:
+${input.emailContent}
+
+Generate exactly 3 replies:
+1. "brief" — A short, friendly reply that moves things forward (2-3 sentences max). Must include a concrete next step.
+2. "detailed" — A thorough response addressing every question or topic raised. Shows you read carefully.
+3. "decline" — A gracious decline or deferral. Suggests an alternative path or timeline. Zero guilt, door stays open.
+
+RULES:
+- Reference specific points from the original email — never give a generic reply
+- Use ${input.senderName || "the sender"}'s name naturally (once, not repeatedly)
+- Match formality to the incoming email's tone
+- No "I hope this finds you well" or "Thanks for reaching out" openers
+- Every reply must have a clear call-to-action or next step
+- Keep the brief reply under 40 words, the detailed reply under 150 words`;
+
+        const suggestReplySchema = z.object({
+          replies: z.array(
+            z.object({
+              tone: z.string(),
+              subject: z.string(),
+              body: z.string(),
+            })
+          ),
+        });
+
+        const { object } = await tracedGenerateObject({
+          model,
+          schema: suggestReplySchema,
+          prompt,
+          _trace: { agentId: "suggest-reply", tenantId },
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result = object as any;
+
+        return { replies: result.replies };
       },
     }),
 
