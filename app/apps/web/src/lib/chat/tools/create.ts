@@ -411,6 +411,226 @@ export function buildCreateTools(ctx: ToolContext) {
       },
     }),
 
+    upsertContact: makeTool({
+      description:
+        "Find-or-create a contact by email. If a contact with this email exists in the workspace, updates the supplied fields on it; otherwise creates a new one. Idempotent — safe to call repeatedly. Use when ingesting leads from external sources where you don't know if they already exist.",
+      inputSchema: z.object({
+        email: z.string().email().describe("Natural key — looked up case-insensitive"),
+        firstName: z.string().optional(),
+        lastName: z.string().optional(),
+        title: z.string().optional(),
+        phone: z.string().optional(),
+        companyId: z.string().optional(),
+        linkedinUrl: z.string().optional(),
+      }),
+      execute: async (input) => {
+        const emailLower = input.email.toLowerCase();
+        const [existing] = await db
+          .select()
+          .from(contacts)
+          .where(and(eq(contacts.tenantId, tenantId), eq(contacts.email, emailLower)))
+          .limit(1);
+
+        if (existing) {
+          const updates: Record<string, unknown> = { updatedAt: new Date() };
+          if (input.firstName !== undefined) updates.firstName = input.firstName;
+          if (input.lastName !== undefined) updates.lastName = input.lastName;
+          if (input.title !== undefined) updates.title = input.title;
+          if (input.phone !== undefined) updates.phone = input.phone;
+          if (input.companyId !== undefined) updates.companyId = input.companyId;
+          if (input.linkedinUrl !== undefined) updates.linkedinUrl = input.linkedinUrl;
+
+          const [updated] = await db
+            .update(contacts)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .set(updates as any)
+            .where(eq(contacts.id, existing.id))
+            .returning();
+
+          return {
+            upserted: {
+              id: updated.id,
+              action: "updated",
+              email: updated.email,
+              name: [updated.firstName, updated.lastName].filter(Boolean).join(" "),
+            },
+          };
+        }
+
+        const [created] = await db
+          .insert(contacts)
+          .values({
+            tenantId,
+            email: emailLower,
+            firstName: input.firstName,
+            lastName: input.lastName,
+            title: input.title,
+            phone: input.phone,
+            companyId: input.companyId,
+            linkedinUrl: input.linkedinUrl,
+          })
+          .returning();
+
+        return {
+          upserted: {
+            id: created.id,
+            action: "created",
+            email: created.email,
+            name: [created.firstName, created.lastName].filter(Boolean).join(" "),
+          },
+        };
+      },
+    }),
+
+    upsertAccount: makeTool({
+      description:
+        "Find-or-create a company by domain. Case-insensitive domain match. Updates supplied fields on existing match, creates otherwise. Idempotent. Use when enriching companies from external feeds.",
+      inputSchema: z.object({
+        domain: z.string().describe("Natural key — company website domain (case-insensitive)"),
+        name: z.string().optional(),
+        industry: z.string().optional(),
+        size: z.string().optional(),
+        revenue: z.string().optional(),
+        description: z.string().optional(),
+      }),
+      execute: async (input) => {
+        const domainLower = input.domain.toLowerCase().trim();
+        const [existing] = await db
+          .select()
+          .from(companies)
+          .where(and(eq(companies.tenantId, tenantId), eq(companies.domain, domainLower)))
+          .limit(1);
+
+        if (existing) {
+          const updates: Record<string, unknown> = { updatedAt: new Date() };
+          if (input.name !== undefined) updates.name = input.name;
+          if (input.industry !== undefined) updates.industry = input.industry;
+          if (input.size !== undefined) updates.size = input.size;
+          if (input.revenue !== undefined) updates.revenue = input.revenue;
+          if (input.description !== undefined) updates.description = input.description;
+
+          const [updated] = await db
+            .update(companies)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .set(updates as any)
+            .where(eq(companies.id, existing.id))
+            .returning();
+
+          return {
+            upserted: {
+              id: updated.id,
+              action: "updated",
+              name: updated.name,
+              domain: updated.domain,
+            },
+          };
+        }
+
+        const [created] = await db
+          .insert(companies)
+          .values({
+            tenantId,
+            name: input.name || domainLower,
+            domain: domainLower,
+            industry: input.industry,
+            size: input.size,
+            revenue: input.revenue,
+            description: input.description,
+          })
+          .returning();
+
+        return {
+          upserted: {
+            id: created.id,
+            action: "created",
+            name: created.name,
+            domain: created.domain,
+          },
+        };
+      },
+    }),
+
+    upsertDealByCompany: makeTool({
+      description:
+        "Find-or-create a deal for a specific company + contact + stage combination, avoiding duplicates. If a deal with the same name and companyId already exists, updates its fields; otherwise creates a new deal. Use for idempotent deal pipelines.",
+      inputSchema: z.object({
+        name: z.string().describe("Deal name (uniqueness key with companyId)"),
+        companyId: z.string(),
+        contactId: z.string().optional(),
+        stage: z
+          .enum(["lead", "qualification", "demo", "trial", "proposal", "negotiation", "won", "lost"])
+          .optional(),
+        value: z.number().optional(),
+        summary: z.string().optional(),
+        expectedCloseDate: z.string().optional(),
+      }),
+      execute: async (input) => {
+        const existingRows = await db
+          .select()
+          .from(deals)
+          .where(
+            and(
+              eq(deals.tenantId, tenantId),
+              eq(deals.companyId, input.companyId),
+              eq(deals.name, input.name)
+            )
+          )
+          .limit(1);
+        const existing = existingRows[0];
+
+        if (existing) {
+          const updates: Record<string, unknown> = { updatedAt: new Date() };
+          if (input.stage !== undefined) updates.stage = input.stage;
+          if (input.value !== undefined) updates.value = input.value;
+          if (input.contactId !== undefined) updates.contactId = input.contactId;
+          if (input.summary !== undefined) updates.summary = input.summary;
+          if (input.expectedCloseDate !== undefined) {
+            updates.expectedCloseDate = new Date(input.expectedCloseDate);
+          }
+          const [updated] = await db
+            .update(deals)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .set(updates as any)
+            .where(eq(deals.id, existing.id))
+            .returning();
+          return {
+            upserted: {
+              id: updated.id,
+              action: "updated",
+              name: updated.name,
+              stage: updated.stage,
+              value: updated.value,
+            },
+          };
+        }
+
+        const [created] = await db
+          .insert(deals)
+          .values({
+            tenantId,
+            name: input.name,
+            companyId: input.companyId,
+            contactId: input.contactId,
+            stage: input.stage ?? "lead",
+            value: input.value,
+            summary: input.summary,
+            expectedCloseDate: input.expectedCloseDate
+              ? new Date(input.expectedCloseDate)
+              : undefined,
+          })
+          .returning();
+        return {
+          upserted: {
+            id: created.id,
+            action: "created",
+            name: created.name,
+            stage: created.stage,
+            value: created.value,
+          },
+        };
+      },
+    }),
+
     createCustomObjectType: makeTool({
       description:
         "Create a new custom object type (e.g. 'Projects', 'Partners', 'Assets'). Admin-only. Custom object types are workspace-defined and extend the standard CRM schema. Each type has an id (auto-slug-sanitized), a display name (plural + singular), an icon, and a list of fields.",
