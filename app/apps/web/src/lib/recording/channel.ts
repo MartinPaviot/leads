@@ -16,6 +16,8 @@ import {
 } from "@/db/schema";
 import { eq, and, isNull, gte, sql } from "drizzle-orm";
 import { normalizeEmail } from "@/lib/util/email";
+import { REFERRAL_CREDIT_CENTS } from "@/lib/pricing/tiers";
+import { pushCreditToStripe } from "@/lib/pricing/credits";
 
 const ATTRIBUTION_WINDOW_DAYS = 90;
 const CREDIT_THRESHOLD = 3; // every 3 attributions → 1 referral credit granted
@@ -149,12 +151,17 @@ async function maybeGrantCredit(referringTenantId: string): Promise<boolean> {
   const count = attributions[0]?.c ?? 0;
   if (count < CREDIT_THRESHOLD) return false;
 
-  await db.insert(referralCreditEvents).values({
-    tenantId: referringTenantId,
-    eventType: "credit_granted",
-    amountCents: 0, // amount is symbolic; downstream billing applies the comp
-    description: `1-month free credit granted (after ${count} attributions)`,
-  });
+  // WS-2: the amount is no longer symbolic — we push it as a real Stripe
+  // customer balance transaction below.
+  const [granted] = await db
+    .insert(referralCreditEvents)
+    .values({
+      tenantId: referringTenantId,
+      eventType: "credit_granted",
+      amountCents: REFERRAL_CREDIT_CENTS,
+      description: `1-month Starter credit granted (after ${count} attributions)`,
+    })
+    .returning({ id: referralCreditEvents.id });
 
   // Upsert the counter row
   await db
@@ -171,6 +178,23 @@ async function maybeGrantCredit(referringTenantId: string): Promise<boolean> {
         lastCreditEarnedAt: new Date(),
       },
     });
+
+  // Push to Stripe customer balance. Non-blocking: if the tenant has no
+  // Stripe customer yet (still on trial) or Stripe is briefly down, the row
+  // stays pending and backfillPendingCredits picks it up at next checkout.
+  // A thrown error here must NOT roll back the grant — the ledger is the
+  // source of truth, the Stripe push is downstream bookkeeping.
+  if (granted?.id) {
+    pushCreditToStripe(referringTenantId, granted.id, REFERRAL_CREDIT_CENTS).catch(
+      (err) => {
+        console.warn("pushCreditToStripe failed (non-blocking)", {
+          tenantId: referringTenantId,
+          eventId: granted.id,
+          err: err instanceof Error ? err.message : String(err),
+        });
+      }
+    );
+  }
 
   return true;
 }

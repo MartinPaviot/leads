@@ -1168,10 +1168,18 @@ export const referralCreditEvents = pgTable(
     triggeredByExposureId: text("triggered_by_exposure_id").references(() => notetakerExposures.id, { onDelete: "set null" }),
     amountCents: integer("amount_cents").default(0).notNull(),
     description: text("description"),
+    // WS-2 T8: Stripe balance transaction id once the credit has been pushed
+    // to the referring tenant's Stripe customer. Null means either "never
+    // attempted" or "attempted but no Stripe customer yet" — backfill
+    // re-runs idempotently so distinguishing isn't needed. Non-null value
+    // is the idempotency marker: credits.ts refuses to re-push a row that
+    // already has one. See migration 0018 for the unique partial index.
+    stripeBalanceTxnId: text("stripe_balance_txn_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("referral_credit_events_tenant_created_idx").on(table.tenantId, table.createdAt),
+    uniqueIndex("referral_credit_events_stripe_txn_uniq").on(table.stripeBalanceTxnId),
   ]
 );
 

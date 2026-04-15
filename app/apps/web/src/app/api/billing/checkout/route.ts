@@ -4,6 +4,7 @@ import { users } from "@/db/schema";
 import { subscriptions } from "@/db/billing-schema";
 import { stripe } from "@/lib/stripe";
 import { and, eq } from "drizzle-orm";
+import { backfillPendingCredits } from "@/lib/pricing/credits";
 
 /** Check if an error indicates a missing table / relation */
 function isTableMissing(error: unknown): boolean {
@@ -85,6 +86,17 @@ export async function POST(request: Request) {
         if (!isTableMissing(e)) throw e;
         console.warn("subscriptions table missing — skipping record insert");
       }
+
+      // WS-2: the tenant now has a Stripe customer, so any referral credits
+      // granted during their trial (stripeBalanceTxnId IS NULL) can finally
+      // be pushed. Non-blocking: checkout must not fail because backfill
+      // hit a transient Stripe error.
+      backfillPendingCredits(tenantId).catch((err) => {
+        console.warn("backfillPendingCredits failed (non-blocking)", {
+          tenantId,
+          err: err instanceof Error ? err.message : String(err),
+        });
+      });
     }
 
     // Create checkout session

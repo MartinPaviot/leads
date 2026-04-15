@@ -201,6 +201,21 @@ export function serialiseLimit(n: number): number | null {
 }
 
 /**
+ * Economic value of a single earned referral credit, in cents (USD).
+ *
+ * Kept as a constant here (rather than deriving from the referring tenant's
+ * current plan) because:
+ *   - We want a predictable, user-communicable reward ("you'll get one month
+ *     of Starter free for every 3 referrals").
+ *   - Stripe customer balance applies against *any* invoice, so a Pro
+ *     referrer still gets real value (~50% off for a month per credit),
+ *     and a Starter referrer gets a full month free.
+ *   - Keeps the credit grant path plan-independent — no extra Stripe round
+ *     trips at attribution time.
+ */
+export const REFERRAL_CREDIT_CENTS = 4_900;
+
+/**
  * Look up the PlanId whose Stripe price id matches `priceId`.
  * Reads env vars lazily so tests can mutate process.env without re-importing.
  */
