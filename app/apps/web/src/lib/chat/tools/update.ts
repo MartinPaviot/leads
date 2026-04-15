@@ -618,10 +618,13 @@ export function buildUpdateTools(ctx: ToolContext) {
         if (input.filter.stage) conditions.push(eq(deals.stage, input.filter.stage as any));
         if (input.filter.search) conditions.push(ilike(deals.name, `%${input.filter.search}%`));
 
-        const matchedDeals = await db
-          .select({ id: deals.id, name: deals.name, stage: deals.stage })
+        // Full-row snapshot for undo (bulk_update reversal)
+        const fullMatched = await db
+          .select()
           .from(deals)
           .where(and(...conditions));
+
+        const matchedDeals = fullMatched;
 
         if (matchedDeals.length === 0)
           return { bulkUpdated: { count: 0 }, message: "No deals matched the filter" };
@@ -651,6 +654,22 @@ export function buildUpdateTools(ctx: ToolContext) {
             metadata: { bulkOperation: true, filter: input.filter, update: input.update },
           });
         }
+
+        await logToolCall({
+          tenantId,
+          userId,
+          toolName: "bulkUpdateDeals",
+          args: input as unknown as Record<string, unknown>,
+          result: { count: matchedDeals.length },
+          snapshot: {
+            type: "bulk_update",
+            entity: "deal",
+            rows: matchedDeals.map((d) => ({
+              id: d.id,
+              before: d as unknown as Record<string, unknown>,
+            })),
+          },
+        });
 
         return {
           bulkUpdated: {
@@ -691,12 +710,9 @@ export function buildUpdateTools(ctx: ToolContext) {
           );
         }
 
+        // Full-row snapshot for undo
         const matchedContacts = await db
-          .select({
-            id: contacts.id,
-            firstName: contacts.firstName,
-            lastName: contacts.lastName,
-          })
+          .select()
           .from(contacts)
           .where(and(...conditions));
 
@@ -712,6 +728,22 @@ export function buildUpdateTools(ctx: ToolContext) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .set(updateFields as any)
           .where(and(...conditions));
+
+        await logToolCall({
+          tenantId,
+          userId,
+          toolName: "bulkUpdateContacts",
+          args: input as unknown as Record<string, unknown>,
+          result: { count: matchedContacts.length },
+          snapshot: {
+            type: "bulk_update",
+            entity: "contact",
+            rows: matchedContacts.map((c) => ({
+              id: c.id,
+              before: c as unknown as Record<string, unknown>,
+            })),
+          },
+        });
 
         return {
           bulkUpdated: {

@@ -39,6 +39,11 @@ export type ReversibleSnapshot =
       type: "delete";
       entity: "contact" | "company" | "deal" | "note" | "task";
       before: Record<string, unknown>;
+    }
+  | {
+      type: "bulk_update";
+      entity: "contact" | "company" | "deal" | "note" | "task";
+      rows: Array<{ id: string; before: Record<string, unknown> }>;
     };
 
 export interface LogToolCallInput {
@@ -161,6 +166,29 @@ export async function reverseToolCall(
       await restoreEntity(snapshot.entity, snapshot.id, snapshot.before, tenantId);
     } else if (snapshot.type === "delete") {
       await reinsertEntity(snapshot.entity, snapshot.before, tenantId);
+    } else if (snapshot.type === "bulk_update") {
+      // Restore every row in the bulk set. Best-effort: errors on any
+      // single row are swallowed so we still revert as much as possible.
+      // Reports the per-row outcome in the return text.
+      let restored = 0;
+      let failed = 0;
+      for (const row of snapshot.rows) {
+        try {
+          await restoreEntity(snapshot.entity, row.id, row.before, tenantId);
+          restored++;
+        } catch {
+          failed++;
+        }
+      }
+      await db
+        .update(toolCallEvents)
+        .set({ status: "reverted", revertedAt: new Date() })
+        .where(eq(toolCallEvents.id, eventId));
+      return {
+        ok: true,
+        reverseEventId: null,
+        reversedAction: `${event.toolName} (${restored} restored, ${failed} failed)`,
+      };
     } else {
       return { ok: false, error: `Unsupported snapshot type` };
     }
