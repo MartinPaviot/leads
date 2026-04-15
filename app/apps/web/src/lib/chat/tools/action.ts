@@ -235,6 +235,254 @@ RULES:
       },
     }),
 
+    autoProgressDeal: makeTool({
+      description:
+        "Suggest (or apply) the next pipeline stage for a deal based on recent signals (inbound replies, meeting scheduled, proposal activity, etc.). Call with apply=false (default) to preview the suggestion; apply=true to actually move the stage and log the transition. Never auto-moves to won/lost — those require explicit user confirmation.",
+      inputSchema: z.object({
+        dealId: z.string().describe("The deal ID to evaluate"),
+        apply: z
+          .boolean()
+          .optional()
+          .describe("true to apply the suggestion; false (default) returns preview only"),
+      }),
+      execute: async (input) => {
+        const { suggestNextStage } = await import("@/lib/opportunity-health");
+        const { deals } = await import("@/db/schema");
+
+        const [deal] = await db
+          .select()
+          .from(deals)
+          .where(and(eq(deals.id, input.dealId), eq(deals.tenantId, tenantId)))
+          .limit(1);
+        if (!deal) return { error: "Deal not found" };
+
+        const recent = await db
+          .select({
+            type: activities.activityType,
+            direction: activities.direction,
+            occurredAt: activities.occurredAt,
+            summary: activities.summary,
+          })
+          .from(activities)
+          .where(
+            and(
+              eq(activities.tenantId, tenantId),
+              eq(activities.entityType, "deal"),
+              eq(activities.entityId, input.dealId)
+            )
+          )
+          .orderBy(desc(activities.occurredAt))
+          .limit(200);
+
+        const suggestion = suggestNextStage(deal.stage ?? "lead", recent);
+
+        if (!suggestion) {
+          return {
+            dealId: input.dealId,
+            currentStage: deal.stage,
+            suggestion: null,
+            message: "No auto-progression criteria met for the current stage.",
+          };
+        }
+
+        if (input.apply) {
+          await db
+            .update(deals)
+            .set({
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              stage: suggestion.next as any,
+              updatedAt: new Date(),
+            })
+            .where(eq(deals.id, input.dealId));
+          await db.insert(activities).values({
+            tenantId,
+            actorType: "system",
+            entityType: "deal",
+            entityId: input.dealId,
+            activityType: "deal_stage_changed",
+            channel: "system",
+            direction: "internal",
+            summary: `Auto-progressed ${deal.stage} → ${suggestion.next}: ${suggestion.reason}`,
+            occurredAt: new Date(),
+            metadata: {
+              autoProgressed: true,
+              from: deal.stage,
+              to: suggestion.next,
+              reason: suggestion.reason,
+            },
+          });
+        }
+
+        return {
+          dealId: input.dealId,
+          currentStage: deal.stage,
+          suggestion,
+          applied: input.apply === true,
+        };
+      },
+    }),
+
+    sendMeetingFollowUp: makeTool({
+      description:
+        "Send the stored follow-up email (subject/body in meeting.metadata.followUpEmailDraft) to the meeting's attendees. Requires RESEND_API_KEY and a draft already saved. Fails if a follow-up was already sent. Use after the user has reviewed and approved the draft.",
+      inputSchema: z.object({
+        meetingId: z.string().describe("The meeting/activity ID"),
+      }),
+      execute: async (input) => {
+        const { Resend } = await import("resend");
+        if (!process.env.RESEND_API_KEY) {
+          return { error: "Email sending not configured (RESEND_API_KEY missing)" };
+        }
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        const FROM_ADDRESS =
+          process.env.INVITE_FROM_ADDRESS || "Elevay <no-reply@resend.dev>";
+
+        const [activity] = await db
+          .select()
+          .from(activities)
+          .where(and(eq(activities.id, input.meetingId), eq(activities.tenantId, tenantId)))
+          .limit(1);
+        if (!activity) return { error: "Meeting not found" };
+
+        const meta = (activity.metadata ?? {}) as Record<string, unknown> & {
+          followUpEmailDraft?: { subject?: string; body?: string };
+          matchedContacts?: Array<{ contactId?: string; email?: string }>;
+          followUpSentAt?: string;
+          attendees?: Array<{ email?: string }>;
+        };
+
+        const draft = meta.followUpEmailDraft;
+        if (!draft?.subject || !draft?.body) {
+          return {
+            error: "No follow-up draft to send. Edit the draft first via updateMeetingNotes.",
+          };
+        }
+        if (meta.followUpSentAt) {
+          return { error: "Follow-up already sent for this meeting" };
+        }
+
+        const attendeeEmails = new Set<string>();
+        for (const m of meta.matchedContacts ?? []) {
+          if (m.email) attendeeEmails.add(m.email.toLowerCase());
+        }
+        if (attendeeEmails.size === 0) {
+          for (const a of meta.attendees ?? []) {
+            if (a.email) attendeeEmails.add(a.email.toLowerCase());
+          }
+        }
+        if (attendeeEmails.size === 0) {
+          return { error: "No recipient emails resolved for this meeting" };
+        }
+
+        const known = (
+          await db
+            .select({ email: contacts.email })
+            .from(contacts)
+            .where(eq(contacts.tenantId, tenantId))
+        )
+          .map((r) => r.email?.toLowerCase())
+          .filter((e): e is string => !!e && attendeeEmails.has(e));
+        const toEmails = known.length > 0 ? known : Array.from(attendeeEmails);
+
+        const { data, error: sendError } = await resend.emails.send({
+          from: FROM_ADDRESS,
+          to: toEmails,
+          subject: draft.subject,
+          text: draft.body,
+        });
+        if (sendError) {
+          return { error: `Send failed: ${sendError.message}` };
+        }
+
+        const nextMeta: Record<string, unknown> = {
+          ...meta,
+          followUpSentAt: new Date().toISOString(),
+          followUpMessageId: data?.id ?? null,
+          followUpRecipients: toEmails,
+        };
+        await db
+          .update(activities)
+          .set({ metadata: nextMeta })
+          .where(eq(activities.id, input.meetingId));
+
+        return {
+          sent: {
+            meetingId: input.meetingId,
+            recipients: toEmails,
+            messageId: data?.id,
+          },
+        };
+      },
+    }),
+
+    bookMeeting: makeTool({
+      description:
+        "Book a calendar meeting with a contact via the user's connected Google Calendar. Creates a Google Meet link, sends invite to the contact, and logs a meeting_scheduled activity. Requires the user's Google Calendar to be connected.",
+      inputSchema: z.object({
+        contactId: z.string().describe("Contact ID to invite"),
+        startTime: z
+          .string()
+          .describe("ISO datetime string for the meeting start (e.g. 2026-04-20T15:00:00Z)"),
+        durationMinutes: z.number().optional().describe("Duration in minutes (default 30)"),
+        title: z.string().optional().describe("Meeting title (default 'Meeting with <contact>')"),
+      }),
+      execute: async (input) => {
+        const { createCalendarEvent } = await import("@/lib/meeting-booking");
+
+        const [contact] = await db
+          .select()
+          .from(contacts)
+          .where(and(eq(contacts.id, input.contactId), eq(contacts.tenantId, tenantId)))
+          .limit(1);
+        if (!contact || !contact.email) {
+          return { error: "Contact not found or has no email" };
+        }
+
+        const contactName =
+          [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "Prospect";
+
+        const event = await createCalendarEvent(ctx.authCtx.userId, {
+          contactEmail: contact.email,
+          contactName,
+          startTime: new Date(input.startTime),
+          durationMinutes: input.durationMinutes || 30,
+          title: input.title || `Meeting with ${contactName}`,
+        });
+        if (!event) {
+          return { error: "Failed to create calendar event — is Google Calendar connected?" };
+        }
+
+        await db.insert(activities).values({
+          tenantId,
+          actorType: "user",
+          actorId: ctx.userId,
+          entityType: "contact",
+          entityId: input.contactId,
+          activityType: "meeting_scheduled",
+          channel: "meeting",
+          direction: "outbound",
+          summary: `Meeting booked: ${input.title || `Meeting with ${contactName}`}`,
+          metadata: {
+            eventId: event.eventId,
+            meetLink: event.meetLink,
+            startTime: input.startTime,
+            durationMinutes: input.durationMinutes || 30,
+          },
+        });
+
+        return {
+          booked: {
+            eventId: event.eventId,
+            meetLink: event.meetLink,
+            calendarLink: event.htmlLink,
+            contactName,
+            contactEmail: contact.email,
+            startTime: input.startTime,
+          },
+        };
+      },
+    }),
+
     proposeCampaign: makeTool({
       description: `Propose an outbound email campaign targeting specific accounts. Use when user asks to "launch a campaign", "reach out to", "start outreach", or "email my top accounts". Creates a draft sequence and returns a proposal for user approval.`,
       inputSchema: z.object({

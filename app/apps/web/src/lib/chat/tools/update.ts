@@ -242,6 +242,107 @@ export function buildUpdateTools(ctx: ToolContext) {
       },
     }),
 
+    updateAccountLifecycle: makeTool({
+      description:
+        "Set an account's lifecycle stage (prospect, customer, churned, etc.). Use when the user says 'mark Acme as a customer', 'move X to churned', 'they're a lead now'.",
+      inputSchema: z.object({
+        accountId: z.string().describe("Account/company ID"),
+        stage: z
+          .string()
+          .describe(
+            "Lifecycle stage — one of the workspace's configured LIFECYCLE_STAGES (e.g. lead, prospect, customer, churned, lost)"
+          ),
+      }),
+      execute: async (input) => {
+        const { LIFECYCLE_STAGES } = await import("@/lib/lifecycle");
+        if (!(LIFECYCLE_STAGES as readonly string[]).includes(input.stage)) {
+          return { error: `Invalid lifecycle stage. Valid: ${LIFECYCLE_STAGES.join(", ")}` };
+        }
+
+        const [company] = await db
+          .select()
+          .from(companies)
+          .where(and(eq(companies.id, input.accountId), eq(companies.tenantId, tenantId)))
+          .limit(1);
+        if (!company) return { error: "Account not found" };
+
+        const currentProps = (company.properties || {}) as Record<string, unknown>;
+        await db
+          .update(companies)
+          .set({
+            properties: { ...currentProps, lifecycle: input.stage },
+            updatedAt: new Date(),
+          })
+          .where(and(eq(companies.id, input.accountId), eq(companies.tenantId, tenantId)));
+
+        return {
+          updated: {
+            accountId: input.accountId,
+            name: company.name,
+            oldStage: currentProps.lifecycle ?? null,
+            newStage: input.stage,
+          },
+        };
+      },
+    }),
+
+    updateMeetingNotes: makeTool({
+      description:
+        "Update a meeting's structured notes or follow-up email draft. Partial updates supported — pass only the keys you want to change. Use when the user edits their meeting notes via chat, adjusts the follow-up subject/body, etc.",
+      inputSchema: z.object({
+        meetingId: z.string().describe("The meeting/activity ID"),
+        structuredNotes: z
+          .record(z.string(), z.unknown())
+          .optional()
+          .describe(
+            "Structured notes object (summary, keyPoints, actionItems, decisions, buyingSignals). Pass only to replace wholesale."
+          ),
+        followUpDraft: z
+          .object({
+            subject: z.string().optional(),
+            body: z.string().optional(),
+          })
+          .optional()
+          .describe("Follow-up email draft — subject/body merged into existing draft"),
+      }),
+      execute: async (input) => {
+        if (input.structuredNotes === undefined && input.followUpDraft === undefined) {
+          return { error: "Nothing to update — pass structuredNotes or followUpDraft" };
+        }
+
+        const [activity] = await db
+          .select()
+          .from(activities)
+          .where(and(eq(activities.id, input.meetingId), eq(activities.tenantId, tenantId)))
+          .limit(1);
+        if (!activity) return { error: "Meeting not found" };
+
+        const currentMeta = (activity.metadata ?? {}) as Record<string, unknown>;
+        const nextMeta: Record<string, unknown> = { ...currentMeta };
+        if (input.structuredNotes !== undefined) {
+          nextMeta.structuredNotes = input.structuredNotes;
+        }
+        if (input.followUpDraft !== undefined) {
+          const currentDraft = (currentMeta.followUpEmailDraft ?? {}) as Record<string, unknown>;
+          nextMeta.followUpEmailDraft = { ...currentDraft, ...input.followUpDraft };
+        }
+        nextMeta.notesEditedAt = new Date().toISOString();
+
+        await db
+          .update(activities)
+          .set({ metadata: nextMeta })
+          .where(eq(activities.id, input.meetingId));
+
+        return {
+          updated: {
+            meetingId: input.meetingId,
+            notesUpdated: input.structuredNotes !== undefined,
+            draftUpdated: input.followUpDraft !== undefined,
+          },
+        };
+      },
+    }),
+
     updateDealStage: makeTool({
       description:
         "Move a deal to a different pipeline stage. Use when the user says 'move deal X to proposal', 'progress this deal', 'mark as won/lost', etc.",
