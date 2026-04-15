@@ -11,7 +11,7 @@ green. **Database migrations 0008–0011 applied + journal seeded.**
 |---|---|---|
 | Production build | `cd app/apps/web && npx next build` | ✅ Compiled successfully (71s warm rebuild) |
 | Typecheck | `npx tsc --noEmit -p .` | ✅ 0 errors |
-| Unit / hook tests | `npx vitest run` | ✅ 426 / 426 (+25 added this session) |
+| Unit / hook tests | `npx vitest run` | ✅ 446 / 446 (+45 added this session) |
 | E2E (in-process) | `npx playwright test` | ✅ 6 passed, 6 skipped, 0 failed |
 | Dev server (`next dev --turbopack`) | curl /api/health | ✅ 200 in 5.3s |
 | Dev server (`next dev --turbopack`) | curl /sign-in | ✅ 200 (compiled in 17.8s) |
@@ -145,9 +145,14 @@ Smoke tests once deployed: section 6 of `_specs/PROD_SETUP.md`.
   report)
 - `feat(e2e): Playwright scaffolding + 6 passing specs, 6 gated`
 - `test(api): cover invite + saved-views routes wired to new tables`
-  — 25 new vitest cases on the routes that read/write the migrated
-  tables (saved_views, pending_invites). First-call wiring is now
-  proved before users hit it.
+  — 25 new vitest cases on /api/views, /api/auth/invite/[token],
+  /api/auth/invite/accept.
+- `test(api): cover full invite lifecycle + fix tsconfig deprecation flag`
+  — 20 new vitest cases on /api/settings/members/invite POST,
+  /api/settings/members/invites GET, /api/settings/members/invites/[id]
+  POST resend + DELETE cancel. Also fixed `tsconfig.json` after
+  pnpm bumped TypeScript 5.8 → 5.9.3 (which now rejects
+  `ignoreDeprecations: "6.0"` as TS5103).
 - DB: applied 0008-0011 + seeded `__drizzle_migrations` directly
   via the postgres client; no separate commit (DB-only change).
 
