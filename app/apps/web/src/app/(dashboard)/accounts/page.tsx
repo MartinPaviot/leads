@@ -58,7 +58,10 @@ export default function AccountsPage() {
   const [scoreAllRunning, setScoreAllRunning] = useState(false);
   const [detectingSignals, setDetectingSignals] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<string[] | null>(null);
+  // A4: keep similarity score per result so we can surface "73% match"
+  // chips inline. Map preserves insertion order (== rank order from the
+  // semantic search endpoint), and lookup is O(1) for the row sort.
+  const [searchResults, setSearchResults] = useState<Map<string, number> | null>(null);
   const [searching, setSearching] = useState(false);
   const [activeSignalPopover, setActiveSignalPopover] = useState<string | null>(null);
   const [signalPopoverTab, setSignalPopoverTab] = useState<"reasoning" | "sources">("reasoning");
@@ -305,13 +308,40 @@ export default function AccountsPage() {
     setSearching(true);
     try {
       const res = await fetch("/api/search/tam", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: searchQuery.trim(), entityType: "company", limit: 20 }) });
-      if (res.ok) { const data = await res.json(); setSearchResults(data.results.map((r: { entityId: string }) => r.entityId)); }
-      else toast("Search failed", "error");
+      if (res.ok) {
+        const data = await res.json();
+        // A4: preserve per-result similarity score (0..1) so the badge
+        // and per-row chip can render the actual relevance, not just
+        // the rank.
+        const scored = new Map<string, number>();
+        for (const r of (data.results as { entityId: string; similarity: number }[]) ?? []) {
+          scored.set(r.entityId, r.similarity);
+        }
+        setSearchResults(scored);
+      } else {
+        toast("Search failed", "error");
+      }
     } catch (e) {
       toast("Search failed", "error");
       console.warn("accounts: semantic search failed", e);
     } finally { setSearching(false); }
   }
+
+  // A4 — debounce auto-search 500ms after the user stops typing. Empty
+  // query clears results immediately (no debounce delay on the clear
+  // path so the table snaps back instantly).
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) {
+      setSearchResults(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      handleSemanticSearch();
+    }, 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
 
   function getLinkedInUrl(account: Account): string | null {
     const props = account.properties as Record<string, unknown> | null;
@@ -383,10 +413,14 @@ export default function AccountsPage() {
         const q = searchQuery.toLowerCase();
         return a.name.toLowerCase().includes(q) || (a.domain?.toLowerCase().includes(q) ?? false) || (a.industry?.toLowerCase().includes(q) ?? false);
       }
-      if (searchResults) return searchResults.includes(a.id);
+      if (searchResults) return searchResults.has(a.id);
       return true;
     })
-    .sort((a, b) => searchResults ? searchResults.indexOf(a.id) - searchResults.indexOf(b.id) : (b.score ?? -1) - (a.score ?? -1));
+    .sort((a, b) =>
+      searchResults
+        ? (searchResults.get(b.id) ?? 0) - (searchResults.get(a.id) ?? 0)
+        : (b.score ?? -1) - (a.score ?? -1)
+    );
 
   const unenrichedCount = accounts.filter((a) => !isEnriched(a)).length;
   const tamCount = accounts.filter(isTAM).length;
@@ -485,23 +519,67 @@ export default function AccountsPage() {
             <Search size={13} className="absolute left-2.5" style={{ color: "var(--color-text-muted)" }} />
             <Input
               value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); if (!e.target.value.trim()) setSearchResults(null); }}
+              onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleSemanticSearch(); }}
               placeholder="Search accounts..."
-              className="!h-7 w-52 !pl-8 !pr-2 !text-[12px]"
+              className="!h-7 w-52 !pl-8 !pr-7 !text-[12px]"
+              aria-label="Semantic search"
+              aria-busy={searching}
             />
+            {searching && (
+              <Loader2
+                size={12}
+                className="absolute right-2 animate-spin"
+                style={{ color: "var(--color-text-muted)" }}
+                aria-hidden="true"
+              />
+            )}
           </div>
           {searchResults && (
             <Button
               variant="icon"
               size="sm"
               onClick={() => { setSearchResults(null); setSearchQuery(""); }}
+              aria-label="Clear search"
             >
               <X size={14} />
             </Button>
           )}
         </div>
       </FilterBar>
+
+      {/* A4 — Semantic-search result banner. Visible whenever the query
+           returned (even 0 hits) so the user always knows whether the
+           current rows are a search slice or the full list. */}
+      {searchResults && searchQuery.trim() && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-[12px]"
+          style={{
+            background: "var(--color-bg-hover)",
+            border: "1px solid var(--color-border-default)",
+            color: "var(--color-text-secondary)",
+          }}
+        >
+          <Search size={12} style={{ color: "var(--color-text-tertiary)" }} />
+          <span>
+            <strong style={{ color: "var(--color-text-primary)" }}>
+              {searchResults.size}
+            </strong>{" "}
+            semantic match{searchResults.size === 1 ? "" : "es"} for{" "}
+            <span className="italic">&ldquo;{searchQuery.trim()}&rdquo;</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => { setSearchResults(null); setSearchQuery(""); }}
+            className="ml-auto text-[11px] font-medium hover:underline"
+            style={{ color: "var(--color-accent)" }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
       {/* Create form modal */}
       <Modal
@@ -558,6 +636,18 @@ export default function AccountsPage() {
             actionLabel="Create account"
             onAction={() => setShowCreate(true)}
             actionVariant="gradient"
+          />
+        ) : filteredAccounts.length === 0 && searchResults && searchQuery.trim() ? (
+          /* A4 — dedicated empty state for a semantic search that
+             returned nothing. Distinct from the "no accounts at all"
+             state above so the user knows their library isn't empty. */
+          <EmptyState
+            icon={<Search size={24} />}
+            title={`No accounts match "${searchQuery.trim()}"`}
+            description="Try a different phrasing, or clear the search to see your full list."
+            actionLabel="Clear search"
+            onAction={() => { setSearchResults(null); setSearchQuery(""); }}
+            actionVariant="outline"
           />
         ) : (
           <table className="ls-table">
@@ -676,6 +766,14 @@ export default function AccountsPage() {
                             </button>
                             {isTAM(account) && (
                               <Badge variant="info" size="sm">TAM</Badge>
+                            )}
+                            {/* A4 — per-row similarity score, only when a
+                                semantic search is active. Helps users
+                                see *why* this row is here vs. the next. */}
+                            {searchResults && searchResults.has(account.id) && (
+                              <Badge variant="neutral" size="sm">
+                                {Math.round((searchResults.get(account.id) ?? 0) * 100)}% match
+                              </Badge>
                             )}
                           </div>
                           {account.description && (
@@ -1047,21 +1145,95 @@ export default function AccountsPage() {
                   </div>
                 </div>
               )}
-              {a.description && (
-                <div className="mt-3">
-                  <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>Description</span>
+              {/* A12 — Description: always render. Empty state offers a
+                   1-click enrich. */}
+              <div className="mt-3">
+                <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>Description</span>
+                {a.description ? (
                   <p className="mt-1 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{a.description}</p>
-                </div>
-              )}
-              {a.scoreReasons && a.scoreReasons.length > 0 && (
-                <div className="mt-3">
-                  <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>Score Criteria</span>
+                ) : (
+                  <div className="mt-1 rounded-lg p-2.5" style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}>
+                    <p className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                      Not enriched yet — pull industry, size and revenue from Apollo.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await chunkedBulkCall({
+                            ids: [a.id],
+                            endpoint: "/api/enrich",
+                            buildPayload: (chunk) => ({ companyIds: chunk }),
+                          });
+                          await fetchAccounts();
+                          toast("Enriched.", "success");
+                        } catch (e) {
+                          toast("Enrich failed.", "error");
+                          console.warn("accounts: single enrich failed", e);
+                        }
+                      }}
+                      className="mt-1.5 text-[11px] font-medium hover:underline"
+                      style={{ color: "var(--color-accent)" }}
+                    >
+                      Enrich with Apollo →
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* A12 — Score Criteria: empty state offers a 1-click
+                   score recompute. Hidden if the account has no
+                   `score` value at all (we still want to score it,
+                   regardless of reasons). */}
+              <div className="mt-3">
+                <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>Score Criteria</span>
+                {a.scoreReasons && a.scoreReasons.length > 0 ? (
                   <ul className="mt-1 space-y-0.5">
                     {a.scoreReasons.map((reason, i) => (
                       <li key={i} className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>&#8226; {reason}</li>
                     ))}
                   </ul>
-                </div>
+                ) : (
+                  <div className="mt-1 rounded-lg p-2.5" style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}>
+                    <p className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                      Not scored yet — run the ICP fit + engagement score for this account.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await chunkedBulkCall({
+                            ids: [a.id],
+                            endpoint: "/api/score",
+                            buildPayload: (chunk) => ({ companyIds: chunk }),
+                          });
+                          await fetchAccounts();
+                          toast("Scored.", "success");
+                        } catch (e) {
+                          toast("Score failed.", "error");
+                          console.warn("accounts: single score failed", e);
+                        }
+                      }}
+                      className="mt-1.5 text-[11px] font-medium hover:underline"
+                      style={{ color: "var(--color-accent)" }}
+                    >
+                      Score this account →
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* A12 — Activity hint when no interactions are recorded.
+                   The lastInteraction PropertyRow already shows "—",
+                   this adds the "why and what to do" copy below. */}
+              {!a.lastInteraction && (
+                <p className="mt-3 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                  No emails or meetings recorded yet. Connect your inbox in{" "}
+                  <a href="/settings/mail-calendar" className="underline" style={{ color: "var(--color-accent)" }}>
+                    Settings
+                  </a>{" "}
+                  to start tracking interactions.
+                </p>
               )}
             </div>
           );
