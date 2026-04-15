@@ -442,6 +442,127 @@ Examples: query="Sarah Chen" finds contacts named Sarah Chen. query="deals over 
       },
     }),
 
+    getNoteBody: makeTool({
+      description:
+        "Fetch the full body of a single note by id. Use when a search preview is truncated and you need the complete content.",
+      inputSchema: z.object({
+        noteId: z.string(),
+      }),
+      execute: async (input) => {
+        const [note] = await db
+          .select()
+          .from(notes)
+          .where(and(eq(notes.id, input.noteId), eq(notes.tenantId, tenantId)))
+          .limit(1);
+        if (!note) return { error: "Note not found" };
+        return {
+          note: {
+            id: note.id,
+            title: note.title,
+            content: note.content,
+            entityType: note.entityType,
+            entityId: note.entityId,
+            authorId: note.authorId,
+            createdAt: note.createdAt,
+            updatedAt: note.updatedAt,
+            _sourceLink:
+              note.entityType === "contact"
+                ? `/contacts/${note.entityId}`
+                : note.entityType === "company"
+                  ? `/accounts/${note.entityId}`
+                  : note.entityType === "deal"
+                    ? `/opportunities/${note.entityId}`
+                    : undefined,
+          },
+        };
+      },
+    }),
+
+    getCallRecording: makeTool({
+      description:
+        "Fetch the full metadata, transcript (if any), and structured notes for a meeting/call by activity id. Returns attendees, timestamps, transcript text, follow-up draft state, and generated tasks.",
+      inputSchema: z.object({
+        meetingId: z.string(),
+      }),
+      execute: async (input) => {
+        const [activity] = await db
+          .select()
+          .from(activities)
+          .where(
+            and(
+              eq(activities.id, input.meetingId),
+              eq(activities.tenantId, tenantId),
+              eq(activities.channel, "meeting")
+            )
+          )
+          .limit(1);
+        if (!activity) return { error: "Meeting not found" };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const meta = (activity.metadata || {}) as any;
+        return {
+          meeting: {
+            id: activity.id,
+            title: activity.summary,
+            startTime: meta.startTime || activity.occurredAt,
+            endTime: meta.endTime,
+            attendees: meta.attendees || [],
+            location: meta.location,
+            meetingLink: meta.meetingLink,
+            calendarSource: meta.calendarSource,
+            structuredNotes: meta.structuredNotes || null,
+            followUpEmailDraft: meta.followUpEmailDraft || null,
+            followUpSentAt: meta.followUpSentAt || null,
+            followUpRecipients: meta.followUpRecipients || null,
+            transcript: activity.rawContent || null,
+            transcriptSource: meta.transcriptSource,
+            hasTranscript: !!meta.hasTranscript || !!activity.rawContent,
+            generatedTaskIds: meta.generatedTaskIds || [],
+            matchedContacts: meta.matchedContacts || [],
+          },
+        };
+      },
+    }),
+
+    getEmailContent: makeTool({
+      description:
+        "Fetch the full content (body + metadata) of a single email activity by id. Returns subject, from/to/cc, direction, full body, and linked entity.",
+      inputSchema: z.object({
+        emailId: z.string(),
+      }),
+      execute: async (input) => {
+        const [activity] = await db
+          .select()
+          .from(activities)
+          .where(
+            and(
+              eq(activities.id, input.emailId),
+              eq(activities.tenantId, tenantId),
+              eq(activities.channel, "email")
+            )
+          )
+          .limit(1);
+        if (!activity) return { error: "Email not found" };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const meta = (activity.metadata || {}) as any;
+        return {
+          email: {
+            id: activity.id,
+            subject: activity.summary,
+            from: meta.from,
+            to: meta.to,
+            cc: meta.cc,
+            direction: activity.direction,
+            body: activity.rawContent || meta.body || null,
+            messageId: meta.messageId,
+            threadId: meta.threadId,
+            occurredAt: activity.occurredAt,
+            entityType: activity.entityType,
+            entityId: activity.entityId,
+          },
+        };
+      },
+    }),
+
     semanticSearchNotes: makeTool({
       description:
         "Vector-similarity search over note content. Returns notes whose content best matches the query semantically (not just substring). Use for 'find notes about pricing objections', 'what have we written about X'. Complements queryNotes (which does substring match).",
