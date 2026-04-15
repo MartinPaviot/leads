@@ -18,6 +18,9 @@ import {
   ArrowRight,
   Menu,
   X,
+  Database,
+  Bot,
+  Layers,
 } from "lucide-react";
 
 const CALENDLY_URL = "https://calendly.com/contact-elevay/30min";
@@ -440,6 +443,59 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
+          </Animate>
+        </div>
+      </Section>
+
+      {/* LANDSCAPE — three categories of alternatives (and why none fit founder-led sales).
+           Keeps the tone matter-of-fact: name the category, point to the pain the prospect
+           already feels, move on. No ad-hominem on specific vendors; categories are what
+           matters. Placed right before FOUNDATIONS so the reader has the mental map of
+           "what are the alternatives?" before we describe what we actually do. */}
+      <Section className="pt-32">
+        <div className="mx-auto max-w-[1400px] px-6">
+          <Animate><p className="text-xs font-medium uppercase tracking-wider text-gray-400">Landscape</p></Animate>
+          <Animate><h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">The market gives you three bad choices</h2></Animate>
+          <Animate><p className="mt-6 max-w-2xl text-lg leading-relaxed text-gray-500">Every category has a problem founders keep running into. We built Elevay to not be any of them.</p></Animate>
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            {[
+              {
+                icon: Database,
+                kind: "Legacy CRMs",
+                examples: "Salesforce, HubSpot, Attio",
+                headline: "They make you fill them.",
+                body: "Per-seat pricing, dashboards nobody opens, 40% of your week in data entry. Built before AI could do the job — now you're paying to do the AI's work.",
+              },
+              {
+                icon: Bot,
+                kind: "AI SDR v1",
+                examples: "11x, Artisan, AiSDR",
+                headline: "They spam on your behalf.",
+                body: "Autonomous agents that send a thousand cold emails a day and burn your domain reputation. One major vendor publicly lost 70-80% of customers within months. Generic outputs, real damage.",
+              },
+              {
+                icon: Layers,
+                kind: "Outbound stack",
+                examples: "Apollo + Instantly + Clay + a CRM",
+                headline: "Five tools, zero memory.",
+                body: "Data in one tool, sequences in another, enrichment in a third, pipeline somewhere else. Each tool forgets what the others did. You are the integration — and the cost adds up fast.",
+              },
+            ].map((card) => { const Icon = card.icon; return (
+              <Animate key={card.kind}>
+                <div className="flex h-full flex-col rounded-xl border border-gray-200 bg-white p-8 transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)]">
+                  <div className="mb-4 inline-flex w-fit rounded-lg border border-gray-100 bg-gray-50 p-2.5"><Icon size={20} className="text-gray-600" /></div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">{card.kind}</p>
+                  <p className="mt-1 text-xs text-gray-500">{card.examples}</p>
+                  <h3 className="mt-4 text-base font-semibold text-gray-900">{card.headline}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-gray-500">{card.body}</p>
+                </div>
+              </Animate>
+            ); })}
+          </div>
+          <Animate>
+            <p className="mt-12 max-w-2xl text-base leading-relaxed text-gray-700">
+              <span className="font-semibold text-gray-900">Elevay is the fourth option:</span> a chat-first CRM that replaces the stack, captures everything without typing, and remembers what your buyers told you last Tuesday.
+            </p>
           </Animate>
         </div>
       </Section>
