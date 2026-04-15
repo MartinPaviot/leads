@@ -84,6 +84,23 @@ export interface CustomFieldDef {
   type: string;
   aiFillMode: string;
   options?: string[];
+  // CHAT-06: AI Attributes. When type === "ai_computed", the field is
+  // populated by an LLM call. aiConfig describes what to compute.
+  // aiConfig.kind:
+  //   - "summarize"        → free-form summary of record attributes
+  //   - "classify"         → pick one of aiConfig.options (select-like)
+  //   - "prompt"           → arbitrary text completion from aiConfig.prompt
+  //   - "research"         → web + CRM research agent (long-running,
+  //                          deferred to the researchAgent Inngest job)
+  // runMode decides when the AI attribute recomputes:
+  //   - "manual"           → only when the user triggers it (default)
+  //   - "onChange"         → whenever any other field on the record changes
+  //   - "scheduled"        → daily (Inngest cron)
+  aiConfig?: {
+    kind: "summarize" | "classify" | "prompt" | "research";
+    prompt?: string;
+    runMode?: "manual" | "onChange" | "scheduled";
+  };
 }
 
 export interface PipelineStageDef {

@@ -23,6 +23,7 @@ import { buildProspectContext } from "@/lib/prospect-context";
 import { generateSequence } from "@/lib/sequence-generator";
 import { pauseEnrollmentsForContacts } from "@/lib/enrollment";
 import { sendInviteEmail } from "@/lib/email-invite";
+import { runAiAttribute } from "@/lib/chat/ai-attributes";
 import { makeTool, type ToolContext } from "./context";
 
 function pickModel() {
@@ -1179,6 +1180,34 @@ RULES:
             email: mailbox.emailAddress,
             status: mailbox.status,
             engineRegistered: eeRegistered,
+          },
+        };
+      },
+    }),
+
+    runAiAttribute: makeTool({
+      description:
+        "Execute an AI-computed custom field (type='ai_computed') on a single record. Kinds: summarize (free-form summary), classify (pick one of the field's options), prompt (arbitrary completion from aiConfig.prompt with {{var}} interpolation over the record's fields). research kind queues an Inngest job (worker not yet implemented). Writes result to record.properties.customFields[fieldId].",
+      inputSchema: z.object({
+        entityType: z
+          .enum(["contact", "company", "account", "deal"])
+          .describe("Object type of the record"),
+        recordId: z.string().describe("Record id"),
+        fieldId: z.string().describe("Custom field id (must be type='ai_computed')"),
+      }),
+      execute: async (input) => {
+        const result = await runAiAttribute(
+          tenantId,
+          input.entityType,
+          input.recordId,
+          input.fieldId
+        );
+        if (!result.ok) return { error: result.error, jobId: result.jobId };
+        return {
+          computed: {
+            fieldId: input.fieldId,
+            recordId: input.recordId,
+            value: result.value,
           },
         };
       },
