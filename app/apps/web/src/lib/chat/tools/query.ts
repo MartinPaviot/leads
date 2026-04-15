@@ -442,6 +442,163 @@ Examples: query="Sarah Chen" finds contacts named Sarah Chen. query="deals over 
       },
     }),
 
+    semanticSearchNotes: makeTool({
+      description:
+        "Vector-similarity search over note content. Returns notes whose content best matches the query semantically (not just substring). Use for 'find notes about pricing objections', 'what have we written about X'. Complements queryNotes (which does substring match).",
+      inputSchema: z.object({
+        query: z.string().describe("Natural-language search query"),
+        limit: z.number().optional().describe("Max results (default 10)"),
+        minSimilarity: z
+          .number()
+          .optional()
+          .describe("Cosine similarity floor 0-1 (default 0.35)"),
+      }),
+      execute: async (input) => {
+        if (!process.env.OPENAI_API_KEY) {
+          return { error: "Semantic search unavailable (OPENAI_API_KEY not set)", results: [] };
+        }
+        const hits = await searchSimilar(input.query, Math.min((input.limit ?? 10) * 4, 60), tenantId);
+        const noteHits = hits.filter(
+          (h) => h.entityType === "note" && h.similarity >= (input.minSimilarity ?? 0.35)
+        );
+        if (noteHits.length === 0) return { results: [] };
+
+        const ids = noteHits.map((h) => h.entityId);
+        const rows = await db
+          .select()
+          .from(notes)
+          .where(and(eq(notes.tenantId, tenantId), inArray(notes.id, ids)));
+        const byId = new Map(rows.map((n) => [n.id, n]));
+
+        return {
+          results: noteHits
+            .slice(0, input.limit ?? 10)
+            .map((h) => {
+              const n = byId.get(h.entityId);
+              if (!n) return null;
+              return {
+                id: n.id,
+                title: n.title,
+                content: n.content,
+                entityType: n.entityType,
+                entityId: n.entityId,
+                similarity: Math.round(h.similarity * 1000) / 1000,
+                createdAt: n.createdAt,
+                _sourceLink:
+                  n.entityType === "contact"
+                    ? `/contacts/${n.entityId}`
+                    : n.entityType === "company"
+                      ? `/accounts/${n.entityId}`
+                      : n.entityType === "deal"
+                        ? `/opportunities/${n.entityId}`
+                        : undefined,
+              };
+            })
+            .filter((x) => x !== null),
+        };
+      },
+    }),
+
+    semanticSearchEmails: makeTool({
+      description:
+        "Vector-similarity search over email body/subject content. Returns email activities whose content best matches semantically. Use for 'emails about pricing concerns', 'replies discussing integration'. Complements searchEmailsByMetadata (which does structured filter).",
+      inputSchema: z.object({
+        query: z.string().describe("Natural-language search query"),
+        limit: z.number().optional().describe("Max results (default 10)"),
+        minSimilarity: z.number().optional().describe("Cosine similarity floor 0-1 (default 0.35)"),
+      }),
+      execute: async (input) => {
+        if (!process.env.OPENAI_API_KEY) {
+          return { error: "Semantic search unavailable (OPENAI_API_KEY not set)", results: [] };
+        }
+        const hits = await searchSimilar(input.query, Math.min((input.limit ?? 10) * 5, 80), tenantId);
+        const activityHits = hits.filter(
+          (h) => h.entityType === "activity" && h.similarity >= (input.minSimilarity ?? 0.35)
+        );
+        if (activityHits.length === 0) return { results: [] };
+
+        const ids = activityHits.map((h) => h.entityId);
+        const rows = await db
+          .select()
+          .from(activities)
+          .where(and(eq(activities.tenantId, tenantId), inArray(activities.id, ids)));
+        const emailRows = rows.filter((a) => a.channel === "email");
+        const byId = new Map(emailRows.map((a) => [a.id, a]));
+
+        return {
+          results: activityHits
+            .filter((h) => byId.has(h.entityId))
+            .slice(0, input.limit ?? 10)
+            .map((h) => {
+              const a = byId.get(h.entityId)!;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const meta = (a.metadata || {}) as any;
+              return {
+                id: a.id,
+                subject: a.summary,
+                from: meta.from,
+                to: meta.to,
+                direction: a.direction,
+                occurredAt: a.occurredAt,
+                preview: (a.rawContent || "").slice(0, 300),
+                similarity: Math.round(h.similarity * 1000) / 1000,
+                entityType: a.entityType,
+                entityId: a.entityId,
+              };
+            }),
+        };
+      },
+    }),
+
+    semanticSearchCallRecordings: makeTool({
+      description:
+        "Vector-similarity search over meeting transcripts / structured notes. Use for 'calls where the buyer pushed back on price', 'meetings that discussed integration concerns'. Returns meetings whose structured notes or transcript best match the query semantically.",
+      inputSchema: z.object({
+        query: z.string().describe("Natural-language search query"),
+        limit: z.number().optional().describe("Max results (default 10)"),
+        minSimilarity: z.number().optional().describe("Cosine similarity floor 0-1 (default 0.35)"),
+      }),
+      execute: async (input) => {
+        if (!process.env.OPENAI_API_KEY) {
+          return { error: "Semantic search unavailable (OPENAI_API_KEY not set)", results: [] };
+        }
+        const hits = await searchSimilar(input.query, Math.min((input.limit ?? 10) * 5, 80), tenantId);
+        const activityHits = hits.filter(
+          (h) => h.entityType === "activity" && h.similarity >= (input.minSimilarity ?? 0.35)
+        );
+        if (activityHits.length === 0) return { results: [] };
+
+        const ids = activityHits.map((h) => h.entityId);
+        const rows = await db
+          .select()
+          .from(activities)
+          .where(and(eq(activities.tenantId, tenantId), inArray(activities.id, ids)));
+        const meetingRows = rows.filter((a) => a.channel === "meeting");
+        const byId = new Map(meetingRows.map((a) => [a.id, a]));
+
+        return {
+          results: activityHits
+            .filter((h) => byId.has(h.entityId))
+            .slice(0, input.limit ?? 10)
+            .map((h) => {
+              const a = byId.get(h.entityId)!;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const meta = (a.metadata || {}) as any;
+              return {
+                id: a.id,
+                title: a.summary,
+                date: meta.startTime || a.occurredAt,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                attendees: (meta.attendees || []).map((att: any) => att.displayName || att.email),
+                similarity: Math.round(h.similarity * 1000) / 1000,
+                hasStructuredNotes: !!meta.structuredNotes,
+                preview: (a.rawContent || "").slice(0, 300),
+              };
+            }),
+        };
+      },
+    }),
+
     getRecordsByIds: makeTool({
       description:
         "Batch-get records of a given type by their IDs. More efficient than multiple single reads. Supports contact, company, deal, task, note, activity. Returns array of records (missing ids omitted silently).",
