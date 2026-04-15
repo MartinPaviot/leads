@@ -880,7 +880,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
         {/* ════ STEP 1 : WELCOME / PROFILE ════ */}
         {step === "welcome" && (
           <div className="flex flex-col h-full">
-            <StepHeader headingId={stepHeadingId} icon={<Globe size={15} />} title="Set up your sales engine" subtitle="Tell us about you and your company." />
+            <StepHeader headingId={stepHeadingId} icon={<Globe size={15} />} title="Tell us about you" subtitle="Your name, company, and website so Elevay can tailor every action to your context." />
 
             <div className="flex-1 space-y-3">
               <div>
@@ -925,7 +925,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
         {/* ════ STEP 4 : PRODUCT ════ */}
         {step === "product" && (
           <div className="flex flex-col h-full">
-            <StepHeader headingId={stepHeadingId} icon={<Target size={15} />} title="Tell us about what you sell" subtitle={`Helps write relevant, personalized emails and coach you.${analyzingWebsite ? " Analyzing your site..." : ""}`} />
+            <StepHeader headingId={stepHeadingId} icon={<Target size={15} />} title="What do you sell?" subtitle={`We'll use this to write relevant emails and coach your pitch.${analyzingWebsite ? " Analyzing your site…" : ""}`} />
 
             <div className="flex-1 space-y-3">
               <div>
@@ -953,9 +953,9 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
             <StepHeader
               headingId={stepHeadingId}
               icon={<Target size={15} />}
-              title="Define your ideal customer"
+              title="Who do you sell to?"
               subtitle={websiteAnalysis
-                ? `Based on your website, we pre-filled your ideal customer profile. Adjust anything that doesn't fit.`
+                ? `We pre-filled this from your website. Adjust anything that doesn't fit.`
                 : `We'll find companies that match${emailConnected ? " and flag warm ones" : ""}.`}
             />
 
