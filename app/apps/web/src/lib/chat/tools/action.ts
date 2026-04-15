@@ -5,16 +5,18 @@ import {
   companies,
   connectedMailboxes,
   contacts,
+  deals,
   emailOptouts,
   outboundEmails,
   pendingInvites,
   sequenceEnrollments,
   sequenceSteps,
   sequences,
+  tasks,
   tenants,
   users,
 } from "@/db/schema";
-import { and, desc, eq, gte, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/traced-ai";
@@ -25,6 +27,7 @@ import { generateSequence } from "@/lib/sequence-generator";
 import { pauseEnrollmentsForContacts } from "@/lib/enrollment";
 import { sendInviteEmail } from "@/lib/email-invite";
 import { runAiAttribute } from "@/lib/chat/ai-attributes";
+import { logToolCall } from "@/lib/chat/tool-call-log";
 import { makeTool, type ToolContext } from "./context";
 
 function pickModel() {
@@ -1241,6 +1244,182 @@ RULES:
             id: input.commentId,
             entityType: comment.entityType,
             entityId: comment.entityId,
+          },
+        };
+      },
+    }),
+
+    mergeContacts: makeTool({
+      description:
+        "Merge N duplicate contacts into a survivor. Re-points every FK (activities, deals, sequenceEnrollments, tasks) to the survivor and DELETES the merged rows. Logs a merge_contacts snapshot so undoLastAction can re-insert + re-point on reversal. DESTRUCTIVE — filtered by the resolver unless allowDestructive=true. Use when the user says 'these are the same person, merge them into <survivor>'.",
+      inputSchema: z.object({
+        survivorId: z.string().describe("Contact id that survives the merge"),
+        mergedIds: z
+          .array(z.string())
+          .min(1)
+          .describe("Contact ids to absorb (must not include survivorId)"),
+      }),
+      execute: async (input) => {
+        if (input.mergedIds.includes(input.survivorId)) {
+          return { error: "survivorId must not appear in mergedIds" };
+        }
+
+        // Verify tenant scope for every involved id.
+        const involved = await db
+          .select()
+          .from(contacts)
+          .where(
+            and(
+              eq(contacts.tenantId, tenantId),
+              inArray(contacts.id, [input.survivorId, ...input.mergedIds])
+            )
+          );
+        const survivor = involved.find((c) => c.id === input.survivorId);
+        const mergedRows = involved.filter((c) =>
+          input.mergedIds.includes(c.id)
+        );
+        if (!survivor || mergedRows.length !== input.mergedIds.length) {
+          return { error: "One or more contacts are not in your workspace" };
+        }
+
+        // Snapshot FK rows that will be repointed, BEFORE the update.
+        const [actRows, dealRows, enrollRows, taskRows] = await Promise.all([
+          db
+            .select({ id: activities.id, entityId: activities.entityId })
+            .from(activities)
+            .where(
+              and(
+                eq(activities.tenantId, tenantId),
+                eq(activities.entityType, "contact"),
+                inArray(activities.entityId, input.mergedIds)
+              )
+            ),
+          db
+            .select({ id: deals.id, contactId: deals.contactId })
+            .from(deals)
+            .where(
+              and(
+                eq(deals.tenantId, tenantId),
+                inArray(deals.contactId, input.mergedIds)
+              )
+            ),
+          db
+            .select({
+              id: sequenceEnrollments.id,
+              contactId: sequenceEnrollments.contactId,
+            })
+            .from(sequenceEnrollments)
+            .where(inArray(sequenceEnrollments.contactId, input.mergedIds)),
+          db
+            .select({ id: tasks.id, entityId: tasks.entityId })
+            .from(tasks)
+            .where(
+              and(
+                eq(tasks.tenantId, tenantId),
+                eq(tasks.entityType, "contact"),
+                inArray(tasks.entityId, input.mergedIds)
+              )
+            ),
+        ]);
+
+        const repoints = {
+          activities: actRows
+            .filter((r): r is { id: string; entityId: string } => !!r.entityId)
+            .map((r) => ({ id: r.id, originalEntityId: r.entityId })),
+          deals: dealRows
+            .filter((r): r is { id: string; contactId: string } => !!r.contactId)
+            .map((r) => ({ id: r.id, originalContactId: r.contactId })),
+          sequenceEnrollments: enrollRows.map((r) => ({
+            id: r.id,
+            originalContactId: r.contactId,
+          })),
+          tasks: taskRows
+            .filter((r): r is { id: string; entityId: string } => !!r.entityId)
+            .map((r) => ({ id: r.id, originalEntityId: r.entityId })),
+        };
+
+        // Re-point all FKs to the survivor
+        await db
+          .update(activities)
+          .set({ entityId: input.survivorId })
+          .where(
+            and(
+              eq(activities.tenantId, tenantId),
+              eq(activities.entityType, "contact"),
+              inArray(activities.entityId, input.mergedIds)
+            )
+          );
+        await db
+          .update(deals)
+          .set({ contactId: input.survivorId })
+          .where(
+            and(
+              eq(deals.tenantId, tenantId),
+              inArray(deals.contactId, input.mergedIds)
+            )
+          );
+        await db
+          .update(sequenceEnrollments)
+          .set({ contactId: input.survivorId })
+          .where(inArray(sequenceEnrollments.contactId, input.mergedIds));
+        await db
+          .update(tasks)
+          .set({ entityId: input.survivorId })
+          .where(
+            and(
+              eq(tasks.tenantId, tenantId),
+              eq(tasks.entityType, "contact"),
+              inArray(tasks.entityId, input.mergedIds)
+            )
+          );
+
+        // Delete merged rows
+        await db
+          .delete(contacts)
+          .where(
+            and(
+              eq(contacts.tenantId, tenantId),
+              inArray(contacts.id, input.mergedIds)
+            )
+          );
+
+        // Snapshot for undo
+        await logToolCall({
+          tenantId,
+          userId,
+          toolName: "mergeContacts",
+          args: input as unknown as Record<string, unknown>,
+          result: {
+            survivorId: input.survivorId,
+            mergedCount: mergedRows.length,
+            repointedFkCount:
+              repoints.activities.length +
+              repoints.deals.length +
+              repoints.sequenceEnrollments.length +
+              repoints.tasks.length,
+          },
+          snapshot: {
+            type: "merge_contacts",
+            survivorId: input.survivorId,
+            mergedRows: mergedRows.map(
+              (r) => r as unknown as Record<string, unknown>
+            ),
+            repoints,
+          },
+        });
+
+        return {
+          merged: {
+            survivorId: input.survivorId,
+            survivorName: [survivor.firstName, survivor.lastName]
+              .filter(Boolean)
+              .join(" "),
+            mergedCount: mergedRows.length,
+            repointedFkCount:
+              repoints.activities.length +
+              repoints.deals.length +
+              repoints.sequenceEnrollments.length +
+              repoints.tasks.length,
           },
         };
       },
