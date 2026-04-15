@@ -27,6 +27,9 @@ import { TableSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { chunkedBulkCall } from "@/lib/chunk-bulk";
 import { BulkActionsBar } from "@/components/ui/bulk-actions-bar";
+import { SmartSearchBar, ActiveFiltersChips } from "@/components/ui/smart-search-bar";
+import { applyFilters } from "@/lib/filters";
+import type { FilterCondition } from "@/lib/filters";
 
 interface Account {
   id: string;
@@ -67,6 +70,13 @@ export default function AccountsPage() {
   const [signalPopoverTab, setSignalPopoverTab] = useState<"reasoning" | "sources">("reasoning");
   const [slideOverAccount, setSlideOverAccount] = useState<Account | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  // Smart Search — NL query translated into FilterCondition[] via LLM.
+  // Stacks with the existing tab `filter`, text `searchQuery`, and semantic
+  // `searchResults`. Cleared on tab switch is intentional: tabs partition
+  // the dataset differently and a smart filter extracted for "prospects"
+  // likely doesn't apply to "manual".
+  const [smartFilters, setSmartFilters] = useState<FilterCondition[]>([]);
+  const [smartMeta, setSmartMeta] = useState<{ reasoning: string; unmatched: string[] } | null>(null);
   const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null);
   const [expandedContacts, setExpandedContacts] = useState<Array<{ id: string; firstName: string | null; lastName: string | null; title: string | null; email: string | null; status?: string }>>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
@@ -405,7 +415,9 @@ export default function AccountsPage() {
     );
   }
 
-  const filteredAccounts = accounts
+  const filteredAccounts = (smartFilters.length > 0
+    ? applyFilters(accounts, smartFilters)
+    : accounts)
     .filter((a) => {
       if (filter === "tam" && !isTAM(a)) return false;
       if (filter === "manual" && isTAM(a)) return false;
@@ -515,6 +527,24 @@ export default function AccountsPage() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Smart Search — NL → structured filters. Independent of the
+              text / semantic search to the right; results are extracted
+              filters displayed as chips below the filter bar. */}
+          <div className="w-64">
+            <SmartSearchBar
+              resourceType="account"
+              onFilters={(filters, meta) => {
+                setSmartFilters(filters);
+                setSmartMeta(meta);
+                if (filters.length > 0) {
+                  toast(`Applied ${filters.length} smart filter${filters.length === 1 ? "" : "s"}`, "success");
+                } else if (meta.unmatched.length > 0) {
+                  toast("Nothing matched your query — try rephrasing", "info");
+                }
+              }}
+              onError={(msg) => toast(msg, "error")}
+            />
+          </div>
           <div className="relative flex items-center">
             <Search size={13} className="absolute left-2.5" style={{ color: "var(--color-text-muted)" }} />
             <Input
@@ -547,6 +577,27 @@ export default function AccountsPage() {
           )}
         </div>
       </FilterBar>
+
+      <ActiveFiltersChips
+        filters={smartFilters}
+        reasoning={smartMeta?.reasoning}
+        unmatched={smartMeta?.unmatched}
+        fieldLabels={{
+          name: "Name",
+          domain: "Domain",
+          industry: "Industry",
+          size: "Size",
+          revenue: "Revenue",
+          score: "Score",
+        }}
+        onRemove={(i) => {
+          setSmartFilters((prev) => prev.filter((_, idx) => idx !== i));
+        }}
+        onClear={() => {
+          setSmartFilters([]);
+          setSmartMeta(null);
+        }}
+      />
 
       {/* A4 — Semantic-search result banner. Visible whenever the query
            returned (even 0 hits) so the user always knows whether the

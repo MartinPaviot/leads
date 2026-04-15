@@ -110,6 +110,120 @@ export function filtersToQuery(filters: FilterCondition[]): URLSearchParams {
   return params;
 }
 
+/**
+ * Apply a list of FilterCondition to an in-memory array of rows. Pure.
+ *
+ * Implicit AND across conditions. Each condition evaluates against
+ * `row[condition.field]`. Missing / nullish values are treated as
+ * empty string for text ops and as 0 for numeric ops (conservative
+ * — a row with null size does NOT match "size contains small").
+ *
+ * Used by list pages that want to filter client-side (no URL round-trip,
+ * no new API). The /api/filters/parse-nl endpoint returns conditions
+ * that are fed straight into this function.
+ *
+ * Not exhaustive — date operators are passed through as string compares,
+ * which is enough for ISO-8601 dates stored as strings. Upgrade when we
+ * need calendar-aware semantics.
+ */
+export function applyFilters<T extends object>(
+  rows: readonly T[],
+  filters: readonly FilterCondition[],
+): T[] {
+  if (filters.length === 0) return [...rows];
+  return rows.filter((row) => filters.every((c) => matches(row, c)));
+}
+
+function matches(row: object, c: FilterCondition): boolean {
+  const raw = (row as Record<string, unknown>)[c.field];
+  switch (c.operator) {
+    // --- text ---
+    case "contains":
+      return asString(raw).toLowerCase().includes(asString(c.value).toLowerCase());
+    case "not-contains":
+      return !asString(raw).toLowerCase().includes(asString(c.value).toLowerCase());
+    case "starts-with":
+      return asString(raw).toLowerCase().startsWith(asString(c.value).toLowerCase());
+    case "ends-with":
+      return asString(raw).toLowerCase().endsWith(asString(c.value).toLowerCase());
+
+    // --- equality (works for text and number) ---
+    case "eq":
+      return asString(raw).toLowerCase() === asString(c.value).toLowerCase();
+    case "neq":
+      return asString(raw).toLowerCase() !== asString(c.value).toLowerCase();
+
+    // --- number ---
+    case "gt":
+      return asNumber(raw) > asNumber(c.value);
+    case "gte":
+      return asNumber(raw) >= asNumber(c.value);
+    case "lt":
+      return asNumber(raw) < asNumber(c.value);
+    case "lte":
+      return asNumber(raw) <= asNumber(c.value);
+
+    // --- multi-select ---
+    case "includes-any": {
+      const values = asStringArray(c.value).map((v) => v.toLowerCase());
+      const cell = asString(raw).toLowerCase();
+      return values.some((v) => cell.includes(v));
+    }
+    case "includes-all": {
+      const values = asStringArray(c.value).map((v) => v.toLowerCase());
+      const cell = asString(raw).toLowerCase();
+      return values.every((v) => cell.includes(v));
+    }
+    case "excludes": {
+      const values = asStringArray(c.value).map((v) => v.toLowerCase());
+      const cell = asString(raw).toLowerCase();
+      return values.every((v) => !cell.includes(v));
+    }
+
+    // --- boolean ---
+    case "is-true":
+      return raw === true;
+    case "is-false":
+      return raw === false || raw == null;
+
+    // --- date (string ISO compare; good enough for most cases) ---
+    case "before":
+      return asString(raw) < asString(c.value);
+    case "after":
+      return asString(raw) > asString(c.value);
+    case "between": {
+      const [lo, hi] = asStringArray(c.value);
+      const cell = asString(raw);
+      return cell >= lo && cell <= hi;
+    }
+    case "last-n-days": {
+      const n = asNumber(c.value);
+      if (!isFinite(n) || n <= 0) return true;
+      const cutoff = Date.now() - n * 86_400_000;
+      const t = Date.parse(asString(raw));
+      return Number.isFinite(t) && t >= cutoff;
+    }
+
+    default:
+      return true; // unknown operator → don't drop the row
+  }
+}
+
+function asString(v: unknown): string {
+  if (v == null) return "";
+  return String(v);
+}
+function asNumber(v: unknown): number {
+  if (typeof v === "number") return v;
+  if (typeof v === "string") return Number(v);
+  return NaN;
+}
+function asStringArray(v: unknown): string[] {
+  if (Array.isArray(v)) return v.map(asString);
+  if (v == null) return [];
+  return [String(v)];
+}
+
 /** Parse a URL query string back into filter conditions. Pure. */
 export function filtersFromQuery(search: string | URLSearchParams): FilterCondition[] {
   const params = search instanceof URLSearchParams ? search : new URLSearchParams(search);
