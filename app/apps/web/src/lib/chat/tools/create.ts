@@ -1,6 +1,7 @@
 import { db } from "@/db";
-import { companies, contacts, deals, tasks } from "@/db/schema";
+import { companies, contacts, deals, notes, tasks } from "@/db/schema";
 import { z } from "zod";
+import { ingestEpisode } from "@/lib/context-graph";
 import { makeTool, type ToolContext } from "./context";
 
 export function buildCreateTools(ctx: ToolContext) {
@@ -113,6 +114,62 @@ export function buildCreateTools(ctx: ToolContext) {
           .returning();
         return {
           created: { id: created.id, name: created.name, stage: created.stage, value: created.value },
+        };
+      },
+    }),
+
+    createNote: makeTool({
+      description:
+        "Create a note attached to a contact, account, or deal. Use when the user asks to 'add a note', 'write down that...', 'jot a note about X'. Notes feed into the context graph for semantic recall.",
+      inputSchema: z.object({
+        content: z.string().describe("The note content (required)"),
+        entityType: z
+          .enum(["contact", "company", "deal"])
+          .describe("What the note is attached to"),
+        entityId: z.string().describe("ID of the entity this note is attached to"),
+        title: z.string().optional().describe("Short title for the note"),
+      }),
+      execute: async (input) => {
+        if (!input.content || input.content.trim().length === 0) {
+          return { error: "Content is required" };
+        }
+
+        const [note] = await db
+          .insert(notes)
+          .values({
+            tenantId,
+            authorId: userId,
+            title: input.title?.trim() || null,
+            content: input.content.trim(),
+            entityType: input.entityType,
+            entityId: input.entityId,
+          })
+          .returning();
+
+        if (input.content.trim().length > 20) {
+          const graphContent = `Note: ${input.title || "Untitled"}\n\n${input.content
+            .trim()
+            .slice(0, 3000)}`;
+          ingestEpisode(tenantId, graphContent, "note", note.id).catch((e) =>
+            console.warn("createNote: ingestEpisode failed (non-blocking)", e)
+          );
+        }
+
+        return {
+          created: {
+            id: note.id,
+            title: note.title,
+            entityType: note.entityType,
+            entityId: note.entityId,
+            _sourceLink:
+              note.entityType === "contact"
+                ? `/contacts/${note.entityId}`
+                : note.entityType === "company"
+                  ? `/accounts/${note.entityId}`
+                  : note.entityType === "deal"
+                    ? `/opportunities/${note.entityId}`
+                    : undefined,
+          },
         };
       },
     }),
