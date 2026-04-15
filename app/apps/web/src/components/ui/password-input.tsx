@@ -9,6 +9,8 @@ export function PasswordInput({
   minLength,
   placeholder,
   autoComplete,
+  ariaInvalid,
+  ariaDescribedBy,
 }: {
   id: string;
   name: string;
@@ -18,6 +20,10 @@ export function PasswordInput({
   /** Password-manager hint. Use "current-password" on sign-in,
    *  "new-password" on sign-up / reset / change-password. */
   autoComplete?: "current-password" | "new-password" | "off";
+  /** S8 / I-a11y: mark the field invalid + point to its error message
+   *  so screen readers announce it after a failed submit. */
+  ariaInvalid?: boolean;
+  ariaDescribedBy?: string;
 }) {
   const [visible, setVisible] = useState(false);
 
@@ -31,11 +37,15 @@ export function PasswordInput({
         minLength={minLength}
         placeholder={placeholder}
         autoComplete={autoComplete}
+        aria-invalid={ariaInvalid || undefined}
+        aria-describedby={ariaDescribedBy}
         className="auth-input mt-1.5 w-full rounded-lg px-3 py-2.5 pr-10 text-[13px] outline-none transition-colors"
         style={{
           background: "var(--color-bg-page)",
           color: "var(--color-text-primary)",
-          border: "1px solid var(--color-border-default)",
+          border: ariaInvalid
+            ? "1px solid rgba(220,38,38,0.55)"
+            : "1px solid var(--color-border-default)",
         }}
       />
       <button

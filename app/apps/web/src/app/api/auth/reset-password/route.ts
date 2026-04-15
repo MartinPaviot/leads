@@ -9,6 +9,7 @@ import {
   isPasswordAcceptable,
   validateResetToken,
 } from "@/lib/password-reset";
+import { isPasswordPwned } from "@/lib/password-pwned";
 import { sendPasswordChangedEmail } from "@/lib/emails/password-changed";
 import { logger } from "@/lib/logger";
 
@@ -43,6 +44,19 @@ export async function POST(req: Request) {
       {
         error:
           "Password must be at least 10 characters long and include a digit, a lowercase letter, and an uppercase letter.",
+      },
+      { status: 400 }
+    );
+  }
+
+  // S5: refuse passwords that show up in the HIBP corpus. Fail-open on
+  // network errors so a HIBP outage can't lock users out of resetting.
+  const pwned = await isPasswordPwned(password);
+  if (pwned.pwned) {
+    return NextResponse.json(
+      {
+        error:
+          "This password has appeared in a known data breach. Please choose a different one.",
       },
       { status: 400 }
     );

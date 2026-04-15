@@ -160,6 +160,59 @@ export const passwordResetTokens = pgTable(
   ]
 );
 
+// Email-verification tokens for the Credentials sign-up flow (S2). Same
+// security model as `passwordResetTokens`: the raw token is emailed to
+// the user and only its SHA-256 digest is stored, so a DB leak can't be
+// replayed to verify someone else's email. 24-hour TTL, one outstanding
+// token per user (older ones get marked used at issue time).
+export const emailVerificationTokens = pgTable(
+  "email_verification_tokens",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    requestedIp: text("requested_ip"),
+    requestedUserAgent: text("requested_user_agent"),
+  },
+  (table) => [
+    index("email_verification_tokens_token_hash_idx").on(table.tokenHash),
+    index("email_verification_tokens_user_id_idx").on(table.userId),
+    index("email_verification_tokens_expires_at_idx").on(table.expiresAt),
+  ]
+);
+
+// Sign-in failure log for I6 brute-force protection. We never store the
+// raw email — only `sha256(normalized_email)` — so an attacker who reads
+// this table can't enumerate registered accounts. The window is small
+// (15 min) so the table stays tiny; old rows are pruned opportunistically
+// during writes.
+export const failedSignInAttempts = pgTable(
+  "failed_signin_attempts",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    identifierHash: text("identifier_hash").notNull(),
+    ip: text("ip"),
+    attemptedAt: timestamp("attempted_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("failed_signin_attempts_identifier_idx").on(table.identifierHash),
+    index("failed_signin_attempts_attempted_at_idx").on(table.attemptedAt),
+  ]
+);
+
 // Enums
 export const activityTypeEnum = pgEnum("activity_type", [
   "email_sent",

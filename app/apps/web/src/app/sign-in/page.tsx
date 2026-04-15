@@ -5,8 +5,8 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { AuthSubmitButton } from "@/components/ui/auth-submit-button";
 import {
   sanitizeCallbackUrl,
-  SIGN_IN_ERROR_COPY,
   SIGN_IN_REASON_COPY,
+  resolveSignInErrorCopy,
 } from "@/lib/auth-callback";
 
 /**
@@ -45,9 +45,7 @@ export default async function SignInPage({
 
   const registered = params.registered === "true";
   const reason = params.reason ? SIGN_IN_REASON_COPY[params.reason] ?? null : null;
-  const errorMessage = params.error
-    ? SIGN_IN_ERROR_COPY[params.error] ?? "Sign-in failed. Please try again."
-    : null;
+  const errorMessage = resolveSignInErrorCopy(params.error);
 
   return (
     <div
@@ -180,8 +178,17 @@ export default async function SignInPage({
               await signIn("credentials", formData);
             } catch (error) {
               if (error instanceof AuthError) {
+                // I6: a `CredentialsSignin` subclass can attach a more
+                // specific `code` (e.g. "AccountLocked"). Prefer that
+                // over the generic `type` so the error banner can
+                // surface the right copy. NextAuth's default `code` is
+                // the literal string "credentials" — treat that as
+                // "no specific code" and fall back to the type.
+                const code = (error as { code?: string }).code;
+                const errorKey =
+                  code && code !== "credentials" ? code : error.type;
                 const params = new URLSearchParams();
-                params.set("error", error.type);
+                params.set("error", errorKey);
                 if (callbackUrl !== "/home") params.set("callbackUrl", callbackUrl);
                 redirect(`/sign-in?${params.toString()}`);
               }

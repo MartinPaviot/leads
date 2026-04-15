@@ -93,6 +93,30 @@ export function rateLimitPasswordResetIp(ip: string): {
 }
 
 /**
+ * Verify-email resend cap per email: 3/hour. Same shape as the
+ * password-reset limiter — same threat model (mailbomb / enumeration
+ * via repeated send requests).
+ */
+export function rateLimitVerifyEmail(normalizedEmail: string): {
+  success: boolean;
+  remaining: number;
+  resetAt: number;
+} {
+  return rateLimit(`verify-email:email:${normalizedEmail}`, 3, 60 * 60 * 1000);
+}
+
+/**
+ * Verify-email resend cap per IP: 10/hour.
+ */
+export function rateLimitVerifyEmailIp(ip: string): {
+  success: boolean;
+  remaining: number;
+  resetAt: number;
+} {
+  return rateLimit(`verify-email:ip:${ip}`, 10, 60 * 60 * 1000);
+}
+
+/**
  * Apply rate limiting and return 429 if exceeded.
  * Returns null if allowed, or a Response to return immediately.
  */

@@ -9,6 +9,10 @@ import { AuthSubmitButton } from "@/components/ui/auth-submit-button";
 import { signIn, auth } from "@/auth";
 import { sanitizeCallbackUrl } from "@/lib/auth-callback";
 import { isPasswordAcceptable as isPasswordStrong } from "@/lib/password-reset";
+import { createVerifyTokenForUser } from "@/lib/email-verification";
+import { sendVerifyEmail } from "@/lib/emails/verify-email";
+import { isPasswordPwned } from "@/lib/password-pwned";
+import { logger } from "@/lib/logger";
 
 export default async function SignUpPage({
   searchParams,
@@ -16,12 +20,35 @@ export default async function SignUpPage({
   searchParams: Promise<{ error?: string; invite?: string; email?: string; callbackUrl?: string }>;
 }) {
   const params = await searchParams;
-  const errorMessages: Record<string, string> = {
-    EmailExists: "An account with this email already exists.",
-    MissingFields: "Please fill in all fields.",
-    PasswordTooShort: "Password must be at least 10 characters, with a digit, a lowercase, and an uppercase letter.",
+
+  // S8: route the error code to the field it belongs to so we can render
+  // the message *under that input* (with aria-invalid + aria-describedby
+  // for screen readers) instead of a single global banner. Unknown /
+  // server errors still fall back to the global banner so we never lose
+  // signal to the user.
+  type FieldError = "email" | "password" | "name";
+  const FIELD_ERRORS: Record<string, { field: FieldError; message: string }> = {
+    EmailExists: {
+      field: "email",
+      message: "An account with this email already exists.",
+    },
+    PasswordTooShort: {
+      field: "password",
+      message:
+        "Password must be at least 10 characters, with a digit, a lowercase, and an uppercase letter.",
+    },
+    PasswordPwned: {
+      field: "password",
+      message:
+        "This password has appeared in a known data breach. Please choose a different one.",
+    },
   };
-  const errorMessage = params.error ? errorMessages[params.error] ?? "Something went wrong." : null;
+  const fieldError = params.error ? FIELD_ERRORS[params.error] : undefined;
+  const missingFields = params.error === "MissingFields";
+  const unknownError =
+    params.error && !fieldError && !missingFields
+      ? "Something went wrong. Please try again."
+      : null;
   const inviteToken = (params.invite || "").trim();
   const presetEmail = (params.email || "").trim();
   const callbackUrl = sanitizeCallbackUrl(params.callbackUrl);
@@ -67,6 +94,15 @@ export default async function SignUpPage({
       redirect(`/sign-up?error=PasswordTooShort${q}`);
     }
 
+    // S5: Have I Been Pwned k-anonymity check. Fail-open — if HIBP is
+    // down or slow we let the sign-up through; the policy in
+    // isPasswordStrong is the floor.
+    const pwnedCheck = await isPasswordPwned(password);
+    if (pwnedCheck.pwned) {
+      const q = inviteFromForm ? `&invite=${encodeURIComponent(inviteFromForm)}` : "";
+      redirect(`/sign-up?error=PasswordPwned${q}`);
+    }
+
     const normalizedEmail = email.toLowerCase().trim();
 
     const [existing] = await db
@@ -97,14 +133,35 @@ export default async function SignUpPage({
       access_token: passwordHash,
     });
 
+    // S2: issue a verification token + email immediately. Best-effort —
+    // a Resend outage must NOT block sign-up (the user can resend from
+    // /verify-email-sent). The token rows survive the failed send so
+    // a manual /verify-email link still works.
+    try {
+      const token = await createVerifyTokenForUser(userId);
+      const sendResult = await sendVerifyEmail(normalizedEmail, token);
+      if (!sendResult.sent) {
+        logger.warn("sign-up: verify email send failed", {
+          userId,
+          reason: sendResult.reason,
+        });
+      }
+    } catch (err) {
+      logger.error("sign-up: verify email issue threw", { err, userId });
+    }
+
     // S1: auto-login. `signIn` with redirect=true internally calls
     // `redirect(...)` — which throws a special NEXT_REDIRECT — so we
     // MUST NOT wrap it in try/catch that swallows everything, or
     // we'll eat the redirect and leave the user stranded. The call
     // site below (no try/catch) is correct.
+    //
+    // Invite flows skip the inbox screen — the invitee accepted
+    // explicitly so they're already trusted; verifying email later via
+    // the soft gate is fine.
     const postRedirect = inviteFromForm
       ? `/accept-invite?token=${inviteFromForm}`
-      : callbackFromForm;
+      : `/verify-email-sent?next=${encodeURIComponent(callbackFromForm)}`;
     await signIn("credentials", {
       email: normalizedEmail,
       password,
@@ -197,8 +254,9 @@ export default async function SignUpPage({
           <div className="h-px flex-1" style={{ background: "var(--color-border-default)" }} />
         </div>
 
-        {errorMessage && (
+        {missingFields && (
           <div
+            role="alert"
             className="rounded-lg px-3 py-2 text-[13px] font-medium"
             style={{
               background: "rgba(239, 68, 68, 0.1)",
@@ -206,7 +264,20 @@ export default async function SignUpPage({
               border: "1px solid rgba(239, 68, 68, 0.2)",
             }}
           >
-            {errorMessage}
+            Please fill in all fields.
+          </div>
+        )}
+        {unknownError && (
+          <div
+            role="alert"
+            className="rounded-lg px-3 py-2 text-[13px] font-medium"
+            style={{
+              background: "rgba(239, 68, 68, 0.1)",
+              color: "#ef4444",
+              border: "1px solid rgba(239, 68, 68, 0.2)",
+            }}
+          >
+            {unknownError}
           </div>
         )}
 
@@ -237,11 +308,15 @@ export default async function SignUpPage({
               required
               autoComplete="name"
               placeholder="Martin Paviot"
+              aria-invalid={missingFields || undefined}
               className="auth-input mt-1.5 w-full rounded-lg px-3 py-2 text-[13px] outline-none transition-colors"
               style={{
                 background: "var(--color-bg-page)",
                 color: "var(--color-text-primary)",
-                border: "1px solid var(--color-border-default)",
+                border:
+                  missingFields
+                    ? "1px solid rgba(220,38,38,0.55)"
+                    : "1px solid var(--color-border-default)",
               }}
             />
           </div>
@@ -257,13 +332,39 @@ export default async function SignUpPage({
               autoComplete="email"
               defaultValue={presetEmail}
               placeholder="you@company.com"
+              aria-invalid={fieldError?.field === "email" || missingFields || undefined}
+              aria-describedby={fieldError?.field === "email" ? "signup-email-error" : undefined}
               className="auth-input mt-1.5 w-full rounded-lg px-3 py-2 text-[13px] outline-none transition-colors"
               style={{
                 background: "var(--color-bg-page)",
                 color: "var(--color-text-primary)",
-                border: "1px solid var(--color-border-default)",
+                border:
+                  fieldError?.field === "email" || missingFields
+                    ? "1px solid rgba(220,38,38,0.55)"
+                    : "1px solid var(--color-border-default)",
               }}
             />
+            {fieldError?.field === "email" && (
+              <p
+                id="signup-email-error"
+                role="alert"
+                className="mt-1 text-[12px]"
+                style={{ color: "var(--color-error, #b91c1c)" }}
+              >
+                {fieldError.message}{" "}
+                <Link
+                  href={
+                    callbackUrl === "/home"
+                      ? "/sign-in"
+                      : `/sign-in?callbackUrl=${encodeURIComponent(callbackUrl)}`
+                  }
+                  className="font-medium underline"
+                  style={{ color: "var(--color-error, #b91c1c)" }}
+                >
+                  Sign in instead
+                </Link>
+              </p>
+            )}
           </div>
           <div>
             <label htmlFor="password" className="block text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
@@ -276,7 +377,19 @@ export default async function SignUpPage({
               minLength={10}
               autoComplete="new-password"
               placeholder="Min 10 chars, 1 digit, upper + lower"
+              ariaInvalid={fieldError?.field === "password" || missingFields}
+              ariaDescribedBy={fieldError?.field === "password" ? "signup-password-error" : undefined}
             />
+            {fieldError?.field === "password" && (
+              <p
+                id="signup-password-error"
+                role="alert"
+                className="mt-1 text-[12px]"
+                style={{ color: "var(--color-error, #b91c1c)" }}
+              >
+                {fieldError.message}
+              </p>
+            )}
           </div>
           {callbackUrl !== "/home" && (
             <input type="hidden" name="callbackUrl" value={callbackUrl} />

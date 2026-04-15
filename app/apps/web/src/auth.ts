@@ -1,4 +1,5 @@
 import NextAuth from "next-auth";
+import { CredentialsSignin } from "next-auth";
 import Google from "next-auth/providers/google";
 import MicrosoftEntraId from "next-auth/providers/microsoft-entra-id";
 import Credentials from "next-auth/providers/credentials";
@@ -15,6 +16,21 @@ import {
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { inngest } from "./inngest/client";
+import {
+  clearFailedSignIns,
+  getLockoutStatus,
+  recordFailedSignIn,
+} from "./lib/auth-lockout";
+
+/**
+ * I6 — thrown when a sign-in is rejected because the account has hit the
+ * failed-attempt threshold. NextAuth v5 will URL-encode `.code` as
+ * `?code=AccountLocked` on the redirect; the sign-in page reads it and
+ * surfaces the friendly lockout copy from `SIGN_IN_ERROR_COPY`.
+ */
+class AccountLockedError extends CredentialsSignin {
+  code = "AccountLocked";
+}
 
 /** Resolve (or create) a tenant + app user for the given auth user */
 async function resolveUserTenant(authUserId: string, email: string) {
@@ -103,10 +119,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         if (!credentials?.email || !credentials?.password) return null;
-        const email = credentials.email as string;
+        const email = (credentials.email as string).toLowerCase().trim();
         const password = credentials.password as string;
+        const ip =
+          (request?.headers?.get?.("x-forwarded-for") ?? "")
+            .split(",")[0]
+            .trim() || null;
+
+        // I6: short-circuit if this account is currently locked. We run
+        // this BEFORE the DB look-up so a locked account doesn't even
+        // touch bcrypt — and we do it for unknown emails too so an
+        // attacker can't tell a locked-real account apart from an
+        // unknown one (same response shape, same timing class).
+        const lockout = await getLockoutStatus(email);
+        if (lockout.locked) {
+          throw new AccountLockedError();
+        }
 
         // Look up the auth user by email
         const [user] = await db
@@ -115,7 +145,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           .where(eq(authUsers.email, email))
           .limit(1);
 
-        if (!user) return null;
+        if (!user) {
+          await recordFailedSignIn(email, ip);
+          return null;
+        }
 
         // Verify password hash (stored in authUsers.image field repurposed,
         // or in a dedicated password field if added). For now, check the
@@ -127,14 +160,28 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           .limit(1);
 
         // If no credentials account exists, reject
-        if (!credAccount || credAccount.provider !== "credentials") return null;
+        if (!credAccount || credAccount.provider !== "credentials") {
+          await recordFailedSignIn(email, ip);
+          return null;
+        }
 
         // The access_token field stores the bcrypt hash for credentials provider
         const storedHash = credAccount.access_token;
-        if (!storedHash) return null;
+        if (!storedHash) {
+          await recordFailedSignIn(email, ip);
+          return null;
+        }
 
         const isValid = await bcrypt.compare(password, storedHash);
-        if (!isValid) return null;
+        if (!isValid) {
+          await recordFailedSignIn(email, ip);
+          return null;
+        }
+
+        // Success — wipe the failure counter so a few legit typos earlier
+        // in the session don't accumulate over weeks toward an eventual
+        // false-positive lockout.
+        await clearFailedSignIns(email);
 
         return {
           id: user.id,
@@ -163,6 +210,25 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.appUserId = userId;
         token.role = role;
       }
+      // S2: OAuth IdPs have already verified the email (Google's OIDC
+      // payload carries `email_verified: true`, MS Entra likewise) so we
+      // can stamp it on first sign-in instead of forcing a redundant
+      // confirmation round-trip.
+      if (
+        user?.id &&
+        (account?.provider === "google" ||
+          account?.provider === "microsoft-entra-id")
+      ) {
+        try {
+          const { markEmailVerified } = await import(
+            "@/lib/email-verification"
+          );
+          await markEmailVerified(user.id);
+        } catch (err) {
+          console.warn("auth: failed to stamp emailVerified for OAuth user", err);
+        }
+      }
+
       // Store Google access token in JWT for Gmail API access
       if (account?.provider === "google") {
         token.googleAccessToken = account.access_token;
