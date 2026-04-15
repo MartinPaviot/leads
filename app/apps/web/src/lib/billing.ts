@@ -1,24 +1,17 @@
 import { db } from "@/db";
 import { eq, and, gte, sql } from "drizzle-orm";
 import { subscriptions, usageEvents } from "@/db/billing-schema";
+import { getTierForPlan, getPlanFromPriceId } from "@/lib/pricing/tiers";
 
-// ---------- Plan limits ----------
-
-type PlanId = "trial" | "starter" | "pro";
-
-interface PlanLimits {
-  contacts: number;
-  emailsPerMonth: number;
-  aiQueriesPerMonth: number;
-}
-
-const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
-  trial: { contacts: 100, emailsPerMonth: 50, aiQueriesPerMonth: 100 },
-  starter: { contacts: 1000, emailsPerMonth: 500, aiQueriesPerMonth: 500 },
-  pro: { contacts: 10000, emailsPerMonth: 5000, aiQueriesPerMonth: Infinity },
-};
+// Quota definitions live in lib/pricing/tiers.ts — don't duplicate them here.
+// The helpers below are kept for back-compat with existing callers and the
+// API route tests; new code should use lib/pricing/quota.ts instead.
 
 const FEATURE_TO_EVENT: Record<string, string> = {
+  // NOTE: "contacts" is resource-based (count of rows) not metered.
+  // checkPlanLimit() below has always treated it as a monthly sum of
+  // contact_enriched events, which under-counts. The new enforcement layer
+  // in lib/pricing/quota.ts uses `count(*) from contacts` instead.
   contacts: "contact_enriched",
   emails: "email_sent",
   ai_queries: "ai_query",
@@ -44,20 +37,25 @@ export async function isTrialActive(tenantId: string): Promise<boolean> {
   return new Date(sub.trialEnd) > new Date();
 }
 
+/**
+ * @deprecated Use lib/pricing/quota.ts assertResource / assertMetered instead.
+ * Kept for any pre-existing callers — its "contacts" result is a monthly
+ * `contact_enriched` sum, not an accurate count of contact rows.
+ */
 export async function checkPlanLimit(
   tenantId: string,
   feature: string
 ): Promise<{ allowed: boolean; current: number; limit: number }> {
   const sub = await getSubscription(tenantId);
-  const plan: PlanId =
+  const planName =
     sub?.status === "active" || sub?.status === "trialing"
-      ? getPlanFromPrice(sub.stripePriceId)
+      ? getPlanFromPriceId(sub.stripePriceId)
       : "trial";
 
-  const limits = PLAN_LIMITS[plan];
+  const limits = getTierForPlan(planName).limits;
   const eventType = FEATURE_TO_EVENT[feature];
 
-  if (!eventType || !limits) {
+  if (!eventType) {
     return { allowed: true, current: 0, limit: Infinity };
   }
 
@@ -103,13 +101,6 @@ export async function trackUsage(
 }
 
 // ---------- Internal ----------
-
-function getPlanFromPrice(priceId: string | null): PlanId {
-  if (!priceId) return "trial";
-  if (priceId === process.env.STRIPE_STARTER_PRICE_ID) return "starter";
-  if (priceId === process.env.STRIPE_PRO_PRICE_ID) return "pro";
-  return "trial";
-}
 
 function startOfMonth(): Date {
   const now = new Date();

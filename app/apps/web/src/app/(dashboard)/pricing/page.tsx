@@ -4,74 +4,25 @@ import { useState } from "react";
 import { Check, Zap } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { TIERS, PUBLIC_TIER_IDS, type TierSpec } from "@/lib/pricing/tiers";
 
-interface Tier {
-  name: string;
-  price: string;
-  priceNote: string;
-  description: string;
-  cta: string;
-  priceEnvKey: string | null;
-  highlighted: boolean;
-  features: string[];
-}
-
-const tiers: Tier[] = [
-  {
-    name: "Free Trial",
-    price: "$0",
-    priceNote: "14 days",
-    description: "Try Elevay with your real data. No credit card required.",
-    cta: "Current Plan",
-    priceEnvKey: null,
-    highlighted: false,
-    features: [
-      "100 contacts", "50 emails / month", "100 AI queries / month",
-      "Automatic email capture", "Basic lead scoring", "1 connected mailbox", "Community support",
-    ],
-  },
-  {
-    name: "Starter",
-    price: "$49",
-    priceNote: "/month",
-    description: "For founder-led sales teams closing their first deals.",
-    cta: "Get Started",
-    priceEnvKey: "NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID",
-    highlighted: true,
-    features: [
-      "1,000 contacts", "500 emails / month", "500 AI queries / month",
-      "Automatic email capture", "ML-powered lead scoring", "3 connected mailboxes",
-      "Outbound sequences", "Deal pipeline", "Email support",
-    ],
-  },
-  {
-    name: "Pro",
-    price: "$99",
-    priceNote: "/month",
-    description: "Full autonomous GTM engine. Zero manual work.",
-    cta: "Go Pro",
-    priceEnvKey: "NEXT_PUBLIC_STRIPE_PRO_PRICE_ID",
-    highlighted: false,
-    features: [
-      "10,000 contacts", "5,000 emails / month", "Unlimited AI queries",
-      "Automatic email capture", "ML-powered lead scoring", "Unlimited mailboxes",
-      "Outbound sequences", "Deal pipeline + coaching", "Signal-based prioritization",
-      "Auto-built TAM", "Priority support",
-    ],
-  },
-];
+const tiers: TierSpec[] = PUBLIC_TIER_IDS.map((id) => TIERS[id]);
 
 export default function PricingPage() {
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
 
-  async function handleCheckout(tier: Tier) {
+  async function handleCheckout(tier: TierSpec) {
     if (!tier.priceEnvKey) return;
+    // NEXT_PUBLIC_* env reads must be literal string references — Next's
+    // client-side inlining can't follow a dynamic key.
     const priceId =
       tier.priceEnvKey === "NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID"
         ? process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID
-        : process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID;
+        : tier.priceEnvKey === "NEXT_PUBLIC_STRIPE_PRO_PRICE_ID"
+          ? process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID
+          : undefined;
     if (!priceId) return;
-    setLoadingTier(tier.name);
+    setLoadingTier(tier.displayName);
     try {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
@@ -99,7 +50,7 @@ export default function PricingPage() {
       <div className="mt-12 grid grid-cols-1 gap-5 md:grid-cols-3">
         {tiers.map((tier) => (
           <div
-            key={tier.name}
+            key={tier.displayName}
             className="relative flex flex-col rounded-xl p-6"
             style={{
               background: "var(--color-bg-card)",
@@ -113,7 +64,7 @@ export default function PricingPage() {
             )}
 
             <h3 className="text-[16px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
-              {tier.name}
+              {tier.displayName}
             </h3>
             <div className="mt-3 flex items-baseline gap-1">
               <span className="text-[36px] font-bold tracking-tight" style={{ color: "var(--color-text-primary)" }}>
@@ -131,9 +82,9 @@ export default function PricingPage() {
               variant={tier.highlighted ? "gradient" : "outline"}
               className="mt-6 w-full"
               onClick={() => handleCheckout(tier)}
-              disabled={!tier.priceEnvKey || loadingTier === tier.name}
-              loading={loadingTier === tier.name}
-              icon={tier.highlighted && loadingTier !== tier.name ? <Zap size={14} /> : undefined}
+              disabled={!tier.priceEnvKey || loadingTier === tier.displayName}
+              loading={loadingTier === tier.displayName}
+              icon={tier.highlighted && loadingTier !== tier.displayName ? <Zap size={14} /> : undefined}
             >
               {tier.cta}
             </Button>

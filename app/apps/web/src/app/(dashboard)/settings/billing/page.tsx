@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { CreditCard, ExternalLink, Zap, Mail, Users, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
+import { getTierForPlan, serialiseLimit } from "@/lib/pricing/tiers";
 
 interface SubscriptionData {
   status: string | null;
@@ -26,18 +27,11 @@ interface UsageData {
   };
 }
 
-const PLAN_LABELS: Record<string, string> = {
-  trial: "Free Trial",
-  starter: "Starter",
-  pro: "Pro",
-  canceled: "Canceled",
-};
-
-const PLAN_LIMITS: Record<string, { contacts: number; emails: number; ai: number }> = {
-  trial: { contacts: 100, emails: 50, ai: 100 },
-  starter: { contacts: 1000, emails: 500, ai: 500 },
-  pro: { contacts: 10000, emails: 5000, ai: -1 }, // -1 = unlimited
-};
+/** -1 in the legacy UsageMeter contract means "unlimited". */
+function toMeterLimit(n: number): number {
+  const s = serialiseLimit(n);
+  return s === null ? -1 : s;
+}
 
 export default function BillingSettingsPage() {
   const [sub, setSub] = useState<SubscriptionData | null>(null);
@@ -59,7 +53,12 @@ export default function BillingSettingsPage() {
   }, []);
 
   const plan = sub?.plan ?? "trial";
-  const limits = PLAN_LIMITS[plan] ?? PLAN_LIMITS.trial;
+  const tier = getTierForPlan(plan);
+  const limits = {
+    contacts: toMeterLimit(tier.limits.contacts),
+    emails: toMeterLimit(tier.limits.emailsPerMonth),
+    ai: toMeterLimit(tier.limits.aiQueriesPerMonth),
+  };
 
   function trialDaysRemaining(): number | null {
     if (!sub?.trialEnd) return null;
@@ -132,7 +131,7 @@ export default function BillingSettingsPage() {
                     </span>
                   </div>
                   <h2 className="mt-2 text-[20px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
-                    {PLAN_LABELS[plan] ?? plan}
+                    {tier.displayName}
                   </h2>
 
                   {sub?.status === "trialing" && trialDays !== null && (

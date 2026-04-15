@@ -4,6 +4,7 @@ import { tenants } from "@/db/schema";
 import { subscriptions } from "@/db/billing-schema";
 import { eq } from "drizzle-orm";
 import type Stripe from "stripe";
+import { getPlanFromPriceId } from "@/lib/pricing/tiers";
 
 /**
  * Extract the subscription ID from an invoice's parent details.
@@ -265,9 +266,4 @@ export async function POST(request: Request) {
   }
 }
 
-function getPlanFromPriceId(priceId: string | null): string {
-  if (!priceId) return "trial";
-  if (priceId === process.env.STRIPE_STARTER_PRICE_ID) return "starter";
-  if (priceId === process.env.STRIPE_PRO_PRICE_ID) return "pro";
-  return "starter";
-}
+// getPlanFromPriceId now lives in lib/pricing/tiers.ts (imported above).
