@@ -19,6 +19,9 @@ import { memoryAutoExtract } from "@/inngest/memory-auto-extract";
 import { enrichmentEmailExtractFunction, enrichmentEmailExtractBatchFunction } from "@/inngest/enrichment-email-extract-functions";
 import { generateDealBrief, scheduledDealDigest } from "@/inngest/deal-briefing";
 import { analyzeOutgoingEmail, postInteractionCoaching, analyzeDealEvent, weeklyPerformanceSnapshot } from "@/inngest/coaching-engine";
+import { signalToDealAlert } from "@/inngest/signal-to-deal-alert";
+import { autoPipelineStep } from "@/inngest/autonomous-pipeline";
+import { dailyFounderBrief } from "@/inngest/founder-coach";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -75,5 +78,9 @@ export const { GET, POST, PUT } = serve({
     postInteractionCoaching,
     analyzeDealEvent,
     weeklyPerformanceSnapshot,
+    // Differentiation: proactive deal intelligence, autonomous pipeline, founder coaching
+    signalToDealAlert,
+    autoPipelineStep,
+    dailyFounderBrief,
   ],
 });

@@ -74,7 +74,7 @@ export const weeklySignalScan = inngest.createFunction(
         }, { tenantId, dryRun: false });
 
         if (result.success && result.data) {
-          const data = result.data as { totalSignalsDetected: number; signals: Array<{ companyName: string; signalType: string; title: string }> };
+          const data = result.data as { totalSignalsDetected: number; signals: Array<{ companyId?: string; companyName: string; signalType: string; title: string; description?: string }> };
           totalSignals += data.totalSignalsDetected;
           if (data.totalSignalsDetected > 0) {
             const topSignals = data.signals.slice(0, 3).map((s) => s.title).join(", ");
@@ -82,6 +82,23 @@ export const weeklySignalScan = inngest.createFunction(
               `${data.totalSignalsDetected} buying signal(s) detected this week`,
               topSignals,
             );
+            // D1: Link signals to open deals for proactive intelligence
+            const signalsWithIds = data.signals.filter((s) => s.companyId);
+            if (signalsWithIds.length > 0) {
+              await inngest.send({
+                name: "signals/deal-alert-check",
+                data: {
+                  tenantId,
+                  signals: signalsWithIds.map((s) => ({
+                    companyId: s.companyId!,
+                    companyName: s.companyName,
+                    signalType: s.signalType,
+                    title: s.title,
+                    description: s.description || s.title,
+                  })),
+                },
+              }).catch((e) => console.warn("signal-to-deal-alert trigger failed (non-blocking)", e));
+            }
           }
         }
       });
