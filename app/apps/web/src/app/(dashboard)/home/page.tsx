@@ -50,6 +50,14 @@ interface DashboardSummary {
     meetingsBooked: number;
     opportunitiesClosed: number;
   };
+  // H6 — optional prev-window counts. Older server builds may not
+  // return this; delta rendering skips gracefully when absent.
+  weekSummaryPrev?: {
+    sequencesLaunched: number;
+    responsesReceived: number;
+    meetingsBooked: number;
+    opportunitiesClosed: number;
+  };
   founderMetrics?: {
     pipelineValue: number;
     activeDeals: number;
@@ -223,11 +231,19 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  // H11 — locale-aware concise date ("Mon, Apr 13" pattern).
+  // Falls back to "en-US" only if the browser hasn't reported a locale
+  // yet (SSR pre-hydration). We pick the *short* weekday + month so the
+  // header stays dense — Lightfield's pattern, and the long form bled
+  // into the next line on narrow viewports.
+  const today = new Date().toLocaleDateString(
+    typeof navigator !== "undefined" ? navigator.language : "en-US",
+    {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    }
+  );
 
   const ws = summary?.weekSummary;
 
@@ -306,13 +322,24 @@ export default function DashboardPage() {
           const outboundTotal = (ws?.sequencesLaunched || 0) + (ws?.responsesReceived || 0) + (ws?.meetingsBooked || 0) + (ws?.opportunitiesClosed || 0);
           const fm = summary.founderMetrics;
           const hasFounderData = fm && (fm.totalAccounts > 0 || fm.totalContacts > 0 || fm.pipelineValue > 0);
+          const wsPrev = summary.weekSummaryPrev;
 
-          const stats = outboundTotal > 0
+          // H6 — delta is a pure number difference vs the same-length
+          // window 7 days earlier. Outbound stats get deltas; founder
+          // stats are "running totals" so a delta doesn't read cleanly
+          // (totalContacts only goes up) and we omit them.
+          type Stat = {
+            value: string | number;
+            label: string;
+            icon: React.ReactNode;
+            delta?: number;
+          };
+          const stats: Stat[] | null = outboundTotal > 0
             ? [
-                { value: ws!.sequencesLaunched, label: "sequences", icon: <Zap size={14} /> },
-                { value: ws!.responsesReceived, label: "responses", icon: <MessageSquare size={14} /> },
-                { value: ws!.meetingsBooked, label: "meetings", icon: <Calendar size={14} /> },
-                { value: ws!.opportunitiesClosed, label: "closed", icon: <TrendingUp size={14} /> },
+                { value: ws!.sequencesLaunched, label: "sequences", icon: <Zap size={14} />, delta: wsPrev ? ws!.sequencesLaunched - wsPrev.sequencesLaunched : undefined },
+                { value: ws!.responsesReceived, label: "responses", icon: <MessageSquare size={14} />, delta: wsPrev ? ws!.responsesReceived - wsPrev.responsesReceived : undefined },
+                { value: ws!.meetingsBooked, label: "meetings", icon: <Calendar size={14} />, delta: wsPrev ? ws!.meetingsBooked - wsPrev.meetingsBooked : undefined },
+                { value: ws!.opportunitiesClosed, label: "closed", icon: <TrendingUp size={14} />, delta: wsPrev ? ws!.opportunitiesClosed - wsPrev.opportunitiesClosed : undefined },
               ]
             : hasFounderData
               ? [
@@ -334,6 +361,27 @@ export default function DashboardPage() {
                       <span style={{ color: "var(--color-text-tertiary)" }}>{stat.icon}</span>
                       <span className="text-[18px] font-bold" style={{ color: "var(--color-text-primary)" }}>{stat.value}</span>
                       <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>{stat.label}</span>
+                      {/* H6 — WoW delta chip. "→ same" when zero,
+                          coloured green/red when non-zero. Suppressed
+                          when the prev window data isn't returned
+                          (older server) or when prev+current are both
+                          zero (a "noise" delta is worse than none). */}
+                      {typeof stat.delta === "number" && !(stat.delta === 0 && stat.value === 0) && (
+                        <span
+                          className="text-[11px] font-medium tabular-nums"
+                          style={{
+                            color:
+                              stat.delta > 0
+                                ? "var(--color-success)"
+                                : stat.delta < 0
+                                  ? "var(--color-error)"
+                                  : "var(--color-text-tertiary)",
+                          }}
+                          title={`${stat.delta > 0 ? "+" : ""}${stat.delta} vs last week`}
+                        >
+                          {stat.delta > 0 ? `↑ +${stat.delta}` : stat.delta < 0 ? `↓ ${stat.delta}` : "→ same"}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -342,15 +390,26 @@ export default function DashboardPage() {
           );
         })()}
 
-        {/* Deals at Risk */}
+        {/* Deals at Risk — kept hidden when empty (it's a warning section,
+            "no risks" doesn't deserve real estate). */}
         {summary?.founderMetrics?.dealsAtRisk && summary.founderMetrics.dealsAtRisk.length > 0 && (
           <div className="mt-3">
-            <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
-              <AlertTriangle size={12} className="mr-1 inline" /> Deals at risk
+            <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wider flex items-center justify-between" style={{ color: "var(--color-text-tertiary)" }}>
+              <span><AlertTriangle size={12} className="mr-1 inline" /> Deals at risk</span>
+              {summary.founderMetrics.dealsAtRisk.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => router.push("/opportunities")}
+                  className="text-[11px] font-medium normal-case tracking-normal hover:underline"
+                  style={{ color: "var(--color-accent)" }}
+                >
+                  3 of {summary.founderMetrics.dealsAtRisk.length} · View all
+                </button>
+              )}
             </h2>
             <div className="space-y-1.5">
               {summary.founderMetrics.dealsAtRisk.slice(0, 3).map((deal) => (
-                <Card key={deal.id} interactive onClick={() => { router.push(`/opportunities`); }}>
+                <Card key={deal.id} interactive onClick={() => { router.push(`/opportunities/${deal.id}`); }}>
                   <CardBody className="!py-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{deal.name}</span>
@@ -360,7 +419,12 @@ export default function DashboardPage() {
                             ${deal.value.toLocaleString()}
                           </span>
                         )}
-                        <Badge variant="error" size="sm">Silent {deal.daysSilent}d</Badge>
+                        <Badge
+                          variant={deal.daysSilent >= 30 ? "error" : deal.daysSilent >= 14 ? "warning" : "neutral"}
+                          size="sm"
+                        >
+                          Silent {deal.daysSilent}d
+                        </Badge>
                       </div>
                     </div>
                   </CardBody>
@@ -374,8 +438,18 @@ export default function DashboardPage() {
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-5">
           {/* Left — Actions */}
           <div className="lg:col-span-3">
-            <h2 className="text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
-              Your priorities today
+            <h2 className="text-[12px] font-semibold uppercase tracking-wider flex items-center justify-between" style={{ color: "var(--color-text-tertiary)" }}>
+              <span>Your priorities today</span>
+              {actions.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => router.push("/tasks")}
+                  className="text-[11px] font-medium normal-case tracking-normal hover:underline"
+                  style={{ color: "var(--color-accent)" }}
+                >
+                  5 of {actions.length} · View all
+                </button>
+              )}
             </h2>
 
             {loadingActions ? (
@@ -574,12 +648,23 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Hot Contacts */}
-            {priorities.length > 0 && (
-              <div className="mt-6">
-                <h2 className="text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
-                  <Users size={12} className="inline mr-1" /> Hot contacts
-                </h2>
+            {/* Hot Contacts — always rendered (right-column anchor); empty
+                state keeps the column balanced when activity is quiet. */}
+            <div className="mt-6">
+              <h2 className="text-[12px] font-semibold uppercase tracking-wider flex items-center justify-between" style={{ color: "var(--color-text-tertiary)" }}>
+                <span><Users size={12} className="inline mr-1" /> Hot contacts</span>
+                {priorities.length > 5 && (
+                  <button
+                    type="button"
+                    onClick={() => router.push("/contacts?sort=priority")}
+                    className="text-[11px] font-medium normal-case tracking-normal hover:underline"
+                    style={{ color: "var(--color-accent)" }}
+                  >
+                    5 of {priorities.length} · View all
+                  </button>
+                )}
+              </h2>
+              {priorities.length > 0 ? (
                 <div className="mt-3 space-y-1.5">
                   {priorities.slice(0, 5).map((p) => (
                     <Card key={p.contactId} interactive onClick={() => { router.push(`/contacts/${p.contactId}`); }}>
@@ -598,14 +683,31 @@ export default function DashboardPage() {
                     </Card>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <p className="mt-3 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
+                  No hot contacts yet — they&apos;ll appear when activity picks up.
+                </p>
+              )}
+            </div>
 
-            {/* Smart Recommendations */}
+            {/* Smart Recommendations — kept hidden when empty (the "This
+                week" section title implies content; an empty version
+                feels broken). View-all routes through chat since there
+                isn't a dedicated /recommendations index. */}
             {recommendations.length > 0 && (
               <div className="mt-6">
-                <h2 className="text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
-                  <TrendingUp size={12} className="inline mr-1" /> This week
+                <h2 className="text-[12px] font-semibold uppercase tracking-wider flex items-center justify-between" style={{ color: "var(--color-text-tertiary)" }}>
+                  <span><TrendingUp size={12} className="inline mr-1" /> This week</span>
+                  {recommendations.length > 3 && (
+                    <button
+                      type="button"
+                      onClick={() => router.push("/chat?q=Show me all my recommendations")}
+                      className="text-[11px] font-medium normal-case tracking-normal hover:underline"
+                      style={{ color: "var(--color-accent)" }}
+                    >
+                      3 of {recommendations.length} · View all
+                    </button>
+                  )}
                 </h2>
                 <div className="mt-3 space-y-1.5">
                   {recommendations.slice(0, 3).map((r, i) => (

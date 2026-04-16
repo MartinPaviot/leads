@@ -23,12 +23,17 @@ import {
  * tenantId in dependency order, then drops the tenant and any auth
  * users whose email starts with the given prefix.
  *
- * Gated on NODE_ENV !== "production" — same rule as /api/_test/seed.
+ * M5 — dual gate. ENABLE_E2E_SEED=1 is the canonical switch so the
+ * route can only fire on the CI pipeline that owns it. NODE_ENV is
+ * a secondary wall.
  *
  * POST body: { tenantId: string, emailPrefix?: string }
  */
 export async function POST(req: Request) {
-  if (process.env.NODE_ENV === "production") {
+  if (
+    process.env.NODE_ENV === "production" ||
+    process.env.ENABLE_E2E_SEED !== "1"
+  ) {
     return NextResponse.json({ error: "Cleanup endpoint disabled" }, { status: 404 });
   }
 

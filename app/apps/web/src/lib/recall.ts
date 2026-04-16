@@ -145,6 +145,33 @@ export async function getBotStatus(botId: string): Promise<RecallBot> {
  * Fetches the bot details, extracts the transcript download URL,
  * then downloads and returns the transcript segments.
  */
+// M9 — transcript download URLs come out of Recall.ai's own API, and
+// we send our API token with the request. If Recall were compromised,
+// or a MITM altered the response, an attacker could point this fetch
+// at an arbitrary host and exfiltrate our API key. Constrain the
+// destination to AWS S3 signed-URL hosts (recall.ai's storage backend)
+// and a couple of Recall-owned CNAMEs we've actually seen in traffic.
+const RECALL_TRANSCRIPT_HOST_ALLOWLIST = [
+  /\.s3\.amazonaws\.com$/i,
+  /\.s3\.us-east-1\.amazonaws\.com$/i,
+  /\.s3\.us-east-2\.amazonaws\.com$/i,
+  /\.s3\.us-west-2\.amazonaws\.com$/i,
+  /(^|\.)recall\.ai$/i,
+  /(^|\.)recallai\.com$/i,
+];
+
+function isAllowedRecallDownloadUrl(url: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "https:") return false;
+  const host = parsed.hostname.toLowerCase();
+  return RECALL_TRANSCRIPT_HOST_ALLOWLIST.some((re) => re.test(host));
+}
+
 export async function getBotTranscript(botId: string): Promise<TranscriptSegment[]> {
   const bot = await getBotStatus(botId);
 
@@ -154,6 +181,13 @@ export async function getBotTranscript(botId: string): Promise<TranscriptSegment
   }
 
   const downloadUrl = recording.media_shortcuts.transcript.data.download_url;
+  if (!isAllowedRecallDownloadUrl(downloadUrl)) {
+    // Don't echo the rejected URL back — it's attacker-influenced if
+    // we got here via a compromised upstream and could be a phishing
+    // payload in its own right.
+    console.warn("recall: rejected transcript download URL outside allowlist");
+    throw new Error("Untrusted transcript download URL");
+  }
   const res = await fetch(downloadUrl, {
     headers: { Authorization: `Token ${getApiKey()}` },
   });

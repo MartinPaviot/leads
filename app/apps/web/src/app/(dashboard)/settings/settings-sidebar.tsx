@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import {
   ArrowLeft,
   User,
@@ -22,6 +23,8 @@ import {
   FlaskConical,
   Lock,
   Shield,
+  Search,
+  X,
 } from "lucide-react";
 
 interface NavSection {
@@ -80,7 +83,18 @@ export default function SettingsSidebar({
   isAdmin: boolean;
 }) {
   const pathname = usePathname();
-  const visibleSections = settingsNav.filter((s) => !s.adminOnly || isAdmin);
+  // N16 — sidebar fuzzy filter. Substring match on label, lower-cased.
+  // Sections with zero matching items collapse so the user only sees
+  // hits. Empty query renders the full nav unchanged.
+  const [filter, setFilter] = useState("");
+  const visibleSections = settingsNav
+    .filter((s) => !s.adminOnly || isAdmin)
+    .map((s) => {
+      if (!filter.trim()) return s;
+      const q = filter.trim().toLowerCase();
+      return { ...s, items: s.items.filter((i) => i.label.toLowerCase().includes(q)) };
+    })
+    .filter((s) => s.items.length > 0);
 
   return (
     <div className="flex h-full min-h-0">
@@ -98,6 +112,41 @@ export default function SettingsSidebar({
         >
           <ArrowLeft size={14} /> Settings
         </Link>
+
+        {/* N16 — settings filter */}
+        <div className="relative mb-2">
+          <Search size={12} className="absolute left-2.5 top-2" style={{ color: "var(--color-text-muted)" }} aria-hidden="true" />
+          <input
+            type="text"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter settings…"
+            aria-label="Filter settings"
+            className="h-7 w-full rounded-md pl-7 pr-7 text-[12px] outline-none"
+            style={{
+              background: "var(--color-bg-page)",
+              border: "1px solid var(--color-border-default)",
+              color: "var(--color-text-primary)",
+            }}
+          />
+          {filter && (
+            <button
+              type="button"
+              onClick={() => setFilter("")}
+              aria-label="Clear filter"
+              className="absolute right-1.5 top-1.5 rounded p-0.5 hover:opacity-70"
+              style={{ color: "var(--color-text-tertiary)" }}
+            >
+              <X size={11} />
+            </button>
+          )}
+        </div>
+
+        {visibleSections.length === 0 && (
+          <p className="px-2 py-3 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+            No settings match &ldquo;{filter}&rdquo;.
+          </p>
+        )}
 
         {visibleSections.map((section) => (
           <div key={section.label} className="mb-3">

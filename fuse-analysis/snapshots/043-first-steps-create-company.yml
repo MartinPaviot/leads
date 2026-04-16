@@ -1,0 +1,140 @@
+- generic [active] [ref=e1]:
+  - region "Notifications alt+T"
+  - alert [ref=e2]
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - img "Grid Pattern" [ref=e6]
+      - generic [ref=e7]:
+        - generic [ref=e8]:
+          - img "Fuse AI logo" [ref=e9]
+          - generic [ref=e10]:
+            - heading "Welcome" [level=2] [ref=e11]
+            - text: "Let's make you a #1 sales rep!"
+        - generic [ref=e12]:
+          - generic [ref=e13]:
+            - generic [ref=e14]:
+              - img [ref=e15]
+              - generic [ref=e17]: Select your plan
+            - img [ref=e18]
+          - generic [ref=e20] [cursor=pointer]:
+            - generic [ref=e21]:
+              - img [ref=e22]
+              - generic [ref=e26]: Create Company
+            - img [ref=e27]
+          - generic [ref=e29]:
+            - generic [ref=e30]:
+              - img [ref=e31]
+              - generic [ref=e38]: Integrations
+            - img [ref=e39]
+          - generic [ref=e41]:
+            - generic [ref=e42]:
+              - img [ref=e43]
+              - generic [ref=e45]: Power Ups
+            - img [ref=e46]
+    - generic [ref=e48]:
+      - banner [ref=e49]:
+        - generic [ref=e50]:
+          - button [ref=e51]:
+            - generic [ref=e52]:
+              - img
+          - button "MP" [ref=e53]:
+            - generic [ref=e55]: MP
+      - generic [ref=e59]:
+        - button "Continue" [ref=e61]:
+          - generic [ref=e62]:
+            - text: Continue
+            - img
+        - generic [ref=e63]:
+          - heading "Basic Information" [level=5] [ref=e64]
+          - generic [ref=e65]:
+            - img "Company avatar" [ref=e66]
+            - generic [ref=e67]:
+              - generic [ref=e68]: Company Logo
+              - button "Upload Image" [ref=e71]:
+                - generic [ref=e72]:
+                  - img
+                  - text: Upload Image
+          - generic [ref=e73]:
+            - generic [ref=e74]:
+              - generic [ref=e75]: Company Name
+              - textbox "Company Name" [ref=e77]:
+                - /placeholder: Enter company name
+            - generic [ref=e78]:
+              - generic [ref=e79]: Company Website
+              - textbox "Company Website" [ref=e81]:
+                - /placeholder: Enter company website
+        - generic [ref=e82]:
+          - heading "Competitors" [level=5] [ref=e83]
+          - generic [ref=e86]:
+            - textbox "www.competitor.com" [ref=e88]
+            - button "Add Domain" [disabled]:
+              - generic:
+                - img
+                - text: Add Domain
+        - generic [ref=e89]:
+          - heading "Members" [level=5] [ref=e90]
+          - table [ref=e94]:
+            - rowgroup [ref=e95]:
+              - row "Name Email Account Monthly Credits Status CRM permission Actions" [ref=e96]:
+                - columnheader "Name" [ref=e97]:
+                  - generic [ref=e99]:
+                    - img [ref=e100]
+                    - generic [ref=e103]: Name
+                - columnheader "Email" [ref=e104]:
+                  - generic [ref=e106]:
+                    - img [ref=e107]
+                    - generic [ref=e110]: Email
+                - columnheader "Account" [ref=e111]:
+                  - generic [ref=e113]:
+                    - img [ref=e114]
+                    - generic [ref=e116]: Account
+                - columnheader "Monthly Credits" [ref=e117]:
+                  - generic [ref=e119]:
+                    - img [ref=e120]
+                    - generic [ref=e125]: Monthly Credits
+                - columnheader "Status" [ref=e126]:
+                  - generic [ref=e128]:
+                    - img [ref=e129]
+                    - generic [ref=e131]: Status
+                - columnheader "CRM permission" [ref=e132]:
+                  - generic [ref=e134]:
+                    - img [ref=e135]
+                    - generic [ref=e140]: CRM permission
+                - columnheader "Actions" [ref=e141]
+            - rowgroup [ref=e142]:
+              - row "Martin Paviot fuse-signup@elevay.dev Owner 0/2 000 • Active View Only Access" [ref=e143]:
+                - cell "Martin Paviot" [ref=e144]:
+                  - generic [ref=e145]: Martin Paviot
+                - cell "fuse-signup@elevay.dev" [ref=e146]:
+                  - generic [ref=e147]: fuse-signup@elevay.dev
+                - cell "Owner" [ref=e148]:
+                  - generic [ref=e150]:
+                    - img [ref=e151]
+                    - generic [ref=e153]: Owner
+                - cell "0/2 000" [ref=e154]:
+                  - generic [ref=e156]: 0/2 000
+                - cell "• Active" [ref=e157]:
+                  - generic [ref=e161]: • Active
+                - cell "View Only Access" [ref=e162]:
+                  - generic [ref=e165]: View Only Access
+                - cell [ref=e166]:
+                  - generic [ref=e167]:
+                    - button [disabled]:
+                      - generic:
+                        - img
+          - generic [ref=e168]:
+            - generic [ref=e169]: 1 records
+            - generic [ref=e170]:
+              - button "Previous" [disabled]:
+                - generic:
+                  - img
+                  - text: Previous
+              - generic [ref=e173]: "1"
+              - button "Next" [disabled]:
+                - generic:
+                  - text: Next
+                  - img
+          - button "Invite Members" [ref=e174]:
+            - generic [ref=e175]:
+              - img
+              - text: Invite Members

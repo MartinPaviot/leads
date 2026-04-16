@@ -12,7 +12,7 @@ import { useToast } from "@/components/ui/toast";
 import {
   Zap, ArrowLeft, Mail, Clock, Users, Play, Pause,
   ChevronDown, ChevronRight, Loader2, FileText, Send,
-  Edit2, Trash2, BarChart3, Check, X,
+  Edit2, Trash2, BarChart3, Check, X, Download,
 } from "lucide-react";
 
 interface Step {
@@ -268,6 +268,23 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
           <Button variant="outline" size="sm" onClick={toggleStatus} loading={updatingStatus}>
             {sequence.status === "active" ? <><Pause size={13} /> Pause</> : <><Play size={13} /> Resume</>}
           </Button>
+        )}
+        {/* Q17 — export to JSON. Anchor (vs button) so the browser
+             handles the Content-Disposition download natively without a
+             blob-and-revoke dance in JS. */}
+        {steps.length > 0 && (
+          <a
+            href={`/api/sequences/${id}/export`}
+            download
+            className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
+            style={{
+              color: "var(--color-text-secondary)",
+              border: "1px solid var(--color-border-default)",
+            }}
+            title="Download this sequence as a portable JSON template"
+          >
+            <Download size={12} /> Export
+          </a>
         )}
       </PageHeader>
 

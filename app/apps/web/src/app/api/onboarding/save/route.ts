@@ -1,9 +1,11 @@
 import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { tenants, users } from "@/db/schema";
+import { authUsers, tenants, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { updateTenantSettings, type TenantSettings } from "@/lib/tenant-settings";
 import { inngest } from "@/inngest/client";
+import { sendWelcomeEmail } from "@/lib/emails/welcome";
+import { logger } from "@/lib/logger";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
@@ -61,6 +63,13 @@ export async function POST(req: Request) {
     updates.contactCreationMode = data.contactCreationMode;
     updates.backsyncRange = data.backsyncRange;
     updates.doNotTrackDomains = data.doNotTrackDomains;
+    if (
+      data.defaultDataVisibility === "everyone" ||
+      data.defaultDataVisibility === "team" ||
+      data.defaultDataVisibility === "private"
+    ) {
+      updates.defaultDataVisibility = data.defaultDataVisibility;
+    }
   }
 
   if (data.step === "icp") {
@@ -76,7 +85,21 @@ export async function POST(req: Request) {
     if (data.aiTone) updates.aiTone = data.aiTone;
   }
 
+  // O9: capture the prior welcome-send timestamp before we write so the
+  // post-write idempotency guard can compare against it.
+  let priorWelcomeSentAt: string | undefined;
   if (data.step === "complete") {
+    const [tenantRow] = await db
+      .select({ settings: tenants.settings })
+      .from(tenants)
+      .where(eq(tenants.id, authCtx.tenantId))
+      .limit(1);
+    const priorSettings = (tenantRow?.settings || {}) as Record<string, unknown>;
+    priorWelcomeSentAt =
+      typeof priorSettings.welcomeEmailSentAt === "string"
+        ? (priorSettings.welcomeEmailSentAt as string)
+        : undefined;
+
     updates.onboardingCompleted = true;
     updates.onboardingCompletedAt = new Date().toISOString();
     // Clear the resume marker on completion — no point remembering a step
@@ -99,6 +122,51 @@ export async function POST(req: Request) {
       .catch((err) =>
         console.warn("Failed to trigger onboarding completion:", err)
       );
+
+    // O9: welcome email — best-effort, idempotent. We send exactly once
+    // per tenant; a re-completion (e.g. user re-runs the wizard) won't
+    // mailbomb. Failures are logged but never block the completion.
+    if (!priorWelcomeSentAt) {
+      try {
+        const [user] = await db
+          .select({ email: authUsers.email, name: authUsers.name })
+          .from(authUsers)
+          .where(eq(authUsers.id, authCtx.userId))
+          .limit(1);
+        const [tenantRow] = await db
+          .select({ name: tenants.name, settings: tenants.settings })
+          .from(tenants)
+          .where(eq(tenants.id, authCtx.tenantId))
+          .limit(1);
+        const settings = (tenantRow?.settings || {}) as Record<string, unknown>;
+        const companyName =
+          (typeof settings.onboardingCompanyName === "string"
+            ? settings.onboardingCompanyName
+            : null) ||
+          tenantRow?.name ||
+          null;
+
+        if (user?.email) {
+          const result = await sendWelcomeEmail({
+            to: user.email,
+            firstName: user.name,
+            companyName,
+          });
+          if (result.sent) {
+            await updateTenantSettings(authCtx.tenantId, {
+              welcomeEmailSentAt: new Date().toISOString(),
+            });
+          } else {
+            logger.warn("onboarding/save: welcome email send failed", {
+              tenantId: authCtx.tenantId,
+              reason: result.reason,
+            });
+          }
+        }
+      } catch (err) {
+        logger.error("onboarding/save: welcome email path threw", { err });
+      }
+    }
   }
 
   return Response.json({ ok: true });

@@ -9,6 +9,7 @@ import {
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { Resend } from "resend";
 import { buildUnsubscribeUrl } from "@/lib/unsubscribe-token";
+import { signTrackingId } from "@/lib/tracking-token";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -47,8 +48,10 @@ function getEffectiveDailyLimit(
 // ── Email tracking ──
 
 /** Inject a 1x1 tracking pixel before </body> */
-function injectTrackingPixel(html: string, emailId: string, appUrl: string): string {
-  const pixelUrl = `${appUrl}/api/track/open?id=${encodeURIComponent(emailId)}`;
+function injectTrackingPixel(html: string, signedToken: string, appUrl: string): string {
+  // M8: use the signed token instead of raw emailId so `/api/track/open`
+  // rejects replayed or guessed ids from unauthenticated callers.
+  const pixelUrl = `${appUrl}/api/track/open?t=${encodeURIComponent(signedToken)}`;
   const pixel = `<img src="${pixelUrl}" width="1" height="1" style="display:none;width:1px;height:1px;" alt="" />`;
 
   // Insert before </body> if present, otherwise append
@@ -59,7 +62,7 @@ function injectTrackingPixel(html: string, emailId: string, appUrl: string): str
 }
 
 /** Rewrite links in HTML to go through click tracking redirect */
-function rewriteLinks(html: string, emailId: string, appUrl: string): string {
+function rewriteLinks(html: string, signedToken: string, appUrl: string): string {
   // Match href="https://..." links but skip unsubscribe and tracking links
   return html.replace(
     /href="(https?:\/\/[^"]+)"/gi,
@@ -68,7 +71,7 @@ function rewriteLinks(html: string, emailId: string, appUrl: string): string {
       if (url.includes("/api/track/") || url.includes("/api/unsubscribe")) {
         return match;
       }
-      const trackUrl = `${appUrl}/api/track/click?id=${encodeURIComponent(emailId)}&url=${encodeURIComponent(url)}`;
+      const trackUrl = `${appUrl}/api/track/click?t=${encodeURIComponent(signedToken)}&url=${encodeURIComponent(url)}`;
       return `href="${trackUrl}"`;
     }
   );
@@ -318,9 +321,12 @@ export const processOutboundEmails = inngest.createFunction(
             `${footer}</body>`
           ) || `${email.bodyHtml}${footer}`;
 
-          // Inject tracking: open pixel + click redirect links
-          processedHtml = rewriteLinks(processedHtml, email.id, appUrl);
-          processedHtml = injectTrackingPixel(processedHtml, email.id, appUrl);
+          // Inject tracking: open pixel + click redirect links. M8 —
+          // the URL param is a signed token, not the raw id, so
+          // `/api/track/{click,open}` can reject replayed guesses.
+          const signedToken = signTrackingId(email.id);
+          processedHtml = rewriteLinks(processedHtml, signedToken, appUrl);
+          processedHtml = injectTrackingPixel(processedHtml, signedToken, appUrl);
 
           const textWithFooter = (email.bodyText || "") +
             `\n\n---\nSent via Elevay\nUnsubscribe: ${unsubUrl}`;
@@ -490,9 +496,10 @@ export const sendSingleEmail = inngest.createFunction(
         `${footer}</body>`
       ) || `${email.bodyHtml}${footer}`;
 
-      // Inject tracking: open pixel + click redirect links
-      processedHtml = rewriteLinks(processedHtml, emailId, appUrl);
-      processedHtml = injectTrackingPixel(processedHtml, emailId, appUrl);
+      // Inject tracking: open pixel + click redirect links (M8 signed).
+      const signedToken = signTrackingId(emailId);
+      processedHtml = rewriteLinks(processedHtml, signedToken, appUrl);
+      processedHtml = injectTrackingPixel(processedHtml, signedToken, appUrl);
 
       const textWithFooter = (email.bodyText || "") +
         `\n\n---\nSent via Elevay\nUnsubscribe: ${unsubUrl}`;

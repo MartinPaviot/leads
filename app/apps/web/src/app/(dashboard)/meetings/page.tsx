@@ -1,6 +1,7 @@
 "use client";
 
 import { Calendar, FileText, ExternalLink, Clock, Users, ChevronDown, ChevronRight, Loader2, Mic, CheckCircle2, AlertCircle, Play, Upload } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ export default function MeetingsPage() {
   const [expandedMeeting, setExpandedMeeting] = useState<string | null>(null);
   const [prepDocs, setPrepDocs] = useState<Record<string, string>>({});
   const [prepLoading, setPrepLoading] = useState<Record<string, boolean>>({});
+  const router = useRouter();
 
   useEffect(() => {
     (async () => {
@@ -92,7 +94,7 @@ export default function MeetingsPage() {
   return (
     <div className="flex h-full flex-col">
       <PageHeader icon={<Calendar size={15} />} title="Meetings" subtitle={`${meetings.length}`}>
-        <Button variant="outline" size="sm" onClick={() => window.location.href = "/meetings/upload"}>
+        <Button variant="outline" size="sm" onClick={() => router.push("/meetings/upload")}>
           <Upload size={13} /> Upload transcript
         </Button>
       </PageHeader>
@@ -102,16 +104,19 @@ export default function MeetingsPage() {
           <EmptyState
             icon={<Calendar size={24} />}
             title="Connect your calendar"
-            description="Connect Google Calendar to see your meetings here."
+            description="Connect Google or Microsoft Calendar so Elevay can see your meetings here and auto-join with a recording bot."
             actionLabel="Go to settings"
-            onAction={() => window.location.href = "/settings/mail-calendar"}
+            onAction={() => router.push("/settings/mail-calendar")}
             actionVariant="outline"
           />
         ) : meetings.length === 0 ? (
           <EmptyState
             icon={<Calendar size={24} />}
-            title="No meetings found"
-            description="No meetings in the last 30 days or next 2 weeks. They'll appear here automatically."
+            title="Waiting for your next meeting"
+            description="Your calendar is connected — meetings appear here automatically. Got a past call to analyse? Upload its transcript."
+            actionLabel="Upload transcript"
+            onAction={() => router.push("/meetings/upload")}
+            actionVariant="outline"
           />
         ) : (
           <div className="mx-auto max-w-3xl space-y-8">

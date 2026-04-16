@@ -38,6 +38,11 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { slug } = await params;
 
   // Special case: list all skills

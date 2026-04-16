@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { Check, X, Pencil } from "lucide-react";
 import { ScopedChat } from "@/components/scoped-chat";
 import { EmailComposer } from "@/components/email-composer";
 import { Card, CardBody } from "@/components/ui/card";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import { useToast } from "@/components/ui/toast";
 
 interface Company {
   id: string;
@@ -44,6 +46,46 @@ export default function ContactDetailPage() {
   const [companies, setCompanies] = useState<Map<string, Company>>(new Map());
   const [loading, setLoading] = useState(true);
   const [emailComposer, setEmailComposer] = useState<{ to: string; subject: string; body: string } | null>(null);
+  const { toast } = useToast();
+
+  // K8 — PATCH a single field on the contact. Optimistic update with
+  // rollback on failure. Re-uses the existing PUT handler which only
+  // applies the fields that are explicitly provided, so sending
+  // `{ title: "CEO" }` never clobbers email/phone/etc. Email gets
+  // lightweight format validation (same shape as HTML type="email")
+  // — we pop a toast rather than hitting the server with garbage.
+  async function updateField(
+    field: "title" | "email" | "phone",
+    next: string
+  ): Promise<boolean> {
+    if (!contact) return false;
+    const trimmed = next.trim();
+    const nullable = trimmed === "" ? null : trimmed;
+    if ((contact[field] ?? "") === (nullable ?? "")) return true;
+    if (field === "email" && nullable && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nullable)) {
+      toast("That doesn't look like a valid email address.", "error");
+      return false;
+    }
+    const prev = contact;
+    setContact({ ...contact, [field]: nullable });
+    try {
+      const res = await fetch(`/api/contacts/${contactId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: nullable }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { contact: Contact };
+      setContact(data.contact);
+      toast("Saved.", "success");
+      return true;
+    } catch (err) {
+      setContact(prev);
+      toast("Couldn't save that change. Please try again.", "error");
+      console.warn("contact-detail: updateField failed", { field, err });
+      return false;
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -213,13 +255,20 @@ export default function ContactDetailPage() {
             <p className="text-xs text-[var(--color-text-tertiary)]">Name</p>
             <p className="text-sm text-[var(--color-text-primary)]">{name}</p>
           </div>
+          <InlineField
+            label="Title"
+            value={contact.title}
+            placeholder="e.g. Head of Growth"
+            onSave={(v) => updateField("title", v)}
+          />
           <div>
-            <p className="text-xs text-[var(--color-text-tertiary)]">Title</p>
-            <p className="text-sm text-[var(--color-text-primary)]">{contact.title || "\u2014"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-[var(--color-text-tertiary)]">Email</p>
-            <p className="text-sm text-[var(--color-text-primary)]">{contact.email || "\u2014"}</p>
+            <InlineField
+              label="Email"
+              value={contact.email}
+              type="email"
+              placeholder="name@company.com"
+              onSave={(v) => updateField("email", v)}
+            />
             {(() => {
               const extras = (contact.properties?.additionalEmails || []) as string[];
               return extras.length > 0 ? (
@@ -231,10 +280,13 @@ export default function ContactDetailPage() {
               ) : null;
             })()}
           </div>
-          <div>
-            <p className="text-xs text-[var(--color-text-tertiary)]">Phone</p>
-            <p className="text-sm text-[var(--color-text-primary)]">{contact.phone || "\u2014"}</p>
-          </div>
+          <InlineField
+            label="Phone"
+            value={contact.phone}
+            type="tel"
+            placeholder="+1 555 0100"
+            onSave={(v) => updateField("phone", v)}
+          />
           {contact.linkedinUrl && (
             <div>
               <p className="text-xs text-[var(--color-text-tertiary)]">LinkedIn</p>
@@ -296,6 +348,135 @@ export default function ContactDetailPage() {
           body={emailComposer.body}
           onClose={() => setEmailComposer(null)}
         />
+      )}
+    </div>
+  );
+}
+
+/**
+ * K8 — single inline-editable field for contact detail. Click the value
+ * (or the hover pencil) to enter edit mode, Enter / blur saves, Escape
+ * cancels. Empty input clears the field (nullable). The `onSave` callback
+ * is expected to be optimistic-update + rollback-on-failure — we just
+ * defer the edit-mode close until it resolves so the row doesn't flicker.
+ */
+function InlineField({
+  label,
+  value,
+  placeholder,
+  type = "text",
+  onSave,
+}: {
+  label: string;
+  value: string | null;
+  placeholder?: string;
+  type?: "text" | "email" | "tel";
+  onSave: (next: string) => Promise<boolean>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? "");
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  async function commit() {
+    if (saving) return;
+    if ((draft.trim() || null) === (value ?? null)) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    const ok = await onSave(draft);
+    setSaving(false);
+    if (ok) setEditing(false);
+  }
+
+  function cancel() {
+    setDraft(value ?? "");
+    setEditing(false);
+  }
+
+  return (
+    <div>
+      <p className="text-xs text-[var(--color-text-tertiary)]">{label}</p>
+      {editing ? (
+        <div className="mt-1 flex items-center gap-2">
+          <input
+            ref={inputRef}
+            type={type}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void commit();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                cancel();
+              }
+            }}
+            onBlur={() => {
+              // Click on Save/Cancel should win the race with blur —
+              // a tiny delay lets the onMouseDown on those buttons
+              // fire first. Setting `tabIndex={-1}` on Save/Cancel
+              // (below) would also work, but this keeps them keyboard
+              // reachable via Tab.
+              setTimeout(() => {
+                if (editing) void commit();
+              }, 120);
+            }}
+            placeholder={placeholder}
+            disabled={saving}
+            className="flex-1 rounded-md px-2 py-1 text-sm outline-none"
+            style={{
+              background: "var(--color-bg-page)",
+              color: "var(--color-text-primary)",
+              border: "1px solid var(--color-border-default)",
+            }}
+            aria-label={`Edit ${label.toLowerCase()}`}
+          />
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={commit}
+            disabled={saving}
+            aria-label="Save"
+            className="rounded p-1 hover:opacity-70 disabled:opacity-40"
+            style={{ color: "var(--color-success, #059669)" }}
+          >
+            <Check size={14} />
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={cancel}
+            disabled={saving}
+            aria-label="Cancel"
+            className="rounded p-1 hover:opacity-70 disabled:opacity-40"
+            style={{ color: "var(--color-text-tertiary)" }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            setDraft(value ?? "");
+            setEditing(true);
+          }}
+          className="mt-0.5 flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-sm hover:bg-[var(--color-bg-hover)]"
+          style={{ color: "var(--color-text-primary)" }}
+          title={`Click to edit ${label.toLowerCase()}`}
+        >
+          <span className={value ? "" : "opacity-60"}>
+            {value || placeholder || "\u2014"}
+          </span>
+          <Pencil size={11} className="ml-auto shrink-0 opacity-0 transition-opacity group-hover:opacity-60" aria-hidden="true" />
+        </button>
       )}
     </div>
   );

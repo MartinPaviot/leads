@@ -109,16 +109,23 @@ export async function consumeResetToken(tokenId: string): Promise<void> {
     .where(eq(passwordResetTokens.id, tokenId));
 }
 
+/** Minimum password length — NIST SP 800-63B §5.1.1.2 recommends 12+
+ *  for user-chosen secrets. Raised from the v1 floor of 10 (M11). */
+export const PASSWORD_MIN_LENGTH = 12;
+
 /**
- * v1 password policy: ≥10 chars, at least one digit, one lower, one upper.
- * Deliberately not enforcing special chars — NIST guidance (SP 800-63B)
- * explicitly recommends *against* complex composition rules; length is
- * what matters.
+ * v2 password policy (M11): ≥12 chars, at least one digit, one lower,
+ * one upper. Composition rules stay minimal — NIST explicitly
+ * recommends *against* complex composition. The real defense against
+ * weak secrets is the `isPasswordPwned` HIBP check performed in
+ * parallel by every call site (sign-up, reset, change), which rejects
+ * known-breached passwords regardless of whether they satisfy the
+ * composition heuristics.
  */
 export function isPasswordAcceptable(password: string): boolean {
   return (
     typeof password === "string" &&
-    password.length >= 10 &&
+    password.length >= PASSWORD_MIN_LENGTH &&
     password.length <= 256 &&
     /[0-9]/.test(password) &&
     /[a-z]/.test(password) &&

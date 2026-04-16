@@ -102,3 +102,67 @@ describe("safeFetch — invalid JSON body", () => {
     expect(result.error).toBeTruthy();
   });
 });
+
+describe("safeFetch — 429 rate limit (E8)", () => {
+  function rateLimitResponse(body: unknown, retryAfterSec?: number): Response {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (retryAfterSec !== undefined) headers["Retry-After"] = String(retryAfterSec);
+    return new Response(JSON.stringify(body), { status: 429, headers });
+  }
+
+  it("uses a friendly copy instead of the raw backend detail", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      rateLimitResponse({ error: "Too many requests. Please try again shortly." }, 30)
+    );
+    const toast = vi.fn();
+    const result = await safeFetch("/x", { fetchImpl, toast });
+    expect(result.data).toBeNull();
+    expect(result.error).toMatch(/temporary limit/i);
+    expect(result.error).toMatch(/30 seconds/);
+    // Warning, not error — the user didn't misuse the API.
+    expect(toast).toHaveBeenCalledWith(expect.any(String), "warning");
+  });
+
+  it("falls back to 'a moment' when Retry-After is missing or unparseable", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      rateLimitResponse({ error: "Slow down" })
+    );
+    const result = await safeFetch("/x", { fetchImpl });
+    expect(result.error).toMatch(/in a moment/);
+  });
+
+  it("says 'a few seconds' for very short Retry-After values", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      rateLimitResponse({ error: "Slow" }, 3)
+    );
+    const result = await safeFetch("/x", { fetchImpl });
+    expect(result.error).toMatch(/a few seconds/);
+  });
+
+  it("bubbles minutes when Retry-After crosses 60 seconds", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      rateLimitResponse({ error: "Slow" }, 125)
+    );
+    const result = await safeFetch("/x", { fetchImpl });
+    // 125s → ceil(125/60) = 3 minutes
+    expect(result.error).toMatch(/3 minutes/);
+  });
+
+  it("respects explicit errorMessage over the 429 copy", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      rateLimitResponse({ error: "Slow" }, 30)
+    );
+    const toast = vi.fn();
+    await safeFetch("/x", {
+      fetchImpl,
+      toast,
+      errorMessage: "Couldn't enrich this account — try again shortly.",
+    });
+    expect(toast).toHaveBeenCalledWith(
+      "Couldn't enrich this account — try again shortly.",
+      "warning"
+    );
+  });
+});

@@ -572,5 +572,83 @@ export function buildSkillsTools(ctx: ToolContext) {
         return result.data ?? { error: result.error };
       },
     }),
+
+    scopePoC: makeTool({
+      description: `Scope a Proof of Concept for a deal: objective, success criteria, timeline, resources, risks. Use when user asks "scope a PoC for X", "PoC plan for this deal", "trial plan", "pilot scope".`,
+      inputSchema: z.object({
+        dealId: z.string().describe("Deal ID to scope the PoC for"),
+        focusAreas: z.array(z.string()).optional().describe("Specific areas to focus on"),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { scopePocSkill } = await import("@/skills/intelligence/scope-poc");
+        const result = await runSkill(
+          scopePocSkill,
+          { dealId: input.dealId, focusAreas: input.focusAreas },
+          { tenantId, dryRun: false },
+        );
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    draftProposal: makeTool({
+      description: `Draft a commercial proposal for a deal: executive summary, problem statement, solution, implementation plan, pricing, next steps. Use when user asks "draft a proposal for X", "write a proposal", "create proposal for this deal".`,
+      inputSchema: z.object({
+        dealId: z.string().describe("Deal ID to draft proposal for"),
+        includePricing: z.boolean().optional().describe("Include pricing section (default true)"),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { draftProposalSkill } = await import("@/skills/intelligence/draft-proposal");
+        const result = await runSkill(
+          draftProposalSkill,
+          { dealId: input.dealId, includePricing: input.includePricing },
+          { tenantId, dryRun: false },
+        );
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    handleObjection: makeTool({
+      description: `Get a strategic response to a specific prospect objection. Use when user asks "how do I handle this objection", "they said X, what do I say", "objection response for X", "counter to pricing objection".`,
+      inputSchema: z.object({
+        dealId: z.string().describe("Deal ID for context"),
+        objection: z.string().describe("The specific objection text"),
+        objectionCategory: z
+          .enum(["pricing", "timing", "competition", "technical", "authority", "need", "other"])
+          .optional(),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { handleObjectionSkill } = await import("@/skills/intelligence/handle-objection");
+        const result = await runSkill(
+          handleObjectionSkill,
+          {
+            dealId: input.dealId,
+            objection: input.objection,
+            objectionCategory: input.objectionCategory,
+          },
+          { tenantId, dryRun: false },
+        );
+        return result.data ?? { error: result.error };
+      },
+    }),
+
+    reEngageStalledDeal: makeTool({
+      description: `Generate a re-engagement strategy for a stalled deal: diagnosis, approach, email draft, alternative angles. Use when user asks "re-engage this deal", "how to get this deal moving", "deal is stuck, what do I do", "breakup email for X".`,
+      inputSchema: z.object({
+        dealId: z.string().describe("Stalled deal ID"),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { reEngageStalledSkill } = await import("@/skills/intelligence/re-engage-stalled");
+        const result = await runSkill(
+          reEngageStalledSkill,
+          { dealId: input.dealId },
+          { tenantId, dryRun: false },
+        );
+        return result.data ?? { error: result.error };
+      },
+    }),
   };
 }

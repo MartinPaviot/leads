@@ -33,8 +33,8 @@ export async function POST(req: Request) {
   const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
   const ua = req.headers.get("user-agent") ?? "";
 
-  const emailLimit = rateLimitPasswordResetEmail(normalizedEmail);
-  const ipLimit = rateLimitPasswordResetIp(ip);
+  const emailLimit = await rateLimitPasswordResetEmail(normalizedEmail);
+  const ipLimit = await rateLimitPasswordResetIp(ip);
   if (!emailLimit.success || !ipLimit.success) {
     logger.warn("forgot-password: rate limited", {
       email: normalizedEmail,

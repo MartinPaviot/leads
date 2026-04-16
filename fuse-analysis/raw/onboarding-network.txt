@@ -1,0 +1,38 @@
+[POST] https://app.tryfuse.ai/monitoring?o=4510910644682752&p=4510911334383616&r=us => [FAILED] net::ERR_ABORTED
+  Request body: {"dsn":"https://220ca29a33e301df55411c3414f6df63@o4510910644682752.ingest.us.sentry.io/4510911334383616"}
+{"type":"client_report"}
+{"timestamp":1776278179.7,"discarded_events":[{"reason":"sample_rate","category":"transaction","quantity":1}]}
+[POST] https://app.tryfuse.ai/monitoring?o=4510910644682752&p=4510911334383616&r=us => [FAILED] net::ERR_ABORTED
+  Request body: {"dsn":"https://220ca29a33e301df55411c3414f6df63@o4510910644682752.ingest.us.sentry.io/4510911334383616"}
+{"type":"client_report"}
+{"timestamp":1776278179.7,"discarded_events":[{"reason":"sample_rate","category":"transaction","quantity":1}]}
+[POST] https://app.tryfuse.ai/monitoring?o=4510910644682752&p=4510911334383616&r=us => [200] 
+  Request body: {"sent_at":"2026-04-15T18:36:20.742Z","sdk":{"name":"sentry.javascript.nextjs","version":"10.39.0"},"dsn":"https://220ca29a33e301df55411c3414f6df63@o4510910644682752.ingest.us.sentry.io/4510911334383616"}
+{"type":"session"}
+{"sid":"648dcf93eaad4b0ea2278f27b5979a3c","init":true,"started":"2026-04-15T18:36:20.742Z","timestamp":"2026-04-15T18:36:20.742Z","status":"ok","errors":0,"attrs":{"release":"cb60f6f8a26d4c96c3fda84b4ddb528cfa1d1d1c","environment":"production","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"}}
+[GET] https://webtraffic.backend.tryfuse.ai/api/v1/ingestion/credits => [200] 
+[GET] https://core.backend.tryfuse.ai/analytics/getLandingPageInfo?creditsUsedByProductPeriodFilter=THIS_MONTH => [200] 
+[GET] https://webtraffic.backend.tryfuse.ai/api/v1/ingestion/user/tag-script => [200] 
+[GET] https://webtraffic.backend.tryfuse.ai/api/v1/ingestion/ip-data => [200] 
+[GET] https://core.backend.tryfuse.ai/api/v1/mailbox-management/domains?page=1&pageSize=100 => [200] 
+[GET] https://core.backend.tryfuse.ai/api/v1/mailbox-management/mailboxes?page=1&pageSize=100 => [200] 
+[GET] https://core.backend.tryfuse.ai/api/v1/billing/history => [200] 
+[GET] https://agents.backend.tryfuse.ai/api/v1/knowledge-hubs/profiles?limit=100 => [200] 
+[GET] https://core.backend.tryfuse.ai/api/v1/integrations/zapier/settings => [200] 
+[GET] https://core.backend.tryfuse.ai/api/v1/integrations/slack/settings => [200] 
+[GET] https://core.backend.tryfuse.ai/api/v1/integrations/crm/team/connectiondata => [200] 
+[GET] https://core.backend.tryfuse.ai/api/v1/billing/payment-methods => [200] 
+[GET] https://core.backend.tryfuse.ai/api/v1/billing/setup-link?uiMode=true => [200] 
+[GET] https://webtraffic.backend.tryfuse.ai/api/v1/icp-filters => [200] 
+[GET] https://core.backend.tryfuse.ai/api/v1/billing/tariffs => [200] 
+[GET] https://core.backend.tryfuse.ai/api/v1/mailbox-management/mailboxes/price => [200] 
+[GET] https://core.backend.tryfuse.ai/api/v1/integrations/crm/authdata => [200] 
+[GET] https://core.backend.tryfuse.ai/mail/gmail/accounts => [200] 
+[GET] https://linkedin.backend.tryfuse.ai/auth/connected => [200] 
+[GET] https://core.backend.tryfuse.ai/api/v1/dialer/user-phone-numbers => [200] 
+[GET] https://core.backend.tryfuse.ai/api/v1/api_keys/getAll => [200] 
+[GET] https://app.tryfuse.ai/api/cookies/me => [200] 
+[GET] https://core.backend.tryfuse.ai/credits/getUserCreditsUsed => [200] 
+[GET] https://core.backend.tryfuse.ai/api/v1/team-management/members/getAll?page=1&pageSize=5&search= => [200] 
+[GET] https://agents.backend.tryfuse.ai/api/v1/knowledge-hubs/profiles?limit=100 => [200] 
+[GET] https://agents.backend.tryfuse.ai/api/v1/knowledge-hubs/profiles?limit=100 => [200] 

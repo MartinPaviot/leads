@@ -297,7 +297,7 @@ export async function POST(req: Request) {
 
   // Rate limit: 30 messages per minute per user
   const { rateLimit, rateLimitResponse } = await import("@/lib/rate-limit");
-  const rl = rateLimit(`chat:${authCtx.userId}`, 30, 60 * 1000);
+  const rl = await rateLimit(`chat:${authCtx.userId}`, 30, 60 * 1000);
   if (!rl.success) return rateLimitResponse(rl.resetAt);
 
   const {

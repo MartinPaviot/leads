@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Card, CardBody } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface KnowledgeTopic {
   id: string;
@@ -71,18 +72,32 @@ export default function KnowledgeSettingsPage() {
     }
   }
 
-  async function removeTopic(id: string) {
+  // E5 — knowledge deletes now route through ConfirmDialog. Temp rows
+  // (never saved) skip the dialog since there's nothing destructive to
+  // confirm — they exist only in local state.
+  const [removeTopicId, setRemoveTopicId] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
+
+  function removeTopic(id: string) {
     if (id.startsWith("temp-")) {
       setTopics(topics.filter((t) => t.id !== id));
       return;
     }
+    setRemoveTopicId(id);
+  }
 
+  async function confirmRemoveTopic() {
+    if (!removeTopicId) return;
+    setRemoving(true);
     setError("");
     try {
-      await fetch(`/api/settings/knowledge?id=${id}`, { method: "DELETE" });
-      setTopics(topics.filter((t) => t.id !== id));
+      await fetch(`/api/settings/knowledge?id=${removeTopicId}`, { method: "DELETE" });
+      setTopics((prev) => prev.filter((t) => t.id !== removeTopicId));
     } catch {
       setError("Failed to remove topic");
+    } finally {
+      setRemoving(false);
+      setRemoveTopicId(null);
     }
   }
 
@@ -122,6 +137,22 @@ export default function KnowledgeSettingsPage() {
           topics.map((topic) => (
             <Card key={topic.id}>
               <CardBody>
+                {/* N14 — unsaved indicator. Topics created via "+ Add"
+                    keep a `temp-` id until the first successful POST.
+                    The id never renders, but a small badge tells the
+                    user the row only exists locally so they don't
+                    assume "Add" already saved it. */}
+                {topic.id.startsWith("temp-") && (
+                  <span
+                    className="mb-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium"
+                    style={{
+                      background: "var(--color-warning-soft)",
+                      color: "var(--color-warning)",
+                    }}
+                  >
+                    Unsaved
+                  </span>
+                )}
                 <Input
                   label="Topic"
                   value={topic.topic}
@@ -156,6 +187,17 @@ export default function KnowledgeSettingsPage() {
           ))
         )}
       </div>
+
+      <ConfirmDialog
+        open={removeTopicId !== null}
+        title="Remove this knowledge topic?"
+        description="This topic will stop being included in Elevay's AI context for your workspace. You can add it again later."
+        confirmLabel="Remove topic"
+        variant="destructive"
+        onConfirm={confirmRemoveTopic}
+        onCancel={() => setRemoveTopicId(null)}
+        busy={removing}
+      />
     </>
   );
 }

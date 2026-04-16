@@ -124,7 +124,7 @@ export default function SecurityPage() {
             className="mt-1 text-[11px]"
             style={{ color: "var(--color-text-tertiary)" }}
           >
-            At least 10 characters with a digit, lowercase, and uppercase letter.
+            At least 12 characters with a digit, lowercase, and uppercase letter.
           </p>
         </div>
 

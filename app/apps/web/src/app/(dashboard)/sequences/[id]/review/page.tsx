@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
+import { checkSpamSignals, type SpamCheckResult } from "@/lib/email-spam-check";
 
 interface OutboundEmail {
   id: string;
@@ -208,6 +209,14 @@ export default function ReviewQueuePage({
                           __html: email.bodyHtml.substring(0, 300),
                         }}
                       />
+                      {/* Q10 — inline spam-trigger warnings. Computed
+                          client-side per draft so the user sees the
+                          severity at a glance before clicking Approve.
+                          Severity colours: medium = amber, high = red.
+                          We deliberately do NOT block submission — the
+                          user can still approve a flagged draft, but
+                          they did so with eyes open. */}
+                      <SpamWarnings subject={email.subject} bodyHtml={email.bodyHtml} bodyText={email.bodyText} />
                     </>
                   )}
                 </div>
@@ -239,6 +248,58 @@ export default function ReviewQueuePage({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Q10 — render the spam-check result for a single draft.
+ *
+ * Strips HTML tags out of `bodyHtml` for the heuristic so we don't
+ * count <a href> attributes as personalisation tokens or spammy text.
+ * Falls back to `bodyText` when present (cleaner) so the score reflects
+ * what the recipient actually reads.
+ *
+ * Returns null when the draft is clean — no UI noise on good emails.
+ */
+function SpamWarnings({
+  subject,
+  bodyHtml,
+  bodyText,
+}: {
+  subject: string;
+  bodyHtml: string;
+  bodyText: string | null;
+}): React.ReactElement | null {
+  const plain =
+    bodyText && bodyText.trim().length > 0
+      ? bodyText
+      : bodyHtml.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ");
+  const result: SpamCheckResult = checkSpamSignals(subject, plain);
+  if (result.severity === "clean") return null;
+
+  const palette = {
+    low: { bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.25)", text: "#92400e" },
+    medium: { bg: "rgba(234,88,12,0.10)", border: "rgba(234,88,12,0.30)", text: "#9a3412" },
+    high: { bg: "rgba(220,38,38,0.10)", border: "rgba(220,38,38,0.30)", text: "#991b1b" },
+  } as const;
+  const c = palette[result.severity];
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="mt-2 rounded px-2 py-1.5 text-[11px]"
+      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}
+    >
+      <div className="font-medium">
+        Spam risk: {result.severity} · {result.score}/100
+      </div>
+      <ul className="mt-1 list-disc pl-4 space-y-0.5">
+        {result.warnings.map((w) => (
+          <li key={w.code}>{w.message}</li>
+        ))}
+      </ul>
     </div>
   );
 }

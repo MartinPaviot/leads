@@ -1,0 +1,166 @@
+- generic [ref=e1]:
+  - region "Notifications alt+T"
+  - generic [ref=e2]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - img [ref=e8]
+          - heading [level=1] [ref=e9]: Elevay
+        - button [ref=e10]:
+          - generic [ref=e11]:
+            - img
+            - generic [ref=e12]: Toggle Sidebar
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - generic [ref=e15]: General
+          - list [ref=e16]:
+            - listitem [ref=e17]:
+              - link [ref=e18] [cursor=pointer]:
+                - /url: /
+                - img [ref=e19]
+                - generic [ref=e21]: SalesGPT
+                - generic [ref=e23]: Beta
+            - listitem [ref=e24]:
+              - link [ref=e25] [cursor=pointer]:
+                - /url: /signals/feed
+                - img [ref=e26]
+                - generic [ref=e28]: Smart Actions
+            - listitem [ref=e29]:
+              - link [ref=e30] [cursor=pointer]:
+                - /url: /insights
+                - img [ref=e31]
+                - generic [ref=e34]: Insights
+        - generic [ref=e35]:
+          - generic [ref=e36]: Signals
+          - list [ref=e37]:
+            - listitem [ref=e38]:
+              - link [ref=e39] [cursor=pointer]:
+                - /url: /signals/agents
+                - img [ref=e40]
+                - generic [ref=e46]: Agents
+            - listitem [ref=e47]:
+              - link [ref=e48] [cursor=pointer]:
+                - /url: /signals/website-intent
+                - img [ref=e49]
+                - generic [ref=e55]: Website Intent
+        - generic [ref=e56]:
+          - generic [ref=e57]: Prospect
+          - list [ref=e58]:
+            - listitem [ref=e59]:
+              - link [ref=e60] [cursor=pointer]:
+                - /url: /prospects/search
+                - img [ref=e61]
+                - generic [ref=e66]: Prospect Search
+            - listitem [ref=e67]:
+              - link [ref=e68] [cursor=pointer]:
+                - /url: /prospects/lists
+                - img [ref=e69]
+                - generic [ref=e70]: Prospect Lists
+        - generic [ref=e71]:
+          - generic [ref=e72]: Engage
+          - list [ref=e73]:
+            - listitem [ref=e74]:
+              - link [ref=e75] [cursor=pointer]:
+                - /url: /engage/sequences
+                - img [ref=e76]
+                - generic [ref=e79]: Campaigns
+            - listitem [ref=e80]:
+              - link [ref=e81] [cursor=pointer]:
+                - /url: /engage/inbox
+                - img [ref=e82]
+                - generic [ref=e85]: Inbox
+            - listitem [ref=e86]:
+              - link [ref=e87] [cursor=pointer]:
+                - /url: /engage/power-dialer
+                - img [ref=e88]
+                - generic [ref=e90]: Power Dialer
+      - generic [ref=e91]:
+        - button [ref=e93]:
+          - generic [ref=e94]:
+            - text: Upgrade Plan
+            - img
+        - generic [ref=e95]:
+          - generic [ref=e97]:
+            - generic [ref=e98]:
+              - img [ref=e99]
+              - heading [level=3] [ref=e104]: Credits
+            - generic [ref=e106]: Free
+          - generic [ref=e107]:
+            - progressbar [ref=e108]
+            - generic [ref=e110]: 2k / 2k
+    - main [ref=e111]:
+      - generic [ref=e112]:
+        - navigation [ref=e114]:
+          - list [ref=e115]:
+            - listitem [ref=e116]:
+              - link [disabled] [ref=e117]:
+                - img [ref=e118]
+                - text: SalesGPT
+        - generic [ref=e120]:
+          - button [expanded] [ref=e121]:
+            - generic [ref=e122]:
+              - img
+          - button [ref=e123] [cursor=pointer]:
+            - generic [ref=e124]:
+              - img
+          - button [ref=e125]:
+            - generic [ref=e126]:
+              - img
+          - button [ref=e127]:
+            - generic [ref=e129]: MP
+      - generic [ref=e131]:
+        - generic [ref=e132]:
+          - generic [ref=e133]:
+            - button [ref=e134]:
+              - generic [ref=e135]:
+                - img
+                - text: New Chat
+            - button [ref=e136]:
+              - generic [ref=e137]:
+                - img
+                - text: Search
+          - separator [ref=e138]
+          - generic [ref=e139]:
+            - heading [level=3] [ref=e140]: Previous Chats
+            - generic [ref=e180]: No chats yet
+        - generic [ref=e148]:
+          - generic [ref=e149]:
+            - img [ref=e150]
+            - heading [level=1] [ref=e152]: Hey Martin, how can I assist you today?
+            - generic [ref=e153]:
+              - textbox [ref=e155]:
+                - /placeholder: Ask me anything...
+              - button [disabled]:
+                - generic:
+                  - img
+          - generic [ref=e156]:
+            - generic [ref=e157]:
+              - button [ref=e158]:
+                - generic [ref=e159]:
+                  - img
+                  - text: Find Prospects
+              - button [ref=e160]:
+                - generic [ref=e161]:
+                  - img
+                  - text: Create Prospect List
+              - button [ref=e162]:
+                - generic [ref=e163]:
+                  - img
+                  - text: Research Market
+            - generic [ref=e164]:
+              - button [ref=e165]:
+                - generic [ref=e166]:
+                  - img
+                  - text: Build Campaign
+              - button [ref=e167]:
+                - generic [ref=e168]:
+                  - img
+                  - text: Enrich List
+  - alert [ref=e169]
+  - dialog "Platform Overview" [ref=e171]:
+    - generic [ref=e172]:
+      - heading "Platform Overview" [level=2] [ref=e173]
+      - button [active] [ref=e174]:
+        - generic [ref=e175]:
+          - img
+    - generic [ref=e178]: Your browser does not support the video tag.

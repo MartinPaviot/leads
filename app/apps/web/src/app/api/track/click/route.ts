@@ -2,15 +2,27 @@ import { db } from "@/db";
 import { outboundEmails, activities } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { verifyTrackingId } from "@/lib/tracking-token";
 
 /**
  * Click tracking redirect endpoint.
- * GET /api/track/click?id={emailId}&url={encodedUrl}
- * Records the click event and redirects to the original URL.
+ *
+ * M8 — previously accepted an unsigned `id` param, letting anyone
+ * inflate click counts or attribute engagement to the wrong contact by
+ * replaying captured URLs at scale. Now requires a signed token `t`
+ * whose payload is the emailId. The legacy `id` param is still parsed
+ * as a fallback so in-flight emails sent before the cutover don't
+ * start 404ing, but new sends use `t=<signed>`.
+ *
+ * GET /api/track/click?t={signedToken}&url={encodedUrl}
  */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url, "http://localhost");
-  const emailId = searchParams.get("id");
+  const signedId = verifyTrackingId(searchParams.get("t"));
+  // Accept the unsigned `id` only for the backwards-compat window. No
+  // session gate — still "unauth-public" by design — but the signed
+  // path is the one fresh sends will use.
+  const emailId = signedId ?? searchParams.get("id");
   const targetUrl = searchParams.get("url");
 
   if (!targetUrl) {

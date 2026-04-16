@@ -16,6 +16,12 @@ import { weeklySignalScan, weeklyChurnRiskScan, weeklyExpansionScan, weeklyFundi
 import { onContactCreatedEnrichAndQualify } from "@/inngest/skill-events";
 import { researchAgent } from "@/inngest/research-agent";
 import { memoryAutoExtract } from "@/inngest/memory-auto-extract";
+import { enrichmentEmailExtractFunction, enrichmentEmailExtractBatchFunction } from "@/inngest/enrichment-email-extract-functions";
+import { generateDealBrief, scheduledDealDigest } from "@/inngest/deal-briefing";
+import { analyzeOutgoingEmail, postInteractionCoaching, analyzeDealEvent, weeklyPerformanceSnapshot } from "@/inngest/coaching-engine";
+import { signalToDealAlert } from "@/inngest/signal-to-deal-alert";
+import { autoPipelineStep } from "@/inngest/autonomous-pipeline";
+import { dailyFounderBrief } from "@/inngest/founder-coach";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -60,5 +66,21 @@ export const { GET, POST, PUT } = serve({
     researchAgent,
     // CHAT-07: Memory auto-extraction from conversations
     memoryAutoExtract,
+    // Enrichment: deep LLM signal extraction from emails
+    // (SOURCES_ANALYSIS.md §6.3 Module 1)
+    enrichmentEmailExtractFunction,
+    enrichmentEmailExtractBatchFunction,
+    // Deal briefing: on-demand + scheduled daily digest
+    generateDealBrief,
+    scheduledDealDigest,
+    // Coaching engine: pre-send review, post-interaction, deal events, weekly snapshot
+    analyzeOutgoingEmail,
+    postInteractionCoaching,
+    analyzeDealEvent,
+    weeklyPerformanceSnapshot,
+    // Differentiation: proactive deal intelligence, autonomous pipeline, founder coaching
+    signalToDealAlert,
+    autoPipelineStep,
+    dailyFounderBrief,
   ],
 });

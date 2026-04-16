@@ -33,6 +33,10 @@ import { salesCallPrepSkill } from "./intelligence/sales-call-prep";
 import { battlecardGeneratorSkill } from "./intelligence/battlecard-generator";
 import { competitorIntelSkill } from "./intelligence/competitor-intel";
 import { churnRiskDetectorSkill } from "./intelligence/churn-risk-detector";
+import { scopePocSkill } from "./intelligence/scope-poc";
+import { draftProposalSkill } from "./intelligence/draft-proposal";
+import { handleObjectionSkill } from "./intelligence/handle-objection";
+import { reEngageStalledSkill } from "./intelligence/re-engage-stalled";
 
 export function registerAllSkills() {
   registerSkill(tamBuilderSkill);
@@ -59,4 +63,8 @@ export function registerAllSkills() {
   registerSkill(fundingSignalMonitorSkill);
   registerSkill(leadershipChangeOutreachSkill);
   registerSkill(expansionSignalSpotterSkill);
+  registerSkill(scopePocSkill);
+  registerSkill(draftProposalSkill);
+  registerSkill(handleObjectionSkill);
+  registerSkill(reEngageStalledSkill);
 }

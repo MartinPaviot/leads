@@ -22,7 +22,7 @@ function ResetPasswordForm() {
     }
     if (!clientAcceptable(password)) {
       setError(
-        "Password must be at least 10 characters and include a digit, a lowercase letter, and an uppercase letter."
+        "Password must be at least 12 characters and include a digit, a lowercase letter, and an uppercase letter."
       );
       return;
     }
@@ -75,7 +75,7 @@ function ResetPasswordForm() {
           Set a new password
         </h2>
         <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-          At least 10 characters with a digit, a lowercase letter, and an uppercase letter.
+          At least 12 characters with a digit, a lowercase letter, and an uppercase letter.
         </p>
       </div>
 

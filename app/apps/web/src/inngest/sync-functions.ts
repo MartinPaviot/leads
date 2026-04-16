@@ -424,6 +424,22 @@ export const syncEmails = inngest.createFunction(
       }
     }
 
+    // Deep LLM signal extraction (fire-and-forget, runs in parallel function).
+    // Existing `analyzeEmailBatch` above keeps simple sentiment + intent.
+    // The extractor below adds objections, competitors, next steps, champion
+    // signals, extracted budget/timeframe — see SOURCES_ANALYSIS.md §6.3 Module 1.
+    if (createdActivities.length > 0) {
+      const activityIds = createdActivities
+        .filter((a) => a.body && a.body.length >= 40)
+        .map((a) => a.id);
+      if (activityIds.length > 0) {
+        await inngest.send({
+          name: "enrichment/email-extract-batch-requested",
+          data: { tenantId, activityIds },
+        }).catch((e) => console.warn("sync: email-extract trigger failed (non-blocking)", e));
+      }
+    }
+
     return { synced: created, contactsCreated, total: emails.length };
   }
 );

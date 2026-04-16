@@ -1,15 +1,20 @@
 import { db } from "@/db";
 import { pendingInvites, tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { hashInviteToken } from "@/lib/invite-token";
 
 /**
  * Public endpoint — no auth required. Validates an invite token and returns
  * enough info for the accept-invite page to render. The token IS the auth.
+ *
+ * H5: `pending_invites.token` stores a SHA-256 hash of the real token;
+ * we hash the URL-provided token and look it up that way.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   if (!token) return Response.json({ valid: false, reason: "missing_token" }, { status: 400 });
 
+  const tokenHash = hashInviteToken(token);
   const [invite] = await db
     .select({
       id: pendingInvites.id,
@@ -20,7 +25,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
       expiresAt: pendingInvites.expiresAt,
     })
     .from(pendingInvites)
-    .where(eq(pendingInvites.token, token))
+    .where(eq(pendingInvites.token, tokenHash))
     .limit(1);
 
   if (!invite) return Response.json({ valid: false, reason: "not_found" }, { status: 404 });

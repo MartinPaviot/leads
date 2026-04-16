@@ -1,9 +1,10 @@
 import { db } from "@/db";
 import { contacts, companies, activities } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth-utils";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { inngest } from "@/inngest/client";
 import { embedEntity, contactToText } from "@/lib/embeddings";
+import { extractDomain } from "@/lib/util/email";
 
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();
@@ -136,6 +137,37 @@ export async function POST(req: Request) {
 
     if (!email && !firstName && !lastName) {
       return Response.json({ error: "At least email or name required" }, { status: 400 });
+    }
+
+    // K12 — auto-match contact → account by email domain when the
+    // caller didn't pick one explicitly. We only attach an existing
+    // company; we don't auto-create one (out of scope here — the
+    // caller can hit POST /api/accounts first if they want a new
+    // account). Skip personal-mailbox domains so a sarah@gmail.com
+    // doesn't accidentally land on whichever tenant happens to have
+    // a placeholder "gmail.com" company row.
+    const PERSONAL_DOMAINS = new Set([
+      "gmail.com", "googlemail.com", "yahoo.com", "yahoo.fr",
+      "hotmail.com", "hotmail.fr", "outlook.com", "outlook.fr",
+      "live.com", "icloud.com", "aol.com", "me.com", "msn.com",
+      "protonmail.com", "proton.me", "pm.me", "fastmail.com",
+      "yandex.com", "gmx.com", "mail.com", "zoho.com",
+    ]);
+    if (!companyId && email) {
+      const domain = extractDomain(email);
+      if (domain && !PERSONAL_DOMAINS.has(domain)) {
+        const [match] = await db
+          .select({ id: companies.id })
+          .from(companies)
+          .where(
+            and(
+              eq(companies.tenantId, authCtx.tenantId),
+              eq(companies.domain, domain)
+            )
+          )
+          .limit(1);
+        if (match) companyId = match.id;
+      }
     }
 
     // Build properties with multi-email and multi-account data

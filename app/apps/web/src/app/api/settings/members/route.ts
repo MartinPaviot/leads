@@ -1,7 +1,8 @@
 import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { logAudit } from "@/lib/audit-log";
 
 export async function GET() {
   const authCtx = await getAuthContext();
@@ -60,7 +61,39 @@ export async function PUT(req: Request) {
       return Response.json({ error: "Cannot change your own role" }, { status: 400 });
     }
 
-    await db.update(users).set({ role, updatedAt: new Date() }).where(eq(users.id, memberId));
+    // Read the previous role before the update so the audit entry
+    // records the full before/after transition.
+    const [before] = await db
+      .select({ role: users.role })
+      .from(users)
+      .where(and(eq(users.id, memberId), eq(users.tenantId, authCtx.tenantId)))
+      .limit(1);
+
+    // Scope the update to this tenant — without the tenant clause a
+    // tenant-A admin could PUT a userId that belongs to tenant B and
+    // flip their role. `returning()` lets us detect the 0-row case and
+    // respond with 404 instead of a false 200.
+    const updated = await db
+      .update(users)
+      .set({ role, updatedAt: new Date() })
+      .where(and(eq(users.id, memberId), eq(users.tenantId, authCtx.tenantId)))
+      .returning({ id: users.id });
+
+    if (updated.length === 0) {
+      return Response.json({ error: "Member not found" }, { status: 404 });
+    }
+
+    // H7 — role changes cross the SOC 2 CC6.1 / ISO 27001 A.5.15
+    // threshold. Always logged, with the before/after pair.
+    await logAudit({
+      tenantId: authCtx.tenantId,
+      userId: authCtx.appUserId,
+      action: "update",
+      entityType: "user",
+      entityId: memberId,
+      changes: { role: { old: before?.role ?? null, new: role } },
+      metadata: { event: "role_changed" },
+    });
 
     return Response.json({ success: true });
   } catch (error) {

@@ -55,9 +55,12 @@ export default auth((req) => {
     "/api/webhooks",
     "/api/inngest",
     "/api/track",
-    // E2E test seed / cleanup endpoints. The routes themselves 404
-    // when ENABLE_E2E_SEED != "1", so exposing the path in prod leaks
-    // nothing — a prod request gets a plain 404 before any DB work.
+    // E2E test seed / cleanup endpoints. The routes fail-closed on
+    // both `NODE_ENV === "production"` AND `ENABLE_E2E_SEED === "1"`
+    // (M5) — only the CI pipeline running the Playwright suite sets
+    // the second flag, so anywhere else the route 404s before any
+    // DB work. Listed here as public so the middleware's session gate
+    // doesn't redirect the 404 to /sign-in.
     "/api/test-e2e",
   ];
 

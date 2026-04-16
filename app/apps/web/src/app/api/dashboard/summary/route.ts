@@ -28,6 +28,11 @@ export async function GET() {
   }
 
   const weekStart = getStartOfWeek();
+  // H6 — same-shape window one week earlier. The "7d ago" threshold
+  // is good enough — we never try to align to ISO-week boundaries,
+  // just to a rolling 7-day window so the delta is comparable even
+  // when the user loads the page mid-week.
+  const prevWeekStart = new Date(weekStart.getTime() - 7 * 86400000);
   const now = new Date();
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -35,38 +40,79 @@ export async function GET() {
   todayEnd.setHours(23, 59, 59, 999);
 
   try {
-    // Weekly activity counts
-    const weeklyActivities = await db
-      .select({
-        type: activities.activityType,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(activities)
-      .where(and(eq(activities.tenantId, authCtx.tenantId), gte(activities.occurredAt, weekStart)))
-      .groupBy(activities.activityType);
+    // Weekly activity counts — current + previous windows fetched in
+    // parallel so H6 delta rendering doesn't add a round-trip.
+    const [weeklyActivities, prevWeeklyActivities] = await Promise.all([
+      db
+        .select({
+          type: activities.activityType,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(activities)
+        .where(and(eq(activities.tenantId, authCtx.tenantId), gte(activities.occurredAt, weekStart)))
+        .groupBy(activities.activityType),
+      db
+        .select({
+          type: activities.activityType,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(activities)
+        .where(
+          and(
+            eq(activities.tenantId, authCtx.tenantId),
+            gte(activities.occurredAt, prevWeekStart),
+            lte(activities.occurredAt, weekStart)
+          )
+        )
+        .groupBy(activities.activityType),
+    ]);
 
     const activityCounts: Record<string, number> = {};
-    for (const row of weeklyActivities) {
-      activityCounts[row.type] = row.count;
-    }
+    for (const row of weeklyActivities) activityCounts[row.type] = row.count;
+    const prevActivityCounts: Record<string, number> = {};
+    for (const row of prevWeeklyActivities) prevActivityCounts[row.type] = row.count;
 
-    // Weekly sequence enrollments
-    const enrollments = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(sequenceEnrollments)
-      .where(gte(sequenceEnrollments.enrolledAt, weekStart));
+    // Weekly sequence enrollments — current + previous.
+    const [enrollments, prevEnrollments] = await Promise.all([
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(sequenceEnrollments)
+        .where(gte(sequenceEnrollments.enrolledAt, weekStart)),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(sequenceEnrollments)
+        .where(
+          and(
+            gte(sequenceEnrollments.enrolledAt, prevWeekStart),
+            lte(sequenceEnrollments.enrolledAt, weekStart)
+          )
+        ),
+    ]);
 
-    // Weekly deals won
-    const dealsWon = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(deals)
-      .where(
-        and(
-          eq(deals.tenantId, authCtx.tenantId),
-          eq(deals.stage, "won"),
-          gte(deals.updatedAt, weekStart)
-        )
-      );
+    // Weekly deals won — current + previous.
+    const [dealsWon, prevDealsWon] = await Promise.all([
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(deals)
+        .where(
+          and(
+            eq(deals.tenantId, authCtx.tenantId),
+            eq(deals.stage, "won"),
+            gte(deals.updatedAt, weekStart)
+          )
+        ),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(deals)
+        .where(
+          and(
+            eq(deals.tenantId, authCtx.tenantId),
+            eq(deals.stage, "won"),
+            gte(deals.updatedAt, prevWeekStart),
+            lte(deals.updatedAt, weekStart)
+          )
+        ),
+    ]);
 
     // Today's tasks (due today + overdue)
     const todayTasks = await db
@@ -230,6 +276,15 @@ export async function GET() {
         responsesReceived: (activityCounts["email_replied"] || 0) + (activityCounts["email_received"] || 0),
         meetingsBooked: activityCounts["meeting_scheduled"] || 0,
         opportunitiesClosed: dealsWon[0]?.count || 0,
+      },
+      // H6 — prev-window counterparts. Home renders delta arrows by
+      // subtracting current − previous; keeping the two objects
+      // separate avoids breaking clients that only read weekSummary.
+      weekSummaryPrev: {
+        sequencesLaunched: prevEnrollments[0]?.count || 0,
+        responsesReceived: (prevActivityCounts["email_replied"] || 0) + (prevActivityCounts["email_received"] || 0),
+        meetingsBooked: prevActivityCounts["meeting_scheduled"] || 0,
+        opportunitiesClosed: prevDealsWon[0]?.count || 0,
       },
       // Founder metrics
       founderMetrics: {

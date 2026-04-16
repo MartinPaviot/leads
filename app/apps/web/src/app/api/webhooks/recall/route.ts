@@ -4,6 +4,60 @@ import { eq, and, sql, ilike } from "drizzle-orm";
 import { getBotStatus, getBotTranscript, transcriptToText, mapBotStatus } from "@/lib/recall";
 import { tracedGenerateObject } from "@/lib/traced-ai";
 import { z } from "zod";
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+/**
+ * Verify a Recall.ai webhook signature.
+ *
+ * Recall.ai delivers webhooks via Svix — canonical message is
+ *   `${svix-id}.${svix-timestamp}.${rawBody}`
+ * signed with HMAC-SHA256 using a `whsec_<base64>` secret. The header
+ * `svix-signature` carries one or more `v1,<base64>` signatures.
+ *
+ * Fail-closed: if `RECALL_WEBHOOK_SECRET` is not configured, all
+ * requests are rejected with 503. This is deliberate — a silent accept
+ * in non-prod would let a preview deploy be abused to corrupt real
+ * tenant data (the route mutates `activities` and `deals` once it
+ * resolves a `recallBotId`).
+ */
+function verifyRecallSignature(req: Request, rawBody: string): boolean {
+  const secret = process.env.RECALL_WEBHOOK_SECRET;
+  if (!secret) return false;
+
+  const id = req.headers.get("svix-id");
+  const timestamp = req.headers.get("svix-timestamp");
+  const signatureHeader = req.headers.get("svix-signature");
+  if (!id || !timestamp || !signatureHeader) return false;
+
+  const ts = Number(timestamp);
+  if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > 300) {
+    return false;
+  }
+
+  const secretBytes = secret.startsWith("whsec_")
+    ? Buffer.from(secret.slice("whsec_".length), "base64")
+    : Buffer.from(secret, "utf8");
+
+  const toSign = `${id}.${timestamp}.${rawBody}`;
+  const expected = createHmac("sha256", secretBytes).update(toSign).digest("base64");
+  const expectedBuf = Buffer.from(expected, "utf8");
+
+  const candidates = signatureHeader
+    .split(" ")
+    .filter((p) => p.startsWith("v1,"))
+    .map((p) => p.slice("v1,".length));
+
+  for (const candidate of candidates) {
+    const candidateBuf = Buffer.from(candidate, "utf8");
+    if (
+      candidateBuf.length === expectedBuf.length &&
+      timingSafeEqual(candidateBuf, expectedBuf)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Schema (same as process-transcript/route.ts)                       */
@@ -45,6 +99,22 @@ const meetingNotesSchema = z.object({
 
 export async function POST(req: Request) {
   const rawBody = await req.text();
+
+  // Verify signature BEFORE parsing or touching the DB — the route
+  // mutates tenant-owned rows as soon as it resolves `recallBotId`, so
+  // any path that reaches the parse step with an unauthenticated body
+  // is a data-integrity hole.
+  if (!process.env.RECALL_WEBHOOK_SECRET) {
+    console.error("webhooks/recall: RECALL_WEBHOOK_SECRET is not configured");
+    return Response.json(
+      { error: "Webhook not configured" },
+      { status: 503 }
+    );
+  }
+  if (!verifyRecallSignature(req, rawBody)) {
+    console.warn("webhooks/recall: rejected request with invalid signature");
+    return Response.json({ error: "Invalid signature" }, { status: 401 });
+  }
 
   // Parse the event
   let event: { event: string; data: { data: { code: string; sub_code: string | null; updated_at: string }; bot: { id: string; metadata: Record<string, unknown> } } };

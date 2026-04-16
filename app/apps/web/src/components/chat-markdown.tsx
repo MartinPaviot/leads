@@ -2,6 +2,7 @@
 
 import { useMemo, memo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { EntityLink, parseEntityHref } from "./entity-link";
 import { CopyButton } from "./chat/copy-button";
 
@@ -221,7 +222,7 @@ export const ChatMarkdown = memo(function ChatMarkdown({ children }: ChatMarkdow
   }), []);
 
   return (
-    <ReactMarkdown components={components}>
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
       {children}
     </ReactMarkdown>
   );

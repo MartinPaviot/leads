@@ -1,16 +1,15 @@
 import { db } from "@/db";
 import { connectedMailboxes } from "@/db/schema";
 import { sql } from "drizzle-orm";
+import { verifyCronRequest } from "@/lib/cron-auth";
 
 /**
  * Reset daily sent counters on all connected mailboxes.
  * Run as cron at midnight UTC daily.
  */
 export async function GET(req: Request) {
-  const secret = req.headers.get("authorization")?.replace("Bearer ", "");
-  if (secret !== process.env.CRON_SECRET && process.env.NODE_ENV === "production") {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const unauthorized = verifyCronRequest(req);
+  if (unauthorized) return unauthorized;
 
   try {
     await db

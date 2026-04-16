@@ -1,34 +1,21 @@
-/** Simple in-memory rate limiter for API endpoints */
+/**
+ * Rate limiter wrappers. Delegates to `rate-limit-store` which picks
+ * the in-memory driver locally and the Upstash Redis driver when
+ * `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` are set — so
+ * counts are shared across Vercel serverless instances instead of
+ * resetting on every cold start.
+ *
+ * These helpers are async now. The 20-ish call sites already `await`
+ * them (they wrap async route handlers), so this is a drop-in.
+ */
+import { hit, type RateLimitResult } from "./rate-limit-store";
 
-const store = new Map<string, { count: number; resetAt: number }>();
-
-// Cleanup every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of store) {
-    if (value.resetAt < now) store.delete(key);
-  }
-}, 5 * 60 * 1000);
-
-export function rateLimit(
+export async function rateLimit(
   key: string,
   limit: number = 60,
   windowMs: number = 60 * 1000
-): { success: boolean; remaining: number; resetAt: number } {
-  const now = Date.now();
-  const entry = store.get(key);
-
-  if (!entry || entry.resetAt < now) {
-    store.set(key, { count: 1, resetAt: now + windowMs });
-    return { success: true, remaining: limit - 1, resetAt: now + windowMs };
-  }
-
-  if (entry.count >= limit) {
-    return { success: false, remaining: 0, resetAt: entry.resetAt };
-  }
-
-  entry.count++;
-  return { success: true, remaining: limit - entry.count, resetAt: entry.resetAt };
+): Promise<RateLimitResult> {
+  return hit(key, limit, windowMs);
 }
 
 export function rateLimitResponse(resetAt: number): Response {
@@ -47,22 +34,22 @@ export function rateLimitResponse(resetAt: number): Response {
 // ── Preset tiers for common use cases ──
 
 /** Rate limit for LLM-calling routes: 20 req/min per user */
-export function rateLimitLLM(userId: string): { success: boolean; remaining: number; resetAt: number } {
+export function rateLimitLLM(userId: string): Promise<RateLimitResult> {
   return rateLimit(`llm:${userId}`, 20, 60 * 1000);
 }
 
 /** Rate limit for Apollo/enrichment routes: 30 req/min per user */
-export function rateLimitEnrich(userId: string): { success: boolean; remaining: number; resetAt: number } {
+export function rateLimitEnrich(userId: string): Promise<RateLimitResult> {
   return rateLimit(`enrich:${userId}`, 30, 60 * 1000);
 }
 
 /** Rate limit for bulk/import routes: 5 req/min per user */
-export function rateLimitBulk(userId: string): { success: boolean; remaining: number; resetAt: number } {
+export function rateLimitBulk(userId: string): Promise<RateLimitResult> {
   return rateLimit(`bulk:${userId}`, 5, 60 * 1000);
 }
 
 /** Rate limit for auth/public routes: 10 req/min per IP */
-export function rateLimitAuth(ip: string): { success: boolean; remaining: number; resetAt: number } {
+export function rateLimitAuth(ip: string): Promise<RateLimitResult> {
   return rateLimit(`auth:${ip}`, 10, 60 * 1000);
 }
 
@@ -71,11 +58,7 @@ export function rateLimitAuth(ip: string): { success: boolean; remaining: number
  * intentionally low to make bulk-email harvesting costly for an attacker
  * while still allowing a genuine user a handful of retries in the hour.
  */
-export function rateLimitPasswordResetEmail(normalizedEmail: string): {
-  success: boolean;
-  remaining: number;
-  resetAt: number;
-} {
+export function rateLimitPasswordResetEmail(normalizedEmail: string): Promise<RateLimitResult> {
   return rateLimit(`pwd-reset:email:${normalizedEmail}`, 3, 60 * 60 * 1000);
 }
 
@@ -84,24 +67,36 @@ export function rateLimitPasswordResetEmail(normalizedEmail: string): {
  * so a shared NAT egress for a whole org doesn't lock everyone out, but
  * tight enough to blunt credential-stuffing probes.
  */
-export function rateLimitPasswordResetIp(ip: string): {
-  success: boolean;
-  remaining: number;
-  resetAt: number;
-} {
+export function rateLimitPasswordResetIp(ip: string): Promise<RateLimitResult> {
   return rateLimit(`pwd-reset:ip:${ip}`, 10, 60 * 60 * 1000);
+}
+
+/**
+ * Verify-email resend cap per email: 3/hour. Same shape as the
+ * password-reset limiter — same threat model (mailbomb / enumeration
+ * via repeated send requests).
+ */
+export function rateLimitVerifyEmail(normalizedEmail: string): Promise<RateLimitResult> {
+  return rateLimit(`verify-email:email:${normalizedEmail}`, 3, 60 * 60 * 1000);
+}
+
+/**
+ * Verify-email resend cap per IP: 10/hour.
+ */
+export function rateLimitVerifyEmailIp(ip: string): Promise<RateLimitResult> {
+  return rateLimit(`verify-email:ip:${ip}`, 10, 60 * 60 * 1000);
 }
 
 /**
  * Apply rate limiting and return 429 if exceeded.
  * Returns null if allowed, or a Response to return immediately.
  */
-export function checkRateLimit(
+export async function checkRateLimit(
   tier: "llm" | "enrich" | "bulk",
   userId: string
-): Response | null {
+): Promise<Response | null> {
   const fn = tier === "llm" ? rateLimitLLM : tier === "enrich" ? rateLimitEnrich : rateLimitBulk;
-  const rl = fn(userId);
+  const rl = await fn(userId);
   if (!rl.success) return rateLimitResponse(rl.resetAt);
   return null;
 }

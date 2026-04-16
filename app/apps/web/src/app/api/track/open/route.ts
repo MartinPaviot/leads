@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { outboundEmails, activities } from "@/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
+import { verifyTrackingId } from "@/lib/tracking-token";
 
 // 1x1 transparent GIF
 const PIXEL = Buffer.from(
@@ -10,12 +11,19 @@ const PIXEL = Buffer.from(
 
 /**
  * Open tracking pixel endpoint.
- * GET /api/track/open?id={emailId}
- * Returns a 1x1 transparent GIF and records the open event.
+ *
+ * M8 — prefer a signed `t=<token>` param; fall back to the unsigned
+ * `id=<emailId>` for in-flight legacy sends. An unverifiable token is
+ * ignored (no DB write) but we still return the pixel so the receiving
+ * email client doesn't render a broken image. See `signTrackingId` in
+ * `@/lib/tracking-token`.
+ *
+ * GET /api/track/open?t={signedToken}
  */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url, "http://localhost");
-  const emailId = searchParams.get("id");
+  const signedId = verifyTrackingId(searchParams.get("t"));
+  const emailId = signedId ?? searchParams.get("id");
 
   if (emailId) {
     // Fire-and-forget: don't block pixel response

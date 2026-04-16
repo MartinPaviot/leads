@@ -2,15 +2,12 @@ import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { pendingInvites, users, tenants } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { randomBytes } from "crypto";
 import { sendInviteEmail } from "@/lib/email-invite";
+import { generateInviteToken } from "@/lib/invite-token";
+import { logAudit } from "@/lib/audit-log";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-
-function generateInviteToken(): string {
-  return randomBytes(24).toString("base64url");
-}
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
@@ -68,7 +65,9 @@ export async function POST(req: Request) {
     .limit(1);
 
   const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
-  const token = generateInviteToken();
+  // H5: the column stores the SHA-256 hash; only the raw token goes
+  // in the accept link and the email itself.
+  const { raw: rawToken, hash: tokenHash } = generateInviteToken();
 
   let inviteId: string;
   if (existing) {
@@ -76,7 +75,7 @@ export async function POST(req: Request) {
       .update(pendingInvites)
       .set({
         role,
-        token,
+        token: tokenHash,
         expiresAt,
         lastSentAt: new Date(),
         invitedByUserId: authCtx.appUserId,
@@ -91,7 +90,7 @@ export async function POST(req: Request) {
         tenantId: authCtx.tenantId,
         email: rawEmail,
         role,
-        token,
+        token: tokenHash,
         expiresAt,
         invitedByUserId: authCtx.appUserId,
       })
@@ -100,7 +99,7 @@ export async function POST(req: Request) {
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
-  const acceptUrl = `${appUrl}/accept-invite?token=${token}`;
+  const acceptUrl = `${appUrl}/accept-invite?token=${rawToken}`;
 
   const sendResult = await sendInviteEmail({
     to: rawEmail,
@@ -110,6 +109,17 @@ export async function POST(req: Request) {
     role,
     acceptUrl,
     expiresAt,
+  });
+
+  // H7 — record who invited whom into the tenant. Role is the sensitive
+  // bit (admin invites can reshape the workspace's blast radius).
+  await logAudit({
+    tenantId: authCtx.tenantId,
+    userId: authCtx.appUserId,
+    action: existing ? "update" : "create",
+    entityType: "pending_invite",
+    entityId: inviteId,
+    metadata: { event: "invite_sent", email: rawEmail, role, emailSent: sendResult.sent },
   });
 
   return Response.json({

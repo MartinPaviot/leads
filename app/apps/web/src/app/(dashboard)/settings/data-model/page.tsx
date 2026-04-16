@@ -57,12 +57,40 @@ export default function DataModelPage() {
 
   const entityFields = fields.filter((f) => f.entityType === activeEntity);
 
+  // N6 — case-insensitive dupe check across built-in + custom fields
+  // for the active entity. Returns the offending field name when a
+  // collision exists, or null when the name is free.
+  function findDupeName(candidate: string, ignoreId?: string): string | null {
+    const normalised = candidate.trim().toLowerCase();
+    if (!normalised) return null;
+    const builtins = (activeEntity === "company"
+      ? ["Name", "Domain", "Industry", "Size", "Revenue", "Description"]
+      : activeEntity === "contact"
+      ? ["First Name", "Last Name", "Email", "Title", "Phone", "LinkedIn URL"]
+      : ["Name", "Stage", "Value", "Summary", "Close Date"]
+    ).map((b) => b.toLowerCase());
+    if (builtins.includes(normalised)) return candidate.trim();
+    const collision = fields.find(
+      (f) =>
+        f.entityType === activeEntity &&
+        f.id !== ignoreId &&
+        f.name.toLowerCase() === normalised
+    );
+    return collision ? collision.name : null;
+  }
+
   async function addField() {
-    if (!newField.name.trim()) return;
+    const name = newField.name.trim();
+    if (!name) return;
+    const dupe = findDupeName(name);
+    if (dupe) {
+      setError(`A field named "${dupe}" already exists for ${activeEntity}.`);
+      return;
+    }
     setSaving(true);
     const field: CustomField = {
       id: crypto.randomUUID(),
-      name: newField.name.trim(),
+      name,
       type: newField.type,
       entityType: activeEntity,
       aiFillMode: newField.aiFillMode,
@@ -85,6 +113,42 @@ export default function DataModelPage() {
 
   async function updateFieldAiMode(id: string, mode: string) {
     const updated = fields.map((f) => f.id === id ? { ...f, aiFillMode: mode } : f);
+    setFields(updated);
+    await saveFields(updated);
+  }
+
+  // N6 — rename an existing custom field with the same dupe guard as
+  // addField. Whitespace is trimmed; an empty rename reverts to the
+  // original name (so editing accidentally and pressing Enter doesn't
+  // wipe the field out).
+  async function renameField(id: string, nextName: string) {
+    const trimmed = nextName.trim();
+    const target = fields.find((f) => f.id === id);
+    if (!target) return;
+    if (!trimmed || trimmed === target.name) return;
+    const dupe = findDupeName(trimmed, id);
+    if (dupe) {
+      setError(`A field named "${dupe}" already exists for ${activeEntity}.`);
+      return;
+    }
+    setError("");
+    const updated = fields.map((f) => (f.id === id ? { ...f, name: trimmed } : f));
+    setFields(updated);
+    await saveFields(updated);
+  }
+
+  // N6 — edit options on an existing select field. Empty list collapses
+  // back to a regular text-style display (no options shown). Order is
+  // preserved verbatim so the user controls dropdown ordering.
+  async function updateFieldOptions(id: string, csv: string) {
+    const options = csv
+      .split(",")
+      .map((o) => o.trim())
+      .filter(Boolean);
+    setError("");
+    const updated = fields.map((f) =>
+      f.id === id ? { ...f, options: options.length > 0 ? options : undefined } : f
+    );
     setFields(updated);
     await saveFields(updated);
   }
@@ -181,38 +245,14 @@ export default function DataModelPage() {
         ) : (
           <div className="space-y-1">
             {entityFields.map((field) => (
-              <Card key={field.id}>
-                <div className="flex items-center justify-between px-3 py-2">
-                  <div className="flex items-center gap-3">
-                    <span className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{field.name}</span>
-                    <Badge variant="neutral">{field.type.replace("_", " ")}</Badge>
-                    {field.options && field.options.length > 0 && (
-                      <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
-                        {field.options.length} options
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {/* AI fill mode */}
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>AI:</span>
-                      {AI_FILL_MODES.map((mode) => (
-                        <button key={mode.value} onClick={() => updateFieldAiMode(field.id, mode.value)}
-                          className="rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors"
-                          style={{
-                            background: field.aiFillMode === mode.value ? "var(--color-accent-soft)" : "transparent",
-                            color: field.aiFillMode === mode.value ? "var(--color-accent)" : "var(--color-text-muted)",
-                          }}>
-                          {mode.label}
-                        </button>
-                      ))}
-                    </div>
-                    <Button variant="icon" size="sm" onClick={() => removeField(field.id)}>
-                      <X size={13} />
-                    </Button>
-                  </div>
-                </div>
-              </Card>
+              <FieldRow
+                key={field.id}
+                field={field}
+                onRename={(next) => renameField(field.id, next)}
+                onUpdateOptions={(csv) => updateFieldOptions(field.id, csv)}
+                onUpdateAiMode={(mode) => updateFieldAiMode(field.id, mode)}
+                onRemove={() => removeField(field.id)}
+              />
             ))}
           </div>
         )}
@@ -280,5 +320,107 @@ export default function DataModelPage() {
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * N6 — single custom-field row with inline rename + (for select-typed
+ * fields) options edit. Local edit-mode buffer so a stray click outside
+ * doesn't wipe the user's draft; commit on blur or Enter.
+ */
+function FieldRow({
+  field,
+  onRename,
+  onUpdateOptions,
+  onUpdateAiMode,
+  onRemove,
+}: {
+  field: CustomField;
+  onRename: (next: string) => void;
+  onUpdateOptions: (csv: string) => void;
+  onUpdateAiMode: (mode: string) => void;
+  onRemove: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(field.name);
+  const [draftOptions, setDraftOptions] = useState((field.options ?? []).join(", "));
+  const isSelect = field.type.includes("select");
+
+  function commit() {
+    if (draftName !== field.name) onRename(draftName);
+    if (isSelect && draftOptions !== (field.options ?? []).join(", ")) {
+      onUpdateOptions(draftOptions);
+    }
+    setEditing(false);
+  }
+
+  return (
+    <Card>
+      {!editing ? (
+        <div className="flex items-center justify-between px-3 py-2">
+          <button
+            type="button"
+            onClick={() => {
+              setDraftName(field.name);
+              setDraftOptions((field.options ?? []).join(", "));
+              setEditing(true);
+            }}
+            className="flex items-center gap-3 text-left hover:opacity-80"
+            title="Click to edit"
+          >
+            <span className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{field.name}</span>
+            <Badge variant="neutral">{field.type.replace("_", " ")}</Badge>
+            {field.options && field.options.length > 0 && (
+              <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
+                {field.options.length} options
+              </span>
+            )}
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>AI:</span>
+              {AI_FILL_MODES.map((mode) => (
+                <button key={mode.value} onClick={() => onUpdateAiMode(mode.value)}
+                  className="rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors"
+                  style={{
+                    background: field.aiFillMode === mode.value ? "var(--color-accent-soft)" : "transparent",
+                    color: field.aiFillMode === mode.value ? "var(--color-accent)" : "var(--color-text-muted)",
+                  }}>
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+            <Button variant="icon" size="sm" onClick={onRemove}>
+              <X size={13} />
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <CardBody>
+          <Input
+            label="Field name"
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+            autoFocus
+          />
+          {isSelect && (
+            <div className="mt-3">
+              <Input
+                label="Options (comma-separated)"
+                value={draftOptions}
+                onChange={(e) => setDraftOptions(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+                placeholder="e.g. Seed, Series A, Series B"
+              />
+            </div>
+          )}
+          <div className="mt-3 flex gap-2">
+            <Button variant="solid" size="sm" onClick={commit}>Save</Button>
+            <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>Cancel</Button>
+          </div>
+        </CardBody>
+      )}
+    </Card>
   );
 }

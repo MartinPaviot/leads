@@ -7,9 +7,12 @@ import {
   Search, X, Building2, User, Calendar, DollarSign, Clock,
   LayoutGrid, List, SlidersHorizontal, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   ClipboardCheck, MonitorPlay, FlaskConical, FileText, Handshake, Trophy, XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { STAGE_COLORS as STAGE_DOT_COLORS_IMPORTED, RISK_STYLES } from "@/lib/ui-utils";
+import { stageProbability, ageInStage, AGE_BUCKET_COLORS } from "@/lib/deal-helpers";
+import { CloseReasonDialog, type CloseReasonPayload } from "@/components/close-reason-dialog";
 import { usePipelineStages } from "@/hooks/use-custom-fields";
 import { PageHeader, FilterBar } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -53,6 +56,9 @@ interface Deal {
   ownerFirstName: string | null;
   ownerLastName: string | null;
   createdAt: string | null;
+  // Y8 / Y12 — surfaced from /api/opportunities so the table view can
+  // render the probability + age-in-stage columns without a second fetch.
+  updatedAt: string | null;
 }
 
 interface Account { id: string; name: string; domain: string | null }
@@ -70,6 +76,11 @@ const DISPLAY_PROPS_ALL = [
   { key: "summary", label: "Summary" },
   { key: "risk", label: "Risk level" },
   { key: "createdAt", label: "Created at" },
+  // Y8 / Y12 — opt-in by default-off so the table stays slim until the
+  // user explicitly turns these on. Both are pure derivations from
+  // existing data — no schema or API change behind them.
+  { key: "probability", label: "Probability" },
+  { key: "ageInStage", label: "Age in stage" },
 ] as const;
 type DisplayPropKey = (typeof DISPLAY_PROPS_ALL)[number]["key"];
 
@@ -157,6 +168,12 @@ export default function OpportunitiesPage() {
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  // Y12 — quick-filter toggle. Keeps the pipeline-hygiene workflow one
+  // click away: "show me only the deals I've let sit too long". The
+  // threshold matches the kanban age-in-stage badge's "stalled"
+  // bucket (14 days+), so visual signal on the card and the preset
+  // agree on the same bar.
+  const [stalledOnly, setStalledOnly] = useState(false);
   const displayPanelRef = useRef<HTMLDivElement>(null);
   const filterPanelRef = useRef<HTMLDivElement>(null);
 
@@ -268,6 +285,16 @@ export default function OpportunitiesPage() {
   function handleDragOver(e: React.DragEvent, stage: string) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverStage(stage); }
   function handleDragLeave(e: React.DragEvent, el: HTMLDivElement) { if (!el.contains(e.relatedTarget as Node)) setDragOverStage(null); }
 
+  // Y6 — when the drop target is won/lost we pause before firing the
+  // PUT and collect a close reason from the user. Everything else
+  // (drag optimistic update, rollback on failure) still runs through
+  // commitStageChange — the dialog just adds a hop on the happy path.
+  const [pendingClose, setPendingClose] = useState<{
+    dealId: string;
+    outcome: "won" | "lost";
+    prev: Deal[];
+  } | null>(null);
+
   async function handleDrop(e: React.DragEvent, newStage: string) {
     e.preventDefault();
     const id = e.dataTransfer.getData("text/plain");
@@ -275,21 +302,63 @@ export default function OpportunitiesPage() {
     if (!id) return;
     const deal = deals.find((d) => d.id === id);
     if (!deal || deal.stage === newStage) return;
+
     const prev = [...deals];
     setDeals((p) => p.map((d) => (d.id === id ? { ...d, stage: newStage } : d)));
+
+    const lower = newStage.toLowerCase();
+    if (lower === "won" || lower === "lost") {
+      // Hold the close-reason dialog; commit happens on confirm.
+      setPendingClose({ dealId: id, outcome: lower as "won" | "lost", prev });
+      return;
+    }
+    void commitStageChange(id, newStage, prev);
+  }
+
+  async function commitStageChange(
+    id: string,
+    newStage: string,
+    prev: Deal[],
+    closeReason?: CloseReasonPayload
+  ) {
     try {
-      const r = await fetch(`/api/deals/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stage: newStage }) });
-      if (!r.ok) setDeals(prev); else fetchAnalytics();
-    } catch { setDeals(prev); }
+      const body: Record<string, unknown> = { stage: newStage };
+      if (closeReason) body.closeReason = closeReason;
+      const r = await fetch(`/api/deals/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) setDeals(prev);
+      else fetchAnalytics();
+    } catch {
+      setDeals(prev);
+    }
+  }
+
+  async function handleCloseReasonConfirm(payload: CloseReasonPayload) {
+    if (!pendingClose) return;
+    const { dealId, outcome, prev } = pendingClose;
+    setPendingClose(null);
+    await commitStageChange(dealId, outcome, prev, payload);
+  }
+
+  function handleCloseReasonCancel() {
+    if (!pendingClose) return;
+    // User backed out — roll back the optimistic stage move.
+    setDeals(pendingClose.prev);
+    setPendingClose(null);
   }
 
   function handleCardClick(id: string) { if (!isDraggingRef.current) router.push(`/opportunities/${id}`); }
 
   /* ── Computed ── */
 
+  // Y9 — carry `wipLimit` through to the column header so we can badge
+  // over-capacity columns. Built-in stages have no WIP limit by default.
   const activeStages = pipelineStages.length > 0
-    ? pipelineStages.map((s) => ({ id: s.id, name: s.name, description: s.description }))
-    : STAGES.map((s) => ({ id: s, name: STAGE_LABELS[s] || s, description: "" }));
+    ? pipelineStages.map((s) => ({ id: s.id, name: s.name, description: s.description, wipLimit: s.wipLimit ?? null }))
+    : STAGES.map((s) => ({ id: s, name: STAGE_LABELS[s] || s, description: "", wipLimit: null as number | null }));
 
   const stageOptions = activeStages.map((s) => ({ value: s.id, label: s.name }));
 
@@ -298,6 +367,14 @@ export default function OpportunitiesPage() {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       if (!d.name.toLowerCase().includes(q) && !(d.companyName?.toLowerCase().includes(q))) return false;
+    }
+    // Y12 — "Stalled" preset: only deals whose age-in-stage falls in
+    // the stalled / frozen buckets (>= 14 days). Won/Lost are excluded
+    // because ageInStage returns null for closed stages, so the filter
+    // naturally hides them.
+    if (stalledOnly) {
+      const age = ageInStage(d.updatedAt, d.stage);
+      if (!age || (age.bucket !== "stalled" && age.bucket !== "frozen")) return false;
     }
     for (const f of activeFilters) {
       if (f.field === "stage" && d.stage !== f.value) return false;
@@ -316,6 +393,14 @@ export default function OpportunitiesPage() {
     }
     return true;
   });
+
+  // Y12 — precompute the preset's current-tenant hit count so the
+  // toggle button shows "Stalled (7)" instead of forcing the user to
+  // click to discover the count.
+  const stalledCount = deals.reduce((n, d) => {
+    const age = ageInStage(d.updatedAt, d.stage);
+    return age && (age.bucket === "stalled" || age.bucket === "frozen") ? n + 1 : n;
+  }, 0);
 
   // Sort
   const sortedDeals = [...filteredDeals].sort((a, b) => {
@@ -533,6 +618,31 @@ export default function OpportunitiesPage() {
           </Button>
           {showFilterPanel && <FilterPanel />}
         </div>
+        {/* Y12 — Stalled preset. Renders greyed-out when nothing qualifies
+             so the button still stays in its spot but doesn't invite a
+             click that returns an empty board. */}
+        <button
+          type="button"
+          onClick={() => setStalledOnly((s) => !s)}
+          disabled={stalledCount === 0 && !stalledOnly}
+          aria-pressed={stalledOnly}
+          className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          style={{
+            background: stalledOnly ? "var(--color-warning-soft)" : "transparent",
+            color: stalledOnly ? "var(--color-warning)" : "var(--color-text-secondary)",
+            border: `1px solid ${stalledOnly ? "var(--color-warning)" : "var(--color-border-default)"}`,
+          }}
+          title={
+            stalledOnly
+              ? "Showing deals that have sat in their stage for 14+ days"
+              : stalledCount === 0
+                ? "No stalled deals right now"
+                : `Show only the ${stalledCount} deal${stalledCount === 1 ? "" : "s"} that have sat in their stage for 14+ days`
+          }
+        >
+          <AlertTriangle size={12} />
+          Stalled{stalledCount > 0 ? ` · ${stalledCount}` : ""}
+        </button>
         <div className="relative" ref={displayPanelRef}>
           <Button variant="outline" size="sm" icon={<SlidersHorizontal size={12} />}
             onClick={() => { setShowDisplayPanel(!showDisplayPanel); setShowFilterPanel(false); }}>
@@ -666,6 +776,8 @@ export default function OpportunitiesPage() {
                     { key: "name" as SortField, label: "Owner", always: false, prop: "owner" as DisplayPropKey, noSort: true },
                     { key: "expectedCloseDate" as SortField, label: "Close date", always: false, prop: "expectedCloseDate" as DisplayPropKey },
                     { key: "name" as SortField, label: "Risk", always: false, prop: "risk" as DisplayPropKey, noSort: true },
+                    { key: "name" as SortField, label: "Probability", always: false, prop: "probability" as DisplayPropKey, noSort: true, right: true },
+                    { key: "name" as SortField, label: "Age in stage", always: false, prop: "ageInStage" as DisplayPropKey, noSort: true },
                   ].filter((col) => col.always || (col.prop && displayProps.has(col.prop))).map((col) => (
                     <th key={col.label} className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wider ${col.right ? "text-right" : ""}`} style={{ color: "var(--color-text-secondary)" }}>
                       {col.noSort ? col.label : (
@@ -700,6 +812,42 @@ export default function OpportunitiesPage() {
                     )}
                     {displayProps.has("expectedCloseDate") && <td className="px-3 py-2.5 text-[12px]" style={{ color: formatCloseDate(deal.expectedCloseDate)?.includes("overdue") ? "var(--color-error)" : "var(--color-text-secondary)" }}>{formatCloseDate(deal.expectedCloseDate) || "—"}</td>}
                     {displayProps.has("risk") && <td className="px-3 py-2.5">{getRiskBadge(deal) || <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>—</span>}</td>}
+                    {/* Y8 — probability column. Pure derive from stage so
+                        a future per-deal override (Y8 follow-up) just
+                        needs to swap the helper call for a property
+                        lookup. */}
+                    {displayProps.has("probability") && (() => {
+                      const p = stageProbability(deal.stage);
+                      return (
+                        <td className="px-3 py-2.5 text-right text-[12px] font-medium tabular-nums" style={{ color: p === null ? "var(--color-text-tertiary)" : "var(--color-text-secondary)" }}>
+                          {p === null ? "—" : `${p}%`}
+                        </td>
+                      );
+                    })()}
+                    {/* Y12 — age-in-stage badge. Uses updatedAt as the
+                        best-available "last activity on this deal"
+                        timestamp. Won/Lost rows render "—" because
+                        ageInStage returns null for closed stages. */}
+                    {displayProps.has("ageInStage") && (() => {
+                      const age = ageInStage(deal.updatedAt, deal.stage);
+                      if (!age) {
+                        return (
+                          <td className="px-3 py-2.5 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>—</td>
+                        );
+                      }
+                      const c = AGE_BUCKET_COLORS[age.bucket];
+                      return (
+                        <td className="px-3 py-2.5">
+                          <span
+                            className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums"
+                            style={{ background: c.bg, color: c.text }}
+                            title={`${age.long} in this stage`}
+                          >
+                            {age.short}
+                          </span>
+                        </td>
+                      );
+                    })()}
                   </tr>
                 ))}
                 {sortedDeals.length === 0 && <tr><td colSpan={10} className="px-3 py-8 text-center text-sm" style={{ color: "var(--color-text-tertiary)" }}>No deals match your filters</td></tr>}
@@ -736,7 +884,24 @@ export default function OpportunitiesPage() {
                     <div className="flex items-center gap-2">
                       {(() => { const Icon = STAGE_ICONS[stage.id] || CircleDot; return <Icon size={14} style={{ color: dotColor }} />; })()}
                       <span className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>{stage.name}</span>
-                      <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>{stageDeals.length}</span>
+                      <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                        {stage.wipLimit ? `${stageDeals.length}/${stage.wipLimit}` : stageDeals.length}
+                      </span>
+                      {/* Y9 — over-capacity badge. Amber so it reads as a
+                          nudge, not a hard error; the limit is advisory,
+                          not enforced. */}
+                      {stage.wipLimit != null && stageDeals.length > stage.wipLimit && (
+                        <span
+                          className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider"
+                          style={{
+                            background: "var(--color-warning-soft)",
+                            color: "var(--color-warning)",
+                          }}
+                          title={`${stageDeals.length} deals in this stage — WIP limit is ${stage.wipLimit}. Move some forward before adding more.`}
+                        >
+                          Over capacity
+                        </span>
+                      )}
                     </div>
                     <button onClick={() => openCreateForStage(stage.id)}
                       className="flex h-6 w-6 items-center justify-center rounded-md transition-colors"
@@ -864,6 +1029,18 @@ export default function OpportunitiesPage() {
           </div>
         )}
       </div>
+
+      <CloseReasonDialog
+        open={pendingClose !== null}
+        outcome={pendingClose?.outcome ?? null}
+        dealName={
+          pendingClose
+            ? (deals.find((d) => d.id === pendingClose.dealId)?.name ?? "this deal")
+            : ""
+        }
+        onConfirm={handleCloseReasonConfirm}
+        onCancel={handleCloseReasonCancel}
+      />
     </div>
   );
 }

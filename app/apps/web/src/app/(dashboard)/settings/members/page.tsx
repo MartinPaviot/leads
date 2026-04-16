@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
 import { useSafeFetch } from "@/lib/use-safe-fetch";
 
@@ -115,14 +116,32 @@ export default function MembersSettingsPage() {
     }
   }
 
-  async function handleCancel(id: string) {
-    if (!confirm("Cancel this invitation? The link will stop working.")) return;
-    const { error: err } = await sfetch(`/api/settings/members/invites/${id}`, {
-      method: "DELETE",
-      errorMessage: "Failed to cancel invitation",
-    });
+  // E5 — invitation cancel routes through ConfirmDialog; inviteeEmail
+  // is kept in state so the dialog body can name whose invite is
+  // about to be revoked ("Cancel invitation for sarah@acme.com?").
+  const [cancelInvite, setCancelInvite] = useState<{ id: string; email: string } | null>(null);
+  const [cancellingInvite, setCancellingInvite] = useState(false);
+
+  function handleCancel(id: string) {
+    const invite = invites.find((i) => i.id === id);
+    setCancelInvite({ id, email: invite?.email ?? "" });
+  }
+
+  async function confirmCancelInvite() {
+    if (!cancelInvite) return;
+    setCancellingInvite(true);
+    const { error: err } = await sfetch(
+      `/api/settings/members/invites/${cancelInvite.id}`,
+      {
+        method: "DELETE",
+        errorMessage: "Failed to cancel invitation",
+      }
+    );
+    setCancellingInvite(false);
+    const cancelledId = cancelInvite.id;
+    setCancelInvite(null);
     if (!err) {
-      setInvites((prev) => prev.filter((i) => i.id !== id));
+      setInvites((prev) => prev.filter((i) => i.id !== cancelledId));
       toast("Invitation cancelled", "success");
     }
   }
@@ -262,6 +281,22 @@ export default function MembersSettingsPage() {
           ))
         )}
       </div>
+
+      <ConfirmDialog
+        open={cancelInvite !== null}
+        title="Cancel this invitation?"
+        description={
+          cancelInvite?.email
+            ? `The invitation link sent to ${cancelInvite.email} will stop working. You can re-invite them anytime.`
+            : "The invitation link will stop working. You can re-invite them anytime."
+        }
+        confirmLabel="Cancel invitation"
+        cancelLabel="Keep invitation"
+        variant="destructive"
+        onConfirm={confirmCancelInvite}
+        onCancel={() => setCancelInvite(null)}
+        busy={cancellingInvite}
+      />
     </>
   );
 }

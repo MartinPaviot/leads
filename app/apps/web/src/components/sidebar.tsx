@@ -37,6 +37,7 @@ import {
   Flag,
   Mail,
   Inbox,
+  BarChart3,
   Search,
   type LucideIcon,
 } from "lucide-react";
@@ -87,6 +88,7 @@ const navSections = [
       { label: "Meetings", href: "/meetings", icon: Calendar },
       { label: "Notes", href: "/notes", icon: FileText },
       { label: "Tasks", href: "/tasks", icon: CheckSquare },
+      { label: "Insights", href: "/insights", icon: BarChart3 },
     ],
   },
 ];

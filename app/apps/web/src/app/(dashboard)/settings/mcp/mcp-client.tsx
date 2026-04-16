@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Copy, Trash2, Plus, Key, ExternalLink } from "lucide-react";
 
 interface McpKeyDisplay {
@@ -67,19 +68,32 @@ export default function McpSettingsPage() {
     }
   }
 
-  async function handleRevoke(keyId: string) {
-    if (!confirm("Revoke this API key? Any integrations using it will stop working.")) return;
+  // E5 — MCP key revocation routes through ConfirmDialog. Busy flag
+  // lets the button reflect the pending DELETE.
+  const [revokeKeyId, setRevokeKeyId] = useState<string | null>(null);
+  const [revoking, setRevoking] = useState(false);
+
+  function handleRevoke(keyId: string) {
+    setRevokeKeyId(keyId);
+  }
+
+  async function confirmRevoke() {
+    if (!revokeKeyId) return;
+    setRevoking(true);
     setError(null);
     try {
       const res = await fetch("/api/mcp/keys", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: keyId }),
+        body: JSON.stringify({ id: revokeKeyId }),
       });
       if (!res.ok) throw new Error("Failed to revoke key");
       await fetchKeys();
     } catch {
       setError("Failed to revoke key");
+    } finally {
+      setRevoking(false);
+      setRevokeKeyId(null);
     }
   }
 
@@ -490,6 +504,17 @@ export default function McpSettingsPage() {
           </CardBody>
         </Card>
       </section>
+
+      <ConfirmDialog
+        open={revokeKeyId !== null}
+        title="Revoke this API key?"
+        description="Any integration using this key will stop working immediately. You can generate a new key anytime."
+        confirmLabel="Revoke key"
+        variant="destructive"
+        onConfirm={confirmRevoke}
+        onCancel={() => setRevokeKeyId(null)}
+        busy={revoking}
+      />
     </>
   );
 }

@@ -1,7 +1,8 @@
 import { db } from "@/db";
-import { contacts } from "@/db/schema";
+import { contacts, activities, sequenceEnrollments } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth-utils";
 import { eq, and, sql } from "drizzle-orm";
+import { logAudit } from "@/lib/audit-log";
 
 export async function GET(
   req: Request,
@@ -112,5 +113,83 @@ export async function PUT(
   } catch (error) {
     console.error("Failed to update contact:", error);
     return Response.json({ error: "Failed to update contact" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  try {
+    // Verify the contact exists and belongs to this tenant
+    const [existing] = await db
+      .select({ id: contacts.id, email: contacts.email, firstName: contacts.firstName, lastName: contacts.lastName })
+      .from(contacts)
+      .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId)))
+      .limit(1);
+
+    if (!existing) {
+      return Response.json({ error: "Contact not found" }, { status: 404 });
+    }
+
+    // Check for active sequence enrollments — warn but don't block
+    const [activeEnrollment] = await db
+      .select({ id: sequenceEnrollments.id })
+      .from(sequenceEnrollments)
+      .where(
+        and(
+          eq(sequenceEnrollments.contactId, id),
+          eq(sequenceEnrollments.status, "active"),
+        ),
+      )
+      .limit(1);
+
+    if (activeEnrollment) {
+      return Response.json(
+        { error: "Contact has active sequence enrollments. Unenroll them first." },
+        { status: 409 },
+      );
+    }
+
+    // Clean up dependent activities (soft — nullify entityId references)
+    await db
+      .update(activities)
+      .set({ entityId: `deleted:${id}` })
+      .where(
+        and(
+          eq(activities.tenantId, authCtx.tenantId),
+          eq(activities.entityType, "contact"),
+          eq(activities.entityId, id),
+        ),
+      );
+
+    // Delete the contact
+    await db
+      .delete(contacts)
+      .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId)));
+
+    await logAudit({
+      tenantId: authCtx.tenantId,
+      userId: authCtx.appUserId,
+      action: "delete",
+      entityType: "contact",
+      entityId: id,
+      metadata: {
+        email: existing.email,
+        name: [existing.firstName, existing.lastName].filter(Boolean).join(" "),
+      },
+    });
+
+    return Response.json({ success: true, id });
+  } catch (error) {
+    console.error("Failed to delete contact:", error);
+    return Response.json({ error: "Failed to delete contact" }, { status: 500 });
   }
 }

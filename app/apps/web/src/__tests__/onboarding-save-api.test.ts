@@ -4,15 +4,26 @@ vi.mock("@/lib/auth-utils", () => ({
   getAuthContext: vi.fn(),
 }));
 
+// O9 — completion path now reads the tenant + user rows to send the
+// welcome email. Mock `select` as a Drizzle-shaped chainable that
+// resolves to empty arrays so the route falls through gracefully.
 vi.mock("@/db", () => ({
   db: {
     update: vi.fn(),
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(() => Promise.resolve([])),
+        })),
+      })),
+    })),
   },
 }));
 
 vi.mock("@/db/schema", () => ({
-  tenants: { id: "id" },
+  tenants: { id: "id", settings: "settings", name: "name" },
   users: { id: "id" },
+  authUsers: { id: "id", email: "email", name: "name" },
 }));
 
 vi.mock("drizzle-orm", () => ({
@@ -29,6 +40,15 @@ vi.mock("@/inngest/client", () => ({
   inngest: {
     send: vi.fn().mockResolvedValue(undefined),
   },
+}));
+
+// O9 — never hit Resend in tests. Returning {sent:false} also exercises
+// the "skip the welcomeEmailSentAt write" branch which is the safe path.
+vi.mock("@/lib/emails/welcome", () => ({
+  sendWelcomeEmail: vi.fn().mockResolvedValue({
+    sent: false,
+    reason: "test",
+  }),
 }));
 
 import { getAuthContext } from "@/lib/auth-utils";

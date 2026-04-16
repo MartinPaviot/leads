@@ -26,6 +26,14 @@ export const authUsers = pgTable("auth_user", {
   email: text("email").unique(),
   emailVerified: timestamp("emailVerified", { mode: "date" }),
   image: text("image"),
+  // H12 — dedicated bcrypt hash storage. Historically the credentials
+  // provider re-used `authAccounts.access_token`, which mixed OAuth
+  // tokens and password hashes in a single column. Any future code
+  // that read `access_token` for an OAuth flow could have grabbed a
+  // bcrypt hash by accident; keeping them apart removes the footgun.
+  // Read/write sites use the helpers in `src/lib/password-hash.ts`.
+  // Old rows are migrated opportunistically on successful sign-in.
+  passwordHash: text("password_hash"),
 });
 
 export const authAccounts = pgTable(
@@ -157,6 +165,59 @@ export const passwordResetTokens = pgTable(
     index("password_reset_tokens_token_hash_idx").on(table.tokenHash),
     index("password_reset_tokens_user_id_idx").on(table.userId),
     index("password_reset_tokens_expires_at_idx").on(table.expiresAt),
+  ]
+);
+
+// Email-verification tokens for the Credentials sign-up flow (S2). Same
+// security model as `passwordResetTokens`: the raw token is emailed to
+// the user and only its SHA-256 digest is stored, so a DB leak can't be
+// replayed to verify someone else's email. 24-hour TTL, one outstanding
+// token per user (older ones get marked used at issue time).
+export const emailVerificationTokens = pgTable(
+  "email_verification_tokens",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    requestedIp: text("requested_ip"),
+    requestedUserAgent: text("requested_user_agent"),
+  },
+  (table) => [
+    index("email_verification_tokens_token_hash_idx").on(table.tokenHash),
+    index("email_verification_tokens_user_id_idx").on(table.userId),
+    index("email_verification_tokens_expires_at_idx").on(table.expiresAt),
+  ]
+);
+
+// Sign-in failure log for I6 brute-force protection. We never store the
+// raw email — only `sha256(normalized_email)` — so an attacker who reads
+// this table can't enumerate registered accounts. The window is small
+// (15 min) so the table stays tiny; old rows are pruned opportunistically
+// during writes.
+export const failedSignInAttempts = pgTable(
+  "failed_signin_attempts",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    identifierHash: text("identifier_hash").notNull(),
+    ip: text("ip"),
+    attemptedAt: timestamp("attempted_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("failed_signin_attempts_identifier_idx").on(table.identifierHash),
+    index("failed_signin_attempts_attempted_at_idx").on(table.attemptedAt),
   ]
 );
 
@@ -1169,6 +1230,92 @@ export const referralCreditEvents = pgTable(
   },
   (table) => [
     index("referral_credit_events_tenant_created_idx").on(table.tenantId, table.createdAt),
+  ]
+);
+
+// ── Coaching & Performance (C5/C7) ─────────────────────
+
+export const coachingInsights = pgTable(
+  "coaching_insights",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    userId: text("user_id").references(() => users.id),
+    entityType: text("entity_type").notNull(), // "deal" | "email" | "meeting" | "call"
+    entityId: text("entity_id").notNull(),
+    activityId: text("activity_id").references(() => activities.id),
+    insightType: text("insight_type").notNull(), // "pre_send" | "post_interaction" | "deal_risk" | "process_gap"
+    category: text("category").notNull(), // "tone" | "completeness" | "objection_handling" | "next_step" | "process_adherence" | "timing"
+    score: real("score"), // 0.0 - 1.0
+    summary: text("summary").notNull(),
+    detail: text("detail").notNull(),
+    suggestion: text("suggestion"),
+    acknowledged: boolean("acknowledged").default(false),
+    applied: boolean("applied").default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("coaching_insights_tenant_idx").on(table.tenantId),
+    index("coaching_insights_user_idx").on(table.userId),
+    index("coaching_insights_entity_idx").on(table.entityType, table.entityId),
+    index("coaching_insights_created_at_idx").on(table.createdAt),
+  ]
+);
+
+export const aePerformanceSnapshots = pgTable(
+  "ae_performance_snapshots",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    userId: text("user_id").references(() => users.id).notNull(),
+    periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+    periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+    emailsSent: integer("emails_sent").default(0),
+    emailsReplied: integer("emails_replied").default(0),
+    meetingsBooked: integer("meetings_booked").default(0),
+    meetingsCompleted: integer("meetings_completed").default(0),
+    dealsCreated: integer("deals_created").default(0),
+    dealsAdvanced: integer("deals_advanced").default(0),
+    dealsWon: integer("deals_won").default(0),
+    dealsLost: integer("deals_lost").default(0),
+    avgToneScore: real("avg_tone_score"),
+    avgCompletenessScore: real("avg_completeness_score"),
+    avgObjectionHandlingScore: real("avg_objection_handling_score"),
+    avgProcessAdherenceScore: real("avg_process_adherence_score"),
+    avgResponseTimeMinutes: real("avg_response_time_minutes"),
+    winRate: real("win_rate"),
+    overallScore: real("overall_score"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("ae_perf_tenant_user_idx").on(table.tenantId, table.userId),
+    index("ae_perf_period_idx").on(table.periodStart, table.periodEnd),
+  ]
+);
+
+export const customSkillTemplates = pgTable(
+  "custom_skill_templates",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    category: text("category").notNull(), // "qualification" | "discovery" | "proposal" | "objection" | "closing" | "re_engage"
+    description: text("description").notNull(),
+    trigger: text("trigger"),
+    contextRequired: jsonb("context_required"),
+    outputFormat: text("output_format"),
+    guidelines: text("guidelines").notNull(),
+    examples: jsonb("examples"),
+    version: integer("version").default(1),
+    isActive: boolean("is_active").default(true),
+    createdByUserId: text("created_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("custom_skill_templates_tenant_idx").on(table.tenantId),
+    index("custom_skill_templates_slug_idx").on(table.tenantId, table.slug),
   ]
 );
 

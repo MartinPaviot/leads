@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { contextGraphNodes, contextGraphEdges, tenants } from "@/db/schema";
 import { eq, and, isNull, sql, lt } from "drizzle-orm";
+import { verifyCronRequest } from "@/lib/cron-auth";
 
 /**
  * Graph self-correction cron:
@@ -12,10 +13,8 @@ import { eq, and, isNull, sql, lt } from "drizzle-orm";
  * Protected by CRON_SECRET header.
  */
 export async function GET(req: Request) {
-  const secret = req.headers.get("authorization")?.replace("Bearer ", "");
-  if (secret !== process.env.CRON_SECRET && process.env.NODE_ENV === "production") {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const unauthorized = verifyCronRequest(req);
+  if (unauthorized) return unauthorized;
 
   try {
     // Get all tenants

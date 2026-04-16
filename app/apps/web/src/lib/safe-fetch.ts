@@ -62,8 +62,27 @@ export async function safeFetch<T = unknown>(
     } catch {
       // body unreadable — keep generic detail
     }
-    const display = errorMessage ?? detail;
-    if (!silent && toast) toast(display, "error");
+
+    // E8 — rate-limit (429) responses get a purpose-built toast that
+    // reads the `Retry-After` header (seconds per RFC 7231 §7.1.3 or
+    // HTTP-date per the spec; we handle seconds only — that's what
+    // rateLimitResponse() emits). An explicit `errorMessage` always
+    // wins so callers that already frame the context ("Couldn't load
+    // your accounts") stay in charge.
+    let display = errorMessage ?? detail;
+    let variant: "error" | "warning" = "error";
+    if (res.status === 429) {
+      const retryAfter = res.headers.get("Retry-After");
+      const seconds = retryAfter ? Number.parseInt(retryAfter, 10) : NaN;
+      const friendly = Number.isFinite(seconds) && seconds > 0
+        ? `You've hit a temporary limit. Try again in ${formatRetryAfter(seconds)}.`
+        : "You've hit a temporary limit. Try again in a moment.";
+      display = errorMessage ?? friendly;
+      // Warning not error — the user did nothing wrong, we just paced.
+      variant = "warning";
+    }
+
+    if (!silent && toast) toast(display, variant);
     if (typeof console !== "undefined") {
       console.warn("safeFetch HTTP error", { url, status: res.status, detail });
     }
@@ -84,4 +103,19 @@ export async function safeFetch<T = unknown>(
     if (!silent && toast) toast(display, "error");
     return { data: null, error: display };
   }
+}
+
+/**
+ * E8 — human-friendly `Retry-After` renderer. Seconds get bucketed so
+ * the toast reads like a person wrote it (no "59 seconds", no "1.5
+ * minutes"). Under 10s we just say "a few seconds" — anything more
+ * precise than that just reads like code.
+ */
+function formatRetryAfter(seconds: number): string {
+  if (seconds < 10) return "a few seconds";
+  if (seconds < 60) return `${seconds} seconds`;
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes === 1) return "1 minute";
+  if (minutes < 60) return `${minutes} minutes`;
+  return "a few minutes";
 }

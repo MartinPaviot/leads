@@ -167,8 +167,14 @@ export async function POST(req: Request) {
         signalTitle: null,
       },
     }, { status: 201 });
-  } catch (error: any) {
+  } catch (error) {
+    // Log the detail server-side; return a generic message so ORM /
+    // LLM errors can't leak table names, schema fragments, or API
+    // keys embedded in upstream error strings.
     console.error("Campaign generation failed:", error);
-    return Response.json({ error: error.message || "Campaign generation failed" }, { status: 500 });
+    return Response.json(
+      { error: "Campaign generation failed" },
+      { status: 500 }
+    );
   }
 }

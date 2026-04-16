@@ -1,5 +1,6 @@
 import { getAuthContext } from "@/lib/auth-utils";
 import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/calendar";
+import { fetchMicrosoftMeetings } from "@/lib/calendar-microsoft";
 import { db } from "@/db";
 import { activities, authAccounts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
@@ -25,17 +26,11 @@ export async function GET(req: Request) {
   const daysForward = Number(url.searchParams.get("daysForward")) || 14;
 
   try {
-    const calendarMeetings = await fetchRecentMeetings(
-      authCtx.userId,
-      daysBack,
-      daysForward
-    );
-
-    // M3 — detect which OAuth providers the user has linked so the UI
-    // can explain where the meetings list is coming from. Microsoft
-    // Calendar feed via Graph API is a TODO (tracked in
-    // `_specs/REQUIREMENTS/10-meetings.md`); for now Microsoft users
-    // see just the tracked activities instead of an error.
+    // M3 — detect which OAuth providers the user has linked so we can
+    // call the right calendar feed(s). We always fan out to every
+    // connected provider in parallel and merge the results — users with
+    // both Google and Microsoft connected (rare but legit on combined
+    // workspaces) get the union, deduplicated by event id.
     const linkedAccounts = await db
       .select({ provider: authAccounts.provider })
       .from(authAccounts)
@@ -44,11 +39,50 @@ export async function GET(req: Request) {
     const hasMicrosoft = linkedAccounts.some(
       (a) => a.provider === "microsoft-entra-id"
     );
-    if (!hasGoogle && hasMicrosoft) {
-      logger.info("meetings: microsoft-only user, MS Graph feed not implemented", {
+
+    // Fan out. `allSettled` so a transient outage on one provider
+    // (rate limit, expired refresh token, brief 5xx) doesn't blank the
+    // whole list — the user still sees the other side's meetings.
+    const [googleResult, microsoftResult] = await Promise.allSettled([
+      hasGoogle
+        ? fetchRecentMeetings(authCtx.userId, daysBack, daysForward)
+        : Promise.resolve([] as SyncedMeeting[]),
+      hasMicrosoft
+        ? fetchMicrosoftMeetings(authCtx.userId, daysBack, daysForward)
+        : Promise.resolve([] as SyncedMeeting[]),
+    ]);
+
+    const googleMeetings =
+      googleResult.status === "fulfilled" ? googleResult.value : [];
+    const microsoftMeetings =
+      microsoftResult.status === "fulfilled" ? microsoftResult.value : [];
+    if (googleResult.status === "rejected") {
+      logger.warn("meetings: google calendar fetch failed", {
         userId: authCtx.userId,
+        err: googleResult.reason,
       });
     }
+    if (microsoftResult.status === "rejected") {
+      logger.warn("meetings: microsoft calendar fetch failed", {
+        userId: authCtx.userId,
+        err: microsoftResult.reason,
+      });
+    }
+
+    // Dedupe by `calendarEventId`. Cross-provider collisions are
+    // theoretically possible (a user invited to the same event from
+    // both calendars) but the ids encode the provider's namespace so
+    // a true clash is vanishingly rare. If it ever happens we keep the
+    // first-seen — Google wins by convention since it's the older
+    // integration and the historical activity rows reference its ids.
+    const seen = new Set<string>();
+    const calendarMeetings: SyncedMeeting[] = [];
+    for (const m of [...googleMeetings, ...microsoftMeetings]) {
+      if (seen.has(m.calendarEventId)) continue;
+      seen.add(m.calendarEventId);
+      calendarMeetings.push(m);
+    }
+    calendarMeetings.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
     // Load existing activities indexed by calendar event ID
     const meetingActivities = await db

@@ -45,7 +45,7 @@ export async function PUT(
 
   try {
     const body = await req.json();
-    const { name, stage, value, summary, expectedCloseDate, companyId, contactId, ownerId } = body;
+    const { name, stage, value, summary, expectedCloseDate, companyId, contactId, ownerId, closeReason } = body;
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (name) updates.name = name.trim();
@@ -56,6 +56,30 @@ export async function PUT(
     if (companyId !== undefined) updates.companyId = companyId || null;
     if (contactId !== undefined) updates.contactId = contactId || null;
     if (ownerId !== undefined) updates.ownerId = ownerId || null;
+
+    // Y6 — when a close reason is supplied (won/lost stage change), merge
+    // it into deal.properties alongside `closedAt` so the win-rate
+    // dashboard can aggregate without touching the main columns. We
+    // fetch existing properties first to preserve anything the user set
+    // earlier (custom fields, manual tags).
+    if (closeReason && typeof closeReason === "object") {
+      const reason = typeof closeReason.reason === "string" ? closeReason.reason : null;
+      const note = typeof closeReason.note === "string" ? closeReason.note : null;
+      if (reason) {
+        const [existing] = await db
+          .select({ properties: deals.properties })
+          .from(deals)
+          .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
+          .limit(1);
+        const priorProps = (existing?.properties ?? {}) as Record<string, unknown>;
+        updates.properties = {
+          ...priorProps,
+          closeReason: reason,
+          closeReasonNote: note,
+          closedAt: new Date().toISOString(),
+        };
+      }
+    }
 
     const [updated] = await db
       .update(deals)

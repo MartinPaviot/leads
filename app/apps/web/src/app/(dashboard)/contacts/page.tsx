@@ -16,6 +16,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { BulkActionsBar } from "@/components/ui/bulk-actions-bar";
 import { useToast } from "@/components/ui/toast";
+import { SmartSearchBar, ActiveFiltersChips } from "@/components/ui/smart-search-bar";
+import { applyFilters } from "@/lib/filters";
+import type { FilterCondition } from "@/lib/filters";
 
 function LinkedInIcon({ size = 13 }: { size?: number }) {
   return (
@@ -66,6 +69,22 @@ export default function ContactsPage() {
   const [enrichStatus, setEnrichStatus] = useState<Record<string, EnrichStatus>>({});
   const [enrichAllRunning, setEnrichAllRunning] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [totalContacts, setTotalContacts] = useState(0);
+  const pageSize = 50;
+  // Sort
+  const [sortField, setSortField] = useState<string>("firstName");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  // Create contact
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({ firstName: "", lastName: "", email: "", title: "", companyName: "" });
+  // Smart Search — stacks on top of the text search box, powered by
+  // /api/filters/parse-nl (resourceType: "contact"). Applied before the
+  // text search so the user can combine "CTOs at fintech" with a
+  // freeform typo-tolerant name lookup in the same session.
+  const [smartFilters, setSmartFilters] = useState<FilterCondition[]>([]);
+  const [smartMeta, setSmartMeta] = useState<{ reasoning: string; unmatched: string[] } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [showSmartImport, setShowSmartImport] = useState(false);
   const [importHistory, setImportHistory] = useState<Array<{ id: string; fileName: string; recordType: string; totalRows: number; createdCount: number; skippedCount: number; companiesCreated: number; status: string; createdAt: string }>>([]);
@@ -75,15 +94,16 @@ export default function ContactsPage() {
 
   const fetchContacts = useCallback(async () => {
     try {
-      const res = await fetch("/api/contacts");
+      const res = await fetch(`/api/contacts?page=${page}&pageSize=${pageSize}`);
       if (res.ok) {
         const data = await res.json();
         setContacts(data.contacts || []);
+        setTotalContacts(data.pagination?.total ?? data.contacts?.length ?? 0);
       }
     } catch (e) {
       console.warn("contacts: list fetch failed", e);
     } finally { setLoading(false); }
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     fetchContacts();
@@ -139,6 +159,64 @@ export default function ContactsPage() {
     finally { setEnrichAllRunning(false); }
   }
 
+  // Sort contacts client-side
+  function handleSort(field: string) {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  }
+
+  // Create contact
+  async function handleCreateContact() {
+    if (!createForm.firstName && !createForm.email) {
+      toast("First name or email required", "error");
+      return;
+    }
+    try {
+      const res = await fetch("/api/contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(createForm),
+      });
+      if (res.ok) {
+        toast("Contact created", "success");
+        setShowCreate(false);
+        setCreateForm({ firstName: "", lastName: "", email: "", title: "", companyName: "" });
+        fetchContacts();
+      } else {
+        const data = await res.json();
+        toast(data.error || "Failed to create contact", "error");
+      }
+    } catch {
+      toast("Failed to create contact", "error");
+    }
+  }
+
+  // Bulk delete
+  async function bulkDeleteSelected() {
+    const ids = Array.from(selectedRows);
+    if (ids.length === 0) return;
+    let deleted = 0;
+    let errors = 0;
+    for (const id of ids) {
+      try {
+        const res = await fetch(`/api/contacts/${id}`, { method: "DELETE" });
+        if (res.ok) deleted++;
+        else errors++;
+      } catch { errors++; }
+    }
+    setSelectedRows(new Set());
+    if (deleted > 0) {
+      toast(`Deleted ${deleted} contact${deleted > 1 ? "s" : ""}${errors > 0 ? ` (${errors} failed)` : ""}`, deleted > 0 ? "success" : "error");
+      fetchContacts();
+    } else {
+      toast(`Delete failed for ${errors} contact${errors > 1 ? "s" : ""}`, "error");
+    }
+  }
+
   // K2 — bulk actions that operate on the current selection. Enrich
   // reuses the single-shot endpoint; merge navigates to a dedicated
   // picker page with the selected ids pre-filled.
@@ -177,13 +255,35 @@ export default function ContactsPage() {
 
   const unenrichedCount = contacts.filter((c) => !isEnriched(c)).length;
 
-  const filteredContacts = searchQuery.trim()
-    ? contacts.filter((c) => {
+  const smartFilteredContacts = smartFilters.length > 0
+    ? applyFilters(contacts, smartFilters)
+    : contacts;
+
+  const textFiltered = searchQuery.trim()
+    ? smartFilteredContacts.filter((c) => {
         const q = searchQuery.toLowerCase();
         const name = [c.firstName, c.lastName].filter(Boolean).join(" ").toLowerCase();
         return name.includes(q) || (c.email?.toLowerCase().includes(q) ?? false) || (c.title?.toLowerCase().includes(q) ?? false) || (c.companyName?.toLowerCase().includes(q) ?? false);
       })
-    : contacts;
+    : smartFilteredContacts;
+
+  // Sort
+  const filteredContacts = [...textFiltered].sort((a, b) => {
+    let av: string | number | null = null;
+    let bv: string | number | null = null;
+    if (sortField === "firstName") { av = [a.firstName, a.lastName].filter(Boolean).join(" "); bv = [b.firstName, b.lastName].filter(Boolean).join(" "); }
+    else if (sortField === "companyName") { av = a.companyName; bv = b.companyName; }
+    else if (sortField === "email") { av = a.email; bv = b.email; }
+    else if (sortField === "title") { av = a.title; bv = b.title; }
+    else if (sortField === "score") { av = a.score; bv = b.score; }
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  const totalPages = Math.ceil(totalContacts / pageSize);
 
   return (
     <div className="flex h-full flex-col">
@@ -197,6 +297,11 @@ export default function ContactsPage() {
             icon: <GitMerge size={13} />,
             onClick: bulkMergeSelected,
             disabled: selectedRows.size < 2,
+          },
+          {
+            label: "Delete",
+            icon: <X size={13} />,
+            onClick: bulkDeleteSelected,
           },
         ]}
       />
@@ -218,7 +323,7 @@ export default function ContactsPage() {
           </Button>
           <input ref={fileRef} type="file" accept=".csv" onChange={handleImport} className="hidden" disabled={importing} />
         </label>
-        <Button variant="gradient" size="sm" icon={<Plus size={12} />}>Create contact</Button>
+        <Button variant="gradient" size="sm" icon={<Plus size={12} />} onClick={() => setShowCreate(true)}>Create contact</Button>
       </PageHeader>
 
       <FilterBar>
@@ -231,7 +336,41 @@ export default function ContactsPage() {
             </button>
           )}
         </div>
+        <div className="w-64">
+          <SmartSearchBar
+            resourceType="contact"
+            onFilters={(filters, meta) => {
+              setSmartFilters(filters);
+              setSmartMeta(meta);
+              if (filters.length > 0) {
+                toast(`Applied ${filters.length} smart filter${filters.length === 1 ? "" : "s"}`, "success");
+              } else if (meta.unmatched.length > 0) {
+                toast("Nothing matched your query — try rephrasing", "info");
+              }
+            }}
+            onError={(msg) => toast(msg, "error")}
+          />
+        </div>
       </FilterBar>
+      <ActiveFiltersChips
+        filters={smartFilters}
+        reasoning={smartMeta?.reasoning}
+        unmatched={smartMeta?.unmatched}
+        fieldLabels={{
+          firstName: "First name",
+          lastName: "Last name",
+          title: "Title",
+          email: "Email",
+          companyName: "Company",
+        }}
+        onRemove={(i) => {
+          setSmartFilters((prev) => prev.filter((_, idx) => idx !== i));
+        }}
+        onClear={() => {
+          setSmartFilters([]);
+          setSmartMeta(null);
+        }}
+      />
 
       {importResult && (
         <div className="mx-5 mt-2 flex items-center justify-between rounded-md px-3 py-2 text-xs"
@@ -245,11 +384,31 @@ export default function ContactsPage() {
         {loading ? (
           <TableSkeleton rows={5} cols={10 + customFields.length} />
         ) : filteredContacts.length === 0 ? (
-          <EmptyState
-            icon={<Users size={28} />}
-            title={contacts.length === 0 ? "No contacts" : "No matching contacts"}
-            description={contacts.length === 0 ? "Import a CSV or create contacts to get started." : "Try adjusting your search query."}
-          />
+          /* K15 — fresh-tenant empty state offers two clear paths to
+             value: import what the user already has, or have us go
+             enrich the TAM accounts they just built. The "search returned
+             nothing" case keeps the simpler search-clear CTA. */
+          contacts.length === 0 ? (
+            <EmptyState
+              icon={<Users size={28} />}
+              title="No contacts yet"
+              description="Get your first contacts in two clicks — import a CSV you already have, or let Apollo find decision-makers at your TAM accounts."
+              actionLabel="Import CSV"
+              onAction={() => setShowSmartImport(true)}
+              actionVariant="gradient"
+              secondaryActionLabel="Find contacts at top accounts"
+              onSecondaryAction={() => router.push("/accounts?sort=score&dir=desc")}
+            />
+          ) : (
+            <EmptyState
+              icon={<Users size={28} />}
+              title="No matching contacts"
+              description="Try adjusting your search query, or clear it to see your full list."
+              actionLabel="Clear search"
+              onAction={() => setSearchQuery("")}
+              actionVariant="outline"
+            />
+          )
         ) : (
           <table className="ls-table">
             <thead>
@@ -270,22 +429,29 @@ export default function ContactsPage() {
                   />
                 </th>
                 {([
-                  { label: "Contact", icon: Users },
-                  { label: "Company", icon: Briefcase },
-                  { label: "Email", icon: Mail },
-                  { label: "Title", icon: Briefcase },
-                  { label: "LinkedIn", icon: null as LucideIcon | null },
-                  { label: "Phone", icon: Phone },
-                  { label: "Score", icon: Gauge },
-                  { label: "Last Interaction", icon: Clock },
-                  ...customFields.map((f) => ({ label: f.name, icon: null as LucideIcon | null })),
-                  { label: "", icon: null },
-                ] as Array<{ label: string; icon: LucideIcon | null }>).map((col, i) => (
-                  <th key={i}>
+                  { label: "Contact", icon: Users, field: "firstName" },
+                  { label: "Company", icon: Briefcase, field: "companyName" },
+                  { label: "Email", icon: Mail, field: "email" },
+                  { label: "Title", icon: Briefcase, field: "title" },
+                  { label: "LinkedIn", icon: null as LucideIcon | null, field: null },
+                  { label: "Phone", icon: Phone, field: null },
+                  { label: "Score", icon: Gauge, field: "score" },
+                  { label: "Last Interaction", icon: Clock, field: null },
+                  ...customFields.map((f) => ({ label: f.name, icon: null as LucideIcon | null, field: null })),
+                  { label: "", icon: null, field: null },
+                ] as Array<{ label: string; icon: LucideIcon | null; field: string | null }>).map((col, i) => (
+                  <th
+                    key={i}
+                    onClick={col.field ? () => handleSort(col.field!) : undefined}
+                    style={col.field ? { cursor: "pointer", userSelect: "none" } : undefined}
+                  >
                     <span className="flex items-center gap-1.5">
                       {col.icon && <col.icon size={12} style={{ opacity: 0.5 }} />}
                       {col.label === "LinkedIn" && <span style={{ opacity: 0.5 }}><LinkedInIcon size={12} /></span>}
                       {col.label}
+                      {col.field && sortField === col.field && (
+                        <span className="text-[10px]">{sortDir === "asc" ? "^" : "v"}</span>
+                      )}
                     </span>
                   </th>
                 ))}
@@ -304,7 +470,7 @@ export default function ContactsPage() {
                     key={contact.id}
                     data-selected={selectedRows.has(contact.id) ? "true" : undefined}
                     className="cursor-pointer"
-                    onClick={() => (window.location.href = `/contacts/${contact.id}`)}
+                    onClick={() => router.push(`/contacts/${contact.id}`)}
                   >
                     {/* Selection checkbox */}
                     <td style={{ width: 36 }} onClick={(e) => e.stopPropagation()}>
@@ -327,7 +493,7 @@ export default function ContactsPage() {
                         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${enrichStatus[contact.id] === "enriching" ? "animate-pulse" : ""}`} style={{ background: statusColor }} />
                         <CompanyLogo domain={contact.companyDomain} name={contact.firstName || contact.email || "?"} size={24} />
                         <div className="min-w-0">
-                          <button onClick={() => (window.location.href = `/contacts/${contact.id}`)} className="truncate text-left text-[13px] font-medium transition-colors hover:underline" style={{ color: "var(--color-text-primary)" }}>
+                          <button onClick={() => router.push(`/contacts/${contact.id}`)} className="truncate text-left text-[13px] font-medium transition-colors hover:underline" style={{ color: "var(--color-text-primary)" }}>
                             {name}
                           </button>
                         </div>
@@ -468,7 +634,46 @@ export default function ContactsPage() {
         </div>
       )}
 
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t px-5 py-2" style={{ borderColor: "var(--color-border)" }}>
+          <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+            {totalContacts} contacts · Page {page} of {totalPages}
+          </span>
+          <div className="flex gap-1">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+              Previous
+            </Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
       {showSmartImport && <SmartImport onClose={() => setShowSmartImport(false)} onComplete={fetchContacts} />}
+
+      {/* Create contact dialog */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.4)" }}>
+          <div className="w-full max-w-md rounded-xl p-6 shadow-xl" style={{ background: "var(--color-bg-card)" }}>
+            <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--color-text-primary)" }}>Create Contact</h3>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Input placeholder="First name" value={createForm.firstName} onChange={(e) => setCreateForm({ ...createForm, firstName: e.target.value })} />
+                <Input placeholder="Last name" value={createForm.lastName} onChange={(e) => setCreateForm({ ...createForm, lastName: e.target.value })} />
+              </div>
+              <Input placeholder="Email" type="email" value={createForm.email} onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })} />
+              <Input placeholder="Title" value={createForm.title} onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })} />
+              <Input placeholder="Company name" value={createForm.companyName} onChange={(e) => setCreateForm({ ...createForm, companyName: e.target.value })} />
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowCreate(false)}>Cancel</Button>
+              <Button variant="gradient" size="sm" onClick={handleCreateContact}>Create</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

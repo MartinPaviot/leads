@@ -96,6 +96,8 @@ export async function POST() {
       );
     }
 
-    return Response.json({ error: `Microsoft calendar sync failed: ${message}` }, { status: 500 });
+    // Upstream Graph API errors may contain tokens / user GUIDs; log
+    // server-side and return a generic message.
+    return Response.json({ error: "Microsoft calendar sync failed" }, { status: 500 });
   }
 }
