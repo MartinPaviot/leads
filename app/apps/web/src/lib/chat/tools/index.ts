@@ -8,6 +8,7 @@ import { buildMemoryTools } from "./memory";
 import { buildIntelligenceTools } from "./intelligence";
 import { buildSkillsTools } from "./skills";
 import { buildUndoTools } from "./undo";
+import { buildBriefingTools } from "./briefing";
 
 export type { ToolContext } from "./context";
 export { makeTool } from "./context";
@@ -23,5 +24,6 @@ export function buildAllChatTools(ctx: ToolContext) {
     ...buildIntelligenceTools(ctx),
     ...buildSkillsTools(ctx),
     ...buildUndoTools(ctx),
+    ...buildBriefingTools(ctx),
   };
 }

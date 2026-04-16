@@ -17,6 +17,7 @@ import { onContactCreatedEnrichAndQualify } from "@/inngest/skill-events";
 import { researchAgent } from "@/inngest/research-agent";
 import { memoryAutoExtract } from "@/inngest/memory-auto-extract";
 import { enrichmentEmailExtractFunction, enrichmentEmailExtractBatchFunction } from "@/inngest/enrichment-email-extract-functions";
+import { generateDealBrief, scheduledDealDigest } from "@/inngest/deal-briefing";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -65,5 +66,8 @@ export const { GET, POST, PUT } = serve({
     // (SOURCES_ANALYSIS.md §6.3 Module 1)
     enrichmentEmailExtractFunction,
     enrichmentEmailExtractBatchFunction,
+    // Deal briefing: on-demand + scheduled daily digest
+    generateDealBrief,
+    scheduledDealDigest,
   ],
 });
