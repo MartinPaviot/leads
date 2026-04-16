@@ -104,11 +104,12 @@ async function resolveUserTenant(authUserId: string, email: string) {
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  adapter: DrizzleAdapter(db, {
-    usersTable: authUsers,
-    accountsTable: authAccounts,
-    sessionsTable: authSessions,
-    verificationTokensTable: authVerificationTokens,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pnpm dual-resolves drizzle-orm via @neondatabase peer; types are structurally identical
+  adapter: DrizzleAdapter(db as any, {
+    usersTable: authUsers as any,
+    accountsTable: authAccounts as any,
+    sessionsTable: authSessions as any,
+    verificationTokensTable: authVerificationTokens as any,
   }),
   providers: [
     ...(process.env.GOOGLE_CLIENT_ID

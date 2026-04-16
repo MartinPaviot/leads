@@ -15,5 +15,10 @@
   "packageManager": "pnpm@10.15.1",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "drizzle-orm": "^0.45.2"
+    }
   }
 }
