@@ -59,7 +59,7 @@ export async function extractAndPersistForActivity(
   if (!activity) {
     return { activityId, status: "error", reason: "activity_not_found" };
   }
-  if (activity.activityType !== "email") {
+  if (activity.activityType !== "email_sent" && activity.activityType !== "email_received") {
     return { activityId, status: "skipped_not_email" };
   }
   if (!activity.rawContent || activity.rawContent.trim().length < 20) {
@@ -206,7 +206,10 @@ export async function extractAndPersistBatch(
     .where(
       and(
         eq(activities.tenantId, tenantId),
-        eq(activities.activityType, "email"),
+        or(
+          eq(activities.activityType, "email_sent"),
+          eq(activities.activityType, "email_received"),
+        ),
         or(
           isNull(activities.sentiment),
           // Re-extract only when no metadata.llmExtraction is set; SQL JSON

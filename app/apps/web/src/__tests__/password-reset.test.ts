@@ -246,12 +246,12 @@ describe("validateResetToken", () => {
 });
 
 describe("isPasswordAcceptable", () => {
-  it("accepts a 10-char mixed-case-with-digit password", () => {
-    expect(isPasswordAcceptable("Abcdefgh12")).toBe(true);
+  it("accepts a 12-char mixed-case-with-digit password", () => {
+    expect(isPasswordAcceptable("Abcdefghij12")).toBe(true);
   });
 
-  it("rejects passwords shorter than 10 chars", () => {
-    expect(isPasswordAcceptable("Abcde12")).toBe(false);
+  it("rejects passwords shorter than 12 chars", () => {
+    expect(isPasswordAcceptable("Abcdefgh12")).toBe(false);
   });
 
   it("rejects passwords without a digit", () => {
