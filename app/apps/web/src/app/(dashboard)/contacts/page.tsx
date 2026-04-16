@@ -16,6 +16,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { BulkActionsBar } from "@/components/ui/bulk-actions-bar";
 import { useToast } from "@/components/ui/toast";
+import { SmartSearchBar, ActiveFiltersChips } from "@/components/ui/smart-search-bar";
+import { applyFilters } from "@/lib/filters";
+import type { FilterCondition } from "@/lib/filters";
 
 function LinkedInIcon({ size = 13 }: { size?: number }) {
   return (
@@ -66,6 +69,12 @@ export default function ContactsPage() {
   const [enrichStatus, setEnrichStatus] = useState<Record<string, EnrichStatus>>({});
   const [enrichAllRunning, setEnrichAllRunning] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // Smart Search — stacks on top of the text search box, powered by
+  // /api/filters/parse-nl (resourceType: "contact"). Applied before the
+  // text search so the user can combine "CTOs at fintech" with a
+  // freeform typo-tolerant name lookup in the same session.
+  const [smartFilters, setSmartFilters] = useState<FilterCondition[]>([]);
+  const [smartMeta, setSmartMeta] = useState<{ reasoning: string; unmatched: string[] } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [showSmartImport, setShowSmartImport] = useState(false);
   const [importHistory, setImportHistory] = useState<Array<{ id: string; fileName: string; recordType: string; totalRows: number; createdCount: number; skippedCount: number; companiesCreated: number; status: string; createdAt: string }>>([]);
@@ -177,13 +186,17 @@ export default function ContactsPage() {
 
   const unenrichedCount = contacts.filter((c) => !isEnriched(c)).length;
 
+  const smartFilteredContacts = smartFilters.length > 0
+    ? applyFilters(contacts, smartFilters)
+    : contacts;
+
   const filteredContacts = searchQuery.trim()
-    ? contacts.filter((c) => {
+    ? smartFilteredContacts.filter((c) => {
         const q = searchQuery.toLowerCase();
         const name = [c.firstName, c.lastName].filter(Boolean).join(" ").toLowerCase();
         return name.includes(q) || (c.email?.toLowerCase().includes(q) ?? false) || (c.title?.toLowerCase().includes(q) ?? false) || (c.companyName?.toLowerCase().includes(q) ?? false);
       })
-    : contacts;
+    : smartFilteredContacts;
 
   return (
     <div className="flex h-full flex-col">
@@ -231,7 +244,41 @@ export default function ContactsPage() {
             </button>
           )}
         </div>
+        <div className="w-64">
+          <SmartSearchBar
+            resourceType="contact"
+            onFilters={(filters, meta) => {
+              setSmartFilters(filters);
+              setSmartMeta(meta);
+              if (filters.length > 0) {
+                toast(`Applied ${filters.length} smart filter${filters.length === 1 ? "" : "s"}`, "success");
+              } else if (meta.unmatched.length > 0) {
+                toast("Nothing matched your query — try rephrasing", "info");
+              }
+            }}
+            onError={(msg) => toast(msg, "error")}
+          />
+        </div>
       </FilterBar>
+      <ActiveFiltersChips
+        filters={smartFilters}
+        reasoning={smartMeta?.reasoning}
+        unmatched={smartMeta?.unmatched}
+        fieldLabels={{
+          firstName: "First name",
+          lastName: "Last name",
+          title: "Title",
+          email: "Email",
+          companyName: "Company",
+        }}
+        onRemove={(i) => {
+          setSmartFilters((prev) => prev.filter((_, idx) => idx !== i));
+        }}
+        onClear={() => {
+          setSmartFilters([]);
+          setSmartMeta(null);
+        }}
+      />
 
       {importResult && (
         <div className="mx-5 mt-2 flex items-center justify-between rounded-md px-3 py-2 text-xs"
