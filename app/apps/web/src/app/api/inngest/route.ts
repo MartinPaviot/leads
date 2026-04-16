@@ -16,6 +16,7 @@ import { weeklySignalScan, weeklyChurnRiskScan, weeklyExpansionScan, weeklyFundi
 import { onContactCreatedEnrichAndQualify } from "@/inngest/skill-events";
 import { researchAgent } from "@/inngest/research-agent";
 import { memoryAutoExtract } from "@/inngest/memory-auto-extract";
+import { enrichmentEmailExtractFunction, enrichmentEmailExtractBatchFunction } from "@/inngest/enrichment-email-extract-functions";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -60,5 +61,9 @@ export const { GET, POST, PUT } = serve({
     researchAgent,
     // CHAT-07: Memory auto-extraction from conversations
     memoryAutoExtract,
+    // Enrichment: deep LLM signal extraction from emails
+    // (SOURCES_ANALYSIS.md §6.3 Module 1)
+    enrichmentEmailExtractFunction,
+    enrichmentEmailExtractBatchFunction,
   ],
 });
