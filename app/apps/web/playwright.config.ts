@@ -51,6 +51,7 @@ export default defineConfig({
         stderr: "pipe",
         env: {
           NODE_ENV: "development",
+          ENABLE_E2E_SEED: "1",
         },
       },
 });
