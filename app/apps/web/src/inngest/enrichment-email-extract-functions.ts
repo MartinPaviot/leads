@@ -49,6 +49,21 @@ export const enrichmentEmailExtractFunction = inngest.createFunction(
     const outcome = await step.run("extract", () =>
       extractAndPersistForActivity(activityId, tenantId, { competitorList }),
     );
+
+    // ROX-GAP-2: cascade signals to deal properties
+    if (outcome.status === "extracted" && outcome.extraction) {
+      await step.run("sync-to-deal", () =>
+        inngest.send({
+          name: "enrichment/signals-extracted",
+          data: {
+            tenantId,
+            activityId,
+            signals: outcome.extraction,
+          },
+        }),
+      ).catch(() => { /* non-blocking */ });
+    }
+
     return outcome;
   },
 );

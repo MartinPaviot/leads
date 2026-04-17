@@ -25,6 +25,7 @@ import {
   Shield,
   Search,
   X,
+  Layers,
 } from "lucide-react";
 
 interface NavSection {
@@ -55,6 +56,7 @@ const settingsNav: NavSection[] = [
       { label: "Members", href: "/settings/members", icon: Users },
       { label: "Notifications", href: "/settings/notifications", icon: Bell },
       { label: "Opportunity Stages", href: "/settings/stages", icon: GitBranch },
+      { label: "Plays", href: "/settings/plays", icon: Layers },
       { label: "Recording", href: "/settings/recording", icon: Video },
       { label: "Workflows", href: "/settings/workflows", icon: Workflow },
     ],

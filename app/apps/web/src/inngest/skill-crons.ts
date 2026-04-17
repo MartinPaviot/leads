@@ -44,13 +44,13 @@ async function createNotification(
   }
 }
 
-// ── Weekly Signal Scanner ──────────────────────────────────────
+// ── Daily Signal Scanner (ROX-GAP-4: upgraded from weekly) ────
 export const weeklySignalScan = inngest.createFunction(
   {
-    id: "cron-weekly-signal-scan",
-    name: "Weekly Signal Scanner",
+    id: "cron-daily-signal-scan",
+    name: "Daily Signal Scanner",
     retries: 1,
-    triggers: [{ cron: "TZ=UTC 0 8 * * 1" }], // Monday 8am UTC
+    triggers: [{ cron: "TZ=UTC 0 7 * * 1-5" }], // Weekdays 7am UTC
   },
   async ({ step }) => {
     const tenantIds = await step.run("get-tenants", getActiveTenantIds);

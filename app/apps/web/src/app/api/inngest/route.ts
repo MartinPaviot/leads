@@ -20,6 +20,7 @@ import { enrichmentEmailExtractFunction, enrichmentEmailExtractBatchFunction } f
 import { generateDealBrief, scheduledDealDigest } from "@/inngest/deal-briefing";
 import { analyzeOutgoingEmail, postInteractionCoaching, analyzeDealEvent, weeklyPerformanceSnapshot } from "@/inngest/coaching-engine";
 import { signalToDealAlert } from "@/inngest/signal-to-deal-alert";
+import { syncSignalsToDeal } from "@/inngest/deal-signal-sync";
 import { autoPipelineStep } from "@/inngest/autonomous-pipeline";
 import { dailyFounderBrief } from "@/inngest/founder-coach";
 
@@ -80,6 +81,7 @@ export const { GET, POST, PUT } = serve({
     weeklyPerformanceSnapshot,
     // Differentiation: proactive deal intelligence, autonomous pipeline, founder coaching
     signalToDealAlert,
+    syncSignalsToDeal,
     autoPipelineStep,
     dailyFounderBrief,
   ],
