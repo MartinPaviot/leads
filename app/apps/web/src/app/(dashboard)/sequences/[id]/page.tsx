@@ -555,6 +555,7 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
                         <th className="px-4 py-2.5 font-medium" style={{ color: "var(--color-text-tertiary)" }}>Email</th>
                         <th className="px-4 py-2.5 font-medium" style={{ color: "var(--color-text-tertiary)" }}>Step</th>
                         <th className="px-4 py-2.5 font-medium" style={{ color: "var(--color-text-tertiary)" }}>Status</th>
+                        <th className="px-4 py-2.5 font-medium" style={{ color: "var(--color-text-tertiary)" }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -567,6 +568,46 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
                             <Badge variant={e.status === "active" ? "success" : e.status === "completed" || e.status === "replied" ? "info" : "neutral"} size="sm">
                               {e.status}
                             </Badge>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex gap-1">
+                              {e.status === "active" && (
+                                <button
+                                  onClick={async () => {
+                                    await fetch(`/api/sequences/${id}/enroll`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enrollmentId: e.id, status: "paused" }) });
+                                    fetchSequence();
+                                  }}
+                                  className="rounded px-2 py-0.5 text-[11px] font-medium"
+                                  style={{ background: "var(--color-warning-soft)", color: "var(--color-warning)" }}
+                                >
+                                  Pause
+                                </button>
+                              )}
+                              {e.status === "paused" && (
+                                <button
+                                  onClick={async () => {
+                                    await fetch(`/api/sequences/${id}/enroll`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enrollmentId: e.id, status: "active" }) });
+                                    fetchSequence();
+                                  }}
+                                  className="rounded px-2 py-0.5 text-[11px] font-medium"
+                                  style={{ background: "var(--color-success-soft)", color: "var(--color-success)" }}
+                                >
+                                  Resume
+                                </button>
+                              )}
+                              {(e.status === "active" || e.status === "paused") && (
+                                <button
+                                  onClick={async () => {
+                                    await fetch(`/api/sequences/${id}/enroll`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enrollmentId: e.id, status: "completed" }) });
+                                    fetchSequence();
+                                  }}
+                                  className="rounded px-2 py-0.5 text-[11px] font-medium"
+                                  style={{ background: "var(--color-error-soft)", color: "var(--color-error)" }}
+                                >
+                                  Stop
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}

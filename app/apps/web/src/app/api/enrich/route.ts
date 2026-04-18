@@ -121,7 +121,37 @@ export async function POST(req: Request) {
           }
         }
 
-        // No LLM fallback — mark as unavailable instead of hallucinating
+        // LLM fallback when Apollo is unavailable or returned nothing
+        const { enrichCompanyViaLLM } = await import("@/lib/llm-enrichment");
+        const llmResult = await enrichCompanyViaLLM(company.name, company.domain, authCtx.tenantId);
+
+        if (llmResult) {
+          await db
+            .update(companies)
+            .set({
+              industry: llmResult.industry || company.industry,
+              description: llmResult.description || company.description,
+              size: llmResult.size || company.size,
+              revenue: llmResult.revenue || company.revenue,
+              properties: {
+                ...props,
+                enrichment_source: "llm",
+                enrichment_attempted_at: new Date().toISOString(),
+                founded_year: llmResult.founded_year,
+                technologies: llmResult.technologies,
+                city: llmResult.city,
+                country: llmResult.country,
+                keywords: llmResult.keywords,
+              },
+              updatedAt: new Date(),
+            })
+            .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)));
+
+          enriched++;
+          continue;
+        }
+
+        // Both Apollo and LLM failed — mark unavailable
         await db
           .update(companies)
           .set({
@@ -130,10 +160,10 @@ export async function POST(req: Request) {
               enrichment_source: "unavailable",
               enrichment_attempted_at: new Date().toISOString(),
               enrichment_error: !isApolloAvailable()
-                ? "Apollo API key not configured"
+                ? "Apollo + LLM both failed"
                 : !company.domain
                   ? "No domain available"
-                  : "Apollo returned no data",
+                  : "Apollo + LLM returned no data",
             },
             updatedAt: new Date(),
           })
