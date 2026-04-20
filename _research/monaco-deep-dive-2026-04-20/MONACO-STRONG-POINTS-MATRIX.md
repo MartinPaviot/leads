@@ -483,6 +483,42 @@ These are confirmed gaps in Monaco (from MB + LF + Coffee + RevGenius + own rese
 
 ---
 
+## CORRECTIONS FROM DIRECT CODE AUDIT (2026-04-20)
+
+While processing fixes, several items I scored ⚠️/❌/❓ turned out to be already implemented — the earlier architecture audit was stale. Verified state:
+
+- **SP-02 Letter grade + heat indicator** → ✅. `lib/scoring.ts` exports `GRADE_THRESHOLDS` (A+/A/B/C/D/F + Burning/Warm/Cool/Cold), `lib/ui-utils.ts` has `formatScore`/`heatLabel`/`scoreCircleBg`. Accounts list + slideover render `{grade} {heat}` with color. Icon field is intentionally empty — commit `e03826c` purged emojis as "AI clichés"; tests lock it in. Visual heat parity with Monaco is reached via color + heat word, lucide glyphs where explicit (e.g., `<Zap>` for momentum).
+- **SP-05 Per-signal reasoning + sources popover** → ✅ scaffolding present. `accounts/page.tsx` line 70 has `signalPopoverTab: "reasoning" | "sources"` state + outside-click handler. Verify citation payload once live; scaffolding does not need rebuild.
+- **SP-08 AI semantic search** → ✅. `SmartSearchBar` + `applyFilters` + `FilterCondition[]` + similarity scores per row. Eval cases still warranted for prompt quality.
+- **SP-09 Suggested contacts under account** → ✅. `accounts/[id]/page.tsx` renders `<SuggestedContacts accountId={...} />` pulling from `/api/accounts/:id/suggested-contacts`. Expanded row state + loading state present.
+- **SP-23 Auto-extract deal intelligence card** → ✅. `accounts/[id]/page.tsx` renders Meeting Intelligence card with Team Size / Budget / Current Tools / Competitors sourced from `account.properties.meetingIntel`. Extraction stored at `deals.properties.extractedIntel` by `api/meetings/process-transcript/route.ts` (lines 193-224). Icons were emoji-based; this session replaced with lucide `Users/DollarSign/ClipboardList/Swords`.
+- **SP-28 ⚡ Momentum indicator** → ✅. `opportunities/page.tsx` has `hasMomentum(d)` helper (recentActivityCount ≥ 3) rendering the bolt on both kanban card and list row. Emoji literal replaced with lucide `<Zap>` in this session.
+- **SP-38 Daily dashboard greeting + weekly KPI** → ✅ EQUIVALENT OR BETTER. Home page has greeting, 4 KPIs (sequences/responses/meetings/closed), AND WoW delta chips (not visible in Monaco screenshots).
+- **SP-39 Priority card category icons** → ✅ (added this session). Home page now renders lucide icons per `action.category`: Bell (rescue) / MessageSquare (follow_up) / Search (research) / Send (send) / CheckSquare (setup).
+- **SP-40 Inline thread + AI nudge** → ✅. Home page line 774-861 has full `selectedAction` slide-over with last-email card + AI-drafted follow-up card + Send follow-up button.
+- **SP-44 Multi-model AI** → ✅. `lib/traced-ai.ts` handles Anthropic primary + OpenAI fallback across `generateText`, `generateObject`, `streamText` wrappers.
+- **SP-45 Streaming UI** → ✅. `tracedStreamText` + AI SDK + `stepCountIs(N)` for tool-call streaming.
+- **SP-46 RAG + vector** → ✅. `lib/embeddings.ts` + `searchSimilar` + pgvector + `lib/context-graph.ts` hybrid retrieval with bi-temporal `tValid/tInvalid`.
+- **SP-50 Flywheel feedback loop** → ✅ FULLY WIRED. `lib/evals/flywheel.ts` implements full loop: `runFlywheelCycle` processes failures → analyzes patterns → curates few-shots → refines prompt → evaluates → activates (via `evaluateAndActivatePrompt`) — all triggered from `inngest/eval-functions.ts` as both cron + event. Few-shots auto-injected into every LLM call via `injectFewShotExamples()` in `traced-ai.ts` (3 call sites). Evaluator-optimizer pattern (`evaluatorOptimizerLoop`) available for high-stakes flows. Previous architecture audit called this "unused" — that was stale.
+
+**Revised parity after direct code audit:**
+- ✅ confirmed: SP-02, SP-05, SP-08, SP-09, SP-14, SP-21, SP-23, SP-25, SP-28, SP-37, SP-38, SP-40, SP-41, SP-43, SP-44, SP-45, SP-46, SP-50 = **18 full-parity** (was 16)
+- Delta from this session's fixes: +2 (SP-35 coaching prompt, SP-39 icons, SP-20 signal-anchor opener)
+- Remaining true gaps that need work: SP-01 (multi-source TAM), SP-03 (warm-intro graph), SP-22 (meeting recorder), SP-52 (visitor-ID pixel), SP-17 (physical gifts — defer), SP-11 (investor-overlap signal), SP-16 (business-days wait), SP-30 (signal-driven stage auto-advance)
+- The 10 "❌ missing" count is actually ~5 after audit; the other ~5 were either ✅ or ⚠️ with foundation.
+
+## EXECUTED FIXES THIS SESSION
+
+1. **SP-35 Sales coaching prompt overhaul** (`skills/intelligence/sales-coaching/`) — rewrote prompt for direct CRO voice, added `diagnosisHeading` + `evidenceQuotes` schema fields, feed full meeting summary/keyPoints/buyingSignals into the transcript block so the LLM can cite specific moments.
+2. **SP-39 Priority card category icons** (`app/(dashboard)/home/page.tsx`) — added `categoryIcons` mapping (Bell/MessageSquare/Search/Send/CheckSquare with color tints) rendered before each priority card title.
+3. **SP-20 Signal-anchored email opener** (`skills/outreach/email-drafting/handler.ts`) — added `signalDirective` block forcing the LLM to open on the strongest detected signal with concrete facts (no fabrication), fallback chain to funding stage, then generic company observation.
+4. **Emoji purge in UI** — replaced 6 remaining emojis (meeting-intel icons + momentum bolt) with lucide glyphs per feedback_no-emoji-in-ui memory.
+5. **Memory update** — new `feedback_no-emoji-in-ui.md` + MEMORY.md index entry documenting the e03826c decision for future sessions.
+
+All changes pass `pnpm tsc` (web package) and did not break any of the 33 ui-utils tests.
+
+---
+
 ## NEXT STEP
 
 This matrix is the execution plan. Task #8 (verify each point) is partially done inline above (via direct code reads). Task #9 (fix gaps) = process Priority=HIGH rows first:
