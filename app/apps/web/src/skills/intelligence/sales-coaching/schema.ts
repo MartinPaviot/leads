@@ -15,6 +15,16 @@ export const salesCoachingOutputSchema = z.object({
   coaching: z.object({
     dealHealthScore: z.number().min(0).max(100),
     risk: z.enum(["on_track", "slowing", "stalled", "at_risk"]),
+    // Bold Monaco-style diagnosis — one punchy line naming the problem.
+    // Empty string when the deal is healthy (UI renders "No red flags" state).
+    diagnosisHeading: z.string(),
+    // Short paragraphs grounding the diagnosis in specific moments/quotes.
+    // Each entry SHOULD cite a specific activity, email, or meeting line.
+    evidenceQuotes: z.array(z.object({
+      quote: z.string(),
+      context: z.string(),
+      sourceType: z.enum(["email", "meeting", "note", "activity"]),
+    })),
     strengths: z.array(z.string()),
     weaknesses: z.array(z.string()),
     nextSteps: z.array(z.string()),
