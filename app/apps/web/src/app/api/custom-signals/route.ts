@@ -1,4 +1,4 @@
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth-utils";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { db } from "@/db";
 import { customSignals } from "@/db/schema";
@@ -48,13 +48,14 @@ export async function GET() {
  * its detection plan via LLM, and kick off a backfill. Returns the
  * created row immediately; the backfill runs async via Inngest.
  *
- * Admin-gated because custom signals appear globally in the tenant's
- * accounts table and re-running the backfill consumes LLM credits. */
+ * Open to any authenticated tenant member — custom signals only add
+ * columns to the accounts view (not destructive, not permission-gated
+ * data). The LLM budget is already enforced by `tracedGenerateObject`
+ * inside the generator, and the Inngest backfill is
+ * concurrency-capped per signalId. */
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
   if (!authCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const adminCheck = requireAdmin(authCtx);
-  if (adminCheck) return adminCheck;
 
   const rl = await checkRateLimit("llm", authCtx.userId);
   if (rl) return rl;
@@ -111,7 +112,11 @@ export async function POST(req: Request) {
       description,
       plan,
       colorIndex: colorIndex ?? null,
-      createdByUserId: authCtx.userId,
+      // FK targets `users.id` (app user), not `auth_user.id`.
+      // authCtx exposes both — we want `appUserId`. Using
+      // `authCtx.userId` here fails with a FK violation because
+      // auth_user IDs don't match.
+      createdByUserId: authCtx.appUserId,
     })
     .returning();
 

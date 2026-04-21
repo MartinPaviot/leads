@@ -45,7 +45,17 @@ export async function POST(req: Request) {
   };
 
   if (body.companySizes?.length) {
-    const ranges = sizesToApolloRanges(body.companySizes);
+    // The wizard pre-converts via `sizesToApolloRanges(...)` so we
+    // usually receive values already in Apollo's "min,max" form
+    // (e.g. "1,10", "51,200"). `sizesToApolloRanges` strips commas
+    // before converting — re-running it would mangle "1,10" into
+    // "110" (Apollo then 422s with "The range [110] is invalid").
+    // Detect Apollo format and pass through; otherwise run the
+    // converter to accept raw UI sizes like "1-10" too.
+    const alreadyApollo = body.companySizes.every((s) => /^\d+,\d*$/.test(s));
+    const ranges = alreadyApollo
+      ? body.companySizes
+      : sizesToApolloRanges(body.companySizes);
     if (ranges.length > 0) filters.organization_num_employees_ranges = ranges;
   }
   if (body.geographies?.length) {
