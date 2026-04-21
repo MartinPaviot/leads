@@ -27,6 +27,7 @@
 import { db } from "@/db";
 import { signalOutcomes, deals, companies } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
+import { SIGNAL_DETECTORS, listKnownSignalTypes as listShared } from "./signal-detectors";
 
 /** Minimum number of (won+lost) observations before we trust a multiplier. */
 const MIN_SAMPLE_SIZE = 10;
@@ -38,62 +39,11 @@ const MIN_SAMPLE_SIZE = 10;
 const MIN_MULTIPLIER = 0.5;
 const MAX_MULTIPLIER = 2.5;
 
-/**
- * The fixed catalogue of signal types we emit. Adding a new signal
- * means registering it here AND emitting a `signal_outcomes` row when
- * its presence is observable on the company at outcome time.
- *
- * Presence is detected via well-known JSONB keys on
- * `companies.properties` that the signal scanners already write to.
- */
-const SIGNAL_DETECTORS: Record<string, (props: Record<string, unknown>) => Date | null> = {
-  funding: (props) => {
-    const stage = props.latest_funding_stage;
-    const checkedAt = props.fundingLastCheckedAt;
-    if (typeof stage === "string" && stage.length > 0 && typeof checkedAt === "string") {
-      return new Date(checkedAt);
-    }
-    return null;
-  },
-  hiring: (props) => {
-    const intent = props.jobPostingIntent;
-    if (intent && typeof intent === "object" && (intent as { signalStrength?: string }).signalStrength) {
-      const detectedAt = (intent as { detectedAt?: string }).detectedAt;
-      return detectedAt ? new Date(detectedAt) : new Date();
-    }
-    return null;
-  },
-  tech_stack_change: (props) => {
-    const change = props.techStackChange;
-    if (change && typeof change === "object" && (change as { detectedAt?: string }).detectedAt) {
-      return new Date((change as { detectedAt?: string }).detectedAt!);
-    }
-    return null;
-  },
-  leadership_change: (props) => {
-    const change = props.leadershipChange;
-    if (change && typeof change === "object" && (change as { detectedAt?: string }).detectedAt) {
-      return new Date((change as { detectedAt?: string }).detectedAt!);
-    }
-    return null;
-  },
-  investor_overlap: (props) => {
-    const overlap = props.investorOverlap;
-    if (
-      overlap &&
-      typeof overlap === "object" &&
-      Array.isArray((overlap as { commonInvestors?: unknown }).commonInvestors) &&
-      ((overlap as { commonInvestors: unknown[] }).commonInvestors.length > 0)
-    ) {
-      const at = (overlap as { scannedAt?: string }).scannedAt;
-      return at ? new Date(at) : new Date();
-    }
-    return null;
-  },
-};
-
+// SIGNAL_DETECTORS moved to lib/signal-detectors.ts so live scoring
+// and outcome attribution read from the same map. Re-export the
+// helper so existing callers keep working.
 export function listKnownSignalTypes(): string[] {
-  return Object.keys(SIGNAL_DETECTORS);
+  return listShared();
 }
 
 /**
