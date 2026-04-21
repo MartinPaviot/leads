@@ -331,12 +331,17 @@ export const companies = pgTable(
     score: real("score"),
     scoreReasons: jsonb("score_reasons").default([]),
     ownerId: text("owner_id").references(() => users.id),
+    resolvedLogoUrl: text("resolved_logo_url"),
+    resolvedLogoTier: integer("resolved_logo_tier"),
+    logoResolvedAt: timestamp("logo_resolved_at", { withTimezone: true }),
+    userUploadedLogoUrl: text("user_uploaded_logo_url"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   },
   (table) => [
     index("companies_tenant_id_idx").on(table.tenantId),
     index("companies_domain_idx").on(table.domain),
+    index("companies_logo_resolved_at_idx").on(table.logoResolvedAt),
   ]
 );
 
