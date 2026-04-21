@@ -575,13 +575,23 @@ export const sequenceSteps = pgTable(
     id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
     sequenceId: text("sequence_id").references(() => sequences.id, { onDelete: "cascade" }).notNull(),
     stepNumber: integer("step_number").notNull(),
+    // Channel discriminator. Existing rows default to "email" via the SQL
+    // default so back-compat holds; new channels (linkedin_message, sms,
+    // gift, phone_task) dispatch through their own adapter. See
+    // lib/sequence-dispatch/registry.ts for the per-channel contract.
+    stepType: text("step_type").notNull().default("email"),
     subjectTemplate: text("subject_template").notNull(),
     bodyTemplate: text("body_template").notNull(),
     delayDays: integer("delay_days").default(2),
+    // Channel-specific config — e.g. LinkedIn needs a connection note
+    // template, physical gifts need a Sendoso product SKU. Keep the column
+    // schemaless so adding a channel never blocks on a migration.
+    channelConfig: jsonb("channel_config").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (table) => [
     index("sequence_steps_sequence_id_idx").on(table.sequenceId),
+    index("sequence_steps_step_type_idx").on(table.sequenceId, table.stepType),
   ]
 );
 
@@ -915,6 +925,99 @@ export const contextGraphNodes = pgTable(
     index("cgn_tenant_idx").on(table.tenantId),
     index("cgn_entity_idx").on(table.tenantId, table.entityType, table.entityId),
     index("cgn_name_idx").on(table.tenantId, table.name),
+  ]
+);
+
+/**
+ * Inbound module — pixel write keys (primitive ⑥).
+ *
+ * Each pixel ping carries `x-leadsens-write-key: lk_<secret>`; the
+ * server SHA-256s it and joins on `key_hash`. Raw keys are shown to
+ * the user once at generation time and never stored in the clear.
+ */
+export const inboundWriteKeys = pgTable(
+  "inbound_write_keys",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    keyHash: text("key_hash").notNull().unique(),
+    keyPrefix: text("key_prefix").notNull(),
+    label: text("label"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("inbound_write_keys_tenant_idx").on(table.tenantId),
+  ]
+);
+
+/**
+ * Inbound pixel visitors (primitive ⑥).
+ *
+ * De-identified pings from the pixel JS snippet on a customer's
+ * marketing site. Enrichment via RB2B / Snitcher / Clearbit Reveal
+ * lands in identified_company_id + identified_person_email when a
+ * provider comes online; until then rows hold raw IP + UA for later
+ * backfill. `event_count` counts pageviews within the same session.
+ */
+export const inboundVisitors = pgTable(
+  "inbound_visitors",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    sessionId: text("session_id").notNull(),
+    pageUrl: text("page_url"),
+    referrer: text("referrer"),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    country: text("country"),
+    identifiedCompanyId: text("identified_company_id"),
+    identifiedPersonEmail: text("identified_person_email"),
+    identifiedVia: text("identified_via"),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).defaultNow().notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
+    eventCount: integer("event_count").default(1).notNull(),
+    metadata: jsonb("metadata").default({}).notNull(),
+  },
+  (table) => [
+    index("inbound_visitors_tenant_idx").on(table.tenantId),
+    index("inbound_visitors_session_idx").on(table.tenantId, table.sessionId),
+    index("inbound_visitors_last_seen_idx").on(table.tenantId, table.lastSeenAt),
+    index("inbound_visitors_identified_idx").on(table.tenantId, table.identifiedCompanyId),
+  ]
+);
+
+/**
+ * Signal → outcome attribution (primitive ④).
+ *
+ * Every time a deal closes (won/lost), we record which signals had
+ * fired on that deal's company in the observation window. Aggregating
+ * by signal_type + outcome gives us a per-tenant lift multiplier
+ * ("funding signals predict won with 2.1× lift here"). The scoring
+ * library reads those multipliers to weight live signals.
+ *
+ * Bias note: this is a pragmatic approximation, not a supervised ML
+ * model. It recovers gracefully from low sample size by falling back
+ * to a uniform 1.0× multiplier until N ≥ 10 per signal type.
+ */
+export const signalOutcomes = pgTable(
+  "signal_outcomes",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    dealId: text("deal_id").references(() => deals.id).notNull(),
+    companyId: text("company_id").references(() => companies.id),
+    signalType: text("signal_type").notNull(),
+    signalFiredAt: timestamp("signal_fired_at", { withTimezone: true }),
+    outcome: text("outcome").notNull(), // 'won' | 'lost'
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
+    metadata: jsonb("metadata").default({}),
+  },
+  (table) => [
+    index("signal_outcomes_tenant_idx").on(table.tenantId),
+    index("signal_outcomes_tenant_signal_idx").on(table.tenantId, table.signalType, table.outcome),
+    index("signal_outcomes_deal_idx").on(table.dealId),
   ]
 );
 
@@ -1317,6 +1420,60 @@ export const customSkillTemplates = pgTable(
     index("custom_skill_templates_tenant_idx").on(table.tenantId),
     index("custom_skill_templates_slug_idx").on(table.tenantId, table.slug),
   ]
+);
+
+// ── Custom TAM signals ─────────────────────────────────
+// User-defined boolean signals that appear as chips alongside the
+// four built-in TAM signals (investor_overlap, funding_recent,
+// hiring_intent, yc_company). The user describes a signal in plain
+// language ("Companies with a public Status page"); the generator
+// produces a detection plan stored in `plan`; the detector runs
+// that plan per company and writes the result to
+// `companies.properties.customSignals[signalId]` as
+// `{ value, reason, sources, confidence, computedAt }`.
+export const customSignals = pgTable(
+  "custom_signals",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id")
+      .references(() => tenants.id, { onDelete: "cascade" })
+      .notNull(),
+    /** Column header label and popover title. Kept short — the UI
+     * rendering truncates past ~16 chars. */
+    name: text("name").notNull(),
+    /** Verbatim user description — fed to the judge LLM as part of
+     * the detection prompt, and shown in the "Edit signal" modal so
+     * the user can iterate on wording. */
+    description: text("description").notNull(),
+    /** JSON detection plan: `{ judgePrompt, keywords[], urlPatterns[] }`.
+     * Produced by `lib/custom-signals/generator.ts` from the user's
+     * description and kept immutable per-signal — editing the
+     * description creates a new version rather than mutating. */
+    plan: jsonb("plan").notNull(),
+    /** Optional presentational accent — index into the color palette
+     * used for chips and the column header. Defaults to a rotating
+     * palette slot based on insertion order when null. */
+    colorIndex: integer("color_index"),
+    isActive: boolean("is_active").default(true).notNull(),
+    /** ISO timestamp when the full-TAM backfill finished. The UI
+     * shows a "Backfilling…" banner under the column header until
+     * this is set. */
+    backfilledAt: timestamp("backfilled_at", { withTimezone: true }),
+    createdByUserId: text("created_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("custom_signals_tenant_idx").on(table.tenantId),
+    uniqueIndex("custom_signals_tenant_name_idx").on(
+      table.tenantId,
+      table.name,
+    ),
+  ],
 );
 
 // ── Pending Invitations ────────────────────────────────

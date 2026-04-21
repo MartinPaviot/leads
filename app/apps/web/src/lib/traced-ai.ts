@@ -15,6 +15,7 @@
 import { generateText, generateObject, streamText } from "ai";
 import { recordTrace, type TraceContext, AGENT_REGISTRY } from "./observability";
 import { getActivePrompt } from "./evals/flywheel";
+import { enforceLlmBudget } from "./llm-budget";
 import logger from "./logger";
 
 type AnyParams = Parameters<typeof generateText>[0];
@@ -68,6 +69,13 @@ export async function tracedGenerateText(
 ) {
   const { _trace, ...aiParams } = params;
   const start = Date.now();
+
+  // Pre-dispatch budget gate — throws BudgetExceededError when the
+  // tenant is over their monthly LLM cap. Intentionally un-caught
+  // here so callers see the cap reason and can surface it to the
+  // user (the alternative of silently returning "" would look like
+  // a bug). Tenants with no cap configured pass through cheaply.
+  await enforceLlmBudget(_trace.tenantId);
 
   // Inject versioned prompt + few-shot examples from flywheel
   const activePrompt = await getActivePrompt(_trace.agentId).catch(() => null);
@@ -134,6 +142,8 @@ export async function tracedGenerateObject(
   const { _trace, ...aiParams } = params as { _trace: TraceMetadata; [k: string]: any };
   const start = Date.now();
 
+  await enforceLlmBudget(_trace.tenantId);
+
   const activePrompt = await getActivePrompt(_trace.agentId).catch(() => null);
   if (activePrompt) {
     if (!aiParams.system) {
@@ -187,6 +197,8 @@ export async function tracedStreamText(
 ) {
   const { _trace, ...aiParams } = params;
   const start = Date.now();
+
+  await enforceLlmBudget(_trace.tenantId);
 
   // Inject versioned prompt + few-shot examples from flywheel
   const activePrompt = await getActivePrompt(_trace.agentId).catch(() => null);

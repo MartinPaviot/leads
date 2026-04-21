@@ -136,11 +136,68 @@ interface EventCatalog {
   onboarding_step_completed: {
     step: "welcome" | "connect" | "privacy" | "product" | "icp" | "building" | "ready";
     stepIndex: number;
+    /** Milliseconds spent on the step the user just left, measured client-side
+     * from the previous `onboarding_step_completed` (or wizard mount for step 1). */
+    durationMs?: number;
   };
   onboarding_skipped: { step: string };
   onboarding_resumed: { fromStep: string };
   onboarding_completed: { userId: string; durationMs?: number };
   onboarding_email_connected: { provider: "google" | "microsoft" };
+  // WS-0 additions — coverage gaps found during the 2026-04-21 onboarding audit.
+  /** OAuth round-trip complete and the user has landed back on /home. */
+  onboarding_oauth_returned: {
+    provider: "google" | "microsoft";
+    /** Wall-clock ms from clicking the provider button to landing back. */
+    durationMs: number;
+  };
+  /** AI returned at least one low-confidence ICP field and surfaced a question
+   * on the ICP step. Tracked so WS-2 can measure whether the panel is worth
+   * making actionable. */
+  onboarding_confidence_gaps_shown: { gapCount: number; confidence: number };
+  /** User clicked "Build my prospect list" on the ICP step. */
+  onboarding_build_tam_triggered: {
+    icpIndustriesCount: number;
+    icpSizesCount: number;
+    icpGeosCount: number;
+    icpSenioritiesCount: number;
+  };
+  /** TAM build completed successfully. Duration is the total build time from
+   * trigger to ready-screen render, including scoring + contact discovery. */
+  onboarding_build_tam_completed: {
+    companiesCreated: number;
+    contactsCreated: number;
+    durationMs: number;
+  };
+  /** TAM build failed. errorClass is a short snake_case tag so PostHog can
+   * group failures without leaking full error messages. */
+  onboarding_build_tam_failed: { errorClass: string; durationMs: number };
+  /** Client-side latency for onboarding APIs that are not LLM-traced today
+   * (enrich-icp, find-contacts, email-intelligence). Fires on every call. */
+  onboarding_api_latency: {
+    endpoint: string;
+    durationMs: number;
+    /** HTTP status. -1 indicates the fetch threw before a response. */
+    status: number;
+    errorClass?: string;
+  };
+  // TTFAA (Time-To-First-Agent-Action) per master brief §2.1.1.
+  /** Fires server-side in the NextAuth jwt callback the first time a user
+   * successfully completes OAuth. Idempotent per tenant via
+   * settings.ttfaaSessionId. */
+  ttfaa_started: {
+    provider: "google" | "microsoft-entra-id";
+    sessionCorrelationId: string;
+  };
+  /** V1 proxy completion event: fires server-side in /api/home/hydrate the
+   * first time the hydrated dashboard summary includes >=1 enriched record
+   * after onboarding completed. durationMs pairs with ttfaa_started via
+   * sessionCorrelationId. */
+  ttfaa_completed_v1_proxy: {
+    durationMs: number;
+    enrichedRecordCount: number;
+    sessionCorrelationId: string;
+  };
 
   // Home / dashboard
   home_action_clicked: { action: string; priority: string };
@@ -227,6 +284,11 @@ function buildHelpers(): EventHelpers {
     "onboarding_started", "onboarding_step_completed",
     "onboarding_skipped", "onboarding_resumed", "onboarding_completed",
     "onboarding_email_connected",
+    // WS-0 additions
+    "onboarding_oauth_returned", "onboarding_confidence_gaps_shown",
+    "onboarding_build_tam_triggered", "onboarding_build_tam_completed",
+    "onboarding_build_tam_failed", "onboarding_api_latency",
+    "ttfaa_started", "ttfaa_completed_v1_proxy",
     "home_action_clicked", "home_insight_clicked",
     "chat_thread_created", "chat_message_sent", "chat_card_approved",
     "chat_card_dismissed", "chat_card_failed",

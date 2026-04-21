@@ -3,25 +3,117 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { anthropic } from "@ai-sdk/anthropic";
-import { openai } from "@ai-sdk/openai";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { z } from "zod";
 import { embedEntity, companyToText } from "@/lib/embeddings";
-import {
-  enrichOrganization,
-  employeeCountToRange,
-  revenueToRange,
-  isApolloAvailable,
-} from "@/lib/apollo-client";
+import { employeeCountToRange, revenueToRange } from "@/lib/apollo-client";
+import { enrichCompany } from "@/lib/providers/company-enrichment";
+import type {
+  EnrichedCompany,
+  ProvenanceEntry,
+  WaterfallResult,
+} from "@/lib/providers/company-enrichment";
 
-const llmFallbackSchema = z.object({
-  industry: z.string().describe("Primary industry (e.g. Fintech, SaaS, AI/ML, Healthcare)"),
-  description: z.string().describe("1-2 sentence company description"),
-  size: z.string().describe("Employee count range (e.g. 1-10, 11-50, 51-200, 201-500, 501-1000, 1000+)"),
-  revenue: z.string().describe("Estimated annual revenue range (e.g. <$1M, $1M-$10M, $10M-$50M, $50M-$100M, $100M+)"),
-});
+/**
+ * Persist a waterfall enrichment result onto the `companies` row. The
+ * route used to hand-roll an Apollo → LLM fallback chain with copy-
+ * pasted persistence blocks; that logic now lives inside the waterfall
+ * and this function only deals with the write.
+ *
+ * Normalized fields map to first-class columns (industry, description,
+ * size, revenue). Everything else — provenance, cost, raw provider
+ * metadata — lives in the JSONB `properties` blob so analytics +
+ * debugging don't need a schema migration every time we add a provider.
+ */
+async function persistEnrichment(params: {
+  tenantId: string;
+  companyId: string;
+  existingProps: Record<string, unknown>;
+  existing: { industry: string | null; description: string | null; size: string | null; revenue: string | null };
+  waterfall: WaterfallResult;
+}): Promise<void> {
+  const { tenantId, companyId, existingProps, existing, waterfall } = params;
+  const { data, provenance, totalCostCents, attempts, enriched } = waterfall;
 
+  const primaryProvider = provenance[0]?.provider ?? null;
+  const priorCost = typeof existingProps.enrichmentCostCents === "number"
+    ? (existingProps.enrichmentCostCents as number)
+    : 0;
+
+  // Archive prior provenance so repeated enrichments preserve history.
+  const priorProvenanceHistory = Array.isArray(existingProps.enrichmentProvenanceHistory)
+    ? (existingProps.enrichmentProvenanceHistory as ProvenanceEntry[][])
+    : [];
+  const nextProvenanceHistory = Array.isArray(existingProps.enrichmentProvenance) && (existingProps.enrichmentProvenance as ProvenanceEntry[]).length > 0
+    ? [...priorProvenanceHistory, existingProps.enrichmentProvenance as ProvenanceEntry[]]
+    : priorProvenanceHistory;
+
+  const merged: Record<string, unknown> = {
+    ...existingProps,
+    // Primary provider that contributed the first field. Back-compat
+    // for callers still checking `properties.enrichment_source`.
+    enrichment_source: primaryProvider ?? existingProps.enrichment_source ?? "unavailable",
+    enrichmentProvenance: provenance,
+    enrichmentProvenanceHistory: nextProvenanceHistory.slice(-5),
+    enrichmentCostCents: priorCost + totalCostCents,
+    enrichmentLastRun: new Date().toISOString(),
+    enrichmentAttemptSummary: attempts.map((a) => ({
+      provider: a.provider,
+      ok: a.ok,
+      error: a.error ?? null,
+      durationMs: a.durationMs,
+      costCents: a.costCents,
+    })),
+    // Normalised forensic fields that some downstream consumers read.
+    // We only set when the waterfall gave us a value so we never null
+    // out data a prior run wrote.
+    ...(data.linkedinUrl ? { linkedin_url: data.linkedinUrl } : {}),
+    ...(data.foundedYear ? { founded_year: data.foundedYear } : {}),
+    ...(data.technologies.length > 0 ? { technologies: data.technologies } : {}),
+    ...(data.keywords.length > 0 ? { keywords: data.keywords } : {}),
+    ...(data.totalFunding != null ? { total_funding: data.totalFunding } : {}),
+    ...(data.fundingStage ? { latest_funding_stage: data.fundingStage } : {}),
+    ...(data.employeeCount != null ? { employee_count: data.employeeCount } : {}),
+    ...(data.annualRevenue != null ? { annual_revenue: data.annualRevenue } : {}),
+    ...(data.revenueRange ? { annual_revenue_printed: data.revenueRange } : {}),
+    ...(data.city ? { city: data.city } : {}),
+    ...(data.state ? { state: data.state } : {}),
+    ...(data.country ? { country: data.country } : {}),
+    // If nothing came back, record the reason so we don't silently
+    // retry forever.
+    ...(enriched ? {} : {
+      enrichment_error: attempts.length === 0
+        ? "No enrichment providers available"
+        : attempts.every((a) => !a.ok)
+          ? "All providers failed"
+          : "Providers returned empty data",
+    }),
+  };
+
+  const size = data.sizeRange ?? employeeCountToRange(data.employeeCount) ?? existing.size;
+  const revenue = data.revenueRange ?? revenueToRange(data.annualRevenue) ?? existing.revenue;
+
+  await db
+    .update(companies)
+    .set({
+      industry: data.industry ?? existing.industry,
+      description: data.description ?? existing.description,
+      size,
+      revenue,
+      properties: merged,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(companies.id, companyId), eq(companies.tenantId, tenantId)));
+}
+
+/**
+ * POST /api/enrich — run the company-enrichment waterfall on up to 20
+ * companies per request. Callers pass `companyIds`. Responses include
+ * the per-company primary provider so a UI can surface "enriched via
+ * Apollo" / "enriched via LLM fallback".
+ *
+ * Skips companies already enriched via Apollo (strongest source) when
+ * both industry + description are present — callers can force a re-run
+ * by clearing `properties.enrichment_source` in the CRM UI.
+ */
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
   if (!authCtx) {
@@ -39,8 +131,9 @@ export async function POST(req: Request) {
       return Response.json({ error: "companyIds array required" }, { status: 400 });
     }
 
-    let enriched = 0;
+    let enrichedCount = 0;
     let failed = 0;
+    const perCompany: Array<{ id: string; ok: boolean; provider: string | null; costCents: number }> = [];
 
     for (const id of companyIds.slice(0, 20)) {
       try {
@@ -52,131 +145,86 @@ export async function POST(req: Request) {
 
         if (!company) {
           failed++;
+          perCompany.push({ id, ok: false, provider: null, costCents: 0 });
           continue;
         }
 
-        // Skip if already enriched from Apollo
         const props = (company.properties || {}) as Record<string, unknown>;
+        // Short-circuit: already-enriched rows with high-quality data.
+        // Apollo is our strongest source; once it's filled industry +
+        // description we don't re-pay for an LLM call.
         if (props.enrichment_source === "apollo" && company.industry && company.description) {
-          enriched++;
+          enrichedCount++;
+          perCompany.push({ id, ok: true, provider: "apollo", costCents: 0 });
           continue;
         }
 
-        // Try Apollo first
-        if (isApolloAvailable() && company.domain) {
-          try {
-            const org = await enrichOrganization(company.domain);
+        const waterfall = await enrichCompany(
+          {
+            domain: company.domain ?? undefined,
+            name: company.name,
+          },
+          { tenantId: authCtx.tenantId },
+        );
 
-            if (org) {
-              await db
-                .update(companies)
-                .set({
-                  industry: org.industry || company.industry,
-                  description: org.description || company.description,
-                  size: employeeCountToRange(org.estimated_num_employees),
-                  revenue: revenueToRange(org.annual_revenue),
-                  properties: {
-                    ...props,
-                    enrichment_source: "apollo",
-                    apollo_id: org.id,
-                    linkedin_url: org.linkedin_url,
-                    website_url: org.website_url,
-                    founded_year: org.founded_year,
-                    technologies: org.technology_names,
-                    total_funding: org.total_funding,
-                    total_funding_printed: org.total_funding_printed,
-                    latest_funding_stage: org.latest_funding_stage,
-                    employee_count: org.estimated_num_employees,
-                    annual_revenue: org.annual_revenue,
-                    annual_revenue_printed: org.annual_revenue_printed,
-                    city: org.city,
-                    state: org.state,
-                    country: org.country,
-                    keywords: org.keywords,
-                    enriched_at: new Date().toISOString(),
-                  },
-                  updatedAt: new Date(),
-                })
-                .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)));
+        await persistEnrichment({
+          tenantId: authCtx.tenantId,
+          companyId: id,
+          existingProps: props,
+          existing: {
+            industry: company.industry,
+            description: company.description,
+            size: company.size,
+            revenue: company.revenue,
+          },
+          waterfall,
+        });
 
-              // Re-embed with enriched data
-              const text = companyToText({
-                name: company.name,
-                domain: company.domain,
-                industry: org.industry,
-                revenue: revenueToRange(org.annual_revenue),
-                size: employeeCountToRange(org.estimated_num_employees),
-                description: org.description,
-              });
-              if (text && process.env.OPENAI_API_KEY) {
-                await embedEntity(authCtx.tenantId, "company", id, text).catch(console.warn);
-              }
+        const primaryProvider = waterfall.provenance[0]?.provider ?? null;
 
-              enriched++;
-              continue;
-            }
-          } catch (err) {
-            console.warn(`Apollo enrichment failed for ${company.domain}:`, err);
-            // Fall through to LLM fallback
+        // Re-embed if we got new industry/description/size data so RAG
+        // search reflects the latest enrichment.
+        if (waterfall.enriched && process.env.OPENAI_API_KEY) {
+          const text = companyToText({
+            name: company.name,
+            domain: company.domain,
+            industry: waterfall.data.industry ?? company.industry,
+            revenue: waterfall.data.revenueRange ?? revenueToRange(waterfall.data.annualRevenue) ?? company.revenue,
+            size: waterfall.data.sizeRange ?? employeeCountToRange(waterfall.data.employeeCount) ?? company.size,
+            description: waterfall.data.description ?? company.description,
+          });
+          if (text) {
+            await embedEntity(authCtx.tenantId, "company", id, text).catch((err) =>
+              console.warn("enrich: re-embed failed", err)
+            );
           }
         }
 
-        // LLM fallback when Apollo is unavailable or returned nothing
-        const { enrichCompanyViaLLM } = await import("@/lib/llm-enrichment");
-        const llmResult = await enrichCompanyViaLLM(company.name, company.domain, authCtx.tenantId);
-
-        if (llmResult) {
-          await db
-            .update(companies)
-            .set({
-              industry: llmResult.industry || company.industry,
-              description: llmResult.description || company.description,
-              size: llmResult.size || company.size,
-              revenue: llmResult.revenue || company.revenue,
-              properties: {
-                ...props,
-                enrichment_source: "llm",
-                enrichment_attempted_at: new Date().toISOString(),
-                founded_year: llmResult.founded_year,
-                technologies: llmResult.technologies,
-                city: llmResult.city,
-                country: llmResult.country,
-                keywords: llmResult.keywords,
-              },
-              updatedAt: new Date(),
-            })
-            .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)));
-
-          enriched++;
-          continue;
+        if (waterfall.enriched) {
+          enrichedCount++;
+          perCompany.push({
+            id,
+            ok: true,
+            provider: primaryProvider,
+            costCents: waterfall.totalCostCents,
+          });
+        } else {
+          failed++;
+          perCompany.push({
+            id,
+            ok: false,
+            provider: null,
+            costCents: waterfall.totalCostCents,
+          });
         }
-
-        // Both Apollo and LLM failed — mark unavailable
-        await db
-          .update(companies)
-          .set({
-            properties: {
-              ...props,
-              enrichment_source: "unavailable",
-              enrichment_attempted_at: new Date().toISOString(),
-              enrichment_error: !isApolloAvailable()
-                ? "Apollo + LLM both failed"
-                : !company.domain
-                  ? "No domain available"
-                  : "Apollo + LLM returned no data",
-            },
-            updatedAt: new Date(),
-          })
-          .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)));
-
-        failed++;
       } catch (err) {
         console.warn(`Failed to enrich company ${id}:`, err);
         failed++;
+        perCompany.push({ id, ok: false, provider: null, costCents: 0 });
       }
     }
 
-    return Response.json({ success: true, enriched, failed });
+    return Response.json({ success: true, enriched: enrichedCount, failed, perCompany });
   } catch (error) {
     console.error("Enrichment failed:", error);
     return Response.json({ error: "Enrichment failed" }, { status: 500 });

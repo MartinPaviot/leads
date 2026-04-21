@@ -280,18 +280,18 @@ const BACKSYNC_OPTIONS = [
 ] as const;
 
 const CREATION_OPTIONS = [
-  { value: "selective", label: "Selective", desc: "Emails you send & meetings you organize", icon: <Eye size={13} /> },
-  { value: "always", label: "Always", desc: "All incoming and outgoing emails", icon: <Users size={13} /> },
-  { value: "disabled", label: "Disabled", desc: "No automatic record creation", icon: <EyeOff size={13} /> },
+  { value: "selective", label: "Selective", short: "You only", icon: <Eye size={12} /> },
+  { value: "always", label: "Always", short: "All emails", icon: <Users size={12} /> },
+  { value: "disabled", label: "Disabled", short: "Off", icon: <EyeOff size={12} /> },
 ] as const;
 
 // O7 — visibility default for newly captured records. Defaults to
 // "everyone" so single-tenant founders see no behavior change; multi-user
 // tenants can lock down here on day one.
 const VISIBILITY_OPTIONS = [
-  { value: "everyone", label: "Everyone", desc: "All workspace members see new records", icon: <Users size={13} /> },
-  { value: "team", label: "Team", desc: "Only your team can see them", icon: <Shield size={13} /> },
-  { value: "private", label: "Private", desc: "Only you can see them", icon: <EyeOff size={13} /> },
+  { value: "everyone", label: "Everyone", short: "All members", icon: <Users size={12} /> },
+  { value: "team", label: "Team", short: "Your team", icon: <Shield size={12} /> },
+  { value: "private", label: "Private", short: "Only you", icon: <EyeOff size={12} /> },
 ] as const;
 
 /* ═══════════════════════════ MAIN COMPONENT ═══════════════════════════ */
@@ -343,6 +343,24 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
   const [targetSeniorities, setTargetSeniorities] = useState<string[]>([]);
   const [targetDepartments, setTargetDepartments] = useState<string[]>([]);
   const [geographies, setGeographies] = useState<string[]>([]);
+
+  // ── Onboarding wow effect 1 — streamed narrative of "what the
+  // agent understood about your company." Fired in the background
+  // from the welcome step (same trigger as analyze-website), shown
+  // live on the product + ICP steps so the founder sees the agent
+  // form an opinion on their business in real time. ──
+  const [narrative, setNarrative] = useState<string>("");
+  const [narrativeStreaming, setNarrativeStreaming] = useState(false);
+  const narrativeAbortRef = useRef<AbortController | null>(null);
+
+  // ── Onboarding wow effect 2 — live TAM estimate that updates
+  // as the user toggles ICP filters. Debounced to 400ms to avoid
+  // hammering Apollo on every pill click. ──
+  const [tamEstimate, setTamEstimate] = useState<{
+    total: number | null;
+    capped: boolean;
+    loading: boolean;
+  }>({ total: null, capped: false, loading: false });
 
   const [tamProgress, setTamProgress] = useState<{ found: number; done: boolean }>({ found: 0, done: false });
   const [emailIntelligence, setEmailIntelligence] = useState<{ contacts: number; conversations: number; icpMatches: number; followUps: number } | null>(null);
@@ -492,6 +510,41 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
     setStep("product");
   };
 
+  // Streams the first-wow narrative ("this is what we understood
+  // about your company") from `/api/onboarding/narrate-website`.
+  // Idempotent-ish: aborts any in-flight request before firing.
+  const startNarrative = useCallback(async (d: string) => {
+    narrativeAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    narrativeAbortRef.current = ctrl;
+    setNarrative("");
+    setNarrativeStreaming(true);
+    try {
+      const res = await fetch("/api/onboarding/narrate-website", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: d }),
+        signal: ctrl.signal,
+      });
+      if (!res.ok || !res.body) {
+        setNarrativeStreaming(false);
+        return;
+      }
+      const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        setNarrative((prev) => prev + value);
+      }
+    } catch (err) {
+      if ((err as { name?: string })?.name !== "AbortError") {
+        console.warn("onboarding: narrate-website failed", err);
+      }
+    } finally {
+      setNarrativeStreaming(false);
+    }
+  }, []);
+
   const handleWelcomeContinue = async () => {
     setSaving(true);
     await saveOnboardingData({ fullName, companyName, role, domain, step: "welcome" });
@@ -499,6 +552,10 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
     setStep("connect");
     if (domain) {
       setAnalyzingWebsite(true);
+      // Start the narrative stream immediately so by the time the
+      // user lands on the product step it's already partially
+      // written. Non-blocking.
+      startNarrative(domain);
       // Launch website analysis + Apollo ICP enrichment in parallel
       fetch("/api/onboarding/analyze-website", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain }) })
         .then((res) => res.ok ? res.json() : null)
@@ -654,6 +711,56 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
 
   useEffect(() => { if ((hasGoogle || hasMicrosoft) && !emailConnected) setEmailConnected(true); }, [hasGoogle, hasMicrosoft, emailConnected]);
 
+  // ── Effet 2 — live TAM estimate ──
+  // Fires `/api/tam/estimate` whenever the user toggles an ICP
+  // picker. Debounced so rapid clicks on industry/size pills don't
+  // spam Apollo. Only runs when the user is on the ICP step (cheap
+  // in $ since we call with per_page=1, but still not free in
+  // rate-limit credits).
+  useEffect(() => {
+    if (step !== "icp") return;
+    const hasAnyFilter =
+      industries.length > 0 || companySizes.length > 0 || geographies.length > 0;
+    if (!hasAnyFilter) {
+      setTamEstimate({ total: null, capped: false, loading: false });
+      return;
+    }
+    const ctrl = new AbortController();
+    setTamEstimate((s) => ({ ...s, loading: true }));
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/tam/estimate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            industries,
+            companySizes: sizesToApolloRanges(companySizes),
+            geographies,
+          }),
+          signal: ctrl.signal,
+        });
+        if (!res.ok) {
+          setTamEstimate({ total: null, capped: false, loading: false });
+          return;
+        }
+        const data = await res.json();
+        setTamEstimate({
+          total: typeof data.total === "number" ? data.total : null,
+          capped: !!data.capped,
+          loading: false,
+        });
+      } catch (err) {
+        if ((err as { name?: string })?.name !== "AbortError") {
+          setTamEstimate({ total: null, capped: false, loading: false });
+        }
+      }
+    }, 400);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [step, industries, companySizes, geographies]);
+
   const isValidDomain = (d: string) => /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$/.test(d);
   const domainValid = domain.trim() !== "" && isValidDomain(domain.trim());
   const canContinueWelcome = fullName.trim() && companyName.trim() && domainValid;
@@ -779,21 +886,25 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
           <div className="flex flex-col h-full">
             <StepHeader headingId={stepHeadingId} icon={<Shield size={15} />} title="Control what gets synced" subtitle="You can change these anytime in Settings." />
 
-            <div className="flex-1 space-y-3">
-              {/* Record creation — compact rows */}
+            {/* Content — overflow-y-auto keeps the footer pinned even on
+                short viewports where the four sections would otherwise
+                overflow the card and clip the StepFooter. */}
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5">
+              {/* Record creation — 3-col segmented (was stacked rows) */}
               <div>
                 <span className={label} style={labelStyle}>Record creation</span>
-                <div className="space-y-1">
+                <div className="grid grid-cols-3 gap-1.5">
                   {CREATION_OPTIONS.map((opt) => {
                     const active = contactCreation === opt.value;
                     return (
                       <button key={opt.value} type="button" onClick={() => setContactCreation(opt.value)}
-                        className="flex items-center gap-2 w-full rounded-lg px-2.5 py-1.5 text-left transition-all"
+                        className="rounded-lg py-1 px-1.5 text-center transition-all"
                         style={{ background: active ? "rgba(44,107,237,.06)" : "var(--color-bg-page)", border: `1px solid ${active ? "var(--color-accent)" : "var(--color-border-default)"}` }}>
-                        <span className="shrink-0" style={{ color: active ? "var(--color-accent)" : "var(--color-text-tertiary)" }}>{opt.icon}</span>
-                        <span className="text-[11px] font-medium" style={{ color: "var(--color-text-primary)" }}>{opt.label}</span>
-                        <span className="text-[11px] truncate" style={{ color: "var(--color-text-tertiary)" }}>{opt.desc}</span>
-                        {active && <Check size={11} className="ml-auto shrink-0" style={{ color: "var(--color-accent)" }} />}
+                        <span className="flex items-center justify-center gap-1 leading-tight">
+                          <span style={{ color: active ? "var(--color-accent)" : "var(--color-text-tertiary)" }}>{opt.icon}</span>
+                          <span className="text-[11px] font-medium" style={{ color: active ? "var(--color-accent)" : "var(--color-text-primary)" }}>{opt.label}</span>
+                        </span>
+                        <span className="block text-[10px] leading-tight" style={{ color: "var(--color-text-tertiary)" }}>{opt.short}</span>
                       </button>
                     );
                   })}
@@ -810,18 +921,18 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
                       <button key={opt.value} type="button" onClick={() => setBacksyncRange(opt.value)}
                         className="flex-1 rounded-lg py-1 text-center transition-all"
                         style={{ background: active ? "rgba(44,107,237,.06)" : "var(--color-bg-page)", border: `1px solid ${active ? "var(--color-accent)" : "var(--color-border-default)"}` }}>
-                        <span className="text-[11px] font-medium block" style={{ color: active ? "var(--color-accent)" : "var(--color-text-primary)" }}>{opt.label}</span>
-                        <span className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>{opt.desc}</span>
+                        <span className="text-[11px] font-medium block leading-tight" style={{ color: active ? "var(--color-accent)" : "var(--color-text-primary)" }}>{opt.label}</span>
+                        <span className="block text-[10px] leading-tight" style={{ color: "var(--color-text-tertiary)" }}>{opt.desc}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* O7 — Visibility default */}
+              {/* O7 — Visibility default — 3-col segmented (was stacked rows) */}
               <div>
                 <span className={label} style={labelStyle}>Default visibility</span>
-                <div className="space-y-1">
+                <div className="grid grid-cols-3 gap-1.5">
                   {VISIBILITY_OPTIONS.map((opt) => {
                     const active = defaultVisibility === opt.value;
                     return (
@@ -829,25 +940,21 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
                         key={opt.value}
                         type="button"
                         onClick={() => setDefaultVisibility(opt.value)}
-                        className="flex items-center gap-2 w-full rounded-lg px-2.5 py-1.5 text-left transition-all"
+                        className="rounded-lg py-1 px-1.5 text-center transition-all"
                         style={{
                           background: active ? "rgba(44,107,237,.06)" : "var(--color-bg-page)",
                           border: `1px solid ${active ? "var(--color-accent)" : "var(--color-border-default)"}`,
                         }}
                       >
-                        <span
-                          className="shrink-0"
-                          style={{ color: active ? "var(--color-accent)" : "var(--color-text-tertiary)" }}
-                        >
-                          {opt.icon}
+                        <span className="flex items-center justify-center gap-1 leading-tight">
+                          <span style={{ color: active ? "var(--color-accent)" : "var(--color-text-tertiary)" }}>{opt.icon}</span>
+                          <span className="text-[11px] font-medium" style={{ color: active ? "var(--color-accent)" : "var(--color-text-primary)" }}>
+                            {opt.label}
+                          </span>
                         </span>
-                        <span className="text-[11px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-                          {opt.label}
+                        <span className="block text-[10px] leading-tight" style={{ color: "var(--color-text-tertiary)" }}>
+                          {opt.short}
                         </span>
-                        <span className="text-[11px] truncate" style={{ color: "var(--color-text-tertiary)" }}>
-                          {opt.desc}
-                        </span>
-                        {active && <Check size={11} className="ml-auto shrink-0" style={{ color: "var(--color-accent)" }} />}
                       </button>
                     );
                   })}
@@ -857,7 +964,6 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
               {/* Do not track */}
               <div>
                 <span className={label} style={labelStyle}>Do not track</span>
-                <p className="text-[10px] mb-1" style={{ color: "var(--color-text-tertiary)" }}>{DEFAULT_IGNORED_DOMAINS.length} personal providers excluded (gmail, outlook, yahoo...).</p>
                 {doNotTrackDomains.filter((d) => !DEFAULT_IGNORED_DOMAINS.includes(d)).length > 0 && (
                   <div className="flex flex-wrap gap-1 mb-1">
                     {doNotTrackDomains.filter((d) => !DEFAULT_IGNORED_DOMAINS.includes(d)).map((d) => (
@@ -869,7 +975,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
                 )}
                 <input type="text" value={doNotTrackInput} onChange={(e) => setDoNotTrackInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const v = doNotTrackInput.trim().toLowerCase(); if (v && !doNotTrackDomains.includes(v)) setDoNotTrackDomains([...doNotTrackDomains, v]); setDoNotTrackInput(""); } }}
-                  placeholder="Add domain (e.g., competitor.com)" className={inputCls} style={inputStyle} />
+                  placeholder={`Add domain (${DEFAULT_IGNORED_DOMAINS.length} personal providers already excluded)`} className={inputCls} style={inputStyle} />
               </div>
             </div>
 
@@ -927,7 +1033,51 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
           <div className="flex flex-col h-full">
             <StepHeader headingId={stepHeadingId} icon={<Target size={15} />} title="What do you sell?" subtitle={`We'll use this to write relevant emails and coach your pitch.${analyzingWebsite ? " Analyzing your site…" : ""}`} />
 
-            <div className="flex-1 space-y-3">
+            <div className="flex-1 space-y-3 min-h-0 overflow-y-auto">
+              {/* First wow effect — streamed narrative of what the
+                  agent understood about the company. Rendered as a
+                  subtle inset card above the form so the founder
+                  reads it while answering product questions. */}
+              {(narrative || narrativeStreaming) && (
+                <div
+                  className="rounded-lg p-2.5"
+                  style={{
+                    background: "var(--color-accent-soft)",
+                    border: "1px solid var(--color-accent)",
+                  }}
+                  role="status"
+                  aria-live="polite"
+                >
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Zap size={10} style={{ color: "var(--color-accent)" }} />
+                    <span
+                      className="text-[10px] font-semibold uppercase tracking-wider"
+                      style={{ color: "var(--color-accent)" }}
+                    >
+                      What we understand about you
+                    </span>
+                  </div>
+                  <p
+                    className="text-[11px] leading-relaxed whitespace-pre-wrap"
+                    style={{ color: "var(--color-text-primary)" }}
+                  >
+                    {narrative || "Reading your site…"}
+                    {narrativeStreaming && (
+                      <span
+                        className="inline-block ml-0.5"
+                        style={{
+                          width: "2px",
+                          height: "12px",
+                          background: "var(--color-accent)",
+                          verticalAlign: "-2px",
+                          animation: "signal-shimmer 0.8s ease-in-out infinite",
+                        }}
+                      />
+                    )}
+                  </p>
+                </div>
+              )}
+
               <div>
                 <span className={label} style={labelStyle}>What do you sell? *</span>
                 <textarea value={productDesc} onChange={(e) => setProductDesc(e.target.value)} placeholder="e.g., API platform for fintech companies to embed payments" rows={2}
@@ -982,6 +1132,60 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
                 >
                   Retry
                 </button>
+              </div>
+            )}
+
+            {/* Second wow effect — live TAM estimate that updates as
+                the user toggles ICP filters. Uses the background
+                debounced fetch wired above; "≈ 12,400 companies" is
+                the founder's first visible proof that the agent
+                actually has a database to search. */}
+            {(industries.length > 0 ||
+              companySizes.length > 0 ||
+              geographies.length > 0) && (
+              <div
+                className="mb-2 flex items-center gap-2 rounded-lg px-2.5 py-1.5"
+                style={{
+                  background: "var(--color-bg-card)",
+                  border: "1px solid var(--color-border-default)",
+                }}
+                aria-live="polite"
+              >
+                <Target size={11} style={{ color: "var(--color-accent)" }} />
+                <span
+                  className="text-[11px]"
+                  style={{ color: "var(--color-text-secondary)" }}
+                >
+                  Addressable market
+                </span>
+                <span
+                  className="ml-auto text-[13px] font-semibold"
+                  style={{
+                    color: "var(--color-text-primary)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {tamEstimate.loading && tamEstimate.total === null ? (
+                    <Loader2
+                      size={11}
+                      className="animate-spin"
+                      style={{ color: "var(--color-text-tertiary)" }}
+                    />
+                  ) : tamEstimate.total === null ? (
+                    "—"
+                  ) : tamEstimate.capped ? (
+                    "100,000+ companies"
+                  ) : (
+                    `≈ ${tamEstimate.total.toLocaleString()} companies`
+                  )}
+                  {tamEstimate.loading && tamEstimate.total !== null && (
+                    <Loader2
+                      size={10}
+                      className="inline ml-1 animate-spin"
+                      style={{ color: "var(--color-text-tertiary)" }}
+                    />
+                  )}
+                </span>
               </div>
             )}
 

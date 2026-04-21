@@ -5,6 +5,8 @@ import { companies, activities } from "@/db/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
 import { getTenantSettings, parseSizeRange } from "@/lib/tenant-settings";
 import { calculateFitScore, getGrade } from "@/lib/scoring";
+import { getSignalMultipliers } from "@/lib/signal-outcomes";
+import { scoreSignals } from "@/lib/score-with-signals";
 
 async function calculateEngagementScore(
   tenantId: string,
@@ -147,6 +149,14 @@ export async function POST(req: Request) {
     if (sizeRange) icpFromSettings.sizeRange = sizeRange;
     if (settings.targetGeographies?.length) icpFromSettings.geographies = settings.targetGeographies;
 
+    // Primitive ④ live wire — fetch once per request and reuse across
+    // the batch. Multipliers are per-tenant, not per-company, so
+    // N round-trips to `signal_outcomes` in a 1000-company score run
+    // would be wasteful.
+    const { multipliers: signalMultipliers } = await getSignalMultipliers(
+      authCtx.tenantId,
+    );
+
     let scored = 0;
 
     for (const id of companyIds) {
@@ -167,13 +177,19 @@ export async function POST(req: Request) {
         // Calculate Engagement score (from activities)
         const engagement = await calculateEngagementScore(authCtx.tenantId, id);
 
+        // Signal-weighted bonus from the outcome-driven multipliers.
+        // Each fired signal contributes BASE_BONUS × learned lift
+        // (1× neutral for new tenants / rare signals).
+        const signals = scoreSignals(props, signalMultipliers);
+
         // Adaptive weighting: if no engagement yet (new TAM company), weight fit 100%.
         // As engagement grows, blend in up to 40% engagement weight.
         const hasEngagement = engagement.score > 0;
         const fitWeight = hasEngagement ? 0.6 : 1.0;
         const engWeight = hasEngagement ? 0.4 : 0.0;
-        const totalScore = Math.round(fit.score * fitWeight + engagement.score * engWeight);
-        const allReasons = [...fit.reasons, ...engagement.reasons];
+        const baseBlend = fit.score * fitWeight + engagement.score * engWeight;
+        const totalScore = Math.min(100, Math.round(baseBlend + signals.bonus));
+        const allReasons = [...fit.reasons, ...engagement.reasons, ...signals.reasons];
 
         // Determine grade using shared thresholds
         const { grade } = getGrade(totalScore);
@@ -188,8 +204,11 @@ export async function POST(req: Request) {
               score_grade: grade,
               score_fit: fit.score,
               score_engagement: engagement.score,
+              score_signal_bonus: signals.bonus,
+              score_signal_contributions: signals.contributions,
               score_fit_reasons: fit.reasons,
               score_engagement_reasons: engagement.reasons,
+              score_signal_reasons: signals.reasons,
               scored_at: new Date().toISOString(),
             },
             updatedAt: new Date(),

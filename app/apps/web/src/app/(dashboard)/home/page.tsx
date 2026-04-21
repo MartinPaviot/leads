@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, Calendar, CheckSquare, Zap, MessageSquare, TrendingUp, Users, Building2, DollarSign, AlertTriangle, ArrowRight, X, Mail, Send } from "lucide-react";
+import { Clock, Calendar, CheckSquare, Zap, MessageSquare, TrendingUp, Users, Building2, DollarSign, AlertTriangle, ArrowRight, X, Mail, Send, Bell, Search } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -95,6 +95,18 @@ const priorityVariants: Record<string, "error" | "warning" | "info" | "neutral">
   high: "warning",
   medium: "info",
   low: "neutral",
+};
+
+// Category → lucide icon + color. Matches Monaco's daily dashboard
+// iconography where each action type has a consistent visual anchor
+// (🔔 nudge, ↩️ respond, 🔗 setup). We use lucide glyphs — see
+// feedback_no-emoji-in-ui.md for why we don't ship emoji characters.
+const categoryIcons: Record<string, { icon: typeof Bell; tint: string }> = {
+  rescue:    { icon: Bell,           tint: "var(--color-error)" },
+  follow_up: { icon: MessageSquare,  tint: "var(--color-accent)" },
+  research:  { icon: Search,         tint: "var(--color-info)" },
+  send:      { icon: Send,           tint: "var(--color-success)" },
+  setup:     { icon: CheckSquare,    tint: "var(--color-text-secondary)" },
 };
 
 const severityVariants: Record<string, "error" | "warning" | "info" | "success"> = {
@@ -465,7 +477,10 @@ export default function DashboardPage() {
               </div>
             ) : actions.length > 0 ? (
               <div className="mt-3 space-y-2">
-                {actions.slice(0, 5).map((action, i) => (
+                {actions.slice(0, 5).map((action, i) => {
+                  const catIcon = categoryIcons[action.category];
+                  const CatIcon = catIcon?.icon;
+                  return (
                   <Card
                     key={i}
                     interactive={!!action.entityId}
@@ -473,10 +488,19 @@ export default function DashboardPage() {
                   >
                     <CardBody className="!py-3">
                       <div className="flex items-start justify-between gap-2">
-                        <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-                          {action.action}
-                        </p>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-start gap-2 min-w-0">
+                          {CatIcon && (
+                            <CatIcon
+                              size={14}
+                              className="mt-0.5 shrink-0"
+                              style={{ color: catIcon.tint }}
+                            />
+                          )}
+                          <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+                            {action.action}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
                           {action.category === "rescue" && (
                             <Badge variant="error" size="sm">Stalled</Badge>
                           )}
@@ -511,7 +535,8 @@ export default function DashboardPage() {
                       )}
                     </CardBody>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="mt-3 space-y-2">

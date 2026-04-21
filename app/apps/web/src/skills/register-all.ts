@@ -23,6 +23,7 @@ import { championTrackerSkill } from "./signals/champion-tracker";
 import { jobPostingIntentSkill } from "./signals/job-posting-intent";
 import { fundingSignalMonitorSkill } from "./signals/funding-signal-monitor";
 import { expansionSignalSpotterSkill } from "./signals/expansion-signal-spotter";
+import { investorOverlapSkill } from "./signals/investor-overlap";
 
 // Intelligence
 import { meetingBriefSkill } from "./intelligence/meeting-brief";
@@ -63,6 +64,7 @@ export function registerAllSkills() {
   registerSkill(fundingSignalMonitorSkill);
   registerSkill(leadershipChangeOutreachSkill);
   registerSkill(expansionSignalSpotterSkill);
+  registerSkill(investorOverlapSkill);
   registerSkill(scopePocSkill);
   registerSkill(draftProposalSkill);
   registerSkill(handleObjectionSkill);

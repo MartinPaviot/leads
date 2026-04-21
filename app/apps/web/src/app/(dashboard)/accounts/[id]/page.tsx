@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { Users, DollarSign, ClipboardList, Swords } from "lucide-react";
 import { ScopedChat } from "@/components/scoped-chat";
 import { IntelligenceBrief } from "@/components/intelligence-brief";
 import { Button } from "@/components/ui/button";
@@ -100,7 +101,7 @@ export default function AccountDetailPage() {
               <div className="grid grid-cols-2 gap-2">
                 {intel.teamSize != null && (
                   <div className="flex items-center gap-2">
-                    <span className="text-[14px]">👥</span>
+                    <Users size={14} style={{ color: "var(--color-text-tertiary)" }} />
                     <div>
                       <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>Team Size</p>
                       <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{String(intel.teamSize)}</p>
@@ -109,7 +110,7 @@ export default function AccountDetailPage() {
                 )}
                 {intel.budget != null && (
                   <div className="flex items-center gap-2">
-                    <span className="text-[14px]">💰</span>
+                    <DollarSign size={14} style={{ color: "var(--color-text-tertiary)" }} />
                     <div>
                       <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>Budget</p>
                       <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{String(intel.budget)}</p>
@@ -118,7 +119,7 @@ export default function AccountDetailPage() {
                 )}
                 {intel.currentTools != null && (
                   <div className="flex items-center gap-2">
-                    <span className="text-[14px]">📋</span>
+                    <ClipboardList size={14} style={{ color: "var(--color-text-tertiary)" }} />
                     <div>
                       <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>Current Tools</p>
                       <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{Array.isArray(intel.currentTools) ? (intel.currentTools as string[]).join(", ") : String(intel.currentTools)}</p>
@@ -127,7 +128,7 @@ export default function AccountDetailPage() {
                 )}
                 {intel.competitors != null && (
                   <div className="flex items-center gap-2">
-                    <span className="text-[14px]">🔧</span>
+                    <Swords size={14} style={{ color: "var(--color-text-tertiary)" }} />
                     <div>
                       <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>Competitors</p>
                       <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{Array.isArray(intel.competitors) ? (intel.competitors as string[]).join(", ") : String(intel.competitors)}</p>

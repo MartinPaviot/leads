@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Inbox, Mail, MailCheck, MailX, Clock, ExternalLink } from "lucide-react";
+import { Inbox, Mail, MailCheck, MailX, Clock, ExternalLink, Sparkles, Loader2 } from "lucide-react";
 import { PageHeader, FilterBar } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
+import { EmailComposer } from "@/components/email-composer";
+import { useToast } from "@/components/ui/toast";
 
 interface InboxEmail {
   id: string;
@@ -46,10 +48,51 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function InboxPage() {
+  const { toast } = useToast();
   const [emails, setEmails] = useState<InboxEmail[]>([]);
   const [counts, setCounts] = useState<InboxCounts>({ total: 0, replied: 0, awaiting: 0, bounced: 0 });
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "replied" | "awaiting" | "bounced">("all");
+  // Inline "Draft AI reply" flow. Monaco surfaces a suggested reply
+  // right on the email thread; we mirror that pattern from the inbox
+  // list so users don't have to jump to the contact detail page.
+  const [draftingFor, setDraftingFor] = useState<string | null>(null);
+  const [composer, setComposer] = useState<{ to: string; subject: string; body: string } | null>(null);
+
+  async function draftAiReply(email: InboxEmail) {
+    if (!email.replySnippet) return;
+    setDraftingFor(email.id);
+    try {
+      const res = await fetch("/api/emails/suggest-reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          emailContent: email.replySnippet,
+          senderName: email.contact?.name ?? null,
+          senderEmail: email.fromAddress,
+        }),
+      });
+      if (!res.ok) {
+        toast("Couldn't draft a reply right now", "error");
+        return;
+      }
+      const data = await res.json() as { replies?: Array<{ tone: string; subject: string; body: string }> };
+      const brief = data.replies?.find((r) => r.tone === "brief") ?? data.replies?.[0];
+      if (!brief) {
+        toast("No reply generated — falling back to blank composer", "warning");
+      }
+      setComposer({
+        to: email.fromAddress,
+        subject: brief?.subject ?? `Re: ${email.subject}`,
+        body: brief?.body ?? "",
+      });
+    } catch (err) {
+      console.warn("inbox: suggest-reply failed", err);
+      toast("Couldn't draft a reply right now", "error");
+    } finally {
+      setDraftingFor(null);
+    }
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -165,15 +208,36 @@ export default function InboxPage() {
                             {email.replySnippet}
                           </p>
                         )}
-                        {email.replyClassification && (
-                          <Badge
-                            variant={email.replyClassification.includes("positive") ? "success" : email.replyClassification.includes("negative") ? "error" : "neutral"}
-                            size="sm"
-                            className="mt-1"
-                          >
-                            {email.replyClassification}
-                          </Badge>
-                        )}
+                        <div className="mt-1 flex items-center gap-2">
+                          {email.replyClassification && (
+                            <Badge
+                              variant={email.replyClassification.includes("positive") ? "success" : email.replyClassification.includes("negative") ? "error" : "neutral"}
+                              size="sm"
+                            >
+                              {email.replyClassification}
+                            </Badge>
+                          )}
+                          {email.replySnippet && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); void draftAiReply(email); }}
+                              disabled={draftingFor === email.id}
+                              className="inline-flex items-center gap-1 text-[11px] font-medium transition-opacity hover:underline disabled:opacity-60"
+                              style={{ color: "var(--color-accent)" }}
+                              title="Draft an AI-suggested reply"
+                            >
+                              {draftingFor === email.id ? (
+                                <>
+                                  <Loader2 size={10} className="animate-spin" /> Drafting…
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles size={10} /> Draft AI reply
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>
@@ -190,6 +254,15 @@ export default function InboxPage() {
           </table>
         )}
       </div>
+
+      {composer && (
+        <EmailComposer
+          to={composer.to}
+          subject={composer.subject}
+          body={composer.body}
+          onClose={() => setComposer(null)}
+        />
+      )}
     </div>
   );
 }

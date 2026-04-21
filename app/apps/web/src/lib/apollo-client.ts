@@ -55,12 +55,23 @@ export interface ApolloOrganization {
   total_funding: number | null;
   total_funding_printed: string | null;
   latest_funding_stage: string | null;
+  /** ISO date of the most recent funding round — drives the
+   * `funding_recent` signal (true when < 180 days ago). Added
+   * when signal-grade filters were wired in (Sprint α). */
+  latest_funding_raised_at: string | null;
   founded_year: number | null;
   technology_names: string[];
   city: string | null;
   state: string | null;
   country: string | null;
   description: string | null;
+  /** Investor names from recent funding rounds. Used by
+   * `investor_overlap` signal via case-insensitive set intersection
+   * with `tenant.settings.companyInvestors`. */
+  investor_names?: string[];
+  /** Number of active job postings at the company. Drives the
+   * `hiring_intent` signal (true when > 0). */
+  num_current_job_openings?: number | null;
 }
 
 export async function enrichOrganization(
@@ -144,6 +155,34 @@ export interface OrgSearchParams {
   revenue_range?: { min?: number; max?: number };
   /** Filter by technologies used (e.g. ["kubernetes", "react"]) */
   currently_using_any_of_technology_uids?: string[];
+  /** Limit to companies whose primary domain matches any of these.
+   * Used to refresh a known row — bypass strategy-based search when
+   * we already know the target. Up to 1000 domains per docs. */
+  q_organization_domains_list?: string[];
+
+  // ── Signal-grade filters (Sprint α) ──
+  // Documented at https://docs.apollo.io/reference/organization-search
+  // Enables TAM searches that are already signal-filtered — e.g. only
+  // companies with recent funding AND active hiring — rather than
+  // fetching a broad list and filtering post-hoc.
+
+  /** ISO date bounds on the most recent funding round. Use
+   * `{ min: <180d ago> }` to target the `funding_recent` signal. */
+  latest_funding_date_range?: { min?: string; max?: string };
+  /** Total funding amount (USD integer). */
+  total_funding_range?: { min?: number; max?: number };
+  /** Bounds on the count of active job postings. `{ min: 1 }` is the
+   * cheap TAM-level `hiring_intent` gate. */
+  organization_num_jobs_range?: { min?: number; max?: number };
+  /** Job titles being actively recruited, e.g. ["machine learning engineer"].
+   * Lets ICP target roles drive the TAM (hire-specific plays). */
+  q_organization_job_titles?: string[];
+  /** Locations of the jobs being actively recruited (city, region, country). */
+  organization_job_locations?: string[];
+  /** ISO bounds on `job_posted_at` — filter to recently-posted openings
+   * to avoid stale JD caches. */
+  organization_job_posted_at_range?: { min?: string; max?: string };
+
   page?: number;
   per_page?: number;
 }
@@ -161,6 +200,9 @@ export interface OrgSearchOrganization {
   total_funding: number | null;
   total_funding_printed: string | null;
   latest_funding_stage: string | null;
+  /** ISO date of the most recent funding round. Present when Apollo
+   * knows about the round; absent for self-funded / unknown. */
+  latest_funding_raised_at?: string | null;
   founded_year: number | null;
   technology_names: string[];
   city: string | null;
@@ -168,6 +210,12 @@ export interface OrgSearchOrganization {
   country: string | null;
   description: string | null;
   logo_url: string | null;
+  /** Investor names from recent funding rounds. Sparse — only present
+   * on enriched results; may be an empty array when unknown. */
+  investor_names?: string[];
+  /** Count of active job postings. Populated when Apollo's job-board
+   * coverage knows the company. */
+  num_current_job_openings?: number | null;
 }
 
 export interface OrgSearchResult {

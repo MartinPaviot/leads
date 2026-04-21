@@ -7,7 +7,7 @@ import {
   Search, X, Building2, User, Calendar, DollarSign, Clock,
   LayoutGrid, List, SlidersHorizontal, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   ClipboardCheck, MonitorPlay, FlaskConical, FileText, Handshake, Trophy, XCircle,
-  AlertTriangle,
+  AlertTriangle, Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { STAGE_COLORS as STAGE_DOT_COLORS_IMPORTED, RISK_STYLES } from "@/lib/ui-utils";
@@ -794,7 +794,10 @@ export default function OpportunitiesPage() {
                   <tr key={deal.id} onClick={() => handleCardClick(deal.id)} className="cursor-pointer transition-colors" style={{ borderBottom: "1px solid var(--color-border-default)" }}
                     onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
                     <td className="px-3 py-2.5">
-                      <span className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{hasMomentum(deal) && "⚡"}{deal.name}</span>
+                      <span className="text-[13px] font-medium inline-flex items-center gap-1" style={{ color: "var(--color-text-primary)" }}>
+                        {hasMomentum(deal) && <Zap size={12} style={{ color: "var(--color-warning)" }} aria-label="Momentum" />}
+                        {deal.name}
+                      </span>
                     </td>
                     {displayProps.has("companyName") && <td className="px-3 py-2.5 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{deal.companyName || "—"}</td>}
                     <td className="px-3 py-2.5">
@@ -946,7 +949,7 @@ export default function OpportunitiesPage() {
                         <div className="flex items-center gap-1.5 mb-2">
                           <CircleDot size={12} style={{ color: "var(--color-text-tertiary)" }} />
                           <span className="text-[12px] font-medium leading-tight" style={{ color: "var(--color-text-primary)" }}>
-                            {hasMomentum(deal) && <span title="Momentum">⚡</span>}
+                            {hasMomentum(deal) && <Zap size={12} style={{ color: "var(--color-warning)" }} aria-label="Momentum" />}
                             {deal.name}
                           </span>
                         </div>

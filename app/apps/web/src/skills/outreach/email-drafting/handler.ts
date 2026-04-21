@@ -35,6 +35,17 @@ export async function emailDraftingHandler(
   const contextBlock = formatContextForPrompt(ctx);
   const purposePrompt = PURPOSE_PROMPTS[input.purpose] ?? PURPOSE_PROMPTS.cold_intro;
 
+  // Expose the top signal explicitly so the LLM treats it as the hook
+  // (Monaco "messages that adapt to business context and intent signals"
+  // parity). When the signal is strong we REQUIRE the opener to reference
+  // it; when there's none we fall back to a company-specific observation.
+  const top = ctx.bestSignal;
+  const signalDirective = top
+    ? `## Signal to anchor the opener\nThe strongest buying signal we detected:\n  type: ${top.type}\n  title: ${top.title}\n  description: ${top.description}\n  relevance: ${top.relevance}${top.dataSource ? `\n  source: ${top.dataSource}` : ""}\n\nYour opener MUST reference this signal naturally (e.g. a recent fundraise, a hiring wave, a tech-stack change, a leadership move). Set signalUsed="${top.type}" in the output.\nDo NOT fabricate specifics the signal doesn't support.`
+    : (ctx.funding.stage
+      ? `## Anchor the opener on funding context\nThe prospect's company is at ${ctx.funding.stage}${ctx.funding.amountPrinted ? ` (${ctx.funding.amountPrinted})` : ""}. Reference this context only if it's relevant to the purpose.`
+      : `## No buying signal detected\nOpen with a specific, true observation about their company (product, recent launch, market angle). Set signalUsed=null.`);
+
   const result = await tracedGenerateObject({
     model,
     schema: z.object({
@@ -51,6 +62,10 @@ export async function emailDraftingHandler(
 - Sound human, not corporate
 - One clear CTA
 - Use the prospect's actual data, not placeholders
+- Never reference the signal generically — cite a concrete fact
+  (company name, amount, role title, tech name) from the context
+
+${signalDirective}
 
 ${input.additionalContext ? `## Additional Context\n${input.additionalContext}` : ""}
 

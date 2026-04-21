@@ -1,7 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Building2, Search, Plus, Zap, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, type LucideIcon } from "lucide-react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { Building2, Search, Plus, Zap, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, type LucideIcon } from "lucide-react";
+import { useTamStream } from "@/hooks/use-tam-stream";
+import { TamBuildProgress } from "@/components/tam-build-progress";
+import { SignalChip } from "@/components/signal-chip";
+import { DEFAULT_SIGNALS } from "@/lib/tam-stream/signals";
+import type { SignalKey, SignalPayload } from "@/lib/tam-stream/events";
 
 function LinkedInIcon({ size = 13 }: { size?: number }) {
   return (
@@ -45,6 +50,62 @@ interface Account {
   lastInteraction: { date: string; summary: string | null } | null;
 }
 
+/** Human-readable label rendered inside the signal chip (when true)
+ * and used as the popover title. Shorter than the column header. */
+function signalLabelForHeader(key: SignalKey): string {
+  switch (key) {
+    case "investor_overlap":
+      return "Common inv.";
+    case "funding_recent":
+      return "Funded 6mo";
+    case "hiring_intent":
+      return "Hiring";
+    case "yc_company":
+      return "YC";
+  }
+}
+
+/** Convert a row still alive in the stream into the Account shape
+ * the table renders. Only needed until `fetchAccounts` refetches the
+ * row from DB — after that the DB copy takes precedence. */
+function streamedRowToAccount(
+  row: import("@/hooks/use-tam-stream").StreamedRow,
+): Account {
+  const enrichment = row.enrichment;
+  const tamSignals: Record<string, SignalPayload> = {};
+  for (const [key, slot] of Object.entries(row.signals)) {
+    if (slot && slot.status === "resolved") tamSignals[key] = slot.payload;
+  }
+  return {
+    id: row.company.id,
+    name: row.company.name,
+    domain: row.company.domain,
+    industry: row.company.industry ?? enrichment.industry ?? null,
+    size: row.company.size ?? enrichment.size ?? null,
+    revenue: enrichment.revenue ?? null,
+    description: enrichment.description ?? null,
+    score: row.score.score,
+    scoreReasons: row.score.reasons,
+    properties: {
+      source: "tam",
+      linkedin_url: enrichment.linkedinUrl,
+      logo_url: row.company.logoUrl,
+      technologies: enrichment.technologies ?? [],
+      total_funding: enrichment.totalFunding ?? null,
+      total_funding_printed: enrichment.totalFundingPrinted ?? null,
+      latest_funding_stage: enrichment.latestFundingStage ?? null,
+      latest_funding_raised_at: enrichment.latestFundingRaisedAt ?? null,
+      founded_year: enrichment.foundedYear ?? null,
+      country: enrichment.country ?? null,
+      city: enrichment.city ?? null,
+      state: enrichment.state ?? null,
+      score_grade: row.score.grade,
+      tamSignals,
+    },
+    lastInteraction: null,
+  };
+}
+
 type EnrichStatus = "idle" | "enriching" | "done" | "failed";
 
 export default function AccountsPage() {
@@ -81,6 +142,61 @@ export default function AccountsPage() {
   const [expandedContacts, setExpandedContacts] = useState<Array<{ id: string; firstName: string | null; lastName: string | null; title: string | null; email: string | null; status?: string }>>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const { fields: customFields } = useCustomFields("company");
+  // Warm-intro paths from the relationship graph (primitive ②).
+  // Keyed by company.id → list of { viaUserId, viaUserName, contactName, strength, ... }.
+  const [warmPathsByCompany, setWarmPathsByCompany] = useState<Record<string, Array<{
+    viaUserId: string;
+    viaUserName: string;
+    contactId: string;
+    contactName: string;
+    contactTitle: string | null;
+    strength: number;
+  }>>>({});
+  const [warmPathsPopoverId, setWarmPathsPopoverId] = useState<string | null>(null);
+  const warmPathsPopoverRef = useRef<HTMLDivElement>(null);
+
+  // ── TAM streaming build ──
+  // Live stream of new rows + signals from /api/tam/build. Rows arrive
+  // already scored + with their first signal resolved; subsequent
+  // signals come in as separate events. The banner above the table
+  // shows progress, and completed rows get merged into `accounts` on
+  // stream end via a background refetch — no full-page reload.
+  const tamStream = useTamStream();
+  const [streamBanner, setStreamBanner] = useState<boolean>(true);
+
+  const startTamBuild = useCallback(async () => {
+    setStreamBanner(true);
+    await tamStream.start({ targetCount: 300 });
+  }, [tamStream]);
+
+  // Single "popover open" selector shared across all signal chips in
+  // the table. Ensures only one popover is open at a time and it
+  // closes when the user opens a chip on another row or clicks
+  // outside. Key format: `${companyId}::${signalKey}`.
+  const [openSignalChipId, setOpenSignalChipId] = useState<string | null>(
+    null,
+  );
+
+  // Custom signals defined in /settings/signals. Fetched once on
+  // mount, refreshed when the stream finishes (so a custom signal
+  // created mid-session shows up without a manual reload).
+  const [customSignals, setCustomSignals] = useState<
+    Array<{
+      id: string;
+      name: string;
+      description: string;
+      backfilledAt: string | null;
+    }>
+  >([]);
+
+  useEffect(() => {
+    fetch("/api/custom-signals")
+      .then((r) => (r.ok ? r.json() : { signals: [] }))
+      .then((data) => setCustomSignals(data.signals ?? []))
+      .catch(() => {
+        // Non-fatal — built-in signals still work.
+      });
+  }, []);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -105,6 +221,42 @@ export default function AccountsPage() {
 
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
 
+  // When the TAM stream terminates, refetch so the rows picked up
+  // from the stream also land in the DB-backed list (enrichment
+  // patches, scoring adjustments, etc.). Kept below `fetchAccounts`
+  // so the callback reference is defined at the point this hook
+  // depends on it.
+  useEffect(() => {
+    if (tamStream.terminated === "done") {
+      fetchAccounts();
+    }
+  }, [tamStream.terminated, fetchAccounts]);
+
+  // Fetch warm-intro paths in a single batched call once accounts
+  // are loaded. Keeps the "Connected to" column off the critical
+  // render path and avoids N+1 requests.
+  useEffect(() => {
+    if (accounts.length === 0) return;
+    const ids = accounts.map((a) => a.id).filter(Boolean);
+    if (ids.length === 0) return;
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch(`/api/warm-paths?companyIds=${ids.join(",")}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) return;
+        const data = await res.json() as { pathsByCompany?: Record<string, typeof warmPathsByCompany[string]> };
+        if (data.pathsByCompany) setWarmPathsByCompany(data.pathsByCompany);
+      } catch (err) {
+        if ((err as { name?: string })?.name !== "AbortError") {
+          console.warn("accounts: warm-paths fetch failed (non-blocking)", err);
+        }
+      }
+    })();
+    return () => controller.abort();
+  }, [accounts]);
+
   // Close signal popover on outside click
   const signalPopoverRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -117,6 +269,18 @@ export default function AccountsPage() {
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [activeSignalPopover]);
+
+  // Close warm-paths popover on outside click
+  useEffect(() => {
+    if (!warmPathsPopoverId) return;
+    function h(e: MouseEvent) {
+      if (warmPathsPopoverRef.current && !warmPathsPopoverRef.current.contains(e.target as Node)) {
+        setWarmPathsPopoverId(null);
+      }
+    }
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [warmPathsPopoverId]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -415,9 +579,99 @@ export default function AccountsPage() {
     );
   }
 
+  // Merge accounts from DB with rows still live in the stream. Stream
+  // rows that haven't been picked up by `fetchAccounts` yet (i.e. the
+  // build is still running) are projected into the Account shape so
+  // the same table code renders both.
+  const mergedAccounts = useMemo<Account[]>(() => {
+    if (tamStream.rows.size === 0) return accounts;
+    const byId = new Map(accounts.map((a) => [a.id, a]));
+    for (const id of tamStream.rowOrder) {
+      const row = tamStream.rows.get(id);
+      if (!row) continue;
+      if (byId.has(id)) continue; // already in DB list
+      byId.set(id, streamedRowToAccount(row));
+    }
+    // Preserve the original accounts[] order (score DESC from server),
+    // append streamed rows that aren't in DB yet at the end. The
+    // `filteredAccounts` sort below re-orders by score anyway.
+    const merged: Account[] = [...accounts];
+    for (const id of tamStream.rowOrder) {
+      if (byId.has(id) && !merged.find((a) => a.id === id)) {
+        merged.push(byId.get(id)!);
+      }
+    }
+    return merged;
+  }, [accounts, tamStream.rows, tamStream.rowOrder]);
+
+  /** Reads a signal value for a company, preferring the live stream
+   * state (which may be mid-flight) over the persisted
+   * `properties.tamSignals` blob. */
+  function getTamSignal(
+    account: Account,
+    key: SignalKey,
+  ): { payload: SignalPayload | null } {
+    const streamed = tamStream.rows.get(account.id);
+    if (streamed) {
+      const slot = streamed.signals[key];
+      if (slot?.status === "resolved") return { payload: slot.payload };
+      if (slot?.status === "pending") return { payload: null };
+    }
+    const persisted = (account.properties as Record<string, unknown> | null)
+      ?.tamSignals as Partial<Record<SignalKey, SignalPayload>> | undefined;
+    return { payload: persisted?.[key] ?? null };
+  }
+
+  /** Reads a custom (user-defined) signal result for a company.
+   * Custom signals are backfilled asynchronously via Inngest, so a
+   * row may have no entry yet — in that case the chip renders as
+   * indeterminate ("—") rather than pending. */
+  function getCustomSignalPayload(
+    account: Account,
+    signalId: string,
+  ): SignalPayload | null {
+    const bag = (account.properties as Record<string, unknown> | null)
+      ?.customSignals as Record<string, SignalPayload> | undefined;
+    return bag?.[signalId] ?? null;
+  }
+
+  // Count lit signals per row (built-in + custom) so the secondary
+  // sort can use "more signals lit" as a tiebreaker. This makes the
+  // "A Burning with 4 chips" rows float to the very top — the
+  // Monaco stack-ranking feel.
+  function litSignalCount(a: Account): number {
+    const props = a.properties as Record<string, unknown> | null;
+    const tam = props?.tamSignals as
+      | Partial<Record<SignalKey, SignalPayload>>
+      | undefined;
+    const custom = props?.customSignals as
+      | Record<string, SignalPayload>
+      | undefined;
+    let n = 0;
+    if (tam) {
+      for (const sig of Object.values(tam)) {
+        if (sig && sig.value && sig.confidence !== "indeterminate") n++;
+      }
+    }
+    if (custom) {
+      for (const sig of Object.values(custom)) {
+        if (sig && sig.value && sig.confidence !== "indeterminate") n++;
+      }
+    }
+    // Also count streamed-but-not-yet-persisted signals so a row
+    // climbs the stack in real time as chips resolve.
+    const streamed = tamStream.rows.get(a.id);
+    if (streamed) {
+      for (const slot of Object.values(streamed.signals)) {
+        if (slot?.status === "resolved" && slot.payload.value && slot.payload.confidence !== "indeterminate") n++;
+      }
+    }
+    return n;
+  }
+
   const filteredAccounts = (smartFilters.length > 0
-    ? applyFilters(accounts, smartFilters)
-    : accounts)
+    ? applyFilters(mergedAccounts, smartFilters)
+    : mergedAccounts)
     .filter((a) => {
       if (filter === "tam" && !isTAM(a)) return false;
       if (filter === "manual" && isTAM(a)) return false;
@@ -428,11 +682,16 @@ export default function AccountsPage() {
       if (searchResults) return searchResults.has(a.id);
       return true;
     })
-    .sort((a, b) =>
-      searchResults
-        ? (searchResults.get(b.id) ?? 0) - (searchResults.get(a.id) ?? 0)
-        : (b.score ?? -1) - (a.score ?? -1)
-    );
+    .sort((a, b) => {
+      if (searchResults) {
+        return (searchResults.get(b.id) ?? 0) - (searchResults.get(a.id) ?? 0);
+      }
+      // Primary: score DESC. Secondary: lit signals DESC — Monaco
+      // "rise to top" behaviour for rows whose chips just flipped.
+      const ds = (b.score ?? -1) - (a.score ?? -1);
+      if (ds !== 0) return ds;
+      return litSignalCount(b) - litSignalCount(a);
+    });
 
   const unenrichedCount = accounts.filter((a) => !isEnriched(a)).length;
   const tamCount = accounts.filter(isTAM).length;
@@ -500,6 +759,16 @@ export default function AccountsPage() {
           </Button>
         )}
         <Button
+          variant="outline"
+          size="sm"
+          icon={<Sparkles size={13} />}
+          onClick={startTamBuild}
+          disabled={tamStream.isRunning}
+          loading={tamStream.isRunning}
+        >
+          {tamStream.isRunning ? "Building..." : "Find more accounts"}
+        </Button>
+        <Button
           variant="gradient"
           size="sm"
           icon={<Plus size={13} />}
@@ -508,6 +777,20 @@ export default function AccountsPage() {
           Create account
         </Button>
       </PageHeader>
+
+      {/* TAM stream progress banner — sticky above the filter bar
+          during a build, collapses to a completion / error state
+          after `done`. */}
+      {streamBanner && (
+        <div className="px-4 pt-3">
+          <TamBuildProgress
+            state={tamStream}
+            targetCount={300}
+            onCancel={tamStream.cancel}
+            onDismiss={() => setStreamBanner(false)}
+          />
+        </div>
+      )}
 
       {/* Filter bar */}
       <FilterBar>
@@ -677,7 +960,8 @@ export default function AccountsPage() {
         {loading ? (
           <TableSkeleton
             rows={8}
-            cols={8 + signalTypeColumns.length + customBoolColumns.length + customFields.length}
+            // +4 for built-in TAM signals + N for custom signals.
+            cols={8 + 4 + customSignals.length + signalTypeColumns.length + customBoolColumns.length + customFields.length}
           />
         ) : accounts.length === 0 ? (
           <EmptyState
@@ -730,6 +1014,22 @@ export default function AccountsPage() {
                   { label: "Score", icon: Gauge },
                   { label: "Last Interaction", icon: Clock },
                   { label: "Connected to", icon: Users },
+                  // TAM streaming signal columns — one per default
+                  // signal. Rendered as chips in the body via
+                  // <SignalChip>. Positioned right after Connected-to
+                  // so the trust-cluster (warm intro + signals) lives
+                  // together, before legacy/custom columns.
+                  { label: "Investor", icon: Sparkles as LucideIcon },
+                  { label: "Funding", icon: Sparkles as LucideIcon },
+                  { label: "Hiring", icon: Sparkles as LucideIcon },
+                  { label: "YC", icon: Sparkles as LucideIcon },
+                  // User-defined custom signals. Each appears as its
+                  // own column; names truncated to 16 chars in the
+                  // header to keep row widths predictable.
+                  ...customSignals.map((c) => ({
+                    label: c.name.length > 16 ? `${c.name.slice(0, 15)}…` : c.name,
+                    icon: Radio as LucideIcon,
+                  })),
                   ...signalTypeColumns.map((t) => ({ label: t.replace(/_/g, " "), icon: Radio as LucideIcon })),
                   ...customBoolColumns.map((c) => ({ label: c, icon: Target as LucideIcon })),
                   ...customFields.map((f) => ({ label: f.name, icon: null as LucideIcon | null })),
@@ -938,24 +1238,163 @@ export default function AccountsPage() {
                       )}
                     </td>
 
-                    {/* Connected to (owner) */}
+                    {/* Connected to — owner + warm-intro paths (primitive ② live) */}
                     <td>
-                      {(account as any).ownerFirstName ? (
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[8px] font-bold text-white shrink-0"
-                            style={{ background: `hsl(${((account as any).ownerFirstName?.charCodeAt(0) || 0) * 37 % 360}, 60%, 55%)` }}
-                          >
-                            {((account as any).ownerFirstName?.[0] || "").toUpperCase()}
-                          </span>
-                          <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-                            {(account as any).ownerFirstName}{(account as any).ownerLastName ? ` ${(account as any).ownerLastName[0]}.` : ""}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-[10px]" style={{ color: "var(--color-text-muted)", opacity: 0.5 }}>Unassigned</span>
-                      )}
+                      {(() => {
+                        const warm = warmPathsByCompany[account.id] ?? [];
+                        const byUser = new Map<string, { name: string; strength: number; count: number }>();
+                        for (const p of warm) {
+                          const prior = byUser.get(p.viaUserId);
+                          if (prior) {
+                            prior.strength = Math.max(prior.strength, p.strength);
+                            prior.count += 1;
+                          } else {
+                            byUser.set(p.viaUserId, { name: p.viaUserName, strength: p.strength, count: 1 });
+                          }
+                        }
+                        const viaUsers = Array.from(byUser.entries()).sort(
+                          (a, b) => b[1].strength - a[1].strength,
+                        );
+                        const ownerFirst = (account as any).ownerFirstName as string | undefined;
+                        const ownerLast = (account as any).ownerLastName as string | undefined;
+                        const popoverId = `${account.id}-warm`;
+                        return (
+                          <div className="flex flex-col gap-0.5">
+                            {ownerFirst ? (
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[8px] font-bold text-white shrink-0"
+                                  style={{ background: `hsl(${(ownerFirst.charCodeAt(0) || 0) * 37 % 360}, 60%, 55%)` }}
+                                >
+                                  {(ownerFirst[0] || "").toUpperCase()}
+                                </span>
+                                <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                                  {ownerFirst}{ownerLast ? ` ${ownerLast[0]}.` : ""}
+                                </span>
+                              </div>
+                            ) : !viaUsers.length ? (
+                              <span className="text-[10px]" style={{ color: "var(--color-text-muted)", opacity: 0.5 }}>Unassigned</span>
+                            ) : null}
+                            {viaUsers.length > 0 && (
+                              <span className="relative">
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setWarmPathsPopoverId(warmPathsPopoverId === popoverId ? null : popoverId); }}
+                                  className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
+                                  style={{ color: "var(--color-accent)" }}
+                                  title="Warm intro available"
+                                >
+                                  <span className="flex -space-x-1">
+                                    {viaUsers.slice(0, 3).map(([uid, info]) => (
+                                      <span
+                                        key={uid}
+                                        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold text-white ring-1 ring-[var(--color-bg-card)]"
+                                        style={{ background: `hsl(${(info.name.charCodeAt(0) || 0) * 53 % 360}, 60%, 50%)` }}
+                                      >
+                                        {(info.name[0] || "?").toUpperCase()}
+                                      </span>
+                                    ))}
+                                  </span>
+                                  <span>
+                                    Warm intro
+                                    {viaUsers.length > 1 ? ` · ${viaUsers.length} paths` : ""}
+                                  </span>
+                                </button>
+                                {warmPathsPopoverId === popoverId && (
+                                  <div
+                                    ref={warmPathsPopoverRef}
+                                    className="absolute left-0 top-full z-50 mt-1 w-80 rounded-lg p-3"
+                                    style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-moderate)", boxShadow: "var(--shadow-floating)" }}
+                                  >
+                                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
+                                      Warm intros available
+                                    </p>
+                                    <div className="space-y-1.5 max-h-64 overflow-auto">
+                                      {warm.slice(0, 12).map((p) => (
+                                        <div key={`${p.viaUserId}-${p.contactId}`} className="flex items-start justify-between gap-2">
+                                          <div className="min-w-0">
+                                            <p className="text-[12px] font-medium truncate" style={{ color: "var(--color-text-primary)" }}>
+                                              {p.contactName}
+                                            </p>
+                                            {p.contactTitle && (
+                                              <p className="text-[11px] truncate" style={{ color: "var(--color-text-tertiary)" }}>{p.contactTitle}</p>
+                                            )}
+                                            <p className="mt-0.5 text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
+                                              via <span style={{ color: "var(--color-accent)" }}>{p.viaUserName}</span>
+                                            </p>
+                                          </div>
+                                          <span
+                                            className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                                            style={{
+                                              background: p.strength > 0.5 ? "var(--color-success-soft)" : "var(--color-bg-page)",
+                                              color: p.strength > 0.5 ? "var(--color-success)" : "var(--color-text-tertiary)",
+                                            }}
+                                            title={`Strength ${(p.strength * 100).toFixed(0)}%`}
+                                          >
+                                            {(p.strength * 100).toFixed(0)}%
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
+
+                    {/* TAM-stream signal chips — 4 default signals
+                        rendered in fixed column order. Each chip
+                        reads from the live stream first, falling
+                        back to persisted `properties.tamSignals`.
+                        One shared `openSignalChipId` selector means
+                        only one popover is open across the whole
+                        table at any time. */}
+                    {DEFAULT_SIGNALS.map(({ key }) => {
+                      const { payload } = getTamSignal(account, key);
+                      const chipId = `${account.id}::${key}`;
+                      return (
+                        <td key={key}>
+                          <SignalChip
+                            signalKey={key}
+                            payload={payload}
+                            label={signalLabelForHeader(key)}
+                            id={chipId}
+                            openId={openSignalChipId}
+                            onOpenChange={setOpenSignalChipId}
+                          />
+                        </td>
+                      );
+                    })}
+
+                    {/* User-defined custom signals — one chip per
+                        active signal, reads from
+                        `properties.customSignals[signalId]`. */}
+                    {customSignals.map((custom) => {
+                      const payload = getCustomSignalPayload(
+                        account,
+                        custom.id,
+                      );
+                      const chipId = `${account.id}::custom::${custom.id}`;
+                      const shortLabel =
+                        custom.name.length > 14
+                          ? `${custom.name.slice(0, 13)}…`
+                          : custom.name;
+                      return (
+                        <td key={`custom-${custom.id}`}>
+                          <SignalChip
+                            payload={payload}
+                            label={shortLabel}
+                            falseLabel="—"
+                            id={chipId}
+                            openId={openSignalChipId}
+                            onOpenChange={setOpenSignalChipId}
+                          />
+                        </td>
+                      );
+                    })}
 
                     {/* G27: Individual signal type columns */}
                     {signalTypeColumns.map((sigType) => {

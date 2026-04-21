@@ -22,11 +22,38 @@ export interface TenantSettings {
    * resume / re-completion (rare but possible) can't mailbomb the user. */
   welcomeEmailSentAt?: string;
 
+  // ── WS-0 telemetry ──
+  /** First time the onboarding wizard mounted for this tenant. Written once,
+   * used as the denominator for `onboarding_completed.durationMs`. */
+  onboardingStartedAt?: string;
+  /** First successful OAuth callback timestamp. Written by `auth.ts` jwt
+   * callback via `markTtfaaStarted`. Paired with `ttfaaCompletedAtV1Proxy`
+   * to compute Time-To-First-Agent-Action v1 proxy duration. */
+  ttfaaStartedAt?: string;
+  /** UUID correlating `ttfaa_started` and `ttfaa_completed_v1_proxy`. Acts
+   * as the idempotency guard — if this is set, the start event has already
+   * fired and we don't re-fire on token refresh. */
+  ttfaaSessionId?: string;
+  /** First time the dashboard hydrate returned a non-empty summary after
+   * onboarding completed. Idempotency guard for the v1 proxy completion
+   * event. */
+  ttfaaCompletedAtV1Proxy?: string;
+
   // ── Product context ──
   productDescription?: string;
   salesMotion?: string;
   aiTone?: string;
   primaryChallenge?: string;
+
+  /**
+   * The user's own cap-table investors (funds, angels, accelerators).
+   * Used by the `investor-overlap` signal to flag target accounts that
+   * share any investor with the user — a Monaco-style warm-intro lever
+   * ("Common Investor?" column on the TAM table). One investor per
+   * entry, free text matched case-insensitively against
+   * `companies.properties.investors` and Apollo funding-round payloads.
+   */
+  companyInvestors?: string[];
 
   // ── ICP (Ideal Customer Profile) ──
   targetIndustries?: string[];
@@ -73,6 +100,23 @@ export interface TenantSettings {
 
   // ── Agent behavior ──
   agentApprovalMode?: "auto" | "ask" | "manual";
+
+  /**
+   * Per-tenant monthly LLM budget cap in US dollars. When set, every
+   * traced-ai call goes through `enforceLlmBudget` which sums
+   * `usage_events.metadata.estimatedCost` for the current calendar
+   * month and throws `BudgetExceededError` once the cap is reached.
+   *
+   * Semantics:
+   *   - undefined or 0 → no cap (LLM calls always allowed).
+   *   - number > 0 → cap in USD, checked pre-dispatch.
+   *
+   * Callers of the traced-ai helpers should not try/catch this error
+   * silently; the intended flow is to surface "you've hit your AI
+   * budget for this month — increase cap or wait for next month" to
+   * the user so they can take action.
+   */
+  llmMonthlyCostCapUsd?: number;
 
   // ── Custom objects ──
   customObjectTypes?: CustomObjectTypeDef[];
