@@ -222,6 +222,17 @@ export interface TenantSettings {
    *  Banner renders only for tenants whose legacy mode was "auto"
    *  (i.e. the migration tightened their approval rule). */
   ws1MigrationBannerDismissedAt?: string;
+
+  // ── WS-2 experiments (feature flags) ──
+  /** Tenant-scoped feature flags. Flags follow the convention
+   *  `workstream.feature-name`, e.g. `onboarding.v2.confirmation-card`.
+   *  Unknown keys decode to `undefined` (equivalent to `false`). */
+  experiments?: Record<string, boolean>;
+
+  /** Per-op idempotency map for the `/api/estimate-cost` T3 display
+   *  rule. Writer: WS-4's TAM kickoff stamps on first preview shown.
+   *  Reader: `/api/estimate-cost` `isFirstTimeForOp` hint. */
+  costPreviewSeenForOp?: Record<string, string>;
 }
 
 export interface McpApiKeyEntry {
