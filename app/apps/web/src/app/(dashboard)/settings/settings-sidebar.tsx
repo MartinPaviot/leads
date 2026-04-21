@@ -26,6 +26,8 @@ import {
   Search,
   X,
   Layers,
+  DollarSign,
+  Radio,
 } from "lucide-react";
 
 interface NavSection {
@@ -58,6 +60,7 @@ const settingsNav: NavSection[] = [
       { label: "Opportunity Stages", href: "/settings/stages", icon: GitBranch },
       { label: "Plays", href: "/settings/plays", icon: Layers },
       { label: "Recording", href: "/settings/recording", icon: Video },
+      { label: "Signals", href: "/settings/signals", icon: Radio },
       { label: "Workflows", href: "/settings/workflows", icon: Workflow },
     ],
   },
@@ -66,7 +69,9 @@ const settingsNav: NavSection[] = [
     adminOnly: true,
     items: [
       { label: "Evaluations", href: "/settings/evals", icon: FlaskConical },
+      { label: "LLM Budget", href: "/settings/llm-budget", icon: DollarSign },
       { label: "MCP Integration", href: "/settings/mcp", icon: Plug },
+      { label: "Pixel Keys", href: "/settings/pixel", icon: Radio },
     ],
   },
   {

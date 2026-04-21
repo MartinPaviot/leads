@@ -27,6 +27,7 @@ import { dailyFounderBrief } from "@/inngest/founder-coach";
 import { serviceHealthCheck } from "@/inngest/health-checks";
 import { signalAutoEnroll } from "@/inngest/signal-to-sequence";
 import { nightlyRelationshipGraphBuild, onDemandRelationshipGraphBuild } from "@/inngest/relationship-graph-builder";
+import { customSignalBackfill } from "@/inngest/custom-signal-backfill";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -96,5 +97,8 @@ export const { GET, POST, PUT } = serve({
     // Relationship graph: KNOWS edges for warm-intro discovery
     nightlyRelationshipGraphBuild,
     onDemandRelationshipGraphBuild,
+    // Custom TAM signals — user-defined boolean chips, backfilled
+    // over the full TAM via the three-tier detector.
+    customSignalBackfill,
   ],
 });

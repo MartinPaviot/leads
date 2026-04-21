@@ -270,6 +270,15 @@
   100% { background-position: 200% 0; }
 }
 
+/* Used by the signal chip pending state — a subtle opacity pulse so
+   the user can tell "computing" from "done and grey". Keep it short
+   and low-amplitude to avoid distracting the eye when a table of
+   rows is mid-build. */
+@keyframes signal-shimmer {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
 .skeleton {
   background: linear-gradient(
     90deg,
@@ -335,6 +344,14 @@
   white-space: nowrap;
   border-bottom: 1px solid var(--color-border-default);
   border-right: 1px solid color-mix(in srgb, var(--color-border-default) 40%, transparent);
+}
+/* Tabular numerals keep score/revenue/funding columns visually
+   aligned vertically even when Apollo returns inconsistent digit
+   widths — Bloomberg-terminal feel for density-heavy rows. */
+.ls-table td.numeric,
+.ls-table td[data-numeric="true"] {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 .ls-table td:last-child {
   border-right: none;

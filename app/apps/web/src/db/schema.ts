@@ -1422,6 +1422,60 @@ export const customSkillTemplates = pgTable(
   ]
 );
 
+// ── Custom TAM signals ─────────────────────────────────
+// User-defined boolean signals that appear as chips alongside the
+// four built-in TAM signals (investor_overlap, funding_recent,
+// hiring_intent, yc_company). The user describes a signal in plain
+// language ("Companies with a public Status page"); the generator
+// produces a detection plan stored in `plan`; the detector runs
+// that plan per company and writes the result to
+// `companies.properties.customSignals[signalId]` as
+// `{ value, reason, sources, confidence, computedAt }`.
+export const customSignals = pgTable(
+  "custom_signals",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id")
+      .references(() => tenants.id, { onDelete: "cascade" })
+      .notNull(),
+    /** Column header label and popover title. Kept short — the UI
+     * rendering truncates past ~16 chars. */
+    name: text("name").notNull(),
+    /** Verbatim user description — fed to the judge LLM as part of
+     * the detection prompt, and shown in the "Edit signal" modal so
+     * the user can iterate on wording. */
+    description: text("description").notNull(),
+    /** JSON detection plan: `{ judgePrompt, keywords[], urlPatterns[] }`.
+     * Produced by `lib/custom-signals/generator.ts` from the user's
+     * description and kept immutable per-signal — editing the
+     * description creates a new version rather than mutating. */
+    plan: jsonb("plan").notNull(),
+    /** Optional presentational accent — index into the color palette
+     * used for chips and the column header. Defaults to a rotating
+     * palette slot based on insertion order when null. */
+    colorIndex: integer("color_index"),
+    isActive: boolean("is_active").default(true).notNull(),
+    /** ISO timestamp when the full-TAM backfill finished. The UI
+     * shows a "Backfilling…" banner under the column header until
+     * this is set. */
+    backfilledAt: timestamp("backfilled_at", { withTimezone: true }),
+    createdByUserId: text("created_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("custom_signals_tenant_idx").on(table.tenantId),
+    uniqueIndex("custom_signals_tenant_name_idx").on(
+      table.tenantId,
+      table.name,
+    ),
+  ],
+);
+
 // ── Pending Invitations ────────────────────────────────
 export const pendingInvites = pgTable(
   "pending_invites",
