@@ -298,7 +298,7 @@ function reduceEvent(state: TamStreamState, event: TamEvent): TamStreamState {
 // ── Hook ─────────────────────────────────────────────────────────
 
 export function useTamStream() {
-  const [state, dispatch] = useReducer(tamReducer, initialState);
+  const [state, dispatch] = useReducer(tamReducer, initialTamStreamState);
   const abortRef = useRef<AbortController | null>(null);
 
   const start = useCallback(async (opts: BuildRequest = {}) => {
