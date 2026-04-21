@@ -22,15 +22,17 @@ beforeEach(() => {
   updateSettingsMock.mockReset();
 });
 
-describe("isFlagEnabled", () => {
-  it("returns false when the tenant has no experiments map", async () => {
+describe("isFlagEnabled — post-WS-5 defaults-on", () => {
+  it("returns FLAG_DEFAULTS[flag] when the tenant has no experiments map", async () => {
     getSettingsMock.mockResolvedValue({});
+    // Post-WS-5 the v2 flags default to true, so a fresh tenant
+    // without explicit settings sees v2 behavior.
     expect(
       await isFlagEnabled("t1", "onboarding.v2.confirmation-card"),
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it("returns true when the flag is set", async () => {
+  it("explicit setting wins over FLAG_DEFAULTS (true → true)", async () => {
     getSettingsMock.mockResolvedValue({
       experiments: { "onboarding.v2.confirmation-card": true },
     });
@@ -39,7 +41,7 @@ describe("isFlagEnabled", () => {
     ).toBe(true);
   });
 
-  it("returns false when the flag is set to false explicitly", async () => {
+  it("explicit setting wins over FLAG_DEFAULTS (false → false)", async () => {
     getSettingsMock.mockResolvedValue({
       experiments: { "onboarding.v2.confirmation-card": false },
     });
@@ -50,21 +52,22 @@ describe("isFlagEnabled", () => {
 });
 
 describe("getFlagsForTenant", () => {
-  it("returns every KNOWN_FLAGS key with a boolean value", async () => {
+  it("returns every KNOWN_FLAGS key with a boolean value, defaults applied", async () => {
     getSettingsMock.mockResolvedValue({
-      experiments: { "onboarding.v2.confirmation-card": true },
+      experiments: { "onboarding.v2.confirmation-card": false },
     });
     const map = await getFlagsForTenant("t1");
     for (const flag of KNOWN_FLAGS) {
       expect(typeof map[flag]).toBe("boolean");
     }
-    expect(map["onboarding.v2.confirmation-card"]).toBe(true);
-    expect(map["onboarding.v2.warm-lead-prompt"]).toBe(false);
+    // Explicit-false wins.
+    expect(map["onboarding.v2.confirmation-card"]).toBe(false);
+    // No explicit setting → FLAG_DEFAULTS (true).
+    expect(map["onboarding.v2.warm-lead-prompt"]).toBe(true);
   });
 
   it("coerces unknown truthy values to boolean true", async () => {
     getSettingsMock.mockResolvedValue({
-      // Legacy value — someone set a non-boolean in the DB.
       experiments: { "onboarding.v2.warm-lead-prompt": "yes" as unknown as boolean },
     });
     const map = await getFlagsForTenant("t1");
