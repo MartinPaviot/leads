@@ -13,6 +13,7 @@ import { OnboardingWizard } from "@/components/onboarding-wizard";
 import { OnboardingV2Wrapper } from "@/components/onboarding-v2-wrapper";
 import { WarmLeadPrompt } from "@/components/WarmLeadPrompt";
 import { TAMRevealNotification } from "@/components/TAMRevealNotification";
+import { ScalingPathPrompt } from "@/components/ScalingPathPrompt";
 import { CompanyLogo } from "@/components/ui/company-logo";
 
 interface Action {
@@ -145,6 +146,14 @@ export default function DashboardPage() {
   const [priorities, setPriorities] = useState<{ contactId: string; name: string; title: string | null; company: string | null; companyDomain: string | null; emailCount: number; topReason: string }[]>([]);
   const [recommendations, setRecommendations] = useState<{ title: string; description: string; urgency: number; entityType: string; entityId: string; suggestedAction: string }[]>([]);
   const [showWelcome, setShowWelcome] = useState(false);
+  // WS-6 — ?scalingPath=cold-on-primary-blocked or ?scalingPath=primary-cap-hit
+  // triggers the scaling-path prompt on the dashboard. Email-send-worker or
+  // any future send path that hits the WS-1 enforcement layer can redirect
+  // with this param; the prompt offers Elevay-managed setup or Instantly
+  // connect as resolution paths.
+  const [scalingPathReason, setScalingPathReason] = useState<
+    "cold-on-primary-blocked" | "primary-cap-hit" | null
+  >(null);
   const [selectedAction, setSelectedAction] = useState<Action | null>(null);
 
   useEffect(() => {
@@ -154,6 +163,11 @@ export default function DashboardPage() {
       setShowWelcome(true);
       // Clean up URL without reload
       window.history.replaceState({}, "", "/");
+    }
+    // WS-6 — surface the scaling-path prompt when a send was just blocked.
+    const scaling = params.get("scalingPath");
+    if (scaling === "cold-on-primary-blocked" || scaling === "primary-cap-hit") {
+      setScalingPathReason(scaling);
     }
 
     let cancelled = false;
@@ -359,6 +373,17 @@ export default function DashboardPage() {
         {warmLeadPromptEnabled && !showOnboarding && (
           <div className="mt-4">
             <WarmLeadPrompt />
+          </div>
+        )}
+
+        {/* WS-6 — scaling-path prompt, surfaced when a send was blocked. */}
+        {scalingPathReason && !showOnboarding && (
+          <div className="mt-4">
+            <ScalingPathPrompt
+              reason={scalingPathReason}
+              onDismiss={() => setScalingPathReason(null)}
+              onResolved={() => setScalingPathReason(null)}
+            />
           </div>
         )}
 
