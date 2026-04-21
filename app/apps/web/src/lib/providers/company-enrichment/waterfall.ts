@@ -66,8 +66,9 @@ function mergePartial(
     if (typeof incoming === "string" && incoming.trim().length === 0) continue;
     // The scalar keys above all take primitive values, so this assignment
     // is sound. TypeScript can't narrow the union across the whole loop,
-    // so we cast at the assignment site only.
-    (target as Record<string, unknown>)[k] = incoming;
+    // so we cast at the assignment site only — via unknown because
+    // EnrichedCompany has no string index signature.
+    (target as unknown as Record<string, unknown>)[k] = incoming;
     contributed.push(k);
   }
 

@@ -136,10 +136,15 @@ export async function buildKnowsFromActivities(tenantId: string): Promise<{
   // Aggregate by (user, contact) over outbound activities. We count
   // emails + meetings + calls — any direct interaction with a named
   // contact counts as an observation.
+  // Aggregate by (user, contact). The activities table uses a
+  // polymorphic (actorType, actorId, entityType, entityId) shape —
+  // there are no dedicated `userId` / `contactId` columns. We filter
+  // on the type discriminators and project `actorId → userId`,
+  // `entityId → contactId` for the edge-building loop below.
   const rows = await db
     .select({
-      userId: activities.userId,
-      contactId: activities.contactId,
+      userId: activities.actorId,
+      contactId: activities.entityId,
       count: sql<number>`count(*)::int`,
       lastAt: sql<Date | null>`max(${activities.occurredAt})`,
     })
@@ -148,9 +153,11 @@ export async function buildKnowsFromActivities(tenantId: string): Promise<{
       and(
         eq(activities.tenantId, tenantId),
         eq(activities.direction, "outbound"),
+        eq(activities.actorType, "user"),
+        eq(activities.entityType, "contact"),
       ),
     )
-    .groupBy(activities.userId, activities.contactId);
+    .groupBy(activities.actorId, activities.entityId);
 
   const filtered = rows.filter(
     (r): r is typeof r & { userId: string; contactId: string } =>

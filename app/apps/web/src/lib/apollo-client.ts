@@ -134,7 +134,11 @@ export async function searchPeople(params: {
   page?: number;
   per_page?: number;
 }): Promise<PeopleSearchResult> {
-  return apolloFetch<PeopleSearchResult>("/v1/mixed_people/search", {
+  // Apollo deprecated `/v1/mixed_people/search` for API callers in
+  // 2026 — it now 422s with a pointer to `/v1/mixed_people/api_search`
+  // which accepts the same flat params but is API-tier-only (doesn't
+  // consume search-export credits).
+  return apolloFetch<PeopleSearchResult>("/api/v1/mixed_people/api_search", {
     method: "POST",
     body: { per_page: 25, ...params },
   });

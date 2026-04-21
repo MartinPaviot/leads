@@ -9,11 +9,12 @@
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
-const KEY = process.env.APOLLO_API_KEY;
+const KEY: string | undefined = process.env.APOLLO_API_KEY;
 if (!KEY) {
   console.error("APOLLO_API_KEY not set.");
   process.exit(1);
 }
+const API_KEY: string = KEY;
 
 const BASE = "https://api.apollo.io";
 
@@ -28,7 +29,7 @@ async function probe(label: string, body: Record<string, unknown>): Promise<{
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Api-Key": KEY,
+      "X-Api-Key": API_KEY,
     },
     body: JSON.stringify({ per_page: 1, page: 1, ...body }),
   });
