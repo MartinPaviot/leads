@@ -575,13 +575,23 @@ export const sequenceSteps = pgTable(
     id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
     sequenceId: text("sequence_id").references(() => sequences.id, { onDelete: "cascade" }).notNull(),
     stepNumber: integer("step_number").notNull(),
+    // Channel discriminator. Existing rows default to "email" via the SQL
+    // default so back-compat holds; new channels (linkedin_message, sms,
+    // gift, phone_task) dispatch through their own adapter. See
+    // lib/sequence-dispatch/registry.ts for the per-channel contract.
+    stepType: text("step_type").notNull().default("email"),
     subjectTemplate: text("subject_template").notNull(),
     bodyTemplate: text("body_template").notNull(),
     delayDays: integer("delay_days").default(2),
+    // Channel-specific config — e.g. LinkedIn needs a connection note
+    // template, physical gifts need a Sendoso product SKU. Keep the column
+    // schemaless so adding a channel never blocks on a migration.
+    channelConfig: jsonb("channel_config").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (table) => [
     index("sequence_steps_sequence_id_idx").on(table.sequenceId),
+    index("sequence_steps_step_type_idx").on(table.sequenceId, table.stepType),
   ]
 );
 
