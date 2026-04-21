@@ -1537,6 +1537,38 @@ export const sendingInfraRequests = pgTable(
 );
 
 /**
+ * WS-7 — reversible agent actions. Every autonomous action the agent
+ * takes creates a row BEFORE any external side-effect fires. Email
+ * sends queue with `scheduledExecutionAt = now + 60s` so the user has
+ * a grace window to undo before the send reaches SMTP.
+ *
+ * Lifecycle: scheduled → executed | reversed | failed.
+ */
+export const agentActions = pgTable(
+  "agent_actions",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => authUsers.id, { onDelete: "set null" }),
+    actionType: text("action_type").notNull(),
+    payload: jsonb("payload").notNull().default({}),
+    scheduledExecutionAt: timestamp("scheduled_execution_at", { withTimezone: true }),
+    executedAt: timestamp("executed_at", { withTimezone: true }),
+    reversedAt: timestamp("reversed_at", { withTimezone: true }),
+    reversedByUserId: text("reversed_by_user_id").references(() => authUsers.id, { onDelete: "set null" }),
+    reversibleUntil: timestamp("reversible_until", { withTimezone: true }),
+    status: text("status").notNull().default("scheduled"),
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("agent_actions_tenant_created_idx").on(table.tenantId, table.createdAt),
+    index("agent_actions_status_idx").on(table.status),
+  ]
+);
+
+/**
  * Append-only audit trail for every trustScore change. Visible to the
  * user via WS-8's Agent Memory panel (learned-preference category).
  * T2 mitigation in the master brief §8.1 — trustScore is never silent.
