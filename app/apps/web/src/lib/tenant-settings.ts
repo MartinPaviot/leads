@@ -28,6 +28,16 @@ export interface TenantSettings {
   aiTone?: string;
   primaryChallenge?: string;
 
+  /**
+   * The user's own cap-table investors (funds, angels, accelerators).
+   * Used by the `investor-overlap` signal to flag target accounts that
+   * share any investor with the user — a Monaco-style warm-intro lever
+   * ("Common Investor?" column on the TAM table). One investor per
+   * entry, free text matched case-insensitively against
+   * `companies.properties.investors` and Apollo funding-round payloads.
+   */
+  companyInvestors?: string[];
+
   // ── ICP (Ideal Customer Profile) ──
   targetIndustries?: string[];
   targetCompanySizes?: string[];
