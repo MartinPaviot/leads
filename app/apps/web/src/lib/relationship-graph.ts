@@ -29,7 +29,7 @@ import {
   contextGraphNodes,
   users,
 } from "@/db/schema";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 export const KNOWS = "KNOWS";
 
@@ -265,12 +265,30 @@ export async function findWarmPathsToCompany(params: {
   tenantId: string;
   companyId: string;
 }): Promise<WarmPath[]> {
-  const { tenantId, companyId } = params;
+  const byCompany = await findWarmPathsToCompanies({
+    tenantId: params.tenantId,
+    companyIds: [params.companyId],
+  });
+  return byCompany.get(params.companyId) ?? [];
+}
 
-  // Join: edges where sourceNode is a user AND targetNode is a contact
-  // that works at companyId. We do it as a single SQL round-trip so
-  // accounts list rendering can resolve "Connected to" in one query
-  // per account (or one batched query with `IN (...)` when scaled up).
+/**
+ * Batched version — one SQL round-trip per N accounts instead of N.
+ * The accounts list page uses this to populate the "Connected to"
+ * column without N+1 network calls.
+ */
+export async function findWarmPathsToCompanies(params: {
+  tenantId: string;
+  companyIds: string[];
+}): Promise<Map<string, WarmPath[]>> {
+  const { tenantId, companyIds } = params;
+  const result = new Map<string, WarmPath[]>();
+  for (const id of companyIds) result.set(id, []);
+  if (companyIds.length === 0) return result;
+
+  // Join: edges where sourceNode is a user AND targetNode is a
+  // contact that works at one of the requested companies. Single
+  // round-trip regardless of batch size via `IN (...)` on companyIds.
   const rows = await db
     .select({
       edgeConfidence: contextGraphEdges.confidence,
@@ -280,6 +298,7 @@ export async function findWarmPathsToCompany(params: {
       userLastName: users.lastName,
       userEmail: users.email,
       contactId: contacts.id,
+      contactCompanyId: contacts.companyId,
       contactFirstName: contacts.firstName,
       contactLastName: contacts.lastName,
       contactEmail: contacts.email,
@@ -292,14 +311,13 @@ export async function findWarmPathsToCompany(params: {
     )
     .innerJoin(users, eq(contextGraphNodes.entityId, users.id))
     .innerJoin(
-      // Second node alias for the target side via join on edges.targetNodeId.
-      // Drizzle's builder rejects re-aliasing the same table twice in one
-      // chain, so we resolve the contact through the contacts table using
-      // the edge's targetNodeId via a subquery.
+      // Resolve the contact through the edge's target node. Drizzle
+      // can't re-alias `contextGraphNodes` in a single chain so the
+      // target-side node lookup stays in a correlated subquery.
       contacts,
       and(
         eq(contacts.tenantId, tenantId),
-        eq(contacts.companyId, companyId),
+        inArray(contacts.companyId, companyIds),
         eq(
           contextGraphEdges.targetNodeId,
           sql`(SELECT id FROM ${contextGraphNodes} WHERE ${contextGraphNodes.tenantId} = ${tenantId} AND ${contextGraphNodes.entityType} = 'person' AND ${contextGraphNodes.entityId} = ${contacts.id} LIMIT 1)`,
@@ -315,12 +333,14 @@ export async function findWarmPathsToCompany(params: {
       ),
     );
 
-  const paths: WarmPath[] = [];
   for (const row of rows) {
+    if (!row.contactCompanyId) continue;
     const userName = [row.userFirstName, row.userLastName].filter(Boolean).join(" ") || row.userEmail || "Unknown user";
     const contactName = [row.contactFirstName, row.contactLastName].filter(Boolean).join(" ") || row.contactEmail || "Unknown contact";
     const meta = (row.edgeMetadata ?? {}) as Record<string, unknown>;
-    paths.push({
+    const list = result.get(row.contactCompanyId);
+    if (!list) continue;
+    list.push({
       viaUserId: row.userId,
       viaUserName: userName,
       contactId: row.contactId,
@@ -334,6 +354,8 @@ export async function findWarmPathsToCompany(params: {
 
   // Strongest ties first so "Connected to" column surfaces the warmest
   // path at a glance.
-  paths.sort((a, b) => b.strength - a.strength);
-  return paths;
+  for (const list of result.values()) {
+    list.sort((a, b) => b.strength - a.strength);
+  }
+  return result;
 }

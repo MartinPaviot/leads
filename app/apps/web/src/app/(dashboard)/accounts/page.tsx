@@ -81,6 +81,18 @@ export default function AccountsPage() {
   const [expandedContacts, setExpandedContacts] = useState<Array<{ id: string; firstName: string | null; lastName: string | null; title: string | null; email: string | null; status?: string }>>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const { fields: customFields } = useCustomFields("company");
+  // Warm-intro paths from the relationship graph (primitive ②).
+  // Keyed by company.id → list of { viaUserId, viaUserName, contactName, strength, ... }.
+  const [warmPathsByCompany, setWarmPathsByCompany] = useState<Record<string, Array<{
+    viaUserId: string;
+    viaUserName: string;
+    contactId: string;
+    contactName: string;
+    contactTitle: string | null;
+    strength: number;
+  }>>>({});
+  const [warmPathsPopoverId, setWarmPathsPopoverId] = useState<string | null>(null);
+  const warmPathsPopoverRef = useRef<HTMLDivElement>(null);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -105,6 +117,31 @@ export default function AccountsPage() {
 
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
 
+  // Fetch warm-intro paths in a single batched call once accounts
+  // are loaded. Keeps the "Connected to" column off the critical
+  // render path and avoids N+1 requests.
+  useEffect(() => {
+    if (accounts.length === 0) return;
+    const ids = accounts.map((a) => a.id).filter(Boolean);
+    if (ids.length === 0) return;
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch(`/api/warm-paths?companyIds=${ids.join(",")}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) return;
+        const data = await res.json() as { pathsByCompany?: Record<string, typeof warmPathsByCompany[string]> };
+        if (data.pathsByCompany) setWarmPathsByCompany(data.pathsByCompany);
+      } catch (err) {
+        if ((err as { name?: string })?.name !== "AbortError") {
+          console.warn("accounts: warm-paths fetch failed (non-blocking)", err);
+        }
+      }
+    })();
+    return () => controller.abort();
+  }, [accounts]);
+
   // Close signal popover on outside click
   const signalPopoverRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -117,6 +154,18 @@ export default function AccountsPage() {
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [activeSignalPopover]);
+
+  // Close warm-paths popover on outside click
+  useEffect(() => {
+    if (!warmPathsPopoverId) return;
+    function h(e: MouseEvent) {
+      if (warmPathsPopoverRef.current && !warmPathsPopoverRef.current.contains(e.target as Node)) {
+        setWarmPathsPopoverId(null);
+      }
+    }
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [warmPathsPopoverId]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -938,23 +987,111 @@ export default function AccountsPage() {
                       )}
                     </td>
 
-                    {/* Connected to (owner) */}
+                    {/* Connected to — owner + warm-intro paths (primitive ② live) */}
                     <td>
-                      {(account as any).ownerFirstName ? (
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[8px] font-bold text-white shrink-0"
-                            style={{ background: `hsl(${((account as any).ownerFirstName?.charCodeAt(0) || 0) * 37 % 360}, 60%, 55%)` }}
-                          >
-                            {((account as any).ownerFirstName?.[0] || "").toUpperCase()}
-                          </span>
-                          <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-                            {(account as any).ownerFirstName}{(account as any).ownerLastName ? ` ${(account as any).ownerLastName[0]}.` : ""}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-[10px]" style={{ color: "var(--color-text-muted)", opacity: 0.5 }}>Unassigned</span>
-                      )}
+                      {(() => {
+                        const warm = warmPathsByCompany[account.id] ?? [];
+                        const byUser = new Map<string, { name: string; strength: number; count: number }>();
+                        for (const p of warm) {
+                          const prior = byUser.get(p.viaUserId);
+                          if (prior) {
+                            prior.strength = Math.max(prior.strength, p.strength);
+                            prior.count += 1;
+                          } else {
+                            byUser.set(p.viaUserId, { name: p.viaUserName, strength: p.strength, count: 1 });
+                          }
+                        }
+                        const viaUsers = Array.from(byUser.entries()).sort(
+                          (a, b) => b[1].strength - a[1].strength,
+                        );
+                        const ownerFirst = (account as any).ownerFirstName as string | undefined;
+                        const ownerLast = (account as any).ownerLastName as string | undefined;
+                        const popoverId = `${account.id}-warm`;
+                        return (
+                          <div className="flex flex-col gap-0.5">
+                            {ownerFirst ? (
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[8px] font-bold text-white shrink-0"
+                                  style={{ background: `hsl(${(ownerFirst.charCodeAt(0) || 0) * 37 % 360}, 60%, 55%)` }}
+                                >
+                                  {(ownerFirst[0] || "").toUpperCase()}
+                                </span>
+                                <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                                  {ownerFirst}{ownerLast ? ` ${ownerLast[0]}.` : ""}
+                                </span>
+                              </div>
+                            ) : !viaUsers.length ? (
+                              <span className="text-[10px]" style={{ color: "var(--color-text-muted)", opacity: 0.5 }}>Unassigned</span>
+                            ) : null}
+                            {viaUsers.length > 0 && (
+                              <span className="relative">
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setWarmPathsPopoverId(warmPathsPopoverId === popoverId ? null : popoverId); }}
+                                  className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
+                                  style={{ color: "var(--color-accent)" }}
+                                  title="Warm intro available"
+                                >
+                                  <span className="flex -space-x-1">
+                                    {viaUsers.slice(0, 3).map(([uid, info]) => (
+                                      <span
+                                        key={uid}
+                                        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold text-white ring-1 ring-[var(--color-bg-card)]"
+                                        style={{ background: `hsl(${(info.name.charCodeAt(0) || 0) * 53 % 360}, 60%, 50%)` }}
+                                      >
+                                        {(info.name[0] || "?").toUpperCase()}
+                                      </span>
+                                    ))}
+                                  </span>
+                                  <span>
+                                    Warm intro
+                                    {viaUsers.length > 1 ? ` · ${viaUsers.length} paths` : ""}
+                                  </span>
+                                </button>
+                                {warmPathsPopoverId === popoverId && (
+                                  <div
+                                    ref={warmPathsPopoverRef}
+                                    className="absolute left-0 top-full z-50 mt-1 w-80 rounded-lg p-3"
+                                    style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-moderate)", boxShadow: "var(--shadow-floating)" }}
+                                  >
+                                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
+                                      Warm intros available
+                                    </p>
+                                    <div className="space-y-1.5 max-h-64 overflow-auto">
+                                      {warm.slice(0, 12).map((p) => (
+                                        <div key={`${p.viaUserId}-${p.contactId}`} className="flex items-start justify-between gap-2">
+                                          <div className="min-w-0">
+                                            <p className="text-[12px] font-medium truncate" style={{ color: "var(--color-text-primary)" }}>
+                                              {p.contactName}
+                                            </p>
+                                            {p.contactTitle && (
+                                              <p className="text-[11px] truncate" style={{ color: "var(--color-text-tertiary)" }}>{p.contactTitle}</p>
+                                            )}
+                                            <p className="mt-0.5 text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
+                                              via <span style={{ color: "var(--color-accent)" }}>{p.viaUserName}</span>
+                                            </p>
+                                          </div>
+                                          <span
+                                            className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                                            style={{
+                                              background: p.strength > 0.5 ? "var(--color-success-soft)" : "var(--color-bg-page)",
+                                              color: p.strength > 0.5 ? "var(--color-success)" : "var(--color-text-tertiary)",
+                                            }}
+                                            title={`Strength ${(p.strength * 100).toFixed(0)}%`}
+                                          >
+                                            {(p.strength * 100).toFixed(0)}%
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* G27: Individual signal type columns */}
