@@ -12,6 +12,7 @@ import { EmailComposer } from "@/components/email-composer";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
 import { OnboardingV2Wrapper } from "@/components/onboarding-v2-wrapper";
 import { WarmLeadPrompt } from "@/components/WarmLeadPrompt";
+import { TAMRevealNotification } from "@/components/TAMRevealNotification";
 import { CompanyLogo } from "@/components/ui/company-logo";
 
 interface Action {
@@ -360,6 +361,17 @@ export default function DashboardPage() {
             <WarmLeadPrompt />
           </div>
         )}
+
+        {/* WS-4 — Async TAM reveal notification. Shown briefly after
+            onboarding completes (firstTime param) while the background
+            TAM build runs. Self-hides on completion. */}
+        {typeof window !== "undefined" &&
+          new URLSearchParams(window.location.search).has("firstTime") &&
+          !showOnboarding && (
+            <div className="mt-4">
+              <TAMRevealNotification />
+            </div>
+          )}
 
         {/* Weekly Summary — show outbound stats if active, founder stats otherwise */}
         {summary && (() => {

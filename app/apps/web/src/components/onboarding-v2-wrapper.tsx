@@ -181,8 +181,11 @@ export function OnboardingV2Wrapper({
         }),
       });
 
-      // Fire TAM build. Same endpoint the v1 wizard uses.
-      await fetch("/api/tam", {
+      // WS-4 — fire TAM build fire-and-forget. The user lands on the
+      // dashboard immediately; <TAMRevealNotification> surfaces the
+      // live count there. Blocking here would recreate the v1
+      // "building" step we deliberately deleted.
+      void fetch("/api/tam", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -191,9 +194,13 @@ export function OnboardingV2Wrapper({
           geographies: next.targeting.geographies,
           productDescription: next.identity.productDescription,
         }),
-      });
+      }).catch((err) =>
+        console.warn("ws-4: async TAM kickoff failed — will surface via notification poll", err),
+      );
 
-      // Mark onboarding complete.
+      // Mark onboarding complete. Synchronous — the user should land
+      // on the dashboard as the onboarded state, not the onboarding
+      // state.
       await fetch("/api/onboarding/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
