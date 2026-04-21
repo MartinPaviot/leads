@@ -928,6 +928,39 @@ export const contextGraphNodes = pgTable(
   ]
 );
 
+/**
+ * Signal → outcome attribution (primitive ④).
+ *
+ * Every time a deal closes (won/lost), we record which signals had
+ * fired on that deal's company in the observation window. Aggregating
+ * by signal_type + outcome gives us a per-tenant lift multiplier
+ * ("funding signals predict won with 2.1× lift here"). The scoring
+ * library reads those multipliers to weight live signals.
+ *
+ * Bias note: this is a pragmatic approximation, not a supervised ML
+ * model. It recovers gracefully from low sample size by falling back
+ * to a uniform 1.0× multiplier until N ≥ 10 per signal type.
+ */
+export const signalOutcomes = pgTable(
+  "signal_outcomes",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    dealId: text("deal_id").references(() => deals.id).notNull(),
+    companyId: text("company_id").references(() => companies.id),
+    signalType: text("signal_type").notNull(),
+    signalFiredAt: timestamp("signal_fired_at", { withTimezone: true }),
+    outcome: text("outcome").notNull(), // 'won' | 'lost'
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
+    metadata: jsonb("metadata").default({}),
+  },
+  (table) => [
+    index("signal_outcomes_tenant_idx").on(table.tenantId),
+    index("signal_outcomes_tenant_signal_idx").on(table.tenantId, table.signalType, table.outcome),
+    index("signal_outcomes_deal_idx").on(table.dealId),
+  ]
+);
+
 export const contextGraphEdges = pgTable(
   "context_graph_edges",
   {

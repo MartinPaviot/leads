@@ -2,6 +2,7 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { deals } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { recordDealOutcome } from "@/lib/signal-outcomes";
 
 export async function GET(
   _req: Request,
@@ -89,6 +90,20 @@ export async function PUT(
 
     if (!updated) {
       return Response.json({ error: "Deal not found" }, { status: 404 });
+    }
+
+    // Primitive ④: when the deal closes, attribute the outcome to any
+    // signals that fired on its company so `getSignalMultipliers` can
+    // weight future scoring. Fire-and-forget — outcome attribution
+    // must never slow or break a user-driven stage change.
+    if (stage === "won" || stage === "lost") {
+      void recordDealOutcome({
+        tenantId: authCtx.tenantId,
+        dealId: id,
+        outcome: stage,
+      }).catch((err) => {
+        console.warn("deals/[id]: recordDealOutcome failed (non-blocking)", err);
+      });
     }
 
     return Response.json({ deal: updated });
