@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { EmailComposer } from "@/components/email-composer";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
+import { OnboardingV2Wrapper } from "@/components/onboarding-v2-wrapper";
 import { CompanyLogo } from "@/components/ui/company-logo";
 
 interface Action {
@@ -130,6 +131,8 @@ export default function DashboardPage() {
   const [onboardingName, setOnboardingName] = useState<string | undefined>();
   const [onboardingUserId, setOnboardingUserId] = useState<string | undefined>();
   const [onboardingInitialStep, setOnboardingInitialStep] = useState<string | null>(null);
+  // WS-2 — v2 confirmation-card feature flag. Fetched alongside hydrate.
+  const [onboardingV2Enabled, setOnboardingV2Enabled] = useState<boolean>(false);
   const [emailComposer, setEmailComposer] = useState<{
     to: string;
     subject: string;
@@ -174,6 +177,20 @@ export default function DashboardPage() {
         typeof onb.onboardingCurrentStep === "string" ? onb.onboardingCurrentStep : null
       );
     }
+
+    // WS-2 — fetch flag map alongside hydrate. Failure → v1 by
+    // default (safe fallback). The flag only decides the onboarding
+    // UX; it can never leak a destructive behavior change.
+    fetch("/api/experiments")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload) => {
+        if (cancelled) return;
+        const flags = (payload?.flags ?? {}) as Record<string, boolean>;
+        setOnboardingV2Enabled(!!flags["onboarding.v2.confirmation-card"]);
+      })
+      .catch(() => {
+        /* v1 default */
+      });
 
     // H1 — single hydrate round-trip. Server fans out to the six
     // underlying handlers in parallel; any section that fails server-
@@ -899,7 +916,19 @@ export default function DashboardPage() {
         />
       )}
 
-      {showOnboarding && (
+      {showOnboarding && onboardingV2Enabled && (
+        <OnboardingV2Wrapper
+          userId={onboardingUserId}
+          userEmail={onboardingEmail}
+          userName={onboardingName}
+          onComplete={() => {
+            setShowOnboarding(false);
+            window.location.href = "/?firstTime=true";
+          }}
+        />
+      )}
+
+      {showOnboarding && !onboardingV2Enabled && (
         <OnboardingWizard
           hasGoogle={onboardingHasGoogle}
           hasMicrosoft={onboardingHasMicrosoft}
