@@ -929,6 +929,66 @@ export const contextGraphNodes = pgTable(
 );
 
 /**
+ * Inbound module — pixel write keys (primitive ⑥).
+ *
+ * Each pixel ping carries `x-leadsens-write-key: lk_<secret>`; the
+ * server SHA-256s it and joins on `key_hash`. Raw keys are shown to
+ * the user once at generation time and never stored in the clear.
+ */
+export const inboundWriteKeys = pgTable(
+  "inbound_write_keys",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    keyHash: text("key_hash").notNull().unique(),
+    keyPrefix: text("key_prefix").notNull(),
+    label: text("label"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("inbound_write_keys_tenant_idx").on(table.tenantId),
+  ]
+);
+
+/**
+ * Inbound pixel visitors (primitive ⑥).
+ *
+ * De-identified pings from the pixel JS snippet on a customer's
+ * marketing site. Enrichment via RB2B / Snitcher / Clearbit Reveal
+ * lands in identified_company_id + identified_person_email when a
+ * provider comes online; until then rows hold raw IP + UA for later
+ * backfill. `event_count` counts pageviews within the same session.
+ */
+export const inboundVisitors = pgTable(
+  "inbound_visitors",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    sessionId: text("session_id").notNull(),
+    pageUrl: text("page_url"),
+    referrer: text("referrer"),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    country: text("country"),
+    identifiedCompanyId: text("identified_company_id"),
+    identifiedPersonEmail: text("identified_person_email"),
+    identifiedVia: text("identified_via"),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).defaultNow().notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
+    eventCount: integer("event_count").default(1).notNull(),
+    metadata: jsonb("metadata").default({}).notNull(),
+  },
+  (table) => [
+    index("inbound_visitors_tenant_idx").on(table.tenantId),
+    index("inbound_visitors_session_idx").on(table.tenantId, table.sessionId),
+    index("inbound_visitors_last_seen_idx").on(table.tenantId, table.lastSeenAt),
+    index("inbound_visitors_identified_idx").on(table.tenantId, table.identifiedCompanyId),
+  ]
+);
+
+/**
  * Signal → outcome attribution (primitive ④).
  *
  * Every time a deal closes (won/lost), we record which signals had
