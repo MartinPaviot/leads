@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { logAudit } from "@/lib/audit-log";
+import { readApprovalMode } from "@/lib/guardrails/approval-mode";
+import type { TenantSettings } from "@/lib/tenant-settings";
 
 export async function GET() {
   const authCtx = await getAuthContext();
@@ -28,7 +30,10 @@ export async function GET() {
       name: tenant.name,
       companyDomain: primaryDomain,
       companyDomains: allDomains,
-      agentApprovalMode: settings.agentApprovalMode || "ask",
+      // WS-1 — expose the v2-coerced value so UI consumers never see
+      // legacy strings leak out of the API even when the DB still
+      // holds one (pre-migration tenants).
+      agentApprovalMode: readApprovalMode(settings as TenantSettings),
       // Recording / notetaker channel (WS-1)
       settings: {
         recordingEnabled: settings.recordingEnabled ?? true,
@@ -75,7 +80,19 @@ export async function PUT(req: Request) {
         ? (body.companyDomains as string[]).filter((d: string) => d !== primary)
         : body.companyDomains;
     }
-    if (body.agentApprovalMode !== undefined) updates.agentApprovalMode = body.agentApprovalMode;
+    if (body.agentApprovalMode !== undefined) {
+      // WS-1 — coerce legacy values to v2 at write time. Legacy values
+      // still work from older clients but every row we mutate lands as
+      // clean v2 so post-migration data is consistent.
+      const legacyMap: Record<string, string> = {
+        auto: "auto-high-confidence",
+        ask: "review-each",
+        off: "review-each",
+        manual: "review-each",
+      };
+      updates.agentApprovalMode =
+        legacyMap[body.agentApprovalMode] ?? body.agentApprovalMode;
+    }
 
     // Recording / notetaker channel (WS-1)
     if (body.recordingEnabled !== undefined) updates.recordingEnabled = !!body.recordingEnabled;

@@ -814,12 +814,26 @@ export function buildUpdateTools(ctx: ToolContext) {
 
     updateWorkspace: makeTool({
       description:
-        "Update the workspace name, primary domain, additional domains, or agentApprovalMode (auto|ask|off). Admin-only. agentApprovalMode controls whether the chat asks for confirmation before create/update mutations.",
+        "Update the workspace name, primary domain, additional domains, or agentApprovalMode. Admin-only. " +
+        "agentApprovalMode accepts the v2 values (review-each|batch-daily|auto-high-confidence) or legacy values (auto|ask|off) for backwards compatibility. " +
+        "Legacy values are coerced to v2 before persistence.",
       inputSchema: z.object({
         name: z.string().optional(),
         companyDomain: z.string().optional(),
         companyDomains: z.array(z.string()).optional(),
-        agentApprovalMode: z.enum(["auto", "ask", "off"]).optional(),
+        // WS-1 — both legacy and v2 values accepted; v2 is coerced via
+        // `readApprovalMode` downstream, and writers that go through the
+        // chat tool emit v2 after the coercion below.
+        agentApprovalMode: z
+          .enum([
+            "review-each",
+            "batch-daily",
+            "auto-high-confidence",
+            "auto",
+            "ask",
+            "off",
+          ])
+          .optional(),
       }),
       execute: async (input) => {
         if (!isAdmin) return { error: "Admin access required" };
@@ -850,7 +864,16 @@ export function buildUpdateTools(ctx: ToolContext) {
             : input.companyDomains;
         }
         if (input.agentApprovalMode !== undefined) {
-          updates.agentApprovalMode = input.agentApprovalMode;
+          // WS-1 — coerce legacy strings to v2 at write-time so every
+          // row written post-PR-B is clean v2. Read-path coercion in
+          // `readApprovalMode` stays as the belt-and-braces.
+          const legacyMap: Record<string, "review-each" | "batch-daily" | "auto-high-confidence"> = {
+            auto: "auto-high-confidence",
+            ask: "review-each",
+            off: "review-each",
+          };
+          updates.agentApprovalMode =
+            legacyMap[input.agentApprovalMode] ?? input.agentApprovalMode;
         }
 
         await db

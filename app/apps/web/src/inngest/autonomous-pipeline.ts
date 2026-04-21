@@ -91,7 +91,10 @@ export const autoPipelineStep = inngest.createFunction(
     for (const [tenantId, userIds] of tenantMap) {
       await step.run(`pipeline-${tenantId}`, async () => {
         const settings = await getTenantSettings(tenantId);
-        const approvalMode = settings.agentApprovalMode || "auto";
+        const { readApprovalMode } = await import(
+          "@/lib/guardrails/approval-mode"
+        );
+        const approvalMode = readApprovalMode(settings);
 
         const model = getLLMModel();
         if (!model) return;
@@ -210,12 +213,21 @@ ${daysSinceActivity < 2 ? "Recent activity detected — likely HOLD unless there
           const d = decision.object;
           summary.dealsAssessed++;
 
+          // WS-1 — map v2 approval modes to this pipeline's historical
+          // "shouldExecute" semantics. The pipeline's decisions are
+          // typed differently from generic guarded-actions (CREATE_TASK,
+          // SEND_FOLLOWUP, etc.), so we don't route through
+          // enforceAgentApprovalMode here — we keep the per-mode ruleset
+          // that the pipeline already encodes and just move it to v2
+          // vocabulary. auto-high-confidence matches the legacy "auto"
+          // threshold (≥0.7). batch-daily pairs with the legacy "ask"
+          // threshold (≥0.9 except sends). review-each never auto-executes.
           const shouldExecute =
-            approvalMode === "auto"
+            approvalMode === "auto-high-confidence"
               ? d.confidence >= 0.7
-              : approvalMode === "ask"
+              : approvalMode === "batch-daily"
                 ? d.confidence >= 0.9 && d.action !== "SEND_FOLLOWUP"
-                : false; // manual = never auto-execute
+                : false; // review-each = always require human approval
 
           if (d.action === "HOLD") {
             actions.push({

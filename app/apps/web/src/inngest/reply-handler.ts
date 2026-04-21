@@ -165,13 +165,28 @@ ADDITIONAL RULES:
 
       // Auto-queue the positive reply for sending (not just draft).
       // The email-send-worker picks it up on its next 2-min cron cycle.
-      // For "ask" approval mode, keep as draft so user reviews first.
+      // WS-1 — route the "ok to auto-send?" decision through the
+      // guardrail helper so reply-handler, autonomous-pipeline, and
+      // email-send-worker all agree on what counts as autonomous.
       const settings = await step.run("load-settings", async () => {
         const { getTenantSettings } = await import("@/lib/tenant-settings");
         return getTenantSettings(tenantId);
       });
 
-      const autoSend = settings.agentApprovalMode === "auto";
+      const { readApprovalMode, enforceAgentApprovalMode } = await import(
+        "@/lib/guardrails/approval-mode"
+      );
+      const approvalDecision = enforceAgentApprovalMode({
+        mode: readApprovalMode(settings),
+        action: "email-reply",
+        // A positive-classification reply is structurally low risk
+        // (the prospect asked to continue); treat as high-confidence
+        // so auto-high-confidence tenants keep their pre-WS-1 flow.
+        // Confidence fed to the helper is per-action; the threshold
+        // table owns the cutoff.
+        confidence: 0.9,
+      });
+      const autoSend = approvalDecision.allowed;
 
       await step.run("create-positive-reply", async () => {
         await db.insert(outboundEmails).values({

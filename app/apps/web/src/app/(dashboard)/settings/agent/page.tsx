@@ -1,68 +1,16 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { useState, useEffect } from "react";
-import { Card, CardBody } from "@/components/ui/card";
-import { Select } from "@/components/ui/input";
-
-export default function AgentSettingsPage() {
-  const [mode, setMode] = useState<"ask" | "auto">("ask");
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/settings/workspace")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.agentApprovalMode) setMode(data.agentApprovalMode);
-      })
-      .catch(console.error);
-  }, []);
-
-  async function handleChange(newMode: "ask" | "auto") {
-    setMode(newMode);
-    try {
-      await fetch("/api/settings/workspace", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentApprovalMode: newMode }),
-      });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch {
-      console.error("Failed to save");
-    }
-  }
-
-  return (
-    <>
-      <h1 className="text-xl font-semibold">Agent</h1>
-      <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-        Control how the Elevay agent behaves in chat.
-      </p>
-
-      <section className="mt-6">
-        <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Agent permissions</h2>
-        <Card className="mt-3">
-          <CardBody>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-[var(--color-text-primary)]">Record creation and updates</p>
-                <p className="text-xs text-[var(--color-text-tertiary)]">
-                  Choose whether or not record creation and field updates require approval in chat.
-                </p>
-              </div>
-              <Select
-                value={mode}
-                onChange={(e) => handleChange(e.target.value as "ask" | "auto")}
-                options={[
-                  { value: "ask", label: "Ask every time" },
-                  { value: "auto", label: "Auto-run" },
-                ]}
-              />
-            </div>
-            {saved && <p className="mt-2 text-xs text-green-400">Saved</p>}
-          </CardBody>
-        </Card>
-      </section>
-    </>
-  );
+/**
+ * WS-1 — `/settings/agent` is superseded by `/settings/guardrails`,
+ * which consolidates approval mode + LLM budget + sending infra into
+ * one page. Kept as a server-side redirect so existing bookmarks and
+ * deep links from chat suggestions don't 404 during the transition.
+ *
+ * The full Guardrails UI ships in WS-1 PR E. Until then, the redirect
+ * lands on `/settings/guardrails`; Next.js renders a 404 gracefully if
+ * the target page doesn't yet exist, which is preferable to showing a
+ * stale 2-option radio tied to the legacy enum.
+ */
+export default function AgentSettingsRedirect() {
+  redirect("/settings/guardrails");
 }
