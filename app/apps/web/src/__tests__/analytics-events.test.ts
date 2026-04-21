@@ -33,6 +33,16 @@ describe("posthogEvents catalog", () => {
     expect(mod.KNOWN_EVENT_NAMES).toContain("sequence_launched");
     expect(mod.KNOWN_EVENT_NAMES).toContain("opportunity_stage_changed");
     expect(mod.KNOWN_EVENT_NAMES).toContain("password_reset_completed");
+    // WS-0 instrumentation additions — fail loudly if any of these are
+    // removed, because the onboarding baseline dashboard depends on them.
+    expect(mod.KNOWN_EVENT_NAMES).toContain("onboarding_oauth_returned");
+    expect(mod.KNOWN_EVENT_NAMES).toContain("onboarding_confidence_gaps_shown");
+    expect(mod.KNOWN_EVENT_NAMES).toContain("onboarding_build_tam_triggered");
+    expect(mod.KNOWN_EVENT_NAMES).toContain("onboarding_build_tam_completed");
+    expect(mod.KNOWN_EVENT_NAMES).toContain("onboarding_build_tam_failed");
+    expect(mod.KNOWN_EVENT_NAMES).toContain("onboarding_api_latency");
+    expect(mod.KNOWN_EVENT_NAMES).toContain("ttfaa_started");
+    expect(mod.KNOWN_EVENT_NAMES).toContain("ttfaa_completed_v1_proxy");
   });
 
   it("sends a POST /capture when an event helper is invoked", async () => {

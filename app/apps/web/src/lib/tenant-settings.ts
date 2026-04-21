@@ -22,6 +22,23 @@ export interface TenantSettings {
    * resume / re-completion (rare but possible) can't mailbomb the user. */
   welcomeEmailSentAt?: string;
 
+  // ── WS-0 telemetry ──
+  /** First time the onboarding wizard mounted for this tenant. Written once,
+   * used as the denominator for `onboarding_completed.durationMs`. */
+  onboardingStartedAt?: string;
+  /** First successful OAuth callback timestamp. Written by `auth.ts` jwt
+   * callback via `markTtfaaStarted`. Paired with `ttfaaCompletedAtV1Proxy`
+   * to compute Time-To-First-Agent-Action v1 proxy duration. */
+  ttfaaStartedAt?: string;
+  /** UUID correlating `ttfaa_started` and `ttfaa_completed_v1_proxy`. Acts
+   * as the idempotency guard — if this is set, the start event has already
+   * fired and we don't re-fire on token refresh. */
+  ttfaaSessionId?: string;
+  /** First time the dashboard hydrate returned a non-empty summary after
+   * onboarding completed. Idempotency guard for the v1 proxy completion
+   * event. */
+  ttfaaCompletedAtV1Proxy?: string;
+
   // ── Product context ──
   productDescription?: string;
   salesMotion?: string;
