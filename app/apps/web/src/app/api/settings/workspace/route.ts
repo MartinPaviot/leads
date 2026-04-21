@@ -93,6 +93,15 @@ export async function PUT(req: Request) {
       updates.agentApprovalMode =
         legacyMap[body.agentApprovalMode] ?? body.agentApprovalMode;
     }
+    // WS-1 — dismissible transitional banner timestamp. Accept any ISO
+    // string; empty / null resets the dismissal (useful for admins
+    // reverting state during testing).
+    if (body.ws1MigrationBannerDismissedAt !== undefined) {
+      updates.ws1MigrationBannerDismissedAt =
+        typeof body.ws1MigrationBannerDismissedAt === "string"
+          ? body.ws1MigrationBannerDismissedAt
+          : undefined;
+    }
 
     // Recording / notetaker channel (WS-1)
     if (body.recordingEnabled !== undefined) updates.recordingEnabled = !!body.recordingEnabled;
