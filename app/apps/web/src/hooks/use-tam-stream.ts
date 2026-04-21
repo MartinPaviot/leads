@@ -54,14 +54,14 @@ export interface TamStreamState {
   terminated: "done" | "cancelled" | "error" | null;
 }
 
-type Action =
+export type TamStreamAction =
   | { type: "start" }
   | { type: "event"; event: TamEvent }
   | { type: "cancel" }
   | { type: "stream_error"; message: string }
   | { type: "stream_closed" };
 
-const initialState: TamStreamState = {
+export const initialTamStreamState: TamStreamState = {
   jobId: null,
   startedAt: null,
   strategies: [],
@@ -79,11 +79,12 @@ const initialState: TamStreamState = {
   terminated: null,
 };
 
-function tamReducer(state: TamStreamState, action: Action): TamStreamState {
+/** Exported for unit tests — the hook wires this via `useReducer`. */
+export function tamReducer(state: TamStreamState, action: TamStreamAction): TamStreamState {
   switch (action.type) {
     case "start":
       return {
-        ...initialState,
+        ...initialTamStreamState,
         // Preserve rows from previous run if any — the accounts page
         // layers newly streamed rows on top of whatever was there.
         rows: state.rows,
