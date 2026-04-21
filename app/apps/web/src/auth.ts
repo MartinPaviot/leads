@@ -333,6 +333,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             },
           })
           .catch((err) => console.warn("Failed to trigger OAuth sync:", err));
+        // WS-0 — start the TTFAA timer. Idempotent per tenant via
+        // `settings.ttfaaSessionId`; safe to call on every initial OAuth
+        // sign-in without double-firing. `account` is only set on the
+        // initial sign-in (not on token refresh), so this block already
+        // runs once per OAuth cycle.
+        void import("@/lib/ttfaa").then(({ markTtfaaStarted }) =>
+          markTtfaaStarted({
+            userId: user?.id || (token.id as string),
+            tenantId: token.tenantId as string,
+            provider: "google",
+          }).catch((err) =>
+            console.warn("ttfaa: markTtfaaStarted (google) failed", err)
+          )
+        );
       }
       if (
         account?.provider === "microsoft-entra-id" &&
@@ -349,6 +363,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             },
           })
           .catch((err) => console.warn("Failed to trigger Microsoft sync:", err));
+        // WS-0 — same TTFAA timer start for Microsoft OAuth.
+        void import("@/lib/ttfaa").then(({ markTtfaaStarted }) =>
+          markTtfaaStarted({
+            userId: user?.id || (token.id as string),
+            tenantId: token.tenantId as string,
+            provider: "microsoft-entra-id",
+          }).catch((err) =>
+            console.warn("ttfaa: markTtfaaStarted (microsoft) failed", err)
+          )
+        );
       }
 
       return token;

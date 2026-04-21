@@ -6,6 +6,43 @@ import { ArrowRight, ArrowLeft, Loader2, Check, Mail, Target, Zap, MessageSquare
 import { INDUSTRIES, COMPANY_SIZES, SALES_MOTIONS, GEOGRAPHIES, JOB_SENIORITIES, JOB_DEPARTMENTS, sizesToApolloRanges } from "@/lib/icp-constants";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { chunkedBulkCall } from "@/lib/chunk-bulk";
+import { trackEvent } from "@/components/posthog-provider";
+
+/* ── WS-0: measured fetch helper ──
+ * Wraps `fetch` for the three onboarding APIs that are NOT LLM-traced
+ * (enrich-icp, find-contacts, email-intelligence). Fires a single
+ * `onboarding_api_latency` PostHog event per call with wall-clock
+ * duration + HTTP status. Throws on network error (same as fetch), but
+ * fires the event before rethrowing so we capture the failure too.
+ * No userId → silent no-op, preserves existing behavior. */
+async function measuredFetch(
+  userId: string | undefined,
+  endpoint: string,
+  init?: RequestInit,
+): Promise<Response> {
+  const start = Date.now();
+  try {
+    const res = await fetch(endpoint, init);
+    if (userId) {
+      void trackEvent(userId, "onboarding_api_latency", {
+        endpoint,
+        durationMs: Date.now() - start,
+        status: res.status,
+      });
+    }
+    return res;
+  } catch (err) {
+    if (userId) {
+      void trackEvent(userId, "onboarding_api_latency", {
+        endpoint,
+        durationMs: Date.now() - start,
+        status: -1,
+        errorClass: err instanceof Error ? err.name : "unknown",
+      });
+    }
+    throw err;
+  }
+}
 
 interface WebsiteAnalysis {
   companyDescription: string;
@@ -31,6 +68,10 @@ interface OnboardingWizardProps {
   hasMicrosoft?: boolean;
   userEmail?: string;
   userName?: string;
+  /** Internal stable user ID (from `/api/onboarding/status`). Used as the
+   * PostHog `distinct_id` for every analytics event the wizard fires. Absent
+   * means analytics is silently disabled — never blocks the UI. */
+  userId?: string;
   /** Persisted step from `/api/onboarding/status`. When present on mount, the
    * wizard resumes at that step and flashes a "Welcome back" banner. */
   initialStep?: Step | null;
@@ -296,7 +337,7 @@ const VISIBILITY_OPTIONS = [
 
 /* ═══════════════════════════ MAIN COMPONENT ═══════════════════════════ */
 
-export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmail, userName, initialStep }: OnboardingWizardProps) {
+export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmail, userName, userId, initialStep }: OnboardingWizardProps) {
   // Resume from a prior session if the status endpoint handed us a step.
   // The server already clamps "building" → "icp"; we double-check via
   // RESUMABLE_STEPS to guard against future transient states.
@@ -401,6 +442,75 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
     }
   }, [step, stepIndex]);
 
+  // ── WS-0 instrumentation ──
+  // Tracks when the current step was entered so `onboarding_step_completed`
+  // carries an accurate `durationMs`. Seeded to the mount time; advanced on
+  // every transition by the step-tracking effect below.
+  const stepStartRef = useRef<number>(Date.now());
+  const prevStepRef = useRef<Step>(step);
+  const onboardingStartFiredRef = useRef<boolean>(false);
+  const confidenceGapsFiredRef = useRef<boolean>(false);
+  const emailConnectedFiredRef = useRef<boolean>(emailConnected);
+
+  // Fire onboarding_started / onboarding_resumed exactly once on mount.
+  useEffect(() => {
+    if (onboardingStartFiredRef.current) return;
+    onboardingStartFiredRef.current = true;
+    if (!userId) return;
+    if (resumeStep) {
+      void trackEvent(userId, "onboarding_resumed", { fromStep: resumeStep });
+    } else {
+      void trackEvent(userId, "onboarding_started", { userId });
+    }
+  }, [userId, resumeStep]);
+
+  // Fire onboarding_step_completed for the step the user just left.
+  // prevStepRef tracks the "current" step at the time of the last firing;
+  // on mount it already equals `step`, so the first render is a no-op.
+  useEffect(() => {
+    if (prevStepRef.current === step) return;
+    const leftStep = prevStepRef.current;
+    const stepIdx = STEPS.findIndex((s) => s.key === leftStep);
+    const durationMs = Date.now() - stepStartRef.current;
+    if (userId && stepIdx >= 0) {
+      void trackEvent(userId, "onboarding_step_completed", {
+        step: leftStep,
+        stepIndex: stepIdx + 1,
+        durationMs,
+      });
+    }
+    stepStartRef.current = Date.now();
+    prevStepRef.current = step;
+  }, [step, userId]);
+
+  // Fire onboarding_email_connected when we detect the transition
+  // false → true (OAuth round-trip just completed).
+  useEffect(() => {
+    if (emailConnectedFiredRef.current) return;
+    if (!emailConnected) return;
+    emailConnectedFiredRef.current = true;
+    if (!userId) return;
+    const provider: "google" | "microsoft" = hasGoogle ? "google" : "microsoft";
+    void trackEvent(userId, "onboarding_email_connected", { provider });
+  }, [emailConnected, userId, hasGoogle]);
+
+  // Fire onboarding_confidence_gaps_shown the first time the user lands on
+  // the ICP step with a non-empty confidenceGaps panel. Measures how often
+  // the LLM surfaces low-confidence fields — feeds WS-2's decision to make
+  // the panel actionable or remove it entirely.
+  useEffect(() => {
+    if (confidenceGapsFiredRef.current) return;
+    if (step !== "icp") return;
+    const gaps = websiteAnalysis?.confidenceGaps;
+    if (!gaps || gaps.length === 0) return;
+    confidenceGapsFiredRef.current = true;
+    if (!userId) return;
+    void trackEvent(userId, "onboarding_confidence_gaps_shown", {
+      gapCount: gaps.length,
+      confidence: websiteAnalysis?.confidence ?? 0,
+    });
+  }, [step, websiteAnalysis, userId]);
+
   // Move focus to the dialog on mount so screen-reader users land inside
   // the modal rather than at the document root.
   useEffect(() => {
@@ -494,7 +604,15 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
     });
     signIn("microsoft-entra-id", { callbackUrl: "/home?onboarding=resume-connect" });
   };
-  const handleConnectContinue = () => { setStep(emailConnected ? "privacy" : "product"); };
+  const handleConnectContinue = () => {
+    // WS-0 — "Skip for now" is the same button as "Continue" when email
+    // isn't connected; the user just clicked past the OAuth step without
+    // linking a provider. Treat that as a skip event for funnel analysis.
+    if (!emailConnected && userId) {
+      void trackEvent(userId, "onboarding_skipped", { step: "connect" });
+    }
+    setStep(emailConnected ? "privacy" : "product");
+  };
   const handleConnectSkip = () => { setStep("product"); };
 
   const handlePrivacyContinue = async () => {
@@ -563,7 +681,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
         .catch((e) => console.warn("onboarding: analyze-website failed", e))
         .finally(() => setAnalyzingWebsite(false));
       // Apollo ICP enrichment — enriches the analysis with real company data
-      fetch("/api/onboarding/enrich-icp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain }) })
+      measuredFetch(userId, "/api/onboarding/enrich-icp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain }) })
         .then((res) => res.ok ? res.json() : null)
         .then((data) => {
           if (data?.icp) {
@@ -620,6 +738,19 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
   };
 
   const handleBuildTAM = async () => {
+    // WS-0 — trigger event fires at the exact moment the user committed to
+    // the build. Carries the ICP cardinality so the funnel dashboard can
+    // slice by "how specific was the user's targeting".
+    const tamStartedAt = Date.now();
+    if (userId) {
+      void trackEvent(userId, "onboarding_build_tam_triggered", {
+        icpIndustriesCount: industries.length,
+        icpSizesCount: companySizes.length,
+        icpGeosCount: geographies.length,
+        icpSenioritiesCount: targetSeniorities.length,
+      });
+    }
+
     setStep("building");
     setBuildError(null);
     setBuildStage(0);
@@ -678,10 +809,14 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
       }
 
       // Find decision-makers at top companies (await — shows contacts on ready screen)
-      const contactsRes = await fetch("/api/onboarding/find-contacts", { method: "POST", headers: { "Content-Type": "application/json" } }).catch(() => null);
+      // Capture the created count in a local so the WS-0 completion event
+      // fires with the right number — setContactsFound is async.
+      let contactsCreatedLocal = 0;
+      const contactsRes = await measuredFetch(userId, "/api/onboarding/find-contacts", { method: "POST", headers: { "Content-Type": "application/json" } }).catch(() => null);
       if (contactsRes && contactsRes.ok) {
         const cData = await contactsRes.json();
-        setContactsFound(cData.contactsCreated || 0);
+        contactsCreatedLocal = cData.contactsCreated || 0;
+        setContactsFound(contactsCreatedLocal);
         setTopContacts((cData.contacts || []).slice(0, 5));
       }
 
@@ -692,18 +827,41 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
         .catch((e) => console.warn("onboarding: embed contacts failed", e));
       // Email intelligence — fire and forget, don't block onboarding
       if (emailConnected) {
-        fetch("/api/onboarding/email-intelligence")
+        measuredFetch(userId, "/api/onboarding/email-intelligence")
           .then((er) => er.ok ? er.json() : null)
           .then((data) => { if (data) setEmailIntelligence(data); })
           .catch((e) => console.warn("onboarding: email-intelligence failed", e));
       }
       await saveOnboardingData({ step: "complete", onboardingCompleted: true });
 
+      // WS-0 — TAM build success event. durationMs covers the full build
+      // pipeline (Apollo search + enrich + scoring + find-contacts) but NOT
+      // the 1.2s UI easing delay below, so the number matches the latency a
+      // backend engineer would reason about. Reads locals, not state, so
+      // the event fires with the actual values even though the setters
+      // above are async.
+      const tamCompletedMs = Date.now() - tamStartedAt;
+      if (userId) {
+        void trackEvent(userId, "onboarding_build_tam_completed", {
+          companiesCreated: totalAccounts,
+          contactsCreated: contactsCreatedLocal,
+          durationMs: tamCompletedMs,
+        });
+      }
+
       setBuildStage(5);
       await new Promise((r) => setTimeout(r, 1200));
       setStep("ready");
     } catch (err) {
       stageTimers.forEach(clearTimeout);
+      const errorClass = err instanceof Error ? err.name : "unknown";
+      const durationMs = Date.now() - tamStartedAt;
+      if (userId) {
+        void trackEvent(userId, "onboarding_build_tam_failed", {
+          errorClass,
+          durationMs,
+        });
+      }
       setBuildError(err instanceof Error ? err.message : "Failed to build TAM");
       setStep("icp");
     }

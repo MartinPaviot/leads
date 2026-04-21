@@ -6,6 +6,8 @@ import { GET as getActions } from "@/app/api/actions/route";
 import { GET as getInsights } from "@/app/api/insights/route";
 import { GET as getPriorities } from "@/app/api/priorities/route";
 import { GET as getRecommendations } from "@/app/api/recommendations/route";
+import { getAuthContext } from "@/lib/auth-utils";
+import { markTtfaaCompletedV1Proxy } from "@/lib/ttfaa";
 
 /**
  * `/api/home/hydrate` — T1 P2 H1. Server-side fan-out of the six
@@ -46,6 +48,36 @@ export async function GET(req: Request) {
     callSection(getPriorities as AnyGet, "priorities", req),
     callSection(getRecommendations as AnyGet, "recommendations", req),
   ]);
+
+  // WS-0 — Time-To-First-Agent-Action v1 proxy completion signal.
+  // Fires the FIRST time a post-onboarding tenant's hydrate returns a
+  // summary with >=1 enriched record. The helper is idempotent via
+  // `settings.ttfaaCompletedAtV1Proxy`, so this block can safely run on
+  // every hydrate without re-firing.
+  //
+  // Fire-and-forget — hydrate must never wait on telemetry. We attach
+  // `.catch` to the promise below so any rejection is swallowed by the
+  // helper's own logger.warn (see lib/ttfaa.ts).
+  const onboardingPayload = onboarding as
+    | { needsOnboarding?: boolean; userId?: string }
+    | null;
+  const summaryPayload = summary as
+    | { founderMetrics?: { totalAccounts?: number } }
+    | null;
+  const enrichedRecordCount = summaryPayload?.founderMetrics?.totalAccounts ?? 0;
+  if (
+    onboardingPayload?.needsOnboarding === false &&
+    enrichedRecordCount >= 1
+  ) {
+    const authCtx = await getAuthContext().catch(() => null);
+    if (authCtx) {
+      void markTtfaaCompletedV1Proxy({
+        userId: authCtx.userId,
+        tenantId: authCtx.tenantId,
+        enrichedRecordCount,
+      });
+    }
+  }
 
   return NextResponse.json({
     onboarding,

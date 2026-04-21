@@ -85,5 +85,9 @@ export async function GET() {
     onboardingCurrentStep,
     email: authUser?.email,
     name: authUser?.name || null,
+    // WS-0: exposed for client-side PostHog `distinct_id`. Every analytics
+    // call from the wizard uses this stable internal user ID so events
+    // correlate with the server-side ttfaa_started emission.
+    userId: authCtx.userId,
   });
 }
