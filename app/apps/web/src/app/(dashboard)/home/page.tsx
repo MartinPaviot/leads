@@ -128,6 +128,7 @@ export default function DashboardPage() {
   const [onboardingHasMicrosoft, setOnboardingHasMicrosoft] = useState(false);
   const [onboardingEmail, setOnboardingEmail] = useState<string | undefined>();
   const [onboardingName, setOnboardingName] = useState<string | undefined>();
+  const [onboardingUserId, setOnboardingUserId] = useState<string | undefined>();
   const [onboardingInitialStep, setOnboardingInitialStep] = useState<string | null>(null);
   const [emailComposer, setEmailComposer] = useState<{
     to: string;
@@ -158,6 +159,7 @@ export default function DashboardPage() {
       hasMicrosoft?: boolean;
       email?: string;
       name?: string;
+      userId?: string;
       onboardingCurrentStep?: string | null;
     };
     function applyOnboarding(onb: OnboardingPayload | null) {
@@ -167,6 +169,7 @@ export default function DashboardPage() {
       setOnboardingHasMicrosoft(onb.hasMicrosoft || false);
       setOnboardingEmail(onb.email);
       setOnboardingName(onb.name);
+      setOnboardingUserId(onb.userId);
       setOnboardingInitialStep(
         typeof onb.onboardingCurrentStep === "string" ? onb.onboardingCurrentStep : null
       );
@@ -902,6 +905,7 @@ export default function DashboardPage() {
           hasMicrosoft={onboardingHasMicrosoft}
           userEmail={onboardingEmail}
           userName={onboardingName}
+          userId={onboardingUserId}
           initialStep={onboardingInitialStep as never}
           onComplete={() => {
             setShowOnboarding(false);

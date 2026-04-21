@@ -17,6 +17,8 @@ export interface SeededUser {
   email: string;
   password: string;
   role: "admin" | "member";
+  /** Present only when `seedCompany: true` was passed to the seed call. */
+  companyId?: string;
 }
 
 export async function seedUser(
@@ -27,6 +29,9 @@ export async function seedUser(
     email?: string;
     password?: string;
     tenantName?: string;
+    /** WS-0 — when true, seed one dummy company so dashboard summary
+     * reports totalAccounts >= 1 without running Apollo/TAM. */
+    seedCompany?: boolean;
   }
 ): Promise<SeededUser> {
   const res = await request.post("/api/test-e2e/seed", { data: opts });

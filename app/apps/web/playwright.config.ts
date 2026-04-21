@@ -52,6 +52,11 @@ export default defineConfig({
         env: {
           NODE_ENV: "development",
           ENABLE_E2E_SEED: "1",
+          // WS-0 — give the PostHog analytics layer a fake key so
+          // `captureEvent` and `trackEvent` actually issue the fetch
+          // call we intercept in tests. Without a key they no-op.
+          NEXT_PUBLIC_POSTHOG_KEY: "phc_e2e_test",
+          NEXT_PUBLIC_POSTHOG_HOST: "https://us.i.posthog.com",
         },
       },
 });

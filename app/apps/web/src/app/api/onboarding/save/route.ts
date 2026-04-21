@@ -2,10 +2,11 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { authUsers, tenants, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { updateTenantSettings, type TenantSettings } from "@/lib/tenant-settings";
+import { updateTenantSettings, type TenantSettings, getTenantSettings } from "@/lib/tenant-settings";
 import { inngest } from "@/inngest/client";
 import { sendWelcomeEmail } from "@/lib/emails/welcome";
 import { logger } from "@/lib/logger";
+import { posthogEvents } from "@/lib/analytics";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
@@ -36,6 +37,14 @@ export async function POST(req: Request) {
     updates.onboardingCompanyName = data.companyName;
     updates.onboardingRole = data.role;
     updates.companyDomain = data.domain;
+
+    // WS-0 — stamp the very first welcome save so onboarding_completed
+    // can compute an accurate total duration later. Only set if absent so
+    // a user who re-enters the welcome step doesn't reset the clock.
+    const currentSettings = await getTenantSettings(authCtx.tenantId);
+    if (!currentSettings.onboardingStartedAt) {
+      updates.onboardingStartedAt = new Date().toISOString();
+    }
 
     // Also update tenant name and user name
     if (data.companyName) {
@@ -87,7 +96,10 @@ export async function POST(req: Request) {
 
   // O9: capture the prior welcome-send timestamp before we write so the
   // post-write idempotency guard can compare against it.
+  // WS-0: also read onboardingStartedAt here so the completion event
+  // can report total duration without a second DB roundtrip.
   let priorWelcomeSentAt: string | undefined;
+  let onboardingStartedAt: string | undefined;
   if (data.step === "complete") {
     const [tenantRow] = await db
       .select({ settings: tenants.settings })
@@ -98,6 +110,10 @@ export async function POST(req: Request) {
     priorWelcomeSentAt =
       typeof priorSettings.welcomeEmailSentAt === "string"
         ? (priorSettings.welcomeEmailSentAt as string)
+        : undefined;
+    onboardingStartedAt =
+      typeof priorSettings.onboardingStartedAt === "string"
+        ? (priorSettings.onboardingStartedAt as string)
         : undefined;
 
     updates.onboardingCompleted = true;
@@ -111,6 +127,27 @@ export async function POST(req: Request) {
 
   // Fire onboarding/completed event to trigger auto-TAM + enrichment
   if (data.step === "complete") {
+    // WS-0 — emit PostHog onboarding_completed server-side so the funnel
+    // closes even when the client tab closes between the save and the
+    // redirect. durationMs null if onboardingStartedAt never stamped
+    // (legacy tenant pre-WS-0 or stamp lost).
+    let durationMs: number | undefined;
+    if (onboardingStartedAt) {
+      const started = new Date(onboardingStartedAt).getTime();
+      const now = Date.now();
+      if (Number.isFinite(started) && now >= started) {
+        durationMs = now - started;
+      }
+    }
+    posthogEvents
+      .onboarding_completed(authCtx.userId, {
+        userId: authCtx.userId,
+        durationMs,
+      })
+      .catch((err) =>
+        logger.warn("onboarding/save: onboarding_completed emit failed", { err })
+      );
+
     inngest
       .send({
         name: "onboarding/completed",

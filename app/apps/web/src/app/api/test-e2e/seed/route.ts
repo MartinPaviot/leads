@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { authAccounts, authUsers, tenants, users } from "@/db/schema";
+import { authAccounts, authUsers, companies, tenants, users } from "@/db/schema";
 import { hashPassword } from "@/lib/password-hash";
 
 /**
@@ -46,6 +46,11 @@ export async function POST(req: Request) {
     password?: string;
     role?: "admin" | "member";
     tenantName?: string;
+    /** WS-0 — when true, seed one dummy company row so the dashboard
+     * summary's `totalAccounts` is 1 without having to run Apollo/TAM.
+     * Used by onboarding instrumentation tests that need the
+     * enrichedRecordCount >= 1 hydrate branch to fire. */
+    seedCompany?: boolean;
   };
 
   const slug = body.tenantSlug || "e2e";
@@ -94,6 +99,20 @@ export async function POST(req: Request) {
       })
       .returning();
 
+    let companyId: string | undefined;
+    if (body.seedCompany) {
+      const [company] = await db
+        .insert(companies)
+        .values({
+          tenantId: tenant.id,
+          name: `${slug} Seed Co`,
+          domain: `${slug}-${ts}.example.test`,
+          properties: { source: "tam", enrichment_source: "apollo" },
+        })
+        .returning();
+      companyId = company.id;
+    }
+
     return NextResponse.json({
       tenantId: tenant.id,
       authUserId: authUser.id,
@@ -101,6 +120,7 @@ export async function POST(req: Request) {
       email,
       password,
       role,
+      companyId,
     });
   } catch (err) {
     // Route is dev/e2e-only so leaking `err` isn't a prod risk, but
