@@ -89,7 +89,6 @@ function streamedRowToAccount(
     properties: {
       source: "tam",
       linkedin_url: enrichment.linkedinUrl,
-      logo_url: row.company.logoUrl,
       technologies: enrichment.technologies ?? [],
       total_funding: enrichment.totalFunding ?? null,
       total_funding_printed: enrichment.totalFundingPrinted ?? null,
