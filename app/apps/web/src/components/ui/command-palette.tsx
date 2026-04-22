@@ -21,6 +21,7 @@ import {
   Mail,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { CompanyLogo } from "@/components/ui/company-logo";
 
 /* ── Types ── */
 
@@ -32,7 +33,8 @@ interface CommandItem {
   action?: () => void;
   section: string;
   meta?: string;
-  logoUrl?: string;
+  domain?: string;
+  companyName?: string;
 }
 
 interface SearchResult {
@@ -108,32 +110,6 @@ const TYPE_LABELS: Record<string, string> = {
   chats: "Chats",
 };
 
-/* ── Logo with fallback ── */
-
-function ResultIcon({ logoUrl, fallback }: { logoUrl?: string; fallback: React.ReactNode }) {
-  const [failed, setFailed] = useState(false);
-
-  if (logoUrl && !failed) {
-    return (
-      <img
-        src={logoUrl}
-        alt=""
-        className="h-5 w-5 shrink-0 rounded object-contain"
-        onError={() => setFailed(true)}
-      />
-    );
-  }
-
-  return (
-    <span
-      className="flex shrink-0 items-center justify-center"
-      style={{ color: "var(--color-text-tertiary)" }}
-    >
-      {fallback}
-    </span>
-  );
-}
-
 /* ── Component ── */
 
 export function CommandPalette() {
@@ -180,7 +156,8 @@ export function CommandPalette() {
               href: TYPE_HREF[r.type]?.(r.id),
               section: `${label} (${(results as SearchResult[]).length})`,
               meta: r.meta,
-              logoUrl: r.domain ? `https://logo.clearbit.com/${r.domain}` : undefined,
+              domain: r.domain,
+              companyName: r.name || "Untitled",
             });
           }
         }
@@ -385,7 +362,11 @@ export function CommandPalette() {
                       }}
                       onMouseEnter={() => setSelectedIndex(idx)}
                     >
-                      <ResultIcon logoUrl={item.logoUrl} fallback={item.icon} />
+                      {item.domain ? (
+                        <CompanyLogo domain={item.domain} name={item.companyName || item.label} size={20} />
+                      ) : (
+                        <span className="flex shrink-0 items-center justify-center" style={{ color: "var(--color-text-tertiary)" }}>{item.icon}</span>
+                      )}
                       <span className="flex-1 truncate text-left">
                         {item.label}
                       </span>

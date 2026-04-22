@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { TrendingUp } from "lucide-react";
 import { SlideOver, PropertyRow } from "./slide-over";
+import { CompanyLogo } from "./ui/company-logo";
 
 type EntityType = "contact" | "account" | "deal";
 
@@ -77,13 +78,9 @@ export function EntityLink({ type, id, name, domain }: EntityLinkProps) {
   const [slideOverOpen, setSlideOverOpen] = useState(false);
   const [entityData, setEntityData] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
-  const [logoError, setLogoError] = useState(false);
   const config = typeConfig[type];
   const initials = getInitials(name);
   const avatarColors = hashColor(name);
-  const logoUrl = type === "account" && domain && !logoError
-    ? `https://logo.clearbit.com/${domain}`
-    : null;
 
   async function handleClick(e: React.MouseEvent) {
     e.preventDefault();
@@ -126,14 +123,8 @@ export function EntityLink({ type, id, name, domain }: EntityLinkProps) {
       >
         {type === "deal" ? (
           <TrendingUp size={12} style={{ flexShrink: 0 }} />
-        ) : logoUrl ? (
-          <img
-            src={logoUrl}
-            alt=""
-            className="rounded-full object-contain"
-            style={{ width: 18, height: 18, flexShrink: 0 }}
-            onError={() => setLogoError(true)}
-          />
+        ) : type === "account" && domain ? (
+          <CompanyLogo domain={domain} name={name} size={16} />
         ) : (
           <span
             className="inline-flex items-center justify-center rounded-full text-[9px] font-semibold"
