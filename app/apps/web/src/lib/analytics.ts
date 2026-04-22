@@ -259,6 +259,15 @@ interface EventCatalog {
   session_expired: { lastPath?: string };
   offline_detected: Record<string, never>;
   online_recovered: Record<string, never>;
+
+  // Logo rendering fix — tier-hit telemetry
+  logo_tier_hit: {
+    tier: 1 | 2 | 3 | 4 | 5 | 6;
+    domainHashed: string;
+    latencyMs: number;
+    fromCache: boolean;
+  };
+  logo_cascade_exhausted: { domainHashed: string };
 }
 
 export type KnownEventName = keyof EventCatalog;
@@ -309,6 +318,7 @@ function buildHelpers(): EventHelpers {
     "error_boundary_tripped", "destructive_confirm_shown",
     "destructive_confirm_accepted", "destructive_confirm_cancelled",
     "session_expired", "offline_detected", "online_recovered",
+    "logo_tier_hit", "logo_cascade_exhausted",
   ];
 
   const helpers = {} as Record<string, (id: string, props: unknown) => Promise<void>>;
