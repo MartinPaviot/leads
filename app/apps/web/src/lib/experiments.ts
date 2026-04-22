@@ -25,6 +25,7 @@ export const KNOWN_FLAGS = [
   "onboarding.v2.confirmation-card",
   "onboarding.v2.warm-lead-prompt",
   "onboarding.v2.tam-reveal-async",
+  "logo.v2.cascade",
 ] as const;
 
 export type KnownFlag = (typeof KNOWN_FLAGS)[number];
@@ -41,6 +42,7 @@ export const FLAG_DEFAULTS: Record<KnownFlag, boolean> = {
   "onboarding.v2.confirmation-card": true,
   "onboarding.v2.warm-lead-prompt": true,
   "onboarding.v2.tam-reveal-async": true,
+  "logo.v2.cascade": false,
 };
 
 /** Read a flag for a specific tenant. Order of precedence:

@@ -1,28 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useFlag } from "@/components/flags-provider";
+import { GeneratedCompanyAvatar } from "@/components/ui/generated-company-avatar";
+import {
+  enqueueLogoResolve,
+  type CoalescerResult,
+} from "@/lib/logo/client-coalescer";
 
 interface CompanyLogoProps {
   domain: string | null | undefined;
   name: string;
   size?: number;
   className?: string;
+  logoUrl?: string | null;
 }
 
-/**
- * Company logo with Clearbit → Google Favicons → Initials fallback cascade.
- * Renders a square image with rounded corners at the specified size.
- *
- * A17 — when both external sources fail (or no domain is known) we paint
- * a colored circle with the company's first two initials. The colour is
- * deterministic from the seed (domain when present, otherwise name) so
- * the same company always renders the same swatch — a tiny but real
- * recognition aid when scanning long lists.
- */
+// ── V1 internals (kept for flag-off path, removed in cleanup cycle) ──
 
-// 8 muted, accessible swatches from the existing palette space — picked
-// to remain legible against white text and to harmonise with the app
-// chrome rather than scream at the user.
 const INITIAL_COLORS = [
   "#6366f1", // indigo
   "#0ea5e9", // sky
@@ -35,14 +30,11 @@ const INITIAL_COLORS = [
 ] as const;
 
 function colorForSeed(seed: string): string {
-  // FNV-1a, 32-bit. Cheap, no allocations, well-distributed across
-  // short ASCII strings.
   let h = 0x811c9dc5;
   for (let i = 0; i < seed.length; i++) {
     h ^= seed.charCodeAt(i);
     h = Math.imul(h, 0x01000193);
   }
-  // Force unsigned then mod into the palette.
   return INITIAL_COLORS[(h >>> 0) % INITIAL_COLORS.length];
 }
 
@@ -53,27 +45,26 @@ function initialsFor(name: string): string {
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 
-export function CompanyLogo({ domain, name, size = 24, className = "" }: CompanyLogoProps) {
+// ── V1 component (flag off) ──
+
+export function CompanyLogoV1({
+  domain,
+  name,
+  size = 24,
+  className = "",
+}: Omit<CompanyLogoProps, "logoUrl">) {
   const [fallbackLevel, setFallbackLevel] = useState(0);
-  // 0 = Clearbit, 1 = Google Favicons, 2 = Initials
 
   const initials = initialsFor(name);
   const seed = (domain || name || "").toLowerCase();
   const bg = colorForSeed(seed);
-  // Initials use a slightly smaller font on tiny avatars so the second
-  // letter doesn't crash into the edge.
   const fontSize = size <= 20 ? 9 : size <= 28 ? 10 : 11;
 
   if (!domain || fallbackLevel >= 2) {
     return (
       <div
         className={`flex items-center justify-center rounded font-semibold text-white shrink-0 ${className}`}
-        style={{
-          width: size,
-          height: size,
-          background: bg,
-          fontSize,
-        }}
+        style={{ width: size, height: size, background: bg, fontSize }}
         aria-hidden="true"
       >
         {initials}
@@ -95,17 +86,9 @@ export function CompanyLogo({ domain, name, size = 24, className = "" }: Company
         style={{ width: size, height: size, background: "var(--color-bg-hover)" }}
         onError={() => setFallbackLevel((prev) => prev + 1)}
       />
-      {/* Coloured initials sit beneath the <img> so they show through
-          while the image is still loading — and become the final state
-          after the second onError bumps the fallback level. */}
       <div
         className="flex items-center justify-center rounded font-semibold text-white"
-        style={{
-          width: size,
-          height: size,
-          background: bg,
-          fontSize,
-        }}
+        style={{ width: size, height: size, background: bg, fontSize }}
         aria-hidden="true"
       >
         {initials}
@@ -114,7 +97,72 @@ export function CompanyLogo({ domain, name, size = 24, className = "" }: Company
   );
 }
 
-// Exported for tests + any consumer that wants the same swatch as the
-// avatar (e.g. coloured tag chips that match the company badge).
+// ── V2 component (flag on) ──
+
+function CompanyLogoV2({
+  domain,
+  name,
+  size = 24,
+  className = "",
+  logoUrl,
+}: CompanyLogoProps) {
+  const [resolved, setResolved] = useState<CoalescerResult | null>(null);
+  const [imgError, setImgError] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!domain) return;
+
+    const { promise, cancel } = enqueueLogoResolve({
+      domain,
+      companyName: name,
+      existingLogoUrl: logoUrl,
+    });
+
+    promise
+      .then((r) => {
+        if (mountedRef.current) setResolved(r);
+      })
+      .catch(() => {
+        // Coalescer failed — stay on generated avatar
+      });
+
+    return cancel;
+  }, [domain, name, logoUrl]);
+
+  const resolvedUrl = resolved?.url;
+  const showImg = resolvedUrl && !imgError && resolved.tier <= 5;
+
+  return (
+    <div className={`relative shrink-0 ${className}`} style={{ width: size, height: size }}>
+      {showImg && (
+        <img
+          src={resolvedUrl}
+          alt=""
+          className="absolute inset-0 rounded object-contain z-10"
+          style={{ width: size, height: size }}
+          onError={() => setImgError(true)}
+        />
+      )}
+      <GeneratedCompanyAvatar companyName={name} size={size} />
+    </div>
+  );
+}
+
+// ── Public API ──
+
+export function CompanyLogo(props: CompanyLogoProps) {
+  const v2 = useFlag("logo.v2.cascade");
+  if (v2) return <CompanyLogoV2 {...props} />;
+  return <CompanyLogoV1 {...props} />;
+}
+
 export const __INITIAL_COLORS = INITIAL_COLORS;
 export { colorForSeed as __colorForSeed, initialsFor as __initialsFor };

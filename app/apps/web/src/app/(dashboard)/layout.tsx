@@ -10,6 +10,8 @@ import { ThemeProvider } from "@/components/ui/theme-provider";
 import { ToastProvider } from "@/components/ui/toast";
 import { CommandPalette } from "@/components/ui/command-palette";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts-provider";
+import { FlagsProvider } from "@/components/flags-provider";
+import { getFlagsForTenant } from "@/lib/experiments";
 
 export default async function DashboardLayout({
   children,
@@ -24,6 +26,7 @@ export default async function DashboardLayout({
   let recentChats: Array<{ id: string; title: string | null }> = [];
   let userAvatarUrl: string | null = null;
   let tenantName: string | null = null;
+  let flags: Awaited<ReturnType<typeof getFlagsForTenant>> = {} as any;
   try {
     const { users, tenants } = await import("@/db/schema");
     const [appUser] = await db
@@ -47,6 +50,8 @@ export default async function DashboardLayout({
         .where(eq(tenants.id, appUser.tenantId))
         .limit(1);
       if (tenant) tenantName = tenant.name;
+
+      flags = await getFlagsForTenant(appUser.tenantId);
     }
   } catch {
     // DB not available
@@ -60,27 +65,29 @@ export default async function DashboardLayout({
   return (
     <ThemeProvider>
       <ToastProvider>
-        <div className="flex h-screen overflow-hidden" style={{ background: "var(--color-bg-page)" }}>
-          <Sidebar
-            userName={session.user.name || "User"}
-            userEmail={session.user.email || undefined}
-            userInitials={initials}
-            userAvatarUrl={userAvatarUrl}
-            tenantName={tenantName}
-            recentChats={recentChats}
-            onSignOut={handleSignOut}
-          />
+        <FlagsProvider flags={flags}>
+          <div className="flex h-screen overflow-hidden" style={{ background: "var(--color-bg-page)" }}>
+            <Sidebar
+              userName={session.user.name || "User"}
+              userEmail={session.user.email || undefined}
+              userInitials={initials}
+              userAvatarUrl={userAvatarUrl}
+              tenantName={tenantName}
+              recentChats={recentChats}
+              onSignOut={handleSignOut}
+            />
 
-          {/* Main content */}
-          <main className="flex flex-1 flex-col overflow-hidden" style={{ background: "var(--color-bg-page)" }}>
-            <div className="flex-1 overflow-auto">{children}</div>
-            <PersistentChatBar />
-            <PostHogPageTracker userId={session.user.id} />
-          </main>
+            {/* Main content */}
+            <main className="flex flex-1 flex-col overflow-hidden" style={{ background: "var(--color-bg-page)" }}>
+              <div className="flex-1 overflow-auto">{children}</div>
+              <PersistentChatBar />
+              <PostHogPageTracker userId={session.user.id} />
+            </main>
 
-          <CommandPalette />
-          <KeyboardShortcutsProvider />
-        </div>
+            <CommandPalette />
+            <KeyboardShortcutsProvider />
+          </div>
+        </FlagsProvider>
       </ToastProvider>
     </ThemeProvider>
   );
