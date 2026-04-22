@@ -48,6 +48,14 @@ vi.mock("@/lib/scoring", () => ({
   }),
 }));
 
+vi.mock("@/lib/signal-outcomes", () => ({
+  getSignalMultipliers: vi.fn(() => Promise.resolve({ multipliers: {} })),
+}));
+
+vi.mock("@/lib/score-with-signals", () => ({
+  scoreSignals: vi.fn(() => ({ bonus: 0, reasons: [], contributions: [] })),
+}));
+
 import { auth } from "@/auth";
 import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
