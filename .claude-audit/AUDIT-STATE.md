@@ -10,7 +10,7 @@
 - [x] AUDIT-CONTEXT.md (14 sections)
 - [x] AUDIT-INPUTS.md (pre-rempli, 12 INCONNU restants)
 - [x] AUDIT-FINDINGS.md (5 P0, 9 P1, 5 P2, 10 Forces)
-- [ ] .kiro/specs/ (non genere — necessiterait session supplementaire)
+- [x] .kiro/specs/ (42 files: 14 findings x 3 specs each)
 - [ ] CHAOS-RESULTS.md (non execute — pas d'env staging)
 
 ## Findings produits
@@ -25,5 +25,6 @@
 Pour completer l'audit:
 1. Executer Phase 3 (dynamic probing) avec app running
 2. Executer Phase 4 (chaos drills) avec env staging
-3. Generer .kiro/specs/ pour chaque P0 et P1
+3. ~~Generer .kiro/specs/ pour chaque P0 et P1~~ DONE
 4. Mesurer token consumption reelle vs estimations
+5. Commencer implementation des P0 (FINDING-001 en premier — CI/CD)
