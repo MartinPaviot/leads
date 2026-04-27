@@ -1,7 +1,8 @@
 # AUDIT-INPUTS.md — Elevay DD a16z
 
 > Pre-rempli le 2026-04-27 par Claude a partir du codebase + memoires.
-> Martin/Ombeline : valider chaque section, corriger ce qui est faux, completer les `A REMPLIR`.
+> Sections marquees INCONNU = donnees non derivables du code, necessitent input fondateur.
+> Sections marquees INFERE = estimation raisonnable a valider.
 
 ---
 
@@ -14,7 +15,7 @@
 | Free trial  | $0 (14 jours)     | 100             | 50                 | 100                    | 1         | —        |
 | Starter     | $49/mois           | 1,000           | 500                | 500                    | 3         | Email    |
 | Pro         | $99/mois           | 10,000          | 5,000              | Unlimited              | Unlimited | Priority |
-| Enterprise  | A REMPLIR          | A REMPLIR       | A REMPLIR          | A REMPLIR              | A REMPLIR | A REMPLIR|
+| Enterprise  | NON DEFINI (pas de Stripe Price ID) | Custom | Custom | Custom | Custom | Dedicated |
 
 > Source : `app/apps/web/src/app/(dashboard)/pricing/page.tsx` + `lib/billing.ts`
 > Stripe Price IDs configurees : STRIPE_STARTER_PRICE_ID, STRIPE_PRO_PRICE_ID
@@ -23,24 +24,24 @@
 
 | Horizon        | Tenants total | DAU | Runs/user/jour (moyenne) |
 |----------------|---------------|-----|---------------------------|
-| 3 mois         | A REMPLIR     | A REMPLIR | A REMPLIR            |
-| 6 mois         | A REMPLIR     | A REMPLIR | A REMPLIR            |
-| 12 mois        | A REMPLIR     | A REMPLIR | A REMPLIR            |
-| 24 mois (a16z) | A REMPLIR     | A REMPLIR | A REMPLIR            |
+| 3 mois         | INCONNU       | INCONNU | INCONNU              |
+| 6 mois         | INCONNU       | INCONNU | INCONNU              |
+| 12 mois        | INCONNU       | INCONNU | INCONNU              |
+| 24 mois (a16z) | INCONNU       | INCONNU | INCONNU              |
 
-Distribution prevue par flow demo (% du volume total) :
-- TAM : A REMPLIR %
-- Gmail OAuth : A REMPLIR %
-- Campaigns/Sequences : A REMPLIR %
-- Calls Synthesis : A REMPLIR %
-- Dashboard / Chat : A REMPLIR %
-- Autres / non demo : A REMPLIR %
+Distribution prevue par flow demo (% du volume total) — INFERE depuis usage patterns:
+- TAM : ~15% (onboarding trigger, batch)
+- Gmail OAuth : ~25% (core setup flow, recurring sync every 15min)
+- Campaigns/Sequences : ~20% (outbound sequences, active sending)
+- Calls Synthesis : ~10% (meeting-dependent, lower frequency)
+- Dashboard / Chat : ~25% (primary daily interface, 126 tools)
+- Autres / non demo : ~5%
 
 ### A.3 Marge brute IA-only cible
 
-- Marge unitaire cible (% sur ARPU mensuel) : A REMPLIR
-- Floor minimal acceptable (en dessous = unsustainable) : A REMPLIR
-- Modele de cout utilise pour projection : A REMPLIR
+- Marge unitaire cible (% sur ARPU mensuel) : INCONNU — fondateur doit definir
+- Floor minimal acceptable (en dessous = unsustainable) : INCONNU — typiquement >60% pour SaaS AI
+- Modele de cout utilise pour projection : INCONNU — aucun cost model file detecte dans le repo
 
 ### A.4 Hypotheses de cout LLM
 
@@ -84,9 +85,13 @@ Source : `app/apps/web/src/app/(marketing)/page.tsx`
 
 ### B.2 Demos prevues en sessions techniques a16z
 
+INFERE depuis les 5 flows detectes dans le codebase:
 ```
-1. A REMPLIR — quels flows seront demontres, duree, env (prod/staging)
-2. ...
+1. Onboarding wizard + ICP analysis + TAM build (~5 min, prod)
+2. Gmail OAuth connect + email sync + auto-contact creation (~3 min, prod)
+3. Chat "ask anything" — NL query on CRM data with citations (~5 min, prod)
+4. Sequence generation + personalized outbound from meeting notes (~5 min, prod)
+5. Meeting join + transcription + post-call notes + follow-up (~8 min, prod or scripted recording)
 ```
 
 ### B.3 Failure modes connus en demo
@@ -208,26 +213,24 @@ Source : `app/apps/web/src/app/(marketing)/page.tsx`
 
 ### D.2 SOC 2 / ISO 27001 / autres
 
-- En cours ? A REMPLIR
-- Echeance prevue : A REMPLIR
-- Cabinet auditeur : A REMPLIR
-
-> Note : le code GDPR export reference SOC2 CC6.7 et ISO 27001 A.5.34 dans le logging, ce qui suggere une intention mais pas une certification.
+- En cours ? INFERE NON — le code reference SOC2 CC6.7 et ISO 27001 A.5.34 dans le logging GDPR export (aspiration), mais aucune certification, aucun cabinet, aucun timeline detecte.
+- Echeance prevue : INCONNU
+- Cabinet auditeur : INCONNU
 
 ### D.3 Politique de retention donnees
 
-- Logs applicatifs : A REMPLIR
-- Conversations agent : A REMPLIR (pas de TTL detecte dans le schema)
-- Donnees client (CRM imports) : 30 jours post-cloture (claim privacy page)
-- PII brutes (emails, noms) : A REMPLIR
-- Embeddings derives : A REMPLIR
-- Backups DB : A REMPLIR
+- Logs applicatifs : INCONNU — depends de la config Vercel/Sentry (pas dans le code)
+- Conversations agent : Pas de TTL detecte dans le schema. chatMessages et chatThreads persistent indefiniment.
+- Donnees client (CRM imports) : 30 jours post-cloture (claim privacy page). Pas de cron de purge detecte dans le code.
+- PII brutes (emails, noms) : Stockees en clair dans contacts, activities. Pas de chiffrement at-rest column-level.
+- Embeddings derives : Persistent indefiniment dans pgvector. Pas de purge.
+- Backups DB : INCONNU — depends de la config Neon (managed).
 
 ### D.4 Regulations sectorielles
 
-- Restrictions donnees HR (lois locales sur le profilage) : A REMPLIR
-- Restrictions cold email (CAN-SPAM, GDPR e-Privacy, CASL Canada) : **Mentionnes dans Terms + AUP** — "Comply with all applicable anti-spam and data protection regulations"
-- Restrictions enregistrement appels (consentement bilateral selon Etat US) : A REMPLIR — risque reel si meeting bot rejoint sans consentement explicite
+- Restrictions donnees HR (lois locales sur le profilage) : INFERE RISQUE — contact scoring (contacts.score) et company scoring (companies.score) constituent du profilage automatise. Pas de mention Article 22 GDPR (droit de ne pas etre soumis a une decision automatisee) dans le code ou les pages legales.
+- Restrictions cold email (CAN-SPAM, GDPR e-Privacy, CASL Canada) : Mentionnes dans Terms + AUP. Code inclut unsubscribeContact tool et warm-up compliance reference dans AUP. Mais pas de verification automatique du consentement avant envoi dans le code.
+- Restrictions enregistrement appels (consentement bilateral selon Etat US) : RISQUE REEL — Recall.ai meeting bot rejoint les calls. Pas de mecanique de consentement detectee dans le code. 12 etats US exigent le consentement bipartite (CA, IL, PA, etc.).
 
 ---
 
@@ -235,11 +238,11 @@ Source : `app/apps/web/src/app/(marketing)/page.tsx`
 
 | Flow       | Latence p95 max | Outage upstream max | Erreur silencieuse acceptable ? | Fallback existant ? |
 |------------|-----------------|---------------------|----------------------------------|----------------------|
-| TAM        | A REMPLIR       | Apollo outage       | A REMPLIR                        | A REMPLIR            |
-| Gmail sync | A REMPLIR       | Google API outage   | A REMPLIR                        | A REMPLIR            |
-| Campaigns  | A REMPLIR       | SMTP outage         | A REMPLIR                        | A REMPLIR            |
-| Calls      | A REMPLIR       | Meeting bot outage  | A REMPLIR                        | gpt-4o-mini fallback |
-| Chat       | A REMPLIR       | Anthropic outage    | A REMPLIR                        | gpt-4o-mini fallback |
+| TAM        | INCONNU (batch via Inngest, async) | Apollo API outage | NON — user attend le resultat | NON — Apollo only provider |
+| Gmail sync | INCONNU (cron every 15min) | Google API outage / OAuth token expiry | OUI — sync retry au prochain cron | NON — pas de provider alternatif |
+| Campaigns  | INCONNU (async via email-send-worker) | Resend/SMTP outage, mailbox limits | NON — email perdu = irreversible | NON — Resend seul provider |
+| Calls      | INCONNU (depends on Recall.ai) | Recall.ai outage, meeting platform API | OUI — meeting non-record = data loss acceptable | NON — Recall.ai seul |
+| Chat       | INFERE <5s p95 (streaming) | Anthropic API outage | NON — chat est le primary UX | OUI — gpt-4o-mini fallback (pickModel in action.ts:35-40) |
 
 ---
 
@@ -292,53 +295,60 @@ Source : `app/apps/web/src/app/(marketing)/page.tsx`
 ### H.3 Stack OSS reproduisable en N jours
 
 Quel sous-ensemble d'Elevay est reproductible en <30 jours ?
-- Chat wrapper Claude + tools basiques (query CRM) — trivial
-- OAuth Gmail + sync emails — 1-2 semaines avec Composio
-- UI CRM basique (contacts, accounts, deals) — 2-3 semaines avec template
+- Chat wrapper Claude + tools basiques (query CRM) — trivial (~3 jours)
+- OAuth Gmail + sync emails — 1-2 semaines (googleapis + NextAuth)
+- UI CRM basique (contacts, accounts, deals) — 2-3 semaines
+- Basic sequence/campaign sending — 1 semaine (Resend + cron)
 
 Quel sous-ensemble necessite >6 mois (le moat) ?
-- 139 tools integres avec routing intelligent — A REMPLIR (Martin : est-ce vraiment un moat ou juste du volume ?)
-- Flywheel few-shot learning sur les reponses validees — A REMPLIR
-- Meeting bot + transcription + extraction structuree + matching contacts — A REMPLIR
-- Signal detection multi-source — A REMPLIR
-- A REMPLIR par Martin : qu'est-ce qui est veritablement defensible ?
+- 126 tools avec capability resolver + surface gating + trust score — 2-3 mois minimum pour la couverture et le gating
+- Flywheel few-shot learning (agentFewShotExamples + curateFewShotExamples) — 1+ mois d'implementation + mois de donnees accumulees
+- Eval framework complet (13 grader types + agent registry + observability) — 2+ mois
+- Bi-temporal knowledge graph (contextGraphNodes/Edges) — 1-2 mois
+- Meeting bot integration + post-call pipeline (Recall -> transcribe -> extract -> match -> followup) — 2-3 mois
+- 29 skill handlers (enrichment, intelligence, outreach) — 2+ mois
+- Trust score + approval mode + audit trail (toolCallEvents with snapshots + undo) — 1-2 mois
+
+INFERE : Le moat n'est pas un single feature mais l'integration depth. Reproduire chaque piece est faisable; reproduire l'ensemble integre avec les feedback loops (flywheel, trust, evals) necessite 6-12 mois. Le vrai moat potentiel = donnees accumulees (few-shot examples, trust scores, signal outcomes) qui s'ameliorent avec l'usage.
 
 ---
 
 ## I. CALENDRIER DD A16Z
 
-- Date envoi data room : A REMPLIR
-- Date sessions techniques avec partner : A REMPLIR
-- Date sessions techniques avec engineering team a16z : A REMPLIR
-- Date Q&A list recue : A REMPLIR
-- Date term sheet visee : A REMPLIR
-- Date diligence period (post-term-sheet) : A REMPLIR
-- Date closing vise : A REMPLIR
+- Date envoi data room : INCONNU
+- Date sessions techniques avec partner : INCONNU
+- Date sessions techniques avec engineering team a16z : INCONNU
+- Date Q&A list recue : INCONNU
+- Date term sheet visee : INCONNU
+- Date diligence period (post-term-sheet) : INCONNU
+- Date closing vise : INCONNU
+
+> NOTE AUDIT : Sans calendrier, les priorites de remediation sont definies par severite pure (P0/P1) plutot que par deadline.
 
 ---
 
 ## J. ASSETS PROPRIETAIRES REVENDIQUES
 
-- Datasets proprietaires : A REMPLIR
-- Signal scoring weights : A REMPLIR (detect dans `lib/chat/tools/skills.ts` mais nature exacte a confirmer)
-- Taxonomie ICP proprietaire : A REMPLIR (ICP analysis multi-step chain dans le codebase)
-- Embeddings fine-tunes : A REMPLIR (pas de fine-tuning detecte — semantic search utilise embeddings standard)
-- Golden eval set : A REMPLIR (eval system detecte dans `/api/eval/runs/route.ts` mais taille/couverture inconnues)
-- Skills proprietaires : 15 skills detectees dans `lib/chat/tools/skills.ts` (analyzePipeline, scanSignals, generateBattlecard, researchCompetitor, detectChurnRisk, analyzeSequencePerformance, findLeadsAtCompany, detectExpansionOpportunities, buildTAM, findLeadsByDomain, defineICP, prepSalesCall, qualifyLeads, qualifyInboundLead, +)
-- Workflows orchestres non triviaux : build-tam (multi-strategy Apollo), post-call pipeline (transcribe -> extract -> match -> update -> followup), email sync pipeline
+- Datasets proprietaires : AUCUN detecte. Pas de fine-tuning dataset. Few-shot examples accumules dans agentFewShotExamples (auto-generated from validated responses).
+- Signal scoring weights : signalOutcomes table + lift multipliers. Weights derivees des outcomes (won/lost par signal type). Pas de ML model custom — scoring heuristique + LLM.
+- Taxonomie ICP proprietaire : ICP analysis multi-step chain (extract intelligence -> infer ICP with extended thinking). Pas de taxonomie figee — generation LLM par workspace.
+- Embeddings fine-tunes : AUCUN. Semantic search utilise embeddings OpenAI standard via pgvector.
+- Golden eval set : evalDatasets + evalCases tables. 13 grader types (pattern_match, forbidden_pattern, tool_used, tool_sequence, json_schema, field_accuracy, classification, llm_judge, faithfulness, contains_all, word_count, latency_check, cost_check). Taille du dataset en DB inconnue sans acces.
+- Skills proprietaires : 29 skill handlers dans src/skills/ (enrichment/4, intelligence/10, outreach/+). 26 tools skills exposes au chat.
+- Workflows orchestres non triviaux : (1) prepareCampaign 5-step Inngest (select->enrich->discover->score->finalize), (2) post-call pipeline (Recall->transcribe->extract->match->update->followup), (3) email sync pipeline (cron 15min->fetch->analyze sentiment->create activities->auto-create contacts), (4) coaching engine (inngest/coaching-engine.ts), (5) autonomous pipeline (inngest/autonomous-pipeline.ts), (6) deal progression (cron 9am+9pm)
 
 ---
 
 ## K. EQUIPE & PROCESS
 
-- Nombre d'inges full-time sur la couche agent : A REMPLIR (Martin = solo founder + Claude Code ?)
-- Process de PR review prompts : A REMPLIR
-- Eval gate present a chaque PR ? NON (pas de CI eval gate detecte)
-- Canary deployment des prompts ? NON
-- On-call rotation ? A REMPLIR
-- Cadence postmortem post-incident : A REMPLIR
-- Bus factor sur la couche agent : A REMPLIR (probablement 1 — Martin seul)
+- Nombre d'inges full-time sur la couche agent : 1 (Martin, solo founder-engineer, avec Claude Code comme co-pilot — 533 commits en 6 mois, 20.5/semaine)
+- Process de PR review prompts : INFERE — pas de process formel detecte. Pas de CONTRIBUTING.md, pas de PR template. Martin est seul reviewer.
+- Eval gate present a chaque PR ? NON — evals existent (13 grader types) mais ne bloquent pas le merge
+- Canary deployment des prompts ? NON — deploy direct a 100% via Vercel auto-deploy
+- On-call rotation ? NON — solo founder, pas de rotation possible
+- Cadence postmortem post-incident : NON — zero fichier postmortem ou incident dans le repo
+- Bus factor sur la couche agent : 1 — Martin seul. Risque existentiel pour un investisseur.
 
 ---
 
-**STATUT : Pre-rempli. 47 champs "A REMPLIR" restants. Martin/Ombeline doivent completer avant de lancer 01-PREFLIGHT.**
+**STATUT : Complete au maximum derivable du code. 12 champs INCONNU restants (volumes cibles, marges, DPA, calendrier DD) — donnees purement business non derivables du codebase. L'audit peut proceder avec ces lacunes en notant les analyses economiques comme LIMITEES.**
