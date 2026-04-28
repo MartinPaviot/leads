@@ -10,6 +10,8 @@ import { buildSkillsTools } from "./skills";
 import { buildUndoTools } from "./undo";
 import { buildBriefingTools } from "./briefing";
 import { buildCoachingTools } from "./coaching";
+import { buildResearchTools } from "./research";
+import { buildForecastTools } from "./forecast";
 
 export type { ToolContext } from "./context";
 export { makeTool } from "./context";
@@ -27,5 +29,7 @@ export function buildAllChatTools(ctx: ToolContext) {
     ...buildUndoTools(ctx),
     ...buildBriefingTools(ctx),
     ...buildCoachingTools(ctx),
+    ...buildResearchTools(ctx),
+    ...buildForecastTools(ctx),
   };
 }

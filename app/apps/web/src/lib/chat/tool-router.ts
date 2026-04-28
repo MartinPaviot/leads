@@ -170,6 +170,7 @@ const TOOL_GROUPS: Record<string, string> = {
   rememberContext: "memory",
   recallMemories: "memory",
   forgetMemory: "memory",
+  exploreRelationships: "memory",
 
   // briefing (briefing.ts)
   briefAllDeals: "briefing",
@@ -200,9 +201,16 @@ const INTENT_PATTERNS: IntentPattern[] = [
     groups: ["undo"],
   },
 
-  // Memory operations
+  // Memory operations + graph reasoning
   {
-    patterns: [/\bremember\b/, /\bmemory\b/, /\bforget\b/, /\brecall\b/, /\bgraph\b/],
+    patterns: [
+      /\bremember\b/, /\bmemory\b/, /\bforget\b/, /\brecall\b/, /\bgraph\b/,
+      /\bconnect(?:ed|ion|ions)?\b/, /\brelat(?:ed|ionship|ionships)\b/,
+      /\bintroduc(?:e|tion)\b/, /\bshared\b/, /\bmutual\b/,
+      /\bhow\s+(?:is|are)\s+\w+\s+(?:related|connected)\b/,
+      /\bwho\s+(?:can|knows|works)\b/,
+      /\bpath\s+(?:to|from|between)\b/,
+    ],
     groups: ["memory"],
   },
 

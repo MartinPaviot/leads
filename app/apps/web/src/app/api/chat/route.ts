@@ -18,6 +18,7 @@ import { buildChatSystemPrompt } from "@/lib/prompts/chat-system-prompt";
 import { buildAllChatTools, type ToolContext } from "@/lib/chat/tools";
 import { resolveCapabilities, type SurfaceContext } from "@/lib/agents/capability-resolver";
 import { routeTools } from "@/lib/chat/tool-router";
+import { orchestrate } from "@/lib/agents/orchestrator";
 import { getActivePromptVersion } from "@/lib/prompt-canary";
 import { getChatExperimentDelta, applyPromptDelta, recordExperimentMetric } from "@/lib/prompt-experiments";
 
@@ -529,10 +530,28 @@ export async function POST(req: Request) {
       // allowDestructive + planTier default to safe values (false / free)
       // until CHAT-04 + billing integration land.
     });
-    // Apply intent-based tool routing to reduce token overhead.
-    // resolveCapabilities filters by role/surface; routeTools further
-    // filters by the user's message intent (~40-50 tools vs 126).
-    const chatTools = routeTools(resolved.tools, lastUserText);
+
+    // ── Multi-Agent Orchestrator ──────────────────────────────
+    // BEFORE the existing tool routing, run the orchestrator to
+    // classify intent and route to specialist sub-agents. If the
+    // orchestrator is confident (>0.8), use specialist routing with
+    // a focused prompt addendum. Otherwise, fall back to the existing
+    // broad tool routing via routeTools.
+    const orchestratorResult = orchestrate(lastUserText, resolved.tools);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let chatTools: any;
+    let specialistPromptAddendum = "";
+
+    if (orchestratorResult.routed) {
+      // Orchestrator is confident — use specialist routing
+      chatTools = orchestratorResult.tools;
+      specialistPromptAddendum = orchestratorResult.promptAddendum;
+    } else {
+      // Orchestrator is not confident — fall back to existing tool routing
+      // resolveCapabilities filters by role/surface; routeTools further
+      // filters by the user's message intent (~40-50 tools vs 126).
+      chatTools = routeTools(resolved.tools, lastUserText);
+    }
 
     // Prompt canary: check if a versioned prompt exists for "chat".
     // If a canary version is active, it replaces the hardcoded prompt
@@ -551,7 +570,7 @@ export async function POST(req: Request) {
     }
 
     let systemPrompt = canaryVersion
-      ? canaryVersion.content + resolved.surfacePromptAddendum
+      ? canaryVersion.content + resolved.surfacePromptAddendum + specialistPromptAddendum
       : buildChatSystemPrompt({
           crmSnapshot,
           ragContext,
@@ -561,7 +580,7 @@ export async function POST(req: Request) {
           agentApprovalMode,
           userName: tenantSettings.onboardingCompanyName || undefined,
           preferredLanguage: tenantSettings.language || undefined,
-        }) + resolved.surfacePromptAddendum;
+        }) + resolved.surfacePromptAddendum + specialistPromptAddendum;
 
     // Apply experiment variant delta if this tenant is in the variant arm
     if (experimentAssignment?.delta) {
@@ -598,7 +617,7 @@ export async function POST(req: Request) {
         system: systemPrompt,
         messages: convertedMessages,
         tools: chatTools,
-        // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
+        // @ts-ignore maxTokens exists in AI SDK but type definition may lag
         maxTokens: 2000,
         temperature: 0.4,
         stopWhen: stepCountIs(10),
@@ -615,6 +634,9 @@ export async function POST(req: Request) {
           surfaceType: inferredSurface.type,
           allowedToolCount: Object.keys(chatTools).length,
           droppedToolCount: resolved.droppedTools.length,
+          orchestratorRouted: orchestratorResult.routed,
+          orchestratorSpecialists: orchestratorResult.decision.specialists.join(",") || "none",
+          orchestratorConfidence: orchestratorResult.decision.confidence,
           ...(canaryVersion ? {
             promptVersion: canaryVersion.version,
             promptIsCanary: canaryVersion.isCanary,

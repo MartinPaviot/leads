@@ -33,6 +33,8 @@ import { dataRetentionPurge } from "@/inngest/data-retention";
 import { weeklyAnonymizedSignalAggregation } from "@/inngest/anonymized-signal-aggregation";
 import { extractThreadIntelligenceBatch, extractSingleThreadIntelligence } from "@/inngest/thread-intelligence";
 import { weeklyModelTraining, trainScoringModelOnDemand } from "@/inngest/scoring-model-trainer";
+import { weeklyPromptOptimizer } from "@/inngest/prompt-optimizer-cron";
+import { generateDossier } from "@/inngest/dossier-builder";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -117,5 +119,9 @@ export const { GET, POST, PUT } = serve({
     // Predictive deal scoring — weekly Naive Bayes model training
     weeklyModelTraining,
     trainScoringModelOnDemand,
+    // Prompt optimizer — weekly self-improvement via evaluator-optimizer pattern
+    weeklyPromptOptimizer,
+    // Research dossier — autonomous company intelligence builder
+    generateDossier,
   ],
 });

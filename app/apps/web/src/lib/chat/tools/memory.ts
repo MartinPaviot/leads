@@ -3,6 +3,13 @@ import { chatMemories } from "@/db/schema";
 import { and, desc, eq, or } from "drizzle-orm";
 import { z } from "zod";
 import { exploreGraphAroundEntity } from "@/lib/context-graph";
+import {
+  findPaths,
+  findSharedConnections,
+  findRelatedEntities,
+  findNodeByName,
+  listRelationTypes,
+} from "@/lib/graph-reasoning";
 import { makeTool, type ToolContext } from "./context";
 
 export function buildMemoryTools(ctx: ToolContext) {
@@ -181,6 +188,142 @@ export function buildMemoryTools(ctx: ToolContext) {
           .where(and(...conditions))
           .returning({ id: chatMemories.id });
         return { forgotten: result.length > 0, key: input.key, scope };
+      },
+    }),
+
+    exploreRelationships: makeTool({
+      description: `Multi-hop graph reasoning: find paths, shared connections, and related entities in the knowledge graph. Use when the user asks relationship questions like "who can introduce me to X", "what companies are connected to Y", "how is A related to B", "find shared connections between X and Y", or "who works at companies in the same industry as Z".`,
+      inputSchema: z.object({
+        mode: z.enum(["paths", "shared_connections", "related_by_type"]).describe(
+          "Query mode: 'paths' = find paths between two entities; 'shared_connections' = find mutual connections; 'related_by_type' = find entities linked by a specific relation type",
+        ),
+        sourceEntity: z.string().describe("Name of the source entity to start from"),
+        targetEntity: z.string().optional().describe("Name of the target entity (for 'paths' and 'shared_connections' modes)"),
+        targetType: z.string().optional().describe("Target entity type filter: person, company, deal, topic, event (for 'paths' mode)"),
+        relationType: z.string().optional().describe("Relation type filter: WORKS_AT, INVOLVED_IN, DISCUSSED, ATTENDED, SENT_EMAIL, MENTIONED, MANAGES, INTERESTED_IN, COMPETES_WITH, PARTNERED_WITH (for 'related_by_type' mode)"),
+        maxHops: z.number().optional().describe("Max traversal depth (default 2, max 4)"),
+      }),
+      execute: async (input) => {
+        // Resolve entity names to node IDs
+        const sourceNode = await findNodeByName(tenantId, input.sourceEntity);
+        if (!sourceNode) {
+          // List available relation types to help the user
+          const relationTypes = await listRelationTypes(tenantId);
+          return {
+            error: `Could not find entity "${input.sourceEntity}" in the knowledge graph.`,
+            hint: "The entity may not have been extracted yet. It gets populated from emails, meetings, and notes.",
+            availableRelationTypes: relationTypes.length > 0 ? relationTypes : undefined,
+          };
+        }
+
+        const maxHops = Math.min(input.maxHops || 2, 4);
+
+        if (input.mode === "shared_connections") {
+          if (!input.targetEntity) {
+            return { error: "shared_connections mode requires a targetEntity" };
+          }
+          const targetNode = await findNodeByName(tenantId, input.targetEntity);
+          if (!targetNode) {
+            return { error: `Could not find entity "${input.targetEntity}" in the knowledge graph.` };
+          }
+
+          const paths = await findSharedConnections(tenantId, sourceNode.id, targetNode.id);
+          if (paths.length === 0) {
+            return {
+              message: `No shared connections found between "${sourceNode.name}" and "${targetNode.name}" within the knowledge graph.`,
+              source: sourceNode,
+              target: targetNode,
+            };
+          }
+
+          return {
+            mode: "shared_connections",
+            source: sourceNode,
+            target: targetNode,
+            connectionCount: paths.length,
+            connections: paths.map((p) => ({
+              sharedEntity: p.nodes[1], // middle node
+              pathExplanation: p.explanation,
+              confidence: p.score,
+              edges: p.edges,
+            })),
+          };
+        }
+
+        if (input.mode === "related_by_type") {
+          if (!input.relationType) {
+            const relationTypes = await listRelationTypes(tenantId);
+            return {
+              error: "related_by_type mode requires a relationType",
+              availableRelationTypes: relationTypes,
+            };
+          }
+
+          const results = await findRelatedEntities(
+            tenantId,
+            sourceNode.id,
+            input.relationType,
+            maxHops,
+          );
+
+          if (results.length === 0) {
+            return {
+              message: `No entities found related to "${sourceNode.name}" via "${input.relationType}" within ${maxHops} hops.`,
+              source: sourceNode,
+            };
+          }
+
+          return {
+            mode: "related_by_type",
+            source: sourceNode,
+            relationType: input.relationType,
+            entityCount: results.length,
+            entities: results.map((r) => ({
+              entity: r.entity,
+              pathExplanation: r.path.explanation,
+              confidence: r.path.score,
+              hops: r.path.nodes.length - 1,
+            })),
+          };
+        }
+
+        // Default: "paths" mode
+        let targetNodeId: string | undefined;
+        if (input.targetEntity) {
+          const targetNode = await findNodeByName(tenantId, input.targetEntity);
+          if (!targetNode) {
+            return { error: `Could not find entity "${input.targetEntity}" in the knowledge graph.` };
+          }
+          targetNodeId = targetNode.id;
+        }
+
+        const paths = await findPaths(
+          tenantId,
+          sourceNode.id,
+          targetNodeId,
+          input.targetType,
+          maxHops,
+        );
+
+        if (paths.length === 0) {
+          return {
+            message: `No paths found from "${sourceNode.name}"${input.targetEntity ? ` to "${input.targetEntity}"` : ""}${input.targetType ? ` (type: ${input.targetType})` : ""} within ${maxHops} hops.`,
+            source: sourceNode,
+          };
+        }
+
+        return {
+          mode: "paths",
+          source: sourceNode,
+          pathCount: paths.length,
+          paths: paths.map((p) => ({
+            nodes: p.nodes,
+            edges: p.edges,
+            explanation: p.explanation,
+            confidence: p.score,
+            hops: p.nodes.length - 1,
+          })),
+        };
       },
     }),
   };

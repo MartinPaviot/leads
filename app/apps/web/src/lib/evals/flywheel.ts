@@ -907,7 +907,7 @@ function getModel() {
   return null;
 }
 
-function getDefaultPrompt(agentId: string): string {
+export function getDefaultPrompt(agentId: string): string {
   // Default prompts for agents — used when no versioned prompt exists yet
   const defaults: Record<string, string> = {
     chat: "You are Elevay, an autonomous GTM copilot for early-stage founders.",

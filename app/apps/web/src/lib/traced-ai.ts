@@ -31,6 +31,12 @@ interface TraceMetadata {
   surfaceType?: string;
   allowedToolCount?: number;
   droppedToolCount?: number;
+  // Orchestrator telemetry
+  orchestratorRouted?: boolean;
+  orchestratorSpecialists?: string;
+  orchestratorConfidence?: number;
+  // Extensible: allow additional trace fields without type errors
+  [key: string]: string | number | boolean | undefined;
 }
 
 /**
