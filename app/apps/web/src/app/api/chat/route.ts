@@ -17,6 +17,7 @@ import { getTenantSettings, deriveTargetRoles, type TenantSettings } from "@/lib
 import { buildChatSystemPrompt } from "@/lib/prompts/chat-system-prompt";
 import { buildAllChatTools, type ToolContext } from "@/lib/chat/tools";
 import { resolveCapabilities, type SurfaceContext } from "@/lib/agents/capability-resolver";
+import { routeTools } from "@/lib/chat/tool-router";
 import { getActivePromptVersion } from "@/lib/prompt-canary";
 import { getChatExperimentDelta, applyPromptDelta, recordExperimentMetric } from "@/lib/prompt-experiments";
 
@@ -528,7 +529,10 @@ export async function POST(req: Request) {
       // allowDestructive + planTier default to safe values (false / free)
       // until CHAT-04 + billing integration land.
     });
-    const chatTools = resolved.tools;
+    // Apply intent-based tool routing to reduce token overhead.
+    // resolveCapabilities filters by role/surface; routeTools further
+    // filters by the user's message intent (~40-50 tools vs 126).
+    const chatTools = routeTools(resolved.tools, lastUserText);
 
     // Prompt canary: check if a versioned prompt exists for "chat".
     // If a canary version is active, it replaces the hardcoded prompt
