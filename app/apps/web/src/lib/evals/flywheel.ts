@@ -30,6 +30,7 @@ import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { AGENT_REGISTRY } from "../observability";
 import logger from "../logger";
+import { captureDistillationSample } from "../distillation/pipeline";
 
 // ─── 1. Failure → Eval Case ─────────────────────────────────
 
@@ -489,6 +490,25 @@ export async function curateFewShotExamples(
       tags: [agentId, "auto-curated"],
     });
     added++;
+
+    // Also capture high-scoring traces as distillation samples
+    if (trace.evalScore! >= 0.85) {
+      const toolNames = Array.isArray(trace.toolCalls)
+        ? (trace.toolCalls as Array<{ name?: string }>).map((t) => t.name || "unknown")
+        : [];
+
+      void captureDistillationSample({
+        agentId,
+        systemPrompt: "", // not available in trace context
+        userInput: trace.input,
+        assistantOutput: trace.output,
+        toolCalls: toolNames,
+        qualitySource: "eval_high_score",
+        qualityScore: trace.evalScore!,
+        tenantId,
+        traceId: trace.id,
+      }).catch(() => {});
+    }
   }
 
   // Prune: keep only top 5 examples per agent
@@ -855,6 +875,18 @@ export async function recordFlywheelCandidate(
       agentId,
       tenantId,
     });
+
+    // Also capture as a distillation sample for future fine-tuning.
+    // Fire-and-forget -- never block the main flow.
+    void captureDistillationSample({
+      agentId,
+      systemPrompt: "", // system prompt not available here; captured at trace level
+      userInput: input,
+      assistantOutput: output,
+      qualitySource: "user_approved",
+      qualityScore: INITIAL_CANDIDATE_SCORE,
+      tenantId,
+    }).catch(() => {}); // swallow errors
 
     return { id: row.id };
   } catch (err) {

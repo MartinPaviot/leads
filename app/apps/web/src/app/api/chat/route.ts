@@ -17,6 +17,8 @@ import { getTenantSettings, deriveTargetRoles, type TenantSettings } from "@/lib
 import { buildChatSystemPrompt } from "@/lib/prompts/chat-system-prompt";
 import { buildAllChatTools, type ToolContext } from "@/lib/chat/tools";
 import { resolveCapabilities, type SurfaceContext } from "@/lib/agents/capability-resolver";
+import { getActivePromptVersion } from "@/lib/prompt-canary";
+import { getChatExperimentDelta, applyPromptDelta, recordExperimentMetric } from "@/lib/prompt-experiments";
 
 export const maxDuration = 60;
 
@@ -528,17 +530,39 @@ export async function POST(req: Request) {
     });
     const chatTools = resolved.tools;
 
-    const systemPrompt =
-      buildChatSystemPrompt({
-        crmSnapshot,
-        ragContext,
-        entityContext,
-        knowledgeContext,
-        memoriesContext,
-        agentApprovalMode,
-        userName: tenantSettings.onboardingCompanyName || undefined,
-        preferredLanguage: tenantSettings.language || undefined,
-      }) + resolved.surfacePromptAddendum;
+    // Prompt canary: check if a versioned prompt exists for "chat".
+    // If a canary version is active, it replaces the hardcoded prompt
+    // for a subset of tenants (consistent hashing on tenantId).
+    const canaryVersion = await getActivePromptVersion("chat", tenantId);
+
+    // Prompt A/B experiment: check if an active experiment exists for "chat".
+    // If so, and the tenant is assigned to the variant arm, apply the
+    // prompt delta on top of the base prompt. Non-blocking — failures
+    // silently fall back to the base prompt.
+    let experimentAssignment: { experimentId: string; variant: "base" | "variant"; delta: string | null } | null = null;
+    try {
+      experimentAssignment = await getChatExperimentDelta(tenantId);
+    } catch {
+      // Non-critical — experiment lookup failures should never block chat
+    }
+
+    let systemPrompt = canaryVersion
+      ? canaryVersion.content + resolved.surfacePromptAddendum
+      : buildChatSystemPrompt({
+          crmSnapshot,
+          ragContext,
+          entityContext,
+          knowledgeContext,
+          memoriesContext,
+          agentApprovalMode,
+          userName: tenantSettings.onboardingCompanyName || undefined,
+          preferredLanguage: tenantSettings.language || undefined,
+        }) + resolved.surfacePromptAddendum;
+
+    // Apply experiment variant delta if this tenant is in the variant arm
+    if (experimentAssignment?.delta) {
+      systemPrompt = applyPromptDelta(systemPrompt, experimentAssignment.delta);
+    }
 
     // ── Context Management: compact long conversations ──
     const compactedMessages = await compactMessages(messages);
@@ -587,8 +611,28 @@ export async function POST(req: Request) {
           surfaceType: inferredSurface.type,
           allowedToolCount: Object.keys(chatTools).length,
           droppedToolCount: resolved.droppedTools.length,
+          ...(canaryVersion ? {
+            promptVersion: canaryVersion.version,
+            promptIsCanary: canaryVersion.isCanary,
+          } : {}),
+          ...(experimentAssignment ? {
+            experimentId: experimentAssignment.experimentId,
+            experimentVariant: experimentAssignment.variant,
+          } : {}),
         },
       });
+
+      // Record experiment metric (fire-and-forget, non-blocking)
+      if (experimentAssignment) {
+        void recordExperimentMetric(
+          tenantId,
+          experimentAssignment.experimentId,
+          experimentAssignment.variant,
+          "eval_score",
+          1.0, // Successful response — the online eval sampler will update with real score
+        ).catch(() => {});
+      }
+
       return result.toTextStreamResponse();
     } catch (err) {
       if (model === primaryModel && fallbackModel) {

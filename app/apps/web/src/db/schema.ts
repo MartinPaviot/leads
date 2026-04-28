@@ -1234,6 +1234,10 @@ export const agentPromptVersions = pgTable(
     evalScore: real("eval_score"), // score when this prompt was evaluated
     evalPassRate: real("eval_pass_rate"),
     isActive: boolean("is_active").default(false), // only one active per agent
+    /** Canary traffic percentage (0-100). 0 = inactive canary, 100 = full rollout.
+     * When two versions are active for the same agent, tenants are routed
+     * via consistent hashing on tenantId. See lib/prompt-canary.ts. */
+    canaryPercent: integer("canary_percent").default(0).notNull(),
     metadata: jsonb("metadata").default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
@@ -1633,6 +1637,110 @@ export const anonymizedSignalBenchmarks = pgTable(
     index("asb_industry_size_idx").on(table.industry, table.companySize),
     index("asb_signal_type_idx").on(table.signalType),
     uniqueIndex("asb_bucket_unique_idx").on(table.industry, table.companySize, table.signalType),
+  ]
+);
+
+// ============================================================
+// DISTILLATION PIPELINE (#97) — Training data from production
+// ============================================================
+
+/**
+ * High-quality (input, output) pairs captured from production agent runs
+ * for future fine-tuning. Sources of quality signal:
+ * - User approved output without editing (trust score: approved_no_edit)
+ * - Eval score >= 0.85 on a traced run
+ * - User gave explicit positive feedback
+ *
+ * Privacy: all PII is stripped before storage. Tenant-specific data
+ * (company names, contact names, emails) is replaced with placeholders.
+ * The resulting dataset is safe for cross-tenant model training.
+ */
+export const distillationSamples = pgTable(
+  "distillation_samples",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    agentId: text("agent_id").notNull(),
+    systemPrompt: text("system_prompt").notNull(),
+    userInput: text("user_input").notNull(),
+    assistantOutput: text("assistant_output").notNull(),
+    toolCalls: jsonb("tool_calls").default([]).notNull(), // tool names only, no args
+    qualitySource: text("quality_source").notNull(), // "user_approved" | "eval_high_score" | "explicit_feedback"
+    qualityScore: real("quality_score").notNull(),
+    tenantId: text("tenant_id").references(() => tenants.id),
+    traceId: text("trace_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("ds_agent_idx").on(table.agentId),
+    index("ds_quality_source_idx").on(table.qualitySource),
+    index("ds_quality_score_idx").on(table.qualityScore),
+    index("ds_created_idx").on(table.createdAt),
+  ]
+);
+
+// ============================================================
+// PROMPT EXPERIMENTS — A/B testing for prompt variations
+// ============================================================
+
+export const promptExperimentStatusEnum = pgEnum("prompt_experiment_status", [
+  "active", "concluded", "canceled",
+]);
+
+/**
+ * Prompt A/B experiments — test prompt variations in production
+ * and measure their impact on eval scores and user approval rates.
+ *
+ * An experiment defines a base prompt and a variant prompt delta,
+ * a traffic split, and duration. The system assigns tenants to
+ * base or variant using a deterministic hash, then records per-
+ * variant metrics (eval_score, approved, rejected) in the
+ * prompt_experiment_metrics table. When the experiment ends, the
+ * winner is computed from aggregate scores.
+ */
+export const promptExperiments = pgTable(
+  "prompt_experiments",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    agentId: text("agent_id").notNull(), // "chat", "draft-email", etc.
+    name: text("name").notNull(),
+    basePromptHash: text("base_prompt_hash").notNull(), // SHA-256 of current prompt
+    variantPromptDelta: text("variant_prompt_delta").notNull(), // what changed in the variant
+    trafficPercent: integer("traffic_percent").notNull().default(50), // 0-100, variant gets this %
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    status: promptExperimentStatusEnum("status").notNull().default("active"),
+    /** Aggregated results computed when the experiment concludes. */
+    results: jsonb("results"), // { baseEvalScore, variantEvalScore, baseApprovalRate, variantApprovalRate, sampleSize, winner }
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("prompt_experiments_agent_idx").on(table.agentId),
+    index("prompt_experiments_status_idx").on(table.status),
+    index("prompt_experiments_dates_idx").on(table.startsAt, table.endsAt),
+  ]
+);
+
+/**
+ * Per-request metrics for prompt experiments. Each row records a single
+ * observation (one chat turn, one email draft) and which variant arm
+ * served it. Aggregated at conclusion time to produce experiment.results.
+ */
+export const promptExperimentMetrics = pgTable(
+  "prompt_experiment_metrics",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    experimentId: text("experiment_id").references(() => promptExperiments.id, { onDelete: "cascade" }).notNull(),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    variant: text("variant").notNull(), // "base" | "variant"
+    metric: text("metric").notNull(), // "eval_score" | "approved" | "rejected"
+    value: real("value").notNull(), // score (0-1) or count (1.0 per event)
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("pem_experiment_idx").on(table.experimentId),
+    index("pem_experiment_variant_idx").on(table.experimentId, table.variant),
+    index("pem_tenant_idx").on(table.tenantId),
   ]
 );
 
