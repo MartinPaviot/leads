@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { deals } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { recordDealOutcome } from "@/lib/signal-outcomes";
+import { inngest } from "@/inngest/client";
 
 export async function GET(
   _req: Request,
@@ -26,7 +27,46 @@ export async function GET(
       return Response.json({ error: "Deal not found" }, { status: 404 });
     }
 
-    return Response.json({ deal });
+    // Attach predictive win probability if a scoring model exists and
+    // the deal is still open (not won/lost). Non-blocking — scoring
+    // failure never breaks the deal fetch.
+    let predictiveScore: { probability: number; topFactors: string[] } | null = null;
+    if (deal.stage !== "won" && deal.stage !== "lost") {
+      try {
+        const { tenants: tenantsTable } = await import("@/db/schema");
+        const [tenant] = await db
+          .select({ settings: tenantsTable.settings })
+          .from(tenantsTable)
+          .where(eq(tenantsTable.id, authCtx.tenantId))
+          .limit(1);
+        const settings = (tenant?.settings || {}) as Record<string, unknown>;
+        const model = settings.scoringModel as import("@/lib/scoring/predictive-scorer").ScoringModel | undefined;
+        if (model && model.featureWeights && model.sampleSize >= 5) {
+          const { scoreDeal, valueToBucket } = await import("@/lib/scoring/predictive-scorer");
+          // Quick feature extraction (inline to avoid circular dep)
+          const { companies: companiesTable, activities: activitiesTable } = await import("@/db/schema");
+          let industry = "unknown";
+          let companySize = "unknown";
+          if (deal.companyId) {
+            const [company] = await db
+              .select({ industry: companiesTable.industry, size: companiesTable.size, properties: companiesTable.properties })
+              .from(companiesTable).where(eq(companiesTable.id, deal.companyId)).limit(1);
+            if (company) {
+              industry = company.industry || "unknown";
+              companySize = company.size || "unknown";
+            }
+          }
+          predictiveScore = scoreDeal(
+            { industry, companySize, valueBucket: valueToBucket(deal.value), stageVelocityDays: Math.max(1, Math.round((Date.now() - new Date(deal.createdAt!).getTime()) / 86400000)), contactsEngaged: 0, meetingCount: 0, emailSentiment: "neutral", hasChampion: false, hasCompetitor: false },
+            model,
+          );
+        }
+      } catch {
+        // Non-critical — deal still loads without predictive score
+      }
+    }
+
+    return Response.json({ deal, predictiveScore });
   } catch (error) {
     console.error("Failed to fetch deal:", error);
     return Response.json({ error: "Failed to fetch deal" }, { status: 500 });
@@ -103,6 +143,15 @@ export async function PUT(
         outcome: stage,
       }).catch((err) => {
         console.warn("deals/[id]: recordDealOutcome failed (non-blocking)", err);
+      });
+
+      // Trigger predictive scoring model retraining so the Naive Bayes
+      // weights reflect this latest closed deal. Fire-and-forget.
+      void inngest.send({
+        name: "scoring/train-model-requested",
+        data: { tenantId: authCtx.tenantId },
+      }).catch((err) => {
+        console.warn("deals/[id]: scoring model retrain trigger failed (non-blocking)", err);
       });
     }
 

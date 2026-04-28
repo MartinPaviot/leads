@@ -31,6 +31,8 @@ import { nightlyRelationshipGraphBuild, onDemandRelationshipGraphBuild } from "@
 import { customSignalBackfill } from "@/inngest/custom-signal-backfill";
 import { dataRetentionPurge } from "@/inngest/data-retention";
 import { weeklyAnonymizedSignalAggregation } from "@/inngest/anonymized-signal-aggregation";
+import { extractThreadIntelligenceBatch, extractSingleThreadIntelligence } from "@/inngest/thread-intelligence";
+import { weeklyModelTraining, trainScoringModelOnDemand } from "@/inngest/scoring-model-trainer";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -109,5 +111,11 @@ export const { GET, POST, PUT } = serve({
     dataRetentionPurge,
     // Cross-tenant anonymized benchmarks (#96)
     weeklyAnonymizedSignalAggregation,
+    // Email thread intelligence — thread-level buying signal extraction
+    extractThreadIntelligenceBatch,
+    extractSingleThreadIntelligence,
+    // Predictive deal scoring — weekly Naive Bayes model training
+    weeklyModelTraining,
+    trainScoringModelOnDemand,
   ],
 });

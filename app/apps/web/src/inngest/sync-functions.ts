@@ -471,6 +471,25 @@ export const syncEmails = inngest.createFunction(
       }
     }
 
+    // Thread-level intelligence extraction (fire-and-forget). Groups emails
+    // by threadId and extracts buying signals, sentiment trends, objections,
+    // competitor mentions, and urgency from the full conversation arc.
+    if (createdActivities.length > 0) {
+      const threadIds = [
+        ...new Set(
+          createdActivities
+            .map((a) => (a.metadata as Record<string, unknown>)?.threadId)
+            .filter((tid): tid is string => typeof tid === "string" && tid.length > 0),
+        ),
+      ];
+      if (threadIds.length > 0) {
+        await inngest.send({
+          name: "enrichment/thread-intelligence-requested",
+          data: { tenantId, threadIds },
+        }).catch((e) => console.warn("sync: thread-intelligence trigger failed (non-blocking)", e));
+      }
+    }
+
     return { synced: created, contactsCreated, total: emails.length };
   }
 );
