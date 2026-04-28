@@ -21,6 +21,14 @@ import { routeTools } from "@/lib/chat/tool-router";
 import { orchestrate } from "@/lib/agents/orchestrator";
 import { getActivePromptVersion } from "@/lib/prompt-canary";
 import { getChatExperimentDelta, applyPromptDelta, recordExperimentMetric } from "@/lib/prompt-experiments";
+import {
+  shouldMeasureRagQuality,
+  measureRagQuality,
+  extractCitationsFromResponse,
+  type RetrievedResult,
+} from "@/lib/evals/rag-quality";
+import { recordTrace } from "@/lib/observability";
+import { allocateContextBudget, formatBudgetSummary, type RagResult } from "@/lib/context-budget";
 
 export const maxDuration = 60;
 
@@ -431,10 +439,18 @@ export async function POST(req: Request) {
   // Load tenant settings once — used by snapshot, knowledge, and approval mode
   const tenantSettings = await getTenantSettings(authCtx.tenantId);
 
+  // Capture RAG results for quality measurement (hoisted so they are
+  // accessible after the response for RAG quality sampling).
+  let ragRetrievedResults: RetrievedResult[] = [];
+  let ragRetrievalStartMs = Date.now();
+  let ragRetrievalLatencyMs = 0;
+  const shouldSampleRag = shouldMeasureRagQuality();
+
   // Parallel: RAG search + CRM snapshot + entity context + knowledge + approval mode
   const [ragContext, crmSnapshot, entityContext, knowledgeContext, agentApprovalMode, memoriesContext] = await Promise.all([
     (async () => {
       if (!lastUserText) return "";
+      ragRetrievalStartMs = Date.now();
       try {
         // Run context graph AND flat vector search in parallel, then merge.
         // The graph provides relationship edges (who works where, deal history);
@@ -450,6 +466,18 @@ export async function POST(req: Request) {
             } catch { return []; }
           })(),
         ]);
+
+        ragRetrievalLatencyMs = Date.now() - ragRetrievalStartMs;
+
+        // Capture vector results for RAG quality measurement
+        if (shouldSampleRag && vectorResults.length > 0) {
+          ragRetrievedResults = vectorResults.map((r) => ({
+            entityType: r.entityType,
+            entityId: r.entityId,
+            content: r.content,
+            score: r.similarity,
+          }));
+        }
 
         const graphContext = graphResult?.formattedContext || "";
         const vectorContext = vectorResults.length > 0 ? formatCitedSources(vectorResults) : "";
@@ -587,9 +615,25 @@ export async function POST(req: Request) {
       systemPrompt = applyPromptDelta(systemPrompt, experimentAssignment.delta);
     }
 
-    // ── Context Management: compact long conversations ──
-    const compactedMessages = await compactMessages(messages);
+    // ── Context Budget Manager: allocate tokens across sections ──
+    const budgetResult = allocateContextBudget({
+      systemPrompt,
+      toolDefinitions: chatTools as Record<string, unknown>,
+      messages,
+      ragResults: (ragContext ? [{ content: ragContext, score: 1.0 }] : []) as RagResult[],
+      entityContext: entityContext || "",
+    });
+
+    // Use optimized messages from the budget manager (may be compacted)
+    const compactedMessages = budgetResult.optimizedMessages.length < messages.length
+      ? budgetResult.optimizedMessages
+      : await compactMessages(messages);
     const convertedMessages = await convertToModelMessages(compactedMessages);
+
+    // Log budget breakdown for observability (non-blocking)
+    if (budgetResult.budget.history.compacted || budgetResult.budget.total.remaining < 10000) {
+      console.log(formatBudgetSummary(budgetResult.budget));
+    }
 
     // CHAT-07: fire auto-extract every ~20 turns on a thread. Fire-and-
     // forget — the chat response doesn't wait on it. The worker dedupes
@@ -645,6 +689,9 @@ export async function POST(req: Request) {
             experimentId: experimentAssignment.experimentId,
             experimentVariant: experimentAssignment.variant,
           } : {}),
+          contextBudgetUsed: budgetResult.budget.total.used,
+          contextBudgetRemaining: budgetResult.budget.total.remaining,
+          contextBudgetCompacted: budgetResult.budget.history.compacted,
         },
       });
 
@@ -657,6 +704,43 @@ export async function POST(req: Request) {
           "eval_score",
           1.0, // Successful response — the online eval sampler will update with real score
         ).catch(() => {});
+      }
+
+      // RAG quality measurement: sample 10% of requests, measure after
+      // stream completes. Fire-and-forget — never blocks the response.
+      if (shouldSampleRag && ragRetrievedResults.length > 0) {
+        void (async () => {
+          try {
+            // Wait for the stream to fully complete so we can read the text
+            const fullText = await result.text;
+            const citations = extractCitationsFromResponse(fullText);
+
+            const ragMetrics = await measureRagQuality({
+              query: lastUserText,
+              retrievedResults: ragRetrievedResults,
+              agentResponse: fullText,
+              citations,
+              retrievalLatencyMs: ragRetrievalLatencyMs,
+              searchMode: "hybrid",
+            });
+
+            if (ragMetrics) {
+              // Store RAG metrics as a separate trace so they appear in the
+              // agent health dashboard alongside latency and cost metrics.
+              await recordTrace(
+                { agentId: "chat", tenantId, metadata: { ragQualityMetrics: ragMetrics } },
+                {
+                  input: `RAG quality measurement for: ${lastUserText.slice(0, 200)}`,
+                  output: JSON.stringify(ragMetrics),
+                  latencyMs: 0,
+                  status: "ok",
+                },
+              );
+            }
+          } catch (err) {
+            console.warn("chat: RAG quality measurement failed (non-fatal)", err);
+          }
+        })();
       }
 
       return result.toTextStreamResponse();

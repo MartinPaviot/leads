@@ -12,6 +12,7 @@ import { inngest } from "./client";
 import {
   extractAndPersistThreadIntelligence,
 } from "@/lib/email-intelligence";
+import { processIntelligenceActions } from "@/lib/email-intelligence-actions";
 import { getTenantSettings } from "@/lib/tenant-settings";
 import { db } from "@/db";
 import { activities } from "@/db/schema";
@@ -70,6 +71,23 @@ export const extractThreadIntelligenceBatch = inngest.createFunction(
             settings,
           );
           if (intelligence) {
+            // Resolve deal/contact linked to this thread for action chains
+            const linkedEntities = await resolveThreadEntities(tenantId, threadId);
+
+            // Fire intelligence action chains (non-blocking — failures
+            // should never prevent intelligence persistence)
+            await processIntelligenceActions(
+              intelligence,
+              tenantId,
+              linkedEntities.dealId,
+              linkedEntities.contactId,
+            ).catch((err) =>
+              console.warn(
+                `Thread intelligence actions failed for thread ${threadId}:`,
+                err,
+              ),
+            );
+
             return "extracted" as const;
           }
           return "skipped" as const; // Too few emails or no model
@@ -126,6 +144,19 @@ export const extractSingleThreadIntelligence = inngest.createFunction(
       return extractAndPersistThreadIntelligence(tenantId, threadId, settings);
     });
 
+    // Fire intelligence action chains if extraction succeeded
+    if (intelligence) {
+      await step.run("process-actions", async () => {
+        const linkedEntities = await resolveThreadEntities(tenantId, threadId);
+        return processIntelligenceActions(
+          intelligence,
+          tenantId,
+          linkedEntities.dealId,
+          linkedEntities.contactId,
+        );
+      });
+    }
+
     return {
       threadId,
       status: intelligence ? "extracted" : "skipped",
@@ -133,3 +164,55 @@ export const extractSingleThreadIntelligence = inngest.createFunction(
     };
   },
 );
+
+// ── Helper: resolve deal/contact linked to a thread ───────────
+
+/**
+ * Look up which deal and contact are associated with a thread's emails.
+ * Checks the activities table for entity references linked to the thread.
+ */
+async function resolveThreadEntities(
+  tenantId: string,
+  threadId: string,
+): Promise<{ dealId?: string; contactId?: string }> {
+  try {
+    const threadActivities = await db
+      .select({
+        entityType: activities.entityType,
+        entityId: activities.entityId,
+        metadata: activities.metadata,
+      })
+      .from(activities)
+      .where(
+        and(
+          eq(activities.tenantId, tenantId),
+          eq(activities.threadId, threadId),
+        ),
+      )
+      .limit(20);
+
+    let dealId: string | undefined;
+    let contactId: string | undefined;
+
+    for (const act of threadActivities) {
+      if (act.entityType === "deal" && act.entityId) {
+        dealId = act.entityId;
+      }
+      if (act.entityType === "contact" && act.entityId) {
+        contactId = act.entityId;
+      }
+      // Also check metadata for linked entities
+      const meta = (act.metadata || {}) as Record<string, unknown>;
+      if (meta.dealId && typeof meta.dealId === "string") {
+        dealId = dealId || meta.dealId;
+      }
+      if (meta.contactId && typeof meta.contactId === "string") {
+        contactId = contactId || meta.contactId;
+      }
+    }
+
+    return { dealId, contactId };
+  } catch {
+    return {};
+  }
+}
