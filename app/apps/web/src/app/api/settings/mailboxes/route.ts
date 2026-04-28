@@ -4,6 +4,7 @@ import { connectedMailboxes, outboundEmails, warmupEmails } from "@/db/schema";
 import { and, eq, or } from "drizzle-orm";
 import { logger } from "@/lib/logger";
 import { retryWithBackoff } from "@/lib/retry";
+import { checkPlanLimit } from "@/lib/plan-limits";
 
 export async function GET() {
   const authCtx = await getAuthContext();
@@ -24,6 +25,21 @@ export async function POST(req: Request) {
   const authCtx = await getAuthContext();
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Plan limit enforcement: mailboxes
+  const planCheck = await checkPlanLimit(authCtx.tenantId, "mailboxes");
+  if (!planCheck.allowed) {
+    return Response.json(
+      {
+        error: `Mailbox limit reached (${planCheck.current}/${planCheck.limit}). Upgrade your plan to connect more mailboxes.`,
+        code: "PLAN_LIMIT_EXCEEDED",
+        current: planCheck.current,
+        limit: planCheck.limit,
+        plan: planCheck.plan,
+      },
+      { status: 403 },
+    );
   }
 
   const body = await req.json();

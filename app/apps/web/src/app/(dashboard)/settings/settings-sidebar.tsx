@@ -40,7 +40,7 @@ const settingsNav: NavSection[] = [
   {
     label: "Account",
     items: [
-      { label: "Agent", href: "/settings/agent", icon: Activity },
+      { label: "Guardrails", href: "/settings/guardrails", icon: Activity },
       { label: "Privacy & data", href: "/settings/privacy", icon: Shield },
       { label: "Security", href: "/settings/security", icon: Lock },
       { label: "Settings", href: "/settings", icon: User },
@@ -71,7 +71,7 @@ const settingsNav: NavSection[] = [
       { label: "Evaluations", href: "/settings/evals", icon: FlaskConical },
       { label: "LLM Budget", href: "/settings/llm-budget", icon: DollarSign },
       { label: "MCP Integration", href: "/settings/mcp", icon: Plug },
-      { label: "Pixel Keys", href: "/settings/pixel", icon: Radio },
+      // Pixel Keys removed: page does not exist yet
     ],
   },
   {

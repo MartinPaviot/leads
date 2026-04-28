@@ -28,6 +28,7 @@ import { pauseEnrollmentsForContacts } from "@/lib/enrollment";
 import { sendInviteEmail } from "@/lib/email-invite";
 import { runAiAttribute } from "@/lib/chat/ai-attributes";
 import { logToolCall } from "@/lib/chat/tool-call-log";
+import { checkPlanLimit } from "@/lib/plan-limits";
 import { escapeForPrompt, wrapUntrustedInput } from "@/lib/chat/prompt-safety";
 import { generateInviteToken } from "@/lib/invite-token";
 import { makeTool, type ToolContext } from "./context";
@@ -1153,6 +1154,14 @@ RULES:
           return {
             error:
               "Password required for SMTP/IMAP path. For OAuth, connect via /settings/mailboxes.",
+          };
+        }
+
+        // Plan limit enforcement: mailboxes
+        const planCheck = await checkPlanLimit(tenantId, "mailboxes");
+        if (!planCheck.allowed) {
+          return {
+            error: `Mailbox limit reached (${planCheck.current}/${planCheck.limit}). The user needs to upgrade their plan to connect more mailboxes.`,
           };
         }
 

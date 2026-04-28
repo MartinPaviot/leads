@@ -1,5 +1,7 @@
 import { getAuthContext } from "@/lib/auth-utils";
 import { clearTenantId } from "@/db/rls";
+import { checkPlanLimit } from "@/lib/plan-limits";
+import { trackUsage } from "@/lib/billing";
 import { anthropic } from "@/lib/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { isCircuitClosed, ANTHROPIC_CIRCUIT } from "@/lib/circuit-breaker";
@@ -304,6 +306,21 @@ export async function POST(req: Request) {
   const rl = await rateLimit(`chat:${authCtx.userId}`, 30, 60 * 1000);
   if (!rl.success) return rateLimitResponse(rl.resetAt);
 
+  // Plan limit enforcement: AI queries
+  const planCheck = await checkPlanLimit(authCtx.tenantId, "aiQueries");
+  if (!planCheck.allowed) {
+    return Response.json(
+      {
+        error: `AI query limit reached (${planCheck.current}/${planCheck.limit}). Upgrade your plan for more AI queries.`,
+        code: "PLAN_LIMIT_EXCEEDED",
+        current: planCheck.current,
+        limit: planCheck.limit,
+        plan: planCheck.plan,
+      },
+      { status: 403 },
+    );
+  }
+
   const {
     messages,
     contextType,
@@ -481,6 +498,9 @@ export async function POST(req: Request) {
     }
 
     try {
+      // Track AI query usage (fire-and-forget)
+      void trackUsage(authCtx.tenantId, "ai_query").catch(() => {});
+
       const result = await tracedStreamText({
         model,
         system: systemPrompt,

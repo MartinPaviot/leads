@@ -239,6 +239,29 @@ export interface TenantSettings {
    *  rule. Writer: WS-4's TAM kickoff stamps on first preview shown.
    *  Reader: `/api/estimate-cost` `isFirstTimeForOp` hint. */
   costPreviewSeenForOp?: Record<string, string>;
+
+  // ── Compliance / DPA tracking ──
+  /**
+   * Data Processing Agreement status per sub-processor. Tracks whether
+   * the tenant admin has requested and/or signed a DPA with each
+   * third-party provider that handles tenant data. Programmatic signing
+   * is not supported — this is a manual tracking mechanism so the admin
+   * can record status and the compliance page can surface it.
+   *
+   * Sub-processors tracked:
+   *   - anthropic  — LLM inference (Claude)
+   *   - neon       — PostgreSQL hosting
+   *   - resend     — transactional email
+   *   - recall     — meeting bot / recording
+   *   - stripe     — billing
+   */
+  dpaStatus?: {
+    anthropic: "not_started" | "requested" | "signed";
+    neon: "not_started" | "requested" | "signed";
+    resend: "not_started" | "requested" | "signed";
+    recall: "not_started" | "requested" | "signed";
+    stripe: "not_started" | "requested" | "signed";
+  };
 }
 
 export interface McpApiKeyEntry {

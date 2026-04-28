@@ -784,6 +784,89 @@ async function evaluatePromptWithRealCases(
   return { score: avgScore, passRate };
 }
 
+// ─── 7. Flywheel Candidate Recording ────────────────────────
+
+/**
+ * Record a user-approved AI output as a candidate few-shot example.
+ *
+ * Called when a user approves an AI-generated draft without editing it
+ * (the strongest positive signal). The output is saved with a low
+ * initial score so `curateFewShotExamples()` can later promote or
+ * prune it based on the agent's quality curve.
+ *
+ * Tenant isolation: examples are scoped by agentId. Input/output text
+ * is sanitized to strip email addresses and phone numbers before
+ * storage, preventing PII from leaking into cross-tenant few-shot
+ * prompts. The agentId namespace already isolates agents, but the
+ * anonymization adds defense-in-depth.
+ */
+export async function recordFlywheelCandidate(
+  agentId: string,
+  input: string,
+  output: string,
+  tenantId: string,
+): Promise<{ id: string } | null> {
+  try {
+    if (!input || !output) return null;
+
+    // Strip PII patterns before storing as few-shot example.
+    // Emails and phone numbers are the most common PII in sales outputs.
+    const sanitize = (text: string): string =>
+      text
+        .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, "[EMAIL]")
+        .replace(/\+?\d[\d\s\-().]{7,}\d/g, "[PHONE]");
+
+    const safeInput = sanitize(input);
+    const safeOutput = sanitize(output);
+
+    // Check for similar existing example (avoid duplicates)
+    const existing = await db
+      .select({ id: agentFewShotExamples.id })
+      .from(agentFewShotExamples)
+      .where(
+        and(
+          eq(agentFewShotExamples.agentId, agentId),
+          eq(agentFewShotExamples.input, safeInput),
+        ),
+      )
+      .limit(1);
+
+    if (existing.length > 0) return { id: existing[0].id };
+
+    // Insert with a low initial score. curateFewShotExamples() will
+    // promote this if the agent's eval pipeline rates it highly, or
+    // prune it when higher-quality examples arrive.
+    const INITIAL_CANDIDATE_SCORE = 0.6;
+
+    const [row] = await db
+      .insert(agentFewShotExamples)
+      .values({
+        agentId,
+        input: safeInput,
+        output: safeOutput,
+        evalScore: INITIAL_CANDIDATE_SCORE,
+        isActive: false, // not active until curateFewShotExamples promotes it
+        tags: [agentId, "user-approved", `tenant:${tenantId}`],
+      })
+      .returning({ id: agentFewShotExamples.id });
+
+    logger.info("[FLYWHEEL] Recorded candidate few-shot example", {
+      id: row.id,
+      agentId,
+      tenantId,
+    });
+
+    return { id: row.id };
+  } catch (err) {
+    logger.warn("[FLYWHEEL] recordFlywheelCandidate failed", {
+      agentId,
+      tenantId,
+      err,
+    });
+    return null;
+  }
+}
+
 // ─── Helpers ─────────────────────────────────────────────────
 
 function getModel() {

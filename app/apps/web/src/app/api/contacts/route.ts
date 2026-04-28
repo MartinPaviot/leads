@@ -5,6 +5,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { inngest } from "@/inngest/client";
 import { embedEntity, contactToText } from "@/lib/embeddings";
 import { extractDomain } from "@/lib/util/email";
+import { checkPlanLimit } from "@/lib/plan-limits";
 
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();
@@ -122,6 +123,21 @@ export async function POST(req: Request) {
   const authCtx = await getAuthContext();
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Plan limit enforcement: contacts
+  const planCheck = await checkPlanLimit(authCtx.tenantId, "contacts");
+  if (!planCheck.allowed) {
+    return Response.json(
+      {
+        error: `Contact limit reached (${planCheck.current}/${planCheck.limit}). Upgrade your plan to add more contacts.`,
+        code: "PLAN_LIMIT_EXCEEDED",
+        current: planCheck.current,
+        limit: planCheck.limit,
+        plan: planCheck.plan,
+      },
+      { status: 403 },
+    );
   }
 
   try {

@@ -10,6 +10,8 @@ import { eq, and, sql, inArray } from "drizzle-orm";
 import { Resend } from "resend";
 import { buildUnsubscribeUrl } from "@/lib/unsubscribe-token";
 import { signTrackingId } from "@/lib/tracking-token";
+import { checkPlanLimit } from "@/lib/plan-limits";
+import { trackUsage } from "@/lib/billing";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -293,6 +295,22 @@ export const processOutboundEmails = inngest.createFunction(
             : mailbox.emailAddress;
         }
 
+        // Plan limit enforcement: monthly email cap
+        const planCheck = await checkPlanLimit(email.tenantId, "emails");
+        if (!planCheck.allowed) {
+          await db
+            .update(outboundEmails)
+            .set({
+              status: "failed",
+              failedAt: new Date(),
+              errorMessage: `Monthly email limit reached (${planCheck.current}/${planCheck.limit}). Upgrade plan to send more.`,
+              updatedAt: new Date(),
+            })
+            .where(eq(outboundEmails.id, email.id));
+          failed++;
+          return;
+        }
+
         if (!resend) {
           await db
             .update(outboundEmails)
@@ -368,6 +386,9 @@ export const processOutboundEmails = inngest.createFunction(
               updatedAt: new Date(),
             })
             .where(eq(outboundEmails.id, email.id));
+
+          // Track usage for plan limits
+          await trackUsage(email.tenantId, "email_sent").catch(() => {});
 
           // Update mailbox sent count
           if (mailbox && email.mailboxId) {
@@ -496,6 +517,21 @@ export const sendSingleEmail = inngest.createFunction(
       return { emailId, sent: false, reason: "RESEND_API_KEY not configured" };
     }
 
+    // Plan limit enforcement: monthly email cap (event-driven sends)
+    const planCheck = await checkPlanLimit(email.tenantId, "emails");
+    if (!planCheck.allowed) {
+      await db
+        .update(outboundEmails)
+        .set({
+          status: "failed",
+          failedAt: new Date(),
+          errorMessage: `Monthly email limit reached (${planCheck.current}/${planCheck.limit}). Upgrade plan to send more.`,
+          updatedAt: new Date(),
+        })
+        .where(eq(outboundEmails.id, emailId));
+      return { emailId, sent: false, reason: "Plan email limit reached" };
+    }
+
     const result = await step.run("send", async () => {
       const appUrl =
         process.env.NEXT_PUBLIC_APP_URL || "https://app.elevay.com";
@@ -550,6 +586,9 @@ export const sendSingleEmail = inngest.createFunction(
           updatedAt: new Date(),
         })
         .where(eq(outboundEmails.id, emailId));
+
+      // Track usage for plan limits
+      await trackUsage(email.tenantId, "email_sent").catch(() => {});
 
       return { sent: true, messageId: data?.id };
     });

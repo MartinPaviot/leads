@@ -29,6 +29,7 @@ import { serviceHealthCheck } from "@/inngest/health-checks";
 import { signalAutoEnroll } from "@/inngest/signal-to-sequence";
 import { nightlyRelationshipGraphBuild, onDemandRelationshipGraphBuild } from "@/inngest/relationship-graph-builder";
 import { customSignalBackfill } from "@/inngest/custom-signal-backfill";
+import { dataRetentionPurge } from "@/inngest/data-retention";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -103,5 +104,7 @@ export const { GET, POST, PUT } = serve({
     // Custom TAM signals — user-defined boolean chips, backfilled
     // over the full TAM via the three-tier detector.
     customSignalBackfill,
+    // GDPR data-retention: purge canceled tenant data after 30 days
+    dataRetentionPurge,
   ],
 });

@@ -137,8 +137,9 @@ describe("circuit breaker behavior", () => {
       } catch { /* expected */ }
     }
 
-    const status = getCircuitStatus();
-    expect(status[APOLLO_CIRCUIT.name].state).toBe("open");
+    const status = getCircuitStatus() as unknown as Array<{ name: string; state: string }>;
+    const apolloCircuit = status.find((c) => c.name === APOLLO_CIRCUIT.name);
+    expect(apolloCircuit?.state).toBe("open");
   });
 
   it("rejects immediately when circuit is open", async () => {
@@ -240,9 +241,10 @@ describe("ICP seniority mapping (BUG-WS0-007 fix)", () => {
     expect(result).toContain("director");
   });
 
-  it("handles empty array", async () => {
+  it("falls back to defaults on empty array", async () => {
     const { senioritiesToApollo } = await import("@/lib/icp-constants");
-    expect(senioritiesToApollo([])).toEqual([]);
+    const result = senioritiesToApollo([]);
+    expect(result.length).toBeGreaterThan(0);
   });
 });
 

@@ -2,6 +2,8 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { outboundEmails, contacts, companies, sequenceEnrollments } from "@/db/schema";
 import { eq, and, inArray, sql } from "drizzle-orm";
+import { recordAutonomyEvent } from "@/lib/guardrails/trust-score";
+import { recordFlywheelCandidate } from "@/lib/evals/flywheel";
 
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();
@@ -77,6 +79,8 @@ export async function PUT(req: Request) {
 
   switch (action) {
     case "approve": {
+      const hasEdits = !!(subject || bodyHtml);
+
       await db
         .update(outboundEmails)
         .set({
@@ -87,6 +91,54 @@ export async function PUT(req: Request) {
           updatedAt: new Date(),
         })
         .where(and(eq(outboundEmails.id, emailId), eq(outboundEmails.tenantId, authCtx.tenantId)));
+
+      // Trust signal: approved_no_edit is the strongest positive signal;
+      // approved_with_edit is weaker (the user still had to fix something).
+      const eventType = hasEdits ? "approved_with_edit" : "approved_no_edit";
+      recordAutonomyEvent({
+        tenantId: authCtx.tenantId,
+        userId: authCtx.userId,
+        eventType,
+        entityRef: `email:${emailId}`,
+        reason: hasEdits
+          ? "Email approved with user edits"
+          : "Email approved without edits",
+      }).catch(() => {
+        // Swallow — trust scoring must never block the approval flow.
+      });
+
+      // Flywheel: when approved without edits, the AI output is a
+      // candidate few-shot example. Fetch the original draft to capture
+      // the input/output pair for the flywheel.
+      if (!hasEdits) {
+        const [emailRow] = await db
+          .select({
+            subject: outboundEmails.subject,
+            bodyHtml: outboundEmails.bodyHtml,
+            contactId: outboundEmails.contactId,
+          })
+          .from(outboundEmails)
+          .where(
+            and(
+              eq(outboundEmails.id, emailId),
+              eq(outboundEmails.tenantId, authCtx.tenantId),
+            ),
+          )
+          .limit(1);
+
+        if (emailRow) {
+          const input = `Draft email to contact ${emailRow.contactId || "unknown"}`;
+          const output = `Subject: ${emailRow.subject || ""}\n\n${emailRow.bodyHtml || ""}`;
+          recordFlywheelCandidate(
+            "draft-email",
+            input,
+            output,
+            authCtx.tenantId,
+          ).catch(() => {
+            // Swallow — flywheel is best-effort, never blocks approval.
+          });
+        }
+      }
       break;
     }
     case "skip": {
@@ -139,6 +191,21 @@ export async function POST(req: Request) {
           eq(outboundEmails.status, "draft")
         )
       );
+
+    // Bulk approval = approved_no_edit for each email. Emit one trust
+    // event per email to keep the audit trail granular. Fire-and-forget
+    // so the response isn't blocked by N sequential writes.
+    Promise.allSettled(
+      emailIds.map((id: string) =>
+        recordAutonomyEvent({
+          tenantId: authCtx.tenantId,
+          userId: authCtx.userId,
+          eventType: "approved_no_edit",
+          entityRef: `email:${id}`,
+          reason: "Email approved via bulk approve_all",
+        }),
+      ),
+    ).catch(() => {});
   }
 
   return Response.json({ success: true, count: emailIds.length });
