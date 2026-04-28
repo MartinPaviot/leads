@@ -153,6 +153,15 @@ export async function PUT(
       }).catch((err) => {
         console.warn("deals/[id]: scoring model retrain trigger failed (non-blocking)", err);
       });
+
+      // Trigger automatic win/loss post-mortem analysis. Runs in the
+      // background via Inngest so it never blocks the deal update.
+      void inngest.send({
+        name: "deal/closed",
+        data: { dealId: id, tenantId: authCtx.tenantId, outcome: stage },
+      }).catch((err) => {
+        console.warn("deals/[id]: win-loss analysis trigger failed (non-blocking)", err);
+      });
     }
 
     return Response.json({ deal: updated });

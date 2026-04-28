@@ -35,6 +35,9 @@ import { extractThreadIntelligenceBatch, extractSingleThreadIntelligence } from 
 import { weeklyModelTraining, trainScoringModelOnDemand } from "@/inngest/scoring-model-trainer";
 import { weeklyPromptOptimizer } from "@/inngest/prompt-optimizer-cron";
 import { generateDossier } from "@/inngest/dossier-builder";
+import { executeCustomWorkflow } from "@/inngest/custom-workflow-executor";
+import { analyzeClosedDeal } from "@/inngest/win-loss-analysis";
+import { dailyStallPrediction, onDemandStallPrediction } from "@/inngest/stall-prediction-cron";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -123,5 +126,12 @@ export const { GET, POST, PUT } = serve({
     weeklyPromptOptimizer,
     // Research dossier — autonomous company intelligence builder
     generateDossier,
+    // Custom NL workflows — user-defined automations created via chat
+    executeCustomWorkflow,
+    // Win/Loss analysis — automatic post-mortem on deal close
+    analyzeClosedDeal,
+    // Stall prediction — daily cron + on-demand for dashboard
+    dailyStallPrediction,
+    onDemandStallPrediction,
   ],
 });

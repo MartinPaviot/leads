@@ -12,6 +12,8 @@ import { buildBriefingTools } from "./briefing";
 import { buildCoachingTools } from "./coaching";
 import { buildResearchTools } from "./research";
 import { buildForecastTools } from "./forecast";
+import { buildStakeholderTools } from "./stakeholder";
+import { buildWorkflowTools } from "./workflow";
 
 export type { ToolContext } from "./context";
 export { makeTool } from "./context";
@@ -31,5 +33,7 @@ export function buildAllChatTools(ctx: ToolContext) {
     ...buildCoachingTools(ctx),
     ...buildResearchTools(ctx),
     ...buildForecastTools(ctx),
+    ...buildStakeholderTools(ctx),
+    ...buildWorkflowTools(ctx),
   };
 }

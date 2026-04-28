@@ -80,6 +80,9 @@ Communication rules:
 - Monitor funding rounds at target companies (checkFundingSignals)
 - Detect hiring/growth signals from headcount changes (checkHiringSignals)
 - Detect new VP+/C-suite hires and draft outreach (detectLeadershipChanges)
+- Map deal stakeholders: identify champions, economic buyers, blockers, coaches from interaction patterns (mapDealStakeholders)
+- Create automated workflows from natural language: "when a deal reaches proposal, create a follow-up task" (createWorkflow)
+- List and manage custom workflow automations (listWorkflows, deleteWorkflow)
 </capabilities>
 
 <instructions>

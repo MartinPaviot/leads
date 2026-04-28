@@ -3,6 +3,8 @@ import { activities, companies, contacts, deals } from "@/db/schema";
 import { and, desc, eq, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { makeTool, type ToolContext } from "./context";
+import { scoreBuyerIntent, type BuyerIntentScore } from "@/lib/scoring/buyer-intent";
+import { predictStalls, type StallPrediction } from "@/lib/analysis/stall-predictor";
 
 export function buildIntelligenceTools(ctx: ToolContext) {
   const { tenantId } = ctx;
@@ -150,6 +152,18 @@ export function buildIntelligenceTools(ctx: ToolContext) {
             .limit(10),
         ]);
 
+        // Score buyer intent for each contact (cap at 5 to avoid latency)
+        const contactsToScore = companyContacts.slice(0, 5);
+        const intentScores: Record<string, { score: number; trend: string }> = {};
+        for (const c of contactsToScore) {
+          try {
+            const intent = await scoreBuyerIntent(c.id, tenantId);
+            intentScores[c.id] = { score: intent.score, trend: intent.trend };
+          } catch {
+            // Non-critical: skip failed scores
+          }
+        }
+
         return {
           account: {
             id: company.id,
@@ -180,6 +194,7 @@ export function buildIntelligenceTools(ctx: ToolContext) {
             name: [c.firstName, c.lastName].filter(Boolean).join(" "),
             title: c.title,
             email: c.email,
+            buyerIntent: intentScores[c.id] || null,
           })),
           deals: companyDeals.map((d) => ({
             id: d.id,
@@ -363,6 +378,113 @@ Examples: "What did we discuss with Acme last call?" "What were the action items
             };
           }),
         };
+      },
+    }),
+
+    getBuyerIntentScore: makeTool({
+      description:
+        "Get a contact's buyer intent score based on behavioral signals (response time, meeting acceptance, questions asked, email length trends, forwarding patterns, document requests, after-hours engagement). Use when user asks 'how engaged is this contact', 'what's the intent score for X', 'is this buyer interested', or 'buyer signals for X'.",
+      inputSchema: z.object({
+        contactId: z.string().describe("The contact ID to score"),
+      }),
+      execute: async (input) => {
+        try {
+          const score = await scoreBuyerIntent(input.contactId, tenantId);
+          return {
+            contactId: score.contactId,
+            score: score.score,
+            trend: score.trend,
+            topSignals: score.signals
+              .filter((s) => s.value > 0)
+              .sort((a, b) => b.value * b.weight - a.value * a.weight)
+              .slice(0, 5)
+              .map((s) => ({
+                type: s.type,
+                contribution: Math.round(s.value * s.weight),
+                evidence: s.evidence,
+              })),
+            summary:
+              score.score >= 70
+                ? "High intent -- this buyer is actively evaluating"
+                : score.score >= 40
+                  ? "Moderate intent -- engaged but not yet in buying mode"
+                  : "Low intent -- minimal engagement signals detected",
+          };
+        } catch (err) {
+          return { error: `Failed to score buyer intent: ${err}` };
+        }
+      },
+    }),
+
+    getDealsAtRisk: makeTool({
+      description:
+        "Get deals that are predicted to stall in the next 7 days, with specific risk indicators and suggested interventions. Use when user asks 'which deals are at risk', 'stalling deals', 'pipeline health', 'deals about to stall', or 'what needs attention'.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        try {
+          const predictions = await predictStalls(tenantId);
+          const atRisk = predictions.filter((p) => p.stallProbability >= 0.3);
+
+          return {
+            totalOpenDeals: predictions.length + (predictions.length === 0 ? 0 : 0),
+            dealsAtRisk: atRisk.length,
+            predictions: atRisk.slice(0, 10).map((p) => ({
+              dealId: p.dealId,
+              dealName: p.dealName,
+              stallProbability: Math.round(p.stallProbability * 100),
+              daysUntilLikelyStall: p.daysUntilLikelyStall,
+              topIndicators: p.indicators
+                .slice(0, 3)
+                .map((i) => `[${i.severity}] ${i.detail}`),
+              topIntervention: p.suggestedInterventions[0]?.action || null,
+            })),
+          };
+        } catch (err) {
+          return { error: `Failed to predict stalls: ${err}` };
+        }
+      },
+    }),
+
+    getWinLossAnalysis: makeTool({
+      description:
+        "Get the win/loss post-mortem analysis for a closed deal. Shows key factors, engagement velocity, champion presence, competitor impact, objection handling, and recommendations. Use when user asks 'why did we win/lose X deal', 'deal post-mortem', 'win-loss analysis', or 'what went wrong with X deal'.",
+      inputSchema: z.object({
+        dealId: z.string().describe("The closed deal ID to analyze"),
+      }),
+      execute: async (input) => {
+        const [deal] = await db
+          .select({ properties: deals.properties, stage: deals.stage, name: deals.name })
+          .from(deals)
+          .where(and(eq(deals.id, input.dealId), eq(deals.tenantId, tenantId)))
+          .limit(1);
+
+        if (!deal) return { error: "Deal not found" };
+        if (deal.stage !== "won" && deal.stage !== "lost") {
+          return { error: "Deal is not closed yet. Win/loss analysis is only available for won or lost deals." };
+        }
+
+        const props = (deal.properties || {}) as Record<string, unknown>;
+
+        // Return cached analysis if available
+        if (props.winLossAnalysis) {
+          return {
+            dealName: deal.name,
+            cachedAt: props.winLossAnalyzedAt,
+            analysis: props.winLossAnalysis,
+          };
+        }
+
+        // Run analysis on-demand if not yet cached
+        try {
+          const { analyzeWinLoss } = await import("@/lib/analysis/win-loss-engine");
+          const analysis = await analyzeWinLoss(input.dealId, tenantId);
+          return {
+            dealName: deal.name,
+            analysis,
+          };
+        } catch (err) {
+          return { error: `Failed to run win/loss analysis: ${err}` };
+        }
       },
     }),
   };

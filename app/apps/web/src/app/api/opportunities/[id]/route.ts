@@ -6,6 +6,7 @@ import { eq, desc, and, isNull } from "drizzle-orm";
 import { logAudit } from "@/lib/audit-log";
 import { softDelete } from "@/lib/soft-delete";
 import { apiError } from "@/lib/api-errors";
+import { inngest } from "@/inngest/client";
 import { z } from "zod";
 
 const VALID_STAGES = ["lead", "qualification", "demo", "trial", "proposal", "negotiation", "won", "lost"] as const;
@@ -143,6 +144,16 @@ export async function PUT(
     .set(updates)
     .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
     .returning();
+
+  // Trigger win/loss analysis when deal is closed
+  if (body.stage === "won" || body.stage === "lost") {
+    void inngest.send({
+      name: "deal/closed",
+      data: { dealId: id, tenantId: authCtx.tenantId, outcome: body.stage },
+    }).catch((err) => {
+      console.warn("opportunities/[id]: win-loss analysis trigger failed (non-blocking)", err);
+    });
+  }
 
   return Response.json({ deal: updated });
 }

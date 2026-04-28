@@ -20,6 +20,7 @@ import {
   type CustomObjectTypeDef,
 } from "@/lib/tenant-settings";
 import { logToolCall } from "@/lib/chat/tool-call-log";
+import { inngest } from "@/inngest/client";
 import { makeTool, type ToolContext } from "./context";
 
 export function buildUpdateTools(ctx: ToolContext) {
@@ -571,6 +572,14 @@ export function buildUpdateTools(ctx: ToolContext) {
           summary: `Stage changed from ${oldStage} to ${input.newStage}`,
           metadata: { oldStage, newStage: input.newStage },
         });
+
+        // Trigger win/loss analysis for closed deals
+        if (input.newStage === "won" || input.newStage === "lost") {
+          void inngest.send({
+            name: "deal/closed",
+            data: { dealId: input.dealId, tenantId, outcome: input.newStage },
+          }).catch(() => {});
+        }
 
         return { updated: { id: deal.id, name: deal.name, oldStage, newStage: input.newStage } };
       },
