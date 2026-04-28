@@ -219,6 +219,49 @@ export function transcriptToText(segments: TranscriptSegment[]): string {
 }
 
 /**
+ * Alias for getBotTranscript — convenience export matching the naming
+ * convention used by callers that don't need the "Bot" prefix.
+ */
+export const getTranscript = getBotTranscript;
+
+/**
+ * Check whether the Recall.ai API is reachable and authenticated.
+ * Returns a health status object. Does NOT use the circuit breaker so
+ * health probes never trip it open.
+ */
+export async function getBotHealth(): Promise<{
+  healthy: boolean;
+  latencyMs: number;
+  error?: string;
+}> {
+  const start = Date.now();
+  try {
+    const res = await fetch(`${RECALL_BASE}/bot/?limit=1`, {
+      headers: headers(),
+      signal: AbortSignal.timeout(5_000),
+    });
+    const latencyMs = Date.now() - start;
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return {
+        healthy: false,
+        latencyMs,
+        error: `Recall.ai returned ${res.status}: ${text.slice(0, 200)}`,
+      };
+    }
+
+    return { healthy: true, latencyMs };
+  } catch (err) {
+    return {
+      healthy: false,
+      latencyMs: Date.now() - start,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
  * Delete a bot (stops recording if in progress).
  */
 export async function deleteBot(botId: string): Promise<void> {

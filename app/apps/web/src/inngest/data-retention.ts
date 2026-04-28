@@ -58,6 +58,25 @@ async function purgeTableVia(
   return count;
 }
 
+/**
+ * Purge non-audit activities for a tenant. Audit entries
+ * (activity_type = 'system_event' with metadata->>'audit' = 'true')
+ * are excluded to comply with the 7-year SOC 2 retention requirement.
+ * See lib/audit-log.ts for the full retention policy documentation.
+ */
+async function purgeNonAuditActivities(tenantId: string): Promise<number> {
+  const countResult = await db.execute(
+    sql`SELECT COUNT(*)::int AS c FROM activities WHERE tenant_id = ${tenantId} AND NOT (activity_type = 'system_event' AND metadata->>'audit' = 'true')`
+  );
+  const count = (countResult as unknown as Array<{ c: number }>)[0]?.c ?? 0;
+  if (count > 0) {
+    await db.execute(
+      sql`DELETE FROM activities WHERE tenant_id = ${tenantId} AND NOT (activity_type = 'system_event' AND metadata->>'audit' = 'true')`
+    );
+  }
+  return count;
+}
+
 export const dataRetentionPurge = inngest.createFunction(
   {
     id: "data-retention-purge",
@@ -118,7 +137,10 @@ export const dataRetentionPurge = inngest.createFunction(
 
         // ── Activities, notes, tasks, comments ──────────────
         totalRows += await purgeTable("comments", tenant.id);
-        totalRows += await purgeTable("activities", tenant.id);
+        // IMPORTANT: Audit entries (activity_type = 'system_event' with
+        // metadata.audit = true) are retained for 7 years per SOC 2
+        // requirements. We only purge non-audit activities here.
+        totalRows += await purgeNonAuditActivities(tenant.id);
         totalRows += await purgeTable("notes", tenant.id);
         totalRows += await purgeTable("tasks", tenant.id);
 

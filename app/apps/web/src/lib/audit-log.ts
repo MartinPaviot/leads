@@ -1,3 +1,24 @@
+/**
+ * Audit logging — tamper-evident, HMAC-signed activity records.
+ *
+ * RETENTION POLICY (SOC 2 Type II):
+ *
+ *   Audit entries are retained for 7 years per SOC 2 requirements.
+ *   The data-retention cron (inngest/data-retention.ts) does NOT purge
+ *   audit entries for canceled tenants. Audit rows live in the
+ *   `activities` table with `activity_type = 'system_event'` and
+ *   `metadata.audit = true`. The purge function explicitly excludes
+ *   these rows to ensure compliance with the 7-year retention window.
+ *
+ *   Per-tenant retention period is configured via `auditRetentionPolicy`
+ *   in TenantSettings (default: "7y"). This value is informational and
+ *   enforced by the data-retention cron — individual delete operations
+ *   must check it before removing any activity row with `audit: true`.
+ *
+ *   DO NOT add audit rows to any bulk-delete or data-export-and-purge
+ *   flow without legal review.
+ */
+
 import { db } from "@/db";
 import { activities } from "@/db/schema";
 import { signAuditEntry } from "@/lib/signed-audit";

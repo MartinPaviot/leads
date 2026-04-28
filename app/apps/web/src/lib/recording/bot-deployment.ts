@@ -17,9 +17,74 @@ import { decideBrandingMode, type BrandingDecision } from "@/lib/recording/brand
 import { sendNotification } from "@/lib/notifications";
 import { generateOptOutToken } from "@/lib/recording/opt-out-token";
 
+/**
+ * Error classification for bot deployment failures.
+ *
+ * Distinguishes between three failure modes so callers can show
+ * appropriate user-facing messages and take different retry/remediation
+ * actions:
+ *
+ * - "invalid_meeting_link"  — The meeting URL is malformed, expired, or
+ *                             points to an unsupported platform. The user
+ *                             should check and re-enter the link. Not
+ *                             retriable.
+ *
+ * - "bot_removed_by_attendee" — The bot successfully joined but was
+ *                             manually removed (kicked) by a meeting
+ *                             participant. Re-deploying is possible but
+ *                             may be unwelcome. Log for analytics.
+ *
+ * - "recording_failed"      — A technical error prevented recording
+ *                             (network timeout, Recall.ai outage,
+ *                             transcription provider failure, etc.).
+ *                             Retriable after a delay.
+ */
+export type BotErrorCategory =
+  | "invalid_meeting_link"
+  | "bot_removed_by_attendee"
+  | "recording_failed";
+
+/**
+ * Classify a Recall.ai status code + sub_code into a user-actionable
+ * error category. Returns null when the status does not represent a
+ * failure.
+ */
+export function classifyBotError(
+  code: string,
+  subCode: string | null | undefined
+): BotErrorCategory | null {
+  // Fatal / error states
+  if (code === "fatal" || code === "error") {
+    // Recall sub-codes for link issues
+    if (
+      subCode === "invalid_meeting_url" ||
+      subCode === "meeting_not_found" ||
+      subCode === "cannot_join_meeting"
+    ) {
+      return "invalid_meeting_link";
+    }
+
+    // Bot was removed by a participant
+    if (
+      subCode === "kicked" ||
+      subCode === "removed_by_host" ||
+      subCode === "bot_was_removed"
+    ) {
+      return "bot_removed_by_attendee";
+    }
+
+    // Everything else is a technical failure
+    return "recording_failed";
+  }
+
+  // Not a failure state
+  return null;
+}
+
 export type DeploymentOutcome =
   | { status: "created"; bot: RecallBot; decision: BrandingDecision }
-  | { status: "skipped"; reason: "opted_out" | "attendee_opted_out" | "missing_link" | "missing_activity" | "already_scheduled"; decision: BrandingDecision | null };
+  | { status: "skipped"; reason: "opted_out" | "attendee_opted_out" | "missing_link" | "missing_activity" | "already_scheduled"; decision: BrandingDecision | null }
+  | { status: "failed"; reason: BotErrorCategory; error: string; decision: BrandingDecision | null };
 
 export async function createBotForActivity(
   activityId: string,

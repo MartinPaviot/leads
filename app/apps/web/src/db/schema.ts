@@ -1595,6 +1595,47 @@ export const agentActions = pgTable(
   ]
 );
 
+// ============================================================
+// CROSS-TENANT ANONYMIZED SIGNAL BENCHMARKS (#96)
+// ============================================================
+
+/**
+ * Aggregated, anonymized signal outcome rates across tenants. Each row
+ * is a "bucket" keyed by (industry, companySize, signalType). Only
+ * buckets where >=10 distinct tenants contributed are materialized
+ * (k-anonymity guarantee). Refreshed weekly by the
+ * `cron-anonymized-signal-aggregation` Inngest function.
+ *
+ * No company names, contact names, or email addresses are stored —
+ * only aggregate counts and rates.
+ */
+export const anonymizedSignalBenchmarks = pgTable(
+  "anonymized_signal_benchmarks",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    industry: text("industry").notNull(),
+    companySize: text("company_size").notNull(),
+    signalType: text("signal_type").notNull(),
+    /** % of signals in this bucket that led to won deals (0.0 - 1.0). */
+    outcomeRate: real("outcome_rate").notNull(),
+    /** Number of distinct tenants contributing to this bucket. */
+    tenantCount: integer("tenant_count").notNull(),
+    /** Total number of signal outcome observations across all tenants. */
+    totalObservations: integer("total_observations").notNull(),
+    /** Average deal cycle in days for won deals in this bucket. */
+    avgDealCycleDays: real("avg_deal_cycle_days"),
+    /** ISO timestamp of the aggregation run that produced this row. */
+    aggregatedAt: timestamp("aggregated_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("asb_industry_size_idx").on(table.industry, table.companySize),
+    index("asb_signal_type_idx").on(table.signalType),
+    uniqueIndex("asb_bucket_unique_idx").on(table.industry, table.companySize, table.signalType),
+  ]
+);
+
 /**
  * Append-only audit trail for every trustScore change. Visible to the
  * user via WS-8's Agent Memory panel (learned-preference category).

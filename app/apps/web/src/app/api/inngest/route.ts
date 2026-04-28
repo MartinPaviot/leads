@@ -30,6 +30,7 @@ import { signalAutoEnroll } from "@/inngest/signal-to-sequence";
 import { nightlyRelationshipGraphBuild, onDemandRelationshipGraphBuild } from "@/inngest/relationship-graph-builder";
 import { customSignalBackfill } from "@/inngest/custom-signal-backfill";
 import { dataRetentionPurge } from "@/inngest/data-retention";
+import { weeklyAnonymizedSignalAggregation } from "@/inngest/anonymized-signal-aggregation";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -106,5 +107,7 @@ export const { GET, POST, PUT } = serve({
     customSignalBackfill,
     // GDPR data-retention: purge canceled tenant data after 30 days
     dataRetentionPurge,
+    // Cross-tenant anonymized benchmarks (#96)
+    weeklyAnonymizedSignalAggregation,
   ],
 });

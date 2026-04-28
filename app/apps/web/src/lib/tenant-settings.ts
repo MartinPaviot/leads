@@ -240,6 +240,35 @@ export interface TenantSettings {
    *  Reader: `/api/estimate-cost` `isFirstTimeForOp` hint. */
   costPreviewSeenForOp?: Record<string, string>;
 
+  // ── Cross-tenant learning (#96) ──
+  /**
+   * Whether this tenant's anonymized signal outcomes (industry, company
+   * size, signal type, win/loss rate) are included in cross-tenant
+   * benchmark aggregation. No PII is ever shared — only aggregate counts
+   * and rates, and only when >=10 tenants contribute to a bucket
+   * (k-anonymity). Defaults to true (opt-out).
+   */
+  anonymizedDataContribution?: boolean;
+
+  // ── Compliance / audit retention ──
+  /**
+   * How long audit log entries (HMAC-signed system_event activities)
+   * are retained before the data-retention cron is allowed to purge
+   * them. Default: "7y" (7 years) per SOC 2 Type II requirements.
+   *
+   * Accepted values follow the pattern `<number><unit>` where unit is
+   * "y" (years), "m" (months), or "d" (days). The data-retention cron
+   * in inngest/data-retention.ts reads this value when deciding whether
+   * an audit row has exceeded its retention window.
+   *
+   * In practice the cron currently preserves ALL audit rows for
+   * canceled tenants unconditionally (the 7-year window is enforced
+   * by never deleting them during the 30-day tenant purge). This field
+   * exists so a future scheduled job can age-out audit entries that
+   * have exceeded the configured retention period.
+   */
+  auditRetentionPolicy?: string; // default "7y"
+
   // ── Compliance / DPA tracking ──
   /**
    * Data Processing Agreement status per sub-processor. Tracks whether
@@ -347,6 +376,7 @@ const DEFAULTS: Required<Pick<
   | "sendingAllowColdOnPrimary"
   | "trustScore"
   | "agentMemoryPanelDiscovered"
+  | "auditRetentionPolicy"
 >> = {
   aiTone: "Direct",
   salesMotion: "Founder-led sales",
@@ -360,6 +390,7 @@ const DEFAULTS: Required<Pick<
   sendingAllowColdOnPrimary: false,
   trustScore: 0.0,
   agentMemoryPanelDiscovered: false,
+  auditRetentionPolicy: "7y",
 };
 
 // ── Per-request cache ──
