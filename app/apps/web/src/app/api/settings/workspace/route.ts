@@ -122,6 +122,13 @@ export async function PUT(req: Request) {
         ? String(body.recordingOptOutReason).slice(0, 80)
         : null;
     }
+    // Privacy — default data visibility (O7)
+    if (body.defaultDataVisibility !== undefined) {
+      const v = String(body.defaultDataVisibility);
+      if (["everyone", "team", "private"].includes(v)) {
+        updates.defaultDataVisibility = v;
+      }
+    }
     if (body.primaryDomain !== undefined) {
       updates.primaryDomain = body.primaryDomain
         ? String(body.primaryDomain).trim().toLowerCase()
