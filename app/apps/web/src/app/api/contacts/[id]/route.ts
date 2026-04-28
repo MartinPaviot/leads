@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { contacts, activities, sequenceEnrollments } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth-utils";
+import { requirePermission } from "@/lib/permissions";
 import { eq, and, sql, isNull } from "drizzle-orm";
 import { logAudit } from "@/lib/audit-log";
 import { softDelete } from "@/lib/soft-delete";
@@ -125,6 +126,9 @@ export async function DELETE(
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const denied = requirePermission(authCtx.role, "contacts:delete");
+  if (denied) return denied;
 
   const { id } = await params;
 

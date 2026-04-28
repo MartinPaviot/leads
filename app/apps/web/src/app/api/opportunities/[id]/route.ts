@@ -1,7 +1,10 @@
 import { getAuthContext } from "@/lib/auth-utils";
+import { requirePermission } from "@/lib/permissions";
 import { db } from "@/db";
 import { deals, companies, activities } from "@/db/schema";
 import { eq, desc, and, isNull } from "drizzle-orm";
+import { logAudit } from "@/lib/audit-log";
+import { softDelete } from "@/lib/soft-delete";
 import { apiError } from "@/lib/api-errors";
 import { z } from "zod";
 
@@ -142,4 +145,42 @@ export async function PUT(
     .returning();
 
   return Response.json({ deal: updated });
+}
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const denied = requirePermission(authCtx.role, "deals:delete");
+  if (denied) return denied;
+
+  const { id } = await params;
+
+  const [existing] = await db
+    .select({ id: deals.id, name: deals.name })
+    .from(deals)
+    .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)))
+    .limit(1);
+
+  if (!existing) {
+    return apiError("NOT_FOUND", "Deal not found");
+  }
+
+  await softDelete("deals", id, authCtx.tenantId);
+
+  await logAudit({
+    tenantId: authCtx.tenantId,
+    userId: authCtx.appUserId,
+    action: "delete",
+    entityType: "deal",
+    entityId: id,
+    metadata: { name: existing.name, softDeleted: true },
+  });
+
+  return Response.json({ success: true, id });
 }

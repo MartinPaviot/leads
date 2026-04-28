@@ -30,10 +30,21 @@ import {
   Radio,
 } from "lucide-react";
 
+interface NavItem {
+  label: string;
+  href: string;
+  icon: typeof User;
+  /** When `false`, the tab is hidden from the sidebar but the page
+   *  remains accessible via direct URL. Used for power-user features
+   *  that would show empty states and add noise for founders in
+   *  early-stage sales. Defaults to `true` when omitted. */
+  ready?: boolean;
+}
+
 interface NavSection {
   label: string;
   adminOnly?: boolean;
-  items: Array<{ label: string; href: string; icon: typeof User }>;
+  items: NavItem[];
 }
 
 const settingsNav: NavSection[] = [
@@ -49,19 +60,22 @@ const settingsNav: NavSection[] = [
   {
     label: "Workspace",
     items: [
-      { label: "Custom Objects", href: "/settings/objects", icon: Box },
-      { label: "Data Model", href: "/settings/data-model", icon: Database },
       { label: "General", href: "/settings/workspace", icon: Building },
       { label: "ICP & Product", href: "/settings/icp", icon: Target },
-      { label: "Knowledge", href: "/settings/knowledge", icon: BookOpen },
       { label: "Mail & Calendar", href: "/settings/mail-calendar", icon: Mail },
       { label: "Members", href: "/settings/members", icon: Users },
+      { label: "Knowledge", href: "/settings/knowledge", icon: BookOpen },
       { label: "Notifications", href: "/settings/notifications", icon: Bell },
       { label: "Opportunity Stages", href: "/settings/stages", icon: GitBranch },
-      { label: "Plays", href: "/settings/plays", icon: Layers },
-      { label: "Recording", href: "/settings/recording", icon: Video },
-      { label: "Signals", href: "/settings/signals", icon: Radio },
-      { label: "Workflows", href: "/settings/workflows", icon: Workflow },
+      { label: "Data Model", href: "/settings/data-model", icon: Database },
+      // ── Hidden: functional pages that show empty states for most
+      // early-stage users. Pages stay accessible via direct URL.
+      // Flip `ready` to `true` when the feature is promoted. ──
+      { label: "Custom Objects", href: "/settings/objects", icon: Box, ready: false },
+      { label: "Plays", href: "/settings/plays", icon: Layers, ready: false },
+      { label: "Recording", href: "/settings/recording", icon: Video, ready: false },
+      { label: "Signals", href: "/settings/signals", icon: Radio, ready: false },
+      { label: "Workflows", href: "/settings/workflows", icon: Workflow, ready: false },
     ],
   },
   {
@@ -71,7 +85,6 @@ const settingsNav: NavSection[] = [
       { label: "Evaluations", href: "/settings/evals", icon: FlaskConical },
       { label: "LLM Budget", href: "/settings/llm-budget", icon: DollarSign },
       { label: "MCP Integration", href: "/settings/mcp", icon: Plug },
-      // Pixel Keys removed: page does not exist yet
     ],
   },
   {
@@ -97,9 +110,13 @@ export default function SettingsSidebar({
   const visibleSections = settingsNav
     .filter((s) => !s.adminOnly || isAdmin)
     .map((s) => {
-      if (!filter.trim()) return s;
-      const q = filter.trim().toLowerCase();
-      return { ...s, items: s.items.filter((i) => i.label.toLowerCase().includes(q)) };
+      // Filter out items that aren't ready yet (ready defaults to true)
+      let items = s.items.filter((i) => i.ready !== false);
+      if (filter.trim()) {
+        const q = filter.trim().toLowerCase();
+        items = items.filter((i) => i.label.toLowerCase().includes(q));
+      }
+      return { ...s, items };
     })
     .filter((s) => s.items.length > 0);
 

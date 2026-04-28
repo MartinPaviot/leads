@@ -12,6 +12,7 @@ import { EmailComposer } from "@/components/email-composer";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
 import { OnboardingV2Wrapper } from "@/components/onboarding-v2-wrapper";
 import { WarmLeadPrompt } from "@/components/WarmLeadPrompt";
+import { useOnboardingVersion } from "@/hooks/use-onboarding-version";
 import { TAMRevealNotification } from "@/components/TAMRevealNotification";
 import { ScalingPathPrompt } from "@/components/ScalingPathPrompt";
 import { CompanyLogo } from "@/components/ui/company-logo";
@@ -134,10 +135,11 @@ export default function DashboardPage() {
   const [onboardingName, setOnboardingName] = useState<string | undefined>();
   const [onboardingUserId, setOnboardingUserId] = useState<string | undefined>();
   const [onboardingInitialStep, setOnboardingInitialStep] = useState<string | null>(null);
-  // WS-2 — v2 confirmation-card feature flag. Fetched alongside hydrate.
-  const [onboardingV2Enabled, setOnboardingV2Enabled] = useState<boolean>(false);
-  // WS-3 — warm-lead prompt flag.
-  const [warmLeadPromptEnabled, setWarmLeadPromptEnabled] = useState<boolean>(false);
+  // WS-2/3 — consolidated onboarding version hook. Returns "v1" | "v2"
+  // based on all v2 feature flags. When version === "v2", only the
+  // confirmation card renders; when "v1", the full wizard renders. No
+  // dual-render is possible.
+  const { version: onboardingVersion, flags: onboardingFlags } = useOnboardingVersion();
   const [emailComposer, setEmailComposer] = useState<{
     to: string;
     subject: string;
@@ -195,21 +197,6 @@ export default function DashboardPage() {
         typeof onb.onboardingCurrentStep === "string" ? onb.onboardingCurrentStep : null
       );
     }
-
-    // WS-2 — fetch flag map alongside hydrate. Failure → v1 by
-    // default (safe fallback). The flag only decides the onboarding
-    // UX; it can never leak a destructive behavior change.
-    fetch("/api/experiments")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((payload) => {
-        if (cancelled) return;
-        const flags = (payload?.flags ?? {}) as Record<string, boolean>;
-        setOnboardingV2Enabled(!!flags["onboarding.v2.confirmation-card"]);
-        setWarmLeadPromptEnabled(!!flags["onboarding.v2.warm-lead-prompt"]);
-      })
-      .catch(() => {
-        /* v1 default */
-      });
 
     // H1 — single hydrate round-trip. Server fans out to the six
     // underlying handlers in parallel; any section that fails server-
@@ -370,7 +357,7 @@ export default function DashboardPage() {
 
         {/* WS-3 — Warm-lead prompt, gated by onboarding.v2.warm-lead-prompt.
             Renders only post-onboarding so it doesn't race the wizard. */}
-        {warmLeadPromptEnabled && !showOnboarding && (
+        {onboardingFlags.warmLeadPrompt && !showOnboarding && (
           <div className="mt-4">
             <WarmLeadPrompt />
           </div>
@@ -965,35 +952,39 @@ export default function DashboardPage() {
         />
       )}
 
-      {showOnboarding && onboardingV2Enabled && (
-        <OnboardingV2Wrapper
-          userId={onboardingUserId}
-          userEmail={onboardingEmail}
-          userName={onboardingName}
-          onComplete={() => {
-            setShowOnboarding(false);
-            window.location.href = "/?firstTime=true";
-          }}
-        />
-      )}
-
-      {showOnboarding && !onboardingV2Enabled && (
-        <OnboardingWizard
-          hasGoogle={onboardingHasGoogle}
-          hasMicrosoft={onboardingHasMicrosoft}
-          userEmail={onboardingEmail}
-          userName={onboardingName}
-          userId={onboardingUserId}
-          initialStep={onboardingInitialStep as never}
-          onComplete={() => {
-            setShowOnboarding(false);
-            // Hard reload after onboarding completion so the just-run
-            // Inngest TAM-build job has its results picked up by a
-            // fresh hydrate pass. SPA push would keep the stale
-            // pre-onboarding state.
-            window.location.href = "/?firstTime=true";
-          }}
-        />
+      {/* Onboarding — consolidated via useOnboardingVersion().
+          When version === "v2", only the confirmation card renders.
+          When version === "v1", the full wizard renders. Only one
+          branch is ever mounted; no dual-render is possible. */}
+      {showOnboarding && (
+        onboardingVersion === "v2" ? (
+          <OnboardingV2Wrapper
+            userId={onboardingUserId}
+            userEmail={onboardingEmail}
+            userName={onboardingName}
+            onComplete={() => {
+              setShowOnboarding(false);
+              window.location.href = "/?firstTime=true";
+            }}
+          />
+        ) : (
+          <OnboardingWizard
+            hasGoogle={onboardingHasGoogle}
+            hasMicrosoft={onboardingHasMicrosoft}
+            userEmail={onboardingEmail}
+            userName={onboardingName}
+            userId={onboardingUserId}
+            initialStep={onboardingInitialStep as never}
+            onComplete={() => {
+              setShowOnboarding(false);
+              // Hard reload after onboarding completion so the just-run
+              // Inngest TAM-build job has its results picked up by a
+              // fresh hydrate pass. SPA push would keep the stale
+              // pre-onboarding state.
+              window.location.href = "/?firstTime=true";
+            }}
+          />
+        )
       )}
     </div>
   );

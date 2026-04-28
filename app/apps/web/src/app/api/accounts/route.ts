@@ -4,6 +4,7 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { and, eq, sql, desc, isNull } from "drizzle-orm";
 import { inngest } from "@/inngest/client";
 import { apiError } from "@/lib/api-errors";
+import { paginatedResponse } from "@/lib/api-response";
 import { z } from "zod";
 
 const createAccountSchema = z.object({
@@ -93,24 +94,9 @@ export async function GET(req: Request) {
       lastInteraction: lastInteractions[a.id] || null,
     }));
 
-    // A1 — dual shape: the old keys (`accounts`, `pagination.totalPages`)
-    // stay for the existing dashboard page, plus the canonical
-    // `PaginatedResponse<T>` fields (`items`, `pagination.hasMore`) so
-    // `usePaginatedList<Account>({ endpoint: "/api/accounts" })` can
-    // consume this endpoint without a client-side shim. Callers can
-    // migrate off `accounts` when they rewrite to the hook.
-    const hasMore = page * pageSize < total;
-    return Response.json({
-      accounts: enrichedAccounts,
-      items: enrichedAccounts,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize),
-        hasMore,
-      },
-    });
+    // A1 — canonical paginated response via shared helper.
+    // Legacy key `accounts` preserved for existing consumers.
+    return paginatedResponse(enrichedAccounts, { page, pageSize, total }, "accounts");
   } catch (error) {
     console.error("Failed to fetch accounts:", error);
     return Response.json({ error: "Failed to fetch accounts" }, { status: 500 });

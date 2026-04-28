@@ -4,6 +4,7 @@ import { getAuthContext } from "@/lib/auth-utils";
 import { and, eq, gte, lte, sql, desc, asc, inArray, isNull } from "drizzle-orm";
 import { logAudit } from "@/lib/audit-log";
 import { apiError } from "@/lib/api-errors";
+import { paginatedResponse } from "@/lib/api-response";
 import { z } from "zod";
 
 const VALID_STAGES = ["lead", "qualification", "demo", "trial", "proposal", "negotiation", "won", "lost"] as const;
@@ -108,15 +109,10 @@ export async function GET(req: Request) {
         .where(whereClause),
     ]);
 
-    return Response.json({
-      deals: result,
-      pagination: {
-        page,
-        pageSize,
-        total: countResult[0]?.count ?? 0,
-        totalPages: Math.ceil((countResult[0]?.count ?? 0) / pageSize),
-      },
-    });
+    const total = countResult[0]?.count ?? 0;
+    // Canonical paginated response. Legacy key `deals` preserved for
+    // existing consumers; `hasMore` added via the shared helper.
+    return paginatedResponse(result, { page, pageSize, total }, "deals");
   } catch (error) {
     console.error("Failed to fetch deals:", error);
     return Response.json({ error: "Failed to fetch deals" }, { status: 500 });

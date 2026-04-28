@@ -1,4 +1,5 @@
 import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { requirePermission } from "@/lib/permissions";
 import { db } from "@/db";
 import { tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -56,8 +57,9 @@ export async function PUT(req: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const adminCheck = requireAdmin(authCtx);
-  if (adminCheck) return adminCheck;
+  // Granular permission check (subsumes the old admin-only gate)
+  const denied = requirePermission(authCtx.role, "settings:write");
+  if (denied) return denied;
 
   try {
     const body = await req.json();

@@ -7,6 +7,7 @@ import { embedEntity, contactToText } from "@/lib/embeddings";
 import { extractDomain } from "@/lib/util/email";
 import { checkPlanLimit } from "@/lib/plan-limits";
 import { apiError } from "@/lib/api-errors";
+import { paginatedResponse } from "@/lib/api-response";
 import { z } from "zod";
 
 const createContactSchema = z.object({
@@ -114,21 +115,9 @@ export async function GET(req: Request) {
       lastInteraction: lastInteractions[c.id] || null,
     }));
 
-    // K1 — dual shape (same pattern as /api/accounts A1): legacy keys
-    // preserved for current consumers + canonical `items` / `hasMore`
-    // added so `usePaginatedList<Contact>` consumes it without a shim.
-    const hasMore = page * pageSize < total;
-    return Response.json({
-      contacts: enrichedContacts,
-      items: enrichedContacts,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize),
-        hasMore,
-      },
-    });
+    // K1 — canonical paginated response via shared helper.
+    // Legacy key `contacts` preserved for existing consumers.
+    return paginatedResponse(enrichedContacts, { page, pageSize, total }, "contacts");
   } catch (error) {
     console.error("Failed to fetch contacts:", error);
     return apiError("INTERNAL_ERROR", "Failed to fetch contacts");

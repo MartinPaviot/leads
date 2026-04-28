@@ -1,5 +1,6 @@
 import { db } from "@/db";
 import { activities } from "@/db/schema";
+import { signAuditEntry } from "@/lib/signed-audit";
 
 export async function logAudit(params: {
   tenantId: string;
@@ -11,6 +12,19 @@ export async function logAudit(params: {
   metadata?: Record<string, unknown>;
 }): Promise<void> {
   try {
+    const timestamp = new Date().toISOString();
+
+    // Compute HMAC-SHA256 signature for tamper-evident audit trail
+    const signature = signAuditEntry({
+      action: params.action,
+      entityType: params.entityType,
+      entityId: params.entityId,
+      tenantId: params.tenantId,
+      userId: params.userId,
+      timestamp,
+      changes: (params.changes as Record<string, unknown>) ?? {},
+    });
+
     await db.insert(activities).values({
       tenantId: params.tenantId,
       activityType: "system_event",
@@ -25,6 +39,8 @@ export async function logAudit(params: {
         audit: true,
         action: params.action,
         changes: params.changes ?? null,
+        signature,
+        signedAt: timestamp,
         ...params.metadata,
       },
     });

@@ -1,4 +1,5 @@
 import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { requirePermission } from "@/lib/permissions";
 import { db } from "@/db";
 import { pendingInvites, users, tenants } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -12,8 +13,10 @@ const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
   if (!authCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const adminCheck = requireAdmin(authCtx);
-  if (adminCheck) return adminCheck;
+
+  // Granular permission check (subsumes the old admin-only gate)
+  const denied = requirePermission(authCtx.role, "members:invite");
+  if (denied) return denied;
 
   let body: { email?: unknown; role?: unknown };
   try {
