@@ -6,6 +6,8 @@ import { eq, and } from "drizzle-orm";
 import { tracedGenerateText } from "@/lib/traced-ai";
 import { anthropic } from "@/lib/ai-provider";
 import { openai } from "@ai-sdk/openai";
+import { autofillDealFromIntelligence } from "@/lib/deal-autofill";
+import type { ThreadIntelligence, BuyingSignal } from "@/lib/email-intelligence";
 
 export async function POST(
   req: Request,
@@ -139,6 +141,33 @@ export async function POST(
     }
   }
 
+  // 2b. Auto-fill deal fields from meeting buying signals
+  // Converts raw meeting intel into structured deal updates (value,
+  // expectedCloseDate, competitors, sentiment) through approval mode.
+  if (updateDeal && notes.buyingSignals) {
+    const dealId = meta.dealId || body.dealId;
+    if (dealId) {
+      try {
+        // Build a ThreadIntelligence-shaped object from meeting notes
+        const meetingIntelligence = meetingNotesToIntelligence(notes, activity.id);
+        const contactId = activity.entityType === "contact" && activity.entityId !== "unknown"
+          ? activity.entityId
+          : undefined;
+
+        await autofillDealFromIntelligence({
+          dealId,
+          tenantId: authCtx.tenantId,
+          intelligence: meetingIntelligence,
+          sourceType: "meeting",
+          contactId,
+        });
+      } catch (err) {
+        // Non-blocking — never fail the post-call pipeline for autofill
+        console.warn("post-call: deal autofill failed", err);
+      }
+    }
+  }
+
   // 3. Generate follow-up email draft
   if (generateFollowUp) {
     const model = process.env.ANTHROPIC_API_KEY
@@ -245,4 +274,64 @@ RULES:
     followUpDraft,
     dealUpdated,
   });
+}
+
+// ── Helper: convert meeting notes to ThreadIntelligence shape ──
+
+/**
+ * Adapts the structured meeting notes format into a ThreadIntelligence
+ * object so autofillDealFromIntelligence can process it uniformly
+ * regardless of whether the source was email or meeting.
+ */
+function meetingNotesToIntelligence(
+  notes: Record<string, unknown>,
+  activityId: string,
+): ThreadIntelligence {
+  const signals: BuyingSignal[] = [];
+  const buyingSignals = notes.buyingSignals as Record<string, unknown> | undefined;
+
+  if (buyingSignals) {
+    if (buyingSignals.budget) {
+      signals.push({
+        type: "budget",
+        evidence: String(buyingSignals.budget),
+        confidence: 0.85,
+      });
+    }
+    if (buyingSignals.timeline) {
+      signals.push({
+        type: "timeline",
+        evidence: String(buyingSignals.timeline),
+        confidence: 0.85,
+      });
+    }
+    if (buyingSignals.decisionMaker) {
+      signals.push({
+        type: "authority",
+        evidence: String(buyingSignals.decisionMaker),
+        confidence: 0.80,
+      });
+    }
+  }
+
+  const competitors = Array.isArray(buyingSignals?.competitors)
+    ? (buyingSignals!.competitors as string[])
+    : [];
+
+  // Derive sentiment from overall tone if available
+  const sentiment = (buyingSignals?.sentiment as ThreadIntelligence["sentiment"]) || "neutral";
+
+  return {
+    threadId: `meeting-${activityId}`,
+    signals,
+    competitors,
+    sentiment,
+    sentimentTrend: "stable",
+    objections: [],
+    nextSteps: Array.isArray(buyingSignals?.nextSteps)
+      ? (buyingSignals!.nextSteps as string[])
+      : [],
+    urgencyLevel: "none",
+    extractedAt: new Date().toISOString(),
+  };
 }

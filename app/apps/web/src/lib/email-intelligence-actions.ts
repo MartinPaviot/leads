@@ -31,6 +31,7 @@ import { getTenantSettings } from "@/lib/tenant-settings";
 import { recordAgentAction } from "@/lib/agent-actions";
 import { sendNotification } from "@/lib/notifications";
 import type { ThreadIntelligence, BuyingSignal, Objection } from "@/lib/email-intelligence";
+import { autofillDealFromIntelligence } from "@/lib/deal-autofill";
 import logger from "@/lib/logger";
 
 // ── Public Types ──────────────────────────────────────────────
@@ -183,6 +184,31 @@ export async function processIntelligenceActions(
     // Execute all processors sequentially (to avoid race conditions on the same deal)
     for (const processor of processors) {
       await processor();
+    }
+
+    // ── Deal auto-fill: update deal fields directly from signals ──
+    // This closes competitive gap #2 — Rox/Monaco auto-populate deal
+    // fields from conversations; without this, Elevay requires manual entry.
+    if (dealId) {
+      try {
+        const autofillResult = await autofillDealFromIntelligence({
+          dealId,
+          tenantId,
+          intelligence,
+          sourceType: "email",
+          contactId,
+        });
+        logger.info("email-intelligence-actions: deal autofill complete", {
+          dealId,
+          fieldsUpdated: autofillResult.fieldsUpdated,
+          suggestionsCreated: autofillResult.suggestionsCreated,
+        });
+      } catch (err) {
+        logger.warn("email-intelligence-actions: deal autofill failed", {
+          dealId,
+          err,
+        });
+      }
     }
   } catch (err) {
     logger.warn("email-intelligence-actions: processing failed", {
