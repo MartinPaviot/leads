@@ -6,7 +6,8 @@ import { PageHeader, FilterBar } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
-import { EmailComposer } from "@/components/email-composer";
+import { EmailComposerPanel } from "@/components/email-composer-panel";
+import type { EmailComposerDraft } from "@/components/email-composer-panel";
 import { useToast } from "@/components/ui/toast";
 
 interface InboxEmail {
@@ -57,7 +58,7 @@ export default function InboxPage() {
   // right on the email thread; we mirror that pattern from the inbox
   // list so users don't have to jump to the contact detail page.
   const [draftingFor, setDraftingFor] = useState<string | null>(null);
-  const [composer, setComposer] = useState<{ to: string; subject: string; body: string } | null>(null);
+  const [composer, setComposer] = useState<EmailComposerDraft | null>(null);
 
   async function draftAiReply(email: InboxEmail) {
     if (!email.replySnippet) return;
@@ -256,10 +257,8 @@ export default function InboxPage() {
       </div>
 
       {composer && (
-        <EmailComposer
-          to={composer.to}
-          subject={composer.subject}
-          body={composer.body}
+        <EmailComposerPanel
+          draft={composer}
           onClose={() => setComposer(null)}
         />
       )}

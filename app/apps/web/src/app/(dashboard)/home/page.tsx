@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
-import { EmailComposer } from "@/components/email-composer";
+import { EmailComposerPanel } from "@/components/email-composer-panel";
+import type { EmailComposerDraft } from "@/components/email-composer-panel";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
 import { OnboardingV2Wrapper } from "@/components/onboarding-v2-wrapper";
 import { WarmLeadPrompt } from "@/components/WarmLeadPrompt";
@@ -140,11 +141,7 @@ export default function DashboardPage() {
   // confirmation card renders; when "v1", the full wizard renders. No
   // dual-render is possible.
   const { version: onboardingVersion, flags: onboardingFlags } = useOnboardingVersion();
-  const [emailComposer, setEmailComposer] = useState<{
-    to: string;
-    subject: string;
-    body: string;
-  } | null>(null);
+  const [emailComposer, setEmailComposer] = useState<EmailComposerDraft | null>(null);
   const [priorities, setPriorities] = useState<{ contactId: string; name: string; title: string | null; company: string | null; companyDomain: string | null; emailCount: number; topReason: string }[]>([]);
   const [recommendations, setRecommendations] = useState<{ title: string; description: string; urgency: number; entityType: string; entityId: string; suggestedAction: string }[]>([]);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -906,10 +903,8 @@ export default function DashboardPage() {
       )}
 
       {emailComposer && (
-        <EmailComposer
-          to={emailComposer.to}
-          subject={emailComposer.subject}
-          body={emailComposer.body}
+        <EmailComposerPanel
+          draft={emailComposer}
           onClose={() => setEmailComposer(null)}
         />
       )}

@@ -8,7 +8,8 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { ChatMarkdown } from "@/components/chat-markdown";
 import { ToolCallGroup } from "@/components/tool-call-panel";
 import { ActionCard, parseToolResultForCard } from "@/components/action-card";
-import { EmailComposer } from "@/components/email-composer";
+import { EmailComposerPanel } from "@/components/email-composer-panel";
+import type { EmailComposerDraft } from "@/components/email-composer-panel";
 import { StreamingSkeleton } from "@/components/chat/streaming-skeleton";
 import { FollowUpPills, extractFollowUps } from "@/components/chat/follow-up-pills";
 import { CopyButton } from "@/components/chat/copy-button";
@@ -38,11 +39,7 @@ export default function ChatPage() {
   const [localInput, setLocalInput] = useState("");
   const [autoSent, setAutoSent] = useState(false);
   const [lastSavedCount, setLastSavedCount] = useState(0);
-  const [emailComposer, setEmailComposer] = useState<{
-    to: string;
-    subject: string;
-    body: string;
-  } | null>(null);
+  const [emailComposer, setEmailComposer] = useState<EmailComposerDraft | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [firstName, setFirstName] = useState<string>("");
 
@@ -774,10 +771,8 @@ export default function ChatPage() {
       </div>
 
       {emailComposer && (
-        <EmailComposer
-          to={emailComposer.to}
-          subject={emailComposer.subject}
-          body={emailComposer.body}
+        <EmailComposerPanel
+          draft={emailComposer}
           onClose={() => setEmailComposer(null)}
         />
       )}

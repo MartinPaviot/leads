@@ -15,7 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { useToast } from "@/components/ui/toast";
-import { EmailComposer } from "@/components/email-composer";
+import { EmailComposerPanel } from "@/components/email-composer-panel";
+import type { EmailComposerDraft } from "@/components/email-composer-panel";
 
 interface Deal {
   id: string;
@@ -142,7 +143,7 @@ export default function DealDetailPage() {
   const [winProb, setWinProb] = useState<WinProbData | null>(null);
   const [stallRisk, setStallRisk] = useState<StallPrediction | null>(null);
   const [winLoss, setWinLoss] = useState<WinLossAnalysis | null>(null);
-  const [emailComposer, setEmailComposer] = useState<{ to: string; subject: string; body: string } | null>(null);
+  const [emailComposer, setEmailComposer] = useState<EmailComposerDraft | null>(null);
 
   const fetchIntel = useCallback(async () => {
     try {
@@ -315,6 +316,23 @@ export default function DealDetailPage() {
           <Badge variant={stageBadgeVariant[deal.stage] || "neutral"} size="md">
             {deal.stage.toUpperCase()}
           </Badge>
+          <div className="ml-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Send size={13} />}
+              onClick={() =>
+                setEmailComposer({
+                  to: "",
+                  subject: `Re: ${deal.name}`,
+                  body: `Hi,\n\n`,
+                  dealId,
+                })
+              }
+            >
+              Email contact
+            </Button>
+          </div>
         </div>
 
         {/* Y3 — auto-progress suggestion banner */}
@@ -437,6 +455,7 @@ export default function DealDetailPage() {
                             to: "",
                             subject: `Following up: ${deal.name}`,
                             body: `Hi,\n\n${intervention.action}\n\n${intervention.reasoning}\n\nBest regards`,
+                            dealId,
                           })
                         }
                         className="rounded-md px-2 py-1 text-[11px] font-medium transition-colors"
@@ -661,10 +680,8 @@ export default function DealDetailPage() {
       </div>
 
       {emailComposer && (
-        <EmailComposer
-          to={emailComposer.to}
-          subject={emailComposer.subject}
-          body={emailComposer.body}
+        <EmailComposerPanel
+          draft={emailComposer}
           onClose={() => setEmailComposer(null)}
         />
       )}

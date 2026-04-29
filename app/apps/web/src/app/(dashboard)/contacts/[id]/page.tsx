@@ -3,9 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Check, X, Pencil, TrendingUp, TrendingDown, Minus, Gauge } from "lucide-react";
+import { Check, X, Pencil, TrendingUp, TrendingDown, Minus, Gauge, Mail, Send } from "lucide-react";
 import { ScopedChat } from "@/components/scoped-chat";
-import { EmailComposer } from "@/components/email-composer";
+import { EmailComposerPanel } from "@/components/email-composer-panel";
+import type { EmailComposerDraft } from "@/components/email-composer-panel";
+import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
@@ -61,7 +63,7 @@ export default function ContactDetailPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [companies, setCompanies] = useState<Map<string, Company>>(new Map());
   const [loading, setLoading] = useState(true);
-  const [emailComposer, setEmailComposer] = useState<{ to: string; subject: string; body: string } | null>(null);
+  const [emailComposer, setEmailComposer] = useState<EmailComposerDraft | null>(null);
   const [buyerIntent, setBuyerIntent] = useState<BuyerIntentScore | null>(null);
   const { toast } = useToast();
 
@@ -193,7 +195,7 @@ export default function ContactDetailPage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-accent)] text-lg font-bold text-white">
             {initials}
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-xl font-semibold">{name}</h1>
             <p className="text-sm text-[var(--color-text-secondary)]">
               {contact.title || "No title"} {contact.email ? `\u00b7 ${contact.email}` : ""}
@@ -205,6 +207,23 @@ export default function ContactDetailPage() {
               })()}
             </p>
           </div>
+          {contact.email && (
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Send size={13} />}
+              onClick={() =>
+                setEmailComposer({
+                  to: contact.email!,
+                  subject: "",
+                  body: `Hi ${contact.firstName || "there"},\n\n`,
+                  contactId,
+                })
+              }
+            >
+              Send email
+            </Button>
+          )}
         </div>
 
         {/* Activity Timeline */}
@@ -250,6 +269,7 @@ export default function ContactDetailPage() {
                           to: contact?.email || "",
                           subject: `Re: ${activity.summary?.slice(0, 50) || "your email"}`,
                           body: `Hi ${contact?.firstName || "there"},\n\nThanks for your email. ${activity.summary ? `Regarding "${activity.summary.slice(0, 80)}..." — ` : ""}\n\nBest regards`,
+                          contactId,
                         })}
                         className="mt-2 text-[10px] text-[var(--color-accent)] hover:underline"
                       >
@@ -373,10 +393,8 @@ export default function ContactDetailPage() {
       </div>
 
       {emailComposer && (
-        <EmailComposer
-          to={emailComposer.to}
-          subject={emailComposer.subject}
-          body={emailComposer.body}
+        <EmailComposerPanel
+          draft={emailComposer}
           onClose={() => setEmailComposer(null)}
         />
       )}
