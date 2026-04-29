@@ -1,7 +1,7 @@
 import { db, agentTraces, agentPromptVersions, agentFailurePatterns } from "../../../lib/db";
 import { desc, eq, sql, gte, count, and } from "drizzle-orm";
 import { StatCard } from "../../../components/stat-card";
-import { AGENT_REGISTRY } from "@web/lib/observability";
+import { AGENT_REGISTRY } from "@web/lib/agent-registry";
 
 export const dynamic = "force-dynamic";
 
@@ -48,11 +48,11 @@ async function getActivePatterns() {
       patternType: agentFailurePatterns.patternType,
       description: agentFailurePatterns.description,
       frequency: agentFailurePatterns.frequency,
-      status: agentFailurePatterns.status,
+      resolution: agentFailurePatterns.resolution,
       createdAt: agentFailurePatterns.createdAt,
     })
     .from(agentFailurePatterns)
-    .where(eq(agentFailurePatterns.status, "active"))
+    .where(sql`${agentFailurePatterns.resolvedAt} IS NULL`)
     .orderBy(desc(agentFailurePatterns.frequency))
     .limit(20);
 }

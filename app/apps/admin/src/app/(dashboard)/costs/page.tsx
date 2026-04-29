@@ -1,16 +1,16 @@
 import { db, agentTraces, tenants } from "../../../lib/db";
 import { sql, desc, gte, eq, count } from "drizzle-orm";
 import { StatCard } from "../../../components/stat-card";
-import { AGENT_REGISTRY } from "@web/lib/observability";
+import { AGENT_REGISTRY } from "@web/lib/agent-registry";
 
 export const dynamic = "force-dynamic";
 
 async function getTotalCost30d(since: Date) {
   const [row] = await db
     .select({
-      totalCost: sql<number>`coalesce(sum(${agentTraces.cost}), 0)`,
+      totalCost: sql<number>`coalesce(sum(${agentTraces.estimatedCost}), 0)`,
       totalTraces: count(),
-      avgCostPerTrace: sql<number>`case when count(*) > 0 then sum(${agentTraces.cost}) / count(*) else 0 end`,
+      avgCostPerTrace: sql<number>`case when count(*) > 0 then sum(${agentTraces.estimatedCost}) / count(*) else 0 end`,
     })
     .from(agentTraces)
     .where(gte(agentTraces.createdAt, since));
@@ -26,14 +26,14 @@ async function getCostByAgent(since: Date) {
   const rows = await db
     .select({
       agentId: agentTraces.agentId,
-      totalCost: sql<number>`coalesce(sum(${agentTraces.cost}), 0)`,
+      totalCost: sql<number>`coalesce(sum(${agentTraces.estimatedCost}), 0)`,
       traceCount: count(),
       successCount: sql<number>`count(*) filter (where ${agentTraces.status} = 'ok')`,
     })
     .from(agentTraces)
     .where(gte(agentTraces.createdAt, since))
     .groupBy(agentTraces.agentId)
-    .orderBy(desc(sql`sum(${agentTraces.cost})`));
+    .orderBy(desc(sql`sum(${agentTraces.estimatedCost})`));
 
   return rows.map((r) => ({
     agentId: r.agentId,
@@ -50,7 +50,7 @@ async function getCostByModel(since: Date) {
   const rows = await db
     .select({
       model: agentTraces.model,
-      totalCost: sql<number>`coalesce(sum(${agentTraces.cost}), 0)`,
+      totalCost: sql<number>`coalesce(sum(${agentTraces.estimatedCost}), 0)`,
       traceCount: count(),
       avgInputTokens: sql<number>`avg(${agentTraces.inputTokens})::int`,
       avgOutputTokens: sql<number>`avg(${agentTraces.outputTokens})::int`,
@@ -58,7 +58,7 @@ async function getCostByModel(since: Date) {
     .from(agentTraces)
     .where(sql`${agentTraces.createdAt} >= ${since} AND ${agentTraces.model} IS NOT NULL`)
     .groupBy(agentTraces.model)
-    .orderBy(desc(sql`sum(${agentTraces.cost})`));
+    .orderBy(desc(sql`sum(${agentTraces.estimatedCost})`));
 
   return rows.map((r) => ({
     model: r.model || "unknown",
@@ -74,14 +74,14 @@ async function getCostByTenant(since: Date) {
     .select({
       tenantId: agentTraces.tenantId,
       tenantName: tenants.name,
-      totalCost: sql<number>`coalesce(sum(${agentTraces.cost}), 0)`,
+      totalCost: sql<number>`coalesce(sum(${agentTraces.estimatedCost}), 0)`,
       traceCount: count(),
     })
     .from(agentTraces)
     .leftJoin(tenants, eq(tenants.id, agentTraces.tenantId))
     .where(sql`${agentTraces.createdAt} >= ${since} AND ${agentTraces.tenantId} IS NOT NULL`)
     .groupBy(agentTraces.tenantId, tenants.name)
-    .orderBy(desc(sql`sum(${agentTraces.cost})`))
+    .orderBy(desc(sql`sum(${agentTraces.estimatedCost})`))
     .limit(10);
 
   return rows.map((r) => ({
@@ -104,7 +104,7 @@ async function getDailyCostTrend(days: number) {
     )
     SELECT
       days.day,
-      coalesce(sum(${agentTraces.cost}), 0) AS cost,
+      coalesce(sum(${agentTraces.estimatedCost}), 0) AS cost,
       count(${agentTraces.id}) AS traces
     FROM days
     LEFT JOIN ${agentTraces}
@@ -129,13 +129,13 @@ async function getBudgetUtilization() {
       tenantId: agentTraces.tenantId,
       tenantName: tenants.name,
       tenantSettings: tenants.settings,
-      totalCost: sql<number>`coalesce(sum(${agentTraces.cost}), 0)`,
+      totalCost: sql<number>`coalesce(sum(${agentTraces.estimatedCost}), 0)`,
     })
     .from(agentTraces)
     .leftJoin(tenants, eq(tenants.id, agentTraces.tenantId))
     .where(sql`${agentTraces.createdAt} >= ${thirtyDaysAgo} AND ${agentTraces.tenantId} IS NOT NULL`)
     .groupBy(agentTraces.tenantId, tenants.name, tenants.settings)
-    .orderBy(desc(sql`sum(${agentTraces.cost})`));
+    .orderBy(desc(sql`sum(${agentTraces.estimatedCost})`));
 
   return rows
     .map((r) => {

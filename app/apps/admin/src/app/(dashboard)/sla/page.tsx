@@ -1,7 +1,7 @@
 import { db, agentTraces } from "../../../lib/db";
 import { sql, desc, gte, count } from "drizzle-orm";
 import { StatCard } from "../../../components/stat-card";
-import { AGENT_REGISTRY } from "@web/lib/observability";
+import { AGENT_REGISTRY } from "@web/lib/agent-registry";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +48,7 @@ async function getPerAgentSLA(since: Date): Promise<AgentSLA[]> {
       avgEvalScore: sql<number>`avg(${agentTraces.evalScore})`,
       evalCount: sql<number>`count(${agentTraces.evalScore})`,
       p95Latency: sql<number>`percentile_cont(0.95) within group (order by ${agentTraces.latencyMs})::int`,
-      avgCost: sql<number>`avg(${agentTraces.cost})`,
+      avgCost: sql<number>`avg(${agentTraces.estimatedCost})`,
     })
     .from(agentTraces)
     .where(gte(agentTraces.createdAt, since))
@@ -111,7 +111,7 @@ async function getSLABreaches(since: Date): Promise<SLABreach[]> {
       agentId: agentTraces.agentId,
       evalScore: agentTraces.evalScore,
       latencyMs: agentTraces.latencyMs,
-      cost: agentTraces.cost,
+      cost: agentTraces.estimatedCost,
       status: agentTraces.status,
       createdAt: agentTraces.createdAt,
     })

@@ -1,7 +1,7 @@
 import { db, agentTraces } from "../../../../lib/db";
 import { eq, desc, gte, sql, count } from "drizzle-orm";
 import { StatCard } from "../../../../components/stat-card";
-import { AGENT_REGISTRY } from "@web/lib/observability";
+import { AGENT_REGISTRY } from "@web/lib/agent-registry";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,7 @@ export default async function AgentDetailPage({ params }: Props) {
       p99Latency: sql<number>`percentile_cont(0.99) within group (order by ${agentTraces.latencyMs})::int`,
       errorCount: sql<number>`count(*) filter (where ${agentTraces.status} in ('error', 'timeout'))`,
       avgEvalScore: sql<number>`avg(${agentTraces.evalScore})`,
-      totalCost: sql<number>`coalesce(sum(${agentTraces.cost}), 0)`,
+      totalCost: sql<number>`coalesce(sum(${agentTraces.estimatedCost}), 0)`,
       avgInputTokens: sql<number>`avg(${agentTraces.inputTokens})::int`,
       avgOutputTokens: sql<number>`avg(${agentTraces.outputTokens})::int`,
     })
@@ -43,7 +43,7 @@ export default async function AgentDetailPage({ params }: Props) {
       latencyMs: agentTraces.latencyMs,
       inputTokens: agentTraces.inputTokens,
       outputTokens: agentTraces.outputTokens,
-      cost: agentTraces.cost,
+      cost: agentTraces.estimatedCost,
       evalScore: agentTraces.evalScore,
       errorMessage: agentTraces.errorMessage,
       createdAt: agentTraces.createdAt,

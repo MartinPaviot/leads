@@ -5,7 +5,7 @@ import { Activity, Clock, DollarSign, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 // Import the agent registry from the web app
-import { AGENT_REGISTRY } from "@web/lib/observability";
+import { AGENT_REGISTRY } from "@web/lib/agent-registry";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +28,7 @@ async function getAgentStats(since: Date): Promise<AgentStats[]> {
       p95Latency: sql<number>`percentile_cont(0.95) within group (order by ${agentTraces.latencyMs})::int`,
       errorCount: sql<number>`count(*) filter (where ${agentTraces.status} in ('error', 'timeout'))`,
       avgEvalScore: sql<number>`avg(${agentTraces.evalScore})`,
-      totalCost: sql<number>`coalesce(sum(${agentTraces.cost}), 0)`,
+      totalCost: sql<number>`coalesce(sum(${agentTraces.estimatedCost}), 0)`,
     })
     .from(agentTraces)
     .where(gte(agentTraces.createdAt, since))
@@ -51,7 +51,7 @@ async function getOverviewStats(since: Date) {
     .select({
       totalTraces: count(),
       totalErrors: sql<number>`count(*) filter (where ${agentTraces.status} in ('error', 'timeout'))`,
-      totalCost: sql<number>`coalesce(sum(${agentTraces.cost}), 0)`,
+      totalCost: sql<number>`coalesce(sum(${agentTraces.estimatedCost}), 0)`,
       avgLatency: sql<number>`avg(${agentTraces.latencyMs})::int`,
     })
     .from(agentTraces)
