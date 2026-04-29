@@ -2,10 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Zap, BarChart3, Network, Sparkles, Radio } from "lucide-react";
+import { Activity, Zap, BarChart3, Network, Sparkles, Radio, FlaskConical, Brain, DollarSign, ShieldCheck, Target } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Agents", icon: Activity },
+  { href: "/evals", label: "Evals", icon: FlaskConical },
+  { href: "/intelligence", label: "Intelligence", icon: Brain },
+  { href: "/costs", label: "Costs", icon: DollarSign },
+  { href: "/sla", label: "SLA", icon: ShieldCheck },
+  { href: "/scoring", label: "Scoring", icon: Target },
   { href: "/flywheel", label: "Flywheel", icon: Zap },
   { href: "/channel", label: "Channel", icon: Radio },
   { href: "/graph", label: "Graph", icon: Network },
@@ -23,7 +28,7 @@ export function AdminNav() {
       <div className="mb-6 flex items-center gap-2 px-2">
         <Sparkles size={18} style={{ color: "var(--color-accent)" }} />
         <span className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
-          LeadSens Admin
+          Elevay Admin
         </span>
       </div>
 

@@ -1,6 +1,6 @@
-import { db, companies, contacts, deals, activities, outboundEmails, sequences, connectedMailboxes } from "../../lib/db";
+import { db, companies, contacts, deals, activities, outboundEmails, sequences, connectedMailboxes } from "../../../lib/db";
 import { sql, count, eq, gte, and } from "drizzle-orm";
-import { StatCard } from "../../components/stat-card";
+import { StatCard } from "../../../components/stat-card";
 
 export const dynamic = "force-dynamic";
 

@@ -624,20 +624,20 @@ export async function getAgentHealth(
     const latencies = agentTraceList
       .map((t) => t.latencyMs)
       .filter((l): l is number => l !== null)
-      .sort((a, b) => a - b);
-    const avgLatency = latencies.length > 0 ? latencies.reduce((a, b) => a + b, 0) / latencies.length : 0;
+      .sort((a: number, b: number) => a - b);
+    const avgLatency = latencies.length > 0 ? latencies.reduce((a: number, b: number) => a + b, 0) / latencies.length : 0;
     const p95Latency = latencies.length > 0 ? latencies[Math.floor(latencies.length * 0.95)] : 0;
 
-    const costs = agentTraceList.map((t) => t.estimatedCost || 0);
-    const totalCost = costs.reduce((a, b) => a + b, 0);
+    const costs = agentTraceList.map((t: { estimatedCost?: number | null }) => t.estimatedCost || 0);
+    const totalCost = costs.reduce((a: number, b: number) => a + b, 0);
     const avgCost = total > 0 ? totalCost / total : 0;
 
     const evalScores = agentTraceList
-      .map((t) => t.evalScore)
-      .filter((s): s is number => s !== null);
-    const avgEvalScore = evalScores.length > 0 ? evalScores.reduce((a, b) => a + b, 0) / evalScores.length : null;
+      .map((t: { evalScore?: number | null }) => t.evalScore)
+      .filter((s: number | null | undefined): s is number => s !== null && s !== undefined);
+    const avgEvalScore = evalScores.length > 0 ? evalScores.reduce((a: number, b: number) => a + b, 0) / evalScores.length : null;
     const evalPassRate = evalScores.length > 0
-      ? evalScores.filter((s) => s >= (agent?.qualityThreshold || 0.7)).length / evalScores.length
+      ? evalScores.filter((s: number) => s >= (agent?.qualityThreshold || 0.7)).length / evalScores.length
       : null;
 
     const errorRate = total > 0 ? errors / total : 0;

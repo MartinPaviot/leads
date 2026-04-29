@@ -1,11 +1,11 @@
-import { db, agentTraces } from "../lib/db";
+import { db, agentTraces } from "../../lib/db";
 import { sql, desc, gte, eq, count } from "drizzle-orm";
-import { StatCard, StatusDot } from "../components/stat-card";
+import { StatCard, StatusDot } from "../../components/stat-card";
 import { Activity, Clock, DollarSign, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 // Import the agent registry from the web app
-import { AGENT_REGISTRY } from "../../web/src/lib/observability";
+import { AGENT_REGISTRY } from "@web/lib/observability";
 
 export const dynamic = "force-dynamic";
 

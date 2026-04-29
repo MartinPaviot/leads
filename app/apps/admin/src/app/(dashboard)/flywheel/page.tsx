@@ -1,7 +1,7 @@
-import { db, agentTraces, agentPromptVersions, agentFailurePatterns } from "../../lib/db";
+import { db, agentTraces, agentPromptVersions, agentFailurePatterns } from "../../../lib/db";
 import { desc, eq, sql, gte, count, and } from "drizzle-orm";
-import { StatCard } from "../../components/stat-card";
-import { AGENT_REGISTRY } from "../../../web/src/lib/observability";
+import { StatCard } from "../../../components/stat-card";
+import { AGENT_REGISTRY } from "@web/lib/observability";
 
 export const dynamic = "force-dynamic";
 

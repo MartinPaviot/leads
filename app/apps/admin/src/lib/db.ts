@@ -2,7 +2,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 // Import schema from the web app — shared source of truth
-import * as schema from "../../web/src/db/schema";
+import * as schema from "@web/db/schema";
 
 const client = postgres(process.env.DATABASE_URL!);
 export const db = drizzle({ client, schema });
@@ -32,4 +32,5 @@ export {
   tenantReferralCredits,
   referralCreditEvents,
   tenants,
-} from "../../web/src/db/schema";
+  signalOutcomes,
+} from "@web/db/schema";

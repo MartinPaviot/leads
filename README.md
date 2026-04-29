@@ -22,7 +22,7 @@ app/
 | Layer | Stack |
 |---|---|
 | Framework | Next.js 15, React 19, TypeScript, Tailwind CSS 4 |
-| Database | PostgreSQL (Neon), Drizzle ORM, pgvector |
+| Database | PostgreSQL (Neon), Drizzle ORM, pgvector, 33 migrations (0000-0032) |
 | Auth | Auth.js v5 (Google OAuth, Microsoft Entra, credentials) |
 | AI | Vercel AI SDK, Anthropic Claude, OpenAI (embeddings + fallback) |
 | Background jobs | Inngest (31 functions), Vercel Cron (5 jobs) |
@@ -47,12 +47,12 @@ Requires: Node 20+, pnpm 10+, PostgreSQL (or Neon connection string).
 ## Testing
 
 ```bash
-pnpm test          # 1186 unit/integration tests (Vitest)
+pnpm test          # 1528 unit/integration tests (Vitest)
 pnpm tsc           # full TypeScript type check
 pnpm eval:run      # agent eval suite (golden-case + flywheel evals)
 ```
 
-113 test files across the web app. E2E tests via Playwright (`pnpm e2e`).
+130 test files across the web app. E2E tests via Playwright (`pnpm e2e`).
 
 ## Key directories
 
@@ -94,7 +94,35 @@ Vercel auto-deploy on merge to `main`. Five cron jobs:
 ## AI architecture
 
 - **126 chat tools** resolved per-turn by the capability resolver (role + surface + feature flags + destructive gating)
+- **Tool router**: Intent-based dynamic tool selection -- detects user intent (query/create/update/action/intelligence/skills) and includes only the relevant tool groups per request instead of sending all 126 tools
 - **4-layer guardrails**: capability resolver (tool access), approval mode (human-in-the-loop gating), sending identity (deliverability protection), progressive trust score (autonomy escalation)
 - **Hybrid search**: BM25 full-text + pgvector embeddings + Reciprocal Rank Fusion (RRF) via the context graph
 - **Circuit breakers**: Automatic fallback (Anthropic down -> OpenAI, Apollo down -> queue for retry)
 - **Bi-temporal knowledge graph**: Entity extraction, resolution, edge invalidation with full history preservation
+
+## Intelligence systems
+
+| System | Path | Description |
+|---|---|---|
+| Deal progression engine | `lib/deal-progression/` | Signal-based auto-progression with configurable rules, stall/at-risk flags, approval mode integration |
+| Buyer intent scoring | `lib/scoring/buyer-intent.ts` | Multi-signal buyer intent model (engagement, content, timing) |
+| Stall predictor | `lib/analysis/stall-predictor.ts` | Proactive stall detection with risk scoring before deals go cold |
+| Win/loss analysis | `lib/analysis/win-loss-engine.ts` | Post-close analysis engine identifying patterns in won and lost deals |
+| Stakeholder mapping | `lib/analysis/stakeholder-map.ts` | Org chart reconstruction from interaction data, champion/blocker detection |
+| Predictive scorer | `lib/scoring/predictive-scorer.ts` | Naive Bayes classifier trained on historical deal outcomes (no LLM, pure math) |
+| Monte Carlo forecasting | `lib/forecasting/monte-carlo.ts` | 10,000-simulation revenue forecaster with p10/p50/p90 confidence intervals |
+| Research dossier builder | `lib/research/dossier-builder.ts` | Auto-generated company research briefs from enrichment + public data |
+
+## NL workflow builder
+
+Natural language workflow definitions stored in `tenants.settings.custom_workflows` (JSONB). Users describe automations in plain language ("Every time a deal reaches proposal stage, schedule a check-in task for 5 days later") and the builder translates to structured trigger + action definitions executed by the Inngest workflow engine. No dedicated table -- workflows live in tenant settings.
+
+## Prompt optimizer
+
+Self-improving prompt system in `lib/prompt-optimizer/`:
+
+1. **Failure analysis** -- clusters low-scoring agent traces by pattern (hallucination, wrong tone, missing citation, etc.)
+2. **Patch generation** -- generates surgical prompt modifications targeting specific failure patterns
+3. **Golden case validation** -- validates patches against golden test cases before deployment
+4. **Canary deployment** -- validated patches deploy at 10% traffic, auto-promote after 48h if eval scores hold
+5. **A/B testing** -- prompt versions tracked via `agentPromptVersions` with per-version eval scores

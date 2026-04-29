@@ -11,9 +11,9 @@
  * Queries only aggregates from `notetaker_exposures` joined with `tenants`.
  */
 
-import { db, notetakerExposures, tenants } from "../../lib/db";
+import { db, notetakerExposures, tenants } from "../../../lib/db";
 import { sql, desc, eq, isNotNull, and, gte } from "drizzle-orm";
-import { StatCard } from "../../components/stat-card";
+import { StatCard } from "../../../components/stat-card";
 
 export const dynamic = "force-dynamic";
 

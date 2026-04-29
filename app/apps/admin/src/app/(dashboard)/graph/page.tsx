@@ -1,6 +1,6 @@
-import { db, contextGraphNodes, contextGraphEdges } from "../../lib/db";
+import { db, contextGraphNodes, contextGraphEdges } from "../../../lib/db";
 import { desc, sql, count, eq } from "drizzle-orm";
-import { StatCard } from "../../components/stat-card";
+import { StatCard } from "../../../components/stat-card";
 
 export const dynamic = "force-dynamic";
 
