@@ -111,6 +111,10 @@ export default function AccountsPage() {
   const { toast } = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalAccounts, setTotalAccounts] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDomain, setNewDomain] = useState("");
@@ -197,26 +201,65 @@ export default function AccountsPage() {
       });
   }, []);
 
-  const fetchAccounts = useCallback(async () => {
+  /** Fetch a single page of accounts.
+   *  - page=1, append=false → initial load (replaces list)
+   *  - page>1, append=true  → "Load more" click
+   *  When called with no args after a mutation (enrich, score, etc.)
+   *  it reloads all pages that were previously loaded so the user
+   *  doesn't lose their scroll position / loaded data. */
+  const fetchAccounts = useCallback(async (page = 1, append = false) => {
     try {
-      // Load all accounts with pagination
-      let allAccounts: Account[] = [];
-      let page = 1;
-      let hasMore = true;
-      while (hasMore) {
-        const res = await fetch(`/api/accounts?pageSize=200&page=${page}`);
-        if (!res.ok) break;
-        const data = await res.json();
-        const batch = data.accounts || data.items || [];
-        allAccounts = [...allAccounts, ...batch];
-        hasMore = batch.length === 200 && allAccounts.length < (data.pagination?.total || Infinity);
-        page++;
+      if (page === 1 && !append) setLoading(true);
+      else setLoadingMore(true);
+      const res = await fetch(`/api/accounts?pageSize=50&page=${page}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const batch: Account[] = data.accounts || data.items || [];
+      const pagination = data.pagination as { page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | undefined;
+      if (append) {
+        setAccounts((prev) => [...prev, ...batch]);
+      } else {
+        setAccounts(batch);
       }
-      setAccounts(allAccounts);
+      setCurrentPage(pagination?.page ?? page);
+      setTotalAccounts(pagination?.total ?? batch.length);
+      setTotalPages(pagination?.totalPages ?? 1);
     } catch (e) {
       console.warn("accounts: list fetch failed", e);
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
   }, []);
+
+  /** Reload all pages that have been loaded so far. Used after mutations
+   *  (enrich, score, create) so the user doesn't snap back to page 1. */
+  const refetchLoadedAccounts = useCallback(async () => {
+    try {
+      const pagesToLoad = Math.max(currentPage, 1);
+      let all: Account[] = [];
+      for (let p = 1; p <= pagesToLoad; p++) {
+        const res = await fetch(`/api/accounts?pageSize=50&page=${p}`);
+        if (!res.ok) break;
+        const data = await res.json();
+        const batch: Account[] = data.accounts || data.items || [];
+        all = [...all, ...batch];
+        if (p === pagesToLoad) {
+          const pagination = data.pagination as { total: number; totalPages: number } | undefined;
+          setTotalAccounts(pagination?.total ?? all.length);
+          setTotalPages(pagination?.totalPages ?? 1);
+        }
+      }
+      setAccounts(all);
+    } catch (e) {
+      console.warn("accounts: refetch failed", e);
+    }
+  }, [currentPage]);
+
+  const loadMoreAccounts = useCallback(() => {
+    if (loadingMore || currentPage >= totalPages) return;
+    fetchAccounts(currentPage + 1, true);
+  }, [fetchAccounts, loadingMore, currentPage, totalPages]);
 
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
 
@@ -227,9 +270,9 @@ export default function AccountsPage() {
   // depends on it.
   useEffect(() => {
     if (tamStream.terminated === "done") {
-      fetchAccounts();
+      refetchLoadedAccounts();
     }
-  }, [tamStream.terminated, fetchAccounts]);
+  }, [tamStream.terminated, refetchLoadedAccounts]);
 
   // Fetch warm-intro paths in a single batched call once accounts
   // are loaded. Keeps the "Connected to" column off the critical
@@ -292,7 +335,7 @@ export default function AccountsPage() {
         body: JSON.stringify({ name: newName.trim(), domain: newDomain.trim() || undefined }),
       });
       if (res.ok) {
-        setNewName(""); setNewDomain(""); setShowCreate(false); fetchAccounts();
+        setNewName(""); setNewDomain(""); setShowCreate(false); refetchLoadedAccounts();
       } else {
         toast("Failed to create account", "error");
       }
@@ -307,7 +350,7 @@ export default function AccountsPage() {
     try {
       const res = await fetch("/api/enrich", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyIds: [id] }) });
       setEnrichStatus((prev) => ({ ...prev, [id]: res.ok ? "done" : "failed" }));
-      if (res.ok) await fetchAccounts();
+      if (res.ok) await refetchLoadedAccounts();
     } catch { setEnrichStatus((prev) => ({ ...prev, [id]: "failed" })); }
   }
 
@@ -335,7 +378,7 @@ export default function AccountsPage() {
         for (const id of ids) next[id] = failedIds.has(id) ? "failed" : "done";
         return next;
       });
-      if (result.succeeded > 0) await fetchAccounts();
+      if (result.succeeded > 0) await refetchLoadedAccounts();
       if (result.failed === 0) {
         toast(`Enriched ${result.succeeded} accounts.`, "success");
       } else if (result.succeeded > 0) {
@@ -365,7 +408,7 @@ export default function AccountsPage() {
           if (total > 20) toast(`Scoring ${done} / ${total} accounts…`, "info");
         },
       });
-      if (result.succeeded > 0) await fetchAccounts();
+      if (result.succeeded > 0) await refetchLoadedAccounts();
       if (result.failed === 0) {
         toast(`Scored ${result.succeeded} accounts.`, "success");
       } else if (result.succeeded > 0) {
@@ -408,7 +451,7 @@ export default function AccountsPage() {
         for (const id of ids) next[id] = failed.has(id) ? "failed" : "done";
         return next;
       });
-      if (r.succeeded > 0) await fetchAccounts();
+      if (r.succeeded > 0) await refetchLoadedAccounts();
       toast(
         r.failed === 0
           ? `Enriched ${r.succeeded} accounts.`
@@ -434,7 +477,7 @@ export default function AccountsPage() {
         endpoint: "/api/score",
         buildPayload: (chunk) => ({ companyIds: chunk }),
       });
-      if (r.succeeded > 0) await fetchAccounts();
+      if (r.succeeded > 0) await refetchLoadedAccounts();
       toast(
         r.failed === 0
           ? `Scored ${r.succeeded} accounts.`
@@ -460,7 +503,7 @@ export default function AccountsPage() {
           if (total > 20) toast(`Detecting signals ${done} / ${total}…`, "info");
         },
       });
-      if (result.succeeded > 0) await fetchAccounts();
+      if (result.succeeded > 0) await refetchLoadedAccounts();
       if (result.failed === 0) {
         toast(`Detected signals for ${result.succeeded} accounts.`, "success");
       } else if (result.succeeded > 0) {
@@ -721,7 +764,7 @@ export default function AccountsPage() {
       <PageHeader
         icon={<Building2 size={16} />}
         title="Accounts"
-        subtitle={`${accounts.length}`}
+        subtitle={`${totalAccounts}`}
       >
         <Button
           variant="outline"
@@ -1555,6 +1598,30 @@ export default function AccountsPage() {
               })}
             </tbody>
           </table>
+          {/* Pagination: Load more */}
+          {currentPage < totalPages && (
+            <div className="flex items-center justify-center gap-3 border-t py-4" style={{ borderColor: "var(--color-border-default)" }}>
+              <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                Showing {accounts.length} of {totalAccounts} accounts
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadMoreAccounts}
+                disabled={loadingMore}
+                loading={loadingMore}
+              >
+                {loadingMore ? "Loading..." : `Load more (${Math.min(50, totalAccounts - accounts.length)} more)`}
+              </Button>
+            </div>
+          )}
+          {currentPage >= totalPages && accounts.length > 0 && (
+            <div className="flex items-center justify-center py-3">
+              <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>
+                Showing all {accounts.length} accounts
+              </span>
+            </div>
+          )}
         )}
       </div>
 
@@ -1654,7 +1721,7 @@ export default function AccountsPage() {
                             endpoint: "/api/enrich",
                             buildPayload: (chunk) => ({ companyIds: chunk }),
                           });
-                          await fetchAccounts();
+                          await refetchLoadedAccounts();
                           toast("Enriched.", "success");
                         } catch (e) {
                           toast("Enrich failed.", "error");
@@ -1696,7 +1763,7 @@ export default function AccountsPage() {
                             endpoint: "/api/score",
                             buildPayload: (chunk) => ({ companyIds: chunk }),
                           });
-                          await fetchAccounts();
+                          await refetchLoadedAccounts();
                           toast("Scored.", "success");
                         } catch (e) {
                           toast("Score failed.", "error");
