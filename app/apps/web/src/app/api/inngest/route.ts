@@ -38,6 +38,7 @@ import { generateDossier } from "@/inngest/dossier-builder";
 import { executeCustomWorkflow } from "@/inngest/custom-workflow-executor";
 import { analyzeClosedDeal } from "@/inngest/win-loss-analysis";
 import { dailyStallPrediction, onDemandStallPrediction } from "@/inngest/stall-prediction-cron";
+import { evaluateRealtimeSignals } from "@/inngest/realtime-signal-handler";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -133,5 +134,7 @@ export const { GET, POST, PUT } = serve({
     // Stall prediction — daily cron + on-demand for dashboard
     dailyStallPrediction,
     onDemandStallPrediction,
+    // Real-time signal detection (competitive gap #3: event-driven, not batch)
+    evaluateRealtimeSignals,
   ],
 });

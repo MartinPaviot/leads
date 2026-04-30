@@ -89,7 +89,7 @@ export const cronCalendarSync = inngest.createFunction(
 
               const isPast = meeting.startTime < new Date();
 
-              await db.insert(activities).values({
+              const [insertedMeeting] = await db.insert(activities).values({
                 tenantId,
                 actorType: "user",
                 actorId: userId,
@@ -114,8 +114,20 @@ export const cronCalendarSync = inngest.createFunction(
                   meetingLink: meeting.meetingLink,
                   status: meeting.status,
                 },
-              });
+              }).returning();
               totalSynced++;
+
+              // Real-time signal detection for completed meetings
+              if (isPast && insertedMeeting) {
+                await inngest.send({
+                  name: "signals/evaluate-realtime",
+                  data: {
+                    type: "meeting_completed" as const,
+                    tenantId,
+                    activityId: insertedMeeting.id,
+                  },
+                }).catch((e) => console.warn("meeting-sync: realtime-signal trigger failed (non-blocking)", e));
+              }
 
               // Auto-schedule Recall.ai bot for upcoming meetings with a meeting link
               if (

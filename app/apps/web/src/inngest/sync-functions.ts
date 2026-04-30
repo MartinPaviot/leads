@@ -455,6 +455,22 @@ export const syncEmails = inngest.createFunction(
       }
     }
 
+    // Real-time signal detection (competitive gap #3): evaluate signals
+    // immediately after email sync, not in a weekly batch.
+    if (createdActivities.length > 0) {
+      for (const act of createdActivities) {
+        await inngest.send({
+          name: "signals/evaluate-realtime",
+          data: {
+            type: "email_synced" as const,
+            tenantId,
+            activityId: act.id,
+            contactId: act.entityId !== "unknown" ? act.entityId : undefined,
+          },
+        }).catch((e) => console.warn("sync: realtime-signal trigger failed (non-blocking)", e));
+      }
+    }
+
     // Deep LLM signal extraction (fire-and-forget, runs in parallel function).
     // Existing `analyzeEmailBatch` above keeps simple sentiment + intent.
     // The extractor below adds objections, competitors, next steps, champion

@@ -176,6 +176,18 @@ export const enrichCompany = inngest.createFunction(
       }
     });
 
+    // Real-time signal detection after enrichment completes
+    await step.run("realtime-signal-eval", async () => {
+      await inngest.send({
+        name: "signals/evaluate-realtime",
+        data: {
+          type: "enrichment_completed" as const,
+          tenantId: event.data.tenantId || company.tenantId,
+          companyId,
+        },
+      });
+    }).catch((e: unknown) => console.warn("enrich: realtime-signal trigger failed (non-blocking)", e));
+
     return { companyId, enriched: true, source: "apollo" };
   }
 );
