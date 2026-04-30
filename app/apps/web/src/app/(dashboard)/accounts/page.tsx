@@ -1027,6 +1027,7 @@ export default function AccountsPage() {
             actionVariant="outline"
           />
         ) : (
+          <>
           <table className="ls-table">
             <thead>
               <tr>
@@ -1622,6 +1623,7 @@ export default function AccountsPage() {
               </span>
             </div>
           )}
+          </>
         )}
       </div>
 
