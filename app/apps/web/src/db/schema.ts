@@ -1434,15 +1434,22 @@ export const customSkillTemplates = pgTable(
     tenantId: text("tenant_id").references(() => tenants.id).notNull(),
     slug: text("slug").notNull(),
     name: text("name").notNull(),
-    category: text("category").notNull(), // "qualification" | "discovery" | "proposal" | "objection" | "closing" | "re_engage"
+    category: text("category").notNull(),
     description: text("description").notNull(),
+    scope: text("scope").notNull().default("workspace"),
     trigger: text("trigger"),
     contextRequired: jsonb("context_required"),
     outputFormat: text("output_format"),
     guidelines: text("guidelines").notNull(),
+    steps: jsonb("steps").$type<Array<{ order: number; instruction: string; toolHint?: string }>>().default([]),
+    constraints: jsonb("constraints").$type<Array<{ instruction: string }>>().default([]),
+    parameters: jsonb("parameters").$type<Array<{ name: string; description: string; required: boolean; defaultValue?: string }>>().default([]),
     examples: jsonb("examples"),
     version: integer("version").default(1),
     isActive: boolean("is_active").default(true),
+    forkedFromId: text("forked_from_id"),
+    useCount: integer("use_count").notNull().default(0),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
     createdByUserId: text("created_by_user_id").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -1450,6 +1457,7 @@ export const customSkillTemplates = pgTable(
   (table) => [
     index("custom_skill_templates_tenant_idx").on(table.tenantId),
     index("custom_skill_templates_slug_idx").on(table.tenantId, table.slug),
+    index("custom_skill_templates_scope_idx").on(table.tenantId, table.scope),
   ]
 );
 
@@ -1777,5 +1785,59 @@ export const trustEvents = pgTable(
   (table) => [
     index("trust_events_tenant_created_idx").on(table.tenantId, table.createdAt),
     index("trust_events_event_type_idx").on(table.eventType),
+  ]
+);
+
+export const knowledgeEntries = pgTable(
+  "knowledge_entries",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    createdBy: text("created_by").notNull().references(() => authUsers.id, { onDelete: "cascade" }),
+    scope: text("scope").notNull().default("workspace"),
+    title: text("title").notNull(),
+    category: text("category").notNull().default("custom"),
+    content: text("content").notNull(),
+    contentHash: text("content_hash").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("knowledge_entries_tenant_idx").on(table.tenantId),
+    index("knowledge_entries_scope_idx").on(table.tenantId, table.scope),
+    index("knowledge_entries_category_idx").on(table.tenantId, table.category),
+  ]
+);
+
+export const agentTasks = pgTable(
+  "agent_tasks",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => authUsers.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    status: text("status").notNull().default("queued"),
+    progressCurrent: integer("progress_current").notNull().default(0),
+    progressTotal: integer("progress_total"),
+    progressMessage: text("progress_message"),
+    result: jsonb("result"),
+    error: text("error"),
+    chatThreadId: text("chat_thread_id"),
+    chatMessageId: text("chat_message_id"),
+    inngestEventId: text("inngest_event_id"),
+    checkpoint: jsonb("checkpoint"),
+    dependsOn: jsonb("depends_on").$type<string[]>().default([]),
+    queuedAt: timestamp("queued_at", { withTimezone: true }).defaultNow().notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("agent_tasks_tenant_status_idx").on(table.tenantId, table.status),
+    index("agent_tasks_user_active_idx").on(table.userId, table.status),
+    index("agent_tasks_thread_idx").on(table.chatThreadId),
   ]
 );
