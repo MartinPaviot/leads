@@ -127,7 +127,7 @@ export default function InsightsPage() {
   const stageOrder = ["lead", "qualification", "demo", "trial", "proposal", "negotiation"];
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col animate-content-in">
       <PageHeader title="Insights" />
       <div className="flex-1 overflow-auto p-5 space-y-6">
         {/* Pipeline Overview */}

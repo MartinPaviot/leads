@@ -259,7 +259,16 @@ export default function MailCalendarPage() {
         <h1 className="text-[24px] font-semibold" style={{ color: "var(--color-text-primary)", letterSpacing: "-0.3px" }}>
           Mail & Calendar
         </h1>
-        <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>Loading...</p>
+        <div className="mt-4 space-y-4">
+          {[1, 2].map((i) => (
+            <div key={i} className="skeleton-row rounded-lg p-5" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}>
+              <div className="flex items-center gap-3">
+                <div className="skeleton h-9 w-9 rounded-lg" />
+                <div><div className="skeleton h-4 w-32 rounded" /><div className="skeleton mt-1 h-3 w-48 rounded" /></div>
+              </div>
+            </div>
+          ))}
+        </div>
       </>
     );
   }

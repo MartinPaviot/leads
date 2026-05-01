@@ -58,6 +58,8 @@ function signalLabelForHeader(key: SignalKey): string {
       return "Common inv.";
     case "funding_recent":
       return "Funded 6mo";
+    case "funding_crunchbase":
+      return "CB Funded";
     case "hiring_intent":
       return "Hiring";
     case "yc_company":
@@ -749,7 +751,7 @@ export default function AccountsPage() {
 
   // === RENDER ===
   return (
-    <div className="flex h-full flex-col" style={{ background: "var(--color-bg-page)" }}>
+    <div className="flex h-full flex-col animate-content-in" style={{ background: "var(--color-bg-page)" }}>
       {/* A3 — bulk actions bar appears when one or more rows are checked. */}
       <BulkActionsBar
         count={selectedRows.size}

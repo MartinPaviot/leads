@@ -298,8 +298,13 @@
    SKELETON SHIMMER
    ================================================================ */
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
+  0%   { background-position: -200% 0; }
   100% { background-position: 200% 0; }
+}
+
+@keyframes skeleton-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* Used by the signal chip pending state — a subtle opacity pulse so
@@ -315,12 +320,39 @@
   background: linear-gradient(
     90deg,
     var(--color-bg-muted) 25%,
+    color-mix(in srgb, var(--color-bg-emphasis) 60%, var(--color-bg-muted)) 37%,
     var(--color-bg-emphasis) 50%,
+    color-mix(in srgb, var(--color-bg-emphasis) 60%, var(--color-bg-muted)) 63%,
     var(--color-bg-muted) 75%
   );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite linear;
+  background-size: 250% 100%;
+  animation: shimmer 2s infinite ease-in-out;
   border-radius: 4px;
+}
+
+.skeleton-row {
+  animation: skeleton-fade-in 0.35s ease-out both;
+}
+.skeleton-row:nth-child(1)  { animation-delay:   0ms; }
+.skeleton-row:nth-child(2)  { animation-delay:  35ms; }
+.skeleton-row:nth-child(3)  { animation-delay:  70ms; }
+.skeleton-row:nth-child(4)  { animation-delay: 105ms; }
+.skeleton-row:nth-child(5)  { animation-delay: 140ms; }
+.skeleton-row:nth-child(6)  { animation-delay: 175ms; }
+.skeleton-row:nth-child(7)  { animation-delay: 210ms; }
+.skeleton-row:nth-child(8)  { animation-delay: 245ms; }
+.skeleton-row:nth-child(9)  { animation-delay: 280ms; }
+.skeleton-row:nth-child(10) { animation-delay: 315ms; }
+.skeleton-row:nth-child(11) { animation-delay: 350ms; }
+.skeleton-row:nth-child(12) { animation-delay: 385ms; }
+
+@keyframes content-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-content-in {
+  animation: content-in 0.3s ease-out both;
 }
 
 /* ================================================================

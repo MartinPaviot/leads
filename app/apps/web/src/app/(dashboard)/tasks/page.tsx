@@ -281,7 +281,7 @@ export default function TasksPage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col animate-content-in">
       <PageHeader
         icon={<CheckSquare size={15} />}
         title="Tasks"

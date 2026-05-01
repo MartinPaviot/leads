@@ -283,7 +283,7 @@ export default function DashboardPage() {
   const ws = summary?.weekSummary;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col animate-content-in">
       <PageHeader icon={<Clock size={15} />} title="Up next" subtitle={today} />
 
       <div className="flex-1 overflow-auto px-4 py-6">

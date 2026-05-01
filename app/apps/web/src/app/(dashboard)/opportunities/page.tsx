@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { Input, Select } from "@/components/ui/input";
 import { CompanyLogo } from "@/components/ui/company-logo";
+import { KanbanColumnSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 
 /* ── Types ── */
@@ -607,7 +608,7 @@ export default function OpportunitiesPage() {
   /* ── Render ── */
 
   return (
-    <div className="flex h-full flex-col" style={{ background: "var(--color-bg-card)" }}>
+    <div className="flex h-full flex-col animate-content-in" style={{ background: "var(--color-bg-card)" }}>
       {/* Header */}
       <PageHeader
         icon={<CircleDot size={16} />}
@@ -957,7 +958,11 @@ export default function OpportunitiesPage() {
 
         {/* Main view */}
         {loading ? (
-          <p className="mt-6 text-sm" style={{ color: "var(--color-text-tertiary)" }}>Loading...</p>
+          <div className="flex flex-1 items-stretch gap-3 overflow-x-auto">
+            {[{ name: "Lead", cards: 3 }, { name: "Qualification", cards: 2 }, { name: "Demo", cards: 2 }, { name: "Proposal", cards: 1 }, { name: "Negotiation", cards: 1 }, { name: "Won", cards: 1 }].map((s, idx) => (
+              <KanbanColumnSkeleton key={s.name} name={s.name} cards={s.cards} index={idx} />
+            ))}
+          </div>
         ) : viewMode === "table" ? (
           /* ── TABLE VIEW ── */
           <div className="flex-1 overflow-auto rounded-md" style={{ border: "1px solid var(--color-border-default)" }}>

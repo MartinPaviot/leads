@@ -50,7 +50,7 @@ export default function CampaignsPage() {
     Object.values(stats).reduce((sum, n) => sum + n, 0);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col animate-content-in">
       <PageHeader
         icon={<Zap size={15} />}
         title="Campaigns"

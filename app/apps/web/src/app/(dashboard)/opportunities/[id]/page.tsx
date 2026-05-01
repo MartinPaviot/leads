@@ -14,6 +14,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import { DetailPageSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { EmailComposerPanel } from "@/components/email-composer-panel";
 import type { EmailComposerDraft } from "@/components/email-composer-panel";
@@ -285,7 +286,7 @@ export default function DealDetailPage() {
     }
   }
 
-  if (loading) return <p className="p-6 text-sm text-[var(--color-text-tertiary)]">Loading...</p>;
+  if (loading) return <DetailPageSkeleton avatar="square" />;
   if (!deal) return <p className="p-6 text-sm text-red-400">Deal not found</p>;
 
   const stageBadgeVariant: Record<string, "success" | "warning" | "error" | "info" | "neutral"> = {

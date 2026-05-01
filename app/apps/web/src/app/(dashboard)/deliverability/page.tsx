@@ -204,7 +204,15 @@ export default function DeliverabilityPage() {
       <div className="flex h-full flex-col">
         <PageHeader title="Deliverability" subtitle="Email sending health and monitoring" />
         <div className="px-4 py-6">
-          <p className="text-sm text-[var(--color-text-tertiary)]">Loading...</p>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="skeleton-row rounded-lg p-4" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}>
+                <div className="skeleton h-3 w-20 rounded" />
+                <div className="skeleton mt-2 h-6 w-16 rounded" />
+                <div className="skeleton mt-3 h-1.5 w-full rounded-full" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -232,7 +240,7 @@ export default function DeliverabilityPage() {
   const spamRateTrend = getTrendArrow(data.spamRate, data.prevWeek?.spamRate, true);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col animate-content-in">
       <PageHeader title="Deliverability" subtitle="Email sending health and monitoring">
         <div className="flex items-center gap-3">
           <div className="text-right">

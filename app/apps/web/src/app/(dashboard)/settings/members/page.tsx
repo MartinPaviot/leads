@@ -240,7 +240,16 @@ export default function MembersSettingsPage() {
 
       <div className="mt-6 space-y-2">
         {loading ? (
-          <p className="text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>Loading...</p>
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="skeleton-row rounded-lg p-4" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}>
+                <div className="flex items-center gap-3">
+                  <div className="skeleton h-8 w-8 rounded-full" />
+                  <div><div className="skeleton h-3.5 w-28 rounded" /><div className="skeleton mt-1 h-3 w-36 rounded" /></div>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
           members.map((member) => (
             <Card key={member.id}>

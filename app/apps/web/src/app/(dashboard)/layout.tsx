@@ -11,6 +11,7 @@ import { ToastProvider } from "@/components/ui/toast";
 import { CommandPalette } from "@/components/ui/command-palette";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts-provider";
 import { FlagsProvider } from "@/components/flags-provider";
+import { NavigationProgress } from "@/components/ui/navigation-progress";
 import { getFlagsForTenant } from "@/lib/experiments";
 
 export default async function DashboardLayout({
@@ -66,6 +67,7 @@ export default async function DashboardLayout({
     <ThemeProvider>
       <ToastProvider>
         <FlagsProvider flags={flags}>
+          <NavigationProgress />
           <div className="flex h-screen overflow-hidden" style={{ background: "var(--color-bg-page)" }}>
             <Sidebar
               userName={session.user.name || "User"}

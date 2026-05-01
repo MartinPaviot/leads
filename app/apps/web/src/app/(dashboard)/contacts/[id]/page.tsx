@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import { DetailPageSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 
 interface BuyerIntentSignal {
@@ -173,7 +174,7 @@ export default function ContactDetailPage() {
     load();
   }, [contactId]);
 
-  if (loading) return <p className="p-6 text-sm text-[var(--color-text-tertiary)]">Loading...</p>;
+  if (loading) return <DetailPageSkeleton avatar="circle" />;
   if (!contact) return <p className="p-6 text-sm text-red-400">Contact not found</p>;
 
   const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "Unknown";

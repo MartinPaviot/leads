@@ -126,7 +126,7 @@ export default function NotesPage() {
   }, [filtered, sortOrder]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col animate-content-in">
       <PageHeader icon={<FileText size={15} />} title="Notes" subtitle={`${notes.length}`}>
         <Button
           variant="gradient"

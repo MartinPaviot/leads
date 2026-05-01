@@ -286,7 +286,7 @@ export default function ContactsPage() {
   const totalPages = Math.ceil(totalContacts / pageSize);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col animate-content-in">
       <BulkActionsBar
         count={selectedRows.size}
         onClear={() => setSelectedRows(new Set())}

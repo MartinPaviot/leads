@@ -269,7 +269,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden animate-content-in">
       {/* Thread header (when in a thread) */}
       {threadId && chat.messages.length > 0 && (
         <div

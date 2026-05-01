@@ -232,7 +232,7 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col animate-content-in">
       <PageHeader
         icon={<FileBarChart size={16} />}
         title="Reports"

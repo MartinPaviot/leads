@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import { DetailPageSkeleton } from "@/components/ui/skeleton";
 
 interface Account {
   id: string;
@@ -58,7 +59,7 @@ export default function AccountDetailPage() {
     load();
   }, [accountId]);
 
-  if (loading) return <p className="p-6 text-sm text-[var(--color-text-tertiary)]">Loading...</p>;
+  if (loading) return <DetailPageSkeleton avatar="square" />;
   if (!account) return <p className="p-6 text-sm text-red-400">Account not found</p>;
 
   const initial = account.name.charAt(0).toUpperCase();
