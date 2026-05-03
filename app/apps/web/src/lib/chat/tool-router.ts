@@ -172,6 +172,9 @@ const TOOL_GROUPS: Record<string, string> = {
   analyzeCSVForImport: "action",
   executeImport: "action",
 
+  // code execution (code-execution.ts)
+  executeCode: "intelligence",
+
   // memory (memory.ts)
   exploreGraph: "memory",
   rememberContext: "memory",

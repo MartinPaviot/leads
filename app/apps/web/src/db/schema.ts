@@ -1841,3 +1841,27 @@ export const agentTasks = pgTable(
     index("agent_tasks_thread_idx").on(table.chatThreadId),
   ]
 );
+
+export const codeExecutions = pgTable(
+  "code_executions",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => authUsers.id, { onDelete: "cascade" }),
+    chatThreadId: text("chat_thread_id"),
+    code: text("code").notNull(),
+    dataQuery: text("data_query"),
+    mode: text("mode").notNull().default("read"),
+    status: text("status").notNull().default("running"),
+    output: jsonb("output"),
+    error: text("error"),
+    executionTimeMs: integer("execution_time_ms"),
+    iteration: integer("iteration").notNull().default(1),
+    parentExecutionId: text("parent_execution_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("code_executions_tenant_idx").on(table.tenantId),
+    index("code_executions_thread_idx").on(table.chatThreadId),
+  ]
+);
