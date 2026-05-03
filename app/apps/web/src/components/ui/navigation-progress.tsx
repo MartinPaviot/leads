@@ -7,46 +7,61 @@ export function NavigationProgress() {
   const pathname = usePathname();
   const [progress, setProgress] = useState(0);
   const [visible, setVisible] = useState(false);
-  const prevPathname = useRef(pathname);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const completionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const cleanup = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+    if (completionRef.current) { clearTimeout(completionRef.current); completionRef.current = null; }
   }, []);
 
-  useEffect(() => {
-    if (pathname === prevPathname.current) return;
-    prevPathname.current = pathname;
-
+  const start = useCallback(() => {
     cleanup();
-
     setProgress(0);
     setVisible(true);
-
-    requestAnimationFrame(() => {
-      setProgress(30);
-    });
-
+    requestAnimationFrame(() => setProgress(20));
     intervalRef.current = setInterval(() => {
       setProgress((p) => {
         if (p >= 90) return p;
-        return p + (90 - p) * 0.1;
+        return p + (90 - p) * 0.08;
       });
+    }, 300);
+  }, [cleanup]);
+
+  const done = useCallback(() => {
+    cleanup();
+    setProgress(100);
+    completionRef.current = setTimeout(() => {
+      setVisible(false);
+      setProgress(0);
     }, 200);
+  }, [cleanup]);
 
-    timerRef.current = setTimeout(() => {
-      cleanup();
-      setProgress(100);
-      setTimeout(() => {
-        setVisible(false);
-        setProgress(0);
-      }, 300);
-    }, 150);
+  // Intercept all link clicks to START the progress bar immediately.
+  // This fires BEFORE navigation begins — the key insight the previous
+  // implementation missed.
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      const anchor = (e.target as HTMLElement).closest("a");
+      if (!anchor) return;
+      const href = anchor.getAttribute("href");
+      if (!href || href.startsWith("http") || href.startsWith("#") || href.startsWith("mailto:")) return;
+      if (anchor.getAttribute("target") === "_blank") return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+      const hrefPath = href.split("?")[0].split("#")[0];
+      if (hrefPath === pathname) return;
+      start();
+    }
 
-    return cleanup;
-  }, [pathname, cleanup]);
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
+  }, [pathname, start]);
+
+  // Complete the bar when the route actually changes (page loaded).
+  useEffect(() => {
+    if (visible) done();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   if (!visible && progress === 0) return null;
 
@@ -64,10 +79,10 @@ export function NavigationProgress() {
             progress === 0
               ? "none"
               : progress === 100
-                ? "width 150ms ease-out, opacity 300ms ease-out"
-                : "width 400ms cubic-bezier(0.4, 0, 0.2, 1)",
+                ? "width 150ms ease-out, opacity 200ms 50ms ease-out"
+                : "width 500ms cubic-bezier(0.4, 0, 0.2, 1)",
           opacity: progress === 100 ? 0 : 1,
-          boxShadow: "0 0 8px var(--color-accent)",
+          boxShadow: "0 0 6px color-mix(in srgb, var(--color-accent) 50%, transparent)",
         }}
       />
     </div>

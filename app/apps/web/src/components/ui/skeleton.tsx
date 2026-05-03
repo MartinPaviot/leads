@@ -185,7 +185,7 @@ export function DetailPageSkeleton({ avatar = "square" }: { avatar?: "square" | 
 
 export function KpiRowSkeleton({ count = 6 }: { count?: number }) {
   return (
-    <div className={`grid grid-cols-3 gap-2 md:grid-cols-${count}`}>
+    <div className="grid grid-cols-3 gap-2 md:grid-cols-6" style={count !== 6 ? { gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` } : undefined}>
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="skeleton-row rounded-lg px-2.5 py-2" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}>
           <Skeleton className="h-2 w-12 rounded" />

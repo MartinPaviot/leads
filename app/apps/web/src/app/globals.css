@@ -320,14 +320,25 @@
   background: linear-gradient(
     90deg,
     var(--color-bg-muted) 25%,
-    color-mix(in srgb, var(--color-bg-emphasis) 60%, var(--color-bg-muted)) 37%,
     var(--color-bg-emphasis) 50%,
-    color-mix(in srgb, var(--color-bg-emphasis) 60%, var(--color-bg-muted)) 63%,
     var(--color-bg-muted) 75%
   );
   background-size: 250% 100%;
   animation: shimmer 2s infinite ease-in-out;
   border-radius: 4px;
+}
+
+@supports (background: color-mix(in srgb, red 50%, blue)) {
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--color-bg-muted) 25%,
+      color-mix(in srgb, var(--color-bg-emphasis) 60%, var(--color-bg-muted)) 37%,
+      var(--color-bg-emphasis) 50%,
+      color-mix(in srgb, var(--color-bg-emphasis) 60%, var(--color-bg-muted)) 63%,
+      var(--color-bg-muted) 75%
+    );
+  }
 }
 
 .skeleton-row {
