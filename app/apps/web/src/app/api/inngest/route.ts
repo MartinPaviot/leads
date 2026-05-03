@@ -39,6 +39,10 @@ import { executeCustomWorkflow } from "@/inngest/custom-workflow-executor";
 import { analyzeClosedDeal } from "@/inngest/win-loss-analysis";
 import { dailyStallPrediction, onDemandStallPrediction } from "@/inngest/stall-prediction-cron";
 import { evaluateRealtimeSignals } from "@/inngest/realtime-signal-handler";
+import { agentTaskExecute, agentTaskCleanup } from "@/inngest/agent-task-runner";
+
+// Register task executors so Inngest runner can dispatch by type
+import("@/lib/import/agentic-executor").then((m) => m.registerImportExecutor()).catch(() => {});
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -136,5 +140,8 @@ export const { GET, POST, PUT } = serve({
     onDemandStallPrediction,
     // Real-time signal detection (competitive gap #3: event-driven, not batch)
     evaluateRealtimeSignals,
+    // Agent tasks: long-running background operations with progress tracking
+    agentTaskExecute,
+    agentTaskCleanup,
   ],
 });
