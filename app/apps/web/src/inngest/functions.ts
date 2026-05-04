@@ -10,9 +10,11 @@ import { anthropic } from "@/lib/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { embedEntity, companyToText, contactToText } from "@/lib/embeddings";
+import { generateAccountSummary } from "@/lib/ai-account-summary";
 import { buildProspectContext } from "@/lib/prospect-context";
 import { personalizeStepEmail } from "@/lib/sequence-generator";
 import { STEP_STRATEGIES } from "@/lib/outbound-methodologies";
+import { trackPipeline } from "@/lib/pipeline-tracker";
 import {
   enrichOrganization,
   enrichPerson,
@@ -109,6 +111,50 @@ export const enrichCompany = inngest.createFunction(
             })
             .where(eq(companies.id, companyId));
         });
+
+        // AI summary for LLM-enriched companies — non-blocking
+        await step.run("generate-ai-summary-llm", async () => {
+          try {
+            const [freshCompany] = await db
+              .select()
+              .from(companies)
+              .where(eq(companies.id, companyId))
+              .limit(1);
+            if (!freshCompany) return;
+
+            const enrichedProps = (freshCompany.properties || {}) as Record<string, unknown>;
+            const result = await generateAccountSummary(
+              {
+                name: freshCompany.name,
+                domain: freshCompany.domain,
+                industry: freshCompany.industry,
+                description: freshCompany.description,
+                size: freshCompany.size,
+                revenue: freshCompany.revenue,
+                properties: enrichedProps,
+              },
+              event.data.tenantId || company.tenantId,
+            );
+
+            if (result) {
+              await db
+                .update(companies)
+                .set({
+                  properties: {
+                    ...enrichedProps,
+                    ai_account_summary: result.ai_account_summary,
+                    ai_how_they_make_money: result.ai_how_they_make_money,
+                    ai_summary_generated_at: new Date().toISOString(),
+                  },
+                  updatedAt: new Date(),
+                })
+                .where(eq(companies.id, companyId));
+            }
+          } catch (err) {
+            console.warn("enrich: AI summary generation (LLM path) failed (non-blocking):", err);
+          }
+        }).catch((e: unknown) => console.warn("enrich: AI summary step (LLM path) failed (non-blocking)", e));
+
         return { companyId, enriched: true, source: "llm" };
       }
 
@@ -162,6 +208,49 @@ export const enrichCompany = inngest.createFunction(
         .where(eq(companies.id, companyId));
     });
 
+    // AI summary — generate after enrichment, non-blocking
+    await step.run("generate-ai-summary", async () => {
+      try {
+        const [freshCompany] = await db
+          .select()
+          .from(companies)
+          .where(eq(companies.id, companyId))
+          .limit(1);
+        if (!freshCompany) return;
+
+        const enrichedProps = (freshCompany.properties || {}) as Record<string, unknown>;
+        const result = await generateAccountSummary(
+          {
+            name: freshCompany.name,
+            domain: freshCompany.domain,
+            industry: freshCompany.industry,
+            description: freshCompany.description,
+            size: freshCompany.size,
+            revenue: freshCompany.revenue,
+            properties: enrichedProps,
+          },
+          event.data.tenantId || company.tenantId,
+        );
+
+        if (result) {
+          await db
+            .update(companies)
+            .set({
+              properties: {
+                ...enrichedProps,
+                ai_account_summary: result.ai_account_summary,
+                ai_how_they_make_money: result.ai_how_they_make_money,
+                ai_summary_generated_at: new Date().toISOString(),
+              },
+              updatedAt: new Date(),
+            })
+            .where(eq(companies.id, companyId));
+        }
+      } catch (err) {
+        console.warn("enrich: AI summary generation failed (non-blocking):", err);
+      }
+    }).catch((e: unknown) => console.warn("enrich: AI summary step failed (non-blocking)", e));
+
     await step.run("re-embed", async () => {
       const text = companyToText({
         name: company.name,
@@ -176,6 +265,17 @@ export const enrichCompany = inngest.createFunction(
       }
     });
 
+    await step.run("track-enriched", async () => {
+      await trackPipeline({
+        traceId: companyId,
+        tenantId: event.data.tenantId || company.tenantId,
+        companyId,
+        stage: "enriched",
+        sourceSystem: "inngest",
+        metadata: { source: org ? "apollo" : "llm", domain: company.domain },
+      });
+    });
+
     // Real-time signal detection after enrichment completes
     await step.run("realtime-signal-eval", async () => {
       await inngest.send({
@@ -187,6 +287,22 @@ export const enrichCompany = inngest.createFunction(
         },
       });
     }).catch((e: unknown) => console.warn("enrich: realtime-signal trigger failed (non-blocking)", e));
+
+    // F001: Fire agent reactor after enrichment
+    await step.run("fire-agent-react", async () => {
+      await inngest.send({
+        name: "agent/react",
+        data: {
+          tenantId: event.data.tenantId || company.tenantId,
+          trigger: "contact_enriched",
+          entityType: "company",
+          entityId: companyId,
+          metadata: { source: org ? "apollo" : "llm", companyName: company.name },
+          deduplicationKey: `contact_enriched:company:${companyId}`,
+          firedAt: new Date().toISOString(),
+        },
+      });
+    }).catch(() => {});
 
     return { companyId, enriched: true, source: "apollo" };
   }
