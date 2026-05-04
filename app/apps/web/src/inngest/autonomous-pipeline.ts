@@ -21,8 +21,9 @@ import {
   tasks,
   notifications,
   users,
+  agentReactions,
 } from "@/db/schema";
-import { and, eq, notInArray, desc } from "drizzle-orm";
+import { and, eq, notInArray, desc, gte } from "drizzle-orm";
 import { tracedGenerateObject } from "@/lib/traced-ai";
 import { anthropic } from "@/lib/ai-provider";
 import { openai } from "@ai-sdk/openai";
@@ -121,6 +122,22 @@ export const autoPipelineStep = inngest.createFunction(
         }> = [];
 
         for (const deal of openDeals.slice(0, 20)) {
+          // F001: Skip deals already evaluated by the event-driven reactor in the last 24h
+          const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          const [recentReaction] = await db
+            .select({ id: agentReactions.id })
+            .from(agentReactions)
+            .where(
+              and(
+                eq(agentReactions.tenantId, tenantId),
+                eq(agentReactions.entityType, "deal"),
+                eq(agentReactions.entityId, deal.id),
+                gte(agentReactions.createdAt, twentyFourHoursAgo),
+              ),
+            )
+            .limit(1);
+          if (recentReaction) continue;
+
           // Fetch recent activities
           const recentActs = await db
             .select({

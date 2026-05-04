@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { EmailComposerPanel } from "@/components/email-composer-panel";
 import type { EmailComposerDraft } from "@/components/email-composer-panel";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
+import { OnboardingChat } from "@/components/onboarding-chat";
+import { AgentFeed } from "@/components/agent-feed";
 import { OnboardingV2Wrapper } from "@/components/onboarding-v2-wrapper";
 import { WarmLeadPrompt } from "@/components/WarmLeadPrompt";
 import { useOnboardingVersion } from "@/hooks/use-onboarding-version";
@@ -303,6 +305,11 @@ export default function DashboardPage() {
                     ? "Expansion signals across your accounts."
                     : today}
           </p>
+        </div>
+
+        {/* F010: Agent Activity Feed — primary view */}
+        <div className="mb-6">
+          <AgentFeed />
         </div>
 
         {/* Welcome Banner (first time after onboarding) */}
@@ -914,7 +921,19 @@ export default function DashboardPage() {
           When version === "v1", the full wizard renders. Only one
           branch is ever mounted; no dual-render is possible. */}
       {showOnboarding && (
-        onboardingVersion === "v2" ? (
+        onboardingVersion === "v3" ? (
+          <OnboardingChat
+            hasGoogle={onboardingHasGoogle}
+            hasMicrosoft={onboardingHasMicrosoft}
+            userEmail={onboardingEmail}
+            userName={onboardingName}
+            companyDomain={undefined}
+            onComplete={() => {
+              setShowOnboarding(false);
+              window.location.href = "/?firstTime=true";
+            }}
+          />
+        ) : onboardingVersion === "v2" ? (
           <OnboardingV2Wrapper
             userId={onboardingUserId}
             userEmail={onboardingEmail}
