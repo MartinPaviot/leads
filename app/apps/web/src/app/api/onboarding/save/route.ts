@@ -37,6 +37,9 @@ export async function POST(req: Request) {
     updates.onboardingCompanyName = data.companyName;
     updates.onboardingRole = data.role;
     updates.companyDomain = data.domain;
+    if (Array.isArray(data.companyInvestors) && data.companyInvestors.length > 0) {
+      updates.companyInvestors = data.companyInvestors;
+    }
 
     // WS-0 — stamp the very first welcome save so onboarding_completed
     // can compute an accurate total duration later. Only set if absent so

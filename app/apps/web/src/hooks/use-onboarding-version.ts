@@ -17,7 +17,7 @@ import { useEffect, useState } from "react";
  * has been stable since launch).
  */
 
-export type OnboardingVersion = "v1" | "v2";
+export type OnboardingVersion = "v1" | "v2" | "v3";
 
 interface UseOnboardingVersionResult {
   version: OnboardingVersion;
@@ -66,8 +66,9 @@ export function useOnboardingVersion(): UseOnboardingVersionResult {
   const warmLeadPrompt = !!flagMap["onboarding.v2.warm-lead-prompt"];
   const tamRevealAsync = !!flagMap["onboarding.v2.tam-reveal-async"];
 
+  const conversationalOnboarding = !!flagMap["onboarding.v3.conversational"];
   const allV2On = V2_FLAGS.every((f) => !!flagMap[f]);
-  const version: OnboardingVersion = allV2On ? "v2" : "v1";
+  const version: OnboardingVersion = conversationalOnboarding ? "v3" : allV2On ? "v2" : "v1";
 
   return {
     version,

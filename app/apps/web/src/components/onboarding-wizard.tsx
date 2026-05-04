@@ -7,6 +7,7 @@ import { INDUSTRIES, COMPANY_SIZES, SALES_MOTIONS, GEOGRAPHIES, JOB_SENIORITIES,
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { chunkedBulkCall } from "@/lib/chunk-bulk";
 import { trackEvent } from "@/components/posthog-provider";
+import type { TamEvent, CompanyCompact, ScorePayload, SignalPayload, SignalKey } from "@/lib/tam-stream/events";
 
 /* ── WS-0: measured fetch helper ──
  * Wraps `fetch` for the three onboarding APIs that are NOT LLM-traced
@@ -376,6 +377,7 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
   });
   const [role, setRole] = useState("Founder");
 
+  const [companyInvestors, setCompanyInvestors] = useState("");
   const [productDesc, setProductDesc] = useState("");
   const [salesMotion, setSalesMotion] = useState("Founder-led sales");
   const [aiTone, setAiTone] = useState("Direct");
@@ -412,8 +414,8 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
   const [buildError, setBuildError] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState<{ contacts: number; emails: number } | null>(null);
   const [buildStage, setBuildStage] = useState(0);
-  const [topCompanies, setTopCompanies] = useState<{ name: string; domain: string; industry?: string }[]>([]);
-  const [topContacts, setTopContacts] = useState<{ name: string; email: string; title: string | null; score: number | null }[]>([]);
+  const [topCompanies, setTopCompanies] = useState<{ name: string; domain: string; industry?: string | null; score?: number; grade?: string; heat?: string; reasons?: string[]; signals?: Record<string, { value: boolean; reason: string }> }[]>([]);
+  const [topContacts, setTopContacts] = useState<{ name: string; email: string | null; title: string | null; score?: number | null }[]>([]);
   const [contactsFound, setContactsFound] = useState(0);
 
   const stepIndex = STEPS.findIndex((s) => s.key === step) + 1;
@@ -669,7 +671,11 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
 
   const handleWelcomeContinue = async () => {
     setSaving(true);
-    await saveOnboardingData({ fullName, companyName, role, domain, step: "welcome" });
+    const investorsList = companyInvestors
+      .split(/[,;]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    await saveOnboardingData({ fullName, companyName, role, domain, companyInvestors: investorsList, step: "welcome" });
     setSaving(false);
     setStep("connect");
     if (domain) {
@@ -746,9 +752,6 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
   };
 
   const handleBuildTAM = async () => {
-    // WS-0 — trigger event fires at the exact moment the user committed to
-    // the build. Carries the ICP cardinality so the funnel dashboard can
-    // slice by "how specific was the user's targeting".
     const tamStartedAt = Date.now();
     if (userId) {
       void trackEvent(userId, "onboarding_build_tam_triggered", {
@@ -763,19 +766,8 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
     setBuildError(null);
     setBuildStage(0);
     setTopCompanies([]);
-    const apolloSizeRanges = sizesToApolloRanges(companySizes);
-
-    // Animate stages independently of API
-    const stageTimers = [
-      setTimeout(() => setBuildStage(1), 1500),
-      setTimeout(() => setBuildStage(2), 4000),
-      setTimeout(() => setBuildStage(3), 7000),
-    ];
 
     try {
-      const derivedRoles = [...targetSeniorities, ...targetDepartments].join(", ");
-      // BUG-WS0-003: include confidence gap answers so downstream prompts
-      // can use them for better targeting precision.
       const gapAnswers = websiteAnalysis?.confidenceGaps
         ?.map((gap, i) => ({
           field: gap.field,
@@ -785,64 +777,118 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
         .filter((g) => g.answer) || [];
       await saveOnboardingData({ industries, companySizes, targetSeniorities, targetDepartments, geographies, aiTone, confidenceGapAnswers: gapAnswers, step: "icp" });
 
-      // Build TAM
-      const tamRes = await fetch("/api/tam", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ industries, companySizes: apolloSizeRanges, targetRoles: derivedRoles, geographies, productDescription: productDesc }) });
-      if (!tamRes.ok) { const data = await tamRes.json(); throw new Error(data.error || "TAM build failed"); }
-      const tamData = await tamRes.json();
-      // Show total accounts (existing + new) not just newly created
-      const totalRes = await fetch("/api/accounts?pageSize=1");
-      const totalData = totalRes.ok ? await totalRes.json() : null;
-      const totalAccounts = totalData?.pagination?.total || tamData.companiesCreated || 0;
-      setTamProgress({ found: totalAccounts, done: true });
-      setBuildStage(4);
+      // Stream TAM build — companies appear in real-time with scores and signals
+      const res = await fetch("/api/tam/build", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ targetCount: 200, strategyCount: 4 }),
+      });
 
-      // Fetch all companies for scoring and top 5 for preview
-      const accountsRes = await fetch("/api/accounts?pageSize=200");
-      if (accountsRes.ok) {
-        const ad = await accountsRes.json();
-        const accounts = ad.accounts || ad || [];
-        setTopCompanies(accounts.slice(0, 5).map((a: { name: string; domain?: string; industry?: string }) => ({
-          name: a.name, domain: a.domain || "", industry: a.industry,
-        })));
-        // O4 — Score ALL companies and AWAIT full completion before the
-        // "Ready" screen renders. Using `chunkedBulkCall` so a 200-company
-        // TAM doesn't slam the scoring endpoint in a single request and
-        // so partial failures don't silently drop half the TAM.
-        const ids = accounts.map((a: { id: string }) => a.id);
-        if (ids.length > 0) {
-          const scoreResult = await chunkedBulkCall({
-            ids,
-            endpoint: "/api/score",
-            buildPayload: (chunk) => ({ companyIds: chunk }),
-          });
-          if (scoreResult.failed > 0) {
-            console.warn("onboarding: scoring had partial failures", {
-              failed: scoreResult.failed,
-              total: scoreResult.total,
-              errors: scoreResult.errors,
-            });
+      if (!res.ok || !res.body) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || `TAM build failed (HTTP ${res.status})`);
+      }
+
+      const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+      let buffer = "";
+      let insertedCount = 0;
+      let contactsCreatedLocal = 0;
+      const streamedCompanies: Array<{ name: string; domain: string; industry: string | null; score: number; grade: string; heat: string; reasons: string[]; signals: Record<string, { value: boolean; reason: string }> }> = [];
+
+      setBuildStage(1);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += value;
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          let ev: TamEvent;
+          try { ev = JSON.parse(trimmed); } catch { continue; }
+
+          switch (ev.type) {
+            case "strategy.generated":
+              setBuildStage(2);
+              break;
+            case "company.inserted": {
+              insertedCount++;
+              setTamProgress({ found: insertedCount, done: false });
+              if (insertedCount === 1) setBuildStage(3);
+
+              const signalMap: Record<string, { value: boolean; reason: string }> = {};
+              if (ev.initialSignal) {
+                signalMap[ev.initialSignal.key] = {
+                  value: ev.initialSignal.payload.value,
+                  reason: ev.initialSignal.payload.reason,
+                };
+              }
+
+              streamedCompanies.push({
+                name: ev.company.name,
+                domain: ev.company.domain || "",
+                industry: ev.company.industry,
+                score: ev.initialScore.score,
+                grade: ev.initialScore.grade,
+                heat: ev.initialScore.heat,
+                reasons: ev.initialScore.reasons,
+                signals: signalMap,
+              });
+
+              // Update top 5 preview with highest-scored companies
+              const sorted = [...streamedCompanies].sort((a, b) => b.score - a.score);
+              setTopCompanies(sorted.slice(0, 5).map((c) => ({
+                name: c.name,
+                domain: c.domain,
+                industry: c.industry,
+                score: c.score,
+                grade: c.grade,
+                heat: c.heat,
+                reasons: c.reasons,
+                signals: c.signals,
+              })));
+              break;
+            }
+            case "signal.computed": {
+              const existing = streamedCompanies.find(
+                (c) => c.domain === (ev as { companyId?: string }).companyId,
+              );
+              // Signal updates flow through but we don't re-sort for each one
+              break;
+            }
+            case "contacts.found":
+              contactsCreatedLocal += ev.contacts.length;
+              setContactsFound(contactsCreatedLocal);
+              if (ev.contacts.length > 0) {
+                setTopContacts((prev) => {
+                  const next = [...prev, ...ev.contacts.map((c) => ({
+                    name: [c.firstName, c.lastName].filter(Boolean).join(" "),
+                    title: c.title,
+                    email: c.email,
+                  }))];
+                  return next.slice(0, 5);
+                });
+              }
+              break;
+            case "done":
+              setTamProgress({ found: insertedCount, done: true });
+              setBuildStage(4);
+              break;
           }
         }
       }
 
-      // Find decision-makers at top companies (await — shows contacts on ready screen)
-      // Capture the created count in a local so the WS-0 completion event
-      // fires with the right number — setContactsFound is async.
-      let contactsCreatedLocal = 0;
-      const contactsRes = await measuredFetch(userId, "/api/onboarding/find-contacts", { method: "POST", headers: { "Content-Type": "application/json" } }).catch(() => null);
-      if (contactsRes && contactsRes.ok) {
-        const cData = await contactsRes.json();
-        contactsCreatedLocal = cData.contactsCreated || 0;
-        setContactsFound(contactsCreatedLocal);
-        setTopContacts((cData.contacts || []).slice(0, 5));
-      }
+      setBuildStage(4);
+      setTamProgress({ found: insertedCount, done: true });
 
-      // Embed in background (non-critical for UX) — fire-and-forget telemetry-style.
+      // Embed in background (non-critical for UX)
       fetch("/api/embed", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: "companies" }) })
         .catch((e) => console.warn("onboarding: embed companies failed", e));
       fetch("/api/embed", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: "contacts" }) })
         .catch((e) => console.warn("onboarding: embed contacts failed", e));
-      // Email intelligence — fire and forget, don't block onboarding
       if (emailConnected) {
         measuredFetch(userId, "/api/onboarding/email-intelligence")
           .then((er) => er.ok ? er.json() : null)
@@ -851,16 +897,10 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
       }
       await saveOnboardingData({ step: "complete", onboardingCompleted: true });
 
-      // WS-0 — TAM build success event. durationMs covers the full build
-      // pipeline (Apollo search + enrich + scoring + find-contacts) but NOT
-      // the 1.2s UI easing delay below, so the number matches the latency a
-      // backend engineer would reason about. Reads locals, not state, so
-      // the event fires with the actual values even though the setters
-      // above are async.
       const tamCompletedMs = Date.now() - tamStartedAt;
       if (userId) {
         void trackEvent(userId, "onboarding_build_tam_completed", {
-          companiesCreated: totalAccounts,
+          companiesCreated: insertedCount,
           contactsCreated: contactsCreatedLocal,
           durationMs: tamCompletedMs,
         });
@@ -870,7 +910,6 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
       await new Promise((r) => setTimeout(r, 1200));
       setStep("ready");
     } catch (err) {
-      stageTimers.forEach(clearTimeout);
       const errorClass = err instanceof Error ? err.name : "unknown";
       const durationMs = Date.now() - tamStartedAt;
       if (userId) {
@@ -1197,6 +1236,18 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
                 <span className={label} style={labelStyle}>Your role</span>
                 <PillSelect options={["Founder", "Sales / Growth", "Marketing", "RevOps", "Other"]} selected={[role]} onToggle={(val) => setRole(val)} multi={false} />
               </div>
+              <div>
+                <span className={label} style={labelStyle}>Your investors <span style={{ color: "var(--color-text-tertiary)", fontWeight: 400 }}>(optional)</span></span>
+                <input
+                  type="text"
+                  value={companyInvestors}
+                  onChange={(e) => setCompanyInvestors(e.target.value)}
+                  placeholder="e.g. Founders Fund, Y Combinator, Sequoia"
+                  className="w-full rounded-md px-3 py-1.5 text-[13px]"
+                  style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)", color: "var(--color-text-primary)" }}
+                />
+                <p className="mt-0.5 text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>We flag prospects that share your investors for warm intros</p>
+              </div>
             </div>
 
             <StepFooter onNext={handleWelcomeContinue} disabled={!canContinueWelcome} loading={saving} />
@@ -1511,16 +1562,29 @@ export function OnboardingWizard({ onComplete, hasGoogle, hasMicrosoft, userEmai
                   })}
                 </div>
 
-                {/* Preview of found companies */}
+                {/* Live preview of top-scored companies */}
                 {topCompanies.length > 0 && (
                   <div className="rounded-lg p-3" style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}>
-                    <span className="text-[10px] font-medium uppercase tracking-wide block mb-2" style={{ color: "var(--color-text-tertiary)" }}>First matches</span>
-                    <div className="space-y-1">
+                    <span className="text-[10px] font-medium uppercase tracking-wide block mb-2" style={{ color: "var(--color-text-tertiary)" }}>Top prospects (live)</span>
+                    <div className="space-y-1.5">
                       {topCompanies.map((c) => (
-                        <div key={c.domain || c.name} className="flex items-center gap-2">
-                          <CompanyLogo domain={c.domain} name={c.name} size={16} />
-                          <span className="text-[11px] font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{c.name}</span>
-                          {c.industry && <span className="text-[10px] ml-auto shrink-0" style={{ color: "var(--color-text-tertiary)" }}>{c.industry}</span>}
+                        <div key={c.domain || c.name} className="flex items-center gap-2 rounded px-2 py-1" style={{ background: "var(--color-bg-card)" }}>
+                          <CompanyLogo domain={c.domain} name={c.name} size={18} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{c.name}</span>
+                              {c.grade && (
+                                <span className="text-[9px] font-bold px-1 rounded" style={{
+                                  background: c.grade === "A+" || c.grade === "A" ? "rgba(34,197,94,.12)" : c.grade === "B" ? "rgba(234,179,8,.12)" : "rgba(148,163,184,.1)",
+                                  color: c.grade === "A+" || c.grade === "A" ? "#22c55e" : c.grade === "B" ? "#eab308" : "var(--color-text-tertiary)",
+                                }}>{c.grade} {c.heat}</span>
+                              )}
+                            </div>
+                            {c.reasons && c.reasons.length > 0 && (
+                              <p className="text-[9px] truncate mt-0.5" style={{ color: "var(--color-text-tertiary)" }}>{c.reasons[0]}</p>
+                            )}
+                          </div>
+                          {c.industry && <span className="text-[9px] shrink-0" style={{ color: "var(--color-text-tertiary)" }}>{c.industry}</span>}
                         </div>
                       ))}
                     </div>
