@@ -39,6 +39,9 @@ import {
   Inbox,
   BarChart3,
   Search,
+  Bot,
+  BookOpen,
+  Wand2,
   type LucideIcon,
 } from "lucide-react";
 import { useTheme } from "@/components/ui/theme-provider";
@@ -65,6 +68,13 @@ const navSections = [
   {
     items: [
       { label: "Up next", href: "/", icon: Clock },
+    ],
+  },
+  {
+    label: "AI",
+    items: [
+      { label: "Knowledge", href: "/knowledge", icon: BookOpen },
+      { label: "Skills", href: "/skills", icon: Wand2 },
     ],
   },
   {
