@@ -27,6 +27,7 @@ export interface EnrichedCompany {
   totalFunding: number | null;
   linkedinUrl: string | null;
   logoUrl: string | null;
+  investors: string[];
   /** Raw provider payload for forensic debugging — never rendered to users. */
   raw: Record<string, unknown> | null;
 }
@@ -51,14 +52,20 @@ export function emptyCompany(): EnrichedCompany {
     totalFunding: null,
     linkedinUrl: null,
     logoUrl: null,
+    investors: [],
     raw: null,
   };
 }
+
+export type GeoRegion = "US" | "EU" | "AU" | "OTHER";
 
 export interface EnrichInput {
   domain?: string;
   name?: string;
   linkedinUrl?: string;
+  /** Pre-detected geo from Apollo search result or domain TLD.
+   * When set, the waterfall re-sorts providers by geo affinity. */
+  geo?: GeoRegion;
 }
 
 export interface ProviderContext {
@@ -75,7 +82,7 @@ export interface EnrichResult {
 }
 
 export interface CompanyEnrichmentProvider {
-  /** Short slug, e.g. "apollo", "llm-fallback", "clearbit". */
+  /** Short slug, e.g. "apollo", "llm-fallback", "dropcontact". */
   name: string;
   /**
    * Lower runs first. Use 10 (fastest/cheapest/best), 50 (secondary),
@@ -86,6 +93,10 @@ export interface CompanyEnrichmentProvider {
   isAvailable(): boolean;
   /** Estimated $ cost per call in US cents. 0 for providers with flat subscriptions. */
   costCentsPerCall: number;
+  /** Regions where this provider is strongest. When the input geo
+   * matches, the waterfall boosts this provider to run earlier.
+   * Omit for geo-neutral providers (Apollo, LLM). */
+  geoAffinity?: GeoRegion[];
   enrich(input: EnrichInput, ctx: ProviderContext): Promise<EnrichResult>;
 }
 

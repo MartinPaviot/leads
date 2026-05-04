@@ -65,6 +65,7 @@ export function scoreSignals(
 function formatSignalLabel(t: SignalType): string {
   switch (t) {
     case "funding": return "Funding";
+    case "funding_crunchbase": return "Funding (Crunchbase)";
     case "hiring": return "Hiring";
     case "tech_stack_change": return "Tech-stack change";
     case "leadership_change": return "Leadership change";

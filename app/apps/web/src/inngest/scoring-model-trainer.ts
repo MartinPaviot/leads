@@ -23,6 +23,10 @@ import {
   type DealFeatures,
   type ScoringModel,
 } from "@/lib/scoring/predictive-scorer";
+import {
+  trainCompanyModel,
+  type CompanyTrainingRow,
+} from "@/lib/scoring/company-model-trainer";
 
 /**
  * Weekly cron: retrain predictive scoring models for all tenants.
@@ -127,6 +131,34 @@ async function trainModelForTenant(
     // 3. Train the model
     const model = trainScoringModel(closedDealData);
 
+    // 3b. Train company-level model from closed-deal companies
+    const companyRows: CompanyTrainingRow[] = [];
+    for (const deal of closedDeals) {
+      if (!deal.companyId) continue;
+      const [company] = await db
+        .select({
+          industry: companies.industry,
+          size: companies.size,
+          properties: companies.properties,
+        })
+        .from(companies)
+        .where(eq(companies.id, deal.companyId))
+        .limit(1);
+      if (!company) continue;
+
+      const cProps = (company.properties || {}) as Record<string, unknown>;
+      companyRows.push({
+        outcome: deal.stage as "won" | "lost",
+        industry: company.industry || "unknown",
+        companySize: company.size || "unknown",
+        country: (cProps.country as string) || "unknown",
+        fundingStage: (cProps.latest_funding_stage as string) || "none",
+        hasRecentFunding: Boolean(cProps.latest_funding_raised_at),
+        techStackOverlap: Array.isArray(cProps.technologies) ? (cProps.technologies as string[]).length : 0,
+      });
+    }
+    const companyModel = trainCompanyModel(companyRows);
+
     // 4. Persist to tenant settings
     const [tenant] = await db
       .select({ settings: tenants.settings })
@@ -142,6 +174,7 @@ async function trainModelForTenant(
         settings: {
           ...currentSettings,
           scoringModel: model,
+          ...(companyModel ? { companyModel } : {}),
         },
         updatedAt: new Date(),
       })

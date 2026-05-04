@@ -3,12 +3,51 @@ import type {
   EnrichedCompany,
   EnrichInput,
   EnrichResult,
+  GeoRegion,
   ProviderContext,
   ProvenanceEntry,
   WaterfallResult,
 } from "./types";
 import { emptyCompany } from "./types";
 import { ensureDefaultsLoaded, listAvailableProviders } from "./registry";
+
+// ── Geo detection ────────────────────────────────────────────────
+
+const EU_TLDS = new Set([
+  "fr", "de", "uk", "co.uk", "nl", "be", "es", "it", "pt", "at", "ch",
+  "se", "no", "dk", "fi", "ie", "pl", "cz", "ro", "hu", "bg", "hr",
+  "sk", "si", "lt", "lv", "ee", "lu", "mt", "cy", "gr", "eu",
+]);
+const AU_TLDS = new Set(["au", "com.au", "nz", "co.nz"]);
+
+function detectGeoFromDomain(domain: string | undefined): GeoRegion | undefined {
+  if (!domain) return undefined;
+  const parts = domain.toLowerCase().split(".");
+  if (parts.length < 2) return undefined;
+  const tld2 = parts.slice(-2).join(".");
+  const tld1 = parts[parts.length - 1];
+  if (AU_TLDS.has(tld2) || AU_TLDS.has(tld1)) return "AU";
+  if (EU_TLDS.has(tld2) || EU_TLDS.has(tld1)) return "EU";
+  if (tld1 === "us" || tld2 === "com" || tld2 === "io" || tld2 === "co") return undefined;
+  return undefined;
+}
+
+/**
+ * Re-sort providers by geo affinity. Providers whose geoAffinity
+ * includes the input geo get a -50 priority bonus (run earlier).
+ * The sort is stable: same-affinity providers keep their original
+ * priority order.
+ */
+function sortByGeo(
+  providers: CompanyEnrichmentProvider[],
+  geo: GeoRegion,
+): CompanyEnrichmentProvider[] {
+  return [...providers].sort((a, b) => {
+    const aBoost = a.geoAffinity?.includes(geo) ? -50 : 0;
+    const bBoost = b.geoAffinity?.includes(geo) ? -50 : 0;
+    return (a.priority + aBoost) - (b.priority + bBoost);
+  });
+}
 
 /**
  * Fields that, when all three are present, let us break out of the
@@ -72,7 +111,7 @@ function mergePartial(
     contributed.push(k);
   }
 
-  const arrayKeys: Array<"technologies" | "keywords"> = ["technologies", "keywords"];
+  const arrayKeys: Array<"technologies" | "keywords" | "investors"> = ["technologies", "keywords", "investors"];
   for (const k of arrayKeys) {
     const incoming = partial[k];
     if (!Array.isArray(incoming) || incoming.length === 0) continue;
@@ -115,9 +154,11 @@ export async function enrichCompany(
     await ensureDefaultsLoaded();
   }
 
-  const providers = opts?.overrideProviders
+  const geo = input.geo ?? detectGeoFromDomain(input.domain);
+  const baseProviders = opts?.overrideProviders
     ? [...opts.overrideProviders].sort((a, b) => a.priority - b.priority)
     : listAvailableProviders();
+  const providers = geo ? sortByGeo(baseProviders, geo) : baseProviders;
 
   const data = emptyCompany();
   const provenance: ProvenanceEntry[] = [];
