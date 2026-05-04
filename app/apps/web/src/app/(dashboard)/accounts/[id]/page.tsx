@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Users, DollarSign, ClipboardList, Swords } from "lucide-react";
+import { Users, DollarSign, ClipboardList, Swords, Sparkles, RefreshCw } from "lucide-react";
 import { ScopedChat } from "@/components/scoped-chat";
 import { IntelligenceBrief } from "@/components/intelligence-brief";
 import { CompanyDossier } from "@/components/company-dossier";
@@ -12,6 +12,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { DetailPageSkeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
 
 interface Account {
   id: string;
@@ -23,6 +24,7 @@ interface Account {
   description: string | null;
   score: number | null;
   scoreReasons: string[] | null;
+  properties: Record<string, unknown> | null;
 }
 
 interface Deal {
@@ -40,6 +42,10 @@ export default function AccountDetailPage() {
   const [loading, setLoading] = useState(true);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiHowTheyMakeMoney, setAiHowTheyMakeMoney] = useState<string | null>(null);
+  const [refreshingSummary, setRefreshingSummary] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     async function load() {
@@ -49,6 +55,11 @@ export default function AccountDetailPage() {
           const data = await res.json();
           setAccount(data.account);
           setDeals(data.deals || []);
+          const props = data.account?.properties as Record<string, unknown> | null;
+          if (props) {
+            setAiSummary((props.ai_account_summary as string) || null);
+            setAiHowTheyMakeMoney((props.ai_how_they_make_money as string) || null);
+          }
         }
       } catch {
         console.error("Failed to load account");
@@ -91,6 +102,76 @@ export default function AccountDetailPage() {
         <div className="mt-6">
           <IntelligenceBrief accountId={accountId} />
         </div>
+
+        {/* AI Account Summary */}
+        {(aiSummary || aiHowTheyMakeMoney) && (
+          <div
+            className="mt-4 rounded-lg p-4"
+            style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
+                  Account Summary
+                </h2>
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium"
+                  style={{ background: "var(--color-bg-hover)", color: "var(--color-text-tertiary)" }}
+                >
+                  <Sparkles size={10} />
+                  AI-generated
+                </span>
+              </div>
+              <button
+                onClick={async () => {
+                  setRefreshingSummary(true);
+                  try {
+                    const res = await fetch(`/api/accounts/${accountId}/generate-summary`, {
+                      method: "POST",
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      setAiSummary(data.ai_account_summary);
+                      setAiHowTheyMakeMoney(data.ai_how_they_make_money);
+                      toast("Summary refreshed", "success");
+                    } else {
+                      const err = await res.json().catch(() => ({}));
+                      toast(err.error || "Failed to refresh summary", "error");
+                    }
+                  } catch {
+                    toast("Failed to refresh summary", "error");
+                  } finally {
+                    setRefreshingSummary(false);
+                  }
+                }}
+                disabled={refreshingSummary}
+                className="p-1 rounded transition-colors hover:bg-[var(--color-bg-hover)]"
+                style={{ color: "var(--color-text-tertiary)" }}
+                title="Refresh AI summary"
+              >
+                <RefreshCw size={14} className={refreshingSummary ? "animate-spin" : ""} />
+              </button>
+            </div>
+            {aiSummary && (
+              <p className="text-sm leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+                {aiSummary}
+              </p>
+            )}
+            {aiHowTheyMakeMoney && (
+              <div className="mt-3">
+                <p
+                  className="text-[10px] font-semibold uppercase tracking-wider mb-1"
+                  style={{ color: "var(--color-text-tertiary)" }}
+                >
+                  About their business
+                </p>
+                <p className="text-sm leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+                  {aiHowTheyMakeMoney}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Meeting Intel Card (structured extraction from calls) */}
         {(() => {
