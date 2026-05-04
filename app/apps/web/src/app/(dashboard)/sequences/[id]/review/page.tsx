@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { checkSpamSignals, type SpamCheckResult } from "@/lib/email-spam-check";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
 interface OutboundEmail {
   id: string;
@@ -206,7 +207,7 @@ export default function ReviewQueuePage({
                       <div
                         className="mt-2 text-xs text-[var(--color-text-secondary)] line-clamp-3"
                         dangerouslySetInnerHTML={{
-                          __html: email.bodyHtml.substring(0, 300),
+                          __html: sanitizeHtml(email.bodyHtml.substring(0, 300)),
                         }}
                       />
                       {/* Q10 — inline spam-trigger warnings. Computed

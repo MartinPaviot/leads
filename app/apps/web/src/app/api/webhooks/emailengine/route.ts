@@ -2,13 +2,12 @@ import { db } from "@/db";
 import { outboundEmails, connectedMailboxes, emailOptouts } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import crypto from "crypto";
+import { inngest } from "@/inngest/client";
+import type { AgentTrigger } from "@/lib/agent-reactor/types";
 
 function verifyWebhookSignature(body: string, signature: string | null): boolean {
   const secret = process.env.EMAILENGINE_WEBHOOK_SECRET;
-  if (!secret) {
-    // If no secret configured, reject all webhooks in production
-    return process.env.NODE_ENV !== "production";
-  }
+  if (!secret) return false;
   if (!signature) return false;
   const expected = crypto
     .createHmac("sha256", secret)
@@ -119,10 +118,52 @@ export async function POST(req: Request) {
               })
               .where(eq(connectedMailboxes.id, outbound.mailboxId));
           }
+
+          // F001: Fire agent reactor for bounce
+          if (outbound.contactId) {
+            await inngest.send({
+              name: "agent/react",
+              data: {
+                tenantId: outbound.tenantId,
+                trigger: "email_bounced" as AgentTrigger,
+                entityType: "contact" as const,
+                entityId: outbound.contactId,
+                metadata: { emailId: outbound.id, bounceType },
+                deduplicationKey: `email_bounced:contact:${outbound.contactId}`,
+                firedAt: new Date().toISOString(),
+              },
+            }).catch(() => {});
+          }
         }
       }
 
       break;
+    }
+  }
+
+  // F001: Fire agent reactor for inbound email / reply
+  if (event.event === "messageNew") {
+    const { threadId } = event.data || {};
+    if (threadId) {
+      const [outbound] = await db
+        .select({ id: outboundEmails.id, tenantId: outboundEmails.tenantId, contactId: outboundEmails.contactId })
+        .from(outboundEmails)
+        .where(eq(outboundEmails.threadId, threadId))
+        .limit(1);
+      if (outbound?.contactId) {
+        await inngest.send({
+          name: "agent/react",
+          data: {
+            tenantId: outbound.tenantId,
+            trigger: "email_replied" as AgentTrigger,
+            entityType: "contact" as const,
+            entityId: outbound.contactId,
+            metadata: { emailId: outbound.id, threadId },
+            deduplicationKey: `email_replied:contact:${outbound.contactId}`,
+            firedAt: new Date().toISOString(),
+          },
+        }).catch(() => {});
+      }
     }
   }
 

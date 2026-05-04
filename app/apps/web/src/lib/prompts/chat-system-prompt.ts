@@ -11,6 +11,7 @@ interface SystemPromptParams {
   entityContext: string;
   knowledgeContext: string;
   memoriesContext: string;
+  workQueueContext?: string;
   agentApprovalMode: string;
   userName?: string;
   preferredLanguage?: string;
@@ -23,6 +24,7 @@ export function buildChatSystemPrompt(params: SystemPromptParams): string {
     entityContext,
     knowledgeContext,
     memoriesContext,
+    workQueueContext,
     agentApprovalMode,
     userName,
     preferredLanguage,
@@ -319,6 +321,6 @@ Sequential workflows: When a user message starts with "[Approved:" it means a re
 </approval_mode>
 ` : ""}
 <crm_context>
-${crmSnapshot}${ragContext}${entityContext}${knowledgeContext}${memoriesContext}
+${crmSnapshot}${ragContext}${entityContext}${knowledgeContext}${memoriesContext}${workQueueContext || ""}
 </crm_context>`;
 }
