@@ -11,7 +11,7 @@ import { tracedStreamText } from "@/lib/traced-ai";
 import { searchSimilar } from "@/lib/embeddings";
 import { searchContextGraph } from "@/lib/context-graph";
 import { db } from "@/db";
-import { companies, contacts, deals, activities, notes, chatMemories } from "@/db/schema";
+import { companies, contacts, deals, activities, notes, chatMemories, knowledgeEntries } from "@/db/schema";
 import { and, eq, desc, sql, or } from "drizzle-orm";
 import { getTenantSettings, deriveTargetRoles, type TenantSettings } from "@/lib/tenant-settings";
 import { buildChatSystemPrompt } from "@/lib/prompts/chat-system-prompt";
@@ -447,7 +447,7 @@ export async function POST(req: Request) {
   const shouldSampleRag = shouldMeasureRagQuality();
 
   // Parallel: RAG search + CRM snapshot + entity context + knowledge + approval mode
-  const [ragContext, crmSnapshot, entityContext, knowledgeContext, agentApprovalMode, memoriesContext] = await Promise.all([
+  const [ragContext, crmSnapshot, entityContext, knowledgeContext, agentApprovalMode, memoriesContext, workQueueContext] = await Promise.all([
     (async () => {
       if (!lastUserText) return "";
       ragRetrievalStartMs = Date.now();
@@ -495,10 +495,35 @@ export async function POST(req: Request) {
     getCRMSnapshot(authCtx.tenantId, tenantSettings),
     getEntityContext(contextType, contextId, authCtx.tenantId),
     (async () => {
-      const knowledge = (tenantSettings.knowledge || []).slice(0, 5);
-      if (knowledge.length === 0) return "";
-      return "\n\n## Business Knowledge (world model)\n" +
-        knowledge.map((k) => `### ${k.topic}\n${k.content.slice(0, 300)}`).join("\n\n");
+      try {
+        const rows = await db
+          .select({
+            title: knowledgeEntries.title,
+            content: knowledgeEntries.content,
+            scope: knowledgeEntries.scope,
+          })
+          .from(knowledgeEntries)
+          .where(
+            and(
+              eq(knowledgeEntries.tenantId, authCtx.tenantId),
+              eq(knowledgeEntries.isActive, true),
+              or(
+                eq(knowledgeEntries.scope, "workspace"),
+                and(
+                  eq(knowledgeEntries.scope, "user"),
+                  eq(knowledgeEntries.createdBy, authCtx.userId)
+                )
+              )
+            )
+          )
+          .orderBy(desc(knowledgeEntries.updatedAt))
+          .limit(20);
+        if (rows.length === 0) return "";
+        return "\n\n## Your Knowledge Base\n" +
+          rows.map((k) => `### ${k.title}\n${k.content}`).join("\n\n");
+      } catch {
+        return "";
+      }
     })(),
     (async () => {
       return tenantSettings.agentApprovalMode || "auto";
@@ -526,6 +551,17 @@ export async function POST(req: Request) {
         if (memories.length === 0) return "";
         return "\n\n## Agent Memory (learned from previous conversations)\n" +
           memories.map((m) => `- [${m.category}] ${m.key}: ${m.content}`).join("\n");
+      } catch {
+        return "";
+      }
+    })(),
+    // F002: Load agent work queue for persistent state awareness
+    (async () => {
+      try {
+        const { getTopWorkItems, serializeWorkQueue } = await import("@/lib/agent-state/work-items");
+        const items = await getTopWorkItems(authCtx.tenantId, 10);
+        if (items.length === 0) return "";
+        return "\n\n" + serializeWorkQueue(items);
       } catch {
         return "";
       }
@@ -605,6 +641,7 @@ export async function POST(req: Request) {
           entityContext,
           knowledgeContext,
           memoriesContext,
+          workQueueContext,
           agentApprovalMode,
           userName: tenantSettings.onboardingCompanyName || undefined,
           preferredLanguage: tenantSettings.language || undefined,
