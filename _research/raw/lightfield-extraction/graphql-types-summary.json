@@ -1,0 +1,4112 @@
+[
+  {
+    "name": "Query",
+    "kind": "OBJECT",
+    "fields": [
+      "currentUser: UserType!",
+      "apiKeys: [ApiKeyType!]!",
+      "getDashboardStats: DashboardStatsType",
+      "aiSearchSuggestions: [AiSearchSuggestionType!]!",
+      "userActivitySearchStatus: SearchResultsCollection!",
+      "user: UserType!",
+      "company: CompanyType!",
+      "getDiscoveryCandidatesForValidity: [DiscoveryCandidatePending!]!",
+      "getDiscoveryCandidatesForDedup: [DiscoveryCandidatePending!]!",
+      "getCompanyBucketName: String",
+      "getReferenceDocs: ReferenceDocsResultType",
+      "allCompanies: [CompanyType!]!",
+      "sessionDetailsForKafkaFromApiKey: SessionDetailsForKafka",
+      "splitNonsessionApplogsBySecondsForApiKey: CompanyConfigurationSplitNonsessionApplogsBySeconds!",
+      "sessionDetailsForKafkaFromSessionId: SessionDetailsForKafka",
+      "getRecordingGroupsSummaryV2: RecordingGroupsSummaryCacheCollection!",
+      "getRecordingGroupsDemoSummary: RecordingGroupsDemoSummaryCollection!",
+      "getRecordingActivityBuckets: RecordingActivityBucketsResult!",
+      "statusItems: IntegrationStatusType",
+      "jsSnippetConfigParameters: JsSnippetConfigParametersType",
+      "siteSettings: SiteSettingsType",
+      "isFunctionSpanTrackingActive: FunctionSpanTrackingStatus",
+      "isFunctionSpanTrackingEnabledFromApiKey: Boolean!",
+      "captureSettings: CaptureSettingsType",
+      "pylonIntegration: PylonIntegrationType",
+      "zendeskAppSettings: ZendeskAppSettingsType",
+      "salesforceAppSettings: SalesforceAppSettingsType",
+      "captureSettingsFromApiKey: CaptureSettingsType",
+      "dnsRoutingStatus: DnsRoutingStatusType",
+      "latestBannerAnnouncement: AnnouncementType",
+      "allAnnouncements: PaginatedAnnouncements!",
+      "getReleaseNotes: ReleaseNoteType",
+      "featureRequests: [FeatureRequestType!]!",
+      "recordingSession: RecordingSessionEvents",
+      "companies: [CompanyType!]!",
+      "getFullAutocompleteData: FullAutocompleteData",
+      "getAutocompleteDataForField: FieldAutocompleteData",
+      "searchUsingQuery: RecordingSessionQueryResultsTypeIssueQueryResultsTypeTriageQueryResultsTypeExceptionRecordQueryResultsTypeBigQueryResultsType",
+      "getTriage: TriageType",
+      "getIssue: IssueType",
+      "getIssueExceptionDeviceInfo: ExceptionDeviceInfoTypePaginationWindow!",
+      "getIssueExceptionDeviceInfoCsv: String!",
+      "getOccurrenceChartData: [OccurrenceDataPointType!]!",
+      "getTriageOccurrenceChartData: [OccurrenceDataPointType!]!",
+      "getIssueFromIssueIdAndApiKey: IssueType",
+      "getIssueConversations: IssueConversationsType",
+      "getPrConversations: PrConversationsType",
+      "getExceptionRecord: ExceptionRecordType",
+      "getExceptionRecordFromApiKeyAndId: ExceptionRecordType",
+      "getDetailedInformationForIssue: DetailedInformationType",
+      "getRepoDefaultTargetBranch: String",
+      "getEngineeringTicketPlatformIntegrationConfigs: [EngineeringTicketPlatformIntegrationConfigType!]!",
+      "getEngineeringTicketPlatformIntegrations: [EngineeringTicketPlatformIntegrationType!]!",
+      "getEngineeringTicketPlatformIntegration: EngineeringTicketPlatformIntegrationType",
+      "getEngineeringTicketPlatformIntegrationsFromApiKey: [EngineeringTicketPlatformIntegrationType!]!",
+      "getJiraFieldConfigurations: JSON",
+      "getEngineeringTicket: EngineeringTicketType",
+      "getEngineeringTickets: [EngineeringTicketType!]!",
+      "triggerException0: Void",
+      "triggerException1: Void",
+      "triggerException2: Void",
+      "triggerException3: Void",
+      "triggerException4: Void",
+      "getNotificationSettings: NotificationsSettingsType!",
+      "getIssueDiscoverySettings: IssueDiscoverySettingsType!",
+      "getExceptionEnrichmentSettings: ExceptionEnrichmentSettingsType!",
+      "getFieldValues: [String!]!",
+      "getActiveGithubIntegrationForOwner: GitHubIntegrationType",
+      "getGithubIntegrations: [GitHubIntegrationType!]!",
+      "getRepositoriesForGithubInstallation: [RepositoryType!]!",
+      "getActiveBitbucketIntegrationForOwner: BitbucketIntegrationInternalType",
+      "getBitbucketIntegrations: [BitbucketIntegrationType!]!",
+      "getGitlabIntegrations: [GitLabIntegrationType!]!",
+      "getGitlabProjects: [GitLabProjectType!]!",
+      "getBitbucketRepos: [BitbucketRepoType!]!",
+      "getModifiedOrAddedFilesForPullRequest: [String!]!",
+      "hilPatch: PatchType",
+      "getRepoZipForPatch: FileDownloadUrl!",
+      "getChecksForPullRequest: JSON!",
+      "getGroupedRecordingSessionsForUser: RecordingSessionQueryResultsGroupedType!",
+      "getRecordingTimelineForUser: RecordingSessionQueryResultsGroupedType",
+      "getUserActivityForUser: UserActivityForUserType",
+      "getRecordingTimelineMetadataForUser: RecordingTimelineMetadataType",
+      "getRecordingSessionAtTimestamp: RecordingSessionType",
+      "getRecordingTimelineForUserByDateRange: RecordingSessionQueryResultsGroupedType",
+      "getUserActivityForUserByDateRange: UserActivityForUserType",
+      "getRecordingsPaginated: RecordingSessionQueryResultsGroupedType",
+      "getActivitiesPaginated: UserActivityForUserType",
+      "diffPrsBetweenMainAndProd: BranchDiff!",
+      "getMessagingPlatformIntegrations: [MessagingPlatformIntegrationType!]!",
+      "checkSlackChannelMembership: SlackChannelMembership",
+      "listSlackBotChannels: [SlackChannelOption!]",
+      "getSlackThreadReply: String",
+      "getSessionIdsAndTimeWindowsForIssue: [SessionIdsAndTimeWindows!]!",
+      "getDesktopAutofixPrompt: DesktopAutofixPromptType!",
+      "getLatestAutofixRuns: [DesktopAutofixRunType!]!",
+      "getAutofixRunLogs: String",
+      "getBackendLogsForSessionsInternal: [SessionBackendLogs!]!",
+      "getPrintStatementsForSessionsInternal: [SessionPrintStatements!]!",
+      "getFrontendLogsForSession: [ConsoleLog!]!",
+      "getFrontendLogsForSessionsInternal: [SessionFrontendLogs!]!",
+      "getNetworkHopsForSessionsInternal: [SessionNetworkHops!]!",
+      "getUserActionsForSessionsInternal: [SessionUserActions!]!",
+      "getFrontendDisplayDataForSessionsInternal: [SessionDisplayData!]!",
+      "getNetworkRequestLogsForSessionsInternal: [SessionNetworkRequests!]!",
+      "mcpGetBackendLogs: [SessionBackendLogs!]!",
+      "mcpGetFrontendLogs: [SessionFrontendLogs!]!",
+      "mcpGetNetworkRequestLogs: [SessionNetworkRequests!]!",
+      "mcpGetNetworkHops: [SessionNetworkHops!]!",
+      "mcpGetPrintStatements: [SessionPrintStatements!]!",
+      "mcpGetUserActions: [SessionUserActions!]!",
+      "mcpGetFrontendDisplayData: [SessionDisplayData!]!",
+      "mcpGetIssueExceptions: McpIssueExceptionType!",
+      "mcpGetCompanyRepos: [McpRepoInfoType!]!",
+      "mcpSearchTickets: McpTicketSearchResult!",
+      "mcpFetchTicket: McpHydratedTicket!",
+      "getAutofixRunStatus: AutofixRunType!",
+      "getAutofixRunByRunId: AutofixRunType",
+      "getAutofixRunByPrUrl: AutofixRunType",
+      "getLatestAutofixRunByIssueId: AutofixRunType",
+      "autofixRunMermaid: String!",
+      "autoinstallRunMermaid: String!",
+      "fetchSessionLogs: [NetworkRequestsAndLogsForPageVisitUuid!]!",
+      "getZendeskInvestigationStatus: ZendeskInvestigationStatusResponse!",
+      "getSalesforceInvestigationStatus: ZendeskInvestigationStatusResponse",
+      "getIntercomInvestigationStatus: IntercomInvestigationStatusResponse!",
+      "intercomAppSettings: IntercomAppSettingsType",
+      "searchUserActivity: SearchResultsCollection!",
+      "observabilityTimeline: TopLevelObservabilityItemConnection!",
+      "eventsHistogram: [EventHistogramBucket!]!",
+      "eventsAround: EventsAroundContext!",
+      "networkRequestById: NetworkRequestWithEvents",
+      "alerts: [AlertType!]!",
+      "alert: AlertType",
+      "alertMessage: AlertMessageType",
+      "alertChannelConfigs: [AlertChannelConfigType!]!",
+      "alertRoutingRules: [AlertRoutingRuleType!]!",
+      "githubLinkStatus: GithubLinkStatusType!",
+      "logFilterRules: [LogFilterRuleType!]!",
+      "userActivityForLocalization: UserActivityForLocalizationResult!",
+      "getMcpMetricsSummary: MCPMetricsSummary!",
+      "applicationStatus: ApplicationStatusResponseType!",
+      "specReviewSession: SpecReviewSessionType",
+      "specReviewComments: [SpecReviewCommentType!]!",
+      "listBranchArtifacts: [BranchArtifactRefType!]!",
+      "githubRepos: [GitHubRepoType!]!",
+      "githubPullRequests: PaginatedGitHubPullRequests!",
+      "githubPrDetail: GitHubPullRequestType",
+      "orgMembers: [OrgMemberType!]!",
+      "workflowDefinition: WorkflowDefinitionType",
+      "workflowDefinitions: [WorkflowDefinitionType!]!",
+      "workflowExecutions: [WorkflowExecutionType!]!"
+    ]
+  },
+  {
+    "name": "UserType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "username: String!",
+      "email: String!",
+      "isActive: Boolean!",
+      "avatarUrl: String"
+    ]
+  },
+  {
+    "name": "ID",
+    "kind": "SCALAR"
+  },
+  {
+    "name": "String",
+    "kind": "SCALAR"
+  },
+  {
+    "name": "Boolean",
+    "kind": "SCALAR"
+  },
+  {
+    "name": "ApiKeyType",
+    "kind": "OBJECT",
+    "fields": [
+      "apiKey: String!",
+      "companyName: String!"
+    ]
+  },
+  {
+    "name": "DashboardStatsType",
+    "kind": "OBJECT",
+    "fields": [
+      "totalIssuesReported: Int!",
+      "uniqueUsersImpacted: Int!",
+      "averageDailyActiveUsers: Int!"
+    ]
+  },
+  {
+    "name": "Int",
+    "kind": "SCALAR"
+  },
+  {
+    "name": "AiSearchSuggestionType",
+    "kind": "OBJECT",
+    "fields": [
+      "text: String!",
+      "type: String!"
+    ]
+  },
+  {
+    "name": "SearchResultsCollection",
+    "kind": "OBJECT",
+    "fields": [
+      "success: Boolean!",
+      "message: String!",
+      "items: [SearchResultRecordingGroupType!]!",
+      "pageInfo: SummaryPageInfo",
+      "totalItemsCount: Int!",
+      "searchRequestId: String",
+      "progressStage: String"
+    ]
+  },
+  {
+    "name": "SearchResultRecordingGroupType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: Int!",
+      "userId: String!",
+      "latestActionTimestamp: BigInt!",
+      "sessionCount: Int!",
+      "spans: JSON!",
+      "mainPageUrls: [String!]",
+      "matchWindows: [ActivityMatchWindow!]!"
+    ]
+  },
+  {
+    "name": "BigInt",
+    "kind": "SCALAR"
+  },
+  {
+    "name": "JSON",
+    "kind": "SCALAR"
+  },
+  {
+    "name": "ActivityMatchWindow",
+    "kind": "OBJECT",
+    "fields": [
+      "startTimestamp: BigInt!",
+      "endTimestamp: BigInt!"
+    ]
+  },
+  {
+    "name": "SummaryPageInfo",
+    "kind": "OBJECT",
+    "fields": [
+      "hasNextPage: Boolean!",
+      "limit: Int!"
+    ]
+  },
+  {
+    "name": "CompanyType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "name: String!",
+      "apiKey: UUID!",
+      "users: [DjangoModelType!]!",
+      "domains: [String!]!",
+      "preFingerprintSettings: PreFingerprintSettingsType",
+      "preFingerprintPatterns: [PreFingerprintPatternType!]!"
+    ]
+  },
+  {
+    "name": "UUID",
+    "kind": "SCALAR"
+  },
+  {
+    "name": "DjangoModelType",
+    "kind": "OBJECT",
+    "fields": [
+      "pk: ID!"
+    ]
+  },
+  {
+    "name": "PreFingerprintSettingsType",
+    "kind": "OBJECT",
+    "fields": [
+      "enabled: Boolean!"
+    ]
+  },
+  {
+    "name": "PreFingerprintPatternType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: UUID!",
+      "isActive: Boolean!",
+      "essence: String!",
+      "patternJson: JSON!"
+    ]
+  },
+  {
+    "name": "DiscoveryCandidatePending",
+    "kind": "OBJECT",
+    "fields": [
+      "id: Int!",
+      "finding: JSON!",
+      "title: String!",
+      "severity: String",
+      "errorSignature: String",
+      "urlPattern: String"
+    ]
+  },
+  {
+    "name": "ReferenceDocsResultType",
+    "kind": "OBJECT",
+    "fields": [
+      "docs: [ReferenceDocType!]!"
+    ]
+  },
+  {
+    "name": "ReferenceDocType",
+    "kind": "OBJECT",
+    "fields": [
+      "filename: String!",
+      "description: String!",
+      "content: String!"
+    ]
+  },
+  {
+    "name": "SessionDetailsForKafka",
+    "kind": "OBJECT",
+    "fields": [
+      "bucketName: String!",
+      "isActive: Boolean!",
+      "isZipped: Boolean!",
+      "datasetId: String",
+      "splitNonsessionApplogsBySeconds: Int!",
+      "apiKey: String"
+    ]
+  },
+  {
+    "name": "CompanyConfigurationSplitNonsessionApplogsBySeconds",
+    "kind": "OBJECT",
+    "fields": [
+      "splitNonsessionApplogsBySeconds: Int!"
+    ]
+  },
+  {
+    "name": "RecordingGroupsSummaryCacheCollection",
+    "kind": "OBJECT",
+    "fields": [
+      "items: [RecordingGroupSummaryCacheType!]!",
+      "pageInfo: SummaryPageInfo!",
+      "totalItemsCount: Int!"
+    ]
+  },
+  {
+    "name": "RecordingGroupSummaryCacheType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: Int!",
+      "userId: String!",
+      "latestActionTimestamp: BigInt!",
+      "sessionCount: Int!",
+      "spans: JSON!",
+      "mainPageUrls: [String!]"
+    ]
+  },
+  {
+    "name": "RecordingGroupsDemoSummaryCollection",
+    "kind": "OBJECT",
+    "fields": [
+      "items: [RecordingGroupDemoSummaryType!]!",
+      "pageInfo: SummaryPageInfo!",
+      "totalItemsCount: Int!"
+    ]
+  },
+  {
+    "name": "RecordingGroupDemoSummaryType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: Int!",
+      "userId: String!",
+      "latestActionTimestamp: BigInt!",
+      "sessionCount: Int!",
+      "spans: JSON!",
+      "mainPageUrls: [String!]"
+    ]
+  },
+  {
+    "name": "RecordingActivityBucketsResult",
+    "kind": "OBJECT",
+    "fields": [
+      "buckets: [RecordingActivityBucket!]!",
+      "totalAffectedUsers: Int!",
+      "totalEvents: Int!",
+      "bucketWidthMs: BigInt!"
+    ]
+  },
+  {
+    "name": "RecordingActivityBucket",
+    "kind": "OBJECT",
+    "fields": [
+      "bucketStart: BigInt!",
+      "bucketEnd: BigInt!",
+      "userCount: Int!",
+      "eventCount: Int!"
+    ]
+  },
+  {
+    "name": "IntegrationStatusType",
+    "kind": "OBJECT",
+    "fields": [
+      "integrations: [IntegrationType!]!"
+    ]
+  },
+  {
+    "name": "IntegrationType",
+    "kind": "OBJECT",
+    "fields": [
+      "title: String!",
+      "link: String!",
+      "tooltipText: String!",
+      "isWorking: Boolean!"
+    ]
+  },
+  {
+    "name": "JsSnippetConfigParametersType",
+    "kind": "OBJECT",
+    "fields": [
+      "backendApi: String!",
+      "apiKey: String!",
+      "scriptSource: String!"
+    ]
+  },
+  {
+    "name": "SiteSettingsType",
+    "kind": "OBJECT",
+    "fields": [
+      "backendApi: String!",
+      "sailfishBackendApi: String!",
+      "apiKey: String!",
+      "companyId: Int!",
+      "defaultBackendApiUrl: String!",
+      "defaultSailfishBackendApiUrl: String!",
+      "isDefaultBackendApiUrl: Boolean!",
+      "isDefaultSailfishBackendApiUrl: Boolean!",
+      "domainsToPropagateHeadersTo: [String!]!"
+    ]
+  },
+  {
+    "name": "FunctionSpanTrackingStatus",
+    "kind": "OBJECT",
+    "fields": [
+      "isActive: Boolean!",
+      "configurationType: String",
+      "scheduledEndTime: DateTime",
+      "timeRemainingSeconds: Int",
+      "startedAt: DateTime",
+      "timeoutSeconds: Int",
+      "endedAt: DateTime",
+      "envMetadataValue: String",
+      "availableEnvValues: [String!]!"
+    ]
+  },
+  {
+    "name": "DateTime",
+    "kind": "SCALAR"
+  },
+  {
+    "name": "TrackingConfigurationType",
+    "kind": "ENUM",
+    "enums": [
+      "GLOBAL",
+      "PER_SESSION"
+    ]
+  },
+  {
+    "name": "CaptureSettingsType",
+    "kind": "OBJECT",
+    "fields": [
+      "canEdit: Boolean!",
+      "id: ID!",
+      "recordCanvas: Boolean!",
+      "recordCrossOriginIframes: Boolean!",
+      "collectFonts: Boolean!",
+      "inlineImages: Boolean!",
+      "sampling: JSON!",
+      "recordPassword: Boolean!",
+      "recordRealName: Boolean!",
+      "recordCreditCardInfo: Boolean!",
+      "recordSsn: Boolean!",
+      "recordDob: Boolean!",
+      "ignoreDomains: [String!]!",
+      "cssFromDomain: String",
+      "cssToDomain: String",
+      "textEditThrottleEnabled: Boolean!",
+      "textEditBackendThrottleEnabled: Boolean!"
+    ]
+  },
+  {
+    "name": "PylonIntegrationType",
+    "kind": "OBJECT",
+    "fields": [
+      "enabled: Boolean!",
+      "hasApiKey: Boolean!",
+      "hasWebhookSecret: Boolean!",
+      "webhookUrl: String!"
+    ]
+  },
+  {
+    "name": "ZendeskAppSettingsType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "slackMessagingEnabled: Boolean!",
+      "defaultSlackChannel: String",
+      "demoStepDelays: JSON!"
+    ]
+  },
+  {
+    "name": "SalesforceAppSettingsType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "salesforceInstanceUrl: String!",
+      "salesforceOrgId: String!",
+      "isConnected: Boolean!",
+      "connectedAt: DateTime",
+      "autoTriggerEnabled: Boolean!",
+      "slackMessagingEnabled: Boolean!",
+      "defaultSlackChannel: String"
+    ]
+  },
+  {
+    "name": "DnsRoutingStatusType",
+    "kind": "OBJECT",
+    "fields": [
+      "sailfishBackendApi: Boolean!",
+      "backendApi: Boolean!"
+    ]
+  },
+  {
+    "name": "AnnouncementType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "content: String!",
+      "createdAt: String!",
+      "type: String!"
+    ]
+  },
+  {
+    "name": "PaginatedAnnouncements",
+    "kind": "OBJECT",
+    "fields": [
+      "announcements: [AnnouncementType!]!",
+      "page: Int!",
+      "pageSize: Int!",
+      "totalPages: Int!",
+      "totalItems: Int!"
+    ]
+  },
+  {
+    "name": "ReleaseNoteType",
+    "kind": "OBJECT",
+    "fields": [
+      "version: String!",
+      "releaseNotes: String!",
+      "requiresDaemonRestart: Boolean!",
+      "releaseDate: String"
+    ]
+  },
+  {
+    "name": "FeatureRequestType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "title: String!",
+      "description: String!",
+      "dateRequested: DateTime!",
+      "lastUpdate: DateTime!",
+      "totalVotes: Int!",
+      "companiesVoted: [String!]!",
+      "votedByUser: Boolean!"
+    ]
+  },
+  {
+    "name": "RecordingSessionEvents",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "pageId: String",
+      "userId: String",
+      "trackingEvents: [RecordingSessionTrackingEventType!]!",
+      "userInteractions: InteractionsTaken!",
+      "unzippedEvents: [RecordingEvents!]!",
+      "metadata: RecordingMetadata"
+    ]
+  },
+  {
+    "name": "RecordingSessionTrackingEventType",
+    "kind": "OBJECT",
+    "fields": [
+      "event: String!",
+      "properties: JSON!",
+      "timestamp: String"
+    ]
+  },
+  {
+    "name": "InteractionsTaken",
+    "kind": "OBJECT",
+    "fields": [
+      "pageNavigations: [PageNavigationInteraction!]!",
+      "clicks: [ClickInteraction!]!",
+      "textEdits: [TypingInteraction!]!",
+      "toggles: [ToggleInteraction!]!",
+      "calculatedOnTheFly: Boolean!"
+    ]
+  },
+  {
+    "name": "PageNavigationInteraction",
+    "kind": "OBJECT",
+    "fields": [
+      "timestamp: String",
+      "details: String!",
+      "recordingId: String!",
+      "url: String!"
+    ]
+  },
+  {
+    "name": "ClickInteraction",
+    "kind": "OBJECT",
+    "fields": [
+      "timestamp: String",
+      "details: String!",
+      "recordingId: String!",
+      "element: JSON!",
+      "textContent: String!",
+      "children: [String!]",
+      "type: String!",
+      "actionLabel: String"
+    ]
+  },
+  {
+    "name": "TypingInteraction",
+    "kind": "OBJECT",
+    "fields": [
+      "timestamp: String",
+      "details: String!",
+      "recordingId: String!",
+      "element: JSON!",
+      "attributes: JSON!",
+      "title: String",
+      "placeholder: String",
+      "children: [String!]"
+    ]
+  },
+  {
+    "name": "ToggleInteraction",
+    "kind": "OBJECT",
+    "fields": [
+      "timestamp: String",
+      "details: String!",
+      "recordingId: String!",
+      "element: JSON!",
+      "textContent: String!",
+      "children: [String!]",
+      "type: String!",
+      "state: String",
+      "actionLabel: String"
+    ]
+  },
+  {
+    "name": "RecordingEvents",
+    "kind": "OBJECT",
+    "fields": [
+      "sessionId: String!",
+      "pageVisitUuid: String!",
+      "events: [JSON!]!",
+      "fileProcessingStats: FileProcessingStats!"
+    ]
+  },
+  {
+    "name": "FileProcessingStats",
+    "kind": "OBJECT",
+    "fields": [
+      "processingTimeMs: Float!",
+      "dataFileStats: DataFileStats!"
+    ]
+  },
+  {
+    "name": "Float",
+    "kind": "SCALAR"
+  },
+  {
+    "name": "DataFileStats",
+    "kind": "OBJECT",
+    "fields": [
+      "numberOfFiles: Int!",
+      "totalSizeKb: Float!"
+    ]
+  },
+  {
+    "name": "RecordingMetadata",
+    "kind": "OBJECT",
+    "fields": [
+      "user: String!",
+      "device: DeviceMetadata!",
+      "language: String!",
+      "timeZone: String",
+      "region: String"
+    ]
+  },
+  {
+    "name": "DeviceMetadata",
+    "kind": "OBJECT",
+    "fields": [
+      "isBot: Boolean!",
+      "isTelevision: Boolean!",
+      "isMobile: Boolean!",
+      "isDesktop: Boolean!",
+      "device: DeviceDetails",
+      "client: ClientDetails",
+      "os: OSDetails"
+    ]
+  },
+  {
+    "name": "DeviceDetails",
+    "kind": "OBJECT",
+    "fields": [
+      "brand: String",
+      "model: String",
+      "type: String"
+    ]
+  },
+  {
+    "name": "ClientDetails",
+    "kind": "OBJECT",
+    "fields": [
+      "name: String",
+      "type: String",
+      "version: String"
+    ]
+  },
+  {
+    "name": "OSDetails",
+    "kind": "OBJECT",
+    "fields": [
+      "name: String",
+      "version: String"
+    ]
+  },
+  {
+    "name": "FullAutocompleteData",
+    "kind": "OBJECT",
+    "fields": [
+      "textFields: [TypeAheadTextField!]!",
+      "timeFields: [TypeAheadTimeField!]!",
+      "numericFields: [TypeAheadNumericField!]!",
+      "booleanFields: [TypeAheadBooleanField!]!",
+      "jsonFields: [TypeAheadJsonField!]!",
+      "allowedComparators: AllowedComparators!"
+    ]
+  },
+  {
+    "name": "TypeAheadTextField",
+    "kind": "OBJECT",
+    "fields": [
+      "name: String!",
+      "topNValues: [String!]!",
+      "totalValues: Int!"
+    ]
+  },
+  {
+    "name": "TypeAheadTimeField",
+    "kind": "OBJECT",
+    "fields": [
+      "name: String!",
+      "start: String",
+      "end: String",
+      "totalValues: Int!"
+    ]
+  },
+  {
+    "name": "TypeAheadNumericField",
+    "kind": "OBJECT",
+    "fields": [
+      "name: String!",
+      "topNValues: [Float!]!",
+      "totalValues: Int!"
+    ]
+  },
+  {
+    "name": "TypeAheadBooleanField",
+    "kind": "OBJECT",
+    "fields": [
+      "name: String!",
+      "topNValues: [Boolean!]!",
+      "totalValues: Int!"
+    ]
+  },
+  {
+    "name": "TypeAheadJsonField",
+    "kind": "OBJECT",
+    "fields": [
+      "name: String!",
+      "fields: [TypeAheadTextField!]!"
+    ]
+  },
+  {
+    "name": "AllowedComparators",
+    "kind": "OBJECT",
+    "fields": [
+      "string: [String!]!",
+      "numeric: [String!]!",
+      "boolean: [String!]!",
+      "time: [String!]!",
+      "json: [String!]!"
+    ]
+  },
+  {
+    "name": "FieldAutocompleteData",
+    "kind": "OBJECT",
+    "fields": [
+      "field: String!",
+      "matches: Match!"
+    ]
+  },
+  {
+    "name": "Match",
+    "kind": "OBJECT",
+    "fields": [
+      "prefix: [String!]!",
+      "fuzzy: [String!]!"
+    ]
+  },
+  {
+    "name": "RecordingSessionQueryResultsTypeIssueQueryResultsTypeTriageQueryResultsTypeExceptionRecordQueryResultsTypeBigQueryResultsType",
+    "kind": "UNION"
+  },
+  {
+    "name": "RecordingSessionQueryResultsType",
+    "kind": "OBJECT",
+    "fields": [
+      "results: RecordingSessionQueryResultsGroupedTypePaginationWindow!",
+      "queryType: String!",
+      "tree: String!"
+    ]
+  },
+  {
+    "name": "RecordingSessionQueryResultsGroupedTypePaginationWindow",
+    "kind": "OBJECT",
+    "fields": [
+      "items: [RecordingSessionQueryResultsGroupedType!]!",
+      "totalItemsCount: Int!"
+    ]
+  },
+  {
+    "name": "RecordingSessionQueryResultsGroupedType",
+    "kind": "OBJECT",
+    "fields": [
+      "userId: String!",
+      "recordings: [RecordingSessionType!]!",
+      "userInteractions: DeviceSplitInteractions",
+      "trackingEvents: DeviceSplitTrackingEvents"
+    ]
+  },
+  {
+    "name": "RecordingSessionType",
+    "kind": "OBJECT",
+    "fields": [
+      "startTimestamp: BigInt!",
+      "id: String!",
+      "rootDomain: DjangoModelType",
+      "updatedAt: DateTime",
+      "shadowSessionId: String",
+      "isShadow: Boolean!",
+      "numberOfEventsSeen: Int!",
+      "numberOfEventsProcessed: Int!",
+      "hasValidEventsSeen: Boolean!",
+      "hasValidEventsProcessed: Boolean!",
+      "eventsSeen: JSON",
+      "eventsProcessed: JSON",
+      "isActive: Boolean!",
+      "isZipped: Boolean!",
+      "revision: Int!",
+      "dataIgnoredDueToDomainExclusion: Boolean!",
+      "userId: String!",
+      "userIdHasBeenSet: Boolean!",
+      "traits: JSON",
+      "userDeviceUuid: UUID",
+      "deviceInfo: JSON",
+      "deviceInfoRef: DjangoModelType",
+      "timeZone: String",
+      "retryWithoutTraceId: Boolean!",
+      "serviceIdentifier: DjangoModelType",
+      "embeddingGenerationTask: DjangoModelType",
+      "embeddingsCompleted: Boolean",
+      "isFromLocalService: Boolean",
+      "formattedStartTimestamp: String!",
+      "durationMs: BigInt",
+      "userActionsCount: Int!",
+      "pageNavigations: [PageNavigationInteraction!]!",
+      "userInteractions: InteractionsTaken!",
+      "metadata: RecordingMetadata",
+      "pageVisits: [PageVisitType!]!",
+      "trackingEvents: [RecordingSessionTrackingEventType!]!"
+    ]
+  },
+  {
+    "name": "PageVisitType",
+    "kind": "OBJECT",
+    "fields": [
+      "activeFrom: String!",
+      "activeUntil: String",
+      "isPlayable: Boolean!",
+      "id: UUID!",
+      "pageUrl: DjangoModelType",
+      "visibilityVisibleTimestamps: JSON!",
+      "visibilityHiddenTimestamps: JSON!",
+      "company: DjangoModelType",
+      "userId: String",
+      "url: String!"
+    ]
+  },
+  {
+    "name": "DeviceSplitInteractions",
+    "kind": "OBJECT",
+    "fields": [
+      "mobile: InteractionsTaken!",
+      "desktop: InteractionsTaken!"
+    ]
+  },
+  {
+    "name": "DeviceSplitTrackingEvents",
+    "kind": "OBJECT",
+    "fields": [
+      "mobile: [TrackingEventType!]!",
+      "desktop: [TrackingEventType!]!"
+    ]
+  },
+  {
+    "name": "TrackingEventType",
+    "kind": "OBJECT",
+    "fields": [
+      "timestamp: String!",
+      "text: String!",
+      "recordingId: String!"
+    ]
+  },
+  {
+    "name": "IssueQueryResultsType",
+    "kind": "OBJECT",
+    "fields": [
+      "results: IssueTypePaginationWindow!",
+      "queryType: String!",
+      "tree: String!"
+    ]
+  },
+  {
+    "name": "IssueTypePaginationWindow",
+    "kind": "OBJECT",
+    "fields": [
+      "items: [IssueType!]!",
+      "totalItemsCount: Int!"
+    ]
+  },
+  {
+    "name": "IssueType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "company: CompanyType!",
+      "createdByUser: UserType",
+      "followers: [UserType!]!",
+      "engineeringTicket: EngineeringTicketType",
+      "updatedAt: DateTime!",
+      "autofixRuns: AutofixRunType",
+      "hasNonlocalOccurrences: Boolean",
+      "engineeringSolution: String",
+      "supportApprovalMessage: String",
+      "exceptionTraceHash: String",
+      "title: String",
+      "description: String",
+      "aiGeneratedDescription: String",
+      "summary: String",
+      "customerSummary: String",
+      "customerConversation: String",
+      "createdBySystem: String",
+      "updatedBySystem: String",
+      "updatedByUser: DjangoModelType",
+      "demoOwner: DjangoModelType",
+      "isResolved: Boolean!",
+      "snoozedMode: String!",
+      "snoozedUntil: DateTime",
+      "snoozedPermanently: Boolean!",
+      "lastNotifiedViaEmail: DateTime",
+      "lastNotifiedViaWebhook: DateTime",
+      "slackConversation: DjangoModelType",
+      "firstLocalOccurrence: DateTime",
+      "lastLocalOccurrence: DateTime",
+      "firstNonlocalOccurrence: DateTime",
+      "lastNonlocalOccurrence: DateTime",
+      "enrichmentStatus: String",
+      "enrichmentClaimedAt: DateTime",
+      "enrichmentData: JSON",
+      "enrichmentAlertId: UUID",
+      "enrichmentAffectedUserIds: JSON!",
+      "investigationMetadata: JSON",
+      "zendeskTicketId: String",
+      "pylonIssueId: String",
+      "pylonReport: DjangoModelType",
+      "pylonBugIndex: Int",
+      "pylonRequesterEmail: String",
+      "isFromSalesforce: Boolean!",
+      "salesforceCaseId: String",
+      "isFromIntercom: Boolean!",
+      "intercomConversationId: String",
+      "csTicketUrl: String",
+      "demoOccurrences: [DemoOccurrenceType!]!",
+      "demoCsTickets: [DemoCsTicketType!]!",
+      "occurrenceChartData: [OccurrenceDataPointType!]!",
+      "timelineActivities: [IssueTimelineActivityType!]!",
+      "canAutofix: Boolean!",
+      "autofixCantRunReason: String",
+      "createdBy: String!",
+      "updatedBy: String!",
+      "createdAtFormatted: String!",
+      "updatedAtFormatted: String!",
+      "snoozedUntilFormatted: String",
+      "triages: [TriageType!]!",
+      "exceptions: [ExceptionRecordType!]!",
+      "hasSpans: Boolean!",
+      "change24h: String",
+      "severity: IssueSeverityEnum",
+      "priority: String",
+      "affectedPercentageUsers: String",
+      "devices: [DeviceMetadata!]",
+      "createdAt: DateTime!",
+      "lastSeen: DateTime!",
+      "recentOccurrences: [RecentOccurrenceEntry!]!",
+      "hasExceptionRecords: Boolean!"
+    ]
+  },
+  {
+    "name": "EngineeringTicketType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "platformLink: String",
+      "title: String",
+      "description: String",
+      "team: String",
+      "project: String",
+      "priority: Int",
+      "labels: [String!]",
+      "additionalInfo: JSON",
+      "status: String",
+      "createdAt: DateTime!",
+      "updatedAt: DateTime!",
+      "provider: String!",
+      "lastUpdateFailedFields: JSON",
+      "lastUpdateSuccessfulFields: JSON"
+    ]
+  },
+  {
+    "name": "AutofixRunType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: UUID!",
+      "runId: String!",
+      "issue: DjangoModelType!",
+      "state: String!",
+      "source: String!",
+      "logs: String",
+      "agentTrace: JSON",
+      "investigationReport: String",
+      "branchUrl: String",
+      "prUrl: String",
+      "prProvider: String",
+      "link: String",
+      "slackConversation: DjangoModelType",
+      "createdAt: DateTime!",
+      "updatedAt: DateTime!"
+    ]
+  },
+  {
+    "name": "DemoOccurrenceType",
+    "kind": "OBJECT",
+    "fields": [
+      "userEmail: String!",
+      "timestampMs: Float!",
+      "isMobile: Boolean!",
+      "pageUrl: String"
+    ]
+  },
+  {
+    "name": "DemoCsTicketType",
+    "kind": "OBJECT",
+    "fields": [
+      "ticketType: String!",
+      "ticketId: String!",
+      "ticketUrl: String"
+    ]
+  },
+  {
+    "name": "OccurrenceDataPointType",
+    "kind": "OBJECT",
+    "fields": [
+      "date: String!",
+      "mobile: Int!",
+      "desktop: Int!"
+    ]
+  },
+  {
+    "name": "IssueTimelineActivityType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "message: String!",
+      "activityTimestamp: DateTime!",
+      "createdAt: DateTime!",
+      "createdByUser: UserType",
+      "activityTimestampFormatted: String!"
+    ]
+  },
+  {
+    "name": "TriageType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "createdByUser: UserType",
+      "company: DjangoModelType!",
+      "queryEmbedderTask: DjangoModelType",
+      "userId: String!",
+      "userDeviceUuid: UUID",
+      "createdBySystem: String",
+      "updatedAt: DateTime!",
+      "lastVectorSearchAt: DateTime",
+      "fingerprint: String",
+      "description: String",
+      "vectorStoreEmbIds: [String!]!",
+      "isReady: Boolean!",
+      "otherSimilarRecordings: [TriageSimilarRecordingType!]!",
+      "hasSpans: Boolean!",
+      "createdBy: String!",
+      "createdByInfo: CreatedByType!",
+      "updatedBy: String!",
+      "createdAtFormatted: String!",
+      "updatedAtFormatted: String!",
+      "triageRecordingData: [TriageRecordingDataType!]!",
+      "recordings: [RecordingSessionType!]!",
+      "startTimestamp: BigInt",
+      "endTimestamp: BigInt",
+      "triageLogData: [TriageLogDataType!]!",
+      "change24h: String",
+      "lastSeen: String",
+      "createdAt: DateTime!",
+      "recentOccurrences: [RecentOccurrenceEntry!]!",
+      "severity: IssueSeverityEnum",
+      "affectedPercentageSessions: String",
+      "affectedPercentageUsers: String",
+      "devices: [DeviceMetadata!]",
+      "devicesFormatted: String",
+      "issues: [TriageIssueType!]!",
+      "occurrenceChartData: [OccurrenceDataPointType!]!"
+    ]
+  },
+  {
+    "name": "TriageSimilarRecordingType",
+    "kind": "OBJECT",
+    "fields": [
+      "recordings: [RecordingSessionType!]!",
+      "startTimestamp: BigInt!",
+      "endTimestamp: BigInt!",
+      "userId: String"
+    ]
+  },
+  {
+    "name": "CreatedByType",
+    "kind": "OBJECT",
+    "fields": [
+      "user: UserType",
+      "isSystem: Boolean!",
+      "displayName: String!"
+    ]
+  },
+  {
+    "name": "TriageRecordingDataType",
+    "kind": "OBJECT",
+    "fields": [
+      "triage: TriageType!",
+      "recording: RecordingSessionType!",
+      "timeWindows: [TriageTimeWindow!]!"
+    ]
+  },
+  {
+    "name": "TriageTimeWindow",
+    "kind": "OBJECT",
+    "fields": [
+      "timestampStart: Float!",
+      "timestampEnd: Float!"
+    ]
+  },
+  {
+    "name": "TriageLogDataType",
+    "kind": "OBJECT",
+    "fields": [
+      "triage: TriageType!",
+      "recording: RecordingSessionType!"
+    ]
+  },
+  {
+    "name": "RecentOccurrenceEntry",
+    "kind": "OBJECT",
+    "fields": [
+      "userId: String!",
+      "timestampMs: Float!"
+    ]
+  },
+  {
+    "name": "IssueSeverityEnum",
+    "kind": "ENUM",
+    "enums": [
+      "LOW",
+      "MEDIUM",
+      "HIGH",
+      "SEVERE"
+    ]
+  },
+  {
+    "name": "TriageIssueType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "title: String",
+      "description: String",
+      "createdBy: CreatedByType",
+      "engineeringTicketLink: String"
+    ]
+  },
+  {
+    "name": "ExceptionRecordType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "timestampMs: String!",
+      "exceptionMessage: String",
+      "file: String",
+      "line: Int",
+      "column: Int",
+      "function: String",
+      "code: String",
+      "serviceIdentifier: ServiceIdentifierType!",
+      "traceJson: JSON",
+      "traceStack: [TraceFrameType!]!",
+      "sanitizedExceptionMessage: String",
+      "wasCaught: Boolean!",
+      "issue: DjangoModelType",
+      "recordingSession: DjangoModelType",
+      "isIssueResolved: Boolean!",
+      "recordingUserId: String"
+    ]
+  },
+  {
+    "name": "ServiceIdentifierType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: UUID!",
+      "company: DjangoModelType!",
+      "identifier: String",
+      "displayName: String",
+      "gitSha: String",
+      "gitOrg: String",
+      "gitRepo: String",
+      "gitProvider: String",
+      "version: String",
+      "additionalMetadata: JSON",
+      "setupInterceptorsLocation: DjangoModelType",
+      "recorder: DjangoModelType!",
+      "timeFirstReported: Int",
+      "timeLastUpdateReported: Int",
+      "firstSeen: DateTime!",
+      "lastUpdated: DateTime!",
+      "identifierModified: Boolean!",
+      "mapUuid: UUID",
+      "infrastructureDetails: DjangoModelType",
+      "isLocalService: Boolean",
+      "isArchived: Boolean!",
+      "framework: String",
+      "additionalFrameworks: JSON!",
+      "serviceRole: String"
+    ]
+  },
+  {
+    "name": "TraceFrameType",
+    "kind": "OBJECT",
+    "fields": [
+      "file: String!",
+      "line: String!",
+      "function: String!",
+      "code: String!",
+      "offender: Boolean",
+      "locals: JSON",
+      "isInstalledPackage: Boolean"
+    ]
+  },
+  {
+    "name": "TriageQueryResultsType",
+    "kind": "OBJECT",
+    "fields": [
+      "results: TriageTypePaginationWindow!",
+      "queryType: String!",
+      "tree: String!"
+    ]
+  },
+  {
+    "name": "TriageTypePaginationWindow",
+    "kind": "OBJECT",
+    "fields": [
+      "items: [TriageType!]!",
+      "totalItemsCount: Int!"
+    ]
+  },
+  {
+    "name": "ExceptionRecordQueryResultsType",
+    "kind": "OBJECT",
+    "fields": [
+      "results: ExceptionRecordTypePaginationWindow!",
+      "queryType: String!",
+      "tree: String!"
+    ]
+  },
+  {
+    "name": "ExceptionRecordTypePaginationWindow",
+    "kind": "OBJECT",
+    "fields": [
+      "items: [ExceptionRecordType!]!",
+      "totalItemsCount: Int!"
+    ]
+  },
+  {
+    "name": "BigQueryResultsType",
+    "kind": "OBJECT",
+    "fields": [
+      "results: BigQueryVaryingStructurePaginationWindow!",
+      "queryType: String!",
+      "tree: String!"
+    ]
+  },
+  {
+    "name": "BigQueryVaryingStructurePaginationWindow",
+    "kind": "OBJECT",
+    "fields": [
+      "items: [BigQueryVaryingStructure!]!",
+      "totalItemsCount: Int!"
+    ]
+  },
+  {
+    "name": "BigQueryVaryingStructure",
+    "kind": "OBJECT",
+    "fields": [
+      "data: JSON!"
+    ]
+  },
+  {
+    "name": "ExceptionDeviceInfoTypePaginationWindow",
+    "kind": "OBJECT",
+    "fields": [
+      "items: [ExceptionDeviceInfoType!]!",
+      "totalItemsCount: Int!"
+    ]
+  },
+  {
+    "name": "ExceptionDeviceInfoType",
+    "kind": "OBJECT",
+    "fields": [
+      "exceptionId: String!",
+      "exceptionMessage: String",
+      "timestampMs: String!",
+      "sessionId: String",
+      "userId: String",
+      "deviceInfo: DeviceMetadata"
+    ]
+  },
+  {
+    "name": "ChartPeriod",
+    "kind": "ENUM",
+    "enums": [
+      "WEEK",
+      "MONTH",
+      "SIX_MONTHS",
+      "ONE_YEAR",
+      "ALL"
+    ]
+  },
+  {
+    "name": "IssueConversationsType",
+    "kind": "OBJECT",
+    "fields": [
+      "issueId: Int!",
+      "issueTitle: String",
+      "issueDescription: String",
+      "ticketInfo: TicketInfoType",
+      "items: [ConversationItemType!]!",
+      "pullRequests: [PullRequestInfoType!]!",
+      "totalCount: Int!",
+      "page: Int!",
+      "pageSize: Int!",
+      "hasNextPage: Boolean!",
+      "totalPages: Int!"
+    ]
+  },
+  {
+    "name": "TicketInfoType",
+    "kind": "OBJECT",
+    "fields": [
+      "provider: ConversationProviderEnum",
+      "platformId: String",
+      "title: String",
+      "description: String",
+      "status: String",
+      "externalLink: String",
+      "assigneeName: String",
+      "projectKey: String",
+      "issueType: String",
+      "createdAt: DateTime",
+      "updatedAt: DateTime"
+    ]
+  },
+  {
+    "name": "ConversationProviderEnum",
+    "kind": "ENUM",
+    "enums": [
+      "JIRA",
+      "LINEAR",
+      "ZENDESK",
+      "SLACK",
+      "GITHUB",
+      "BITBUCKET"
+    ]
+  },
+  {
+    "name": "ConversationItemType",
+    "kind": "OBJECT",
+    "fields": [
+      "provider: ConversationProviderEnum!",
+      "itemType: ConversationItemTypeEnum!",
+      "createdAt: DateTime!",
+      "content: String!",
+      "externalLink: String",
+      "authorName: String",
+      "authorId: String",
+      "state: String",
+      "title: String"
+    ]
+  },
+  {
+    "name": "ConversationItemTypeEnum",
+    "kind": "ENUM",
+    "enums": [
+      "COMMENT",
+      "STATUS_CHANGE",
+      "MESSAGE",
+      "PR_OPENED",
+      "PR_MERGED",
+      "PR_CLOSED",
+      "PR_COMMENT",
+      "PR_REVIEW",
+      "TICKET_CREATED",
+      "TICKET_UPDATED"
+    ]
+  },
+  {
+    "name": "PullRequestInfoType",
+    "kind": "OBJECT",
+    "fields": [
+      "provider: ConversationProviderEnum!",
+      "prUrl: String!",
+      "prNumber: String",
+      "title: String",
+      "state: String",
+      "authorName: String",
+      "createdAt: DateTime",
+      "mergedAt: DateTime"
+    ]
+  },
+  {
+    "name": "PrConversationsType",
+    "kind": "OBJECT",
+    "fields": [
+      "prId: Int!",
+      "prTitle: String",
+      "prUrl: String",
+      "prState: String",
+      "platform: String",
+      "generalComments: [PrCommentType!]!",
+      "discussionThreads: [PrDiscussionThreadType!]!",
+      "totalComments: Int!",
+      "totalThreads: Int!"
+    ]
+  },
+  {
+    "name": "PrCommentType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: Int!",
+      "platformCommentId: String!",
+      "body: String!",
+      "authorName: String",
+      "authorUsername: String",
+      "filePath: String",
+      "lineNumber: Int",
+      "startLine: Int",
+      "originalLine: Int",
+      "diffHunk: String",
+      "diffSide: String",
+      "commitId: String",
+      "parentCommentId: Int",
+      "threadId: String",
+      "isReviewComment: Boolean!",
+      "createdAt: DateTime",
+      "platformCreatedAt: DateTime"
+    ]
+  },
+  {
+    "name": "PrDiscussionThreadType",
+    "kind": "OBJECT",
+    "fields": [
+      "threadId: String!",
+      "filePath: String",
+      "lineNumber: Int",
+      "diffHunk: String",
+      "diffSide: String",
+      "comments: [PrCommentType!]!"
+    ]
+  },
+  {
+    "name": "PrCommentTypeFilter",
+    "kind": "ENUM",
+    "enums": [
+      "ALL",
+      "GENERAL",
+      "REVIEW"
+    ]
+  },
+  {
+    "name": "DetailedInformationType",
+    "kind": "OBJECT",
+    "fields": [
+      "serviceIdentifiers: [ServiceIdentifierType!]!",
+      "exceptionRecords: [ExceptionRecordType!]!",
+      "recordingSessions: [RecordingSessionType!]!"
+    ]
+  },
+  {
+    "name": "EngineeringTicketPlatformIntegrationConfigType",
+    "kind": "OBJECT",
+    "fields": [
+      "clientId: String!",
+      "redirectUri: String!",
+      "provider: String!"
+    ]
+  },
+  {
+    "name": "EngineeringTicketPlatformIntegrationType",
+    "kind": "OBJECT",
+    "fields": [
+      "webhookState: String",
+      "id: ID!",
+      "company: DjangoModelType!",
+      "provider: String!",
+      "type: String!",
+      "clientId: String!",
+      "clientSecret: String!",
+      "subdomain: String",
+      "installed: Boolean!",
+      "updatedAt: DateTime!",
+      "installedAt: DateTime",
+      "installedBy: DjangoModelType",
+      "uninstalledBy: DjangoModelType",
+      "projects: JSON!",
+      "teams: JSON!",
+      "teamsPerProject: JSON!",
+      "workflowStates: JSON!",
+      "labels: [String!]",
+      "sprints: JSON!",
+      "users: JSON!",
+      "fieldConfigurations: JSON!",
+      "customFieldsMetadata: JSON!",
+      "invalidFields: JSON!",
+      "defaultProject: String",
+      "defaultTeam: String",
+      "defaultPriority: Int",
+      "jiraReporterAccountId: String",
+      "enabled: Boolean!",
+      "webhookId: String",
+      "webhookUrl: String",
+      "webhookClientId: String!",
+      "webhookClientSecret: String!",
+      "webhookInstalled: Boolean!",
+      "webhookEnabled: Boolean!",
+      "webhookInstalledAt: DateTime",
+      "lastWebhookEventAt: DateTime",
+      "webhookEventCount: Int!",
+      "pushAutoIdentifiedIssues: Boolean!",
+      "primaryCloudId: String",
+      "clouds: JSON!",
+      "fieldConfigurationsSyncedAt: DateTime",
+      "backgroundSyncInProgress: Boolean!",
+      "forgeEnabled: Boolean!",
+      "forgeDistribution: String!",
+      "forgeCloudUrl: String!",
+      "forgeInstallEmail: String!",
+      "forgeInstallState: String!",
+      "forgeInstallError: String!",
+      "forgeInstallStartedAt: DateTime",
+      "forgeInstallFinishedAt: DateTime",
+      "jiraWebhookUrl: String",
+      "jiraSettingsWebhookUrl: String",
+      "jiraForgeEnabled: Boolean!",
+      "lastReporterAccountId: String"
+    ]
+  },
+  {
+    "name": "Void",
+    "kind": "SCALAR"
+  },
+  {
+    "name": "NotificationsSettingsType",
+    "kind": "OBJECT",
+    "fields": [
+      "emailNotificationSettings: EmailNotificationSettingsType!",
+      "webhookNotificationSettings: WebhookNotificationSettingsType!",
+      "notificationWebhooks: [NotificationWebhookType!]!"
+    ]
+  },
+  {
+    "name": "EmailNotificationSettingsType",
+    "kind": "OBJECT",
+    "fields": [
+      "timeBetweenSuccessiveNotificationsPerIssue: Duration!",
+      "defaultRecipients: JSON!"
+    ]
+  },
+  {
+    "name": "Duration",
+    "kind": "SCALAR"
+  },
+  {
+    "name": "WebhookNotificationSettingsType",
+    "kind": "OBJECT",
+    "fields": [
+      "timeBetweenSuccessiveNotificationsPerIssue: Duration!"
+    ]
+  },
+  {
+    "name": "NotificationWebhookType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "webhookDataType: String!",
+      "destinationAddress: String!",
+      "authentication: JSON"
+    ]
+  },
+  {
+    "name": "IssueDiscoverySettingsType",
+    "kind": "OBJECT",
+    "fields": [
+      "enabled: Boolean!",
+      "intervalMinutes: Int!",
+      "alertSlackChannelId: String",
+      "alertSlackChannelName: String",
+      "autofixEnabled: Boolean!"
+    ]
+  },
+  {
+    "name": "ExceptionEnrichmentSettingsType",
+    "kind": "OBJECT",
+    "fields": [
+      "enabled: Boolean!",
+      "impactScoreThreshold: Int!",
+      "minUserActions: Int!",
+      "rateLimitPerHour: Int!",
+      "timeWindowBeforeMs: Int!",
+      "timeWindowAfterMs: Int!",
+      "maxScorerIterations: Int!",
+      "thinkingLevel: String!",
+      "alertSlackChannelId: String!",
+      "alertSlackChannelName: String!",
+      "alertEmailRecipients: JSON!"
+    ]
+  },
+  {
+    "name": "GitHubIntegrationType",
+    "kind": "OBJECT",
+    "fields": [
+      "success: Boolean!",
+      "id: ID!",
+      "appId: String",
+      "active: Boolean!",
+      "repositoriesUrl: String",
+      "installationId: String",
+      "accountType: String",
+      "installedOnAccount: String",
+      "installedOnRepositories: JSON!",
+      "installedOnAllRepositories: Boolean!"
+    ]
+  },
+  {
+    "name": "RepositoryType",
+    "kind": "OBJECT",
+    "fields": [
+      "name: String!",
+      "url: String!",
+      "branch: String",
+      "restrictToSpecificFiles: [String!]!"
+    ]
+  },
+  {
+    "name": "BitbucketIntegrationInternalType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "installedOnAllRepositories: Boolean!",
+      "installedOnRepositories: [String!]!",
+      "installedOnAccount: String!",
+      "appId: String!",
+      "accessToken: String!",
+      "installationId: String",
+      "active: Boolean!",
+      "descriptorKey: String",
+      "credential: DjangoModelType",
+      "workspace: String",
+      "createdAt: DateTime!",
+      "updatedAt: DateTime!"
+    ]
+  },
+  {
+    "name": "BitbucketIntegrationType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "installedOnAllRepositories: Boolean!",
+      "installedOnRepositories: [String!]!",
+      "installedOnAccount: String!",
+      "installationId: String",
+      "active: Boolean!",
+      "descriptorKey: String",
+      "credential: DjangoModelType",
+      "workspace: String",
+      "createdAt: DateTime!",
+      "updatedAt: DateTime!"
+    ]
+  },
+  {
+    "name": "GitLabIntegrationType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "gitlabUrl: String!",
+      "groupPath: String",
+      "projects: [String!]!",
+      "active: Boolean!"
+    ]
+  },
+  {
+    "name": "GitLabProjectType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: Int!",
+      "pathWithNamespace: String!",
+      "name: String!"
+    ]
+  },
+  {
+    "name": "BitbucketRepoType",
+    "kind": "OBJECT",
+    "fields": [
+      "name: String!",
+      "slug: String!",
+      "fullName: String!"
+    ]
+  },
+  {
+    "name": "PatchType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "repo: String!",
+      "submittedBy: String!",
+      "timestamp: String!",
+      "files: [PatchFileType!]!",
+      "flowRunId: String!"
+    ]
+  },
+  {
+    "name": "PatchFileType",
+    "kind": "OBJECT",
+    "fields": [
+      "filePath: String!",
+      "diff: [PatchFileDiffType!]!",
+      "content: String!",
+      "status: String"
+    ]
+  },
+  {
+    "name": "PatchFileDiffType",
+    "kind": "OBJECT",
+    "fields": [
+      "old: String!",
+      "updated: String!"
+    ]
+  },
+  {
+    "name": "FileDownloadUrl",
+    "kind": "OBJECT",
+    "fields": [
+      "filename: String!",
+      "url: String!"
+    ]
+  },
+  {
+    "name": "UserActivityForUserType",
+    "kind": "OBJECT",
+    "fields": [
+      "userId: String!",
+      "userInteractions: DeviceSplitInteractions!",
+      "trackingEvents: DeviceSplitTrackingEvents!"
+    ]
+  },
+  {
+    "name": "RecordingTimelineMetadataType",
+    "kind": "OBJECT",
+    "fields": [
+      "userId: String!",
+      "timestamps: [BigInt!]!",
+      "timestampEntries: [RecordingTimelineMetadataEntryType!]!"
+    ]
+  },
+  {
+    "name": "RecordingTimelineMetadataEntryType",
+    "kind": "OBJECT",
+    "fields": [
+      "timestamp: BigInt!",
+      "recordingId: String",
+      "pageId: String"
+    ]
+  },
+  {
+    "name": "BranchDiff",
+    "kind": "OBJECT",
+    "fields": [
+      "productionNotInMain: [Int!]!",
+      "mainNotInProduction: [Int!]!"
+    ]
+  },
+  {
+    "name": "MessagingPlatformIntegrationType",
+    "kind": "OBJECT",
+    "fields": [
+      "provider: String!",
+      "slackIntegration: SlackIntegrationType"
+    ]
+  },
+  {
+    "name": "SlackIntegrationType",
+    "kind": "OBJECT",
+    "fields": [
+      "appId: String!",
+      "teamId: String!",
+      "teamName: String!",
+      "botUserId: String!",
+      "defaultEngineeringCollaborationChannel: String",
+      "grantedScopes: String!"
+    ]
+  },
+  {
+    "name": "SlackChannelMembership",
+    "kind": "OBJECT",
+    "fields": [
+      "isMember: Boolean!",
+      "channelName: String",
+      "teamId: String"
+    ]
+  },
+  {
+    "name": "SlackChannelOption",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "name: String!"
+    ]
+  },
+  {
+    "name": "SessionIdsAndTimeWindows",
+    "kind": "OBJECT",
+    "fields": [
+      "sessionIds: [String!]!",
+      "timeWindow: RecordingTriageTimeWindowType!"
+    ]
+  },
+  {
+    "name": "RecordingTriageTimeWindowType",
+    "kind": "OBJECT",
+    "fields": [
+      "timestampStart: BigInt!",
+      "timestampEnd: BigInt!"
+    ]
+  },
+  {
+    "name": "DesktopAutofixPromptType",
+    "kind": "OBJECT",
+    "fields": [
+      "prompt: String!",
+      "sessionIds: [String!]!",
+      "startTimestampMs: Float",
+      "endTimestampMs: Float",
+      "issueTitle: String!",
+      "issueId: Int!"
+    ]
+  },
+  {
+    "name": "DesktopAutofixRunType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "runId: String!",
+      "issueId: Int!",
+      "state: String!",
+      "source: String!",
+      "logs: String",
+      "branchUrl: String",
+      "prUrl: String",
+      "prProvider: String",
+      "investigationReport: String",
+      "createdAt: String!",
+      "updatedAt: String!"
+    ]
+  },
+  {
+    "name": "SessionBackendLogs",
+    "kind": "OBJECT",
+    "fields": [
+      "sessionId: String!",
+      "logs: [BackendLogType!]!"
+    ]
+  },
+  {
+    "name": "BackendLogType",
+    "kind": "OBJECT",
+    "fields": [
+      "timestamp: String!",
+      "level: String!",
+      "statement: String!",
+      "formattedTimestamp: String!"
+    ]
+  },
+  {
+    "name": "MultiSessionInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "SessionPrintStatements",
+    "kind": "OBJECT",
+    "fields": [
+      "sessionId: String!",
+      "printStatements: [PrintStatement!]!"
+    ]
+  },
+  {
+    "name": "PrintStatement",
+    "kind": "OBJECT",
+    "fields": [
+      "output: String!",
+      "statement: String!",
+      "timestamp: String!",
+      "formattedTimestamp: String!"
+    ]
+  },
+  {
+    "name": "ConsoleLog",
+    "kind": "OBJECT",
+    "fields": [
+      "level: String!",
+      "trace: [String!]!",
+      "payload: String!",
+      "timestamp: String!",
+      "formattedTimestamp: String!"
+    ]
+  },
+  {
+    "name": "SessionFrontendLogs",
+    "kind": "OBJECT",
+    "fields": [
+      "sessionId: String!",
+      "logs: [ConsoleLog!]!"
+    ]
+  },
+  {
+    "name": "SessionNetworkHops",
+    "kind": "OBJECT",
+    "fields": [
+      "sessionId: String!",
+      "hops: [SailfishNetworkHop!]!"
+    ]
+  },
+  {
+    "name": "SailfishNetworkHop",
+    "kind": "OBJECT",
+    "fields": [
+      "line: String!",
+      "column: String!",
+      "name: String!",
+      "timestamp: String!",
+      "entrypoint: String!",
+      "formattedTimestamp: String!"
+    ]
+  },
+  {
+    "name": "SessionUserActions",
+    "kind": "OBJECT",
+    "fields": [
+      "sessionId: String!",
+      "pageVisitUserActions: [PageVisitUserActions!]!"
+    ]
+  },
+  {
+    "name": "PageVisitUserActions",
+    "kind": "OBJECT",
+    "fields": [
+      "pageUrl: String",
+      "activeFrom: BigInt!",
+      "activeUntil: BigInt",
+      "userActions: [UserActionType!]!"
+    ]
+  },
+  {
+    "name": "UserActionType",
+    "kind": "OBJECT",
+    "fields": [
+      "actionType: String!",
+      "textContent: String",
+      "dotPath: String",
+      "timestamp: BigInt!",
+      "state: String"
+    ]
+  },
+  {
+    "name": "SessionDisplayData",
+    "kind": "OBJECT",
+    "fields": [
+      "sessionId: String!",
+      "displayData: [DisplayDataType!]!"
+    ]
+  },
+  {
+    "name": "DisplayDataType",
+    "kind": "OBJECT",
+    "fields": [
+      "pageVisitId: String!",
+      "compactJson: JSON!"
+    ]
+  },
+  {
+    "name": "SessionNetworkRequests",
+    "kind": "OBJECT",
+    "fields": [
+      "sessionId: String!",
+      "requests: [NetworkRequestType!]!"
+    ]
+  },
+  {
+    "name": "NetworkRequestType",
+    "kind": "OBJECT",
+    "fields": [
+      "timestampStart: BigInt!",
+      "timestampEnd: BigInt!",
+      "retryWithoutTraceId: Boolean",
+      "requestId: UUID!",
+      "pageVisitId: UUID",
+      "recording: DjangoModelType!",
+      "serviceIdentifier: DjangoModelType",
+      "responseCode: Int!",
+      "success: Boolean!",
+      "error: String",
+      "url: String!",
+      "parentSessionId: String",
+      "method: String!",
+      "formattedTimestampStart: String!",
+      "formattedTimestampEnd: String!"
+    ]
+  },
+  {
+    "name": "BackendLogsInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "LogLevel",
+    "kind": "ENUM",
+    "enums": [
+      "DEBUG",
+      "INFO",
+      "WARNING",
+      "ERROR",
+      "CRITICAL"
+    ]
+  },
+  {
+    "name": "FrontendLogsInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "ConsoleLogLevel",
+    "kind": "ENUM",
+    "enums": [
+      "LOG",
+      "DEBUG",
+      "INFO",
+      "WARN",
+      "ERROR"
+    ]
+  },
+  {
+    "name": "NetworkRequestsInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "HttpMethod",
+    "kind": "ENUM",
+    "enums": [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+      "HEAD"
+    ]
+  },
+  {
+    "name": "NetworkHopsInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "PrintStatementsInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "UserActionsInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "McpIssueExceptionType",
+    "kind": "OBJECT",
+    "fields": [
+      "issueId: Int!",
+      "issueTitle: String!",
+      "totalOccurrences: Int!",
+      "firstSeen: String",
+      "lastSeen: String",
+      "exceptionMessage: String",
+      "location: String",
+      "stackFrames: [McpExceptionFrameType!]",
+      "sessionIds: [String!]!",
+      "wasCaught: Boolean",
+      "startTimestampMs: BigInt",
+      "endTimestampMs: BigInt"
+    ]
+  },
+  {
+    "name": "McpExceptionFrameType",
+    "kind": "OBJECT",
+    "fields": [
+      "file: String",
+      "line: Int",
+      "function: String",
+      "code: String",
+      "offender: Boolean"
+    ]
+  },
+  {
+    "name": "McpRepoInfoType",
+    "kind": "OBJECT",
+    "fields": [
+      "gitOrg: String!",
+      "gitRepo: String!",
+      "gitProvider: String!",
+      "cloneUrl: String"
+    ]
+  },
+  {
+    "name": "McpTicketSearchResult",
+    "kind": "OBJECT",
+    "fields": [
+      "items: [McpTicketSummary!]!",
+      "nextCursor: String",
+      "provider: TicketingProviderEnum!",
+      "totalCount: Int",
+      "truncated: Boolean!"
+    ]
+  },
+  {
+    "name": "McpTicketSummary",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "key: String!",
+      "title: String!",
+      "descriptionSnippet: String!",
+      "status: String!",
+      "assignee: String",
+      "url: String!",
+      "updatedAt: DateTime!"
+    ]
+  },
+  {
+    "name": "TicketingProviderEnum",
+    "kind": "ENUM",
+    "enums": [
+      "JIRA",
+      "LINEAR"
+    ]
+  },
+  {
+    "name": "McpTicketSearchInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "McpTicketSearchFilters",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "McpHydratedTicket",
+    "kind": "OBJECT",
+    "fields": [
+      "summary: McpTicketSummary!",
+      "description: String!",
+      "comments: [McpTicketComment!]!",
+      "linkedPullRequests: [McpLinkedPullRequest!]!",
+      "hydrationSources: JSON!",
+      "partial: Boolean!"
+    ]
+  },
+  {
+    "name": "McpTicketComment",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "authorDisplayName: String!",
+      "bodyPlain: String!",
+      "createdAt: DateTime!",
+      "updatedAt: DateTime"
+    ]
+  },
+  {
+    "name": "McpLinkedPullRequest",
+    "kind": "OBJECT",
+    "fields": [
+      "url: String!",
+      "title: String!",
+      "state: PullRequestStateEnum!",
+      "source: PullRequestSourceEnum!",
+      "repo: String!",
+      "number: Int!",
+      "authorDisplayName: String!",
+      "updatedAt: DateTime"
+    ]
+  },
+  {
+    "name": "PullRequestStateEnum",
+    "kind": "ENUM",
+    "enums": [
+      "OPEN",
+      "MERGED",
+      "CLOSED",
+      "DRAFT"
+    ]
+  },
+  {
+    "name": "PullRequestSourceEnum",
+    "kind": "ENUM",
+    "enums": [
+      "PROVIDER_DEV_INFO",
+      "REPO_SEARCH"
+    ]
+  },
+  {
+    "name": "McpTicketFetchInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "NetworkRequestsAndLogsForPageVisitUuid",
+    "kind": "OBJECT",
+    "fields": [
+      "sessionId: String!",
+      "pageVisitUuid: String!",
+      "frontendConsoleLogs: FrontendConsoleLogs!",
+      "networkRequestData: NetworkRequestDataCollective!"
+    ]
+  },
+  {
+    "name": "FrontendConsoleLogs",
+    "kind": "OBJECT",
+    "fields": [
+      "logs: [JSON!]!",
+      "fileProcessingStats: FileProcessingStats!"
+    ]
+  },
+  {
+    "name": "NetworkRequestDataCollective",
+    "kind": "OBJECT",
+    "fields": [
+      "networkRequestData: [NetworkRequestDataIndividual!]!",
+      "fileProcessingStats: FileProcessingStats!"
+    ]
+  },
+  {
+    "name": "NetworkRequestDataIndividual",
+    "kind": "OBJECT",
+    "fields": [
+      "requestId: String!",
+      "logs: [JSON!]!",
+      "printStatements: [JSON!]!",
+      "exceptions: [JSON!]!",
+      "fileProcessingStats: FileProcessingStats!",
+      "requestInfo: RequestInfo"
+    ]
+  },
+  {
+    "name": "RequestInfo",
+    "kind": "OBJECT",
+    "fields": [
+      "timestampMs: String!",
+      "entrypoint: String!",
+      "name: String!",
+      "serviceUuid: String!"
+    ]
+  },
+  {
+    "name": "ZendeskInvestigationStatusResponse",
+    "kind": "OBJECT",
+    "fields": [
+      "status: ZendeskInvestigationStatus!",
+      "issueLink: String",
+      "slackThreadUrl: String",
+      "createdByName: String",
+      "issueTitle: String",
+      "reportedBy: String",
+      "reportedAt: String"
+    ]
+  },
+  {
+    "name": "ZendeskInvestigationStatus",
+    "kind": "ENUM",
+    "enums": [
+      "PROCESSING",
+      "COMPLETE",
+      "NO_RECORDING",
+      "FAILED"
+    ]
+  },
+  {
+    "name": "IntercomInvestigationStatusResponse",
+    "kind": "OBJECT",
+    "fields": [
+      "status: IntercomInvestigationStatus!",
+      "issueLink: String",
+      "slackThreadUrl: String",
+      "createdByName: String",
+      "issueTitle: String"
+    ]
+  },
+  {
+    "name": "IntercomInvestigationStatus",
+    "kind": "ENUM",
+    "enums": [
+      "PROCESSING",
+      "COMPLETE",
+      "NO_RECORDING",
+      "FAILED"
+    ]
+  },
+  {
+    "name": "IntercomAppSettingsType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "slackMessagingEnabled: Boolean!",
+      "defaultSlackChannel: String",
+      "autoTriggerEnabled: Boolean!",
+      "autoTriggerTag: String!",
+      "contactIdField: String!",
+      "demoStepDelays: JSON!"
+    ]
+  },
+  {
+    "name": "TopLevelObservabilityItemConnection",
+    "kind": "OBJECT",
+    "fields": [
+      "pageInfo: PageInfo!",
+      "edges: [TopLevelObservabilityItemEdge!]!",
+      "maxDurationMs: Int"
+    ]
+  },
+  {
+    "name": "PageInfo",
+    "kind": "OBJECT",
+    "fields": [
+      "hasNextPage: Boolean!",
+      "hasPreviousPage: Boolean!",
+      "startCursor: String",
+      "endCursor: String"
+    ]
+  },
+  {
+    "name": "TopLevelObservabilityItemEdge",
+    "kind": "OBJECT",
+    "fields": [
+      "cursor: String!",
+      "node: TopLevelObservabilityItem!"
+    ]
+  },
+  {
+    "name": "TopLevelObservabilityItem",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "eventType: EventType!",
+      "timestamp: DateTime!",
+      "severity: ObservabilitySeverity!",
+      "data: TopLevelObservabilityData!"
+    ]
+  },
+  {
+    "name": "EventType",
+    "kind": "ENUM",
+    "enums": [
+      "LOG",
+      "PRINT",
+      "CONSOLE",
+      "NETWORK_HOP",
+      "NETWORK_REQUEST",
+      "EXCEPTION",
+      "FUNCTION_SPAN"
+    ]
+  },
+  {
+    "name": "ObservabilitySeverity",
+    "kind": "ENUM",
+    "enums": [
+      "ERROR",
+      "WARNING",
+      "INFO",
+      "UNKNOWN"
+    ]
+  },
+  {
+    "name": "TopLevelObservabilityData",
+    "kind": "UNION"
+  },
+  {
+    "name": "NetworkRequestRecord",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "timestamp: DateTime!",
+      "sessionId: String!",
+      "pageVisitUuid: String",
+      "prevPageVisitUuid: String",
+      "href: String!",
+      "appUrl: String!",
+      "timestampStart: DateTime!",
+      "timestampEnd: DateTime!",
+      "durationMs: Int!",
+      "responseCode: Int!",
+      "success: Boolean!",
+      "error: String!",
+      "method: HttpMethod!",
+      "url: String!",
+      "retryWithoutTraceId: Boolean",
+      "parentRequestId: String",
+      "parentSpanId: String",
+      "depth: Int!",
+      "hasNestedEvents: Boolean!",
+      "severity: ObservabilitySeverity!",
+      "requestHeaders: JSON",
+      "requestBody: JSON",
+      "responseHeaders: JSON",
+      "responseBody: JSON"
+    ]
+  },
+  {
+    "name": "ConsoleLogRecord",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "timestamp: DateTime!",
+      "sessionId: String!",
+      "pageVisitUuid: String",
+      "prevPageVisitUuid: String",
+      "href: String!",
+      "appUrl: String!",
+      "plugin: String!",
+      "level: String!",
+      "trace: [String!]!",
+      "payload: [String!]!",
+      "severity: ObservabilitySeverity!"
+    ]
+  },
+  {
+    "name": "ObservabilityEventFilter",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "TimeRangeFilter",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "TopLevelItemType",
+    "kind": "ENUM",
+    "enums": [
+      "NETWORK_REQUEST",
+      "CONSOLE_LOG"
+    ]
+  },
+  {
+    "name": "EventHistogramBucket",
+    "kind": "OBJECT",
+    "fields": [
+      "bucketTimestamp: DateTime!",
+      "eventCounts: [EventSeverityCount!]!"
+    ]
+  },
+  {
+    "name": "EventSeverityCount",
+    "kind": "OBJECT",
+    "fields": [
+      "severity: ObservabilitySeverity!",
+      "count: Int!"
+    ]
+  },
+  {
+    "name": "HistogramBucketConfig",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "EventsAroundContext",
+    "kind": "OBJECT",
+    "fields": [
+      "targetEventId: String!",
+      "eventsBefore: [ObservabilityEvent!]!",
+      "eventsAfter: [ObservabilityEvent!]!"
+    ]
+  },
+  {
+    "name": "ObservabilityEvent",
+    "kind": "OBJECT",
+    "fields": [
+      "eventType: EventType!",
+      "timestamp: DateTime!",
+      "sessionId: String!",
+      "severity: ObservabilitySeverity!",
+      "data: ObservabilityEventData!"
+    ]
+  },
+  {
+    "name": "ObservabilityEventData",
+    "kind": "UNION"
+  },
+  {
+    "name": "LogRecord",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "timestamp: DateTime!",
+      "sessionId: String!",
+      "pageVisitUuid: String",
+      "serviceUuid: String!",
+      "senderId: String!",
+      "level: String!",
+      "statement: String!",
+      "parentRequestId: String",
+      "parentSpanId: String",
+      "file: String",
+      "line: Int",
+      "severity: ObservabilitySeverity!"
+    ]
+  },
+  {
+    "name": "PrintStdoutRecord",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "timestamp: DateTime!",
+      "sessionId: String!",
+      "pageVisitUuid: String",
+      "serviceUuid: String!",
+      "senderId: String!",
+      "output: String!",
+      "statement: String!",
+      "parentRequestId: String",
+      "parentSpanId: String",
+      "file: String",
+      "line: Int",
+      "severity: ObservabilitySeverity!"
+    ]
+  },
+  {
+    "name": "NetworkHopRecord",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "timestamp: DateTime!",
+      "sessionId: String!",
+      "serviceUuid: String!",
+      "senderId: String!",
+      "entrypoint: String!",
+      "line: Int",
+      "column: Int",
+      "name: String!",
+      "parentRequestId: String",
+      "parentSpanId: String",
+      "severity: ObservabilitySeverity!"
+    ]
+  },
+  {
+    "name": "ExceptionRecord",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "timestamp: DateTime!",
+      "sessionId: String!",
+      "pageVisitUuid: String",
+      "serviceUuid: String!",
+      "exceptionMessage: String!",
+      "sanitizedExceptionMessage: String",
+      "traceJson: String!",
+      "traceHash: String!",
+      "file: String",
+      "line: Int",
+      "function: String",
+      "code: String",
+      "column: Int",
+      "wasCaught: Boolean!",
+      "isLocalOccurrence: Boolean!",
+      "companyId: String!",
+      "issueId: String",
+      "parentRequestId: String",
+      "parentSpanId: String",
+      "severity: ObservabilitySeverity!"
+    ]
+  },
+  {
+    "name": "FunctionSpanRecord",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "timestamp: DateTime!",
+      "sessionId: String!",
+      "serviceUuid: String!",
+      "senderId: String!",
+      "parentSpanId: String",
+      "parentRequestId: String",
+      "filePath: String!",
+      "lineNumber: Int!",
+      "columnNumber: Int!",
+      "functionName: String!",
+      "startTimeNs: String!",
+      "durationNs: String!",
+      "arguments: JSON!",
+      "returnValue: JSON",
+      "severity: ObservabilitySeverity!",
+      "pid: Int",
+      "threadId: Int"
+    ]
+  },
+  {
+    "name": "NetworkRequestWithEvents",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "timestamp: DateTime!",
+      "sessionId: String!",
+      "pageVisitUuid: String",
+      "prevPageVisitUuid: String",
+      "href: String!",
+      "appUrl: String!",
+      "timestampStart: DateTime!",
+      "timestampEnd: DateTime!",
+      "durationMs: Int!",
+      "responseCode: Int!",
+      "success: Boolean!",
+      "error: String!",
+      "method: HttpMethod!",
+      "url: String!",
+      "retryWithoutTraceId: Boolean",
+      "parentRequestId: String",
+      "parentSpanId: String",
+      "depth: Int!",
+      "hasNestedEvents: Boolean!",
+      "severity: ObservabilitySeverity!",
+      "requestHeaders: JSON",
+      "requestBody: JSON",
+      "responseHeaders: JSON",
+      "responseBody: JSON",
+      "events: [ObservabilityEvent!]!"
+    ]
+  },
+  {
+    "name": "AlertType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "title: String!",
+      "severity: String!",
+      "status: String!",
+      "sourceType: String!",
+      "sourceId: String!",
+      "dedupKey: String!",
+      "workflowId: String!",
+      "workflowRunId: String!",
+      "createdAt: String!",
+      "resolvedAt: String",
+      "messages: [AlertMessageType!]!"
+    ]
+  },
+  {
+    "name": "AlertMessageType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "channelType: String!",
+      "status: String!",
+      "title: String!",
+      "errorMessage: String!",
+      "externalId: String!",
+      "externalUrl: String!",
+      "createdAt: String!",
+      "sentAt: String",
+      "deliveredAt: String",
+      "readAt: String",
+      "acknowledgedAt: String",
+      "acknowledgedBy: String!",
+      "ackReason: String!"
+    ]
+  },
+  {
+    "name": "AlertChannelConfigType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: Int!",
+      "name: String!",
+      "channelType: String!",
+      "isActive: Boolean!"
+    ]
+  },
+  {
+    "name": "AlertRoutingRuleType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: Int!",
+      "name: String!",
+      "priority: Int!",
+      "severity: [String!]!",
+      "sourceTypes: [String!]!",
+      "channelType: String!",
+      "channelConfigId: Int!",
+      "isActive: Boolean!"
+    ]
+  },
+  {
+    "name": "GithubLinkStatusType",
+    "kind": "OBJECT",
+    "fields": [
+      "linked: Boolean!",
+      "githubUsername: String",
+      "clientId: String"
+    ]
+  },
+  {
+    "name": "LogFilterRuleType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: String!",
+      "name: String!",
+      "pattern: String!",
+      "filterType: String!",
+      "replacement: String!",
+      "isActive: Boolean!",
+      "appliesTo: String!",
+      "createdAt: String!",
+      "updatedAt: String!"
+    ]
+  },
+  {
+    "name": "UserActivityForLocalizationResult",
+    "kind": "OBJECT",
+    "fields": [
+      "triageId: Int",
+      "sessionCount: Int!",
+      "recentActivityStr: String!",
+      "sessionIds: [String!]"
+    ]
+  },
+  {
+    "name": "MCPMetricsSummary",
+    "kind": "OBJECT",
+    "fields": [
+      "totalCalls: Int!",
+      "totalTokens: Int!",
+      "totalSize: Int!",
+      "timeWindowHours: Int!",
+      "topTools: [String!]!"
+    ]
+  },
+  {
+    "name": "ApplicationStatusResponseType",
+    "kind": "OBJECT",
+    "fields": [
+      "frontendServices: [FrontendServiceStatusType!]!",
+      "backendServices: [BackendServiceStatusType!]!"
+    ]
+  },
+  {
+    "name": "FrontendServiceStatusType",
+    "kind": "OBJECT",
+    "fields": [
+      "serviceIdentifier: String!",
+      "displayName: String",
+      "lastRecordingReceived: DateTime",
+      "status: String!",
+      "library: String!",
+      "framework: String",
+      "additionalFrameworks: [String!]!",
+      "serviceRole: String"
+    ]
+  },
+  {
+    "name": "BackendServiceStatusType",
+    "kind": "OBJECT",
+    "fields": [
+      "serviceIdentifier: String!",
+      "displayName: String",
+      "hasData: Boolean!",
+      "hasRealSession: Boolean!",
+      "lastSeen: DateTime",
+      "library: String!",
+      "framework: String",
+      "additionalFrameworks: [String!]!",
+      "serviceRole: String"
+    ]
+  },
+  {
+    "name": "SpecReviewSessionType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: Int!",
+      "gitOrg: String!",
+      "gitRepo: String!",
+      "prNumber: Int",
+      "projectId: String!",
+      "branch: String!",
+      "baseSha: String!",
+      "tipSha: String!",
+      "status: String!",
+      "prUrl: String",
+      "summary: String",
+      "decisions: JSON",
+      "specDiff: JSON",
+      "relatedSpecs: JSON",
+      "createdByName: String",
+      "createdByAvatar: String",
+      "createdAt: String!",
+      "updatedAt: String!",
+      "participants: [SpecReviewParticipantType!]!",
+      "comments: [SpecReviewCommentType!]!"
+    ]
+  },
+  {
+    "name": "SpecReviewParticipantType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: Int!",
+      "userId: Int!",
+      "userName: String!",
+      "userEmail: String",
+      "userAvatar: String",
+      "verdict: String!",
+      "reviewedAt: String",
+      "quote: String"
+    ]
+  },
+  {
+    "name": "SpecReviewCommentType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: Int!",
+      "authorId: Int",
+      "authorName: String!",
+      "authorAvatar: String",
+      "authorRole: String",
+      "commentType: String!",
+      "content: String!",
+      "parentId: Int",
+      "specChangeId: String",
+      "createdAt: String!",
+      "source: String!",
+      "platformCommentId: String",
+      "platformThreadId: String",
+      "diffHunk: String",
+      "filePath: String",
+      "lineNumber: Int",
+      "diffSide: String",
+      "externalAuthorName: String",
+      "externalAuthorUsername: String",
+      "externalAuthorAvatar: String"
+    ]
+  },
+  {
+    "name": "BranchArtifactRefType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: Int!",
+      "gitOrg: String!",
+      "gitRepo: String!",
+      "branch: String!",
+      "artifactId: String!",
+      "artifactType: String!",
+      "gcsPath: String!",
+      "size: Int!",
+      "uploadedAt: String!"
+    ]
+  },
+  {
+    "name": "GitHubRepoType",
+    "kind": "OBJECT",
+    "fields": [
+      "name: String!",
+      "fullName: String!",
+      "defaultBranch: String!",
+      "private: Boolean!"
+    ]
+  },
+  {
+    "name": "PaginatedGitHubPullRequests",
+    "kind": "OBJECT",
+    "fields": [
+      "pullRequests: [GitHubPullRequestType!]!",
+      "page: Int!",
+      "perPage: Int!",
+      "hasNextPage: Boolean!",
+      "totalCount: Int!"
+    ]
+  },
+  {
+    "name": "GitHubPullRequestType",
+    "kind": "OBJECT",
+    "fields": [
+      "number: Int!",
+      "title: String!",
+      "state: String!",
+      "headBranch: String!",
+      "baseBranch: String!",
+      "authorLogin: String!",
+      "createdAt: String!",
+      "updatedAt: String!"
+    ]
+  },
+  {
+    "name": "OrgMemberType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: Int!",
+      "name: String!",
+      "email: String",
+      "avatarUrl: String"
+    ]
+  },
+  {
+    "name": "WorkflowDefinitionType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "companyId: Int!",
+      "name: String!",
+      "description: String",
+      "definitionJson: JSON!",
+      "version: Int!",
+      "isActive: Boolean!",
+      "isSystem: Boolean!",
+      "isArchived: Boolean!",
+      "createdBy: String!",
+      "createdAt: String!",
+      "updatedAt: String!",
+      "lastRunAt: String",
+      "currentState: String!",
+      "stateChangedAt: String",
+      "lastConditionValue: Float",
+      "messages: [WorkflowMessageType!]"
+    ]
+  },
+  {
+    "name": "WorkflowMessageType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "role: String!",
+      "content: String!",
+      "createdAt: String!"
+    ]
+  },
+  {
+    "name": "WorkflowExecutionType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "definitionId: ID!",
+      "companyId: Int!",
+      "temporalWorkflowId: String!",
+      "temporalRunId: String!",
+      "status: String!",
+      "triggerContext: JSON",
+      "result: JSON",
+      "startedAt: String!",
+      "completedAt: String"
+    ]
+  },
+  {
+    "name": "Mutation",
+    "kind": "OBJECT",
+    "fields": [
+      "dispatchAlert: AlertType!",
+      "closeAlert: [AlertType!]!",
+      "createContact: Boolean!",
+      "triggerTestException: Boolean!",
+      "upsertReleaseNote: ReleaseNoteType!",
+      "createIntegrationRequest: Boolean!",
+      "triggerPylonTicketDescriptionGenerationFlow: Boolean!",
+      "bulkUpdateUserActions: Int!",
+      "authenticateUser: AuthResponse!",
+      "authenticateUserUsingAccessToken: AuthResponse!",
+      "authenticateUserUsingUsername: AuthResponse!",
+      "registerUser: UserType!",
+      "loginUser: UserType!",
+      "refreshToken: String",
+      "logout: Boolean!",
+      "startRecordingSession: RecordingSessionType!",
+      "updateCaptureSettings: CaptureSettingsType",
+      "updateZendeskAppSettings: ZendeskAppSettingsType",
+      "updateIntercomAppSettings: IntercomAppSettingsType",
+      "connectIntercom: IntercomAppSettingsType",
+      "disconnectIntercom: Boolean!",
+      "connectSalesforce: SalesforceAppSettingsType",
+      "disconnectSalesforce: Boolean!",
+      "updateSalesforceAppSettings: SalesforceAppSettingsType",
+      "reportIssueFromSalesforce: Int!",
+      "savePylonIntegration: PylonIntegrationType!",
+      "updateSiteSettings: SiteSettingsType",
+      "toggleFunctionSpanTracking: Int!",
+      "createGcsBucket: String!",
+      "endEventSession: String!",
+      "sendRecordingEvent: String!",
+      "sendRecordingEvents: String!",
+      "dismissAnnouncement: Boolean!",
+      "autoExpireOldSessions: String!",
+      "submitFeatureRequest: FeatureRequestType",
+      "toggleVote: FeatureRequestType!",
+      "collectLogs: Boolean!",
+      "collectNetworkRequest: Boolean!",
+      "collectNetworkHops: Boolean!",
+      "collectFunctionSpans: Boolean!",
+      "collectWorkerPoolSpans: Boolean!",
+      "collectPrintStatements: Boolean!",
+      "collectExceptions: Boolean!",
+      "collectMetadata: Boolean!",
+      "reportNumberOfEventsProcessedForSessionId: Void",
+      "reactivateSession: Void",
+      "updateTaskStatus: Boolean!",
+      "finalizeSession: Boolean!",
+      "validateSearchQuery: ValidationResult!",
+      "createTriage: TriageType",
+      "createTriageFromRecorder: TriageType",
+      "createTriageSimilarTracesAndUpdateEmbIds: [TriageSimilarTraceType!]!",
+      "createIssue: IssueType",
+      "createTriageAndIssue: IssueType!",
+      "createTriageAndIssueFromRecorder: IssueType!",
+      "updateIssue: IssueType",
+      "addIssueTimelineActivity: IssueTimelineActivityType",
+      "deleteIssueTimelineActivity: Boolean!",
+      "updateIssueTimelineFields: IssueType",
+      "createEngineeringTicket: EngineeringTicketType",
+      "updateEngineeringTicket: EngineeringTicketType",
+      "createEngineeringTicketPlatformIntegration: EngineeringTicketPlatformIntegrationType",
+      "updateEngineeringTicketPlatformIntegration: EngineeringTicketPlatformIntegrationType",
+      "deleteEngineeringTicketPlatformIntegration: Boolean!",
+      "registerJiraWebhook: Boolean!",
+      "installJiraForgeApp: Boolean!",
+      "uninstallJiraForgeApp: Boolean!",
+      "updateBigqueryTablesForDataset: Boolean!",
+      "domainsToNotPassHeaderTo: Boolean!",
+      "notify503ErrorFromGcs: Void",
+      "identifyServiceDetails: Boolean!",
+      "updateServiceDetails: Boolean!",
+      "updateNotificationSettings: Boolean!",
+      "updateExceptionEnrichmentSettings: SlackUpdateResult!",
+      "updateIssueDiscoverySettings: IssueDiscoverySettingsResult!",
+      "followIssue: Boolean!",
+      "unfollowIssue: Boolean!",
+      "toggleIssueFollowingStatusForUser: Boolean!",
+      "toggleIssueResolvedStatus: Boolean!",
+      "snoozeIssue: SnoozeIssueUpdateStatus!",
+      "uploadSourceMap: Boolean!",
+      "updatePageVisits: Boolean!",
+      "broadcastSnapshotCapture: BroadcastSnapshotCaptureResult!",
+      "closeSpecificPullRequest: Void",
+      "addGithubIntegration: GitHubIntegrationType!",
+      "submitPatchDiff: PatchReviewResponse!",
+      "resumePatch: PatchReviewResponse!",
+      "finalizeBitbucketIntegration: CreateBitbucketIntegrationType!",
+      "initGitlabConnection: InitGitLabConnectionType!",
+      "finalizeGitlabIntegration: CreateGitLabIntegrationType!",
+      "manuallyTriggerAutoinstallRun: Boolean!",
+      "collectInfrastructureResources: Boolean!",
+      "collectInfrastructureResourceEvents: Boolean!",
+      "triggerTestIssueEmail: String!",
+      "syncProductionToMain: PullRequest!",
+      "promotePrsToProduction: [PullRequest!]!",
+      "ignorePrsInProductionNotMain: Boolean!",
+      "ignorePrsInMainNotProduction: Boolean!",
+      "updateEventsSeenOfRecording: Boolean!",
+      "createSlackIntegration: SlackIntegrationType!",
+      "updateSlackIntegration: SlackUpdateResult!",
+      "updateAutofixStatus: Boolean!",
+      "updateAutoinstallStatus: Boolean!",
+      "sendReplyToSlackBasicText: String!",
+      "sendMessageToSlackBasicText: String",
+      "startAutofix: ID",
+      "createAutofixRunStep: AutofixRunStepType!",
+      "createAutoinstallRunStep: AutoinstallRunStepType!",
+      "createExceptionSimilarities: Boolean!",
+      "updateTicketAndIssueUsingAiGeneratedDescription: UpdateTicketAndIssueUsingAiGeneratedDescriptionResponse!",
+      "updateFingerprintAndCreateEmbedderTask: CallbackOperationResponse!",
+      "updateTicketWithTriageStats: CallbackOperationResponse!",
+      "updateTicketWithInvestigation: CallbackOperationResponse!",
+      "createTriageFromLlmDeterminedTraceForUserSearchText: TriageType",
+      "createTriageFromSearchText: TriageType",
+      "reportIssueFromZendesk: Int!",
+      "reportIssueFromIntercom: Int!",
+      "createPylonIssue: CreatePylonIssueResult!",
+      "updateIssueLastSeen: IssueType",
+      "updateDiscoveredIssueTraces: UpdateDiscoveredIssueTracesResult!",
+      "createDiscoveredIssue: CreateDiscoveredIssueResult!",
+      "logDiscoveryCandidates: LogDiscoveryCandidatesResult!",
+      "recordValidityVerdicts: RecordValidityVerdictsResult!",
+      "recordDedupVerdicts: RecordDedupVerdictsResult!",
+      "runDedupForRun: RunDedupForRunResult!",
+      "materializeApprovedCandidates: MaterializeCandidatesResult!",
+      "createLinearTicketForPylonAutofix: CreateLinearTicketResult",
+      "updateLinearTicketDescription: Boolean!",
+      "updatePylonInvestigationMetadata: UpdatePylonInvestigationResult!",
+      "finalizePylonLocalization: UpdatePylonInvestigationResult!",
+      "generateAutomatedTestCase: AutomatedTestCaseGenerationResponse!",
+      "processDisplaySummaryAndGenerateAutomatedTestCase: CallbackOperationResponse!",
+      "saveAutomatedTestCase: CallbackOperationResponse!",
+      "createAlertRule: Boolean",
+      "updateAlertRequestWithLlmResponse: UpdateAlertRequestResponse!",
+      "downloadSpansForIssue: String!",
+      "downloadSpansForTriage: String!",
+      "recordMcpMetric: Boolean!",
+      "collectVscodeExtensionMetrics: Boolean!",
+      "setVscodeMetricsPreference: Boolean!",
+      "collectDesktopAppMetrics: Boolean!",
+      "setDesktopAppMetricsPreference: Boolean!",
+      "createLogFilterRule: LogFilterRuleType!",
+      "updateLogFilterRule: LogFilterRuleType!",
+      "deleteLogFilterRule: Boolean!",
+      "testLogFilterRule: RegexTestResult!",
+      "mcpCreateDesktopAutofixRun: DesktopAutofixRunType!",
+      "mcpUpdateAutofixRun: DesktopAutofixRunType!",
+      "mcpTriggerAiSummary: Boolean!",
+      "mcpCreatePullRequest: DesktopAutofixRunType!",
+      "mcpPushBranch: String!",
+      "uploadArtifact: BranchArtifactRefType!",
+      "uploadBranchArtifact: BranchArtifactRefType!",
+      "downloadArtifact: BranchArtifactDownloadType",
+      "downloadBranchArtifact: BranchArtifactDownloadType",
+      "createOrGetSpecReview: SpecReviewSessionType!",
+      "addSpecReviewComment: SpecReviewCommentType!",
+      "updateSpecReviewVerdict: SpecReviewParticipantType!",
+      "addSpecReviewParticipant: SpecReviewParticipantType!",
+      "updateSpecReviewStatus: SpecReviewSessionType!",
+      "syncSpecReviewData: SpecReviewSessionType!",
+      "mcpPostPrComment: PrCommentMutationResult!",
+      "mcpPostPrReviewComment: PrCommentMutationResult!",
+      "mcpReplyToPrComment: SpecReviewParticipantType!",
+      "mcpReplyToPrThread: PrCommentMutationResult!",
+      "createWorkflowDefinition: WorkflowDefinitionType!",
+      "updateWorkflowDefinition: WorkflowDefinitionType!",
+      "deleteWorkflowDefinition: Boolean!",
+      "archiveWorkflowDefinition: WorkflowDefinitionType!",
+      "unarchiveWorkflowDefinition: WorkflowDefinitionType!",
+      "updateSystemWorkflowConfig: WorkflowDefinitionType!",
+      "saveWorkflowMessages: [WorkflowMessageType!]!",
+      "updateWorkflowState: WorkflowDefinitionType!",
+      "generateWorkflow: GenerateWorkflowResponse!",
+      "createWorkflowExecution: WorkflowExecutionType!",
+      "updateWorkflowExecution: WorkflowExecutionType!",
+      "archiveServiceIdentifier: Boolean!"
+    ]
+  },
+  {
+    "name": "DispatchAlertInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "AlertChannelConfigInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "AlertFieldInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "AlertActionInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "CloseAlertInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "WaitlistSignupInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "UpsertReleaseNoteInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "IntegrationRequestInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "UserActionInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "AuthResponse",
+    "kind": "OBJECT",
+    "fields": [
+      "message: String!",
+      "token: String!",
+      "userId: String!",
+      "email: String!",
+      "picture: String!",
+      "name: String!"
+    ]
+  },
+  {
+    "name": "UserInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "CaptureSettingsInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "ZendeskAppSettingsInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "IntercomAppSettingsInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "ConnectIntercomInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "ConnectSalesforceInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "SalesforceAppSettingsInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "SalesforceReportIssueInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "SavePylonIntegrationInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "SiteSettingsInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "NetworkRequestInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "ValidationResult",
+    "kind": "OBJECT",
+    "fields": [
+      "isJson: Boolean!",
+      "isScql: Boolean!",
+      "treeString: String!",
+      "errorDetails: [ValidationErrorDetailType!]!"
+    ]
+  },
+  {
+    "name": "ValidationErrorDetailType",
+    "kind": "OBJECT",
+    "fields": [
+      "error: String!",
+      "suggestion: String!"
+    ]
+  },
+  {
+    "name": "TriageInputRecording",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "RecordingTriageTimeWindowInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "TriageInputSegment",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "TriageInputLogs",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "TriageSourceEnum",
+    "kind": "ENUM",
+    "enums": [
+      "RECORDED",
+      "LOOKBACK"
+    ]
+  },
+  {
+    "name": "TriageSimilarTraceType",
+    "kind": "OBJECT",
+    "fields": [
+      "triage: TriageType!",
+      "evaluationTime: DateTime!"
+    ]
+  },
+  {
+    "name": "CreateIssueInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "EditIssueInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "AddIssueTimelineActivityInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "DeleteIssueTimelineActivityInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "UpdateIssueTimelineFieldInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "CreateEngineeringTicketInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "EditEngineeringTicketInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "CreateEngineeringTicketPlatformIntegrationInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "CreateEngineeringTicketPlatformIntegrationConfig",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "EditEngineeringTicketPlatformIntegrationInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "DeleteEngineeringTicketPlatformIntegrationInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "NotificationWebhookInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "EmailNotificationSettingsInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "WebhookNotificationSettingsInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "SlackUpdateResult",
+    "kind": "OBJECT",
+    "fields": [
+      "success: Boolean!",
+      "error: String"
+    ]
+  },
+  {
+    "name": "ExceptionEnrichmentSettingsInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "IssueDiscoverySettingsResult",
+    "kind": "OBJECT",
+    "fields": [
+      "companyId: Int!",
+      "enabled: Boolean!",
+      "intervalMinutes: Int!",
+      "alertSlackChannelId: String",
+      "alertSlackChannelName: String",
+      "autofixEnabled: Boolean!",
+      "schedulesTouched: [String!]!",
+      "scheduleSyncErrors: [String!]!"
+    ]
+  },
+  {
+    "name": "UpdateIssueDiscoverySettingsInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "FollowIssueInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "ToggleFollowIssueInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "ResolveIssueInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "SnoozeIssueUpdateStatus",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "snoozedMode: String!",
+      "snoozedUntil: DateTime",
+      "snoozedPermanently: Boolean!"
+    ]
+  },
+  {
+    "name": "SnoozeIssueInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "Upload",
+    "kind": "SCALAR"
+  },
+  {
+    "name": "PageVisitInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "BroadcastSnapshotCaptureResult",
+    "kind": "OBJECT",
+    "fields": [
+      "success: Boolean!",
+      "message: String!"
+    ]
+  },
+  {
+    "name": "PatchReviewResponse",
+    "kind": "OBJECT",
+    "fields": [
+      "ok: Boolean!",
+      "message: String!"
+    ]
+  },
+  {
+    "name": "SubmitPatchInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "CreateBitbucketIntegrationType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "workspaceSlug: String!",
+      "installedOnAllRepositories: Boolean!",
+      "installedOnRepositories: [String!]!"
+    ]
+  },
+  {
+    "name": "RepositorySelectionInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "InitGitLabConnectionType",
+    "kind": "OBJECT",
+    "fields": [
+      "credentialId: Int!",
+      "username: String!",
+      "groups: [GitLabGroupType!]!"
+    ]
+  },
+  {
+    "name": "GitLabGroupType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: Int!",
+      "fullPath: String!",
+      "name: String!"
+    ]
+  },
+  {
+    "name": "CreateGitLabIntegrationType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: ID!",
+      "gitlabUrl: String!",
+      "groupPath: String",
+      "projects: [String!]!"
+    ]
+  },
+  {
+    "name": "RepositoryInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "ResourceInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "EventInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "PullRequest",
+    "kind": "OBJECT",
+    "fields": [
+      "number: Int!",
+      "title: String!",
+      "htmlUrl: String!"
+    ]
+  },
+  {
+    "name": "EventSeenKVInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "EditSlackIntegrationInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "AutofixRunStepState",
+    "kind": "ENUM",
+    "enums": [
+      "QUEUED",
+      "RUNNING",
+      "NEEDS_HUMAN_INTERVENTION",
+      "FAILED",
+      "SUCCESSFUL",
+      "PR_AWAITING_REVIEW",
+      "PR_MERGED",
+      "PR_REJECTED",
+      "HAS_ALREADY_BEEN_RESOLVED",
+      "INSUFFICIENT_CONTEXT"
+    ]
+  },
+  {
+    "name": "PrInformationInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "AutoinstallRunStepState",
+    "kind": "ENUM",
+    "enums": [
+      "QUEUED",
+      "RUNNING",
+      "NEEDS_HUMAN_INTERVENTION",
+      "FAILED",
+      "SUCCESSFUL",
+      "PR_AWAITING_REVIEW",
+      "PR_MERGED",
+      "PR_REJECTED",
+      "CONFIGURING_PYTHON",
+      "COMPLETED_PYTHON",
+      "CONFIGURING_JSTS_BACKEND",
+      "COMPLETED_JSTS_BACKEND",
+      "CONFIGURING_JSTS_FRONTEND",
+      "COMPLETED_JSTS_FRONTEND"
+    ]
+  },
+  {
+    "name": "AutofixRunStepType",
+    "kind": "OBJECT",
+    "fields": [
+      "run: AutofixRunType!",
+      "stepType: AutofixStepTypeType!",
+      "filesToExamine: FilesToExamineType",
+      "gitRepo: GitRepoType",
+      "promptTemplate: PromptTemplateType",
+      "previousSteps: [AutofixRunStepType!]!",
+      "nextSteps: [AutofixRunStepType!]!",
+      "id: UUID!",
+      "state: String!",
+      "link: String",
+      "createdAt: DateTime!",
+      "updatedAt: DateTime!",
+      "informationLearned: String!",
+      "reasoningFilePath: String"
+    ]
+  },
+  {
+    "name": "AutofixStepTypeType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: UUID!",
+      "title: String!",
+      "description: String!"
+    ]
+  },
+  {
+    "name": "FilesToExamineType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: UUID!",
+      "name: String!",
+      "lines: JSON!"
+    ]
+  },
+  {
+    "name": "GitRepoType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: UUID!",
+      "provider: String!",
+      "org: String!",
+      "repo: String!",
+      "link: String!"
+    ]
+  },
+  {
+    "name": "PromptTemplateType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: UUID!",
+      "name: String!",
+      "version: Int!",
+      "template: String!"
+    ]
+  },
+  {
+    "name": "AutofixRunStepInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "AutofixStepTypeInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "FilesToExamineInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "GitRepoInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "PromptTemplateInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "AutoinstallRunStepType",
+    "kind": "OBJECT",
+    "fields": [
+      "run: AutoinstallRunType!",
+      "stepType: AutoinstallStepTypeType!",
+      "filesToExamine: FilesToExamineType",
+      "gitRepo: GitRepoType",
+      "promptTemplate: PromptTemplateType",
+      "previousSteps: [AutoinstallRunStepType!]!",
+      "nextSteps: [AutoinstallRunStepType!]!",
+      "id: UUID!",
+      "state: String!",
+      "link: String",
+      "createdAt: DateTime!",
+      "updatedAt: DateTime!",
+      "informationLearned: String!",
+      "reasoningFilePath: String"
+    ]
+  },
+  {
+    "name": "AutoinstallRunType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: UUID!",
+      "runId: String!",
+      "company: DjangoModelType",
+      "codeRepository: DjangoModelType",
+      "bitbucketCodeRepository: DjangoModelType",
+      "state: String!",
+      "link: String",
+      "slackConversation: DjangoModelType",
+      "createdAt: DateTime!",
+      "updatedAt: DateTime!"
+    ]
+  },
+  {
+    "name": "AutoinstallStepTypeType",
+    "kind": "OBJECT",
+    "fields": [
+      "id: UUID!",
+      "title: String!",
+      "description: String!"
+    ]
+  },
+  {
+    "name": "AutoinstallRunStepInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "AutoinstallStepTypeInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "SimilarityInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "UpdateTicketAndIssueUsingAiGeneratedDescriptionResponse",
+    "kind": "OBJECT",
+    "fields": [
+      "success: Boolean!",
+      "message: String!"
+    ]
+  },
+  {
+    "name": "CallbackOperationResponse",
+    "kind": "OBJECT",
+    "fields": [
+      "success: Boolean!",
+      "message: String!"
+    ]
+  },
+  {
+    "name": "AutofixFinalResolutionStatus",
+    "kind": "ENUM",
+    "enums": [
+      "FIX_CREATED",
+      "INSUFFICIENT_CONTEXT",
+      "ALREADY_RESOLVED"
+    ]
+  },
+  {
+    "name": "TextSearchToTriageInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "ZendeskReportIssueInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "IntercomReportIssueInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "CreatePylonIssueResult",
+    "kind": "OBJECT",
+    "fields": [
+      "issueId: Int!",
+      "sailfishLink: String!",
+      "created: Boolean!"
+    ]
+  },
+  {
+    "name": "CreatePylonIssueInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "UpdateIssueLastSeenInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "UpdateDiscoveredIssueTracesResult",
+    "kind": "OBJECT",
+    "fields": [
+      "issueId: Int!",
+      "addedTraceCount: Int!",
+      "success: Boolean!"
+    ]
+  },
+  {
+    "name": "UpdateDiscoveredIssueTracesInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "UpdateDiscoveredIssueTraceInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "CreateDiscoveredIssueResult",
+    "kind": "OBJECT",
+    "fields": [
+      "created: [DiscoveredIssueCreated!]!",
+      "errors: [DiscoveredIssueError!]!"
+    ]
+  },
+  {
+    "name": "DiscoveredIssueCreated",
+    "kind": "OBJECT",
+    "fields": [
+      "issueId: Int!",
+      "triageId: String!",
+      "title: String!"
+    ]
+  },
+  {
+    "name": "DiscoveredIssueError",
+    "kind": "OBJECT",
+    "fields": [
+      "title: String!",
+      "error: String!"
+    ]
+  },
+  {
+    "name": "LogDiscoveryCandidatesResult",
+    "kind": "OBJECT",
+    "fields": [
+      "requested: Int!",
+      "inserted: Int!",
+      "skipped: Int!"
+    ]
+  },
+  {
+    "name": "DiscoveryFindingInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "RecordValidityVerdictsResult",
+    "kind": "OBJECT",
+    "fields": [
+      "requested: Int!",
+      "promotedToDedup: Int!",
+      "rejectedNoise: Int!",
+      "skippedLowConfNoise: Int!",
+      "skippedOther: Int!"
+    ]
+  },
+  {
+    "name": "ValidityVerdictInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "ValidityVerdictEnum",
+    "kind": "ENUM",
+    "enums": [
+      "REAL",
+      "NOISE"
+    ]
+  },
+  {
+    "name": "RecordDedupVerdictsResult",
+    "kind": "OBJECT",
+    "fields": [
+      "requested: Int!",
+      "approvedCreate: Int!",
+      "approvedUpdate: Int!",
+      "skipped: Int!"
+    ]
+  },
+  {
+    "name": "DedupVerdictInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "DedupVerdictEnum",
+    "kind": "ENUM",
+    "enums": [
+      "UNIQUE",
+      "DUPLICATE"
+    ]
+  },
+  {
+    "name": "RunDedupForRunResult",
+    "kind": "OBJECT",
+    "fields": [
+      "requested: Int!",
+      "approvedCreate: Int!",
+      "approvedUpdate: Int!",
+      "skipped: Int!",
+      "dedupRunId: String!",
+      "model: String!",
+      "candidateCount: Int!",
+      "existingIssueCount: Int!",
+      "durationMs: Int!",
+      "error: String"
+    ]
+  },
+  {
+    "name": "MaterializeCandidatesResult",
+    "kind": "OBJECT",
+    "fields": [
+      "created: [MaterializedCandidateCreate!]!",
+      "updated: [MaterializedCandidateUpdate!]!",
+      "failed: [MaterializedCandidateError!]!"
+    ]
+  },
+  {
+    "name": "MaterializedCandidateCreate",
+    "kind": "OBJECT",
+    "fields": [
+      "candidateId: Int!",
+      "issueId: Int!",
+      "title: String!"
+    ]
+  },
+  {
+    "name": "MaterializedCandidateUpdate",
+    "kind": "OBJECT",
+    "fields": [
+      "candidateId: Int!",
+      "issueId: Int!",
+      "addedTraceCount: Int!"
+    ]
+  },
+  {
+    "name": "MaterializedCandidateError",
+    "kind": "OBJECT",
+    "fields": [
+      "candidateId: Int!",
+      "stage: String!",
+      "error: String!"
+    ]
+  },
+  {
+    "name": "CreateLinearTicketResult",
+    "kind": "OBJECT",
+    "fields": [
+      "platformId: String!",
+      "platformLink: String!"
+    ]
+  },
+  {
+    "name": "UpdatePylonInvestigationResult",
+    "kind": "OBJECT",
+    "fields": [
+      "success: Boolean!",
+      "message: String!"
+    ]
+  },
+  {
+    "name": "UpdatePylonInvestigationInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "AutomatedTestCaseGenerationResponse",
+    "kind": "OBJECT",
+    "fields": [
+      "success: Boolean!",
+      "message: String!"
+    ]
+  },
+  {
+    "name": "UpdateAlertRequestResponse",
+    "kind": "OBJECT",
+    "fields": [
+      "success: Boolean!",
+      "message: String!"
+    ]
+  },
+  {
+    "name": "VSCodeUsageData",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "VSCodeDbStatsData",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "VSCodeCleanupData",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "VSCodePerformanceData",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "DesktopUsageData",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "DesktopTerminalData",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "DesktopUpdateData",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "DesktopWindowData",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "DesktopServerData",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "DesktopDbStatsData",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "DesktopCleanupData",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "DesktopPerformanceData",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "DesktopInstallData",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "LogFilterRuleInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "RegexTestResult",
+    "kind": "OBJECT",
+    "fields": [
+      "matches: Boolean!",
+      "matchedText: String",
+      "resultText: String"
+    ]
+  },
+  {
+    "name": "BranchArtifactDownloadType",
+    "kind": "OBJECT",
+    "fields": [
+      "data: String!",
+      "branch: String!",
+      "artifactId: String!",
+      "artifactType: String!",
+      "gcsPath: String!",
+      "size: Int!"
+    ]
+  },
+  {
+    "name": "PrCommentMutationResult",
+    "kind": "OBJECT",
+    "fields": [
+      "success: Boolean!",
+      "platformCommentId: String",
+      "error: String"
+    ]
+  },
+  {
+    "name": "WorkflowDefinitionInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "WorkflowMessageInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "WorkflowDefinitionUpdateInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "WorkflowStateUpdateInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "GenerateWorkflowResponse",
+    "kind": "OBJECT",
+    "fields": [
+      "responseType: String!",
+      "content: String",
+      "name: String",
+      "description: String",
+      "definitionJson: JSON"
+    ]
+  },
+  {
+    "name": "GenerateWorkflowInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "GenerateWorkflowMessageInput",
+    "kind": "INPUT_OBJECT"
+  },
+  {
+    "name": "WorkflowExecutionInput",
+    "kind": "INPUT_OBJECT"
+  }
+]

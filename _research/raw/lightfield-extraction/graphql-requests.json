@@ -1,0 +1,200 @@
+[
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  },
+  {
+    "url": "https://api-service.sailfishqa.com/graphql/?apiKey=282da38e-7176-4ea5-8afb-c0c7afe44d31",
+    "operationName": "GetEngineeringTicketPlatformIntegrationsFromApiKey",
+    "query": "query GetEngineeringTicketPlatformIntegrationsFromApiKey($apiKey: String!) {\n      getEngineeringTicketPlatformIntegrationsFromApiKey(apiKey: $apiKey) {\n        pushAutoIdentifiedIssues\n        provider\n        clientId\n        defaultPriority\n        defaultProject\n        defaultTeam\n        primaryCloudId\n        installed\n        projects\n        teams\n        workflowStates\n        webhookState\n        clouds\n        labels\n        sprints\n        users\n        fieldConfigurations\n        invalidFields\n        jiraReporterAccountId\n      }\n    }",
+    "variables": {
+      "apiKey": "282da38e-7176-4ea5-8afb-c0c7afe44d31",
+      "backendApi": "https://api-service.sailfishqa.com"
+    }
+  }
+]
