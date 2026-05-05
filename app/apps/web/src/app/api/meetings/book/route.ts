@@ -1,9 +1,9 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { contacts, activities } from "@/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
-import { createCalendarEvent } from "@/lib/meeting-booking";
-import { apiError } from "@/lib/api-errors";
+import { createCalendarEvent } from "@/lib/integrations/meeting-booking";
+import { apiError } from "@/lib/infra/api-errors";
 import { z } from "zod";
 
 const bookMeetingSchema = z.object({

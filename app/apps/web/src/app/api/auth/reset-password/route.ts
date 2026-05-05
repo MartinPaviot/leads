@@ -7,11 +7,11 @@ import {
   consumeResetToken,
   isPasswordAcceptable,
   validateResetToken,
-} from "@/lib/password-reset";
-import { hashPassword } from "@/lib/password-hash";
-import { isPasswordPwned } from "@/lib/password-pwned";
+} from "@/lib/auth/password-reset";
+import { hashPassword } from "@/lib/auth/password-hash";
+import { isPasswordPwned } from "@/lib/auth/password-pwned";
 import { sendPasswordChangedEmail } from "@/lib/emails/password-changed";
-import { logger } from "@/lib/logger";
+import { logger } from "@/lib/observability/logger";
 
 const schema = z.object({
   token: z.string().min(10).max(256),
@@ -130,7 +130,7 @@ export async function POST(req: Request) {
     // id as the entity and store a lightweight record on the activity
     // feed. Best-effort — never block the reset on audit-log errors.
     try {
-      const { logAudit } = await import("@/lib/audit-log");
+      const { logAudit } = await import("@/lib/infra/audit-log");
       const { db: appDb } = await import("@/db");
       const { users } = await import("@/db/schema");
       const { eq: eq2 } = await import("drizzle-orm");

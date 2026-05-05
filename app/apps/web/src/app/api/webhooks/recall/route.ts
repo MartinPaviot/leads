@@ -1,8 +1,8 @@
 import { db } from "@/db";
 import { activities, contacts, companies, deals } from "@/db/schema";
 import { eq, and, sql, ilike } from "drizzle-orm";
-import { getBotStatus, getBotTranscript, transcriptToText, mapBotStatus } from "@/lib/recall";
-import { tracedGenerateObject } from "@/lib/traced-ai";
+import { getBotStatus, getBotTranscript, transcriptToText, mapBotStatus } from "@/lib/integrations/recall";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { z } from "zod";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
@@ -389,7 +389,7 @@ RULES:
   // 6. Embed for RAG search
   if (process.env.OPENAI_API_KEY) {
     try {
-      const { embedEntity, activityToText } = await import("@/lib/embeddings");
+      const { embedEntity, activityToText } = await import("@/lib/ai/embeddings");
       const activityText = activityToText({
         activityType: "meeting_completed",
         summary: notes.summary,
@@ -404,7 +404,7 @@ RULES:
 
   // 7. Ingest to context graph
   try {
-    const { ingestEpisode } = await import("@/lib/context-graph");
+    const { ingestEpisode } = await import("@/lib/ai/context-graph");
     const graphContent = `Meeting: ${meetingTitle}\nDate: ${meetingDate}\nParticipants: ${notes.participants.map((p) => p.name).join(", ")}\n\nSummary: ${notes.summary}\n\nKey Points:\n${notes.keyPoints.join("\n")}\n\nDecisions:\n${notes.decisions.join("\n")}\n\nAction Items:\n${notes.actionItems.map((a) => `- ${a.owner}: ${a.task}`).join("\n")}`;
     await ingestEpisode(tenantId, graphContent, "meeting", activityId);
   } catch { /* non-critical */ }

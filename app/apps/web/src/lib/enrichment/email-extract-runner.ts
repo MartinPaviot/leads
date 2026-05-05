@@ -13,8 +13,8 @@
 import { db } from "@/db";
 import { activities, contacts, deals, tenants } from "@/db/schema";
 import { and, eq, isNull, or } from "drizzle-orm";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import {
   buildEmailExtractionPrompt,

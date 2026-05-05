@@ -2,26 +2,26 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import { companies, contacts, sequenceSteps, sequenceEnrollments, activities, outboundEmails, emailOptouts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { addBusinessDays } from "@/lib/business-days";
-import { getTenantSettings } from "@/lib/tenant-settings";
-import { pauseEnrollment } from "@/lib/enrollment";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { addBusinessDays } from "@/lib/util/business-days";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
+import { pauseEnrollment } from "@/lib/sequences/enrollment";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
-import { embedEntity, companyToText, contactToText } from "@/lib/embeddings";
-import { generateAccountSummary } from "@/lib/ai-account-summary";
-import { buildProspectContext } from "@/lib/prospect-context";
-import { personalizeStepEmail } from "@/lib/sequence-generator";
-import { STEP_STRATEGIES } from "@/lib/outbound-methodologies";
-import { trackPipeline } from "@/lib/pipeline-tracker";
+import { embedEntity, companyToText, contactToText } from "@/lib/ai/embeddings";
+import { generateAccountSummary } from "@/lib/ai/ai-account-summary";
+import { buildProspectContext } from "@/lib/context/prospect-context";
+import { personalizeStepEmail } from "@/lib/agents/sequence-generator";
+import { STEP_STRATEGIES } from "@/lib/scoring/outbound-methodologies";
+import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
 import {
   enrichOrganization,
   enrichPerson,
   employeeCountToRange,
   revenueToRange,
   isApolloAvailable,
-} from "@/lib/apollo-client";
+} from "@/lib/integrations/apollo-client";
 
 function getLLMModel() {
   if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-6");
@@ -83,7 +83,7 @@ export const enrichCompany = inngest.createFunction(
 
     // LLM fallback when Apollo is unavailable or returned nothing
     if (!org) {
-      const { enrichCompanyViaLLM } = await import("@/lib/llm-enrichment");
+      const { enrichCompanyViaLLM } = await import("@/lib/ai/llm-enrichment");
       const llmResult = await step.run("enrich-from-llm", async () => {
         return enrichCompanyViaLLM(company.name, company.domain, event.data.tenantId || company.tenantId);
       });

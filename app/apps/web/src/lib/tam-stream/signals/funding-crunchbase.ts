@@ -5,7 +5,7 @@ import {
   isCrunchbaseAvailable,
   crunchbaseProfileUrl,
   crunchbaseInvestorUrl,
-} from "@/lib/crunchbase-client";
+} from "@/lib/integrations/crunchbase-client";
 
 const RECENT_DAYS = 180;
 

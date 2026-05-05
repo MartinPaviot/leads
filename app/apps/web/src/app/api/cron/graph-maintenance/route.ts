@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { contextGraphNodes, contextGraphEdges, tenants } from "@/db/schema";
 import { eq, and, isNull, sql, lt } from "drizzle-orm";
-import { verifyCronRequest } from "@/lib/cron-auth";
+import { verifyCronRequest } from "@/lib/auth/cron-auth";
 
 /**
  * Graph self-correction cron:

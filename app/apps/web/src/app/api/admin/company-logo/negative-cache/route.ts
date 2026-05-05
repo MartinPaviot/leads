@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { invalidateNegative } from "@/lib/logo/cache";
 
 export async function DELETE(req: Request) {

@@ -17,7 +17,7 @@ import type {
   BuyingSignal,
   Objection,
   ThreadEmail,
-} from "@/lib/email-intelligence";
+} from "@/lib/emails/email-intelligence";
 
 // ── ThreadIntelligence type contract ─────────────────────────
 

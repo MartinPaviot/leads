@@ -14,15 +14,15 @@ import {
   outboundEmails,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { EMAIL_RULES, ANTI_HALLUCINATION_RULES } from "@/lib/prompts/shared-rules";
-import { buildProspectContext, formatContextForPrompt } from "@/lib/prospect-context";
-import { getAvailableSlots, formatSlotsForEmail } from "@/lib/meeting-booking";
+import { buildProspectContext, formatContextForPrompt } from "@/lib/context/prospect-context";
+import { getAvailableSlots, formatSlotsForEmail } from "@/lib/integrations/meeting-booking";
 import { updateTrustScore } from "@/lib/campaign-engine/trust-score";
-import { trackPipeline } from "@/lib/pipeline-tracker";
+import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
 
 function getLLMModel() {
   if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-6");
@@ -182,7 +182,7 @@ ADDITIONAL RULES:
       // guardrail helper so reply-handler, autonomous-pipeline, and
       // email-send-worker all agree on what counts as autonomous.
       const settings = await step.run("load-settings", async () => {
-        const { getTenantSettings } = await import("@/lib/tenant-settings");
+        const { getTenantSettings } = await import("@/lib/config/tenant-settings");
         return getTenantSettings(tenantId);
       });
 

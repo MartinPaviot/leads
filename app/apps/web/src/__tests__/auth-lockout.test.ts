@@ -129,7 +129,7 @@ const {
   formatRetryIn,
   LOCKOUT_THRESHOLD,
   LOCKOUT_WINDOW_MS,
-} = await import("@/lib/auth-lockout");
+} = await import("@/lib/auth/auth-lockout");
 
 beforeEach(() => {
   rows = [];

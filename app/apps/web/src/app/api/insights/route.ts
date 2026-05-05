@@ -1,4 +1,4 @@
-import { withAuthRLS } from "@/lib/auth-utils";
+import { withAuthRLS } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { deals, contacts, companies, activities, sequences, sequenceEnrollments } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";

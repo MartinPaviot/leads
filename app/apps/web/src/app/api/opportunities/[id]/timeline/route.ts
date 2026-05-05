@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { and, desc, eq, or } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, deals } from "@/db/schema";
-import { getAuthContext } from "@/lib/auth-utils";
-import { logger } from "@/lib/logger";
-import { buildNarrative } from "@/lib/opportunity-health";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { logger } from "@/lib/observability/logger";
+import { buildNarrative } from "@/lib/deals/opportunity-health";
 
 /**
  * GET /api/opportunities/:id/timeline — Y1.

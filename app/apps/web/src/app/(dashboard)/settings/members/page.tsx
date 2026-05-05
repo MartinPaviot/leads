@@ -7,7 +7,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
-import { useSafeFetch } from "@/lib/use-safe-fetch";
+import { useSafeFetch } from "@/lib/infra/use-safe-fetch";
 
 interface Member {
   id: string;

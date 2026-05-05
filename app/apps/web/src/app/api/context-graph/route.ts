@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { contextGraphNodes, contextGraphEdges } from "@/db/schema";
 import { eq, and, desc, isNull, sql } from "drizzle-orm";

@@ -1,10 +1,10 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/calendar";
-import { fetchMicrosoftMeetings } from "@/lib/calendar-microsoft";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/integrations/calendar";
+import { fetchMicrosoftMeetings } from "@/lib/integrations/calendar-microsoft";
 import { db } from "@/db";
 import { activities, authAccounts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { logger } from "@/lib/logger";
+import { logger } from "@/lib/observability/logger";
 
 /**
  * GET /api/meetings

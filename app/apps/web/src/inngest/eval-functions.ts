@@ -18,8 +18,8 @@ import {
   processRecentFailures,
   runFlywheelCycle,
 } from "@/lib/evals/flywheel";
-import { onlineEval } from "@/lib/corrections";
-import { AGENT_REGISTRY } from "@/lib/observability";
+import { onlineEval } from "@/lib/agents/corrections";
+import { AGENT_REGISTRY } from "@/lib/observability/observability";
 
 // ─── 1. Hourly: Failures → Eval Cases ───────────────────────
 

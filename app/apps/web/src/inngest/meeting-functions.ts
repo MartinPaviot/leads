@@ -2,10 +2,10 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import { activities, authAccounts, authUsers, users } from "@/db/schema";
 import { eq, and, sql, gte, lte } from "drizzle-orm";
-import { fetchMicrosoftMeetings } from "@/lib/calendar-microsoft";
-import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/calendar";
-import { tracedGenerateText } from "@/lib/traced-ai";
-import { createBot } from "@/lib/recall";
+import { fetchMicrosoftMeetings } from "@/lib/integrations/calendar-microsoft";
+import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/integrations/calendar";
+import { tracedGenerateText } from "@/lib/ai/traced-ai";
+import { createBot } from "@/lib/integrations/recall";
 
 /**
  * Background calendar sync — runs every 15 minutes.

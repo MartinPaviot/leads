@@ -29,16 +29,16 @@ import {
   users,
 } from "@/db/schema";
 import { eq, and, desc, gte, ne } from "drizzle-orm";
-import { getTenantSettings, type PipelineStageDef } from "@/lib/tenant-settings";
+import { getTenantSettings, type PipelineStageDef } from "@/lib/config/tenant-settings";
 import {
   readApprovalMode,
   enforceAgentApprovalMode,
   type ApprovalModeV2,
 } from "@/lib/guardrails/approval-mode";
-import { recordAgentAction } from "@/lib/agent-actions";
+import { recordAgentAction } from "@/lib/agents/agent-actions";
 import { recordAutonomyEvent } from "@/lib/guardrails/trust-score";
 import { detectAllSignals, type Signal, type SignalType } from "./signals";
-import logger from "@/lib/logger";
+import logger from "@/lib/observability/logger";
 
 // ---------------------------------------------------------------------------
 // Types

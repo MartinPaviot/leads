@@ -1,11 +1,11 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { companies, contacts, activities } from "@/db/schema";
 import { and, eq, desc } from "drizzle-orm";
-import { anthropic } from "@/lib/ai-provider";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
-import { tracedGenerateText } from "@/lib/traced-ai";
+import { tracedGenerateText } from "@/lib/ai/traced-ai";
 
 /**
  * Auto-generate "Account summary" and "About their business" from

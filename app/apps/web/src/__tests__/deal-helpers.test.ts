@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { stageProbability, ageInStage } from "@/lib/deal-helpers";
+import { stageProbability, ageInStage } from "@/lib/deals/deal-helpers";
 
 describe("stageProbability", () => {
   it("maps each canonical stage to its probability", () => {

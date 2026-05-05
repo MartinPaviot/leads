@@ -4,7 +4,7 @@ import {
   estimateTokens,
   formatBudgetSummary,
   type RagResult,
-} from "@/lib/context-budget";
+} from "@/lib/ai/context-budget";
 import type { UIMessage } from "ai";
 
 // ── Helpers ───────────────────────────────────────────────────

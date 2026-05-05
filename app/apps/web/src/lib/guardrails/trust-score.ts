@@ -28,8 +28,8 @@ import {
   getTenantSettings,
   updateTenantSettings,
   type TenantSettings,
-} from "@/lib/tenant-settings";
-import logger from "@/lib/logger";
+} from "@/lib/config/tenant-settings";
+import logger from "@/lib/observability/logger";
 
 /**
  * Configurable delta values for trust score adjustments.

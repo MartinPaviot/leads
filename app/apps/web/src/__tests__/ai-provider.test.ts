@@ -48,7 +48,7 @@ import {
   isAnthropicEuConfigured,
   _resetProviderForTesting,
   anthropic,
-} from "@/lib/ai-provider";
+} from "@/lib/ai/ai-provider";
 
 // Save original env vars
 const origAnthropicKey = process.env.ANTHROPIC_API_KEY;

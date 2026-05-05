@@ -29,7 +29,7 @@ vi.mock("@/lib/logger", () => ({
   logger: { error: loggerError, warn: loggerWarn, info: vi.fn(), debug: vi.fn() },
 }));
 
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 
 const mod = await import("@/app/api/settings/mailboxes/route");

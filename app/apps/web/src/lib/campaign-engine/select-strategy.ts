@@ -162,7 +162,7 @@ async function getPreviousOutreach(contactId: string): Promise<PreviousOutreach 
 
   return {
     strategyUsed: null, // will be filled from enrollment_strategy table once populated
-    outcome: outcomeMap[enrollment.status] || "no_response",
+    outcome: (enrollment.status ? outcomeMap[enrollment.status] : null) || "no_response",
     date: enrollment.enrolledAt?.toISOString() || new Date().toISOString(),
     emailsSent: emails.length,
   };

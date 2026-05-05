@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Toggle } from "@/components/ui/input";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useSafeFetch } from "@/lib/use-safe-fetch";
+import { useSafeFetch } from "@/lib/infra/use-safe-fetch";
 
 interface NotificationPref {
   key: string;

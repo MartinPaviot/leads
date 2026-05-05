@@ -6,7 +6,7 @@
  * deterministic calculateFitScore().
  */
 
-import { calculateFitScore, type FitIcp, type FitScoreResult } from "../scoring";
+import { calculateFitScore, type FitIcp, type FitScoreResult } from "./scoring";
 import { scoreDeal, type ScoringModel } from "./predictive-scorer";
 import type { CompanyScoringModel } from "./company-model-trainer";
 

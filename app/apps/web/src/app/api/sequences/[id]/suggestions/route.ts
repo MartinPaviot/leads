@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { contacts, companies, sequenceEnrollments, sequences } from "@/db/schema";
 import { eq, sql, and, isNotNull, notInArray } from "drizzle-orm";

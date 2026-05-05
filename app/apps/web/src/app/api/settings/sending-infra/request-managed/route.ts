@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
-import { updateTenantSettings } from "@/lib/tenant-settings";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { updateTenantSettings } from "@/lib/config/tenant-settings";
 import { db } from "@/db";
 import { sendingInfraRequests } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
-import logger from "@/lib/logger";
+import logger from "@/lib/observability/logger";
 import { Resend } from "resend";
 
 /**

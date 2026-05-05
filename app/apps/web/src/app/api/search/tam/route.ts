@@ -1,6 +1,6 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { searchSimilar } from "@/lib/embeddings";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
+import { searchSimilar } from "@/lib/ai/embeddings";
 import { db } from "@/db";
 import { companies, contacts, deals } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";

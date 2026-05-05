@@ -1,8 +1,8 @@
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
-import { getTenantSettings, updateTenantSettings } from "@/lib/tenant-settings";
-import type { McpApiKeyEntry } from "@/lib/tenant-settings";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { getTenantSettings, updateTenantSettings } from "@/lib/config/tenant-settings";
+import type { McpApiKeyEntry } from "@/lib/config/tenant-settings";
 import { hash } from "bcryptjs";
-import logger from "@/lib/logger";
+import logger from "@/lib/observability/logger";
 
 /**
  * Generate a cryptographically random MCP API key.

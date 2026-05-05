@@ -13,7 +13,7 @@ import { db } from "@/db";
 import { actionOutcomes } from "@/db/schema";
 import { and, eq, sql, inArray } from "drizzle-orm";
 import { HIGH_CONFIDENCE_THRESHOLDS, type GuardedAction } from "./approval-mode";
-import { getTenantSettings, updateTenantSettings } from "@/lib/tenant-settings";
+import { getTenantSettings, updateTenantSettings } from "@/lib/config/tenant-settings";
 
 const MIN_THRESHOLD = 0.5;
 const MAX_THRESHOLD = 1.0;

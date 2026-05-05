@@ -75,7 +75,7 @@ export const deliverabilityHealthCron = inngest.createFunction(
 
         // 3. Promote warming → active if warmup complete
         if (mailbox.status === "warming_up" && mailbox.warmupStartedAt) {
-          if (isWarmupComplete(mailbox.warmupStartedAt)) {
+          if (isWarmupComplete(new Date(mailbox.warmupStartedAt))) {
             await db
               .update(connectedMailboxes)
               .set({ status: "active", warmupCompletedAt: new Date() })

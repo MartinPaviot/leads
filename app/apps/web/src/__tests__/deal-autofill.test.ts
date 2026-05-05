@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ThreadIntelligence } from "@/lib/email-intelligence";
+import type { ThreadIntelligence } from "@/lib/emails/email-intelligence";
 
 // ── Mock setup ──────────────────────────────────────────────────
 
@@ -109,7 +109,7 @@ import {
   extractDollarAmount,
   extractTimelineDate,
   autofillDealFromIntelligence,
-} from "@/lib/deal-autofill";
+} from "@/lib/deals/deal-autofill";
 
 // ── extractDollarAmount tests ────────────────────────────────
 
@@ -438,7 +438,7 @@ describe("autofillDealFromIntelligence -- approval mode", () => {
 
   it("queues updates in review-each mode", async () => {
     // Override tenant settings to review-each
-    const { getTenantSettings } = await import("@/lib/tenant-settings");
+    const { getTenantSettings } = await import("@/lib/config/tenant-settings");
     vi.mocked(getTenantSettings).mockResolvedValueOnce({
       agentApprovalMode: "review-each",
     } as any);

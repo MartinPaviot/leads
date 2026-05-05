@@ -5,8 +5,7 @@
     "moduleResolution": "bundler",
     "esModuleInterop": true,
     "strict": true,
-    "outDir": "dist",
-    "rootDir": "src",
+    "noEmit": true,
     "skipLibCheck": true,
     "paths": {
       "@web/*": ["../web/src/*"]

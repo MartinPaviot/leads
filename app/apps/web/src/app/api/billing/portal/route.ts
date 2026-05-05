@@ -1,7 +1,7 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { subscriptions } from "@/db/billing-schema";
-import { stripe } from "@/lib/stripe";
+import { stripe } from "@/lib/billing/stripe";
 import { eq } from "drizzle-orm";
 
 /** Check if an error indicates a missing table / relation */

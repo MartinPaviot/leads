@@ -1,10 +1,10 @@
 import { db } from "@/db";
 import { companies, activities, users } from "@/db/schema";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { and, eq, sql, desc, isNull } from "drizzle-orm";
 import { inngest } from "@/inngest/client";
-import { apiError } from "@/lib/api-errors";
-import { paginatedResponse } from "@/lib/api-response";
+import { apiError } from "@/lib/infra/api-errors";
+import { paginatedResponse } from "@/lib/infra/api-response";
 import { z } from "zod";
 
 const createAccountSchema = z.object({

@@ -1,9 +1,9 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { generateAccountSummary } from "@/lib/ai-account-summary";
+import { generateAccountSummary } from "@/lib/ai/ai-account-summary";
 
 /**
  * POST /api/accounts/[id]/generate-summary

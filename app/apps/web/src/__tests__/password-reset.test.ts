@@ -143,7 +143,7 @@ const {
   consumeResetToken,
   isPasswordAcceptable,
   TOKEN_TTL_MS,
-} = await import("@/lib/password-reset");
+} = await import("@/lib/auth/password-reset");
 
 beforeEach(() => {
   rows = [];

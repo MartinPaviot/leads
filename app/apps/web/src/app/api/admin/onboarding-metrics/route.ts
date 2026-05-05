@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import {
   getOnboardingAgentLatency,
   type OnboardingAgentLatency,
-} from "@/lib/observability-queries";
+} from "@/lib/observability/observability-queries";
 
 /**
  * Admin-only snapshot of the onboarding instrumentation baseline.

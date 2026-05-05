@@ -1,8 +1,8 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { companies, contacts, deals, activities } from "@/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
-import { searchSimilar, getEmbeddingStats } from "@/lib/embeddings";
+import { searchSimilar, getEmbeddingStats } from "@/lib/ai/embeddings";
 
 /**
  * Recall accuracy test for customer memory.

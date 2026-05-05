@@ -10,7 +10,7 @@ import { db } from "@/db";
 import { actionOutcomes, outboundEmails, activities, tasks } from "@/db/schema";
 import { and, eq, lte, sql, gte } from "drizzle-orm";
 import { resolveOutcome } from "@/lib/outcomes/resolve";
-import logger from "@/lib/logger";
+import logger from "@/lib/observability/logger";
 
 export const outcomeDetectorCron = inngest.createFunction(
   {

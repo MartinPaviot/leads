@@ -26,17 +26,17 @@ import {
   revenueToRange,
   type ApolloOrganization,
   type ApolloPerson,
-} from "@/lib/apollo-client";
-import { withCircuitBreaker, APOLLO_CIRCUIT } from "@/lib/circuit-breaker";
-import { retryWithBackoff } from "@/lib/retry";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { getModelForTask } from "@/lib/ai-provider";
-import { getTenantSettings } from "@/lib/tenant-settings";
+} from "@/lib/integrations/apollo-client";
+import { withCircuitBreaker, APOLLO_CIRCUIT } from "@/lib/infra/circuit-breaker";
+import { retryWithBackoff } from "@/lib/infra/retry";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { getModelForTask } from "@/lib/ai/ai-provider";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import logger from "@/lib/logger";
+import logger from "@/lib/observability/logger";
 
 // ── Types ────────────────────────────────────────────────────
 

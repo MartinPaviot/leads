@@ -1,5 +1,5 @@
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
-import { anthropic } from "@/lib/ai-provider";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { generateText, stepCountIs } from "ai";
 import {
@@ -17,7 +17,7 @@ import {
   classifyEvalCase,
   type EvalSuiteType,
 } from "@/lib/evals/agent-evals";
-import { AGENT_REGISTRY } from "@/lib/observability";
+import { AGENT_REGISTRY } from "@/lib/observability/observability";
 
 export const maxDuration = 300; // 5 min for full eval suite
 

@@ -51,7 +51,7 @@ vi.mock("drizzle-orm", () => ({
   sql: vi.fn(() => "sql-frag"),
 }));
 
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 
 const checkoutMod = await import("@/app/api/billing/checkout/route");

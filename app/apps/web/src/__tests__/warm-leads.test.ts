@@ -53,7 +53,7 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 const { rankWarmLeads, clearWarmLeadCacheForTest } = await import(
-  "@/lib/warm-leads"
+  "@/lib/deals/warm-leads"
 );
 clearCacheFn.fn = clearWarmLeadCacheForTest;
 

@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 
 /** Returns available features based on configured environment variables */
 export async function GET() {

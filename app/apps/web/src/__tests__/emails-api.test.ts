@@ -52,7 +52,7 @@ vi.mock("@/lib/writing-profile", () => ({
 process.env.ANTHROPIC_API_KEY = "test-key";
 
 import { auth } from "@/auth";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { generateObject } from "ai";
 

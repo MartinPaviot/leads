@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { codeExecutions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { fetchCrmData, type CrmDataSet } from "./crm-bridge";
-import logger from "@/lib/logger";
+import logger from "@/lib/observability/logger";
 
 export interface SandboxResult {
   success: boolean;

@@ -2,11 +2,11 @@ import { db } from "@/db";
 import { outboundEmails, connectedMailboxes, sequenceEnrollments, emailOptouts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { createHmac, timingSafeEqual } from "crypto";
-import { pauseEnrollment } from "@/lib/enrollment";
+import { pauseEnrollment } from "@/lib/sequences/enrollment";
 import { inngest } from "@/inngest/client";
 import type { AgentTrigger } from "@/lib/agent-reactor/types";
 import { checkEmailOutcomes } from "@/lib/outcomes/resolve";
-import { trackPipeline, type PipelineStage } from "@/lib/pipeline-tracker";
+import { trackPipeline, type PipelineStage } from "@/lib/analytics/pipeline-tracker";
 
 /**
  * Verify a Resend (Svix) webhook signature.

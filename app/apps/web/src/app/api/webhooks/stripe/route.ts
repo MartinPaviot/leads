@@ -1,4 +1,4 @@
-import { stripe } from "@/lib/stripe";
+import { stripe } from "@/lib/billing/stripe";
 import { db } from "@/db";
 import { tenants } from "@/db/schema";
 import { subscriptions } from "@/db/billing-schema";

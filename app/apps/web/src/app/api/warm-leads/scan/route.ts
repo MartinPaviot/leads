@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAuthContext } from "@/lib/auth-utils";
-import { rankWarmLeads } from "@/lib/warm-leads";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { rankWarmLeads } from "@/lib/deals/warm-leads";
 
 /**
  * GET /api/warm-leads/scan — returns top-N warm leads for the

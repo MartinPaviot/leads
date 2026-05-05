@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { companies, contacts, importHistory } from "@/db/schema";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { eq } from "drizzle-orm";
 import Papa from "papaparse";
 

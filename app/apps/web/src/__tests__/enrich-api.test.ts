@@ -53,11 +53,11 @@ vi.mock("drizzle-orm", () => ({
 process.env.ANTHROPIC_API_KEY = "test-key";
 
 import { auth } from "@/auth";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { generateObject } from "ai";
-import { embedEntity } from "@/lib/embeddings";
-import { enrichOrganization } from "@/lib/apollo-client";
+import { embedEntity } from "@/lib/ai/embeddings";
+import { enrichOrganization } from "@/lib/integrations/apollo-client";
 
 // Dynamic import to get the route handler
 const { POST } = await import("@/app/api/enrich/route");

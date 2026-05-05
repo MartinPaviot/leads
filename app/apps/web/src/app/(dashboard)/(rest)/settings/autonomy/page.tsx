@@ -75,14 +75,14 @@ export default function AutonomySettingsPage() {
         body: JSON.stringify({ level, guardrails }),
       });
       if (res.ok) {
-        toast({ title: "Autonomy settings saved" });
+        toast("Autonomy settings saved", "success");
         fetchConfig();
       } else {
         const data = await res.json();
-        toast({ title: "Error", description: data.error, variant: "destructive" });
+        toast(data.error || "Failed to save", "error");
       }
     } catch {
-      toast({ title: "Failed to save", variant: "destructive" });
+      toast("Failed to save", "error");
     } finally {
       setSaving(false);
     }
@@ -110,7 +110,7 @@ export default function AutonomySettingsPage() {
 
   return (
     <div className="mx-auto max-w-3xl p-6 space-y-6">
-      <PageHeader title="Autonomy & Guardrails" description="Control how much the campaign engine acts on its own" />
+      <PageHeader title="Autonomy & Guardrails" subtitle="Control how much the campaign engine acts on its own" />
 
       {/* Trust Score */}
       {trustScore && (

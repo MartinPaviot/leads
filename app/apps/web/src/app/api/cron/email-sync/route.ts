@@ -1,10 +1,10 @@
 import { db } from "@/db";
 import { connectedMailboxes, users, activities, contacts, companies } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { fetchRecentEmails } from "@/lib/gmail";
-import { embedEntity } from "@/lib/embeddings";
-import { ingestEpisode } from "@/lib/context-graph";
-import { verifyCronRequest } from "@/lib/cron-auth";
+import { fetchRecentEmails } from "@/lib/integrations/gmail";
+import { embedEntity } from "@/lib/ai/embeddings";
+import { ingestEpisode } from "@/lib/ai/context-graph";
+import { verifyCronRequest } from "@/lib/auth/cron-auth";
 
 /**
  * Cron endpoint: sync emails for all active mailboxes.

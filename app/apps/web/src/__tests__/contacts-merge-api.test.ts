@@ -37,7 +37,7 @@ vi.mock("drizzle-orm", () => ({
   inArray: vi.fn(),
 }));
 
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 
 const mod = await import("@/app/api/contacts/merge/route");

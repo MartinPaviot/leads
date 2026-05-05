@@ -3,8 +3,8 @@ import { z } from "zod";
 import { and, eq, desc } from "drizzle-orm";
 import { db } from "@/db";
 import { savedViews } from "@/db/schema";
-import { getAuthContext } from "@/lib/auth-utils";
-import { logger } from "@/lib/logger";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { logger } from "@/lib/observability/logger";
 
 const postSchema = z.object({
   resource: z.string().min(1).max(64),

@@ -31,8 +31,8 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 import { auth } from "@/auth";
-import { getAuthContext } from "@/lib/auth-utils";
-import { searchSimilar } from "@/lib/embeddings";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { searchSimilar } from "@/lib/ai/embeddings";
 import { db } from "@/db";
 
 const { POST } = await import("@/app/api/search/tam/route");

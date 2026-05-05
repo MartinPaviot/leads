@@ -17,7 +17,7 @@
  * decisions.
  */
 
-import type { TenantSettings } from "@/lib/tenant-settings";
+import type { TenantSettings } from "@/lib/config/tenant-settings";
 
 /** Canonical v2 enum, used across all guardrail enforcement. */
 export type ApprovalModeV2 =

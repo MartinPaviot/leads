@@ -47,9 +47,9 @@ vi.mock("@/lib/email-invite", () => ({
   sendInviteEmail: vi.fn().mockResolvedValue({ sent: true }),
 }));
 
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { sendInviteEmail } from "@/lib/email-invite";
+import { sendInviteEmail } from "@/lib/emails/email-invite";
 
 const mod = await import("@/app/api/settings/members/invite/route");
 

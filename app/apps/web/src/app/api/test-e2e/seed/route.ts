@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { authAccounts, authUsers, companies, tenants, users } from "@/db/schema";
-import { hashPassword } from "@/lib/password-hash";
+import { hashPassword } from "@/lib/auth/password-hash";
 
 /**
  * E2E-only seed endpoint.
@@ -38,6 +38,12 @@ export async function POST(req: Request) {
     process.env.ENABLE_E2E_SEED !== "1"
   ) {
     return NextResponse.json({ error: "Seed endpoint disabled" }, { status: 404 });
+  }
+
+  const authHeader = req.headers.get("authorization");
+  const expectedSecret = process.env.CRON_SECRET || process.env.E2E_SECRET;
+  if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const body = (await req.json().catch(() => ({}))) as {

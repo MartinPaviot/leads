@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getTenantSettings, deriveTargetRoles } from "@/lib/tenant-settings";
+import { getTenantSettings, deriveTargetRoles } from "@/lib/config/tenant-settings";
 import { makeTool, type ToolContext } from "./context";
 
 const STANDARD_ATTRIBUTES: Record<string, Array<{ name: string; type: string; description?: string }>> = {

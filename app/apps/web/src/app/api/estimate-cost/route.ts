@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { estimateCost, isNearCap, type EstimatableOp } from "@/lib/estimate-cost";
-import { getLlmBudgetStatus } from "@/lib/llm-budget";
-import { getTenantSettings } from "@/lib/tenant-settings";
-import logger from "@/lib/logger";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
+import { estimateCost, isNearCap, type EstimatableOp } from "@/lib/billing/estimate-cost";
+import { getLlmBudgetStatus } from "@/lib/billing/llm-budget";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
+import logger from "@/lib/observability/logger";
 
 /**
  * POST /api/estimate-cost

@@ -1,34 +1,34 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { clearTenantId } from "@/db/rls";
-import { checkPlanLimit } from "@/lib/plan-limits";
-import { trackUsage } from "@/lib/billing";
-import { apiError } from "@/lib/api-errors";
-import { anthropic } from "@/lib/ai-provider";
+import { checkPlanLimit } from "@/lib/billing/plan-limits";
+import { trackUsage } from "@/lib/billing/billing";
+import { apiError } from "@/lib/infra/api-errors";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
-import { isCircuitClosed, ANTHROPIC_CIRCUIT } from "@/lib/circuit-breaker";
+import { isCircuitClosed, ANTHROPIC_CIRCUIT } from "@/lib/infra/circuit-breaker";
 import { UIMessage, convertToModelMessages, stepCountIs } from "ai";
-import { tracedStreamText } from "@/lib/traced-ai";
-import { searchSimilar } from "@/lib/embeddings";
-import { searchContextGraph } from "@/lib/context-graph";
+import { tracedStreamText } from "@/lib/ai/traced-ai";
+import { searchSimilar } from "@/lib/ai/embeddings";
+import { searchContextGraph } from "@/lib/ai/context-graph";
 import { db } from "@/db";
 import { companies, contacts, deals, activities, notes, chatMemories, knowledgeEntries } from "@/db/schema";
 import { and, eq, desc, sql, or } from "drizzle-orm";
-import { getTenantSettings, deriveTargetRoles, type TenantSettings } from "@/lib/tenant-settings";
+import { getTenantSettings, deriveTargetRoles, type TenantSettings } from "@/lib/config/tenant-settings";
 import { buildChatSystemPrompt } from "@/lib/prompts/chat-system-prompt";
 import { buildAllChatTools, type ToolContext } from "@/lib/chat/tools";
 import { resolveCapabilities, type SurfaceContext } from "@/lib/agents/capability-resolver";
 import { routeTools } from "@/lib/chat/tool-router";
 import { orchestrate } from "@/lib/agents/orchestrator";
-import { getActivePromptVersion } from "@/lib/prompt-canary";
-import { getChatExperimentDelta, applyPromptDelta, recordExperimentMetric } from "@/lib/prompt-experiments";
+import { getActivePromptVersion } from "@/lib/prompts/prompt-canary";
+import { getChatExperimentDelta, applyPromptDelta, recordExperimentMetric } from "@/lib/prompts/prompt-experiments";
 import {
   shouldMeasureRagQuality,
   measureRagQuality,
   extractCitationsFromResponse,
   type RetrievedResult,
 } from "@/lib/evals/rag-quality";
-import { recordTrace } from "@/lib/observability";
-import { allocateContextBudget, formatBudgetSummary, type RagResult } from "@/lib/context-budget";
+import { recordTrace } from "@/lib/observability/observability";
+import { allocateContextBudget, formatBudgetSummary, type RagResult } from "@/lib/ai/context-budget";
 
 export const maxDuration = 60;
 
@@ -378,7 +378,7 @@ export async function POST(req: Request) {
   }
 
   // Rate limit: 30 messages per minute per user
-  const { rateLimit, rateLimitResponse } = await import("@/lib/rate-limit");
+  const { rateLimit, rateLimitResponse } = await import("@/lib/infra/rate-limit");
   const rl = await rateLimit(`chat:${authCtx.userId}`, 30, 60 * 1000);
   if (!rl.success) return rateLimitResponse(rl.resetAt);
 

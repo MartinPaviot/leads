@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { createHash } from "node:crypto";
-import { isPasswordPwned } from "@/lib/password-pwned";
+import { isPasswordPwned } from "@/lib/auth/password-pwned";
 
 function sha1Upper(s: string): string {
   return createHash("sha1").update(s).digest("hex").toUpperCase();

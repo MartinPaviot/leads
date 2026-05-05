@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { buildIntelligenceBrief } from "@/lib/campaign-engine/build-intelligence-brief";
 
 const inFlight = new Map<string, Promise<unknown>>();

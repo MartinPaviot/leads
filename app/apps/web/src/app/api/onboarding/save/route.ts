@@ -1,12 +1,12 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { authUsers, tenants, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { updateTenantSettings, type TenantSettings, getTenantSettings } from "@/lib/tenant-settings";
+import { updateTenantSettings, type TenantSettings, getTenantSettings } from "@/lib/config/tenant-settings";
 import { inngest } from "@/inngest/client";
 import { sendWelcomeEmail } from "@/lib/emails/welcome";
-import { logger } from "@/lib/logger";
-import { posthogEvents } from "@/lib/analytics";
+import { logger } from "@/lib/observability/logger";
+import { posthogEvents } from "@/lib/analytics/analytics";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();

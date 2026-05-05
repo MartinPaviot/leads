@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, type LucideIcon } from "lucide-react";
 import { SmartImport } from "@/components/smart-import";
 import { CompanyLogo } from "@/components/ui/company-logo";
-import { formatScore, ENRICHMENT_COLORS } from "@/lib/ui-utils";
+import { formatScore, ENRICHMENT_COLORS } from "@/lib/util/ui-utils";
 import { useCustomFields } from "@/hooks/use-custom-fields";
-import { getCustomFieldValue, formatFieldValue } from "@/lib/custom-fields";
+import { getCustomFieldValue, formatFieldValue } from "@/lib/context/custom-fields";
 import { PageHeader, FilterBar } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge, PropertyBadge } from "@/components/ui/badge";
@@ -17,8 +17,8 @@ import { TableSkeleton } from "@/components/ui/skeleton";
 import { BulkActionsBar } from "@/components/ui/bulk-actions-bar";
 import { useToast } from "@/components/ui/toast";
 import { SmartSearchBar, ActiveFiltersChips } from "@/components/ui/smart-search-bar";
-import { applyFilters } from "@/lib/filters";
-import type { FilterCondition } from "@/lib/filters";
+import { applyFilters } from "@/lib/search/filters";
+import type { FilterCondition } from "@/lib/search/filters";
 
 function LinkedInIcon({ size = 13 }: { size?: number }) {
   return (

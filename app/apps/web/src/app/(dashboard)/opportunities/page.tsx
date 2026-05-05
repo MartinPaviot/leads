@@ -10,8 +10,8 @@ import {
   AlertTriangle, Zap, TrendingUp,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { STAGE_COLORS as STAGE_DOT_COLORS_IMPORTED, RISK_STYLES } from "@/lib/ui-utils";
-import { stageProbability, ageInStage, AGE_BUCKET_COLORS } from "@/lib/deal-helpers";
+import { STAGE_COLORS as STAGE_DOT_COLORS_IMPORTED, RISK_STYLES } from "@/lib/util/ui-utils";
+import { stageProbability, ageInStage, AGE_BUCKET_COLORS } from "@/lib/deals/deal-helpers";
 import { CloseReasonDialog, type CloseReasonPayload } from "@/components/close-reason-dialog";
 import { usePipelineStages } from "@/hooks/use-custom-fields";
 import { PageHeader, FilterBar } from "@/components/ui/page-header";

@@ -8,11 +8,11 @@ import {
 } from "@/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { Resend } from "resend";
-import { buildUnsubscribeUrl } from "@/lib/unsubscribe-token";
-import { signTrackingId } from "@/lib/tracking-token";
-import { checkPlanLimit } from "@/lib/plan-limits";
-import { trackUsage } from "@/lib/billing";
-import { trackPipeline } from "@/lib/pipeline-tracker";
+import { buildUnsubscribeUrl } from "@/lib/emails/unsubscribe-token";
+import { signTrackingId } from "@/lib/emails/tracking-token";
+import { checkPlanLimit } from "@/lib/billing/plan-limits";
+import { trackUsage } from "@/lib/billing/billing";
+import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)

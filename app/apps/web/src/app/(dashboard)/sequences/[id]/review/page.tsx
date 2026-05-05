@@ -2,8 +2,8 @@
 
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
-import { checkSpamSignals, type SpamCheckResult } from "@/lib/email-spam-check";
-import { sanitizeHtml } from "@/lib/sanitize-html";
+import { checkSpamSignals, type SpamCheckResult } from "@/lib/emails/email-spam-check";
+import { sanitizeHtml } from "@/lib/infra/sanitize-html";
 
 interface OutboundEmail {
   id: string;

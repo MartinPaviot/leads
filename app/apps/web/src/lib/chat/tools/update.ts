@@ -18,7 +18,7 @@ import {
   getTenantSettings,
   updateTenantSettings,
   type CustomObjectTypeDef,
-} from "@/lib/tenant-settings";
+} from "@/lib/config/tenant-settings";
 import { logToolCall } from "@/lib/chat/tool-call-log";
 import { inngest } from "@/inngest/client";
 import { makeTool, type ToolContext } from "./context";
@@ -339,7 +339,7 @@ export function buildUpdateTools(ctx: ToolContext) {
           ),
       }),
       execute: async (input) => {
-        const { LIFECYCLE_STAGES } = await import("@/lib/lifecycle");
+        const { LIFECYCLE_STAGES } = await import("@/lib/analytics/lifecycle");
         if (!(LIFECYCLE_STAGES as readonly string[]).includes(input.stage)) {
           return { error: `Invalid lifecycle stage. Valid: ${LIFECYCLE_STAGES.join(", ")}` };
         }

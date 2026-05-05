@@ -1,11 +1,11 @@
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
-import { requirePermission } from "@/lib/permissions";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { requirePermission } from "@/lib/auth/permissions";
 import { db } from "@/db";
 import { tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { logAudit } from "@/lib/audit-log";
+import { logAudit } from "@/lib/infra/audit-log";
 import { readApprovalMode } from "@/lib/guardrails/approval-mode";
-import type { TenantSettings } from "@/lib/tenant-settings";
+import type { TenantSettings } from "@/lib/config/tenant-settings";
 
 export async function GET() {
   const authCtx = await getAuthContext();

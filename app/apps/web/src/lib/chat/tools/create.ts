@@ -15,12 +15,12 @@ import {
 } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { ingestEpisode } from "@/lib/context-graph";
+import { ingestEpisode } from "@/lib/ai/context-graph";
 import {
   getTenantSettings,
   updateTenantSettings,
   type CustomObjectTypeDef,
-} from "@/lib/tenant-settings";
+} from "@/lib/config/tenant-settings";
 import { logToolCall } from "@/lib/chat/tool-call-log";
 import { makeTool, type ToolContext } from "./context";
 

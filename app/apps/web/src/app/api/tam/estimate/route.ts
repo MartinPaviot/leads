@@ -1,11 +1,11 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
 import {
   searchOrganizations,
   isApolloAvailable,
   type OrgSearchParams,
-} from "@/lib/apollo-client";
-import { sizesToApolloRanges } from "@/lib/icp-constants";
+} from "@/lib/integrations/apollo-client";
+import { sizesToApolloRanges } from "@/lib/config/icp-constants";
 
 /**
  * POST /api/tam/estimate

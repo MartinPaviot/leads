@@ -1,8 +1,8 @@
 import { db } from "@/db";
 import { activities } from "@/db/schema";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { eq, desc, and, isNull } from "drizzle-orm";
-import { apiError } from "@/lib/api-errors";
+import { apiError } from "@/lib/infra/api-errors";
 import { z } from "zod";
 
 const createActivitySchema = z.object({

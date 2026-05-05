@@ -15,9 +15,9 @@ import {
   enforceLlmBudget,
   getLlmBudgetStatus,
   invalidateBudgetCache,
-} from "@/lib/llm-budget";
-import { getTenantCost } from "@/lib/cost-tracker";
-import { getTenantSettings } from "@/lib/tenant-settings";
+} from "@/lib/billing/llm-budget";
+import { getTenantCost } from "@/lib/billing/cost-tracker";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 
 const mockedGetTenantCost = vi.mocked(getTenantCost);
 const mockedGetTenantSettings = vi.mocked(getTenantSettings);

@@ -1,4 +1,4 @@
-import { withAuthRLS } from "@/lib/auth-utils";
+import { withAuthRLS } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { notifications, notificationPreferences } from "@/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";

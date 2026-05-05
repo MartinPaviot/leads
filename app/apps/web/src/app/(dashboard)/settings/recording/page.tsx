@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Video } from "lucide-react";
-import { useSafeFetch } from "@/lib/use-safe-fetch";
+import { useSafeFetch } from "@/lib/infra/use-safe-fetch";
 
 type RecordingPolicy = "branded" | "always_silent" | "per_meeting_choice";
 type OptOutReason = "internal_only" | "client_confidential" | "regulatory" | "other";

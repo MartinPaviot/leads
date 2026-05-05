@@ -3,7 +3,7 @@ import { coachingInsights, aePerformanceSnapshots } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { makeTool, type ToolContext } from "./context";
-import { searchActivityBodies } from "@/lib/activity-search";
+import { searchActivityBodies } from "@/lib/search/activity-search";
 import { detectTrends } from "@/lib/coaching/performance-aggregator";
 
 export function buildCoachingTools(ctx: ToolContext) {

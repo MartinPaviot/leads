@@ -11,10 +11,10 @@
 import { db } from "@/db";
 import { companies, contacts, deals } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { anthropic } from "@/lib/ai-provider";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { generateText } from "ai";
-import { getTenantSettings, type CustomFieldDef } from "@/lib/tenant-settings";
+import { getTenantSettings, type CustomFieldDef } from "@/lib/config/tenant-settings";
 import { inngest } from "@/inngest/client";
 
 export interface RunAiAttributeResult {

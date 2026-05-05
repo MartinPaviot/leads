@@ -36,7 +36,7 @@ vi.mock("@/lib/logger", () => {
   return { default: logger, logger };
 });
 
-import { markTtfaaStarted, markTtfaaCompletedV1Proxy } from "@/lib/ttfaa";
+import { markTtfaaStarted, markTtfaaCompletedV1Proxy } from "@/lib/observability/ttfaa";
 
 beforeEach(() => {
   getSettingsMock.mockReset();

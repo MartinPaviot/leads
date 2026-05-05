@@ -1,7 +1,7 @@
 import {
   enrichOrganization,
   isCrunchbaseAvailable,
-} from "@/lib/crunchbase-client";
+} from "@/lib/integrations/crunchbase-client";
 import type {
   CompanyEnrichmentProvider,
   EnrichInput,

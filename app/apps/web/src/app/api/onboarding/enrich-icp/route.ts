@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { runSkill } from "@/skills/runner";
 import { icpIdentificationSkill } from "@/skills/scoring/icp-identification";
 

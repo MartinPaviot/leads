@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { logger } from "@/lib/logger";
+import { logger } from "@/lib/observability/logger";
 import { GET as getOnboardingStatus } from "@/app/api/onboarding/status/route";
 import { GET as getDashboardSummary } from "@/app/api/dashboard/summary/route";
 import { GET as getActions } from "@/app/api/actions/route";
 import { GET as getInsights } from "@/app/api/insights/route";
 import { GET as getPriorities } from "@/app/api/priorities/route";
 import { GET as getRecommendations } from "@/app/api/recommendations/route";
-import { getAuthContext } from "@/lib/auth-utils";
-import { markTtfaaCompletedV1Proxy } from "@/lib/ttfaa";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { markTtfaaCompletedV1Proxy } from "@/lib/observability/ttfaa";
 
 /**
  * `/api/home/hydrate` — T1 P2 H1. Server-side fan-out of the six

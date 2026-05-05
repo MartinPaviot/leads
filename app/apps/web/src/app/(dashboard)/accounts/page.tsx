@@ -15,13 +15,13 @@ function LinkedInIcon({ size = 13 }: { size?: number }) {
     </svg>
   );
 }
-import { getLifecycleStyle, formatScore } from "@/lib/ui-utils";
+import { getLifecycleStyle, formatScore } from "@/lib/util/ui-utils";
 import { SlideOver, PropertyRow } from "@/components/slide-over";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { IntelligenceBrief } from "@/components/intelligence-brief";
 import { useCustomFields } from "@/hooks/use-custom-fields";
-import { getCustomFieldValue, formatFieldValue } from "@/lib/custom-fields";
-import type { CustomFieldDef } from "@/lib/custom-fields";
+import { getCustomFieldValue, formatFieldValue } from "@/lib/context/custom-fields";
+import type { CustomFieldDef } from "@/lib/context/custom-fields";
 import { PageHeader, FilterBar } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge, PropertyBadge } from "@/components/ui/badge";
@@ -30,11 +30,11 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { chunkedBulkCall } from "@/lib/chunk-bulk";
+import { chunkedBulkCall } from "@/lib/infra/chunk-bulk";
 import { BulkActionsBar } from "@/components/ui/bulk-actions-bar";
 import { SmartSearchBar, ActiveFiltersChips } from "@/components/ui/smart-search-bar";
-import { applyFilters } from "@/lib/filters";
-import type { FilterCondition } from "@/lib/filters";
+import { applyFilters } from "@/lib/search/filters";
+import type { FilterCondition } from "@/lib/search/filters";
 
 interface Account {
   id: string;

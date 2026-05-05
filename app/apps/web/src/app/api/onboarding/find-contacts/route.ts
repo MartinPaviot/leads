@@ -1,12 +1,12 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { companies, contacts } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { runSkill } from "@/skills/runner";
 import { companyContactFinderSkill } from "@/skills/enrichment/company-contact-finder";
 import { leadQualificationSkill } from "@/skills/scoring/lead-qualification";
-import { getTenantSettings, deriveTargetRoles } from "@/lib/tenant-settings";
-import { senioritiesToApollo } from "@/lib/icp-constants";
+import { getTenantSettings, deriveTargetRoles } from "@/lib/config/tenant-settings";
+import { senioritiesToApollo } from "@/lib/config/icp-constants";
 
 /**
  * Find decision-makers at top TAM companies during onboarding.

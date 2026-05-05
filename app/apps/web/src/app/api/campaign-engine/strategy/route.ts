@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { selectStrategy, StrategyError } from "@/lib/campaign-engine/select-strategy";
 import { findWarmPath } from "@/lib/campaign-engine/warm-path";
 

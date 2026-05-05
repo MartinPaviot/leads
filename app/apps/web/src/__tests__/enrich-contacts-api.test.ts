@@ -50,10 +50,10 @@ vi.mock("drizzle-orm", () => ({
 process.env.ANTHROPIC_API_KEY = "test-key";
 
 import { auth } from "@/auth";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { generateObject } from "ai";
-import { enrichPerson } from "@/lib/apollo-client";
+import { enrichPerson } from "@/lib/integrations/apollo-client";
 
 const { POST } = await import("@/app/api/enrich-contacts/route");
 

@@ -2,10 +2,10 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import { companies, contacts, deals, activities, tenants } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { tracedGenerateText } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { tracedGenerateText } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
-import type { CustomFieldDef } from "@/lib/custom-fields";
+import type { CustomFieldDef } from "@/lib/context/custom-fields";
 
 function getLLMModel() {
   if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-6");

@@ -10,12 +10,12 @@
  * exposed. Every bucket has >= 10 contributing tenants.
  */
 
-import { getAuthContext } from "@/lib/auth-utils";
-import { getTenantSettings } from "@/lib/tenant-settings";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 import {
   getAnonymizedBenchmark,
   getAllBenchmarks,
-} from "@/lib/anonymized-signals";
+} from "@/lib/scoring/anonymized-signals";
 
 export async function GET() {
   const authCtx = await getAuthContext();

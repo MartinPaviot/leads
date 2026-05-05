@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import postgres from "postgres";
-import { getAuthContext } from "@/lib/auth-utils";
-import { getTenantSettings } from "@/lib/tenant-settings";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 
 function getSql() {
   return postgres(process.env.DATABASE_URL!);

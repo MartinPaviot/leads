@@ -1,8 +1,8 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { authAccounts, connectedMailboxes, tenants } from "@/db/schema";
 import { eq, and, ne } from "drizzle-orm";
-import { updateTenantSettings } from "@/lib/tenant-settings";
+import { updateTenantSettings } from "@/lib/config/tenant-settings";
 
 const CONTACT_CREATION_MODES = ["disabled", "selective", "always"] as const;
 const BACKSYNC_RANGES = ["1m", "3m", "6m", "12m"] as const;

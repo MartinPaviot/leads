@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { activities, companies, contacts, deals, tenants } from "@/db/schema";
 import { eq, desc, sql, gte } from "drizzle-orm";
-import { verifyCronRequest } from "@/lib/cron-auth";
+import { verifyCronRequest } from "@/lib/auth/cron-auth";
 
 /**
  * World Model Generator — analyzes accumulated interactions to auto-build
@@ -39,7 +39,7 @@ export async function GET(req: Request) {
 // Also allow POST for manual trigger with auth
 export async function POST(req: Request) {
   // Import auth at call time to avoid circular deps
-  const { getAuthContext } = await import("@/lib/auth-utils");
+  const { getAuthContext } = await import("@/lib/auth/auth-utils");
   const authCtx = await getAuthContext();
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -155,7 +155,7 @@ Return JSON: { "topics": [{ "topic": "title", "content": "detailed insight (2-4 
 
     if (anthropicKey) {
       const { anthropic } = await import("@ai-sdk/anthropic");
-      const { tracedGenerateText } = await import("@/lib/traced-ai");
+      const { tracedGenerateText } = await import("@/lib/ai/traced-ai");
       const result = await tracedGenerateText({
         model: anthropic("claude-sonnet-4-6"),
         prompt: analysisPrompt,
@@ -165,7 +165,7 @@ Return JSON: { "topics": [{ "topic": "title", "content": "detailed insight (2-4 
       topics = parsed.topics || [];
     } else if (openaiKey) {
       const { openai } = await import("@ai-sdk/openai");
-      const { tracedGenerateText } = await import("@/lib/traced-ai");
+      const { tracedGenerateText } = await import("@/lib/ai/traced-ai");
       const result = await tracedGenerateText({
         model: openai("gpt-4o-mini"),
         prompt: analysisPrompt,

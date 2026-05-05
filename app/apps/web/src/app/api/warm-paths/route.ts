@@ -1,8 +1,8 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import {
   findWarmPathsToCompanies,
   findWarmPathsToCompany,
-} from "@/lib/relationship-graph";
+} from "@/lib/context/relationship-graph";
 
 /**
  * GET /api/warm-paths?companyId=UUID

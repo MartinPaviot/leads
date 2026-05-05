@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
-import { sanitizeCallbackUrl } from "@/lib/auth-callback";
-import { resolveInboxDeepLinks } from "@/lib/inbox-deep-links";
+import { sanitizeCallbackUrl } from "@/lib/auth/auth-callback";
+import { resolveInboxDeepLinks } from "@/lib/emails/inbox-deep-links";
 import { ResendVerifyButton } from "./resend-button";
 
 /**

@@ -12,9 +12,9 @@
 import { db } from "@/db";
 import { activities, tenants, users, contacts, notetakerExposures, meetingOptOuts } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
-import { createBot, type RecallBot } from "@/lib/recall";
+import { createBot, type RecallBot } from "@/lib/integrations/recall";
 import { decideBrandingMode, type BrandingDecision } from "@/lib/recording/branding";
-import { sendNotification } from "@/lib/notifications";
+import { sendNotification } from "@/lib/emails/notifications";
 import { generateOptOutToken } from "@/lib/recording/opt-out-token";
 
 /**

@@ -1,4 +1,4 @@
-import type { ApolloOrganization, OrgSearchOrganization } from "@/lib/apollo-client";
+import type { ApolloOrganization, OrgSearchOrganization } from "@/lib/integrations/apollo-client";
 import type { SignalKey, SignalPayload } from "@/lib/tam-stream/events";
 
 /** Tenant-scoped context a signal needs in addition to the company

@@ -1,11 +1,11 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities, contacts, companies, users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { fetchRecentEmails } from "@/lib/gmail";
-import { ingestEpisode } from "@/lib/context-graph";
-import { embedEntity } from "@/lib/embeddings";
-import { getTenantSettings, backsyncRangeToDays, buildIgnoredDomains, shouldAutoCreateContact } from "@/lib/tenant-settings";
+import { fetchRecentEmails } from "@/lib/integrations/gmail";
+import { ingestEpisode } from "@/lib/ai/context-graph";
+import { embedEntity } from "@/lib/ai/embeddings";
+import { getTenantSettings, backsyncRangeToDays, buildIgnoredDomains, shouldAutoCreateContact } from "@/lib/config/tenant-settings";
 
 export async function POST() {
   const authCtx = await getAuthContext();

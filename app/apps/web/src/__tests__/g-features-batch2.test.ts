@@ -45,13 +45,13 @@ vi.mock("drizzle-orm", () => ({
 process.env.ANTHROPIC_API_KEY = "test-key";
 
 import { auth } from "@/auth";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 
 const followUpModule = await import("@/app/api/emails/follow-up/route");
 const suggestReplyModule = await import("@/app/api/emails/suggest-reply/route");
 
 // Import detectLanguage directly (no mocking needed for the utility)
-const { detectLanguage, getSystemPrompt } = await import("@/lib/language");
+const { detectLanguage, getSystemPrompt } = await import("@/lib/infra/language");
 
 describe("POST /api/emails/follow-up", () => {
   beforeEach(() => {

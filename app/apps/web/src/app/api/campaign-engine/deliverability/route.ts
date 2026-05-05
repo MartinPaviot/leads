@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { connectedMailboxes } from "@/db/schema";
 import { eq } from "drizzle-orm";

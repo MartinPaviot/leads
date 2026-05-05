@@ -20,10 +20,10 @@ import {
   outboundEmails,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { z } from "zod";
-import { buildProspectContext, formatContextForPrompt } from "@/lib/prospect-context";
+import { buildProspectContext, formatContextForPrompt } from "@/lib/context/prospect-context";
 import { gateAction } from "@/lib/campaign-engine/execution-gate";
 import { updateTrustScore } from "@/lib/campaign-engine/trust-score";
 import { buildIntelligenceBrief } from "@/lib/campaign-engine/build-intelligence-brief";
@@ -82,7 +82,7 @@ INTELLIGENCE BRIEF:
 - Pain points: ${brief.painPoints.join(", ") || "none identified"}
 - Best angle: ${brief.bestAngle || "none"}
 - Competitor: ${brief.competitorDetected || "none detected"}
-- Tech stack: ${brief.techStack.map(t => t.tool).join(", ") || "unknown"}` : "";
+- Tech stack: ${brief.techStack.map((t: { tool: string }) => t.tool).join(", ") || "unknown"}` : "";
 
     // Generate intelligent reply based on classification
     const reply = await step.run("generate-reply", async () => {

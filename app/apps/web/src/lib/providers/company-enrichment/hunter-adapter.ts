@@ -1,4 +1,4 @@
-import { searchDomain, isHunterAvailable } from "@/lib/hunter-client";
+import { searchDomain, isHunterAvailable } from "@/lib/integrations/hunter-client";
 import type {
   CompanyEnrichmentProvider,
   EnrichInput,

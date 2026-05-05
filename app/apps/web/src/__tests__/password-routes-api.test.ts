@@ -55,20 +55,20 @@ vi.mock("bcryptjs", () => ({
   },
 }));
 
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import {
   createResetTokenForUser,
   validateResetToken,
   consumeResetToken,
   isPasswordAcceptable,
-} from "@/lib/password-reset";
+} from "@/lib/auth/password-reset";
 import { sendPasswordResetEmail } from "@/lib/emails/password-reset";
 import { sendPasswordChangedEmail } from "@/lib/emails/password-changed";
 import {
   rateLimitPasswordResetEmail,
   rateLimitPasswordResetIp,
-} from "@/lib/rate-limit";
+} from "@/lib/infra/rate-limit";
 import bcrypt from "bcryptjs";
 
 const forgotMod = await import("@/app/api/auth/forgot-password/route");

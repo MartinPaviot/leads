@@ -1,10 +1,10 @@
 import { db } from "@/db";
 import { contacts, activities, sequenceEnrollments } from "@/db/schema";
-import { getAuthContext } from "@/lib/auth-utils";
-import { requirePermission } from "@/lib/permissions";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { requirePermission } from "@/lib/auth/permissions";
 import { eq, and, sql, isNull } from "drizzle-orm";
-import { logAudit } from "@/lib/audit-log";
-import { softDelete } from "@/lib/soft-delete";
+import { logAudit } from "@/lib/infra/audit-log";
+import { softDelete } from "@/lib/infra/soft-delete";
 
 export async function GET(
   req: Request,

@@ -1,6 +1,6 @@
 import { inngest } from "./client";
 import { buildDossier } from "@/lib/research/dossier-builder";
-import logger from "@/lib/logger";
+import logger from "@/lib/observability/logger";
 
 /**
  * Inngest function for asynchronous dossier generation.

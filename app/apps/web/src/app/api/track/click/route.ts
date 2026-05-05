@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { outboundEmails, activities } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { verifyTrackingId } from "@/lib/tracking-token";
+import { verifyTrackingId } from "@/lib/emails/tracking-token";
 
 /**
  * Click tracking redirect endpoint.

@@ -10,13 +10,13 @@ import {
   emailOptouts,
 } from "@/db/schema";
 import { and, eq, sql, gte, inArray, isNotNull } from "drizzle-orm";
-import { enrichOrganization, searchPeople, isApolloAvailable } from "@/lib/apollo-client";
-import { scoreContact } from "@/lib/contact-scoring";
-import { getTenantSettings, deriveTargetRoles } from "@/lib/tenant-settings";
-import type { CampaignConfig } from "@/lib/campaign-types";
-import { buildProspectContext } from "@/lib/prospect-context";
-import { personalizeStepEmail } from "@/lib/sequence-generator";
-import { STEP_STRATEGIES } from "@/lib/outbound-methodologies";
+import { enrichOrganization, searchPeople, isApolloAvailable } from "@/lib/integrations/apollo-client";
+import { scoreContact } from "@/lib/scoring/contact-scoring";
+import { getTenantSettings, deriveTargetRoles } from "@/lib/config/tenant-settings";
+import type { CampaignConfig } from "@/lib/config/campaign-types";
+import { buildProspectContext } from "@/lib/context/prospect-context";
+import { personalizeStepEmail } from "@/lib/agents/sequence-generator";
+import { STEP_STRATEGIES } from "@/lib/scoring/outbound-methodologies";
 
 /**
  * Async campaign preparation pipeline.

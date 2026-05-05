@@ -14,11 +14,11 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import { deals, companies, coachingInsights, notifications, users } from "@/db/schema";
 import { and, eq, notInArray } from "drizzle-orm";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
-import { trackPipeline } from "@/lib/pipeline-tracker";
+import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
 
 function getLLMModel() {
   if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-6");

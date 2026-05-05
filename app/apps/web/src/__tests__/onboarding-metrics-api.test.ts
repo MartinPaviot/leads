@@ -23,7 +23,7 @@ vi.mock("@/lib/auth-utils", () => ({
 vi.mock("@/lib/observability-queries", () => ({
   getOnboardingAgentLatency: (
     params: Parameters<
-      typeof import("@/lib/observability-queries").getOnboardingAgentLatency
+      typeof import("@/lib/observability/observability-queries").getOnboardingAgentLatency
     >[0]
   ) => getOnboardingAgentLatencyMock(params),
 }));

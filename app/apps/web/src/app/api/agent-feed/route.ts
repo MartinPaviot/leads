@@ -8,7 +8,7 @@
 import { db } from "@/db";
 import { agentReactions, agentActions, agentWorkItems } from "@/db/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();

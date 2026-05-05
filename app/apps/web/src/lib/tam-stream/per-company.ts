@@ -7,11 +7,11 @@ import {
   revenueToRange,
   type ApolloOrganization,
   type OrgSearchOrganization,
-} from "@/lib/apollo-client";
-import { getGrade } from "@/lib/scoring";
+} from "@/lib/integrations/apollo-client";
+import { getGrade } from "@/lib/scoring/scoring";
 import { scoreCompanyWithModel } from "@/lib/scoring/company-scorer";
 import { narrateScoreReasons, type NarrativeInput } from "@/lib/scoring/narrative-reasons";
-import { findWarmPathsToCompany } from "@/lib/relationship-graph";
+import { findWarmPathsToCompany } from "@/lib/context/relationship-graph";
 import { enrichCompany as waterfallEnrich } from "@/lib/providers/company-enrichment/waterfall";
 import { companyContactFinderHandler } from "@/skills/enrichment/company-contact-finder/handler";
 import { DEFAULT_SIGNALS } from "@/lib/tam-stream/signals";

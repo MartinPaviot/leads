@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { contacts, companies, activities, deals } from "@/db/schema";
 import { eq, and, sql, desc, lt } from "drizzle-orm";
-import { analyzeFollowUpTiming } from "@/lib/follow-up-timing";
+import { analyzeFollowUpTiming } from "@/lib/util/follow-up-timing";
 
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();

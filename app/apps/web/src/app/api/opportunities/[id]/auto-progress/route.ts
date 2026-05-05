@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, deals } from "@/db/schema";
-import { getAuthContext } from "@/lib/auth-utils";
-import { logger } from "@/lib/logger";
-import { suggestNextStage } from "@/lib/opportunity-health";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { logger } from "@/lib/observability/logger";
+import { suggestNextStage } from "@/lib/deals/opportunity-health";
 
 /**
  * POST /api/opportunities/:id/auto-progress — Y3.

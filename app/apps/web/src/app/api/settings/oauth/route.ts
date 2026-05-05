@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { authAccounts } from "@/db/schema";
-import { logger } from "@/lib/logger";
+import { logger } from "@/lib/observability/logger";
 
 /**
  * N15 — DELETE /api/settings/oauth?provider=google|microsoft-entra-id

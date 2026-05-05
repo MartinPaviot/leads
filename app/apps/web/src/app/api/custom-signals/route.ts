@@ -1,5 +1,5 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { customSignals } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";

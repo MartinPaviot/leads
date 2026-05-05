@@ -50,7 +50,7 @@ vi.mock("@/lib/enrollment", () => ({
 }));
 
 import { db } from "@/db";
-import { pauseEnrollment } from "@/lib/enrollment";
+import { pauseEnrollment } from "@/lib/sequences/enrollment";
 
 const mod = await import("@/app/api/webhooks/resend/route");
 

@@ -1,11 +1,11 @@
 import { db } from "@/db";
 import { activities, deals, notifications, tenants, contacts, companies, users, outboundEmails, connectedMailboxes } from "@/db/schema";
 import { eq, and, desc, sql, or, ne } from "drizzle-orm";
-import { anthropic } from "@/lib/ai-provider";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
-import { tracedGenerateObject } from "@/lib/traced-ai";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { z } from "zod";
-import { verifyCronRequest } from "@/lib/cron-auth";
+import { verifyCronRequest } from "@/lib/auth/cron-auth";
 
 const revivalEmailSchema = z.object({
   subject: z.string().describe("Short, personal email subject line"),
@@ -40,7 +40,7 @@ export async function GET(req: Request) {
 
 // Also support POST for on-demand trigger with auth
 export async function POST() {
-  const { getAuthContext } = await import("@/lib/auth-utils");
+  const { getAuthContext } = await import("@/lib/auth/auth-utils");
   const authCtx = await getAuthContext();
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });

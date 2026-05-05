@@ -1,9 +1,9 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { deals, activities, coachingInsights } from "@/db/schema";
 import { and, eq, notInArray, gte, desc, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { ageInStage } from "@/lib/deal-helpers";
+import { ageInStage } from "@/lib/deals/deal-helpers";
 
 /**
  * GET /api/dashboard/alerts

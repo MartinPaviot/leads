@@ -15,7 +15,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 describe("critical module loading", () => {
   it("ai-provider loads and exports anthropic + getModelForTask", async () => {
-    const mod = await import("@/lib/ai-provider");
+    const mod = await import("@/lib/ai/ai-provider");
     expect(mod.anthropic).toBeDefined();
     expect(typeof mod.getModelForTask).toBe("function");
     expect(typeof mod.isAnthropicEuConfigured).toBe("function");
@@ -23,7 +23,7 @@ describe("critical module loading", () => {
   });
 
   it("circuit-breaker loads and exports core functions", async () => {
-    const mod = await import("@/lib/circuit-breaker");
+    const mod = await import("@/lib/infra/circuit-breaker");
     expect(typeof mod.withCircuitBreaker).toBe("function");
     expect(typeof mod.isCircuitClosed).toBe("function");
     expect(typeof mod.getCircuitStatus).toBe("function");
@@ -33,14 +33,14 @@ describe("critical module loading", () => {
   });
 
   it("embeddings loads and exports searchHybrid", async () => {
-    const mod = await import("@/lib/embeddings");
+    const mod = await import("@/lib/ai/embeddings");
     expect(typeof mod.searchHybrid).toBe("function");
     expect(typeof mod.searchSimilar).toBe("function");
     expect(typeof mod.embedEntity).toBe("function");
   });
 
   it("agent-memory loads and exports buildMemorySnapshot", async () => {
-    const mod = await import("@/lib/agent-memory");
+    const mod = await import("@/lib/agents/agent-memory");
     expect(typeof mod.buildMemorySnapshot).toBe("function");
   });
 
@@ -76,7 +76,7 @@ describe("critical module loading", () => {
   });
 
   it("observability loads and exports AGENT_REGISTRY", async () => {
-    const mod = await import("@/lib/observability");
+    const mod = await import("@/lib/observability/observability");
     expect(mod.AGENT_REGISTRY).toBeDefined();
     expect(Object.keys(mod.AGENT_REGISTRY).length).toBeGreaterThan(15);
   });
@@ -95,17 +95,17 @@ describe("critical module loading", () => {
 
   // auth-utils imports next-auth which requires Next.js server runtime — skip in vitest
   it.skip("auth-utils exports withAuthRLS", async () => {
-    const mod = await import("@/lib/auth-utils");
+    const mod = await import("@/lib/auth/auth-utils");
     expect(typeof mod.withAuthRLS).toBe("function");
   });
 
   it("icp-constants exports senioritiesToApollo", async () => {
-    const mod = await import("@/lib/icp-constants");
+    const mod = await import("@/lib/config/icp-constants");
     expect(typeof mod.senioritiesToApollo).toBe("function");
   });
 
   it("tenant-settings exports deriveTargetRoles", async () => {
-    const mod = await import("@/lib/tenant-settings");
+    const mod = await import("@/lib/config/tenant-settings");
     expect(typeof mod.deriveTargetRoles).toBe("function");
   });
 });
@@ -114,12 +114,12 @@ describe("critical module loading", () => {
 
 describe("circuit breaker behavior", () => {
   beforeEach(async () => {
-    const { _resetAllCircuitsForTesting } = await import("@/lib/circuit-breaker");
+    const { _resetAllCircuitsForTesting } = await import("@/lib/infra/circuit-breaker");
     _resetAllCircuitsForTesting();
   });
 
   it("starts with all circuits closed", async () => {
-    const { getCircuitStatus } = await import("@/lib/circuit-breaker");
+    const { getCircuitStatus } = await import("@/lib/infra/circuit-breaker");
     const status = getCircuitStatus();
     for (const circuit of Object.values(status)) {
       expect(circuit.state).toBe("closed");
@@ -127,7 +127,7 @@ describe("circuit breaker behavior", () => {
   });
 
   it("opens after consecutive failures", async () => {
-    const { withCircuitBreaker, getCircuitStatus, APOLLO_CIRCUIT } = await import("@/lib/circuit-breaker");
+    const { withCircuitBreaker, getCircuitStatus, APOLLO_CIRCUIT } = await import("@/lib/infra/circuit-breaker");
 
     for (let i = 0; i < APOLLO_CIRCUIT.failureThreshold; i++) {
       try {
@@ -143,7 +143,7 @@ describe("circuit breaker behavior", () => {
   });
 
   it("rejects immediately when circuit is open", async () => {
-    const { withCircuitBreaker, APOLLO_CIRCUIT, CircuitOpenError } = await import("@/lib/circuit-breaker");
+    const { withCircuitBreaker, APOLLO_CIRCUIT, CircuitOpenError } = await import("@/lib/infra/circuit-breaker");
 
     // Open the circuit
     for (let i = 0; i < APOLLO_CIRCUIT.failureThreshold; i++) {
@@ -211,7 +211,7 @@ describe("prompt safety hardening", () => {
 
 describe("embeddings truncation", () => {
   it("keeps short content unchanged", async () => {
-    const { contactToText } = await import("@/lib/embeddings");
+    const { contactToText } = await import("@/lib/ai/embeddings");
     const short = contactToText({ firstName: "Alice", lastName: "Smith", email: "a@b.com" });
     expect(short.length).toBeLessThan(6000);
   });
@@ -223,7 +223,7 @@ describe("agent memory TTL and priority", () => {
   it("applyTtlFilter and applyPriorityResolution are used in buildMemorySnapshot", async () => {
     // We can't call buildMemorySnapshot without a DB, but we can verify the
     // module exports and the logic is present
-    const source = await import("@/lib/agent-memory");
+    const source = await import("@/lib/agents/agent-memory");
     expect(typeof source.buildMemorySnapshot).toBe("function");
     // The MemorySnapshot type should include priorityNote
     // (We verify this structurally via the TypeScript compiler — if it compiled, the field exists)
@@ -234,7 +234,7 @@ describe("agent memory TTL and priority", () => {
 
 describe("ICP seniority mapping (BUG-WS0-007 fix)", () => {
   it("maps UI labels to Apollo API format", async () => {
-    const { senioritiesToApollo } = await import("@/lib/icp-constants");
+    const { senioritiesToApollo } = await import("@/lib/config/icp-constants");
     const result = senioritiesToApollo(["C-Suite", "VP", "Director"]);
     expect(result).toContain("c_suite");
     expect(result).toContain("vp");
@@ -242,7 +242,7 @@ describe("ICP seniority mapping (BUG-WS0-007 fix)", () => {
   });
 
   it("falls back to defaults on empty array", async () => {
-    const { senioritiesToApollo } = await import("@/lib/icp-constants");
+    const { senioritiesToApollo } = await import("@/lib/config/icp-constants");
     const result = senioritiesToApollo([]);
     expect(result.length).toBeGreaterThan(0);
   });
@@ -252,7 +252,7 @@ describe("ICP seniority mapping (BUG-WS0-007 fix)", () => {
 
 describe("deriveTargetRoles (BUG-WS0-008 fix)", () => {
   it("derives from seniorities + departments", async () => {
-    const { deriveTargetRoles } = await import("@/lib/tenant-settings");
+    const { deriveTargetRoles } = await import("@/lib/config/tenant-settings");
     const result = deriveTargetRoles({
       targetSeniorities: ["C-Suite", "VP"],
       targetDepartments: ["Engineering", "Product"],
@@ -262,7 +262,7 @@ describe("deriveTargetRoles (BUG-WS0-008 fix)", () => {
   });
 
   it("falls back to stored targetRoles for legacy tenants", async () => {
-    const { deriveTargetRoles } = await import("@/lib/tenant-settings");
+    const { deriveTargetRoles } = await import("@/lib/config/tenant-settings");
     const result = deriveTargetRoles({
       targetRoles: "CEO, CTO, VP Engineering",
     });
@@ -270,7 +270,7 @@ describe("deriveTargetRoles (BUG-WS0-008 fix)", () => {
   });
 
   it("returns empty string when nothing is set", async () => {
-    const { deriveTargetRoles } = await import("@/lib/tenant-settings");
+    const { deriveTargetRoles } = await import("@/lib/config/tenant-settings");
     const result = deriveTargetRoles({});
     expect(result).toBe("");
   });
@@ -280,13 +280,13 @@ describe("deriveTargetRoles (BUG-WS0-008 fix)", () => {
 
 describe("AI provider EU routing", () => {
   it("defaults to US endpoint", async () => {
-    const { getConfiguredAnthropicBaseUrl } = await import("@/lib/ai-provider");
+    const { getConfiguredAnthropicBaseUrl } = await import("@/lib/ai/ai-provider");
     const url = getConfiguredAnthropicBaseUrl();
     expect(url).toContain("api.anthropic.com");
   });
 
   it("reports EU not configured by default", async () => {
-    const { isAnthropicEuConfigured } = await import("@/lib/ai-provider");
+    const { isAnthropicEuConfigured } = await import("@/lib/ai/ai-provider");
     expect(isAnthropicEuConfigured()).toBe(false);
   });
 });
@@ -295,7 +295,7 @@ describe("AI provider EU routing", () => {
 
 describe("AGENT_REGISTRY completeness", () => {
   it("has quality thresholds for all agents", async () => {
-    const { AGENT_REGISTRY } = await import("@/lib/observability");
+    const { AGENT_REGISTRY } = await import("@/lib/observability/observability");
     for (const [name, agent] of Object.entries(AGENT_REGISTRY)) {
       expect(agent.qualityThreshold, `${name} missing qualityThreshold`).toBeGreaterThan(0);
       expect(agent.maxLatencyMs, `${name} missing maxLatencyMs`).toBeGreaterThan(0);
@@ -304,7 +304,7 @@ describe("AGENT_REGISTRY completeness", () => {
   });
 
   it("has at least 20 registered agents", async () => {
-    const { AGENT_REGISTRY } = await import("@/lib/observability");
+    const { AGENT_REGISTRY } = await import("@/lib/observability/observability");
     expect(Object.keys(AGENT_REGISTRY).length).toBeGreaterThanOrEqual(20);
   });
 });

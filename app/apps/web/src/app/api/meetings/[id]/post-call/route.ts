@@ -1,13 +1,13 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { activities, tasks, deals, contacts, companies } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { tracedGenerateText } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { tracedGenerateText } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
-import { autofillDealFromIntelligence } from "@/lib/deal-autofill";
-import type { ThreadIntelligence, BuyingSignal } from "@/lib/email-intelligence";
+import { autofillDealFromIntelligence } from "@/lib/deals/deal-autofill";
+import type { ThreadIntelligence, BuyingSignal } from "@/lib/emails/email-intelligence";
 
 export async function POST(
   req: Request,

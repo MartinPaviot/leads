@@ -5,7 +5,7 @@ import {
   STEP_STRATEGIES,
   getMethodology,
   pickBestSignal,
-} from "@/lib/outbound-methodologies";
+} from "@/lib/scoring/outbound-methodologies";
 
 describe("Outbound Methodology Library", () => {
   it("covers all seniority levels", () => {

@@ -33,7 +33,7 @@ vi.mock("drizzle-orm", () => ({
   desc: vi.fn(),
 }));
 
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 
 const mod = await import("@/app/api/views/route");

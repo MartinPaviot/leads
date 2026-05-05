@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAuthContext } from "@/lib/auth-utils";
-import { reverseAgentAction } from "@/lib/agent-actions";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { reverseAgentAction } from "@/lib/agents/agent-actions";
 
 /**
  * POST /api/agent-actions/:id/reverse

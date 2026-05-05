@@ -28,7 +28,7 @@ import {
   users,
 } from "@/db/schema";
 import { and, eq, notInArray, inArray, desc } from "drizzle-orm";
-import { trackPipeline } from "@/lib/pipeline-tracker";
+import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
 
 export const signalAutoEnroll = inngest.createFunction(
   {

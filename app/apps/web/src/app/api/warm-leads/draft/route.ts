@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { z } from "zod";
 import { db } from "@/db";
 import { activities, contacts } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
-import { getTenantSettings } from "@/lib/tenant-settings";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 
 /**
  * POST /api/warm-leads/draft — drafts a follow-up email for a warm

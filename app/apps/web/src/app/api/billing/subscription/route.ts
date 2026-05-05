@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { tenants } from "@/db/schema";
 import { subscriptions } from "@/db/billing-schema";

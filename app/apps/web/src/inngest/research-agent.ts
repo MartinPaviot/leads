@@ -2,8 +2,8 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import { companies, contacts, deals } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { tracedGenerateText } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { tracedGenerateText } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 
 /**

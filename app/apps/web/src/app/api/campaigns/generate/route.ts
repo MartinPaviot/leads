@@ -1,9 +1,9 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { sequences, sequenceSteps, contacts, companies } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { buildProspectContext } from "@/lib/prospect-context";
-import { generateSequence } from "@/lib/sequence-generator";
+import { buildProspectContext } from "@/lib/context/prospect-context";
+import { generateSequence } from "@/lib/agents/sequence-generator";
 import { buildIntelligenceBrief } from "@/lib/campaign-engine/build-intelligence-brief";
 import { selectStrategy } from "@/lib/campaign-engine/select-strategy";
 
@@ -89,14 +89,14 @@ export async function POST(req: Request) {
       generated = await generateSequence(ctx, { stepCount: stepCount || 5 });
     } else {
       // No contacts yet — generate template sequence from company context
-      const { getTenantSettings } = await import("@/lib/tenant-settings");
+      const { getTenantSettings } = await import("@/lib/config/tenant-settings");
       const settings = await getTenantSettings(authCtx.tenantId);
       const topCompany = await db.select().from(companies)
         .where(eq(companies.tenantId, authCtx.tenantId))
         .orderBy(sql`score DESC NULLS LAST`).limit(1);
 
       const company = topCompany[0];
-      const { getMethodology } = await import("@/lib/outbound-methodologies");
+      const { getMethodology } = await import("@/lib/scoring/outbound-methodologies");
       const methodology = getMethodology("VP"); // default to VP-level methodology
 
       // Build a minimal context for template generation

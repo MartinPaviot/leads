@@ -19,8 +19,8 @@ import {
   getTenantSettings,
   updateTenantSettings,
   type TenantSettings,
-} from "@/lib/tenant-settings";
-import logger from "@/lib/logger";
+} from "@/lib/config/tenant-settings";
+import logger from "@/lib/observability/logger";
 
 /** Result of a single-tenant migration attempt. */
 export interface TenantMigrationResult {

@@ -24,7 +24,7 @@ vi.mock("drizzle-orm", () => ({
   sql: vi.fn(() => "sql-tag"),
 }));
 
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 
 const statusModule = await import("@/app/api/onboarding/status/route");

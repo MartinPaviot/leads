@@ -1,4 +1,4 @@
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { knowledgeEntries } from "@/db/schema";
 import { eq, and, or, desc } from "drizzle-orm";

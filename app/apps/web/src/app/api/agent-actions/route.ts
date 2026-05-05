@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAuthContext } from "@/lib/auth-utils";
-import { getRecentActions } from "@/lib/agent-actions";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { getRecentActions } from "@/lib/agents/agent-actions";
 
 /**
  * GET /api/agent-actions — recent agent actions for the current

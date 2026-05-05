@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateInviteToken, hashInviteToken } from "@/lib/invite-token";
+import { generateInviteToken, hashInviteToken } from "@/lib/auth/invite-token";
 
 describe("invite-token — H5 regression", () => {
   it("generates a raw token of sufficient entropy", () => {

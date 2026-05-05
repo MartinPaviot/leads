@@ -1,8 +1,8 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { sequences, sequenceSteps, sequenceEnrollments, outboundEmails } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
-import { apiError } from "@/lib/api-errors";
+import { apiError } from "@/lib/infra/api-errors";
 import { z } from "zod";
 
 const createSequenceSchema = z.object({

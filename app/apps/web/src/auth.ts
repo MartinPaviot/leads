@@ -21,7 +21,7 @@ import {
   getIpLockoutStatus,
   getLockoutStatus,
   recordFailedSignIn,
-} from "./lib/auth-lockout";
+} from "./lib/auth/auth-lockout";
 
 /**
  * A fixed bcrypt hash at the project's current cost factor, used purely
@@ -302,7 +302,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       ) {
         try {
           const { markEmailVerified } = await import(
-            "@/lib/email-verification"
+            "@/lib/emails/email-verification"
           );
           await markEmailVerified(user.id);
         } catch (err) {
@@ -338,7 +338,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         // sign-in without double-firing. `account` is only set on the
         // initial sign-in (not on token refresh), so this block already
         // runs once per OAuth cycle.
-        void import("@/lib/ttfaa").then(({ markTtfaaStarted }) =>
+        void import("@/lib/observability/ttfaa").then(({ markTtfaaStarted }) =>
           markTtfaaStarted({
             userId: user?.id || (token.id as string),
             tenantId: token.tenantId as string,
@@ -364,7 +364,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           })
           .catch((err) => console.warn("Failed to trigger Microsoft sync:", err));
         // WS-0 — same TTFAA timer start for Microsoft OAuth.
-        void import("@/lib/ttfaa").then(({ markTtfaaStarted }) =>
+        void import("@/lib/observability/ttfaa").then(({ markTtfaaStarted }) =>
           markTtfaaStarted({
             userId: user?.id || (token.id as string),
             tenantId: token.tenantId as string,

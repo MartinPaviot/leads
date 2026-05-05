@@ -1,13 +1,13 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { apiError } from "@/lib/api-errors";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
+import { apiError } from "@/lib/infra/api-errors";
 import { db } from "@/db";
 import { deals, activities, companies } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { getTenantSettings, getStageNames } from "@/lib/tenant-settings";
-import { anthropic } from "@/lib/ai-provider";
+import { getTenantSettings, getStageNames } from "@/lib/config/tenant-settings";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
-import { tracedGenerateObject } from "@/lib/traced-ai";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { z } from "zod";
 
 const analyzeDealsInputSchema = z.object({

@@ -1,5 +1,5 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { searchSimilar } from "@/lib/embeddings";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { searchSimilar } from "@/lib/ai/embeddings";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();

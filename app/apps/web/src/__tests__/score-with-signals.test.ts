@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scoreSignals } from "@/lib/score-with-signals";
+import { scoreSignals } from "@/lib/scoring/score-with-signals";
 
 describe("scoreSignals", () => {
   it("no active signals → zero bonus and no reasons", () => {

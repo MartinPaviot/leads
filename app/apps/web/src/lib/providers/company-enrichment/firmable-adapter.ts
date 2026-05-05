@@ -1,4 +1,4 @@
-import { enrichCompanyByDomain, isFirmableAvailable } from "@/lib/firmable-client";
+import { enrichCompanyByDomain, isFirmableAvailable } from "@/lib/integrations/firmable-client";
 import type {
   CompanyEnrichmentProvider,
   EnrichInput,

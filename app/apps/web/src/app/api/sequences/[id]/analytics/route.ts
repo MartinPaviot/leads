@@ -6,8 +6,8 @@ import {
   sequenceEnrollments,
   outboundEmails,
 } from "@/db/schema";
-import { getAuthContext } from "@/lib/auth-utils";
-import { logger } from "@/lib/logger";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { logger } from "@/lib/observability/logger";
 
 /**
  * GET /api/sequences/:id/analytics — funnel metrics for one sequence.

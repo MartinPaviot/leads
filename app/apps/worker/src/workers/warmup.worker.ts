@@ -1,9 +1,8 @@
 import { Worker } from "bullmq";
 import { connection } from "../queues/index.js";
 import { sendEmail } from "../services/emailengine.js";
-import postgres from "postgres";
-
-const sql = postgres(process.env.DATABASE_URL!);
+import { db, connectedMailboxes, warmupEmails } from "../db.js";
+import { eq, and, ne, sql } from "drizzle-orm";
 
 const WARMUP_SUBJECTS = [
   "Quick question about your experience",
@@ -30,20 +29,31 @@ export function createWarmupWorker() {
     async (job) => {
       const { mailboxId } = job.data;
 
-      // Find the mailbox
-      const [mailbox] = await sql`
-        SELECT * FROM connected_mailboxes WHERE id = ${mailboxId} AND status = 'warming_up'
-      `;
+      const [mailbox] = await db
+        .select()
+        .from(connectedMailboxes)
+        .where(
+          and(
+            eq(connectedMailboxes.id, mailboxId),
+            eq(connectedMailboxes.status, "warming_up")
+          )
+        );
       if (!mailbox) return;
 
-      // Find a random target mailbox from another tenant (or same tenant, different mailbox)
-      const [target] = await sql`
-        SELECT * FROM connected_mailboxes
-        WHERE id != ${mailboxId} AND status IN ('warming_up', 'active')
-        ORDER BY RANDOM() LIMIT 1
-      `;
+      const [target] = await db
+        .select()
+        .from(connectedMailboxes)
+        .where(
+          and(
+            ne(connectedMailboxes.id, mailboxId),
+            sql`${connectedMailboxes.status} IN ('warming_up', 'active')`
+          )
+        )
+        .orderBy(sql`RANDOM()`)
+        .limit(1);
+
       if (!target) {
-        console.log(`[warmup] No target mailbox found for ${mailbox.email_address}`);
+        console.log(`[warmup] No target mailbox found for ${mailbox.emailAddress}`);
         return;
       }
 
@@ -51,47 +61,49 @@ export function createWarmupWorker() {
       const body = WARMUP_BODIES[Math.floor(Math.random() * WARMUP_BODIES.length)];
 
       try {
-        const result = await sendEmail(mailbox.ee_account_id, {
-          from: { name: mailbox.display_name || "", address: mailbox.email_address },
-          to: [{ address: target.email_address }],
+        const result = await sendEmail(mailbox.eeAccountId, {
+          from: { name: mailbox.displayName || "", address: mailbox.emailAddress },
+          to: [{ address: target.emailAddress }],
           subject,
           html: `<p>${body}</p>`,
         });
 
-        // Record warmup email
-        await sql`
-          INSERT INTO warmup_emails (id, mailbox_id, target_mailbox_id, direction, message_id, status)
-          VALUES (gen_random_uuid(), ${mailboxId}, ${target.id}, 'sent', ${result.messageId}, 'sent')
-        `;
+        await db.insert(warmupEmails).values({
+          mailboxId,
+          targetMailboxId: target.id,
+          direction: "sent",
+          messageId: result.messageId,
+          status: "sent",
+        });
 
-        // Update sent counters
-        await sql`
-          UPDATE connected_mailboxes SET
-            sent_today = sent_today + 1,
-            sent_total = sent_total + 1,
-            updated_at = NOW()
-          WHERE id = ${mailboxId}
-        `;
+        await db
+          .update(connectedMailboxes)
+          .set({
+            sentToday: sql`${connectedMailboxes.sentToday} + 1`,
+            sentTotal: sql`${connectedMailboxes.sentTotal} + 1`,
+            updatedAt: new Date(),
+          })
+          .where(eq(connectedMailboxes.id, mailboxId));
 
-        console.log(`[warmup] Sent from ${mailbox.email_address} to ${target.email_address}`);
+        console.log(`[warmup] Sent from ${mailbox.emailAddress} to ${target.emailAddress}`);
 
-        // Check graduation: 21+ days and target reached 50/day
-        const daysSinceStart = mailbox.warmup_started_at
-          ? Math.floor((Date.now() - new Date(mailbox.warmup_started_at).getTime()) / 86400000)
+        const daysSinceStart = mailbox.warmupStartedAt
+          ? Math.floor((Date.now() - new Date(mailbox.warmupStartedAt).getTime()) / 86400000)
           : 0;
 
-        if (daysSinceStart >= 21 && mailbox.warmup_daily_target >= 50) {
-          await sql`
-            UPDATE connected_mailboxes SET
-              status = 'active',
-              warmup_completed_at = NOW(),
-              updated_at = NOW()
-            WHERE id = ${mailboxId}
-          `;
-          console.log(`[warmup] Mailbox ${mailbox.email_address} graduated to active!`);
+        if (daysSinceStart >= 21 && (mailbox.warmupDailyTarget || 0) >= 50) {
+          await db
+            .update(connectedMailboxes)
+            .set({
+              status: "active",
+              warmupCompletedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(connectedMailboxes.id, mailboxId));
+          console.log(`[warmup] Mailbox ${mailbox.emailAddress} graduated to active!`);
         }
       } catch (err) {
-        console.error(`[warmup] Failed for ${mailbox.email_address}:`, err);
+        console.error(`[warmup] Failed for ${mailbox.emailAddress}:`, err);
       }
     },
     { connection, concurrency: 2 }

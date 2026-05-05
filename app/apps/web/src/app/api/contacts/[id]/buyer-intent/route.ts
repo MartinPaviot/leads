@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { scoreBuyerIntent } from "@/lib/scoring/buyer-intent";
 
 export async function GET(

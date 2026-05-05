@@ -37,7 +37,7 @@ vi.mock("@/inngest/client", () => ({
   inngest: { send: vi.fn().mockResolvedValue(undefined) },
 }));
 
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 
 const accountsModule = await import("@/app/api/accounts/route");

@@ -83,10 +83,10 @@ vi.mock("@/lib/apollo-client", () => ({
 
 process.env.ANTHROPIC_API_KEY = "test-key";
 
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { generateObject } from "ai";
-import { searchOrganizations } from "@/lib/apollo-client";
+import { searchOrganizations } from "@/lib/integrations/apollo-client";
 
 const { POST, GET } = await import("@/app/api/tam/route");
 

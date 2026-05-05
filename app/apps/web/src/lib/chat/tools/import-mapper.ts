@@ -44,7 +44,7 @@ Only map columns you're confident about. Skip ambiguous columns.`;
   const { generateText } = await import("ai");
 
   if (anthropicKey) {
-    const { anthropic } = await import("@/lib/ai-provider");
+    const { anthropic } = await import("@/lib/ai/ai-provider");
     const response = await generateText({
       model: anthropic("claude-sonnet-4-6"),
       prompt,

@@ -7,7 +7,7 @@ import {
   sanitizeCallbackUrl,
   SIGN_IN_REASON_COPY,
   resolveSignInErrorCopy,
-} from "@/lib/auth-callback";
+} from "@/lib/auth/auth-callback";
 
 /**
  * Credentials + OAuth sign-in page. Reads `searchParams` (I1):

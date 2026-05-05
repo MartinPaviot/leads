@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockInsert = vi.fn(() => ({
+const mockInsert = vi.fn((..._args: any[]) => ({
   values: vi.fn(() => ({
     returning: vi.fn(() => [{ id: "outcome-1" }]),
   })),
 }));
 
-const mockSelect = vi.fn(() => ({
+const mockSelect = vi.fn((..._args: any[]) => ({
   from: vi.fn(() => ({
     where: vi.fn(() => ({
       limit: vi.fn(() => []),
@@ -14,7 +14,7 @@ const mockSelect = vi.fn(() => ({
   })),
 }));
 
-const mockUpdate = vi.fn(() => ({
+const mockUpdate = vi.fn((..._args: any[]) => ({
   set: vi.fn(() => ({
     where: vi.fn(),
   })),
@@ -22,9 +22,9 @@ const mockUpdate = vi.fn(() => ({
 
 vi.mock("@/db", () => ({
   db: {
-    insert: (...args: unknown[]) => mockInsert(...args),
-    select: (...args: unknown[]) => mockSelect(...args),
-    update: (...args: unknown[]) => mockUpdate(...args),
+    insert: (...args: any[]) => mockInsert(...args),
+    select: (...args: any[]) => mockSelect(...args),
+    update: (...args: any[]) => mockUpdate(...args),
   },
 }));
 

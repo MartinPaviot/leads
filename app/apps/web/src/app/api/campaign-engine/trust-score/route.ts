@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { getTrustScore } from "@/lib/campaign-engine/trust-score";
 
 export async function GET() {

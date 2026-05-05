@@ -2,8 +2,8 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import { tenants, tasks, activities, outboundEmails, contacts, companies, sequenceEnrollments } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { sendNotification } from "@/lib/notifications";
-import type { WorkflowDef } from "@/lib/workflow-types";
+import { sendNotification } from "@/lib/emails/notifications";
+import type { WorkflowDef } from "@/lib/config/workflow-types";
 
 /**
  * Minimum viable workflow engine.

@@ -5,7 +5,7 @@ import { findContactDuplicate, findCompanyDuplicate, findDealDuplicate } from ".
 import { wireContactToCompany, extractDomainFromEmail } from "./relationship-wirer";
 import type { TaskContext } from "@/lib/tasks/task-manager";
 import { registerTaskExecutor } from "@/inngest/agent-task-runner";
-import logger from "@/lib/logger";
+import logger from "@/lib/observability/logger";
 
 interface ImportCheckpoint {
   lastProcessedRow: number;

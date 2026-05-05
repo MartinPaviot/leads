@@ -1,4 +1,4 @@
-import { isCurrentUserAdmin } from "@/lib/admin-only";
+import { isCurrentUserAdmin } from "@/lib/auth/admin-only";
 import SettingsSidebar from "./settings-sidebar";
 
 export default async function SettingsLayout({

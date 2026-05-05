@@ -10,7 +10,7 @@ import {
   agentWorkItems,
 } from "@/db/schema";
 import { and, eq, desc, sql } from "drizzle-orm";
-import { getTenantSettings } from "@/lib/tenant-settings";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 import type { ReactorContext } from "./types";
 
 export async function loadReactorContext(

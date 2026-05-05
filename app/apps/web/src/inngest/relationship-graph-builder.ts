@@ -1,8 +1,8 @@
 import { inngest } from "./client";
 import { db } from "@/db";
 import { tenants } from "@/db/schema";
-import { buildKnowsFromActivities } from "@/lib/relationship-graph";
-import logger from "@/lib/logger";
+import { buildKnowsFromActivities } from "@/lib/context/relationship-graph";
+import logger from "@/lib/observability/logger";
 
 /**
  * Nightly rebuild of the KNOWS graph for every tenant. Cheap — reads

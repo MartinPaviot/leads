@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, contacts, deals, sequenceEnrollments, tasks } from "@/db/schema";
-import { getAuthContext } from "@/lib/auth-utils";
-import { logger } from "@/lib/logger";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { logger } from "@/lib/observability/logger";
 import { z } from "zod";
 
 /**

@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { outboundEmails, activities } from "@/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
-import { verifyTrackingId } from "@/lib/tracking-token";
+import { verifyTrackingId } from "@/lib/emails/tracking-token";
 
 // 1x1 transparent GIF
 const PIXEL = Buffer.from(
@@ -23,7 +23,10 @@ const PIXEL = Buffer.from(
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url, "http://localhost");
   const signedId = verifyTrackingId(searchParams.get("t"));
-  const emailId = signedId ?? searchParams.get("id");
+  // Legacy unsigned fallback — accept only for backward compat;
+  // will be removed once all in-flight unsigned emails have expired.
+  const unsignedId = signedId ? null : searchParams.get("id");
+  const emailId = signedId ?? unsignedId;
 
   if (emailId) {
     // Fire-and-forget: don't block pixel response

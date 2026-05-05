@@ -1,14 +1,14 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { activities, contacts, companies, deals } from "@/db/schema";
 import { eq, and, ilike, or } from "drizzle-orm";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
-import { embedEntity, activityToText } from "@/lib/embeddings";
-import { ingestEpisode } from "@/lib/context-graph";
+import { embedEntity, activityToText } from "@/lib/ai/embeddings";
+import { ingestEpisode } from "@/lib/ai/context-graph";
 
 const meetingNotesSchema = z.object({
   summary: z.string().describe("2-3 sentence meeting summary"),

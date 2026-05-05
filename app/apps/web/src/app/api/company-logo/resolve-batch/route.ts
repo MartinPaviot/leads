@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAuthContext } from "@/lib/auth-utils";
-import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { rateLimit, rateLimitResponse } from "@/lib/infra/rate-limit";
 import { resolveCompanyLogoBatch } from "@/lib/logo/resolver";
 
 const MAX_BATCH_SIZE = 50;

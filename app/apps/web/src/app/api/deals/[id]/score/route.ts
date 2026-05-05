@@ -10,7 +10,7 @@
  * - No activities → scores with minimal engagement features
  */
 
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { deals, tenants, companies, activities } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -20,7 +20,7 @@ import {
   type DealFeatures,
   type ScoringModel,
 } from "@/lib/scoring/predictive-scorer";
-import { stageProbability } from "@/lib/deal-helpers";
+import { stageProbability } from "@/lib/deals/deal-helpers";
 
 export async function GET(
   _req: Request,

@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect } from "vitest";
-import { verifyCronRequest } from "@/lib/cron-auth";
+import { verifyCronRequest } from "@/lib/auth/cron-auth";
 
 const CRON_SECRET = "test-cron-secret-abcdef0123456789";
 

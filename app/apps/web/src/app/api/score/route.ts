@@ -1,12 +1,12 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { companies, activities } from "@/db/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
-import { getTenantSettings, parseSizeRange } from "@/lib/tenant-settings";
-import { calculateFitScore, getGrade } from "@/lib/scoring";
-import { getSignalMultipliers } from "@/lib/signal-outcomes";
-import { scoreSignals } from "@/lib/score-with-signals";
+import { getTenantSettings, parseSizeRange } from "@/lib/config/tenant-settings";
+import { calculateFitScore, getGrade } from "@/lib/scoring/scoring";
+import { getSignalMultipliers } from "@/lib/scoring/signal-outcomes";
+import { scoreSignals } from "@/lib/scoring/score-with-signals";
 
 async function calculateEngagementScore(
   tenantId: string,

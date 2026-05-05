@@ -10,7 +10,7 @@ import {
   SALES_MOTIONS,
   DECISION_MAKER_ROLES,
   GEOGRAPHIES,
-} from "@/lib/icp-constants";
+} from "@/lib/config/icp-constants";
 
 export default function IcpSettingsPage() {
   const [productDescription, setProductDescription] = useState("");

@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { companies } from "@/db/schema";
-import { withAuthRLS } from "@/lib/auth-utils";
+import { withAuthRLS } from "@/lib/auth/auth-utils";
 import { and, eq, inArray } from "drizzle-orm";
 
 /**

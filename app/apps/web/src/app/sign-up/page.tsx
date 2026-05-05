@@ -2,17 +2,17 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { authUsers, authAccounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { hashPassword } from "@/lib/password-hash";
+import { hashPassword } from "@/lib/auth/password-hash";
 import Link from "next/link";
 import { PasswordInput } from "@/components/ui/password-input";
 import { AuthSubmitButton } from "@/components/ui/auth-submit-button";
 import { signIn, auth } from "@/auth";
-import { sanitizeCallbackUrl } from "@/lib/auth-callback";
-import { isPasswordAcceptable as isPasswordStrong } from "@/lib/password-reset";
-import { createVerifyTokenForUser } from "@/lib/email-verification";
+import { sanitizeCallbackUrl } from "@/lib/auth/auth-callback";
+import { isPasswordAcceptable as isPasswordStrong } from "@/lib/auth/password-reset";
+import { createVerifyTokenForUser } from "@/lib/emails/email-verification";
 import { sendVerifyEmail } from "@/lib/emails/verify-email";
-import { isPasswordPwned } from "@/lib/password-pwned";
-import { logger } from "@/lib/logger";
+import { isPasswordPwned } from "@/lib/auth/password-pwned";
+import { logger } from "@/lib/observability/logger";
 
 export default async function SignUpPage({
   searchParams,

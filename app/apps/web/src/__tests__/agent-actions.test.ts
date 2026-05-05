@@ -63,7 +63,7 @@ vi.mock("@/lib/logger", () => {
 });
 
 const { recordAgentAction, reverseAgentAction } = await import(
-  "@/lib/agent-actions"
+  "@/lib/agents/agent-actions"
 );
 
 beforeEach(() => {

@@ -19,8 +19,8 @@ import {
   connectedMailboxes,
 } from "@/db/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { z } from "zod";
 
 const learningSchema = z.object({

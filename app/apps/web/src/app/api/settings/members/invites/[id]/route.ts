@@ -1,9 +1,9 @@
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { pendingInvites, tenants, users } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { sendInviteEmail } from "@/lib/email-invite";
-import { generateInviteToken } from "@/lib/invite-token";
+import { sendInviteEmail } from "@/lib/emails/email-invite";
+import { generateInviteToken } from "@/lib/auth/invite-token";
 
 const MAX_RESENDS = 3;
 

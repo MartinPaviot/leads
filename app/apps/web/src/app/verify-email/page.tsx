@@ -5,7 +5,7 @@ import {
   consumeVerifyToken,
   markEmailVerified,
   validateVerifyToken,
-} from "@/lib/email-verification";
+} from "@/lib/emails/email-verification";
 
 /**
  * S2 — `/verify-email?token=…`

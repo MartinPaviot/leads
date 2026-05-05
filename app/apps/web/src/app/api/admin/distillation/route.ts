@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
-import { apiError } from "@/lib/api-errors";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { apiError } from "@/lib/infra/api-errors";
 import {
   getDistillationStats,
   exportDistillationDataset,

@@ -13,7 +13,7 @@ import {
 } from "@/db/schema";
 import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { searchSimilar } from "@/lib/embeddings";
+import { searchSimilar } from "@/lib/ai/embeddings";
 import { makeTool, type ToolContext } from "./context";
 
 function toSnake(camel: string): string {

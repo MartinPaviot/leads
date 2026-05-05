@@ -4,7 +4,7 @@ import {
   filtersToQuery,
   operatorsForType,
   validateFilters,
-} from "@/lib/filters";
+} from "@/lib/search/filters";
 
 describe("operatorsForType", () => {
   it("returns the expected operators per type", () => {

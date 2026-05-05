@@ -28,16 +28,16 @@ import {
   users,
 } from "@/db/schema";
 import { and, eq, gte, notInArray, sql } from "drizzle-orm";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { getModelForTask } from "@/lib/ai-provider";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { getModelForTask } from "@/lib/ai/ai-provider";
 import { z } from "zod";
-import { getTenantSettings } from "@/lib/tenant-settings";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 import {
   enforceAgentApprovalMode,
   readApprovalMode,
   type GuardedAction,
 } from "@/lib/guardrails/approval-mode";
-import { recordAgentAction, DEFAULT_EMAIL_GRACE_MS } from "@/lib/agent-actions";
+import { recordAgentAction, DEFAULT_EMAIL_GRACE_MS } from "@/lib/agents/agent-actions";
 import { loadReactorContext } from "@/lib/agent-reactor/context-loader";
 import {
   buildDecisionSystemPrompt,
@@ -51,7 +51,7 @@ import type {
 } from "@/lib/agent-reactor/types";
 import { HEURISTIC_DECISIONS } from "@/lib/agent-reactor/types";
 import { createOutcomeWatcher } from "@/lib/outcomes/create-watcher";
-import logger from "@/lib/logger";
+import logger from "@/lib/observability/logger";
 
 const DEDUP_WINDOW_MS = 60 * 60 * 1000; // 60 minutes
 

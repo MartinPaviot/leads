@@ -19,8 +19,8 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { selectStrategy, StrategyError } from "@/lib/campaign-engine/select-strategy";
 import { gateAction } from "@/lib/campaign-engine/execution-gate";
 import { buildIntelligenceBrief } from "@/lib/campaign-engine/build-intelligence-brief";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { z } from "zod";
 import { PLAYBOOK_PROMPTS } from "./decision-engine-prompts";
 
@@ -123,7 +123,7 @@ export const campaignDecisionEngine = inngest.createFunction(
     // LLM decision: given the event + state + brief + strategy, what's the next action?
     const decision = await step.run("decide", async () => {
       const model = anthropic("claude-sonnet-4-6");
-      const strategyPrompt = strategy ? (PLAYBOOK_PROMPTS[strategy.strategyId] || "") : "";
+      const strategyPrompt = strategy ? (PLAYBOOK_PROMPTS[strategy.strategyId as keyof typeof PLAYBOOK_PROMPTS] || "") : "";
 
       const { object } = await tracedGenerateObject({
         model,

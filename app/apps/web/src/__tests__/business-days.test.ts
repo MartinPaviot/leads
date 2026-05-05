@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { addBusinessDays, rollToBusinessDay } from "@/lib/business-days";
+import { addBusinessDays, rollToBusinessDay } from "@/lib/util/business-days";
 
 // Helpers — explicit weekday construction
 const MONDAY    = new Date("2026-04-13T10:00:00Z"); // weekday 1

@@ -2,14 +2,14 @@ import { db } from "@/db";
 import { chatMemories } from "@/db/schema";
 import { and, desc, eq, or } from "drizzle-orm";
 import { z } from "zod";
-import { exploreGraphAroundEntity } from "@/lib/context-graph";
+import { exploreGraphAroundEntity } from "@/lib/ai/context-graph";
 import {
   findPaths,
   findSharedConnections,
   findRelatedEntities,
   findNodeByName,
   listRelationTypes,
-} from "@/lib/graph-reasoning";
+} from "@/lib/ai/graph-reasoning";
 import { makeTool, type ToolContext } from "./context";
 
 export function buildMemoryTools(ctx: ToolContext) {

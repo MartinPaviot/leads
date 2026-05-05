@@ -7,10 +7,10 @@
  */
 
 import { generateObject, generateText } from "ai";
-import { anthropic } from "@/lib/ai-provider";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { buildOnboardingSystemPrompt } from "@/lib/prompts/onboarding-system-prompt";
-import { getAuthContext } from "@/lib/auth-utils";
-import { updateTenantSettings } from "@/lib/tenant-settings";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { updateTenantSettings } from "@/lib/config/tenant-settings";
 import { inngest } from "@/inngest/client";
 import { z } from "zod";
 

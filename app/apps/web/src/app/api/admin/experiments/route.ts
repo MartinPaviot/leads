@@ -7,11 +7,11 @@
  * DELETE /api/admin/experiments?id=X  — delete an experiment (only draft/canceled)
  */
 
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { promptExperiments } from "@/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
-import { concludeExpiredExperiments, type ExperimentResults } from "@/lib/prompt-experiments";
+import { concludeExpiredExperiments, type ExperimentResults } from "@/lib/prompts/prompt-experiments";
 
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();

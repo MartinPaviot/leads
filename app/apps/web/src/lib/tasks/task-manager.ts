@@ -2,8 +2,8 @@ import { db } from "@/db";
 import { agentTasks } from "@/db/schema";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { inngest } from "@/inngest/client";
-import { sendNotification } from "@/lib/notifications";
-import logger from "@/lib/logger";
+import { sendNotification } from "@/lib/emails/notifications";
+import logger from "@/lib/observability/logger";
 
 export type AgentTaskType =
   | "import"

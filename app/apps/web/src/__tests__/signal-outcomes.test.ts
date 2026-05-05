@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeMultiplier,
   listKnownSignalTypes,
-} from "@/lib/signal-outcomes";
+} from "@/lib/scoring/signal-outcomes";
 
 describe("signal-outcomes math", () => {
   describe("computeMultiplier", () => {

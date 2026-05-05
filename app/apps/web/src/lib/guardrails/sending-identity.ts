@@ -12,7 +12,7 @@
  * rule until the user explicitly upgrades.
  */
 
-import type { TenantSettings } from "@/lib/tenant-settings";
+import type { TenantSettings } from "@/lib/config/tenant-settings";
 
 export type SendingMailboxMode = NonNullable<TenantSettings["sendingMailboxMode"]>;
 

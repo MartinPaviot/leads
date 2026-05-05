@@ -51,7 +51,7 @@ vi.mock("@/lib/emails/welcome", () => ({
   }),
 }));
 
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 
 const saveModule = await import("@/app/api/onboarding/save/route");
 

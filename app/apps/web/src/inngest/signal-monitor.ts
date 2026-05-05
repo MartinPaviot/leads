@@ -12,7 +12,8 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import { companies, tenants, sequenceEnrollments, contacts } from "@/db/schema";
 import { eq, and, desc, isNotNull, sql, ne } from "drizzle-orm";
-import { invalidateBrief } from "@/lib/campaign-engine/build-intelligence-brief";
+import { invalidateBrief, buildIntelligenceBrief } from "@/lib/campaign-engine/build-intelligence-brief";
+import { selectStrategy } from "@/lib/campaign-engine/select-strategy";
 import { fetchRecentNews } from "@/lib/campaign-engine/sources/news";
 import { scrapeJobPostings } from "@/lib/campaign-engine/sources/jobs";
 

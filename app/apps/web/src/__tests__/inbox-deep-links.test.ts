@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   detectInboxProvider,
   resolveInboxDeepLinks,
-} from "@/lib/inbox-deep-links";
+} from "@/lib/emails/inbox-deep-links";
 
 describe("detectInboxProvider", () => {
   it.each([

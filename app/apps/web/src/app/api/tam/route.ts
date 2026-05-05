@@ -1,12 +1,12 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { apiError } from "@/lib/api-errors";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
+import { apiError } from "@/lib/infra/api-errors";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
-import { anthropic } from "@/lib/ai-provider";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
-import { tracedGenerateObject } from "@/lib/traced-ai";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { z } from "zod";
 import {
   searchOrganizations,
@@ -16,9 +16,9 @@ import {
   isApolloAvailable,
   type OrgSearchParams,
   type OrgSearchOrganization,
-} from "@/lib/apollo-client";
-import { getTenantSettings } from "@/lib/tenant-settings";
-import { sizesToApolloRanges } from "@/lib/icp-constants";
+} from "@/lib/integrations/apollo-client";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
+import { sizesToApolloRanges } from "@/lib/config/icp-constants";
 
 /**
  * TAM building strategy (v2 — search-first):

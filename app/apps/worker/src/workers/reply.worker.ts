@@ -1,9 +1,8 @@
 import { Worker } from "bullmq";
 import { connection } from "../queues/index.js";
 import Anthropic from "@anthropic-ai/sdk";
-import postgres from "postgres";
-
-const sql = postgres(process.env.DATABASE_URL!);
+import { db, outboundEmails, emailOptouts, sequenceEnrollments } from "../db.js";
+import { eq } from "drizzle-orm";
 
 export function createReplyWorker() {
   const worker = new Worker(
@@ -11,7 +10,6 @@ export function createReplyWorker() {
     async (job) => {
       const { outboundEmailId, replyText, replyFrom, replyMessageId } = job.data;
 
-      // Classify the reply using Claude
       let classification = "unknown";
       try {
         const client = new Anthropic();
@@ -40,52 +38,57 @@ Respond with ONLY the category name.`,
         classification = "question";
       }
 
-      // Update outbound email
-      await sql`
-        UPDATE outbound_emails SET
-          replied_at = NOW(),
-          reply_classification = ${classification},
-          reply_snippet = ${(replyText || "").substring(0, 200)},
-          updated_at = NOW()
-        WHERE id = ${outboundEmailId}
-      `;
+      await db
+        .update(outboundEmails)
+        .set({
+          repliedAt: new Date(),
+          replyClassification: classification,
+          replySnippet: (replyText || "").substring(0, 200),
+          updatedAt: new Date(),
+        })
+        .where(eq(outboundEmails.id, outboundEmailId));
 
-      // Take action based on classification
-      const [email] = await sql`SELECT * FROM outbound_emails WHERE id = ${outboundEmailId}`;
+      const [email] = await db
+        .select()
+        .from(outboundEmails)
+        .where(eq(outboundEmails.id, outboundEmailId));
       if (!email) return;
 
       switch (classification) {
         case "unsubscribe":
-          // Opt-out + stop enrollment
-          await sql`
-            INSERT INTO email_optouts (id, tenant_id, email_address, reason)
-            VALUES (gen_random_uuid(), ${email.tenant_id}, ${email.to_address}, 'unsubscribe')
-            ON CONFLICT (tenant_id, email_address) DO NOTHING
-          `;
-          if (email.enrollment_id) {
-            await sql`UPDATE sequence_enrollments SET status = 'unsubscribed' WHERE id = ${email.enrollment_id}`;
+          await db
+            .insert(emailOptouts)
+            .values({
+              tenantId: email.tenantId,
+              emailAddress: email.toAddress,
+              reason: "unsubscribe",
+            })
+            .onConflictDoNothing();
+          if (email.enrollmentId) {
+            await db
+              .update(sequenceEnrollments)
+              .set({ status: "unsubscribed" as any })
+              .where(eq(sequenceEnrollments.id, email.enrollmentId));
           }
           break;
 
         case "not_interested":
-          // Stop enrollment
-          if (email.enrollment_id) {
-            await sql`UPDATE sequence_enrollments SET status = 'replied' WHERE id = ${email.enrollment_id}`;
-          }
-          break;
-
         case "interested":
         case "question":
-          // Mark enrollment as replied (pause further steps)
-          if (email.enrollment_id) {
-            await sql`UPDATE sequence_enrollments SET status = 'replied' WHERE id = ${email.enrollment_id}`;
+          if (email.enrollmentId) {
+            await db
+              .update(sequenceEnrollments)
+              .set({ status: "replied" as any })
+              .where(eq(sequenceEnrollments.id, email.enrollmentId));
           }
           break;
 
         case "ooo":
-          // Reschedule: pause enrollment, will resume later
-          if (email.enrollment_id) {
-            await sql`UPDATE sequence_enrollments SET status = 'paused' WHERE id = ${email.enrollment_id}`;
+          if (email.enrollmentId) {
+            await db
+              .update(sequenceEnrollments)
+              .set({ status: "paused" as any })
+              .where(eq(sequenceEnrollments.id, email.enrollmentId));
           }
           break;
       }

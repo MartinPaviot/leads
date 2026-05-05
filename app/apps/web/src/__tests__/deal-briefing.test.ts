@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { dealBriefSchema } from "@/lib/deal-briefing-schema";
+import { dealBriefSchema } from "@/lib/deals/deal-briefing-schema";
 
 describe("dealBriefSchema", () => {
   const validBrief = {

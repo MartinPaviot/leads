@@ -1,4 +1,4 @@
-import { enrichCompanyByDomain, isDatagmaAvailable } from "@/lib/datagma-client";
+import { enrichCompanyByDomain, isDatagmaAvailable } from "@/lib/integrations/datagma-client";
 import type {
   CompanyEnrichmentProvider,
   EnrichInput,
