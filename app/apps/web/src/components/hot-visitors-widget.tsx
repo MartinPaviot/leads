@@ -23,6 +23,10 @@ interface HotVisitor {
   lastUrl: string | null;
   lastVisitAt: string;
   visitCount: number;
+  /** P0-2 task 2.4 — operational state the founder needs to know
+   *  whether the system is already on it. */
+  openDeal: { id: string; name: string; stage: string } | null;
+  activeEnrollments: number;
 }
 
 function relativeTime(iso: string): string {
@@ -168,6 +172,36 @@ export function HotVisitorsWidget() {
                     {pathFromUrl(v.lastUrl)}
                     {v.companyScore != null ? ` · score ${Math.round(v.companyScore)}` : ""}
                   </div>
+                  {(v.openDeal || v.activeEnrollments > 0) && (
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                      {v.openDeal && (
+                        <span
+                          className="rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider"
+                          style={{
+                            background: "var(--color-success-soft, rgba(16,185,129,0.10))",
+                            color: "var(--color-success, #059669)",
+                            border: "1px solid rgba(16,185,129,0.25)",
+                          }}
+                          title={`Open deal in ${v.openDeal.stage}`}
+                        >
+                          Open deal · {v.openDeal.stage}
+                        </span>
+                      )}
+                      {v.activeEnrollments > 0 && (
+                        <span
+                          className="rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                          style={{
+                            background: "var(--color-accent-soft, rgba(99,102,241,0.10))",
+                            color: "var(--color-accent, #6366f1)",
+                            border: "1px solid rgba(99,102,241,0.25)",
+                          }}
+                          title="Contacts at this company are active in a sequence"
+                        >
+                          {v.activeEnrollments} in sequence
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div
                   className="flex shrink-0 items-center gap-1 text-[11px]"
