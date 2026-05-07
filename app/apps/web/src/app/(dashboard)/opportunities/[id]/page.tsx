@@ -18,6 +18,7 @@ import { DetailPageSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { EmailComposerPanel } from "@/components/email-composer-panel";
 import type { EmailComposerDraft } from "@/components/email-composer-panel";
+import { DealPropertyCell } from "@/components/deal-property-cell";
 
 interface Deal {
   id: string;
@@ -487,18 +488,42 @@ export default function DealDetailPage() {
           </Card>
         )}
 
-        {/* G9: Structured Data Extraction */}
+        {/* P0-5 task 5.6 — Autofilled deal intelligence with source
+            attribution. Each cell shows the value plus a hover-tooltip
+            describing where it came from (email/transcript/manual),
+            when, and the LLM confidence. Manual entries surface a
+            "manual" badge so the user knows autofill won't overwrite.
+            Renders only when at least one autofill field is present. */}
         {(() => {
           const props = deal.properties as Record<string, unknown> | null;
-          if (!props?.extractedBudget) return null;
+          if (!props) return null;
+          const fields = [
+            "budget",
+            "team_size",
+            "current_crm",
+            "competitors",
+            "timeline",
+            "point_solutions",
+          ];
+          // Hide the section entirely until autofill has any data —
+          // avoids an empty card on brand-new deals.
+          const anyPresent = fields.some(
+            (f) => props[f] !== undefined && props[f] !== null && props[f] !== "",
+          );
+          if (!anyPresent) return null;
           return (
             <Card className="mt-4">
               <CardBody>
-                <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] mb-2">Extracted Intelligence</p>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  {props.extractedBudget ? <div><span className="text-[var(--color-text-tertiary)]">Budget:</span> <span className="text-[var(--color-text-primary)]">{String(props.extractedBudget)}</span></div> : null}
-                  {props.extractedTeamSize ? <div><span className="text-[var(--color-text-tertiary)]">Team size:</span> <span className="text-[var(--color-text-primary)]">{String(props.extractedTeamSize)}</span></div> : null}
-                  {props.extractedDecisionMaker ? <div><span className="text-[var(--color-text-tertiary)]">Decision maker:</span> <span className="text-[var(--color-text-primary)]">{String(props.extractedDecisionMaker)}</span></div> : null}
+                <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] mb-3">
+                  Autofilled intelligence
+                </p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  <DealPropertyCell properties={props} fieldName="budget" label="Budget" />
+                  <DealPropertyCell properties={props} fieldName="team_size" label="Team size" />
+                  <DealPropertyCell properties={props} fieldName="current_crm" label="Current CRM" />
+                  <DealPropertyCell properties={props} fieldName="timeline" label="Timeline" />
+                  <DealPropertyCell properties={props} fieldName="competitors" label="Competitors" />
+                  <DealPropertyCell properties={props} fieldName="point_solutions" label="Point solutions" />
                 </div>
               </CardBody>
             </Card>
