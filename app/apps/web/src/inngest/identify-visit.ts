@@ -158,12 +158,12 @@ export const identifyVisit = inngest.createFunction(
         candidate,
         deps: {
           findRecentIdentification: async ({ tenantId: tid, candidate: cand, cutoff }) => {
-            // The schema currently stores ipHash on `visits` ; subnet
-            // hashing is opt-in via a follow-up migration. Until then
-            // the ipHash exact-match is the active dedup path. The
-            // `cand.subnetHash` branch will plug in once the column
-            // ships without changing this signature.
-            const [hit] = await db
+            // Two-pass match : exact ipHash first (highest confidence,
+            // catches the "same browser came back" case), then /24
+            // subnetHash (catches same-office different-NAT). Only run
+            // the subnet pass when the candidate has a subnet hash —
+            // IPv6 / malformed inputs return null from hashSubnet().
+            const [exactHit] = await db
               .select({
                 companyDomain: visits.companyDomain,
                 companyId: visits.companyId,
@@ -180,12 +180,39 @@ export const identifyVisit = inngest.createFunction(
               )
               .orderBy(desc(visits.identifiedAt))
               .limit(1);
-            if (!hit?.companyDomain || !hit.identifiedAt) return null;
+            if (exactHit?.companyDomain && exactHit.identifiedAt) {
+              const prior: PriorIdentification = {
+                companyDomain: exactHit.companyDomain,
+                companyId: exactHit.companyId ?? "",
+                identifiedAt: exactHit.identifiedAt,
+                matchedBy: "ip_hash",
+              };
+              return prior;
+            }
+            if (!cand.subnetHash) return null;
+            const [subnetHit] = await db
+              .select({
+                companyDomain: visits.companyDomain,
+                companyId: visits.companyId,
+                identifiedAt: visits.identifiedAt,
+              })
+              .from(visits)
+              .where(
+                and(
+                  eq(visits.tenantId, tid),
+                  isNotNull(visits.companyDomain),
+                  gte(visits.identifiedAt, cutoff),
+                  eq(visits.subnetHash, cand.subnetHash),
+                ),
+              )
+              .orderBy(desc(visits.identifiedAt))
+              .limit(1);
+            if (!subnetHit?.companyDomain || !subnetHit.identifiedAt) return null;
             const prior: PriorIdentification = {
-              companyDomain: hit.companyDomain,
-              companyId: hit.companyId ?? "",
-              identifiedAt: hit.identifiedAt,
-              matchedBy: "ip_hash",
+              companyDomain: subnetHit.companyDomain,
+              companyId: subnetHit.companyId ?? "",
+              identifiedAt: subnetHit.identifiedAt,
+              matchedBy: "subnet_hash",
             };
             return prior;
           },

@@ -81,6 +81,11 @@ export const visits = pgTable(
     visitorId: text("visitor_id").notNull(),
     /** SHA-256(remote IP) — never store the raw IP. */
     ipHash: text("ip_hash").notNull(),
+    /** SHA-256("/24 subnet of ip"). Optional ; pixel endpoint
+     *  populates it for IPv4. Used by the dedup window to catch
+     *  the "same office, different NAT IP" case so we don't pay
+     *  the provider twice. Null for IPv6 / malformed inputs. */
+    subnetHash: text("subnet_hash"),
     url: text("url").notNull(),
     referrer: text("referrer"),
     /** UTM params and other marketing tags. */
