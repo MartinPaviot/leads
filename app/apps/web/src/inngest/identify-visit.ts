@@ -17,7 +17,14 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import { visits, companies, tenants, visitorIdCharges } from "@/db/schema";
 import { eq, and, gte, isNotNull, sql } from "drizzle-orm";
-import { getVisitorIdProvider } from "@/lib/visitor-id/snitcher";
+import { snitcherProvider } from "@/lib/visitor-id/snitcher";
+import { rb2bProvider } from "@/lib/visitor-id/rb2b";
+import { clearbitProvider } from "@/lib/visitor-id/clearbit";
+import {
+  resolveProvider,
+  noneProvider,
+  type ProviderRegistry,
+} from "@/lib/visitor-id/provider-resolver";
 import { logger } from "@/lib/observability/logger";
 import {
   loadSpendDecision,
@@ -38,21 +45,46 @@ interface IdentifyEvent {
   data: { visitId: string; tenantId: string; ip?: string };
 }
 
+// P0-2 follow-up : per-tenant provider registry. Each provider is
+// stub-safe (returns null when its API key is missing) so the
+// resolver can fall back cleanly to Snitcher → none without throws.
+const PROVIDER_REGISTRY: ProviderRegistry = {
+  snitcher: snitcherProvider,
+  rb2b: rb2bProvider,
+  clearbit_reveal: clearbitProvider,
+  none: noneProvider,
+};
+
 export const identifyVisit = inngest.createFunction(
   {
     id: "identify-visit",
-    name: "Identify visitor company (Snitcher / RB2B)",
+    name: "Identify visitor company (Snitcher / RB2B / Clearbit)",
     retries: 1,
     triggers: [{ event: "visit/created" }],
   },
   async ({ event, step }: { event: IdentifyEvent; step: any }) => {
     const { visitId, tenantId } = event.data;
 
-    const provider = getVisitorIdProvider();
-    if (!provider.isAvailable()) {
+    // P0-2 follow-up : resolve the per-tenant provider FIRST so the
+    // rest of the worker uses the right one. The default still
+    // routes to Snitcher (Monaco-aligned) when no setting present.
+    const tenantSettings = await step.run("fetch-tenant-settings", async () => {
+      const [t] = await db
+        .select({ settings: tenants.settings })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId))
+        .limit(1);
+      return (t?.settings as Record<string, unknown> | null) ?? null;
+    });
+    const provider = resolveProvider({
+      settings: tenantSettings,
+      registry: PROVIDER_REGISTRY,
+    });
+    if (provider.name === "none") {
       logger.info("identify-visit: provider unavailable, skipping", {
         provider: provider.name,
         visitId,
+        tenantId,
       });
       return { skipped: true, reason: "provider_unavailable" };
     }
