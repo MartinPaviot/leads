@@ -15,7 +15,7 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import { activities, contacts, deals } from "@/db/schema";
 import { eq, and, sql, gte, lte, inArray } from "drizzle-orm";
-import { sendNotification } from "@/lib/notifications";
+import { sendNotification } from "@/lib/emails/notifications";
 
 export const autoBriefingTrigger = inngest.createFunction(
   {

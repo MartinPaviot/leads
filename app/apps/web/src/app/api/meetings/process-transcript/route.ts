@@ -1,14 +1,17 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { activities, contacts, companies, deals } from "@/db/schema";
 import { eq, and, ilike, or } from "drizzle-orm";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
-import { embedEntity, activityToText } from "@/lib/embeddings";
-import { ingestEpisode } from "@/lib/context-graph";
+import { embedEntity, activityToText } from "@/lib/ai/embeddings";
+import { ingestEpisode } from "@/lib/ai/context-graph";
+import { indexTranscript } from "@/lib/coaching/index-transcript";
+import { logger } from "@/lib/observability/logger";
+import { llmCall } from "@/lib/ai/llm-call";
 
 const meetingNotesSchema = z.object({
   summary: z.string().describe("2-3 sentence meeting summary"),
@@ -67,11 +70,17 @@ export async function POST(req: Request) {
       return Response.json({ error: "Transcript required (min 50 characters)" }, { status: 400 });
     }
 
-    // Extract structured notes from transcript
-    const { object: rawNotes } = await tracedGenerateObject({
-      model,
-      schema: meetingNotesSchema,
-      prompt: `Analyze this meeting transcript and extract structured notes.
+    // Extract structured notes from transcript. Wrapped in llmCall
+    // so cost / latency / retries / fallback flow into `llm_calls`
+    // for the Sprint-1 admin dashboard. Anthropic primary, OpenAI
+    // gpt-4o-mini fallback when Anthropic errors terminally.
+    const isPrimaryAnthropic = !!process.env.ANTHROPIC_API_KEY;
+    const { object: rawNotes } = (await llmCall({
+      fn: tracedGenerateObject,
+      args: [{
+        model,
+        schema: meetingNotesSchema,
+        prompt: `Analyze this meeting transcript and extract structured notes.
 
 MEETING: ${meetingTitle || "Untitled Meeting"}
 DATE: ${meetingDate || "Unknown"}
@@ -85,11 +94,21 @@ RULES:
 - For buying signals, only include if explicitly mentioned
 - Set fields to null/empty if not discussed
 - Be specific with action items — include who and what`,
-      providerOptions: {
-        anthropic: { cacheControl: { type: "ephemeral" } },
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+        _trace: { agentId: "process-transcript", tenantId: authCtx.tenantId },
+      }] as never,
+      fallbackModel: isPrimaryAnthropic ? openai("gpt-4o-mini") : undefined,
+      retries: 1,
+      timeoutMs: 60_000,
+      trace: {
+        tenantId: authCtx.tenantId,
+        surfaceId: "process-transcript",
+        promptId: "meeting-notes-extraction.v1",
+        metadata: { agentId: "process-transcript", activityId, dealId },
       },
-      _trace: { agentId: "process-transcript", tenantId: authCtx.tenantId },
-    });
+    })) as { object: z.infer<typeof meetingNotesSchema> };
     const notes = rawNotes as any;
 
     // Try to match participants to existing contacts
@@ -139,6 +158,7 @@ RULES:
     }
 
     // Save as activity if activityId provided (update existing meeting activity)
+    let resolvedMeetingId: string | null = activityId ?? null;
     if (activityId) {
       await db
         .update(activities)
@@ -169,7 +189,7 @@ RULES:
         entityId = "";
       }
 
-      await db.insert(activities).values({
+      const [insertedActivity] = await db.insert(activities).values({
         tenantId: authCtx.tenantId,
         actorType: "user",
         actorId: authCtx.appUserId,
@@ -189,6 +209,31 @@ RULES:
           transcriptLength: transcript.length,
           processedAt: new Date().toISOString(),
         },
+      }).returning({ id: activities.id });
+      resolvedMeetingId = insertedActivity?.id ?? null;
+    }
+
+    // MONACO-PARITY-05: index the transcript into transcript_chunks
+    // for RAG coaching. Fire-and-forget — failure to index never
+    // blocks the user response. The chunks may take a few seconds
+    // to land if the embedding API is slow.
+    if (resolvedMeetingId) {
+      indexTranscript({
+        tenantId: authCtx.tenantId,
+        meetingId: resolvedMeetingId,
+        rawText: transcript,
+        // No segment-level data here — process-transcript receives
+        // a flat string. When Recall.ai ships speaker-diarized
+        // segments, they should pass `segments` instead and the
+        // chunker switches automatically.
+        totalDurationSec: 0, // unknown from this entry point
+        source: "manual_paste",
+      }).catch((err) => {
+        logger.warn("process-transcript: indexTranscript failed", {
+          tenantId: authCtx.tenantId,
+          meetingId: resolvedMeetingId,
+          err: err instanceof Error ? err.message : String(err),
+        });
       });
     }
 

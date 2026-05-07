@@ -2,22 +2,26 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { authUsers, authAccounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { hashPassword } from "@/lib/password-hash";
+import { hashPassword } from "@/lib/auth/password-hash";
 import Link from "next/link";
 import { PasswordInput } from "@/components/ui/password-input";
 import { AuthSubmitButton } from "@/components/ui/auth-submit-button";
+import { BodyScrollUnlock } from "@/components/auth/body-scroll-unlock";
 import { signIn, auth } from "@/auth";
-import { sanitizeCallbackUrl } from "@/lib/auth-callback";
-import { isPasswordAcceptable as isPasswordStrong } from "@/lib/password-reset";
-import { createVerifyTokenForUser } from "@/lib/email-verification";
+import {
+  sanitizeCallbackUrl,
+  isNextControlFlowError,
+} from "@/lib/auth/auth-callback";
+import { isPasswordAcceptable as isPasswordStrong } from "@/lib/auth/password-reset";
+import { createVerifyTokenForUser } from "@/lib/emails/email-verification";
 import { sendVerifyEmail } from "@/lib/emails/verify-email";
-import { isPasswordPwned } from "@/lib/password-pwned";
-import { logger } from "@/lib/logger";
+import { isPasswordPwned } from "@/lib/auth/password-pwned";
+import { logger } from "@/lib/observability/logger";
 
 export default async function SignUpPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; invite?: string; email?: string; callbackUrl?: string }>;
+  searchParams: Promise<{ error?: string; invite?: string; email?: string; callbackUrl?: string; provider?: string }>;
 }) {
   const params = await searchParams;
 
@@ -45,8 +49,24 @@ export default async function SignUpPage({
   };
   const fieldError = params.error ? FIELD_ERRORS[params.error] : undefined;
   const missingFields = params.error === "MissingFields";
+
+  // OAuth bootstrap failure: the sign-up server actions wrap signIn in
+  // try/catch so a network/TLS error reaching the provider's well-known
+  // endpoint surfaces inline here instead of bouncing the user to the
+  // raw NextAuth `/api/auth/error?error=Configuration` page (which reads
+  // as "the product is broken" — it isn't). Provider name is included
+  // so we can name the offender.
+  const oauthUnavailableProvider =
+    params.error === "OAuthUnavailable"
+      ? params.provider === "microsoft"
+        ? "Microsoft"
+        : params.provider === "google"
+          ? "Google"
+          : "this provider"
+      : null;
+
   const unknownError =
-    params.error && !fieldError && !missingFields
+    params.error && !fieldError && !missingFields && !oauthUnavailableProvider
       ? "Something went wrong. Please try again."
       : null;
   const inviteToken = (params.invite || "").trim();
@@ -175,11 +195,12 @@ export default async function SignUpPage({
 
   return (
     <div
-      className="bg-grid flex min-h-screen items-center justify-center"
+      className="bg-grid flex min-h-screen flex-col px-4 py-8"
       style={{ background: "var(--color-bg-page)" }}
     >
+      <BodyScrollUnlock />
       <div
-        className="w-full max-w-sm space-y-3 rounded-xl px-8 py-6"
+        className="m-auto w-full max-w-sm space-y-3 rounded-xl px-7 py-5"
         style={{
           background: "var(--color-bg-card)",
           border: "1px solid var(--color-border-default)",
@@ -202,7 +223,23 @@ export default async function SignUpPage({
             className="flex-1"
             action={async () => {
               "use server";
-              await signIn("google", { redirectTo: oauthRedirectTo });
+              try {
+                await signIn("google", { redirectTo: oauthRedirectTo });
+              } catch (err) {
+                // signIn throws NEXT_REDIRECT on success — rethrow it
+                // so Next can perform the redirect.
+                if (isNextControlFlowError(err)) throw err;
+                // Real failure (TLS, DNS, provider down, misconfig).
+                // Land back on /sign-up with an inline message instead
+                // of the raw NextAuth `/api/auth/error?error=Configuration`
+                // page which reads as "the product is broken".
+                const inviteQ = inviteToken
+                  ? `&invite=${encodeURIComponent(inviteToken)}`
+                  : "";
+                redirect(
+                  `/sign-up?error=OAuthUnavailable&provider=google${inviteQ}`
+                );
+              }
             }}
           >
             <button
@@ -229,7 +266,19 @@ export default async function SignUpPage({
             className="flex-1"
             action={async () => {
               "use server";
-              await signIn("microsoft-entra-id", { redirectTo: oauthRedirectTo });
+              try {
+                await signIn("microsoft-entra-id", {
+                  redirectTo: oauthRedirectTo,
+                });
+              } catch (err) {
+                if (isNextControlFlowError(err)) throw err;
+                const inviteQ = inviteToken
+                  ? `&invite=${encodeURIComponent(inviteToken)}`
+                  : "";
+                redirect(
+                  `/sign-up?error=OAuthUnavailable&provider=microsoft${inviteQ}`
+                );
+              }
             }}
           >
             <button
@@ -269,6 +318,21 @@ export default async function SignUpPage({
             }}
           >
             Please fill in all fields.
+          </div>
+        )}
+        {oauthUnavailableProvider && (
+          <div
+            role="alert"
+            className="rounded-lg px-3 py-2 text-[13px]"
+            style={{
+              background: "rgba(245, 158, 11, 0.10)",
+              color: "var(--color-text-primary)",
+              border: "1px solid rgba(245, 158, 11, 0.30)",
+            }}
+          >
+            <strong>{oauthUnavailableProvider} sign-in unreachable.</strong>{" "}
+            Your network blocked the connection to {oauthUnavailableProvider}.
+            Try a different provider above, or use email below.
           </div>
         )}
         {unknownError && (

@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { contacts, companies } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { enrichPerson, enrichOrganization } from "@/lib/apollo-client";
+import { enrichPerson, enrichOrganization } from "@/lib/integrations/apollo-client";
 import type { SkillRunOptions } from "@/skills/types";
 import type { InboundLeadEnrichmentInput, InboundLeadEnrichmentOutput } from "./schema";
 

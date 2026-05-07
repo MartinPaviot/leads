@@ -1,0 +1,1 @@
+"Status\nHistory\nSubscribe\nAll Systems Operational\nSystem Status\n90d\nFeb 6, 2026 – May 6, 2026\nWeb Application\n99.98% uptime\nOperational\nOperational\nPublic API\n100.00% uptime\nOperational\nOperational\nData Processing\n99.59% uptime\nOperational\nOperational\nEmail Open Rate Tracking\n100.00% uptime\nOperational\nOperational\nPowered by"

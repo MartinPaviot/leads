@@ -1,8 +1,8 @@
 import { db } from "@/db";
 import { emailOptouts, tenants, contacts } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { verifyUnsubscribeToken as verifyToken } from "@/lib/unsubscribe-token";
-import { pauseEnrollmentsForContacts } from "@/lib/enrollment";
+import { verifyUnsubscribeToken as verifyToken } from "@/lib/emails/unsubscribe-token";
+import { pauseEnrollmentsForContacts } from "@/lib/sequences/enrollment";
 
 async function pauseActiveEnrollmentsForEmail(tenantId: string, emailLower: string) {
   const matching = await db

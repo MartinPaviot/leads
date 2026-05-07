@@ -291,6 +291,7 @@ describe("tamReducer", () => {
         signalsLit: {
           investor_overlap: 3,
           funding_recent: 20,
+          funding_crunchbase: 0,
           hiring_intent: 44,
           yc_company: 7,
         },

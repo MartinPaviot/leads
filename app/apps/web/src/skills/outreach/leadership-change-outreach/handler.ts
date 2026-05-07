@@ -1,9 +1,10 @@
 import { db } from "@/db";
 import { companies, contacts } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
-import { searchPeople } from "@/lib/apollo-client";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { searchPeople } from "@/lib/integrations/apollo-client";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { getSkillKnowledge } from "@/skills/skill-knowledge";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import type { SkillRunOptions } from "@/skills/types";
@@ -21,13 +22,16 @@ export async function leadershipChangeOutreachHandler(
 ): Promise<LeadershipChangeOutreachOutput> {
   const changes: LeadershipChangeOutreachOutput["changes"] = [];
 
-  const companyRecords = await db
-    .select()
-    .from(companies)
-    .where(and(
-      inArray(companies.id, input.companyIds),
-      eq(companies.tenantId, options.tenantId),
-    ));
+  const [companyRecords, knowledgeBlock] = await Promise.all([
+    db
+      .select()
+      .from(companies)
+      .where(and(
+        inArray(companies.id, input.companyIds),
+        eq(companies.tenantId, options.tenantId),
+      )),
+    getSkillKnowledge("leadership change outreach product positioning", options.tenantId),
+  ]);
 
   const model = input.generateOutreach ? getLLMModel() : null;
 
@@ -78,7 +82,7 @@ export async function leadershipChangeOutreachHandler(
 Person: ${person.name} (${person.title}) at ${company.name}
 They appear to be a NEW hire/appointment at this company.
 
-Write a short, personalized cold email:
+${knowledgeBlock ? `## Knowledge Base\n${knowledgeBlock}\n` : ""}Write a short, personalized cold email:
 - Acknowledge their new role (without being creepy)
 - Connect it to a challenge they'll face in their first 90 days
 - Suggest a quick call to share how similar leaders approached it

@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { predictStalls } from "@/lib/analysis/stall-predictor";
 
 export async function GET() {

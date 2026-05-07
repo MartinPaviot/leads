@@ -1,9 +1,9 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { pendingInvites, users } from "@/db/schema";
 import { and, eq, ne } from "drizzle-orm";
-import { hashInviteToken } from "@/lib/invite-token";
-import { logAudit } from "@/lib/audit-log";
+import { hashInviteToken } from "@/lib/auth/invite-token";
+import { logAudit } from "@/lib/infra/audit-log";
 
 /**
  * Accept an invite for the currently-authenticated user.

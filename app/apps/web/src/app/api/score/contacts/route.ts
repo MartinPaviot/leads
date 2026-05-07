@@ -1,11 +1,11 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { contacts } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { scoreContact } from "@/lib/contact-scoring";
-import { getGrade } from "@/lib/scoring";
-import { getTenantSettings } from "@/lib/tenant-settings";
+import { scoreContact } from "@/lib/scoring/contact-scoring";
+import { getGrade } from "@/lib/scoring/scoring";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();

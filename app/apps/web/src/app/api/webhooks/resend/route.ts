@@ -2,7 +2,11 @@ import { db } from "@/db";
 import { outboundEmails, connectedMailboxes, sequenceEnrollments, emailOptouts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { createHmac, timingSafeEqual } from "crypto";
-import { pauseEnrollment } from "@/lib/enrollment";
+import { pauseEnrollment } from "@/lib/sequences/enrollment";
+import { inngest } from "@/inngest/client";
+import type { AgentTrigger } from "@/lib/agent-reactor/types";
+import { checkEmailOutcomes } from "@/lib/outcomes/resolve";
+import { trackPipeline, type PipelineStage } from "@/lib/analytics/pipeline-tracker";
 
 /**
  * Verify a Resend (Svix) webhook signature.
@@ -12,13 +16,11 @@ import { pauseEnrollment } from "@/lib/enrollment";
  * and the header `svix-signature` carries one or more `v1,<base64>` parts.
  *
  * We accept the request if any provided signature matches.
- *
- * In dev (no `RESEND_WEBHOOK_SECRET` set), we accept everything to ease
- * local testing. In prod, the secret MUST be configured.
+ * Fail-closed: if no secret is configured, ALL requests are rejected.
  */
 function verifyResendSignature(req: Request, rawBody: string): boolean {
   const secret = process.env.RESEND_WEBHOOK_SECRET;
-  if (!secret) return process.env.NODE_ENV !== "production";
+  if (!secret) return false;
 
   const id = req.headers.get("svix-id");
   const timestamp = req.headers.get("svix-timestamp");
@@ -197,6 +199,72 @@ export async function POST(req: Request) {
           }).where(eq(connectedMailboxes.id, email.mailboxId));
         }
         break;
+      }
+    }
+
+    // ── Pipeline tracking ──
+    const stageMap: Record<string, PipelineStage> = {
+      "email.delivered": "email_delivered",
+      "email.opened": "email_opened",
+      "email.clicked": "email_clicked",
+      "email.bounced": "email_bounced",
+      "email.complained": "email_bounced",
+    };
+    const pipelineStage = stageMap[type];
+    if (pipelineStage && email) {
+      await trackPipeline({
+        traceId: email.enrollmentId || email.id,
+        tenantId: email.tenantId,
+        contactId: email.contactId,
+        enrollmentId: email.enrollmentId,
+        outboundEmailId: email.id,
+        stage: pipelineStage,
+        sourceSystem: "webhook",
+        metadata: { webhookType: type, messageId },
+      });
+    }
+
+    // ── F003: Real-time outcome resolution ──
+    if (email && email.contactId) {
+      const outcomeMap: Record<string, "opened" | "clicked" | "bounced"> = {
+        "email.opened": "opened",
+        "email.clicked": "clicked",
+        "email.bounced": "bounced",
+        "email.complained": "bounced",
+      };
+      const outcomeEvent = outcomeMap[type];
+      if (outcomeEvent) {
+        checkEmailOutcomes(email.tenantId, email.contactId, outcomeEvent).catch(() => {});
+      }
+    }
+
+    // ── F001: Fire agent reactor event ──
+    if (email && (type === "email.opened" || type === "email.clicked" || type === "email.bounced" || type === "email.complained")) {
+      const triggerMap: Record<string, AgentTrigger> = {
+        "email.opened": "email_opened",
+        "email.clicked": "email_clicked",
+        "email.bounced": "email_bounced",
+        "email.complained": "email_bounced",
+      };
+      const trigger = triggerMap[type];
+      if (trigger && email.contactId) {
+        await inngest.send({
+          name: "agent/react",
+          data: {
+            tenantId: email.tenantId,
+            trigger,
+            entityType: "contact" as const,
+            entityId: email.contactId,
+            metadata: {
+              emailId: email.id,
+              subject: email.subject,
+              toAddress: email.toAddress,
+              eventType: type,
+            },
+            deduplicationKey: `${trigger}:contact:${email.contactId}`,
+            firedAt: new Date().toISOString(),
+          },
+        }).catch(() => {});
       }
     }
 

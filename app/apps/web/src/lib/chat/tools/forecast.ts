@@ -3,7 +3,7 @@ import { makeTool, type ToolContext } from "./context";
 import { db } from "@/db";
 import { deals, activities, companies } from "@/db/schema";
 import { and, eq, notInArray, sql } from "drizzle-orm";
-import { getTenantSettings } from "@/lib/tenant-settings";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 import {
   runMonteCarloForecast,
   type ActiveDeal,

@@ -1,8 +1,8 @@
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import {
   getTenantSettings,
   updateTenantSettings,
-} from "@/lib/tenant-settings";
+} from "@/lib/config/tenant-settings";
 
 /**
  * DPA status + GDPR compliance endpoint.

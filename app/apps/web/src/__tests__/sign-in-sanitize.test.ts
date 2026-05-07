@@ -4,7 +4,7 @@ import {
   SIGN_IN_ERROR_COPY,
   SIGN_IN_REASON_COPY,
   resolveSignInErrorCopy,
-} from "@/lib/auth-callback";
+} from "@/lib/auth/auth-callback";
 
 describe("sanitizeCallbackUrl", () => {
   it("defaults to /home when no callback is provided", () => {

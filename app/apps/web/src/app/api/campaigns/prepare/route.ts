@@ -1,9 +1,9 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { sequences, sequenceSteps } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { inngest } from "@/inngest/client";
-import type { CampaignConfig } from "@/lib/campaign-types";
+import type { CampaignConfig } from "@/lib/config/campaign-types";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import {
   getNudgeCandidate,
   recordNudgeResponse,
@@ -30,7 +30,7 @@ export async function GET() {
   // Surface the tenant's current mode + score so the UI can render
   // a contextual explanation ("You've approved 30 drafts — ready to
   // relax to batch review?"). Settings are already cached for 5s.
-  const { getTenantSettings } = await import("@/lib/tenant-settings");
+  const { getTenantSettings } = await import("@/lib/config/tenant-settings");
   const settings = await getTenantSettings(authCtx.tenantId);
 
   return NextResponse.json({

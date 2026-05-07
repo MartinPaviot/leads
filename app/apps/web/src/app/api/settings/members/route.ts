@@ -1,8 +1,8 @@
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { logAudit } from "@/lib/audit-log";
+import { logAudit } from "@/lib/infra/audit-log";
 
 export async function GET() {
   const authCtx = await getAuthContext();

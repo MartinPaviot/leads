@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
-import { useSafeFetch } from "@/lib/use-safe-fetch";
+import { useSafeFetch } from "@/lib/infra/use-safe-fetch";
 import {
   Mail,
   Plus,

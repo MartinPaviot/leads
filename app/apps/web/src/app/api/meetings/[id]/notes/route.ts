@@ -1,8 +1,8 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities, tasks } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
-import { logger } from "@/lib/logger";
+import { logger } from "@/lib/observability/logger";
 import { z } from "zod";
 
 export async function GET(

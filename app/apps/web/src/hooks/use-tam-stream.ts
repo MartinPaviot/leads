@@ -163,6 +163,7 @@ function reduceEvent(state: TamStreamState, event: TamEvent): TamStreamState {
       const signals: Partial<Record<SignalKey, SignalSlotState>> = {
         investor_overlap: { status: "pending" },
         funding_recent: { status: "pending" },
+        funding_crunchbase: { status: "pending" },
         hiring_intent: { status: "pending" },
         yc_company: { status: "pending" },
       };

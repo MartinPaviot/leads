@@ -15,7 +15,7 @@
 import { db } from "@/db";
 import { distillationSamples, companies, contacts } from "@/db/schema";
 import { eq, and, desc, gte, sql, count } from "drizzle-orm";
-import logger from "../logger";
+import logger from "../observability/logger";
 
 // ── Types ──────────────────────────────────────────────────────
 

@@ -86,8 +86,8 @@ import type {
   GraphFact,
   RecentEmailBody,
   EnrichedProspectContext,
-} from "@/lib/enriched-prospect-context";
-import { formatEnrichedContextForPrompt } from "@/lib/enriched-prospect-context";
+} from "@/lib/context/enriched-prospect-context";
+import { formatEnrichedContextForPrompt } from "@/lib/context/enriched-prospect-context";
 
 describe("ExtractedSignals type", () => {
   it("has correct structure", () => {

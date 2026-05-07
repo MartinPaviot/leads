@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { tenants } from "@/db/schema";
-import { verifyCronRequest } from "@/lib/cron-auth";
+import { verifyCronRequest } from "@/lib/auth/cron-auth";
 import { evaluateTenantDeals, type BatchResult } from "@/lib/deal-progression/engine";
 
 /**

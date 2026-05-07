@@ -36,7 +36,7 @@ vi.mock("drizzle-orm", () => ({
   inArray: (...args: unknown[]) => ({ inArray: args }),
 }));
 
-const queriesModule = await import("@/lib/observability-queries");
+const queriesModule = await import("@/lib/observability/observability-queries");
 
 type Row = {
   agentId: string;

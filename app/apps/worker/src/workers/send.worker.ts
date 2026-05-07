@@ -4,9 +4,8 @@ import { sendEmail } from "../services/emailengine.js";
 import { RateLimiter } from "../services/rate-limiter.js";
 import { RotationEngine } from "../services/rotation.js";
 import { sendQueue } from "../queues/index.js";
-import postgres from "postgres";
-
-const sql = postgres(process.env.DATABASE_URL!);
+import { db, connectedMailboxes, outboundEmails, emailOptouts, sequenceEnrollments, pipelineEvents } from "../db.js";
+import { eq, and, sql } from "drizzle-orm";
 
 export function createSendWorker() {
   const worker = new Worker(
@@ -14,49 +13,57 @@ export function createSendWorker() {
     async (job) => {
       const { outboundEmailId } = job.data;
 
-      // 1. Load the email
-      const [email] = await sql`
-        SELECT * FROM outbound_emails WHERE id = ${outboundEmailId}
-      `;
+      const [email] = await db
+        .select()
+        .from(outboundEmails)
+        .where(eq(outboundEmails.id, outboundEmailId));
       if (!email || email.status !== "queued") return;
 
-      // 2. Check opt-out
-      const [optout] = await sql`
-        SELECT 1 FROM email_optouts
-        WHERE tenant_id = ${email.tenant_id} AND email_address = ${email.to_address}
-        LIMIT 1
-      `;
+      const [optout] = await db
+        .select()
+        .from(emailOptouts)
+        .where(
+          and(
+            eq(emailOptouts.tenantId, email.tenantId),
+            eq(emailOptouts.emailAddress, email.toAddress)
+          )
+        )
+        .limit(1);
+
       if (optout) {
-        await sql`UPDATE outbound_emails SET status = 'skipped', updated_at = NOW() WHERE id = ${outboundEmailId}`;
+        await db
+          .update(outboundEmails)
+          .set({ status: "skipped", updatedAt: new Date() })
+          .where(eq(outboundEmails.id, outboundEmailId));
         return;
       }
 
-      // 3. Pick mailbox (from email or rotation)
       let mailbox;
-      if (email.mailbox_id) {
-        const [mb] = await sql`SELECT * FROM connected_mailboxes WHERE id = ${email.mailbox_id}`;
+      if (email.mailboxId) {
+        const [mb] = await db
+          .select()
+          .from(connectedMailboxes)
+          .where(eq(connectedMailboxes.id, email.mailboxId));
         mailbox = mb;
       } else {
-        mailbox = await RotationEngine.pickMailbox(email.tenant_id);
+        mailbox = await RotationEngine.pickMailbox(email.tenantId);
       }
 
       if (!mailbox || mailbox.status !== "active") {
-        // Re-queue with delay
         await sendQueue.add("send", { outboundEmailId }, { delay: 60_000 });
         return;
       }
 
-      // 4. Check rate limits
       const canSend = await RateLimiter.check({
         id: mailbox.id,
-        sentToday: mailbox.sent_today,
-        dailyLimit: mailbox.daily_limit,
-        sendWindowStart: mailbox.send_window_start,
-        sendWindowEnd: mailbox.send_window_end,
-        sendDays: mailbox.send_days,
+        sentToday: mailbox.sentToday,
+        dailyLimit: mailbox.dailyLimit,
+        sendWindowStart: mailbox.sendWindowStart || "08:00",
+        sendWindowEnd: mailbox.sendWindowEnd || "18:00",
+        sendDays: (mailbox.sendDays || []) as string[],
         domain: mailbox.domain,
-        bounceCount7d: mailbox.bounce_count_7d,
-        sentTotal: mailbox.sent_total,
+        bounceCount7d: mailbox.bounceCount7d,
+        sentTotal: mailbox.sentTotal,
       });
 
       if (!canSend) {
@@ -64,73 +71,92 @@ export function createSendWorker() {
         return;
       }
 
-      // 5. Send via EmailEngine
       try {
-        await sql`UPDATE outbound_emails SET status = 'sending', updated_at = NOW() WHERE id = ${outboundEmailId}`;
+        await db
+          .update(outboundEmails)
+          .set({ status: "sending", updatedAt: new Date() })
+          .where(eq(outboundEmails.id, outboundEmailId));
 
-        // Inject CAN-SPAM unsubscribe footer
-        const unsubFooter = `<div style="margin-top:32px;padding-top:12px;border-top:1px solid #eee;font-size:11px;color:#999;">If you no longer wish to receive these emails, <a href="mailto:${mailbox.email_address}?subject=unsubscribe" style="color:#999;">click here to unsubscribe</a>.</div>`;
-        const htmlWithFooter = email.body_html.includes("unsubscribe")
-          ? email.body_html
-          : email.body_html + unsubFooter;
+        const unsubFooter = `<div style="margin-top:32px;padding-top:12px;border-top:1px solid #eee;font-size:11px;color:#999;">If you no longer wish to receive these emails, <a href="mailto:${mailbox.emailAddress}?subject=unsubscribe" style="color:#999;">click here to unsubscribe</a>.</div>`;
+        const htmlWithFooter = email.bodyHtml.includes("unsubscribe")
+          ? email.bodyHtml
+          : email.bodyHtml + unsubFooter;
 
-        const result = await sendEmail(mailbox.ee_account_id, {
-          from: { name: mailbox.display_name || "", address: mailbox.email_address },
-          to: [{ address: email.to_address }],
+        const result = await sendEmail(mailbox.eeAccountId, {
+          from: { name: mailbox.displayName || "", address: mailbox.emailAddress },
+          to: [{ address: email.toAddress }],
           subject: email.subject,
           html: htmlWithFooter,
-          text: email.body_text || undefined,
-          inReplyTo: email.in_reply_to || undefined,
+          text: email.bodyText || undefined,
+          inReplyTo: email.inReplyTo || undefined,
         });
 
-        // 6. Update email record
-        await sql`
-          UPDATE outbound_emails SET
-            status = 'sent',
-            sent_at = NOW(),
-            message_id = ${result.messageId},
-            ee_message_id = ${result.id},
-            mailbox_id = ${mailbox.id},
-            from_address = ${mailbox.email_address},
-            updated_at = NOW()
-          WHERE id = ${outboundEmailId}
-        `;
+        await db
+          .update(outboundEmails)
+          .set({
+            status: "sent",
+            sentAt: new Date(),
+            messageId: result.messageId,
+            eeMessageId: result.id,
+            mailboxId: mailbox.id,
+            fromAddress: mailbox.emailAddress,
+            updatedAt: new Date(),
+          })
+          .where(eq(outboundEmails.id, outboundEmailId));
 
-        // 7. Increment mailbox counters
-        await sql`
-          UPDATE connected_mailboxes SET
-            sent_today = sent_today + 1,
-            sent_total = sent_total + 1,
-            updated_at = NOW()
-          WHERE id = ${mailbox.id}
-        `;
+        await db
+          .update(connectedMailboxes)
+          .set({
+            sentToday: sql`${connectedMailboxes.sentToday} + 1`,
+            sentTotal: sql`${connectedMailboxes.sentTotal} + 1`,
+            updatedAt: new Date(),
+          })
+          .where(eq(connectedMailboxes.id, mailbox.id));
+
         await RateLimiter.recordSend(mailbox.id, mailbox.domain);
 
-        // 8. Advance enrollment if applicable
-        if (email.enrollment_id) {
-          await sql`
-            UPDATE sequence_enrollments SET
-              current_step = current_step + 1,
-              last_step_at = NOW()
-            WHERE id = ${email.enrollment_id}
-          `;
+        if (email.enrollmentId) {
+          await db
+            .update(sequenceEnrollments)
+            .set({
+              currentStep: sql`${sequenceEnrollments.currentStep} + 1`,
+              lastStepAt: new Date(),
+            })
+            .where(eq(sequenceEnrollments.id, email.enrollmentId));
         }
 
-        console.log(`[send] Sent email ${outboundEmailId} via ${mailbox.email_address} to ${email.to_address}`);
+        await db
+          .insert(pipelineEvents)
+          .values({
+            traceId: email.enrollmentId || outboundEmailId,
+            tenantId: email.tenantId,
+            contactId: email.contactId,
+            enrollmentId: email.enrollmentId,
+            outboundEmailId,
+            stage: "email_sent",
+            sourceSystem: "bullmq",
+            metadata: { via: "emailengine", mailbox: mailbox.emailAddress },
+          })
+          .catch(() => {});
+
+        console.log(`[send] Sent email ${outboundEmailId} via ${mailbox.emailAddress} to ${email.toAddress}`);
       } catch (err: unknown) {
         const errMsg = err instanceof Error ? err.message : String(err);
-        await sql`
-          UPDATE outbound_emails SET
-            status = 'failed',
-            failed_at = NOW(),
-            error_message = ${errMsg},
-            updated_at = NOW()
-          WHERE id = ${outboundEmailId}
-        `;
+        await db
+          .update(outboundEmails)
+          .set({
+            status: "failed",
+            failedAt: new Date(),
+            errorMessage: errMsg,
+            updatedAt: new Date(),
+          })
+          .where(eq(outboundEmails.id, outboundEmailId));
 
-        // Auth error → mark mailbox as error
         if (errMsg.includes("auth") || errMsg.includes("535") || errMsg.includes("Invalid credentials")) {
-          await sql`UPDATE connected_mailboxes SET status = 'error', updated_at = NOW() WHERE id = ${mailbox.id}`;
+          await db
+            .update(connectedMailboxes)
+            .set({ status: "error", updatedAt: new Date() })
+            .where(eq(connectedMailboxes.id, mailbox.id));
         }
 
         console.error(`[send] Failed ${outboundEmailId}:`, errMsg);

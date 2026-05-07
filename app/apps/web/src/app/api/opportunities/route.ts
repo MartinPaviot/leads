@@ -1,10 +1,10 @@
 import { db } from "@/db";
 import { deals, companies, users } from "@/db/schema";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { and, eq, gte, lte, sql, desc, asc, inArray, isNull } from "drizzle-orm";
-import { logAudit } from "@/lib/audit-log";
-import { apiError } from "@/lib/api-errors";
-import { paginatedResponse } from "@/lib/api-response";
+import { logAudit } from "@/lib/infra/audit-log";
+import { apiError } from "@/lib/infra/api-errors";
+import { paginatedResponse } from "@/lib/infra/api-response";
 import { z } from "zod";
 
 const VALID_STAGES = ["lead", "qualification", "demo", "trial", "proposal", "negotiation", "won", "lost"] as const;

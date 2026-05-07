@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { activities } from "@/db/schema";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { eq, desc, and, sql } from "drizzle-orm";
 
 export async function GET(req: Request) {

@@ -7,10 +7,10 @@ import {
   connectedMailboxes,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkPlanLimit } from "@/lib/plan-limits";
-import { trackUsage } from "@/lib/billing";
-import { logger } from "@/lib/logger";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkPlanLimit } from "@/lib/billing/plan-limits";
+import { trackUsage } from "@/lib/billing/billing";
+import { logger } from "@/lib/observability/logger";
 import { Resend } from "resend";
 
 /* ------------------------------------------------------------------ */

@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { connectedMailboxes } from "@/db/schema";
 import { sql } from "drizzle-orm";
-import { verifyCronRequest } from "@/lib/cron-auth";
+import { verifyCronRequest } from "@/lib/auth/cron-auth";
 
 /**
  * Reset daily sent counters on all connected mailboxes.

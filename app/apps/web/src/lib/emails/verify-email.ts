@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { logger } from "@/lib/logger";
+import { logger } from "@/lib/observability/logger";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)

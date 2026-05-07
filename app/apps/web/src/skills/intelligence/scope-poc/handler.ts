@@ -1,10 +1,11 @@
 import { db } from "@/db";
-import { deals, companies, contacts, activities } from "@/db/schema";
-import { eq, and, desc, or } from "drizzle-orm";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { deals, companies, contacts } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
+import { getSkillKnowledge, getDeepConversationContext } from "@/skills/skill-knowledge";
 import type { SkillRunOptions } from "@/skills/types";
 import type { ScopePocInput, ScopePocOutput } from "./schema";
 
@@ -25,43 +26,25 @@ export async function scopePocHandler(
 
   if (!deal) throw new Error(`Deal ${input.dealId} not found`);
 
-  let companyName: string | null = null;
-  let companyDesc = "";
-  let contactTitle = "";
+  const [companyRow, contactRow, knowledgeBlock, conversation] = await Promise.all([
+    deal.companyId
+      ? db.select().from(companies).where(eq(companies.id, deal.companyId)).then((r) => r[0] || null)
+      : null,
+    deal.contactId
+      ? db.select().from(contacts).where(eq(contacts.id, deal.contactId)).then((r) => r[0] || null)
+      : null,
+    getSkillKnowledge(`proof of concept scope implementation pricing technical requirements`, options.tenantId),
+    getDeepConversationContext(options.tenantId, {
+      dealId: input.dealId,
+      companyId: deal.companyId ?? undefined,
+      contactIds: deal.contactId ? [deal.contactId] : undefined,
+      query: "proof of concept requirements scope technical",
+    }),
+  ]);
 
-  if (deal.companyId) {
-    const [company] = await db.select().from(companies).where(eq(companies.id, deal.companyId));
-    if (company) {
-      companyName = company.name;
-      companyDesc = company.description || "";
-    }
-  }
-  if (deal.contactId) {
-    const [contact] = await db.select().from(contacts).where(eq(contacts.id, deal.contactId));
-    if (contact) {
-      contactTitle = contact.title || "";
-    }
-  }
-
-  // Fetch recent activities for context
-  const entityFilters = [
-    and(eq(activities.entityType, "deal"), eq(activities.entityId, input.dealId)),
-  ];
-  if (deal.contactId) {
-    entityFilters.push(
-      and(eq(activities.entityType, "contact"), eq(activities.entityId, deal.contactId)),
-    );
-  }
-  const recentActivities = await db
-    .select({ summary: activities.summary, activityType: activities.activityType })
-    .from(activities)
-    .where(and(eq(activities.tenantId, options.tenantId), or(...entityFilters)))
-    .orderBy(desc(activities.occurredAt))
-    .limit(15);
-
-  const activityContext = recentActivities
-    .map((a) => `- ${a.activityType}: ${a.summary || "no summary"}`)
-    .join("\n");
+  const companyName = companyRow?.name ?? null;
+  const companyDesc = companyRow?.description || "";
+  const contactTitle = contactRow?.title || "";
 
   const model = getLLMModel();
   if (!model) throw new Error("No LLM API key configured");
@@ -92,8 +75,16 @@ export async function scopePocHandler(
 - Deal summary: ${deal.summary || "none"}
 ${input.focusAreas?.length ? `- Focus areas requested: ${input.focusAreas.join(", ")}` : ""}
 
-## Recent Interaction Context
-${activityContext || "No activities recorded"}
+## Conversation History
+${conversation.activities || "No activities recorded"}
+
+## Internal Notes
+${conversation.notes || "No notes recorded"}
+
+## Related Context (semantic search)
+${conversation.semanticResults || "No additional context found"}
+
+${knowledgeBlock}
 
 ## Requirements
 1. **Objective**: One clear sentence on what the PoC proves

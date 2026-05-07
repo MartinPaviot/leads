@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { chunkedBulkCall } from "@/lib/chunk-bulk";
+import { chunkedBulkCall } from "@/lib/infra/chunk-bulk";
 
 describe("chunkedBulkCall", () => {
   const originalFetch = globalThis.fetch;

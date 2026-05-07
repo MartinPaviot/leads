@@ -11,8 +11,8 @@
  * Response: CalibrationSummary (see threshold-calibrator.ts)
  */
 
-import { getAuthContext } from "@/lib/auth-utils";
-import { apiError } from "@/lib/api-errors";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { apiError } from "@/lib/infra/api-errors";
 import { calibrateThresholds } from "@/lib/guardrails/threshold-calibrator";
 import { HIGH_CONFIDENCE_THRESHOLDS } from "@/lib/guardrails/approval-mode";
 

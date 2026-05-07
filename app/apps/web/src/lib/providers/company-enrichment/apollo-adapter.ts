@@ -1,4 +1,4 @@
-import { enrichOrganization, isApolloAvailable } from "@/lib/apollo-client";
+import { enrichOrganization, isApolloAvailable } from "@/lib/integrations/apollo-client";
 import type {
   CompanyEnrichmentProvider,
   EnrichInput,

@@ -2,7 +2,7 @@ import {
   searchOrganizations,
   searchPeople,
   type OrgSearchOrganization,
-} from "@/lib/apollo-client";
+} from "@/lib/integrations/apollo-client";
 import type { SkillRunOptions } from "@/skills/types";
 import type { TamBuilderInput, TamBuilderOutput } from "./schema";
 

@@ -3,13 +3,13 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { authUsers } from "@/db/schema";
-import { createVerifyTokenForUser } from "@/lib/email-verification";
+import { createVerifyTokenForUser } from "@/lib/emails/email-verification";
 import { sendVerifyEmail } from "@/lib/emails/verify-email";
 import {
   rateLimitVerifyEmail,
   rateLimitVerifyEmailIp,
-} from "@/lib/rate-limit";
-import { logger } from "@/lib/logger";
+} from "@/lib/infra/rate-limit";
+import { logger } from "@/lib/observability/logger";
 
 /**
  * POST /api/auth/verify-email/send

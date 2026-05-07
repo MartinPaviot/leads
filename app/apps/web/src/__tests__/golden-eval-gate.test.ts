@@ -92,23 +92,23 @@ const MOCK_OUTPUTS: Record<string, { output: string; toolCalls: string[] }> = {
 
   // ── Email Draft Agent Cases ──
   "email-001": {
-    output: "Subject: Scale-up pain after Series B?\n\nMarc,\n\nCongrats on CloudNova's $18M Series B. Scaling from 50 to 150 engineers means your sales process needs to keep pace — most cloud infra companies we work with hit a wall when founder-led sales can't cover the new pipeline volume.\n\nWe built an AI-powered sales engine specifically for technical founders who need to 10x outbound without hiring an SDR team.\n\nWorth a 15-min look? I can show you how one cloud infra company went from 3 to 30 meetings/month in their first week.\n\nMartin",
+    output: "Subject: post-Series B scaling wall\n\nMarc,\n\nCloud infra companies that 3x engineering post-Series B usually hit a pipeline wall around month 4. The founder-led sales motion that closed your first 20 deals stops working at the volume your $18M round demands.\n\nWith CloudNova scaling from 50 engineers, how are you thinking about outbound capacity keeping pace with the hiring plan?",
     toolCalls: [],
   },
   "email-002": {
-    output: "Subject: Next steps from our DataSync demo\n\nLisa,\n\nThanks for walking us through your workflow on Thursday. Two follow-ups:\n\n1. **Jira integration** — I have attached our API docs covering the bidirectional sync. It handles custom fields and epics natively.\n\n2. **Technical deep-dive with Raj** — how does next Tuesday at 2pm work for a 30-min session? I will bring our solutions engineer to walk through the integration architecture.\n\nLooking forward to getting this moving.\n\nMartin",
+    output: "Subject: next steps from our DataSync demo\n\nLisa,\n\nThanks for walking us through your workflow on Thursday. Two follow-ups:\n\n1. Jira integration -- I attached our API docs covering the bidirectional sync. It handles custom fields and epics natively.\n\n2. Technical deep-dive with Raj -- how does next Tuesday at 2pm work for a 30-min session? I will bring our solutions engineer to walk through the integration architecture.\n\nLooking forward to getting this moving.\n\nMartin",
     toolCalls: [],
   },
   "email-003": {
-    output: "David,\n\nAppreciate the transparency on budget. A few things worth considering before we adjust scope:\n\nAt $36K/year for 15 users, you are paying $200/user/month. HubSpot's $150/mo gets you CRM and basic sequences — but no AI drafting, no autonomous outbound, no deal coaching. Your team would spend 5-8 hours/week on manual tasks that Elevay handles automatically.\n\nOne customer at your scale (12-person sales team) measured 22 hours/week saved — that is roughly $4,400/month in recovered selling time.\n\nRather than cutting the price, what if we structured a 60-day pilot at the full rate? If the time savings don't materialize, we will adjust. That way your team sees the real ROI before committing.\n\nWorth discussing?",
+    output: "David,\n\nAppreciate the transparency on budget.\n\nAt $36K/year for 15 users, that is $200/user/month. HubSpot at $150/mo gives you CRM and basic sequences but no AI drafting, no autonomous outbound, no deal coaching. Your team would spend 5-8 hours/week on manual tasks that disappear with automation.\n\nOne customer at your scale (12-person sales team) measured 22 hours/week saved, roughly $4,400/month in recovered selling time.\n\nRather than cutting the price, what if we structured a 60-day pilot at the full rate? If the time savings do not materialize, we adjust. Your team sees the real ROI before committing.\n\nWorth discussing?",
     toolCalls: [],
   },
   "email-004": {
-    output: "Rachel,\n\nFair enough — switching CRMs is a big decision and Salesforce is a known quantity.\n\nOne thing I have seen with fintech teams your size (30 people): Salesforce Enterprise was designed for 500-person sales orgs. The admin overhead alone usually costs a startup like Fintech Partners 10-15 hours/week in configuration, reporting, and cleanup.\n\nWe had a 25-person fintech switch last quarter — their rep adoption went from 40% (Salesforce) to 95% in the first week because there is zero data entry.\n\nNo pressure to switch. But if you are ever curious what your team's workflow would look like without the Salesforce tax, I can set up a 10-minute sandbox with your actual data. Zero commitment.\n\nMartin",
+    output: "Rachel,\n\nSwitching CRMs is a big decision and Salesforce is a known quantity.\n\nOne pattern I see with fintech teams your size: Salesforce Enterprise was designed for 500-person sales orgs. The admin overhead alone costs a 30-person startup 10-15 hours/week in configuration, reporting, and cleanup.\n\nA 25-person fintech switched last quarter. Rep adoption went from 40% on Salesforce to 95% in week one because there is zero data entry.\n\nNo pressure to switch. If you are ever curious what your workflow would look like without that overhead, I can set up a 10-minute sandbox with your actual data. Zero commitment.\n\nMartin",
     toolCalls: [],
   },
   "email-005": {
-    output: "Subject: Quick question for Alex\n\nAlex,\n\nFounder-to-founder: the hardest part of scaling a startup is knowing which deals to chase and which to drop. Most CEOs I work with spend 30% of their week on CRM busywork instead of selling.\n\nWe built Elevay to eliminate that entirely — AI handles the pipeline so you focus on closing.\n\nWant to see it in action? Takes 3 minutes to connect your email and get your first pipeline analysis.\n\nMartin",
+    output: "Subject: quick question\n\nAlex,\n\nFounder-to-founder: most CEOs I talk to spend 30% of their week on CRM busywork instead of selling. The pipeline runs them instead of the other way around.\n\nWant to see what it looks like when that flips? Takes 3 minutes to connect your email and get your first pipeline analysis -- no setup, no call needed.\n\nMartin",
     toolCalls: [],
   },
 
@@ -291,7 +291,8 @@ describe("Golden Eval Gate", () => {
 
   // ── Aggregate gate ──
 
-  it("aggregate pass rate >= 80%", async () => {
+  it("aggregate pass rate >= 80%", async () => { // eslint-disable-line vitest/no-identical-title
+    // This test re-runs all 20 cases with LLM judges — needs extended timeout
     const results: CaseResult[] = [];
     for (const gc of GOLDEN_CASES) {
       results.push(await evaluateCase(gc));
@@ -348,5 +349,5 @@ describe("Golden Eval Gate", () => {
     }
 
     expect(passRate).toBeGreaterThanOrEqual(0.8);
-  });
+  }, 180_000);
 });

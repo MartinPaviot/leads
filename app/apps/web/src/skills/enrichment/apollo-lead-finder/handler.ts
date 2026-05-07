@@ -1,4 +1,4 @@
-import { searchPeople, enrichPerson } from "@/lib/apollo-client";
+import { searchPeople, enrichPerson } from "@/lib/integrations/apollo-client";
 import type { SkillRunOptions } from "@/skills/types";
 import type { ApolloLeadFinderInput, ApolloLeadFinderOutput } from "./schema";
 

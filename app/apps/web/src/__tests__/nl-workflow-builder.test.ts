@@ -42,11 +42,11 @@ vi.mock("drizzle-orm", () => ({
   eq: (...args: unknown[]) => ({ eq: args }),
 }));
 
-vi.mock("@/lib/traced-ai", () => ({
+vi.mock("@/lib/ai/traced-ai", () => ({
   tracedGenerateObject: vi.fn(),
 }));
 
-vi.mock("@/lib/ai-provider", () => ({
+vi.mock("@/lib/ai/ai-provider", () => ({
   anthropic: (m: string) => `mock-${m}`,
 }));
 
@@ -54,7 +54,7 @@ vi.mock("@ai-sdk/openai", () => ({
   openai: (m: string) => `mock-${m}`,
 }));
 
-vi.mock("@/lib/notifications", () => ({
+vi.mock("@/lib/emails/notifications", () => ({
   sendNotification: (...args: unknown[]) => sendNotificationMock(...args),
 }));
 

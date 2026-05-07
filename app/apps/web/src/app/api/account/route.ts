@@ -8,8 +8,8 @@ import {
   users,
   tenants,
 } from "@/db/schema";
-import { getAuthContext } from "@/lib/auth-utils";
-import { logger } from "@/lib/logger";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { logger } from "@/lib/observability/logger";
 
 /**
  * DELETE /api/account — Permanently delete the signed-in user's account.

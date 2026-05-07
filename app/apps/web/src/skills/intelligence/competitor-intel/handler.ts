@@ -1,6 +1,7 @@
-import { enrichOrganization, searchPeople } from "@/lib/apollo-client";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { enrichOrganization, searchPeople } from "@/lib/integrations/apollo-client";
+import { getSkillKnowledge } from "@/skills/skill-knowledge";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import type { SkillRunOptions } from "@/skills/types";
@@ -16,8 +17,11 @@ export async function competitorIntelHandler(
   input: CompetitorIntelInput,
   options: SkillRunOptions,
 ): Promise<CompetitorIntelOutput> {
-  // Enrich via Apollo
-  const org = await enrichOrganization(input.competitorDomain).catch(() => null);
+  // Enrich via Apollo + fetch knowledge in parallel
+  const [org, knowledgeBlock] = await Promise.all([
+    enrichOrganization(input.competitorDomain).catch(() => null),
+    getSkillKnowledge(`competitor analysis market positioning product comparison`, options.tenantId),
+  ]);
   const competitorName = input.competitorName || org?.name || input.competitorDomain;
 
   // Find key people (C-suite + VPs)
@@ -62,6 +66,9 @@ ${companyData}
 
 ## Key People (${keyPeople.length})
 ${keyPeople.map((p) => `- ${p.name} (${p.title})`).join("\n")}
+
+## Knowledge Context
+${knowledgeBlock}
 
 Generate:
 1. Positioning: How does this company position itself in the market? (2-3 sentences)

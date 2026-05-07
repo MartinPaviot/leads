@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { getTenantSettings, deriveTargetRoles } from "@/lib/tenant-settings";
+import { getTenantSettings, deriveTargetRoles } from "@/lib/config/tenant-settings";
+import { getTenantKnowledge } from "@/lib/knowledge/get-tenant-knowledge";
 import { makeTool, type ToolContext } from "./context";
 
 const STANDARD_ATTRIBUTES: Record<string, Array<{ name: string; type: string; description?: string }>> = {
@@ -115,9 +116,10 @@ export function buildSchemaTools(ctx: ToolContext) {
           ],
           customObjectTypes: settings.customObjectTypes || [],
           customSignals: loose.customSignals || [],
-          knowledgeTopics: (
-            (settings.knowledge as Array<{ id?: string; topic: string }>) || []
-          ).map((k) => ({ id: k.id || "", topic: k.topic })),
+          knowledgeTopics: (await getTenantKnowledge(tenantId)).map((k) => ({
+            id: k.id,
+            topic: k.topic,
+          })),
           workflowCount: (loose.workflows || []).length,
           icp: {
             productDescription: settings.productDescription,

@@ -17,6 +17,7 @@
 export type SignalKey =
   | "investor_overlap"
   | "funding_recent"
+  | "funding_crunchbase"
   | "hiring_intent"
   | "yc_company";
 
@@ -261,6 +262,7 @@ export function emptySignalsLit(): Record<SignalKey, number> {
   return {
     investor_overlap: 0,
     funding_recent: 0,
+    funding_crunchbase: 0,
     hiring_intent: 0,
     yc_company: 0,
   };

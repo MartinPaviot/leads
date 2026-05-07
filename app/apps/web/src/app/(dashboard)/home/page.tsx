@@ -11,12 +11,17 @@ import { Button } from "@/components/ui/button";
 import { EmailComposerPanel } from "@/components/email-composer-panel";
 import type { EmailComposerDraft } from "@/components/email-composer-panel";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
+import { OnboardingChat } from "@/components/onboarding-chat";
+import { AgentFeed } from "@/components/agent-feed";
 import { OnboardingV2Wrapper } from "@/components/onboarding-v2-wrapper";
 import { WarmLeadPrompt } from "@/components/WarmLeadPrompt";
 import { useOnboardingVersion } from "@/hooks/use-onboarding-version";
 import { TAMRevealNotification } from "@/components/TAMRevealNotification";
 import { ScalingPathPrompt } from "@/components/ScalingPathPrompt";
 import { CompanyLogo } from "@/components/ui/company-logo";
+import { HotInboundsWidget } from "@/components/hot-inbounds-widget";
+import { HotVisitorsWidget } from "@/components/hot-visitors-widget";
+import { OnboardingIncompleteBanner } from "@/components/onboarding-7phase/incomplete-banner";
 
 interface Action {
   action: string;
@@ -303,6 +308,29 @@ export default function DashboardPage() {
                     ? "Expansion signals across your accounts."
                     : today}
           </p>
+        </div>
+
+        {/* MONACO-PARITY-03: discoverability shim — surfaces the
+            7-phase wizard at /onboarding-v3 if onboarding isn't
+            complete. Hides itself on completion. */}
+        <OnboardingIncompleteBanner />
+
+        {/* F010: Agent Activity Feed — primary view */}
+        <div className="mb-6">
+          <AgentFeed />
+        </div>
+
+        {/* MONACO-PARITY-02: Hot inbounds — speed-to-lead window
+            (~5 min hot vs 60 min = 9x conversion). The widget hides
+            itself when there are no hot leads, so it never adds
+            empty-state padding. */}
+        <div className="mb-6 grid gap-4 md:grid-cols-2">
+          <HotInboundsWidget />
+          {/* MONACO-PARITY-04: anonymous-visitor identification
+              (Snitcher). Shows TAM accounts that just hit the
+              marketing site so the founder can act before the lead
+              cold-shops competitors. */}
+          <HotVisitorsWidget />
         </div>
 
         {/* Welcome Banner (first time after onboarding) */}
@@ -914,7 +942,19 @@ export default function DashboardPage() {
           When version === "v1", the full wizard renders. Only one
           branch is ever mounted; no dual-render is possible. */}
       {showOnboarding && (
-        onboardingVersion === "v2" ? (
+        onboardingVersion === "v3" ? (
+          <OnboardingChat
+            hasGoogle={onboardingHasGoogle}
+            hasMicrosoft={onboardingHasMicrosoft}
+            userEmail={onboardingEmail}
+            userName={onboardingName}
+            companyDomain={undefined}
+            onComplete={() => {
+              setShowOnboarding(false);
+              window.location.href = "/?firstTime=true";
+            }}
+          />
+        ) : onboardingVersion === "v2" ? (
           <OnboardingV2Wrapper
             userId={onboardingUserId}
             userEmail={onboardingEmail}

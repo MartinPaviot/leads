@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { getGrade } from "@/lib/scoring";
+import { getGrade } from "@/lib/scoring/scoring";
 
 type BadgeVariant = "success" | "warning" | "error" | "info" | "neutral";
 type BadgeSize = "sm" | "md";

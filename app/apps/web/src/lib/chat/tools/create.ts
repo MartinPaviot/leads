@@ -15,12 +15,12 @@ import {
 } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { ingestEpisode } from "@/lib/context-graph";
+import { ingestEpisode } from "@/lib/ai/context-graph";
 import {
   getTenantSettings,
   updateTenantSettings,
   type CustomObjectTypeDef,
-} from "@/lib/tenant-settings";
+} from "@/lib/config/tenant-settings";
 import { logToolCall } from "@/lib/chat/tool-call-log";
 import { makeTool, type ToolContext } from "./context";
 
@@ -441,10 +441,11 @@ export function buildCreateTools(ctx: ToolContext) {
 
     createKnowledgeEntry: makeTool({
       description:
-        "Add a knowledge base entry to the workspace's 'world model'. These entries are injected into the chat system prompt as business context. Admin-only. Use when the user says 'remember that our value prop is X', 'add this to our knowledge base', 'teach the assistant about Y'.",
+        "Add a knowledge base entry to the workspace. Entries are embedded for semantic retrieval and injected into skill prompts (proposals, coaching, battlecards). Admin-only. Use when the user says 'remember that our value prop is X', 'add this to our knowledge base', 'teach the assistant about Y'.",
       inputSchema: z.object({
         topic: z.string().describe("Short topic title (e.g. 'Pricing tiers', 'Value prop')"),
-        content: z.string().describe("The knowledge content itself — can be multiple paragraphs"),
+        content: z.string().describe("The knowledge content — can be multiple paragraphs"),
+        category: z.enum(["icp", "competitors", "objections", "product", "process", "context", "custom"]).optional().describe("Category (default: custom)"),
       }),
       execute: async (input) => {
         if (!isAdmin) return { error: "Admin access required" };
@@ -452,32 +453,31 @@ export function buildCreateTools(ctx: ToolContext) {
           return { error: "Topic and content required" };
         }
 
-        const [tenant] = await db
-          .select()
-          .from(tenants)
-          .where(eq(tenants.id, tenantId))
-          .limit(1);
-        if (!tenant) return { error: "Workspace not found" };
+        const { knowledgeEntries: keTable } = await import("@/db/schema");
+        const { createHash } = await import("crypto");
+        const { embedKnowledgeEntry } = await import("@/lib/knowledge/retrieval");
 
-        const settings = (tenant.settings || {}) as Record<string, unknown>;
-        const knowledge = (settings.knowledge as Array<{ id: string; topic: string; content: string }>) || [];
+        const contentHash = createHash("sha256")
+          .update(input.content.trim())
+          .digest("hex");
 
-        const newEntry = {
-          id: crypto.randomUUID(),
-          topic: input.topic.trim(),
-          content: input.content.trim(),
-        };
-        knowledge.push(newEntry);
-
-        await db
-          .update(tenants)
-          .set({
-            settings: { ...settings, knowledge },
-            updatedAt: new Date(),
+        const [entry] = await db
+          .insert(keTable)
+          .values({
+            tenantId,
+            createdBy: userId,
+            scope: "workspace",
+            title: input.topic.trim(),
+            category: input.category ?? "custom",
+            content: input.content.trim(),
+            contentHash,
           })
-          .where(eq(tenants.id, tenantId));
+          .returning();
 
-        return { created: newEntry };
+        embedKnowledgeEntry(tenantId, entry.id, entry.title, entry.content)
+          .catch(() => {});
+
+        return { created: { id: entry.id, title: entry.title, category: entry.category } };
       },
     }),
 

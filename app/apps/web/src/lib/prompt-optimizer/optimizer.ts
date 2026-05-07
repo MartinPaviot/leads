@@ -22,13 +22,13 @@ import { agentTraces, agentPromptVersions } from "@/db/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { generateObject, generateText } from "ai";
 import { z } from "zod";
-import { anthropic } from "@/lib/ai-provider";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { getGoldenCasesByAgent, type GoldenCase } from "@/lib/evals/golden-cases";
 import { getActivePrompt, getDefaultPrompt } from "@/lib/evals/flywheel";
-import { setCanaryPercent } from "@/lib/prompt-canary";
-import { AGENT_REGISTRY } from "@/lib/observability";
-import logger from "@/lib/logger";
+import { setCanaryPercent } from "@/lib/prompts/prompt-canary";
+import { AGENT_REGISTRY } from "@/lib/observability/observability";
+import logger from "@/lib/observability/logger";
 
 // ── Model helpers (same pattern as flywheel.ts) ───────────────
 

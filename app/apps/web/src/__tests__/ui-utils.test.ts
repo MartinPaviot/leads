@@ -11,7 +11,7 @@ import {
   formatScore,
   RISK_STYLES,
   ENRICHMENT_COLORS,
-} from "@/lib/ui-utils";
+} from "@/lib/util/ui-utils";
 
 describe("badgeColorIndex", () => {
   it("returns 0 for empty string", () => {

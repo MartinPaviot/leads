@@ -4,7 +4,7 @@ import { agentTasks } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { buildTaskContext } from "@/lib/tasks/task-manager";
 import type { TaskContext } from "@/lib/tasks/task-manager";
-import logger from "@/lib/logger";
+import logger from "@/lib/observability/logger";
 
 type TaskExecutorFn = (
   task: typeof agentTasks.$inferSelect,

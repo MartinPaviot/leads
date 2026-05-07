@@ -1,6 +1,6 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { NextResponse } from "next/server";
-import { briefAllOpenDeals } from "@/lib/deal-briefing";
+import { briefAllOpenDeals } from "@/lib/deals/deal-briefing";
 
 /**
  * GET /api/dashboard/briefs?max=10

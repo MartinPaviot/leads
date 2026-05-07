@@ -186,7 +186,7 @@ const {
   markEmailVerified,
   getEmailVerifiedAt,
   VERIFY_TOKEN_TTL_MS,
-} = await import("@/lib/email-verification");
+} = await import("@/lib/emails/email-verification");
 
 beforeEach(() => {
   tokenRows = [];

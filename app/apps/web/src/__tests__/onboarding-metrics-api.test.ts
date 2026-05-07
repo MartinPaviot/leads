@@ -7,7 +7,7 @@ const { getAuthContextMock, getOnboardingAgentLatencyMock } = vi.hoisted(() => (
   getOnboardingAgentLatencyMock: vi.fn(),
 }));
 
-vi.mock("@/lib/auth-utils", () => ({
+vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: getAuthContextMock,
   // Reimplement requireAdmin inline so we don't drag auth.ts + next-auth
   // into the test runtime (next-auth's ESM resolution blows up on Vitest
@@ -20,10 +20,10 @@ vi.mock("@/lib/auth-utils", () => ({
   },
 }));
 
-vi.mock("@/lib/observability-queries", () => ({
+vi.mock("@/lib/observability/observability-queries", () => ({
   getOnboardingAgentLatency: (
     params: Parameters<
-      typeof import("@/lib/observability-queries").getOnboardingAgentLatency
+      typeof import("@/lib/observability/observability-queries").getOnboardingAgentLatency
     >[0]
   ) => getOnboardingAgentLatencyMock(params),
 }));

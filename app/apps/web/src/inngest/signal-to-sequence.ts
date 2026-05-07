@@ -28,6 +28,7 @@ import {
   users,
 } from "@/db/schema";
 import { and, eq, notInArray, inArray, desc } from "drizzle-orm";
+import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
 
 export const signalAutoEnroll = inngest.createFunction(
   {
@@ -148,6 +149,19 @@ export const signalAutoEnroll = inngest.createFunction(
       }
     });
 
+    await step.run("track-enrolled", async () => {
+      for (const contact of toEnroll) {
+        await trackPipeline({
+          tenantId,
+          companyId,
+          contactId: contact.id,
+          stage: "enrolled",
+          sourceSystem: "inngest",
+          metadata: { signalType, sequenceId: activeSequence.id, sequenceName: activeSequence.name },
+        });
+      }
+    });
+
     // 6. Create a deal for this company at "lead" stage
     const newDeal = await step.run("create-deal", async () => {
       const [deal] = await db
@@ -162,6 +176,19 @@ export const signalAutoEnroll = inngest.createFunction(
         .returning({ id: deals.id });
       return deal;
     });
+
+    if (newDeal?.id) {
+      await step.run("track-deal-created", async () => {
+        await trackPipeline({
+          tenantId,
+          companyId,
+          dealId: newDeal.id,
+          stage: "deal_created",
+          sourceSystem: "inngest",
+          metadata: { signalType, signalTitle, dealName: `${companyName} — ${signalType}` },
+        });
+      });
+    }
 
     // 7. Notify the user
     await step.run("notify", async () => {

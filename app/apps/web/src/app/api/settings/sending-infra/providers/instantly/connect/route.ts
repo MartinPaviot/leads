@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
-import { updateTenantSettings } from "@/lib/tenant-settings";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { updateTenantSettings } from "@/lib/config/tenant-settings";
 import { testInstantlyConnection } from "@/lib/providers/instantly-client";
 import { encryptSecret } from "@/lib/crypto/settings-encryption";
-import logger from "@/lib/logger";
+import logger from "@/lib/observability/logger";
 
 /**
  * POST /api/settings/sending-infra/providers/instantly/connect

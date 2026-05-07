@@ -1,5 +1,5 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { contacts, companies, activities, deals } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -11,7 +11,7 @@ import {
   dealToText,
   cleanupDuplicateEmbeddings,
   getEmbeddingStats,
-} from "@/lib/embeddings";
+} from "@/lib/ai/embeddings";
 
 /**
  * GET /api/embed — returns embedding stats and health info

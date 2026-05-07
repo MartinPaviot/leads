@@ -1,9 +1,10 @@
-import { enrichOrganization } from "@/lib/apollo-client";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { enrichOrganization } from "@/lib/integrations/apollo-client";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
-import { industriesPromptHint, companySizesPromptHint } from "@/lib/icp-constants";
+import { industriesPromptHint, companySizesPromptHint } from "@/lib/config/icp-constants";
+import { getSkillKnowledge } from "@/skills/skill-knowledge";
 import type { SkillRunOptions } from "@/skills/types";
 import type { IcpIdentificationInput, IcpIdentificationOutput } from "./schema";
 
@@ -20,8 +21,11 @@ export async function icpIdentificationHandler(
   const model = getLLMModel();
   if (!model) throw new Error("No LLM API key configured");
 
-  // Enrich company via Apollo for context
-  const org = await enrichOrganization(input.companyDomain).catch(() => null);
+  // Enrich company via Apollo + retrieve knowledge in parallel
+  const [org, knowledgeBlock] = await Promise.all([
+    enrichOrganization(input.companyDomain).catch(() => null),
+    getSkillKnowledge("ideal customer profile target market industries company size revenue", options.tenantId),
+  ]);
 
   const companyContext = org
     ? `Company: ${org.name}\nIndustry: ${org.industry}\nEmployees: ${org.estimated_num_employees}\nRevenue: ${org.annual_revenue_printed}\nFunding: ${org.total_funding_printed} (${org.latest_funding_stage})\nTech: ${org.technology_names?.join(", ")}\nDescription: ${org.description}\nLocation: ${org.city}, ${org.country}`
@@ -50,6 +54,7 @@ export async function icpIdentificationHandler(
 
 ${companyContext}
 ${existingIcpContext}
+${knowledgeBlock}
 
 Define the ICP — who would buy this company's product/service? Think about:
 - Which industries are most likely to need this?

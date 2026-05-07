@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getAuthContext } from "@/lib/auth-utils";
-import { buildMemorySnapshot } from "@/lib/agent-memory";
-import { updateTenantSettings, getTenantSettings } from "@/lib/tenant-settings";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { buildMemorySnapshot } from "@/lib/agents/agent-memory";
+import { updateTenantSettings, getTenantSettings } from "@/lib/config/tenant-settings";
 
 /**
  * GET /api/agent-memory

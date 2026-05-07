@@ -1,7 +1,8 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { sequences, outboundEmails } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
+import { gateAction } from "@/lib/campaign-engine/execution-gate";
 
 export async function POST(
   _req: Request,
@@ -31,6 +32,35 @@ export async function POST(
       { error: `Campaign is not ready (current status: ${config.status || "idle"})` },
       { status: 400 }
     );
+  }
+
+  // Check execution gate before launching
+  const gateResult = await gateAction({
+    actionType: "coldEmailSend",
+    tenantId: authCtx.tenantId,
+  });
+
+  if (gateResult.status === "blocked") {
+    return Response.json(
+      { error: `Campaign blocked: ${gateResult.reason}` },
+      { status: 403 }
+    );
+  }
+
+  if (gateResult.status === "queued_for_approval") {
+    // Mark campaign as "pending_approval" instead of launching
+    const pendingConfig = { ...config, status: "pending_approval" };
+    await db
+      .update(sequences)
+      .set({ campaignConfig: pendingConfig, updatedAt: new Date() })
+      .where(eq(sequences.id, sequenceId));
+
+    return Response.json({
+      launched: false,
+      status: "pending_approval",
+      reason: gateResult.reason,
+      sequenceId,
+    });
   }
 
   // Bulk-transition all approved draft emails to queued

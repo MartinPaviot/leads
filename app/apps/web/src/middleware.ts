@@ -55,6 +55,11 @@ export default auth((req) => {
     "/api/webhooks",
     "/api/inngest",
     "/api/track",
+    // MONACO-PARITY-04: visitor-ID pixel + tracking. Both must be
+    // accessible from the marketing site (cross-origin, no session).
+    // Pixel: GET /api/v1/pixel.js; Track: POST /api/v1/visit/track.
+    "/api/v1/pixel.js",
+    "/api/v1/visit",
     // E2E test seed / cleanup endpoints. The routes fail-closed on
     // both `NODE_ENV === "production"` AND `ENABLE_E2E_SEED === "1"`
     // (M5) — only the CI pipeline running the Playwright suite sets

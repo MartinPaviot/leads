@@ -1,4 +1,4 @@
-import { withAuthRLS } from "@/lib/auth-utils";
+import { withAuthRLS } from "@/lib/auth/auth-utils";
 import { buildDossier } from "@/lib/research/dossier-builder";
 import { inngest } from "@/inngest/client";
 

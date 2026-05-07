@@ -1,9 +1,9 @@
 import { auth } from "@/auth";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities, deals, tasks, sequenceEnrollments, companies, contacts, outboundEmails } from "@/db/schema";
 import { sql, eq, and, gte, lte, or, ne, desc } from "drizzle-orm";
-import { getTenantSettings } from "@/lib/tenant-settings";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 
 function getGreeting(): string {
   const hour = new Date().getHours();

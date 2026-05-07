@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { makeTool, type ToolContext } from "./context";
-import { buildDealBrief, briefAllOpenDeals } from "@/lib/deal-briefing";
+import { buildDealBrief, briefAllOpenDeals } from "@/lib/deals/deal-briefing";
 import {
   buildEnrichedContext,
   formatEnrichedContextForPrompt,
-} from "@/lib/enriched-prospect-context";
+} from "@/lib/context/enriched-prospect-context";
 
 export function buildBriefingTools(ctx: ToolContext) {
   const { tenantId } = ctx;

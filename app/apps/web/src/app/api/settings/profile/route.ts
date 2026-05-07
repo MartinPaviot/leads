@@ -1,8 +1,8 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { users, connectedMailboxes, authAccounts, tenants } from "@/db/schema";
 import { eq, and, ne } from "drizzle-orm";
-import { getTenantSettings } from "@/lib/tenant-settings";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 
 export async function GET() {
   const authCtx = await getAuthContext();

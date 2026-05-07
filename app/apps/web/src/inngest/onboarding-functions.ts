@@ -5,9 +5,9 @@ import { eq, sql } from "drizzle-orm";
 import {
   searchPeople,
   isApolloAvailable,
-} from "@/lib/apollo-client";
-import { getTenantSettings, deriveTargetRoles } from "@/lib/tenant-settings";
-import { embedEntity, companyToText } from "@/lib/embeddings";
+} from "@/lib/integrations/apollo-client";
+import { getTenantSettings, deriveTargetRoles } from "@/lib/config/tenant-settings";
+import { embedEntity, companyToText } from "@/lib/ai/embeddings";
 
 /**
  * Triggered when onboarding is completed.

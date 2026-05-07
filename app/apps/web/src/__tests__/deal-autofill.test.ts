@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ThreadIntelligence } from "@/lib/email-intelligence";
+import type { ThreadIntelligence } from "@/lib/emails/email-intelligence";
 
 // ── Mock setup ──────────────────────────────────────────────────
 
@@ -49,6 +49,14 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
+  distillationSamples: { id: "id", tenantId: "tenant_id", agentId: "agent_id", input: "input", output: "output", score: "score", createdAt: "created_at" },
+  actionOutcomes: { id: "id", tenantId: "tenant_id", actionId: "action_id", outcome: "outcome", createdAt: "created_at" },
+  signalOutcomes: { id: "id", tenantId: "tenant_id", signalId: "signal_id", outcome: "outcome", createdAt: "created_at" },
+  agentTraces: { id: "id", tenantId: "tenant_id", agentId: "agent_id", agentCategory: "agent_category", traceId: "trace_id", input: "input", output: "output", model: "model", status: "status", inputTokens: "input_tokens", outputTokens: "output_tokens", estimatedCost: "estimated_cost", latencyMs: "latency_ms", toolCalls: "tool_calls", toolCallsCount: "tool_calls_count", errorMessage: "error_message", evalScore: "eval_score", metadata: "metadata", createdAt: "created_at" },
+  trustEvents: { id: "id", tenantId: "tenant_id", eventType: "event_type", delta: "delta", reason: "reason", createdAt: "created_at" },
+  systemTrustScore: { id: "id", tenantId: "tenant_id", score: "score", components: "components", createdAt: "created_at" },
+  knowledgeEntries: { id: "id", tenantId: "tenant_id", title: "title", content: "content", category: "category", metadata: "metadata", createdAt: "created_at" },
+  tenants: { id: "id", name: "name", settings: "settings", domain: "domain", stripeCustomerId: "stripe_customer_id", subscriptionId: "subscription_id", plan: "plan", createdAt: "created_at", updatedAt: "updated_at", referralCode: "referral_code" },
   deals: {
     id: "id",
     tenantId: "tenant_id",
@@ -76,17 +84,17 @@ vi.mock("@/db/schema", () => ({
   },
 }));
 
-vi.mock("@/lib/tenant-settings", () => ({
+vi.mock("@/lib/config/tenant-settings", () => ({
   getTenantSettings: vi
     .fn()
     .mockResolvedValue({ agentApprovalMode: "auto-high-confidence" }),
 }));
 
-vi.mock("@/lib/agent-actions", () => ({
+vi.mock("@/lib/agents/agent-actions", () => ({
   recordAgentAction: (...args: unknown[]) => mockRecordAgentAction(...args),
 }));
 
-vi.mock("@/lib/notifications", () => ({
+vi.mock("@/lib/emails/notifications", () => ({
   sendNotification: (...args: unknown[]) => mockSendNotification(...args),
 }));
 
@@ -94,7 +102,7 @@ vi.mock("@/lib/guardrails/trust-score", () => ({
   recordAutonomyEvent: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/lib/logger", () => ({
+vi.mock("@/lib/observability/logger", () => ({
   default: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -109,7 +117,7 @@ import {
   extractDollarAmount,
   extractTimelineDate,
   autofillDealFromIntelligence,
-} from "@/lib/deal-autofill";
+} from "@/lib/deals/deal-autofill";
 
 // ── extractDollarAmount tests ────────────────────────────────
 
@@ -438,7 +446,7 @@ describe("autofillDealFromIntelligence -- approval mode", () => {
 
   it("queues updates in review-each mode", async () => {
     // Override tenant settings to review-each
-    const { getTenantSettings } = await import("@/lib/tenant-settings");
+    const { getTenantSettings } = await import("@/lib/config/tenant-settings");
     vi.mocked(getTenantSettings).mockResolvedValueOnce({
       agentApprovalMode: "review-each",
     } as any);

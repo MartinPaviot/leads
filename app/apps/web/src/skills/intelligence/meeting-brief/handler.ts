@@ -1,6 +1,7 @@
-import { buildProspectContext, formatContextForPrompt } from "@/lib/prospect-context";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { buildProspectContext, formatContextForPrompt } from "@/lib/context/prospect-context";
+import { getSkillKnowledge } from "@/skills/skill-knowledge";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import type { SkillRunOptions } from "@/skills/types";
@@ -16,7 +17,10 @@ export async function meetingBriefHandler(
   input: MeetingBriefInput,
   options: SkillRunOptions,
 ): Promise<MeetingBriefOutput> {
-  const ctx = await buildProspectContext(input.contactId, options.tenantId);
+  const [ctx, knowledgeBlock] = await Promise.all([
+    buildProspectContext(input.contactId, options.tenantId),
+    getSkillKnowledge(`meeting preparation competitive positioning objection handling`, options.tenantId),
+  ]);
   if (!ctx) throw new Error(`Could not build prospect context for contact ${input.contactId}`);
 
   const model = getLLMModel();
@@ -41,6 +45,9 @@ ${input.meetingContext ? `Meeting context: ${input.meetingContext}\n` : ""}
 
 ## Prospect Context
 ${contextBlock}
+
+## Knowledge Context
+${knowledgeBlock}
 
 Generate:
 1. Person summary: 2-3 sentences about who they are, their role, and why they matter

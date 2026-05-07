@@ -1,10 +1,10 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { connectedMailboxes, outboundEmails, warmupEmails } from "@/db/schema";
 import { and, eq, or } from "drizzle-orm";
-import { logger } from "@/lib/logger";
-import { retryWithBackoff } from "@/lib/retry";
-import { checkPlanLimit } from "@/lib/plan-limits";
+import { logger } from "@/lib/observability/logger";
+import { retryWithBackoff } from "@/lib/infra/retry";
+import { checkPlanLimit } from "@/lib/billing/plan-limits";
 
 export async function GET() {
   const authCtx = await getAuthContext();

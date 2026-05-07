@@ -6,8 +6,9 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
-vi.mock("@/lib/auth-utils", () => ({
+vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: vi.fn(),
+  withAuthRLS: vi.fn(async (handler) => { const ctx = await (await import("@/lib/auth/auth-utils")).getAuthContext(); if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 }); return handler(ctx); }),
 }));
 
 vi.mock("@/db", () => ({
@@ -45,13 +46,13 @@ vi.mock("drizzle-orm", () => ({
 process.env.ANTHROPIC_API_KEY = "test-key";
 
 import { auth } from "@/auth";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 
 const followUpModule = await import("@/app/api/emails/follow-up/route");
 const suggestReplyModule = await import("@/app/api/emails/suggest-reply/route");
 
 // Import detectLanguage directly (no mocking needed for the utility)
-const { detectLanguage, getSystemPrompt } = await import("@/lib/language");
+const { detectLanguage, getSystemPrompt } = await import("@/lib/infra/language");
 
 describe("POST /api/emails/follow-up", () => {
   beforeEach(() => {

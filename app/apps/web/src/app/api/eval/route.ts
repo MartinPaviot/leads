@@ -1,5 +1,5 @@
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
-import { anthropic } from "@/lib/ai-provider";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { generateText, stepCountIs } from "ai";
 
 export const maxDuration = 120;

@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
-import { getTenantSettings } from "@/lib/tenant-settings";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 import type { SkillRunOptions } from "@/skills/types";
 import type { InvestorOverlapInput, InvestorOverlapOutput } from "./schema";
 

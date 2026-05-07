@@ -8,11 +8,11 @@ import {
   notes,
 } from "@/db/schema";
 import { eq, and, desc, ilike, or, sql, isNull } from "drizzle-orm";
-import { searchSimilar } from "@/lib/embeddings";
-import type { TenantSettings, McpApiKeyEntry } from "@/lib/tenant-settings";
+import { searchSimilar } from "@/lib/ai/embeddings";
+import type { TenantSettings, McpApiKeyEntry } from "@/lib/config/tenant-settings";
 import { compare } from "bcryptjs";
-import logger from "@/lib/logger";
-import { apiError } from "@/lib/api-errors";
+import logger from "@/lib/observability/logger";
+import { apiError } from "@/lib/infra/api-errors";
 
 // ── MCP Tool Definitions ──
 

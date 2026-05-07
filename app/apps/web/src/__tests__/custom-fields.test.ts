@@ -4,7 +4,7 @@ import {
   getCustomFieldValue,
   setCustomFieldValue,
   getBuiltInFields,
-} from "@/lib/custom-fields";
+} from "@/lib/context/custom-fields";
 
 describe("formatFieldValue", () => {
   it("returns — for null/undefined", () => {

@@ -2,170 +2,391 @@
 > @leadsens/web@0.1.0 build C:\Users\marti\leads\app\apps\web
 > next build
 
-   ▲ Next.js 15.5.14
+ ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of C:\Users\marti\pnpm-lock.yaml as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+ Detected additional lockfiles: 
+   * C:\Users\marti\leads\app\pnpm-lock.yaml
+   * C:\Users\marti\leads\pnpm-lock.yaml
+
+   ▲ Next.js 15.5.15
    - Environments: .env.local
 
    Creating an optimized production build ...
- ✓ Compiled successfully in 31.9s
+ ⚠ Compiled with warnings in 42s
+
+../../node_modules/.pnpm/@opentelemetry+instrumentat_05c1dbe20c09462de13f6c82f6f5ce91/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+../../node_modules/.pnpm/@opentelemetry+instrumentat_05c1dbe20c09462de13f6c82f6f5ce91/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+../../node_modules/.pnpm/@opentelemetry+instrumentat_05c1dbe20c09462de13f6c82f6f5ce91/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentat_05c1dbe20c09462de13f6c82f6f5ce91/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentat_05c1dbe20c09462de13f6c82f6f5ce91/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+../../node_modules/.pnpm/@prisma+instrumentation@7.6.0_@opentelemetry+api@1.9.1/node_modules/@prisma/instrumentation/dist/index.js
+../../node_modules/.pnpm/@sentry+node@10.48.0_@opent_f7dec7108650322d032b6ac6b75b4c29/node_modules/@sentry/node/build/cjs/integrations/tracing/prisma.js
+../../node_modules/.pnpm/@sentry+node@10.48.0_@opent_f7dec7108650322d032b6ac6b75b4c29/node_modules/@sentry/node/build/cjs/index.js
+../../node_modules/.pnpm/@sentry+nextjs@10.48.0_@ope_e57d554ac1648777ac640ff78fc67fb8/node_modules/@sentry/nextjs/build/cjs/index.server.js
+./src/lib/observability/logger.ts
+./src/app/global-error.tsx
+
+../../node_modules/.pnpm/@opentelemetry+instrumentat_fad8dcc0f3efd98c26cc4a45a1c38911/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+../../node_modules/.pnpm/@opentelemetry+instrumentat_fad8dcc0f3efd98c26cc4a45a1c38911/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+../../node_modules/.pnpm/@opentelemetry+instrumentat_fad8dcc0f3efd98c26cc4a45a1c38911/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentat_fad8dcc0f3efd98c26cc4a45a1c38911/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentat_fad8dcc0f3efd98c26cc4a45a1c38911/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+../../node_modules/.pnpm/@fastify+otel@0.18.0_@opentelemetry+api@1.9.1/node_modules/@fastify/otel/index.js
+../../node_modules/.pnpm/@sentry+node@10.48.0_@opent_f7dec7108650322d032b6ac6b75b4c29/node_modules/@sentry/node/build/cjs/integrations/tracing/fastify/index.js
+../../node_modules/.pnpm/@sentry+node@10.48.0_@opent_f7dec7108650322d032b6ac6b75b4c29/node_modules/@sentry/node/build/cjs/index.js
+../../node_modules/.pnpm/@sentry+nextjs@10.48.0_@ope_e57d554ac1648777ac640ff78fc67fb8/node_modules/@sentry/nextjs/build/cjs/index.server.js
+
+../../node_modules/.pnpm/require-in-the-middle@8.0.1/node_modules/require-in-the-middle/index.js
+Critical dependency: require function is used in a way in which dependencies cannot be statically extracted
+
+Import trace for requested module:
+../../node_modules/.pnpm/require-in-the-middle@8.0.1/node_modules/require-in-the-middle/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentat_6bab8c084d97a5e5be695c4d57abd108/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+../../node_modules/.pnpm/@opentelemetry+instrumentat_6bab8c084d97a5e5be695c4d57abd108/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentat_6bab8c084d97a5e5be695c4d57abd108/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentat_6bab8c084d97a5e5be695c4d57abd108/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+../../node_modules/.pnpm/@sentry+node@10.48.0_@opent_f7dec7108650322d032b6ac6b75b4c29/node_modules/@sentry/node/build/cjs/integrations/tracing/express.js
+../../node_modules/.pnpm/@sentry+node@10.48.0_@opent_f7dec7108650322d032b6ac6b75b4c29/node_modules/@sentry/node/build/cjs/index.js
+../../node_modules/.pnpm/@sentry+nextjs@10.48.0_@ope_e57d554ac1648777ac640ff78fc67fb8/node_modules/@sentry/nextjs/build/cjs/index.server.js
+
+../../node_modules/.pnpm/@opentelemetry+instrumentat_05c1dbe20c09462de13f6c82f6f5ce91/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+../../node_modules/.pnpm/@opentelemetry+instrumentat_05c1dbe20c09462de13f6c82f6f5ce91/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+../../node_modules/.pnpm/@opentelemetry+instrumentat_05c1dbe20c09462de13f6c82f6f5ce91/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentat_05c1dbe20c09462de13f6c82f6f5ce91/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentat_05c1dbe20c09462de13f6c82f6f5ce91/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+../../node_modules/.pnpm/@prisma+instrumentation@7.6.0_@opentelemetry+api@1.9.1/node_modules/@prisma/instrumentation/dist/index.js
+../../node_modules/.pnpm/@sentry+node@10.48.0_@opent_f7dec7108650322d032b6ac6b75b4c29/node_modules/@sentry/node/build/cjs/integrations/tracing/prisma.js
+../../node_modules/.pnpm/@sentry+node@10.48.0_@opent_f7dec7108650322d032b6ac6b75b4c29/node_modules/@sentry/node/build/cjs/index.js
+../../node_modules/.pnpm/@sentry+nextjs@10.48.0_@ope_e57d554ac1648777ac640ff78fc67fb8/node_modules/@sentry/nextjs/build/cjs/index.server.js
+./src/lib/observability/logger.ts
+./src/app/api/account/route.ts
+
+ ✓ Compiled successfully in 52s
    Linting and checking validity of types ...
    Collecting page data ...
-   Generating static pages (0/113) ...
-   Generating static pages (28/113) 
-   Generating static pages (56/113) 
-   Generating static pages (84/113) 
- ✓ Generating static pages (113/113)
+   Generating static pages (0/239) ...
+   Generating static pages (59/239) 
+   Generating static pages (119/239) 
+   Generating static pages (179/239) 
+ ✓ Generating static pages (239/239)
    Finalizing page optimization ...
    Collecting build traces ...
 
-Route (app)                                   Size  First Load JS
-┌ ƒ /                                      12.4 kB         115 kB
-├ ○ /_not-found                              997 B         104 kB
-├ ○ /acceptable-use                          400 B         103 kB
-├ ƒ /accounts                              6.25 kB         113 kB
-├ ƒ /accounts/[id]                         2.26 kB         241 kB
-├ ƒ /api/accounts                            400 B         103 kB
-├ ƒ /api/accounts/[id]                       400 B         103 kB
-├ ƒ /api/accounts/[id]/contacts              400 B         103 kB
-├ ƒ /api/accounts/[id]/lifecycle             400 B         103 kB
-├ ƒ /api/accounts/[id]/suggested-contacts    400 B         103 kB
-├ ƒ /api/accounts/[id]/summarize             400 B         103 kB
-├ ƒ /api/actions                             400 B         103 kB
-├ ƒ /api/activities                          400 B         103 kB
-├ ƒ /api/admin/purge-fake-data               400 B         103 kB
-├ ƒ /api/auth/[...nextauth]                  400 B         103 kB
-├ ƒ /api/billing/checkout                    400 B         103 kB
-├ ƒ /api/billing/portal                      400 B         103 kB
-├ ƒ /api/billing/subscription                400 B         103 kB
-├ ƒ /api/billing/usage                       400 B         103 kB
-├ ƒ /api/calendar/sync                       400 B         103 kB
-├ ƒ /api/calendar/sync/microsoft             400 B         103 kB
-├ ƒ /api/chat                                400 B         103 kB
-├ ƒ /api/chat/threads                        400 B         103 kB
-├ ƒ /api/chat/threads/[id]                   400 B         103 kB
-├ ƒ /api/contacts                            400 B         103 kB
-├ ƒ /api/contacts/[id]                       400 B         103 kB
-├ ƒ /api/context-graph                       400 B         103 kB
-├ ƒ /api/context-graph/feedback              400 B         103 kB
-├ ƒ /api/context-graph/ingest                400 B         103 kB
-├ ƒ /api/context-graph/stats                 400 B         103 kB
-├ ƒ /api/cron/email-sync                     400 B         103 kB
-├ ƒ /api/cron/graph-maintenance              400 B         103 kB
-├ ƒ /api/cron/stale-deals                    400 B         103 kB
-├ ƒ /api/cron/world-model                    400 B         103 kB
-├ ƒ /api/dashboard/summary                   400 B         103 kB
-├ ƒ /api/deals/[id]                          400 B         103 kB
-├ ƒ /api/deals/[id]/extract                  400 B         103 kB
-├ ƒ /api/deals/[id]/timeline                 400 B         103 kB
-├ ƒ /api/deals/analyze                       400 B         103 kB
-├ ƒ /api/deliverability                      400 B         103 kB
-├ ƒ /api/email/status                        400 B         103 kB
-├ ƒ /api/email/sync                          400 B         103 kB
-├ ƒ /api/emails                              400 B         103 kB
-├ ƒ /api/emails/follow-up                    400 B         103 kB
-├ ƒ /api/emails/suggest-reply                400 B         103 kB
-├ ƒ /api/embed                               400 B         103 kB
-├ ƒ /api/enrich                              400 B         103 kB
-├ ƒ /api/enrich-contacts                     400 B         103 kB
-├ ƒ /api/eval                                400 B         103 kB
-├ ƒ /api/eval/datasets                       400 B         103 kB
-├ ƒ /api/eval/datasets/[id]/cases            400 B         103 kB
-├ ƒ /api/eval/runs                           400 B         103 kB
-├ ƒ /api/eval/runs/[id]                      400 B         103 kB
-├ ƒ /api/eval/seed                           400 B         103 kB
-├ ƒ /api/export                              400 B         103 kB
-├ ƒ /api/features                            400 B         103 kB
-├ ƒ /api/gdpr/delete                         400 B         103 kB
-├ ƒ /api/gdpr/export                         400 B         103 kB
-├ ƒ /api/health                              400 B         103 kB
-├ ƒ /api/import                              400 B         103 kB
-├ ƒ /api/import/smart                        400 B         103 kB
-├ ƒ /api/inngest                             400 B         103 kB
-├ ƒ /api/insights                            400 B         103 kB
-├ ƒ /api/meetings/[id]/notes                 400 B         103 kB
-├ ƒ /api/meetings/[id]/post-call             400 B         103 kB
-├ ƒ /api/meetings/prep                       400 B         103 kB
-├ ƒ /api/meetings/process-transcript         400 B         103 kB
-├ ƒ /api/meetings/upload-transcript          400 B         103 kB
-├ ƒ /api/notes                               400 B         103 kB
-├ ƒ /api/notifications                       400 B         103 kB
-├ ƒ /api/notifications/preferences           400 B         103 kB
-├ ƒ /api/onboarding/analyze-website          400 B         103 kB
-├ ƒ /api/onboarding/email-intelligence       400 B         103 kB
-├ ƒ /api/onboarding/save                     400 B         103 kB
-├ ƒ /api/onboarding/status                   400 B         103 kB
-├ ƒ /api/opportunities                       400 B         103 kB
-├ ƒ /api/opportunities/[id]                  400 B         103 kB
-├ ƒ /api/opportunities/[id]/extract-intel    400 B         103 kB
-├ ƒ /api/outbound/review                     400 B         103 kB
-├ ƒ /api/pipeline/analytics                  400 B         103 kB
-├ ƒ /api/recall-test                         400 B         103 kB
-├ ƒ /api/score                               400 B         103 kB
-├ ƒ /api/score-contacts                      400 B         103 kB
-├ ƒ /api/search                              400 B         103 kB
-├ ƒ /api/search/tam                          400 B         103 kB
-├ ƒ /api/sequences                           400 B         103 kB
-├ ƒ /api/sequences/[id]                      400 B         103 kB
-├ ƒ /api/sequences/[id]/autopilot            400 B         103 kB
-├ ƒ /api/sequences/[id]/enroll               400 B         103 kB
-├ ƒ /api/sequences/[id]/steps                400 B         103 kB
-├ ƒ /api/sequences/[id]/suggestions          400 B         103 kB
-├ ƒ /api/settings/custom-signals             400 B         103 kB
-├ ƒ /api/settings/data-model                 400 B         103 kB
-├ ƒ /api/settings/knowledge                  400 B         103 kB
-├ ƒ /api/settings/mailboxes                  400 B         103 kB
-├ ƒ /api/settings/stages                     400 B         103 kB
-├ ƒ /api/settings/workflows                  400 B         103 kB
-├ ƒ /api/settings/workspace                  400 B         103 kB
-├ ƒ /api/signals                             400 B         103 kB
-├ ƒ /api/tam                                 400 B         103 kB
-├ ƒ /api/tasks                               400 B         103 kB
-├ ƒ /api/tasks/[id]                          400 B         103 kB
-├ ƒ /api/unsubscribe                         400 B         103 kB
-├ ƒ /api/voice-of-customer                   400 B         103 kB
-├ ƒ /api/webhooks/emailengine                400 B         103 kB
-├ ƒ /api/webhooks/stripe                     400 B         103 kB
-├ ƒ /chat                                  6.04 kB         238 kB
-├ ƒ /contacts                              5.75 kB         113 kB
-├ ƒ /contacts/[id]                         2.69 kB         238 kB
-├ ƒ /deliverability                         3.1 kB         106 kB
-├ ƒ /graph                                 5.64 kB         108 kB
-├ ○ /icon                                    400 B         103 kB
-├ ○ /landing                               4.42 kB         111 kB
-├ ƒ /meetings                              2.71 kB         144 kB
-├ ƒ /meetings/[id]                         6.03 kB         109 kB
-├ ƒ /notes                                 3.33 kB         106 kB
-├ ƒ /opportunities                          3.8 kB         111 kB
-├ ƒ /opportunities/[id]                    2.29 kB         241 kB
-├ ƒ /pricing                               3.22 kB         106 kB
-├ ○ /privacy                                 400 B         103 kB
-├ ƒ /sequences                             3.72 kB         106 kB
-├ ƒ /sequences/[id]                        4.75 kB         107 kB
-├ ƒ /sequences/[id]/review                 1.71 kB         108 kB
-├ ƒ /settings                              3.32 kB         109 kB
-├ ƒ /settings/agent                        2.35 kB         105 kB
-├ ƒ /settings/billing                      4.28 kB         107 kB
-├ ƒ /settings/data-model                   5.53 kB         108 kB
-├ ƒ /settings/evals                        4.93 kB         108 kB
-├ ƒ /settings/knowledge                    3.99 kB         107 kB
-├ ƒ /settings/mailboxes                    3.67 kB         112 kB
-├ ƒ /settings/members                      3.99 kB         107 kB
-├ ƒ /settings/notifications                5.14 kB         108 kB
-├ ƒ /settings/stages                       3.12 kB         106 kB
-├ ƒ /settings/workflows                    3.24 kB         109 kB
-├ ƒ /settings/workspace                    4.45 kB         107 kB
-├ ○ /sign-in                                 877 B         104 kB
-├ ƒ /sign-up                                 890 B         107 kB
-├ ○ /sitemap.xml                             400 B         103 kB
-├ ƒ /tasks                                    5 kB         108 kB
-├ ○ /terms                                   400 B         103 kB
-└ ƒ /voice-of-customer                     4.35 kB         107 kB
-+ First Load JS shared by all               103 kB
-  ├ chunks/3b75a83e-a603163c16247511.js    54.2 kB
-  ├ chunks/9639-a7febb7df7993489.js        46.5 kB
-  └ other shared chunks (total)               2 kB
+Route (app)                                                        Size  First Load JS
+┌ ○ /                                                             48 kB         154 kB
+├ ○ /_not-found                                                   993 B         104 kB
+├ ○ /accept-invite                                              1.92 kB         104 kB
+├ ○ /acceptable-use                                               711 B         103 kB
+├ ƒ /accounts                                                   18.6 kB         135 kB
+├ ƒ /accounts/[id]                                              8.81 kB         264 kB
+├ ƒ /api/account                                                  711 B         103 kB
+├ ƒ /api/account/password                                         711 B         103 kB
+├ ƒ /api/accounts                                                 711 B         103 kB
+├ ƒ /api/accounts/[id]                                            711 B         103 kB
+├ ƒ /api/accounts/[id]/contacts                                   711 B         103 kB
+├ ƒ /api/accounts/[id]/generate-summary                           711 B         103 kB
+├ ƒ /api/accounts/[id]/intelligence                               711 B         103 kB
+├ ƒ /api/accounts/[id]/lifecycle                                  711 B         103 kB
+├ ƒ /api/accounts/[id]/suggested-contacts                         711 B         103 kB
+├ ƒ /api/accounts/[id]/summarize                                  711 B         103 kB
+├ ƒ /api/accounts/batch                                           711 B         103 kB
+├ ƒ /api/actions                                                  711 B         103 kB
+├ ƒ /api/activities                                               711 B         103 kB
+├ ƒ /api/admin/company-logo/negative-cache                        711 B         103 kB
+├ ƒ /api/admin/company-logo/resolutions                           711 B         103 kB
+├ ƒ /api/admin/distillation                                       711 B         103 kB
+├ ƒ /api/admin/experiments                                        711 B         103 kB
+├ ƒ /api/admin/onboarding-metrics                                 711 B         103 kB
+├ ƒ /api/admin/purge-fake-data                                    711 B         103 kB
+├ ƒ /api/admin/run-ws1-migration                                  711 B         103 kB
+├ ƒ /api/agent-actions                                            711 B         103 kB
+├ ƒ /api/agent-actions/[id]/reverse                               711 B         103 kB
+├ ƒ /api/agent-feed                                               711 B         103 kB
+├ ƒ /api/agent-memory                                             711 B         103 kB
+├ ƒ /api/agent-tasks                                              711 B         103 kB
+├ ƒ /api/agent-tasks/[id]                                         711 B         103 kB
+├ ƒ /api/audit                                                    711 B         103 kB
+├ ƒ /api/auth/[...nextauth]                                       711 B         103 kB
+├ ƒ /api/auth/forgot-password                                     711 B         103 kB
+├ ƒ /api/auth/invite/[token]                                      711 B         103 kB
+├ ƒ /api/auth/invite/accept                                       711 B         103 kB
+├ ƒ /api/auth/reset-password                                      711 B         103 kB
+├ ƒ /api/auth/verify-email/send                                   711 B         103 kB
+├ ƒ /api/benchmarks                                               711 B         103 kB
+├ ƒ /api/billing/checkout                                         711 B         103 kB
+├ ƒ /api/billing/portal                                           711 B         103 kB
+├ ƒ /api/billing/subscription                                     711 B         103 kB
+├ ƒ /api/billing/usage                                            711 B         103 kB
+├ ƒ /api/calendar/sync                                            711 B         103 kB
+├ ƒ /api/calendar/sync/microsoft                                  711 B         103 kB
+├ ƒ /api/campaign-engine/deliverability                           711 B         103 kB
+├ ƒ /api/campaign-engine/research                                 711 B         103 kB
+├ ƒ /api/campaign-engine/strategy                                 711 B         103 kB
+├ ƒ /api/campaign-engine/trust-score                              711 B         103 kB
+├ ƒ /api/campaigns/[sequenceId]/launch                            711 B         103 kB
+├ ƒ /api/campaigns/[sequenceId]/preview                           711 B         103 kB
+├ ƒ /api/campaigns/[sequenceId]/status                            711 B         103 kB
+├ ƒ /api/campaigns/generate                                       711 B         103 kB
+├ ƒ /api/campaigns/prepare                                        711 B         103 kB
+├ ƒ /api/chat                                                     711 B         103 kB
+├ ƒ /api/chat/suggestions                                         711 B         103 kB
+├ ƒ /api/chat/threads                                             711 B         103 kB
+├ ƒ /api/chat/threads/[id]                                        711 B         103 kB
+├ ƒ /api/company-logo/resolve-batch                               711 B         103 kB
+├ ƒ /api/contacts                                                 711 B         103 kB
+├ ƒ /api/contacts/[id]                                            711 B         103 kB
+├ ƒ /api/contacts/[id]/buyer-intent                               711 B         103 kB
+├ ƒ /api/contacts/merge                                           711 B         103 kB
+├ ƒ /api/context-graph                                            711 B         103 kB
+├ ƒ /api/context-graph/feedback                                   711 B         103 kB
+├ ƒ /api/context-graph/ingest                                     711 B         103 kB
+├ ƒ /api/context-graph/stats                                      711 B         103 kB
+├ ƒ /api/cron/deal-progression                                    711 B         103 kB
+├ ƒ /api/cron/email-sync                                          711 B         103 kB
+├ ƒ /api/cron/graph-maintenance                                   711 B         103 kB
+├ ƒ /api/cron/mailbox-reset                                       711 B         103 kB
+├ ƒ /api/cron/stale-deals                                         711 B         103 kB
+├ ƒ /api/cron/world-model                                         711 B         103 kB
+├ ƒ /api/custom-objects                                           711 B         103 kB
+├ ƒ /api/custom-objects/[type]                                    711 B         103 kB
+├ ƒ /api/custom-objects/[type]/[id]                               711 B         103 kB
+├ ƒ /api/custom-signals                                           711 B         103 kB
+├ ƒ /api/dashboard/activity                                       711 B         103 kB
+├ ƒ /api/dashboard/alerts                                         711 B         103 kB
+├ ƒ /api/dashboard/briefs                                         711 B         103 kB
+├ ƒ /api/dashboard/performance                                    711 B         103 kB
+├ ƒ /api/dashboard/pipeline                                       711 B         103 kB
+├ ƒ /api/dashboard/summary                                        711 B         103 kB
+├ ƒ /api/deals/[id]                                               711 B         103 kB
+├ ƒ /api/deals/[id]/extract                                       711 B         103 kB
+├ ƒ /api/deals/[id]/score                                         711 B         103 kB
+├ ƒ /api/deals/[id]/timeline                                      711 B         103 kB
+├ ƒ /api/deals/[id]/win-loss                                      711 B         103 kB
+├ ƒ /api/deals/analyze                                            711 B         103 kB
+├ ƒ /api/deals/at-risk                                            711 B         103 kB
+├ ƒ /api/deliverability                                           711 B         103 kB
+├ ƒ /api/deliverability/verify                                    711 B         103 kB
+├ ƒ /api/email/status                                             711 B         103 kB
+├ ƒ /api/email/sync                                               711 B         103 kB
+├ ƒ /api/emails                                                   711 B         103 kB
+├ ƒ /api/emails/follow-up                                         711 B         103 kB
+├ ƒ /api/emails/send                                              711 B         103 kB
+├ ƒ /api/emails/suggest-reply                                     711 B         103 kB
+├ ƒ /api/embed                                                    711 B         103 kB
+├ ƒ /api/enrich                                                   711 B         103 kB
+├ ƒ /api/enrich-batch                                             711 B         103 kB
+├ ƒ /api/enrich-contacts                                          711 B         103 kB
+├ ƒ /api/estimate-cost                                            711 B         103 kB
+├ ƒ /api/eval                                                     711 B         103 kB
+├ ƒ /api/eval/dashboard                                           711 B         103 kB
+├ ƒ /api/eval/datasets                                            711 B         103 kB
+├ ƒ /api/eval/datasets/[id]/cases                                 711 B         103 kB
+├ ƒ /api/eval/run-all                                             711 B         103 kB
+├ ƒ /api/eval/runs                                                711 B         103 kB
+├ ƒ /api/eval/runs/[id]                                           711 B         103 kB
+├ ƒ /api/eval/seed                                                711 B         103 kB
+├ ƒ /api/experiments                                              711 B         103 kB
+├ ƒ /api/export                                                   711 B         103 kB
+├ ƒ /api/features                                                 711 B         103 kB
+├ ƒ /api/filters/parse-nl                                         711 B         103 kB
+├ ƒ /api/forecast                                                 711 B         103 kB
+├ ƒ /api/gdpr/delete                                              711 B         103 kB
+├ ƒ /api/gdpr/export                                              711 B         103 kB
+├ ƒ /api/health                                                   711 B         103 kB
+├ ƒ /api/home/hydrate                                             711 B         103 kB
+├ ƒ /api/import                                                   711 B         103 kB
+├ ƒ /api/import/history                                           711 B         103 kB
+├ ƒ /api/import/smart                                             711 B         103 kB
+├ ƒ /api/import/smart/commit                                      711 B         103 kB
+├ ƒ /api/import/smart/preview                                     711 B         103 kB
+├ ƒ /api/inbox                                                    711 B         103 kB
+├ ƒ /api/inngest                                                  711 B         103 kB
+├ ƒ /api/insights                                                 711 B         103 kB
+├ ƒ /api/mcp                                                      711 B         103 kB
+├ ƒ /api/mcp/keys                                                 711 B         103 kB
+├ ƒ /api/meetings                                                 711 B         103 kB
+├ ƒ /api/meetings/[id]/live                                       711 B         103 kB
+├ ƒ /api/meetings/[id]/notes                                      711 B         103 kB
+├ ƒ /api/meetings/[id]/notes/send-follow-up                       711 B         103 kB
+├ ƒ /api/meetings/[id]/post-call                                  711 B         103 kB
+├ ƒ /api/meetings/book                                            711 B         103 kB
+├ ƒ /api/meetings/opt-out                                         711 B         103 kB
+├ ƒ /api/meetings/prep                                            711 B         103 kB
+├ ƒ /api/meetings/process-transcript                              711 B         103 kB
+├ ƒ /api/meetings/upload-transcript                               711 B         103 kB
+├ ƒ /api/notes                                                    711 B         103 kB
+├ ƒ /api/notifications                                            711 B         103 kB
+├ ƒ /api/notifications/preferences                                711 B         103 kB
+├ ƒ /api/nudges/autonomy                                          711 B         103 kB
+├ ƒ /api/onboarding/analyze-website                               711 B         103 kB
+├ ƒ /api/onboarding/chat                                          711 B         103 kB
+├ ƒ /api/onboarding/email-intelligence                            711 B         103 kB
+├ ƒ /api/onboarding/enrich-icp                                    711 B         103 kB
+├ ƒ /api/onboarding/find-contacts                                 711 B         103 kB
+├ ƒ /api/onboarding/narrate-website                               711 B         103 kB
+├ ƒ /api/onboarding/save                                          711 B         103 kB
+├ ƒ /api/onboarding/status                                        711 B         103 kB
+├ ƒ /api/opportunities                                            711 B         103 kB
+├ ƒ /api/opportunities/[id]                                       711 B         103 kB
+├ ƒ /api/opportunities/[id]/auto-progress                         711 B         103 kB
+├ ƒ /api/opportunities/[id]/extract-intel                         711 B         103 kB
+├ ƒ /api/opportunities/[id]/health                                711 B         103 kB
+├ ƒ /api/opportunities/[id]/timeline                              711 B         103 kB
+├ ƒ /api/outbound/review                                          711 B         103 kB
+├ ƒ /api/pipeline/analytics                                       711 B         103 kB
+├ ƒ /api/priorities                                               711 B         103 kB
+├ ƒ /api/public/pixel/track                                       711 B         103 kB
+├ ƒ /api/recall-test                                              711 B         103 kB
+├ ƒ /api/recommendations                                          711 B         103 kB
+├ ƒ /api/reports/generate                                         711 B         103 kB
+├ ƒ /api/reports/schedule                                         711 B         103 kB
+├ ƒ /api/research/dossier                                         711 B         103 kB
+├ ƒ /api/score                                                    711 B         103 kB
+├ ƒ /api/score-contacts                                           711 B         103 kB
+├ ƒ /api/score/contacts                                           711 B         103 kB
+├ ƒ /api/search                                                   711 B         103 kB
+├ ƒ /api/search/quick                                             711 B         103 kB
+├ ƒ /api/search/tam                                               711 B         103 kB
+├ ƒ /api/sequences                                                711 B         103 kB
+├ ƒ /api/sequences/[id]                                           711 B         103 kB
+├ ƒ /api/sequences/[id]/analytics                                 711 B         103 kB
+├ ƒ /api/sequences/[id]/autopilot                                 711 B         103 kB
+├ ƒ /api/sequences/[id]/enroll                                    711 B         103 kB
+├ ƒ /api/sequences/[id]/export                                    711 B         103 kB
+├ ƒ /api/sequences/[id]/steps                                     711 B         103 kB
+├ ƒ /api/sequences/[id]/steps/[stepId]                            711 B         103 kB
+├ ƒ /api/sequences/[id]/suggestions                               711 B         103 kB
+├ ƒ /api/settings/autonomy                                        711 B         103 kB
+├ ƒ /api/settings/calibration                                     711 B         103 kB
+├ ƒ /api/settings/compliance                                      711 B         103 kB
+├ ƒ /api/settings/custom-signals                                  711 B         103 kB
+├ ƒ /api/settings/data-model                                      711 B         103 kB
+├ ƒ /api/settings/icp                                             711 B         103 kB
+├ ƒ /api/settings/knowledge                                       711 B         103 kB
+├ ƒ /api/settings/llm-budget                                      711 B         103 kB
+├ ƒ /api/settings/mail-calendar                                   711 B         103 kB
+├ ƒ /api/settings/mailboxes                                       711 B         103 kB
+├ ƒ /api/settings/members                                         711 B         103 kB
+├ ƒ /api/settings/members/invite                                  711 B         103 kB
+├ ƒ /api/settings/members/invites                                 711 B         103 kB
+├ ƒ /api/settings/members/invites/[id]                            711 B         103 kB
+├ ƒ /api/settings/oauth                                           711 B         103 kB
+├ ƒ /api/settings/plays                                           711 B         103 kB
+├ ƒ /api/settings/plays/[id]                                      711 B         103 kB
+├ ƒ /api/settings/privacy                                         711 B         103 kB
+├ ƒ /api/settings/profile                                         711 B         103 kB
+├ ƒ /api/settings/sending-infra                                   711 B         103 kB
+├ ƒ /api/settings/sending-infra/providers/instantly/connect       711 B         103 kB
+├ ƒ /api/settings/sending-infra/providers/instantly/disconnect    711 B         103 kB
+├ ƒ /api/settings/sending-infra/request-managed                   711 B         103 kB
+├ ƒ /api/settings/skills                                          711 B         103 kB
+├ ƒ /api/settings/skills/[id]                                     711 B         103 kB
+├ ƒ /api/settings/stages                                          711 B         103 kB
+├ ƒ /api/settings/workflows                                       711 B         103 kB
+├ ƒ /api/settings/workspace                                       711 B         103 kB
+├ ƒ /api/signals                                                  711 B         103 kB
+├ ƒ /api/skills/[slug]                                            711 B         103 kB
+├ ƒ /api/tam                                                      711 B         103 kB
+├ ƒ /api/tam/build                                                711 B         103 kB
+├ ƒ /api/tam/estimate                                             711 B         103 kB
+├ ƒ /api/tasks                                                    711 B         103 kB
+├ ƒ /api/tasks/[id]                                               711 B         103 kB
+├ ƒ /api/test-e2e/cleanup                                         711 B         103 kB
+├ ƒ /api/test-e2e/seed                                            711 B         103 kB
+├ ƒ /api/track/click                                              711 B         103 kB
+├ ƒ /api/track/open                                               711 B         103 kB
+├ ƒ /api/unsubscribe                                              711 B         103 kB
+├ ƒ /api/user-preferences                                         711 B         103 kB
+├ ƒ /api/views                                                    711 B         103 kB
+├ ƒ /api/voice-of-customer                                        711 B         103 kB
+├ ƒ /api/warm-leads/draft                                         711 B         103 kB
+├ ƒ /api/warm-leads/scan                                          711 B         103 kB
+├ ƒ /api/warm-paths                                               711 B         103 kB
+├ ƒ /api/webhooks/emailengine                                     711 B         103 kB
+├ ƒ /api/webhooks/recall                                          711 B         103 kB
+├ ƒ /api/webhooks/resend                                          711 B         103 kB
+├ ƒ /api/webhooks/stripe                                          711 B         103 kB
+├ ƒ /chat                                                       9.07 kB         262 kB
+├ ƒ /contacts                                                   12.1 kB         126 kB
+├ ƒ /contacts/[id]                                              6.28 kB         264 kB
+├ ƒ /contacts/merge                                             6.04 kB         112 kB
+├ ƒ /deliverability                                             6.25 kB         109 kB
+├ ○ /forgot-password                                            1.36 kB         107 kB
+├ ƒ /graph                                                      6.19 kB         109 kB
+├ ƒ /home                                                       29.8 kB         147 kB
+├ ○ /icon                                                         711 B         103 kB
+├ ƒ /inbox                                                      6.41 kB         113 kB
+├ ƒ /insights                                                   4.78 kB         107 kB
+├ ƒ /knowledge                                                  7.32 kB         113 kB
+├ ○ /landing                                                      711 B         103 kB
+├ ƒ /meetings                                                   4.38 kB         160 kB
+├ ƒ /meetings/[id]                                              9.34 kB         259 kB
+├ ƒ /notes                                                      5.11 kB         109 kB
+├ ƒ /objects/[type]                                             6.33 kB         116 kB
+├ ƒ /opportunities                                              16.1 kB         126 kB
+├ ƒ /opportunities/[id]                                           10 kB         268 kB
+├ ƒ /pricing                                                    3.27 kB         106 kB
+├ ○ /privacy                                                      711 B         103 kB
+├ ƒ /r/exposure/[id]                                              711 B         103 kB
+├ ƒ /reports                                                     4.8 kB         109 kB
+├ ○ /reset-password                                              1.8 kB         108 kB
+├ ƒ /sequences                                                  3.56 kB         115 kB
+├ ƒ /sequences/[id]                                             9.54 kB         121 kB
+├ ƒ /sequences/[id]/review                                      3.86 kB         110 kB
+├ ƒ /settings                                                   5.01 kB         111 kB
+├ ƒ /settings/agent                                               711 B         103 kB
+├ ƒ /settings/agent-memory                                      3.92 kB         106 kB
+├ ƒ /settings/autonomy                                          5.78 kB         108 kB
+├ ƒ /settings/billing                                           5.98 kB         109 kB
+├ ƒ /settings/data-model                                        6.26 kB         109 kB
+├ ƒ /settings/evals                                             4.76 kB         107 kB
+├ ƒ /settings/guardrails                                        4.98 kB         108 kB
+├ ƒ /settings/icp                                               4.67 kB         110 kB
+├ ƒ /settings/knowledge                                         5.28 kB         108 kB
+├ ƒ /settings/llm-budget                                        6.56 kB         109 kB
+├ ƒ /settings/mail-calendar                                     6.24 kB         117 kB
+├ ƒ /settings/mailboxes                                           711 B         103 kB
+├ ƒ /settings/mcp                                               7.46 kB         110 kB
+├ ƒ /settings/members                                           4.53 kB         111 kB
+├ ƒ /settings/notifications                                     3.37 kB         110 kB
+├ ƒ /settings/objects                                           4.16 kB         112 kB
+├ ƒ /settings/plays                                             6.69 kB         109 kB
+├ ƒ /settings/privacy                                           8.37 kB         111 kB
+├ ƒ /settings/recording                                         3.57 kB         110 kB
+├ ƒ /settings/security                                          3.11 kB         106 kB
+├ ƒ /settings/sending-infrastructure                            6.51 kB         109 kB
+├ ƒ /settings/signals                                           5.28 kB         108 kB
+├ ƒ /settings/stages                                            3.42 kB         106 kB
+├ ƒ /settings/workflows                                         7.75 kB         113 kB
+├ ƒ /settings/workspace                                         4.64 kB         107 kB
+├ ƒ /sign-in                                                    1.18 kB         104 kB
+├ ƒ /sign-up                                                    1.19 kB         107 kB
+├ ○ /sitemap.xml                                                  711 B         103 kB
+├ ƒ /skills                                                     9.24 kB         112 kB
+├ ƒ /tasks                                                      6.76 kB         111 kB
+├ ○ /terms                                                        711 B         103 kB
+├ ○ /test-page                                                    711 B         103 kB
+├ ƒ /verify-email                                                 169 B         106 kB
+├ ƒ /verify-email-sent                                            868 B         107 kB
+└ ƒ /voice-of-customer                                           4.8 kB         107 kB
++ First Load JS shared by all                                    103 kB
+  ├ chunks/23c66951-a23a7fb63a613ddf.js                         54.2 kB
+  ├ chunks/253-f328e0944a177082.js                              46.2 kB
+  └ other shared chunks (total)                                 2.06 kB
 
 
-ƒ Middleware                                203 kB
+ƒ Middleware                                                     375 kB
 
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand

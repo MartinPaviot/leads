@@ -1,8 +1,8 @@
 import { db } from "@/db";
 import { tasks, companies, contacts, deals } from "@/db/schema";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { eq, desc, and, isNull, sql } from "drizzle-orm";
-import { apiError } from "@/lib/api-errors";
+import { apiError } from "@/lib/infra/api-errors";
 import { z } from "zod";
 
 const createTaskSchema = z.object({

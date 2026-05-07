@@ -14,10 +14,11 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import { deals, companies, coachingInsights, notifications, users } from "@/db/schema";
 import { and, eq, notInArray } from "drizzle-orm";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
+import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
 
 function getLLMModel() {
   if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-6");
@@ -55,6 +56,37 @@ export const signalToDealAlert = inngest.createFunction(
 
     const model = getLLMModel();
     if (!model) return { error: "No LLM configured" };
+
+    for (const signal of signals) {
+      await trackPipeline({
+        traceId: `${signal.companyId}:${signal.signalType}`,
+        tenantId,
+        companyId: signal.companyId,
+        stage: "signal_detected",
+        sourceSystem: "inngest",
+        metadata: { signalType: signal.signalType, title: signal.title },
+      });
+    }
+
+    // F001: Fire agent reactor for each signal detected
+    for (const signal of signals) {
+      await inngest.send({
+        name: "agent/react",
+        data: {
+          tenantId,
+          trigger: "signal_detected",
+          entityType: "company",
+          entityId: signal.companyId,
+          metadata: {
+            signalType: signal.signalType,
+            signalTitle: signal.title,
+            signalDescription: signal.description,
+          },
+          deduplicationKey: `signal_detected:company:${signal.companyId}:${signal.signalType}`,
+          firedAt: new Date().toISOString(),
+        },
+      }).catch(() => {});
+    }
 
     let alertsGenerated = 0;
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { estimateCost, isNearCap } from "@/lib/estimate-cost";
+import { estimateCost, isNearCap } from "@/lib/billing/estimate-cost";
 
 describe("estimateCost — tam-build", () => {
   it("returns the measured baseline numbers", () => {

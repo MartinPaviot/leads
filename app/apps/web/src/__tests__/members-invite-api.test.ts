@@ -1,8 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/auth-utils", () => ({
+vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: vi.fn(),
+  withAuthRLS: vi.fn(async (handler) => { const ctx = await (await import("@/lib/auth/auth-utils")).getAuthContext(); if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 }); return handler(ctx); }),
   requireAdmin: vi.fn(),
+}));
+
+vi.mock("@/lib/auth/permissions", () => ({
+  requirePermission: vi.fn(() => null),
+}));
+
+vi.mock("@/lib/auth/invite-token", () => ({
+  generateInviteToken: vi.fn(() => ({ raw: "raw-token-abc", hash: "hashed-token-abc" })),
+}));
+
+vi.mock("@/lib/infra/audit-log", () => ({
+  logAudit: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/db", () => ({
@@ -14,6 +27,10 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
+  trustEvents: { id: "id", tenantId: "tenant_id", eventType: "event_type", delta: "delta", reason: "reason", createdAt: "created_at" },
+  systemTrustScore: { id: "id", tenantId: "tenant_id", score: "score", components: "components", createdAt: "created_at" },
+  agentActions: { id: "id", tenantId: "tenant_id", agentId: "agent_id", actionType: "action_type", entityId: "entity_id", summary: "summary", approved: "approved", metadata: "metadata", createdAt: "created_at" },
+  knowledgeEntries: { id: "id", tenantId: "tenant_id", title: "title", content: "content", category: "category", metadata: "metadata", createdAt: "created_at" },
   pendingInvites: {
     id: "id",
     tenantId: "tenantId",
@@ -34,6 +51,7 @@ vi.mock("@/db/schema", () => ({
     email: "email",
     firstName: "firstName",
     lastName: "lastName",
+    clerkId: "clerkId",
   },
   tenants: { id: "id", name: "name" },
 }));
@@ -43,13 +61,14 @@ vi.mock("drizzle-orm", () => ({
   and: vi.fn(),
 }));
 
-vi.mock("@/lib/email-invite", () => ({
+vi.mock("@/lib/emails/email-invite", () => ({
   sendInviteEmail: vi.fn().mockResolvedValue({ sent: true }),
 }));
 
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { requirePermission } from "@/lib/auth/permissions";
 import { db } from "@/db";
-import { sendInviteEmail } from "@/lib/email-invite";
+import { sendInviteEmail } from "@/lib/emails/email-invite";
 
 const mod = await import("@/app/api/settings/members/invite/route");
 
@@ -79,6 +98,7 @@ describe("POST /api/settings/members/invite", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(requireAdmin).mockReturnValue(null);
+    vi.mocked(requirePermission).mockReturnValue(null);
     vi.mocked(sendInviteEmail).mockResolvedValue({ sent: true });
   });
 
@@ -90,7 +110,7 @@ describe("POST /api/settings/members/invite", () => {
 
   it("403 when not admin", async () => {
     vi.mocked(getAuthContext).mockResolvedValue({ ...authAdmin, role: "member" });
-    vi.mocked(requireAdmin).mockReturnValue(
+    vi.mocked(requirePermission).mockReturnValue(
       Response.json({ error: "Admin access required" }, { status: 403 }) as never
     );
     const res = await mod.POST(makeReq({ email: "bob@acme.com" }));

@@ -1,9 +1,9 @@
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import {
   getTenantSettings,
   updateTenantSettings,
   type CustomObjectTypeDef,
-} from "@/lib/tenant-settings";
+} from "@/lib/config/tenant-settings";
 
 /**
  * GET /api/custom-objects

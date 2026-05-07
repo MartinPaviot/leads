@@ -1,9 +1,9 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { deals, activities } from "@/db/schema";
 import { and, eq, notInArray, sql, count, avg, gte, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { stageProbability, ageInStage } from "@/lib/deal-helpers";
+import { stageProbability, ageInStage } from "@/lib/deals/deal-helpers";
 
 /**
  * GET /api/dashboard/pipeline?period=30

@@ -24,8 +24,8 @@
 import { db } from "@/db";
 import { activities, contacts, companies, deals } from "@/db/schema";
 import { and, desc, eq, or, gte, sql } from "drizzle-orm";
-import { tracedGenerateText } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { tracedGenerateText } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 
 // ---------------------------------------------------------------------------

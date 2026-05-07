@@ -7,7 +7,7 @@ import type { SignalContext } from "@/lib/tam-stream/signals/types";
 import type {
   ApolloOrganization,
   OrgSearchOrganization,
-} from "@/lib/apollo-client";
+} from "@/lib/integrations/apollo-client";
 
 // ─── Fixtures ──────────────────────────────────────────────────
 

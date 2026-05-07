@@ -4,10 +4,10 @@ import { and, eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db } from "@/db";
 import { authAccounts, authUsers } from "@/db/schema";
-import { getAuthContext } from "@/lib/auth-utils";
-import { isPasswordAcceptable } from "@/lib/password-reset";
-import { hashPassword } from "@/lib/password-hash";
-import { logger } from "@/lib/logger";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { isPasswordAcceptable } from "@/lib/auth/password-reset";
+import { hashPassword } from "@/lib/auth/password-hash";
+import { logger } from "@/lib/observability/logger";
 
 const schema = z.object({
   currentPassword: z.string().min(1),

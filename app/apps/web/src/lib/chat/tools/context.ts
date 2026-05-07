@@ -1,5 +1,5 @@
-import type { AuthContext } from "@/lib/auth-utils";
-import type { TenantSettings } from "@/lib/tenant-settings";
+import type { AuthContext } from "@/lib/auth/auth-utils";
+import type { TenantSettings } from "@/lib/config/tenant-settings";
 import { tool } from "ai";
 import { z } from "zod";
 

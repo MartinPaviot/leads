@@ -29,6 +29,7 @@ export interface SignalChipProps {
 const LABEL_WHEN_FALSE: Record<SignalKey, string> = {
   investor_overlap: "No overlap",
   funding_recent: "No recent raise",
+  funding_crunchbase: "No CB funding",
   hiring_intent: "Not hiring",
   yc_company: "Not YC",
 };

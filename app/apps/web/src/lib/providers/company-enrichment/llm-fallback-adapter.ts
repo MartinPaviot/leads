@@ -1,4 +1,4 @@
-import { enrichCompanyViaLLM } from "@/lib/llm-enrichment";
+import { enrichCompanyViaLLM } from "@/lib/ai/llm-enrichment";
 import type {
   CompanyEnrichmentProvider,
   EnrichInput,

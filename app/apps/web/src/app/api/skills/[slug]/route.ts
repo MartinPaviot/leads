@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { getSkill, listSkills } from "@/skills/registry";
 import { registerAllSkills } from "@/skills/register-all";
 import { runSkill } from "@/skills/runner";

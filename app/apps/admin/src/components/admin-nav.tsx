@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Zap, BarChart3, Network, Sparkles, Radio, FlaskConical, Brain, DollarSign, ShieldCheck, Target } from "lucide-react";
+import { Activity, Zap, BarChart3, Network, Sparkles, Radio, FlaskConical, Brain, DollarSign, ShieldCheck, Target, GitBranch } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Agents", icon: Activity },
+  { href: "/pipeline", label: "Pipeline", icon: GitBranch },
   { href: "/evals", label: "Evals", icon: FlaskConical },
   { href: "/intelligence", label: "Intelligence", icon: Brain },
   { href: "/costs", label: "Costs", icon: DollarSign },

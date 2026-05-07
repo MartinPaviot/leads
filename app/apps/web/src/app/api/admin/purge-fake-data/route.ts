@@ -1,4 +1,4 @@
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { eq, sql, and, isNotNull } from "drizzle-orm";
@@ -7,7 +7,7 @@ import {
   employeeCountToRange,
   revenueToRange,
   isApolloAvailable,
-} from "@/lib/apollo-client";
+} from "@/lib/integrations/apollo-client";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();

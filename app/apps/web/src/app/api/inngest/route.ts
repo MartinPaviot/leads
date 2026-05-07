@@ -30,6 +30,10 @@ import { signalAutoEnroll } from "@/inngest/signal-to-sequence";
 import { nightlyRelationshipGraphBuild, onDemandRelationshipGraphBuild } from "@/inngest/relationship-graph-builder";
 import { customSignalBackfill } from "@/inngest/custom-signal-backfill";
 import { dataRetentionPurge } from "@/inngest/data-retention";
+import { evictSignalUrlCache } from "@/inngest/signal-url-cache-evict";
+import { identifyVisit } from "@/inngest/identify-visit";
+import { weeklyEvalHarness } from "@/inngest/eval-harness-cron";
+import { dailyCsHealthSnapshots } from "@/inngest/cs-health-cron";
 import { weeklyAnonymizedSignalAggregation } from "@/inngest/anonymized-signal-aggregation";
 import { extractThreadIntelligenceBatch, extractSingleThreadIntelligence } from "@/inngest/thread-intelligence";
 import { weeklyModelTraining, trainScoringModelOnDemand } from "@/inngest/scoring-model-trainer";
@@ -40,6 +44,15 @@ import { analyzeClosedDeal } from "@/inngest/win-loss-analysis";
 import { dailyStallPrediction, onDemandStallPrediction } from "@/inngest/stall-prediction-cron";
 import { evaluateRealtimeSignals } from "@/inngest/realtime-signal-handler";
 import { agentTaskExecute, agentTaskCleanup } from "@/inngest/agent-task-runner";
+import { agentReactor, agentDailySweep } from "@/inngest/agent-reactor";
+import { outcomeDetectorCron } from "@/inngest/outcome-detector";
+import { weeklyTrustRecalculation } from "@/inngest/trust-recalculator";
+// Campaign Engine 1000x
+import { replyAgent } from "@/inngest/reply-agent";
+import { campaignDecisionEngine, bridgeTrackingEvents } from "@/inngest/campaign-decision-engine";
+import { signalMonitorCron, signalTriggeredOutreach } from "@/inngest/signal-monitor";
+import { deliverabilityHealthCron } from "@/inngest/deliverability-monitor";
+import { campaignWeeklyReport } from "@/inngest/campaign-weekly-report";
 
 // Register task executors so Inngest runner can dispatch by type
 import("@/lib/import/agentic-executor").then((m) => m.registerImportExecutor()).catch(() => {});
@@ -119,6 +132,15 @@ export const { GET, POST, PUT } = serve({
     customSignalBackfill,
     // GDPR data-retention: purge canceled tenant data after 30 days
     dataRetentionPurge,
+    // MONACO-PARITY-01: evict expired URL-verification cache rows
+    // (7-day TTL). Runs at 03:30 UTC daily.
+    evictSignalUrlCache,
+    // MONACO-PARITY-04: visitor-ID identification on `visit/created`.
+    identifyVisit,
+    // Sprint-1 audit follow-up: weekly LLM eval harness — Mondays 02:00 UTC.
+    weeklyEvalHarness,
+    // Sprint-2 audit follow-up: daily CS account health snapshots — 04:00 UTC.
+    dailyCsHealthSnapshots,
     // Cross-tenant anonymized benchmarks (#96)
     weeklyAnonymizedSignalAggregation,
     // Email thread intelligence — thread-level buying signal extraction
@@ -143,5 +165,20 @@ export const { GET, POST, PUT } = serve({
     // Agent tasks: long-running background operations with progress tracking
     agentTaskExecute,
     agentTaskCleanup,
+    // F001: Agent event loop — real-time autonomous decision reactor
+    agentReactor,
+    agentDailySweep,
+    // F003: Outcome tracking — feedback loop for agent actions
+    outcomeDetectorCron,
+    // F005: Learned trust — weekly threshold recalculation from outcomes
+    weeklyTrustRecalculation,
+    // Campaign Engine 1000x
+    replyAgent,
+    campaignDecisionEngine,
+    bridgeTrackingEvents,
+    signalMonitorCron,
+    signalTriggeredOutreach,
+    deliverabilityHealthCron,
+    campaignWeeklyReport,
   ],
 });

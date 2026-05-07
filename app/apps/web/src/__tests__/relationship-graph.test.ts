@@ -3,7 +3,7 @@ import {
   interactionsToConfidence,
   shouldEmitEdge,
   KNOWS,
-} from "@/lib/relationship-graph";
+} from "@/lib/context/relationship-graph";
 
 describe("relationship-graph pure helpers", () => {
   describe("shouldEmitEdge", () => {

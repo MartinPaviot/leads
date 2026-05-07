@@ -4,8 +4,9 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
-vi.mock("@/lib/auth-utils", () => ({
+vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: vi.fn(),
+  withAuthRLS: vi.fn(async (handler) => { const ctx = await (await import("@/lib/auth/auth-utils")).getAuthContext(); if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 }); return handler(ctx); }),
 }));
 
 vi.mock("@/db", () => ({
@@ -16,6 +17,15 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
+  distillationSamples: { id: "id", tenantId: "tenant_id", agentId: "agent_id", input: "input", output: "output", score: "score", createdAt: "created_at" },
+  actionOutcomes: { id: "id", tenantId: "tenant_id", actionId: "action_id", outcome: "outcome", createdAt: "created_at" },
+  signalOutcomes: { id: "id", tenantId: "tenant_id", signalId: "signal_id", outcome: "outcome", createdAt: "created_at" },
+  agentTraces: { id: "id", tenantId: "tenant_id", agentId: "agent_id", agentCategory: "agent_category", traceId: "trace_id", input: "input", output: "output", model: "model", status: "status", inputTokens: "input_tokens", outputTokens: "output_tokens", estimatedCost: "estimated_cost", latencyMs: "latency_ms", toolCalls: "tool_calls", toolCallsCount: "tool_calls_count", errorMessage: "error_message", evalScore: "eval_score", metadata: "metadata", createdAt: "created_at" },
+  trustEvents: { id: "id", tenantId: "tenant_id", eventType: "event_type", delta: "delta", reason: "reason", createdAt: "created_at" },
+  systemTrustScore: { id: "id", tenantId: "tenant_id", score: "score", components: "components", createdAt: "created_at" },
+  agentActions: { id: "id", tenantId: "tenant_id", agentId: "agent_id", actionType: "action_type", entityId: "entity_id", summary: "summary", approved: "approved", metadata: "metadata", createdAt: "created_at" },
+  knowledgeEntries: { id: "id", tenantId: "tenant_id", title: "title", content: "content", category: "category", metadata: "metadata", createdAt: "created_at" },
+  tenants: { id: "id", name: "name", settings: "settings", domain: "domain", stripeCustomerId: "stripe_customer_id", subscriptionId: "subscription_id", plan: "plan", createdAt: "created_at", updatedAt: "updated_at", referralCode: "referral_code" },
   companies: { id: "id", tenantId: "tenantId" },
   activities: { id: "id", tenantId: "tenantId", entityType: "entityType", entityId: "entityId", occurredAt: "occurredAt", actorType: "actorType", sentiment: "sentiment" },
 }));
@@ -27,16 +37,16 @@ vi.mock("drizzle-orm", () => ({
   sql: vi.fn(),
 }));
 
-vi.mock("@/lib/rate-limit", () => ({
+vi.mock("@/lib/infra/rate-limit", () => ({
   checkRateLimit: vi.fn(() => null),
 }));
 
-vi.mock("@/lib/tenant-settings", () => ({
+vi.mock("@/lib/config/tenant-settings", () => ({
   getTenantSettings: vi.fn(() => Promise.resolve({})),
   parseSizeRange: vi.fn(() => null),
 }));
 
-vi.mock("@/lib/scoring", () => ({
+vi.mock("@/lib/scoring/scoring", () => ({
   calculateFitScore: vi.fn(() => ({ score: 50, reasons: ["Industry match"] })),
   getGrade: vi.fn((score: number) => {
     if (score >= 90) return { grade: "A+", heat: "Burning", icon: "🔥", min: 90 };
@@ -48,16 +58,16 @@ vi.mock("@/lib/scoring", () => ({
   }),
 }));
 
-vi.mock("@/lib/signal-outcomes", () => ({
+vi.mock("@/lib/scoring/signal-outcomes", () => ({
   getSignalMultipliers: vi.fn(() => Promise.resolve({ multipliers: {} })),
 }));
 
-vi.mock("@/lib/score-with-signals", () => ({
+vi.mock("@/lib/scoring/score-with-signals", () => ({
   scoreSignals: vi.fn(() => ({ bonus: 0, reasons: [], contributions: [] })),
 }));
 
 import { auth } from "@/auth";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 
 const { POST } = await import("@/app/api/score/route");

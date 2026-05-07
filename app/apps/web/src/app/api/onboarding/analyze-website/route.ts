@@ -1,10 +1,10 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { anthropic } from "@/lib/ai-provider";
-import { tracedGenerateObject } from "@/lib/traced-ai";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
+import { anthropic } from "@/lib/ai/ai-provider";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { z } from "zod";
-import { INDUSTRIES, industriesPromptHint, companySizesPromptHint } from "@/lib/icp-constants";
-import { assertPublicUrl } from "@/lib/ssrf-guard";
+import { INDUSTRIES, industriesPromptHint, companySizesPromptHint } from "@/lib/config/icp-constants";
+import { assertPublicUrl } from "@/lib/infra/ssrf-guard";
 
 // Step 1: Extract structured intelligence from the website
 const websiteIntelligenceSchema = z.object({

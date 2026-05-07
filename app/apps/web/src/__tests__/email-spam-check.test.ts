@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { checkSpamSignals } from "@/lib/email-spam-check";
+import { checkSpamSignals } from "@/lib/emails/email-spam-check";
 
 // A baseline "good" cold-outbound email with one personalisation
 // token, one link, one CTA, and an unsubscribe — used as the canary

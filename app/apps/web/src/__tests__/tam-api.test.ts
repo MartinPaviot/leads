@@ -4,8 +4,9 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
-vi.mock("@/lib/auth-utils", () => ({
+vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: vi.fn(),
+  withAuthRLS: vi.fn(async (handler) => { const ctx = await (await import("@/lib/auth/auth-utils")).getAuthContext(); if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 }); return handler(ctx); }),
 }));
 
 vi.mock("@/db", () => ({
@@ -17,14 +18,19 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
+  trustEvents: { id: "id", tenantId: "tenant_id", eventType: "event_type", delta: "delta", reason: "reason", createdAt: "created_at" },
+  systemTrustScore: { id: "id", tenantId: "tenant_id", score: "score", components: "components", createdAt: "created_at" },
+  agentActions: { id: "id", tenantId: "tenant_id", agentId: "agent_id", actionType: "action_type", entityId: "entity_id", summary: "summary", approved: "approved", metadata: "metadata", createdAt: "created_at" },
+  knowledgeEntries: { id: "id", tenantId: "tenant_id", title: "title", content: "content", category: "category", metadata: "metadata", createdAt: "created_at" },
+  tenants: { id: "id", name: "name", settings: "settings", domain: "domain", stripeCustomerId: "stripe_customer_id", subscriptionId: "subscription_id", plan: "plan", createdAt: "created_at", updatedAt: "updated_at", referralCode: "referral_code" },
   companies: { id: "id", name: "name", tenantId: "tenantId", domain: "domain" },
 }));
 
-vi.mock("ai", () => ({
-  generateObject: vi.fn(),
+vi.mock("@/lib/ai/traced-ai", () => ({
+  tracedGenerateObject: vi.fn(),
 }));
 
-vi.mock("@/lib/ai-provider", () => ({
+vi.mock("@/lib/ai/ai-provider", () => ({
   anthropic: vi.fn(() => "mock-anthropic-model"),
 }));
 
@@ -32,7 +38,7 @@ vi.mock("@ai-sdk/openai", () => ({
   openai: vi.fn(() => "mock-openai-model"),
 }));
 
-vi.mock("@/lib/embeddings", () => ({
+vi.mock("@/lib/ai/embeddings", () => ({
   embedEntity: vi.fn(),
   companyToText: vi.fn(() => "test text"),
 }));
@@ -43,20 +49,25 @@ vi.mock("drizzle-orm", () => ({
   sql: vi.fn(),
 }));
 
-vi.mock("@/lib/rate-limit", () => ({
+vi.mock("@/lib/infra/rate-limit", () => ({
   checkRateLimit: vi.fn(() => null),
 }));
 
-vi.mock("@/lib/tenant-settings", () => ({
+vi.mock("@/lib/config/tenant-settings", () => ({
   getTenantSettings: vi.fn(() => Promise.resolve({})),
   parseSizeRange: vi.fn(() => null),
 }));
 
-vi.mock("@/lib/icp-constants", () => ({
+vi.mock("@/lib/config/icp-constants", () => ({
   sizesToApolloRanges: vi.fn((sizes: string[]) => sizes.map((s) => s.replace("-", ","))),
 }));
 
-vi.mock("@/lib/apollo-client", () => ({
+vi.mock("@/lib/knowledge/get-tenant-knowledge", () => ({
+  getTenantKnowledge: vi.fn(() => Promise.resolve([])),
+  formatKnowledgeBlock: vi.fn(() => ""),
+}));
+
+vi.mock("@/lib/integrations/apollo-client", () => ({
   searchOrganizations: vi.fn(),
   enrichOrganization: vi.fn(() => Promise.resolve({
     id: "apollo-enriched-1",
@@ -83,10 +94,10 @@ vi.mock("@/lib/apollo-client", () => ({
 
 process.env.ANTHROPIC_API_KEY = "test-key";
 
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { generateObject } from "ai";
-import { searchOrganizations } from "@/lib/apollo-client";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { searchOrganizations } from "@/lib/integrations/apollo-client";
 
 const { POST, GET } = await import("@/app/api/tam/route");
 
@@ -145,7 +156,7 @@ describe("POST /api/tam (generate)", () => {
     vi.mocked(db.insert).mockReturnValue({ values: valuesFn } as never);
 
     // Mock LLM: generates search strategies (not company names!)
-    vi.mocked(generateObject).mockResolvedValueOnce({
+    vi.mocked(tracedGenerateObject).mockResolvedValueOnce({
       object: {
         strategies: [
           {
@@ -210,8 +221,8 @@ describe("POST /api/tam (generate)", () => {
     expect(data.strategies[0].label).toBe("Direct ICP fit");
 
     // Verify LLM was called to generate criteria, not company names
-    expect(generateObject).toHaveBeenCalledOnce();
-    const llmCall = vi.mocked(generateObject).mock.calls[0][0];
+    expect(tracedGenerateObject).toHaveBeenCalledOnce();
+    const llmCall = vi.mocked(tracedGenerateObject).mock.calls[0][0];
     expect(llmCall.prompt).toContain("Apollo.io search strategies");
 
     // Verify Apollo search was called with the LLM-generated criteria
@@ -241,7 +252,7 @@ describe("POST /api/tam (generate)", () => {
     const valuesFn = vi.fn().mockResolvedValue([]);
     vi.mocked(db.insert).mockReturnValue({ values: valuesFn } as never);
 
-    vi.mocked(generateObject).mockResolvedValueOnce({
+    vi.mocked(tracedGenerateObject).mockResolvedValueOnce({
       object: {
         strategies: [
           {

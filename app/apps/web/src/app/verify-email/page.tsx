@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { BodyScrollUnlock } from "@/components/auth/body-scroll-unlock";
 import {
   consumeVerifyToken,
   markEmailVerified,
   validateVerifyToken,
-} from "@/lib/email-verification";
+} from "@/lib/emails/email-verification";
 
 /**
  * S2 — `/verify-email?token=…`
@@ -55,11 +56,12 @@ function VerifyError({ reason }: { reason: "missing" | "invalid" }) {
 
   return (
     <div
-      className="bg-grid flex min-h-screen items-center justify-center"
+      className="bg-grid flex min-h-screen flex-col px-4 py-8"
       style={{ background: "var(--color-bg-page)" }}
     >
+      <BodyScrollUnlock />
       <div
-        className="w-full max-w-sm space-y-5 rounded-xl p-8 text-center"
+        className="m-auto w-full max-w-sm space-y-5 rounded-xl p-7 text-center"
         style={{
           background: "var(--color-bg-card)",
           border: "1px solid var(--color-border-default)",

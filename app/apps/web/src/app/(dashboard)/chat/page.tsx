@@ -101,6 +101,18 @@ export default function ChatPage() {
     }
   }, [searchParams, autoSent, threadLoaded, chat]);
 
+  // Pre-fill input when navigating from Skills page with ?skill= param
+  useEffect(() => {
+    const skill = searchParams.get("skill");
+    if (skill && threadLoaded && chat.messages.length === 0 && !localInput) {
+      const skillName = skill
+        .replace(/-/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+      setLocalInput(`Run skill: ${skillName}`);
+      inputRef.current?.focus();
+    }
+  }, [searchParams, threadLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat.messages]);

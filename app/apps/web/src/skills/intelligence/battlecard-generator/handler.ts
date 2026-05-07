@@ -1,6 +1,7 @@
-import { enrichOrganization } from "@/lib/apollo-client";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { enrichOrganization } from "@/lib/integrations/apollo-client";
+import { getSkillKnowledge } from "@/skills/skill-knowledge";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import type { SkillRunOptions } from "@/skills/types";
@@ -19,8 +20,11 @@ export async function battlecardGeneratorHandler(
   const model = getLLMModel();
   if (!model) throw new Error("No LLM API key configured");
 
-  // Enrich competitor via Apollo
-  const org = await enrichOrganization(input.competitorDomain).catch(() => null);
+  // Enrich competitor via Apollo + fetch knowledge in parallel
+  const [org, knowledgeBlock] = await Promise.all([
+    enrichOrganization(input.competitorDomain).catch(() => null),
+    getSkillKnowledge(`competitive analysis positioning strengths weaknesses differentiation`, options.tenantId),
+  ]);
 
   const competitorName = input.competitorName || org?.name || input.competitorDomain;
 
@@ -55,6 +59,9 @@ export async function battlecardGeneratorHandler(
 ${competitorContext}
 
 ${input.ourProductDescription ? `## Our Product\n${input.ourProductDescription}` : ""}
+
+## Knowledge Context
+${knowledgeBlock}
 
 Generate a sales battlecard with:
 1. Overview: 2-3 sentence summary of the competitor

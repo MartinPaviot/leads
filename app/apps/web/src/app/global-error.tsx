@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { logger } from "@/lib/logger";
+import { logger } from "@/lib/observability/logger";
 
 /**
  * Root-level error boundary — catches render crashes that escape the

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { safeFetch } from "@/lib/safe-fetch";
+import { safeFetch } from "@/lib/infra/safe-fetch";
 
 function mockResponse(body: unknown, init: ResponseInit = { status: 200 }): Response {
   const text = typeof body === "string" ? body : JSON.stringify(body);

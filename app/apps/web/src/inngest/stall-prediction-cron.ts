@@ -14,7 +14,7 @@ import { db } from "@/db";
 import { tenants, users, deals } from "@/db/schema";
 import { eq, sql, notInArray } from "drizzle-orm";
 import { predictStalls, type StallPrediction } from "@/lib/analysis/stall-predictor";
-import { sendNotification } from "@/lib/notifications";
+import { sendNotification } from "@/lib/emails/notifications";
 
 /**
  * Daily cron: runs stall prediction for all active tenants.

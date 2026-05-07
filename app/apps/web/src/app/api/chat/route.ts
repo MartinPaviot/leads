@@ -1,34 +1,35 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { clearTenantId } from "@/db/rls";
-import { checkPlanLimit } from "@/lib/plan-limits";
-import { trackUsage } from "@/lib/billing";
-import { apiError } from "@/lib/api-errors";
-import { anthropic } from "@/lib/ai-provider";
+import { checkPlanLimit } from "@/lib/billing/plan-limits";
+import { trackUsage } from "@/lib/billing/billing";
+import { apiError } from "@/lib/infra/api-errors";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
-import { isCircuitClosed, ANTHROPIC_CIRCUIT } from "@/lib/circuit-breaker";
+import { isCircuitClosed, ANTHROPIC_CIRCUIT } from "@/lib/infra/circuit-breaker";
 import { UIMessage, convertToModelMessages, stepCountIs } from "ai";
-import { tracedStreamText } from "@/lib/traced-ai";
-import { searchSimilar } from "@/lib/embeddings";
-import { searchContextGraph } from "@/lib/context-graph";
+import { tracedStreamText } from "@/lib/ai/traced-ai";
+import { searchSimilar } from "@/lib/ai/embeddings";
+import { searchContextGraph } from "@/lib/ai/context-graph";
 import { db } from "@/db";
-import { companies, contacts, deals, activities, notes, chatMemories } from "@/db/schema";
+import { companies, contacts, deals, activities, notes, chatMemories, knowledgeEntries } from "@/db/schema";
 import { and, eq, desc, sql, or } from "drizzle-orm";
-import { getTenantSettings, deriveTargetRoles, type TenantSettings } from "@/lib/tenant-settings";
+import { getTenantSettings, deriveTargetRoles, type TenantSettings } from "@/lib/config/tenant-settings";
 import { buildChatSystemPrompt } from "@/lib/prompts/chat-system-prompt";
 import { buildAllChatTools, type ToolContext } from "@/lib/chat/tools";
 import { resolveCapabilities, type SurfaceContext } from "@/lib/agents/capability-resolver";
 import { routeTools } from "@/lib/chat/tool-router";
 import { orchestrate } from "@/lib/agents/orchestrator";
-import { getActivePromptVersion } from "@/lib/prompt-canary";
-import { getChatExperimentDelta, applyPromptDelta, recordExperimentMetric } from "@/lib/prompt-experiments";
+import { getActivePromptVersion } from "@/lib/prompts/prompt-canary";
+import { getChatExperimentDelta, applyPromptDelta, recordExperimentMetric } from "@/lib/prompts/prompt-experiments";
 import {
   shouldMeasureRagQuality,
   measureRagQuality,
   extractCitationsFromResponse,
   type RetrievedResult,
 } from "@/lib/evals/rag-quality";
-import { recordTrace } from "@/lib/observability";
-import { allocateContextBudget, formatBudgetSummary, type RagResult } from "@/lib/context-budget";
+import { retrieveKnowledge, formatKnowledgeForPrompt } from "@/lib/knowledge/retrieval";
+import { recordTrace } from "@/lib/observability/observability";
+import { allocateContextBudget, formatBudgetSummary, type RagResult } from "@/lib/ai/context-budget";
 
 export const maxDuration = 60;
 
@@ -378,7 +379,7 @@ export async function POST(req: Request) {
   }
 
   // Rate limit: 30 messages per minute per user
-  const { rateLimit, rateLimitResponse } = await import("@/lib/rate-limit");
+  const { rateLimit, rateLimitResponse } = await import("@/lib/infra/rate-limit");
   const rl = await rateLimit(`chat:${authCtx.userId}`, 30, 60 * 1000);
   if (!rl.success) return rateLimitResponse(rl.resetAt);
 
@@ -447,7 +448,7 @@ export async function POST(req: Request) {
   const shouldSampleRag = shouldMeasureRagQuality();
 
   // Parallel: RAG search + CRM snapshot + entity context + knowledge + approval mode
-  const [ragContext, crmSnapshot, entityContext, knowledgeContext, agentApprovalMode, memoriesContext] = await Promise.all([
+  const [ragContext, crmSnapshot, entityContext, knowledgeContext, agentApprovalMode, memoriesContext, workQueueContext] = await Promise.all([
     (async () => {
       if (!lastUserText) return "";
       ragRetrievalStartMs = Date.now();
@@ -495,10 +496,43 @@ export async function POST(req: Request) {
     getCRMSnapshot(authCtx.tenantId, tenantSettings),
     getEntityContext(contextType, contextId, authCtx.tenantId),
     (async () => {
-      const knowledge = (tenantSettings.knowledge || []).slice(0, 5);
-      if (knowledge.length === 0) return "";
-      return "\n\n## Business Knowledge (world model)\n" +
-        knowledge.map((k) => `### ${k.topic}\n${k.content.slice(0, 300)}`).join("\n\n");
+      try {
+        if (lastUserText) {
+          const entries = await retrieveKnowledge(lastUserText, authCtx.tenantId, {
+            userId: authCtx.userId,
+            limit: 8,
+          });
+          if (entries.length > 0) return "\n\n" + formatKnowledgeForPrompt(entries);
+        }
+        // Fallback: load all active entries when no user message for semantic match
+        const rows = await db
+          .select({
+            title: knowledgeEntries.title,
+            content: knowledgeEntries.content,
+            scope: knowledgeEntries.scope,
+          })
+          .from(knowledgeEntries)
+          .where(
+            and(
+              eq(knowledgeEntries.tenantId, authCtx.tenantId),
+              eq(knowledgeEntries.isActive, true),
+              or(
+                eq(knowledgeEntries.scope, "workspace"),
+                and(
+                  eq(knowledgeEntries.scope, "user"),
+                  eq(knowledgeEntries.createdBy, authCtx.userId)
+                )
+              )
+            )
+          )
+          .orderBy(desc(knowledgeEntries.updatedAt))
+          .limit(20);
+        if (rows.length === 0) return "";
+        return "\n\n## Your Knowledge Base\n" +
+          rows.map((k) => `### ${k.title}\n${k.content}`).join("\n\n");
+      } catch {
+        return "";
+      }
     })(),
     (async () => {
       return tenantSettings.agentApprovalMode || "auto";
@@ -526,6 +560,17 @@ export async function POST(req: Request) {
         if (memories.length === 0) return "";
         return "\n\n## Agent Memory (learned from previous conversations)\n" +
           memories.map((m) => `- [${m.category}] ${m.key}: ${m.content}`).join("\n");
+      } catch {
+        return "";
+      }
+    })(),
+    // F002: Load agent work queue for persistent state awareness
+    (async () => {
+      try {
+        const { getTopWorkItems, serializeWorkQueue } = await import("@/lib/agent-state/work-items");
+        const items = await getTopWorkItems(authCtx.tenantId, 10);
+        if (items.length === 0) return "";
+        return "\n\n" + serializeWorkQueue(items);
       } catch {
         return "";
       }
@@ -605,6 +650,7 @@ export async function POST(req: Request) {
           entityContext,
           knowledgeContext,
           memoriesContext,
+          workQueueContext,
           agentApprovalMode,
           userName: tenantSettings.onboardingCompanyName || undefined,
           preferredLanguage: tenantSettings.language || undefined,

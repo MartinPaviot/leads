@@ -1,5 +1,5 @@
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
-import { getAgentHealth, getAgentTraces, AGENT_REGISTRY, type AgentHealth } from "@/lib/observability";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { getAgentHealth, getAgentTraces, AGENT_REGISTRY, type AgentHealth } from "@/lib/observability/observability";
 
 export const maxDuration = 30;
 

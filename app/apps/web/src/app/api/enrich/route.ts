@@ -1,10 +1,10 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { embedEntity, companyToText } from "@/lib/embeddings";
-import { employeeCountToRange, revenueToRange } from "@/lib/apollo-client";
+import { embedEntity, companyToText } from "@/lib/ai/embeddings";
+import { employeeCountToRange, revenueToRange } from "@/lib/integrations/apollo-client";
 import { enrichCompany } from "@/lib/providers/company-enrichment";
 import type {
   EnrichedCompany,

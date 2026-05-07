@@ -19,7 +19,7 @@ describe("posthogEvents catalog", () => {
 
   it("exposes a helper per declared event name, with the same key set", async () => {
     process.env.NEXT_PUBLIC_POSTHOG_KEY = "phc_test";
-    const mod = await import("@/lib/analytics");
+    const mod = await import("@/lib/analytics/analytics");
 
     // Every helper is a function.
     for (const name of mod.KNOWN_EVENT_NAMES) {
@@ -51,7 +51,7 @@ describe("posthogEvents catalog", () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const mod = await import("@/lib/analytics");
+    const mod = await import("@/lib/analytics/analytics");
     await mod.posthogEvents.signup_completed("user-1", {
       method: "google",
       userId: "user-1",
@@ -72,7 +72,7 @@ describe("posthogEvents catalog", () => {
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const mod = await import("@/lib/analytics");
+    const mod = await import("@/lib/analytics/analytics");
     await mod.posthogEvents.landing_viewed("anon", { utm_source: "twitter" });
 
     expect(fetchMock).not.toHaveBeenCalled();
@@ -83,7 +83,7 @@ describe("posthogEvents catalog", () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error("boom"));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const mod = await import("@/lib/analytics");
+    const mod = await import("@/lib/analytics/analytics");
     // Should NOT throw.
     await expect(
       mod.posthogEvents.signin_failed("u1", { method: "credentials", reason: "bad-password" })
@@ -95,7 +95,7 @@ describe("posthogEvents catalog", () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const mod = await import("@/lib/analytics");
+    const mod = await import("@/lib/analytics/analytics");
     await mod.captureEvent("u1", "signup", { method: "credentials" });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);

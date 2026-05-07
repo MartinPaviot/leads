@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { BodyScrollUnlock } from "@/components/auth/body-scroll-unlock";
 
 function ResetPasswordForm() {
   const params = useSearchParams();
@@ -166,11 +167,12 @@ function ResetPasswordForm() {
 export default function ResetPasswordPage() {
   return (
     <div
-      className="bg-grid flex min-h-screen items-center justify-center"
+      className="bg-grid flex min-h-screen flex-col px-4 py-8"
       style={{ background: "var(--color-bg-page)" }}
     >
+      <BodyScrollUnlock />
       <div
-        className="w-full max-w-sm space-y-6 rounded-xl p-8"
+        className="m-auto w-full max-w-sm space-y-5 rounded-xl p-7"
         style={{
           background: "var(--color-bg-card)",
           border: "1px solid var(--color-border-default)",

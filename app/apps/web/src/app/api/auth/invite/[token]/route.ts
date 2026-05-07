@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { pendingInvites, tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { hashInviteToken } from "@/lib/invite-token";
+import { hashInviteToken } from "@/lib/auth/invite-token";
 
 /**
  * Public endpoint — no auth required. Validates an invite token and returns

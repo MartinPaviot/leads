@@ -1,10 +1,10 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import {
   getLlmBudgetStatus,
   invalidateBudgetCache,
-} from "@/lib/llm-budget";
-import { getTenantCost } from "@/lib/cost-tracker";
-import { getTenantSettings, updateTenantSettings } from "@/lib/tenant-settings";
+} from "@/lib/billing/llm-budget";
+import { getTenantCost } from "@/lib/billing/cost-tracker";
+import { getTenantSettings, updateTenantSettings } from "@/lib/config/tenant-settings";
 
 /**
  * GET → return current budget status + a feature-level spend breakdown.

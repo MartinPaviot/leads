@@ -2,24 +2,27 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import { companies, contacts, sequenceSteps, sequenceEnrollments, activities, outboundEmails, emailOptouts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { addBusinessDays } from "@/lib/business-days";
-import { getTenantSettings } from "@/lib/tenant-settings";
-import { pauseEnrollment } from "@/lib/enrollment";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { addBusinessDays } from "@/lib/util/business-days";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
+import { pauseEnrollment } from "@/lib/sequences/enrollment";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
-import { embedEntity, companyToText, contactToText } from "@/lib/embeddings";
-import { buildProspectContext } from "@/lib/prospect-context";
-import { personalizeStepEmail } from "@/lib/sequence-generator";
-import { STEP_STRATEGIES } from "@/lib/outbound-methodologies";
+import { embedEntity, companyToText, contactToText } from "@/lib/ai/embeddings";
+import { generateAccountSummary } from "@/lib/ai/ai-account-summary";
+import { buildProspectContext } from "@/lib/context/prospect-context";
+import { personalizeStepEmail } from "@/lib/agents/sequence-generator";
+import { STEP_STRATEGIES } from "@/lib/scoring/outbound-methodologies";
+import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
+import { logger } from "@/lib/observability/logger";
 import {
   enrichOrganization,
   enrichPerson,
   employeeCountToRange,
   revenueToRange,
   isApolloAvailable,
-} from "@/lib/apollo-client";
+} from "@/lib/integrations/apollo-client";
 
 function getLLMModel() {
   if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-6");
@@ -81,7 +84,7 @@ export const enrichCompany = inngest.createFunction(
 
     // LLM fallback when Apollo is unavailable or returned nothing
     if (!org) {
-      const { enrichCompanyViaLLM } = await import("@/lib/llm-enrichment");
+      const { enrichCompanyViaLLM } = await import("@/lib/ai/llm-enrichment");
       const llmResult = await step.run("enrich-from-llm", async () => {
         return enrichCompanyViaLLM(company.name, company.domain, event.data.tenantId || company.tenantId);
       });
@@ -109,6 +112,50 @@ export const enrichCompany = inngest.createFunction(
             })
             .where(eq(companies.id, companyId));
         });
+
+        // AI summary for LLM-enriched companies — non-blocking
+        await step.run("generate-ai-summary-llm", async () => {
+          try {
+            const [freshCompany] = await db
+              .select()
+              .from(companies)
+              .where(eq(companies.id, companyId))
+              .limit(1);
+            if (!freshCompany) return;
+
+            const enrichedProps = (freshCompany.properties || {}) as Record<string, unknown>;
+            const result = await generateAccountSummary(
+              {
+                name: freshCompany.name,
+                domain: freshCompany.domain,
+                industry: freshCompany.industry,
+                description: freshCompany.description,
+                size: freshCompany.size,
+                revenue: freshCompany.revenue,
+                properties: enrichedProps,
+              },
+              event.data.tenantId || company.tenantId,
+            );
+
+            if (result) {
+              await db
+                .update(companies)
+                .set({
+                  properties: {
+                    ...enrichedProps,
+                    ai_account_summary: result.ai_account_summary,
+                    ai_how_they_make_money: result.ai_how_they_make_money,
+                    ai_summary_generated_at: new Date().toISOString(),
+                  },
+                  updatedAt: new Date(),
+                })
+                .where(eq(companies.id, companyId));
+            }
+          } catch (err) {
+            console.warn("enrich: AI summary generation (LLM path) failed (non-blocking):", err);
+          }
+        }).catch((e: unknown) => console.warn("enrich: AI summary step (LLM path) failed (non-blocking)", e));
+
         return { companyId, enriched: true, source: "llm" };
       }
 
@@ -162,6 +209,49 @@ export const enrichCompany = inngest.createFunction(
         .where(eq(companies.id, companyId));
     });
 
+    // AI summary — generate after enrichment, non-blocking
+    await step.run("generate-ai-summary", async () => {
+      try {
+        const [freshCompany] = await db
+          .select()
+          .from(companies)
+          .where(eq(companies.id, companyId))
+          .limit(1);
+        if (!freshCompany) return;
+
+        const enrichedProps = (freshCompany.properties || {}) as Record<string, unknown>;
+        const result = await generateAccountSummary(
+          {
+            name: freshCompany.name,
+            domain: freshCompany.domain,
+            industry: freshCompany.industry,
+            description: freshCompany.description,
+            size: freshCompany.size,
+            revenue: freshCompany.revenue,
+            properties: enrichedProps,
+          },
+          event.data.tenantId || company.tenantId,
+        );
+
+        if (result) {
+          await db
+            .update(companies)
+            .set({
+              properties: {
+                ...enrichedProps,
+                ai_account_summary: result.ai_account_summary,
+                ai_how_they_make_money: result.ai_how_they_make_money,
+                ai_summary_generated_at: new Date().toISOString(),
+              },
+              updatedAt: new Date(),
+            })
+            .where(eq(companies.id, companyId));
+        }
+      } catch (err) {
+        console.warn("enrich: AI summary generation failed (non-blocking):", err);
+      }
+    }).catch((e: unknown) => console.warn("enrich: AI summary step failed (non-blocking)", e));
+
     await step.run("re-embed", async () => {
       const text = companyToText({
         name: company.name,
@@ -176,6 +266,17 @@ export const enrichCompany = inngest.createFunction(
       }
     });
 
+    await step.run("track-enriched", async () => {
+      await trackPipeline({
+        traceId: companyId,
+        tenantId: event.data.tenantId || company.tenantId,
+        companyId,
+        stage: "enriched",
+        sourceSystem: "inngest",
+        metadata: { source: org ? "apollo" : "llm", domain: company.domain },
+      });
+    });
+
     // Real-time signal detection after enrichment completes
     await step.run("realtime-signal-eval", async () => {
       await inngest.send({
@@ -187,6 +288,22 @@ export const enrichCompany = inngest.createFunction(
         },
       });
     }).catch((e: unknown) => console.warn("enrich: realtime-signal trigger failed (non-blocking)", e));
+
+    // F001: Fire agent reactor after enrichment
+    await step.run("fire-agent-react", async () => {
+      await inngest.send({
+        name: "agent/react",
+        data: {
+          tenantId: event.data.tenantId || company.tenantId,
+          trigger: "contact_enriched",
+          entityType: "company",
+          entityId: companyId,
+          metadata: { source: org ? "apollo" : "llm", companyName: company.name },
+          deduplicationKey: `contact_enriched:company:${companyId}`,
+          firedAt: new Date().toISOString(),
+        },
+      });
+    }).catch(() => {});
 
     return { companyId, enriched: true, source: "apollo" };
   }
@@ -462,25 +579,57 @@ export const sendSequenceStep = inngest.createFunction(
       body = body.replace(pattern, value);
     }
 
-    // Personalize with full prospect intelligence
+    // Personalize with full prospect intelligence.
+    //
+    // Failure mode discipline: when the LLM call or context build
+    // throws, we MUST NOT silently fall back to the bare template
+    // (with raw `{{firstName}}` interpolation only). Monaco-parity
+    // requirement: every fallback is logged with full context so the
+    // founder sees in observability that 8% of step-2 emails went
+    // out unpersonalised — and can choose to either tighten the
+    // prompt or pause the sequence. The caller (review queue) can
+    // also flag the email visually based on `personalisationFallback`.
     const personalized = await step.run("personalize-email", async () => {
       try {
         const ctx = await buildProspectContext(contact.id, enrollment.sequenceId ? "default" : "default");
-        if (!ctx) return null;
+        if (!ctx) {
+          logger.warn("sequence.personalize.missing_context", {
+            tenantId,
+            sequenceId: enrollment.sequenceId,
+            enrollmentId,
+            contactId: contact.id,
+            stepNumber: enrollment.currentStep,
+            reason: "buildProspectContext returned null",
+          });
+          return { ok: false as const, reason: "missing_prospect_context" };
+        }
 
         // Find the step strategy for this step number
         const strategy = STEP_STRATEGIES.find((s) => s.stepNumber === enrollment.currentStep)
           || STEP_STRATEGIES[0];
 
-        return await personalizeStepEmail(ctx, { subject, body }, strategy);
-      } catch {
-        return null; // fallback to template
+        const out = await personalizeStepEmail(ctx, { subject, body }, strategy);
+        return { ok: true as const, out };
+      } catch (err) {
+        logger.warn("sequence.personalize.failed", {
+          tenantId,
+          sequenceId: enrollment.sequenceId,
+          enrollmentId,
+          contactId: contact.id,
+          stepNumber: enrollment.currentStep,
+          errorName: err instanceof Error ? err.name : typeof err,
+          errorMessage: err instanceof Error ? err.message : String(err),
+        });
+        return { ok: false as const, reason: "llm_personalize_threw" };
       }
     });
 
-    if (personalized) {
-      subject = personalized.subject;
-      body = personalized.body;
+    let personalisationFallbackReason: string | null = null;
+    if (personalized.ok) {
+      subject = personalized.out.subject;
+      body = personalized.out.body;
+    } else {
+      personalisationFallbackReason = personalized.reason;
     }
 
     // Check opt-out before sending (within the contact's actual tenant)
@@ -518,9 +667,31 @@ export const sendSequenceStep = inngest.createFunction(
           bodyText: body,
           status: "queued", // Goes straight to queue — review queue can intercept if needed
           queuedAt: new Date(),
+          // Tag personalisation fallbacks with a `[fallback:...]`
+          // prefix so the review-queue UI can flag them visibly and
+          // analytics can distinguish them from genuine send errors
+          // (the latter set `errorMessage` without this prefix when
+          // status flips to "failed").
+          errorMessage: personalisationFallbackReason
+            ? `[fallback:${personalisationFallbackReason}] sent with template-only personalisation`
+            : null,
         })
         .returning();
       return email;
+    });
+
+    await step.run("track-email-queued", async () => {
+      await trackPipeline({
+        traceId: enrollmentId,
+        tenantId,
+        companyId: contact.companyId,
+        contactId: enrollment.contactId,
+        enrollmentId,
+        outboundEmailId: outboundEmail.id,
+        stage: "email_queued",
+        sourceSystem: "inngest",
+        metadata: { step: enrollment.currentStep, subject },
+      });
     });
 
     // Log activity

@@ -1,5 +1,5 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { ingestEpisode } from "@/lib/context-graph";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { ingestEpisode } from "@/lib/ai/context-graph";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();

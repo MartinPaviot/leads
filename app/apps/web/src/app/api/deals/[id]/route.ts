@@ -1,8 +1,8 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { deals } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { recordDealOutcome } from "@/lib/signal-outcomes";
+import { recordDealOutcome } from "@/lib/scoring/signal-outcomes";
 import { inngest } from "@/inngest/client";
 
 export async function GET(

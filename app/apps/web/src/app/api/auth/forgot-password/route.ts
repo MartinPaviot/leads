@@ -3,13 +3,13 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { authUsers } from "@/db/schema";
-import { createResetTokenForUser } from "@/lib/password-reset";
+import { createResetTokenForUser } from "@/lib/auth/password-reset";
 import { sendPasswordResetEmail } from "@/lib/emails/password-reset";
 import {
   rateLimitPasswordResetEmail,
   rateLimitPasswordResetIp,
-} from "@/lib/rate-limit";
-import { logger } from "@/lib/logger";
+} from "@/lib/infra/rate-limit";
+import { logger } from "@/lib/observability/logger";
 
 const schema = z.object({ email: z.string().email() });
 

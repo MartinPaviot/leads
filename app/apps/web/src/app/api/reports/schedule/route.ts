@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { inngest } from "@/inngest/client";
 
 export async function POST(req: Request) {

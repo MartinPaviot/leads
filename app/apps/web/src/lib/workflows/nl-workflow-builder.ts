@@ -25,10 +25,10 @@
 import { db } from "@/db";
 import { tenants, tasks, activities, outboundEmails, contacts, companies, deals, sequenceEnrollments, sequences } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
-import { sendNotification } from "@/lib/notifications";
+import { sendNotification } from "@/lib/emails/notifications";
 import { z } from "zod";
 import { inngest } from "@/inngest/client";
 

@@ -37,6 +37,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Cleanup endpoint disabled" }, { status: 404 });
   }
 
+  const authHeader = req.headers.get("authorization");
+  const expectedSecret = process.env.CRON_SECRET || process.env.E2E_SECRET;
+  if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = (await req.json().catch(() => ({}))) as {
     tenantId?: string;
     emailPrefix?: string;

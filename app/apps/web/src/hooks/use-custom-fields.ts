@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { CustomFieldDef, PipelineStageDef } from "@/lib/custom-fields";
+import type { CustomFieldDef, PipelineStageDef } from "@/lib/context/custom-fields";
 
 /** Load custom field definitions from settings API */
 export function useCustomFields(entityType?: "company" | "contact" | "deal") {

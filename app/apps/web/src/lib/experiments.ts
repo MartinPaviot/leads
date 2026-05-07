@@ -12,7 +12,7 @@
  * `onboarding.v2.confirmation-card`, `onboarding.v2.warm-lead-prompt`.
  */
 
-import { getTenantSettings } from "@/lib/tenant-settings";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 
 /**
  * Canonical list of known flags. Adding a flag here doesn't enable

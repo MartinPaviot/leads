@@ -25,7 +25,7 @@ import {
   HIGH_CONFIDENCE_THRESHOLDS,
   type GuardedAction,
 } from "./approval-mode";
-import logger from "@/lib/logger";
+import logger from "@/lib/observability/logger";
 
 // ── Public Types ──────────────────────────────────────────────
 

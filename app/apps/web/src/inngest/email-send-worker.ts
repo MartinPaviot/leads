@@ -8,10 +8,11 @@ import {
 } from "@/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { Resend } from "resend";
-import { buildUnsubscribeUrl } from "@/lib/unsubscribe-token";
-import { signTrackingId } from "@/lib/tracking-token";
-import { checkPlanLimit } from "@/lib/plan-limits";
-import { trackUsage } from "@/lib/billing";
+import { buildUnsubscribeUrl } from "@/lib/emails/unsubscribe-token";
+import { signTrackingId } from "@/lib/emails/tracking-token";
+import { checkPlanLimit } from "@/lib/billing/plan-limits";
+import { trackUsage } from "@/lib/billing/billing";
+import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -389,6 +390,17 @@ export const processOutboundEmails = inngest.createFunction(
 
           // Track usage for plan limits
           await trackUsage(email.tenantId, "email_sent").catch(() => {});
+
+          await trackPipeline({
+            traceId: email.enrollmentId || email.id,
+            tenantId: email.tenantId,
+            contactId: email.contactId,
+            enrollmentId: email.enrollmentId,
+            outboundEmailId: email.id,
+            stage: "email_sent",
+            sourceSystem: "inngest",
+            metadata: { messageId: data?.id, via: "resend" },
+          });
 
           // Update mailbox sent count
           if (mailbox && email.mailboxId) {

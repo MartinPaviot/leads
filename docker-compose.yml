@@ -2,11 +2,11 @@ services:
   emailengine:
     image: postalsys/emailengine:latest
     ports:
-      - "3100:3000"    # API
-      - "3101:3001"    # Admin UI
+      - "127.0.0.1:3100:3000"
+      - "127.0.0.1:3101:3001"
     environment:
-      EENGINE_REDIS: redis://redis:6379/1
-      EENGINE_SECRET: ${EMAILENGINE_SECRET:-leadsens-ee-secret-change-in-prod}
+      EENGINE_REDIS: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD required}@redis:6379/1
+      EENGINE_SECRET: ${EMAILENGINE_SECRET:?EMAILENGINE_SECRET required}
     depends_on:
       - redis
     restart: unless-stopped
@@ -14,10 +14,10 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD required}
     restart: unless-stopped
 
 volumes:

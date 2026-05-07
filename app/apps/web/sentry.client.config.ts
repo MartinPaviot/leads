@@ -6,7 +6,7 @@
  * landing-page bundle even when Sentry is disabled.
  */
 import * as Sentry from "@sentry/nextjs";
-import { scrubSentryEvent } from "@/lib/sentry-scrub";
+import { scrubSentryEvent } from "@/lib/observability/sentry-scrub";
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 

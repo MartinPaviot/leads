@@ -31,8 +31,8 @@ import {
   signalOutcomes,
 } from "@/db/schema";
 import { and, eq, desc, sql, or, inArray } from "drizzle-orm";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { z } from "zod";
 
 // ── Types ────────────────────────────────────────────────────

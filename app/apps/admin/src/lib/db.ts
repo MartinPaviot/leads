@@ -33,4 +33,5 @@ export {
   referralCreditEvents,
   tenants,
   signalOutcomes,
+  pipelineEvents,
 } from "@web/db/schema";

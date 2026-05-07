@@ -11,9 +11,9 @@
 import { inngest } from "./client";
 import {
   extractAndPersistThreadIntelligence,
-} from "@/lib/email-intelligence";
-import { processIntelligenceActions } from "@/lib/email-intelligence-actions";
-import { getTenantSettings } from "@/lib/tenant-settings";
+} from "@/lib/emails/email-intelligence";
+import { processIntelligenceActions } from "@/lib/emails/email-intelligence-actions";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 import { db } from "@/db";
 import { activities } from "@/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
@@ -52,7 +52,6 @@ export const extractThreadIntelligenceBatch = inngest.createFunction(
       const s = await getTenantSettings(tenantId);
       return {
         productDescription: s.productDescription || "",
-        knowledge: s.knowledge || [],
       };
     });
 
@@ -136,7 +135,6 @@ export const extractSingleThreadIntelligence = inngest.createFunction(
       const s = await getTenantSettings(tenantId);
       return {
         productDescription: s.productDescription || "",
-        knowledge: s.knowledge || [],
       };
     });
 

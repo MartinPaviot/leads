@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
-import { getTenantSettings, updateTenantSettings } from "@/lib/tenant-settings";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { getTenantSettings, updateTenantSettings } from "@/lib/config/tenant-settings";
 
 /**
  * POST /api/settings/sending-infra/providers/instantly/disconnect

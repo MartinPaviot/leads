@@ -14,7 +14,7 @@ import { db } from "@/db";
 import { deals, users } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { analyzeWinLoss } from "@/lib/analysis/win-loss-engine";
-import { sendNotification } from "@/lib/notifications";
+import { sendNotification } from "@/lib/emails/notifications";
 
 export const analyzeClosedDeal = inngest.createFunction(
   {

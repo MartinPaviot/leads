@@ -14,7 +14,7 @@
  */
 
 import { inngest } from "./client";
-import { aggregateAnonymizedSignals } from "@/lib/anonymized-signals";
+import { aggregateAnonymizedSignals } from "@/lib/scoring/anonymized-signals";
 
 export const weeklyAnonymizedSignalAggregation = inngest.createFunction(
   {

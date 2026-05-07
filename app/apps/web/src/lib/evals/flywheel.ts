@@ -25,11 +25,11 @@ import {
 } from "@/db/schema";
 import { eq, and, desc, gte, lte, sql, count } from "drizzle-orm";
 import { generateText, generateObject } from "ai";
-import { anthropic } from "@/lib/ai-provider";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
-import { AGENT_REGISTRY } from "../observability";
-import logger from "../logger";
+import { AGENT_REGISTRY } from "../observability/observability";
+import logger from "../observability/logger";
 import { captureDistillationSample } from "../distillation/pipeline";
 
 // ─── 1. Failure → Eval Case ─────────────────────────────────

@@ -1,8 +1,8 @@
-import { withAuthRLS, requireAdmin } from "@/lib/auth-utils";
+import { withAuthRLS, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { evalRuns } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
-import { runEval } from "@/lib/eval-runner";
+import { runEval } from "@/lib/agents/eval-runner";
 
 export async function GET() {
   return withAuthRLS(async (authCtx) => {

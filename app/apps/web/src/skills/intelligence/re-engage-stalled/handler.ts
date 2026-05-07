@@ -1,12 +1,13 @@
 import { db } from "@/db";
 import { deals, companies, contacts, activities } from "@/db/schema";
-import { eq, and, desc, or } from "drizzle-orm";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { eq, and, desc } from "drizzle-orm";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
-import { getTenantSettings } from "@/lib/tenant-settings";
-import { ageInStage } from "@/lib/deal-helpers";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
+import { getSkillKnowledge, getDeepConversationContext } from "@/skills/skill-knowledge";
+import { ageInStage } from "@/lib/deals/deal-helpers";
 import type { SkillRunOptions } from "@/skills/types";
 import type { ReEngageStalledInput, ReEngageStalledOutput } from "./schema";
 
@@ -27,7 +28,7 @@ export async function reEngageStalledHandler(
 
   if (!deal) throw new Error(`Deal ${input.dealId} not found`);
 
-  const [company, contact, settings] = await Promise.all([
+  const [company, contact, settings, knowledgeBlock, conversation] = await Promise.all([
     deal.companyId
       ? db.select().from(companies).where(eq(companies.id, deal.companyId)).then((r) => r[0] || null)
       : null,
@@ -35,35 +36,29 @@ export async function reEngageStalledHandler(
       ? db.select().from(contacts).where(eq(contacts.id, deal.contactId)).then((r) => r[0] || null)
       : null,
     getTenantSettings(options.tenantId),
+    getSkillKnowledge(`re-engage stalled deal objection handling value proposition`, options.tenantId),
+    getDeepConversationContext(options.tenantId, {
+      dealId: input.dealId,
+      companyId: deal.companyId ?? undefined,
+      contactIds: deal.contactId ? [deal.contactId] : undefined,
+      query: "re-engage stalled deal reasons",
+    }),
   ]);
 
-  // Get last activities
-  const entityFilters = [
-    and(eq(activities.entityType, "deal"), eq(activities.entityId, input.dealId)),
-  ];
-  if (deal.contactId) {
-    entityFilters.push(
-      and(eq(activities.entityType, "contact"), eq(activities.entityId, deal.contactId)),
-    );
-  }
-  const recentActivities = await db
-    .select({
-      summary: activities.summary,
-      rawContent: activities.rawContent,
-      occurredAt: activities.occurredAt,
-      activityType: activities.activityType,
-      direction: activities.direction,
-      sentiment: activities.sentiment,
-      metadata: activities.metadata,
-    })
+  // Compute days since last activity from the deep-context activities text
+  // Fall back to a simple DB query for the single latest activity date
+  const [lastActRow] = await db
+    .select({ occurredAt: activities.occurredAt })
     .from(activities)
-    .where(and(eq(activities.tenantId, options.tenantId), or(...entityFilters)))
+    .where(and(
+      eq(activities.tenantId, options.tenantId),
+      eq(activities.entityId, input.dealId),
+      eq(activities.entityType, "deal"),
+    ))
     .orderBy(desc(activities.occurredAt))
-    .limit(20);
-
-  const lastActivity = recentActivities[0];
-  const daysSinceLastActivity = lastActivity?.occurredAt
-    ? Math.floor((Date.now() - new Date(lastActivity.occurredAt).getTime()) / 86400000)
+    .limit(1);
+  const daysSinceLastActivity = lastActRow?.occurredAt
+    ? Math.floor((Date.now() - new Date(lastActRow.occurredAt).getTime()) / 86400000)
     : 30;
 
   const age = ageInStage(deal.updatedAt, deal.stage);
@@ -78,13 +73,7 @@ export async function reEngageStalledHandler(
     }
   }
 
-  const conversationHistory = recentActivities
-    .map((a) => {
-      const date = a.occurredAt?.toISOString().split("T")[0] ?? "";
-      const bodySnippet = a.rawContent ? a.rawContent.slice(0, 300) : "";
-      return `[${date}] ${a.activityType} (${a.direction ?? "?"}, sentiment: ${a.sentiment ?? "?"}) — ${a.summary || "no summary"}${bodySnippet ? `\n  Excerpt: ${bodySnippet}` : ""}`;
-    })
-    .join("\n");
+  const conversationHistory = conversation.activities;
 
   const model = getLLMModel();
   if (!model) throw new Error("No LLM API key configured");
@@ -111,11 +100,19 @@ export async function reEngageStalledHandler(
 - Contact: ${contact ? [contact.firstName, contact.lastName].filter(Boolean).join(" ") : "unknown"} ${contact?.title ? `(${contact.title})` : ""}
 - Our product: ${settings.productDescription || "not specified"}
 
+${knowledgeBlock}
+
 ## Trigger Events / New Signals
 ${triggerSignals.length > 0 ? triggerSignals.join("\n") : "None detected"}
 
 ## Conversation History (most recent first)
 ${conversationHistory || "No activities recorded"}
+
+## Internal Notes
+${conversation.notes || "No notes recorded"}
+
+## Related Context (semantic search)
+${conversation.semanticResults || "No additional context found"}
 
 ## Approaches Available
 - **value_reminder**: Remind them of the value + add new proof point

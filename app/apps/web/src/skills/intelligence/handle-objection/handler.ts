@@ -1,11 +1,12 @@
 import { db } from "@/db";
-import { deals, companies, contacts, activities } from "@/db/schema";
-import { eq, and, desc, or } from "drizzle-orm";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { deals, companies, contacts } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
-import { getTenantSettings } from "@/lib/tenant-settings";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
+import { getSkillKnowledge, getDeepConversationContext } from "@/skills/skill-knowledge";
 import type { SkillRunOptions } from "@/skills/types";
 import type { HandleObjectionInput, HandleObjectionOutput } from "./schema";
 
@@ -26,7 +27,7 @@ export async function handleObjectionHandler(
 
   if (!deal) throw new Error(`Deal ${input.dealId} not found`);
 
-  const [company, contact, settings] = await Promise.all([
+  const [company, contact, settings, knowledgeBlock, conversation] = await Promise.all([
     deal.companyId
       ? db.select().from(companies).where(eq(companies.id, deal.companyId)).then((r) => r[0] || null)
       : null,
@@ -34,30 +35,14 @@ export async function handleObjectionHandler(
       ? db.select().from(contacts).where(eq(contacts.id, deal.contactId)).then((r) => r[0] || null)
       : null,
     getTenantSettings(options.tenantId),
+    getSkillKnowledge(`objection handling competitive positioning ${input.objection}`, options.tenantId),
+    getDeepConversationContext(options.tenantId, {
+      dealId: input.dealId,
+      companyId: deal.companyId ?? undefined,
+      contactIds: deal.contactId ? [deal.contactId] : undefined,
+      query: `objection ${input.objection}`,
+    }),
   ]);
-
-  // Get interaction history
-  const entityFilters = [
-    and(eq(activities.entityType, "deal"), eq(activities.entityId, input.dealId)),
-  ];
-  if (deal.contactId) {
-    entityFilters.push(
-      and(eq(activities.entityType, "contact"), eq(activities.entityId, deal.contactId)),
-    );
-  }
-  const recentActivities = await db
-    .select({ summary: activities.summary, rawContent: activities.rawContent, occurredAt: activities.occurredAt })
-    .from(activities)
-    .where(and(eq(activities.tenantId, options.tenantId), or(...entityFilters)))
-    .orderBy(desc(activities.occurredAt))
-    .limit(20);
-
-  const conversationHistory = recentActivities
-    .map((a) => {
-      const date = a.occurredAt?.toISOString().split("T")[0] ?? "";
-      return `[${date}] ${a.summary || (a.rawContent ? a.rawContent.slice(0, 200) : "no summary")}`;
-    })
-    .join("\n");
 
   const model = getLLMModel();
   if (!model) throw new Error("No LLM API key configured");
@@ -88,8 +73,16 @@ ${input.objectionCategory ? `Category: ${input.objectionCategory}` : "Detect the
 - Contact: ${contact ? [contact.firstName, contact.lastName].filter(Boolean).join(" ") : "unknown"} ${contact?.title ? `(${contact.title})` : ""}
 - Our product: ${settings.productDescription || "not specified"}
 
+${knowledgeBlock}
+
 ## Conversation History
-${conversationHistory || "No prior interactions recorded"}
+${conversation.activities || "No prior interactions recorded"}
+
+## Internal Notes
+${conversation.notes || "No notes recorded"}
+
+## Related Context (semantic search)
+${conversation.semanticResults || "No additional context found"}
 
 ## Generate
 1. **category**: Classify the objection

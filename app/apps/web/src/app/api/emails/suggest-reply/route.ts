@@ -1,8 +1,8 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { anthropic } from "@/lib/ai-provider";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
-import { tracedGenerateObject } from "@/lib/traced-ai";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { z } from "zod";
 
 const suggestReplySchema = z.object({

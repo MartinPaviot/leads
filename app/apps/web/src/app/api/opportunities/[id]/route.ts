@@ -1,11 +1,11 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { requirePermission } from "@/lib/permissions";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { requirePermission } from "@/lib/auth/permissions";
 import { db } from "@/db";
 import { deals, companies, activities } from "@/db/schema";
 import { eq, desc, and, isNull } from "drizzle-orm";
-import { logAudit } from "@/lib/audit-log";
-import { softDelete } from "@/lib/soft-delete";
-import { apiError } from "@/lib/api-errors";
+import { logAudit } from "@/lib/infra/audit-log";
+import { softDelete } from "@/lib/infra/soft-delete";
+import { apiError } from "@/lib/infra/api-errors";
 import { inngest } from "@/inngest/client";
 import { z } from "zod";
 

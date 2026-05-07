@@ -1,4 +1,4 @@
-import { searchPeople } from "@/lib/apollo-client";
+import { searchPeople } from "@/lib/integrations/apollo-client";
 import type { SkillRunOptions } from "@/skills/types";
 import type { CompanyContactFinderInput, CompanyContactFinderOutput } from "./schema";
 

@@ -1,12 +1,12 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { authUsers, tenants, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { updateTenantSettings, type TenantSettings, getTenantSettings } from "@/lib/tenant-settings";
+import { updateTenantSettings, type TenantSettings, getTenantSettings } from "@/lib/config/tenant-settings";
 import { inngest } from "@/inngest/client";
 import { sendWelcomeEmail } from "@/lib/emails/welcome";
-import { logger } from "@/lib/logger";
-import { posthogEvents } from "@/lib/analytics";
+import { logger } from "@/lib/observability/logger";
+import { posthogEvents } from "@/lib/analytics/analytics";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
@@ -37,6 +37,9 @@ export async function POST(req: Request) {
     updates.onboardingCompanyName = data.companyName;
     updates.onboardingRole = data.role;
     updates.companyDomain = data.domain;
+    if (Array.isArray(data.companyInvestors) && data.companyInvestors.length > 0) {
+      updates.companyInvestors = data.companyInvestors;
+    }
 
     // WS-0 — stamp the very first welcome save so onboarding_completed
     // can compute an accurate total duration later. Only set if absent so
@@ -159,6 +162,14 @@ export async function POST(req: Request) {
       })
       .catch((err) =>
         console.warn("Failed to trigger onboarding completion:", err)
+      );
+
+    // Seed Knowledge base from onboarding data (product, ICP, company context).
+    // Non-blocking, idempotent — safe to re-run on re-completion.
+    import("@/lib/knowledge/seed-from-onboarding")
+      .then((m) => m.seedKnowledgeFromOnboarding(authCtx.tenantId, authCtx.userId))
+      .catch((err) =>
+        logger.warn("onboarding/save: knowledge seeding failed", { err })
       );
 
     // O9: welcome email — best-effort, idempotent. We send exactly once

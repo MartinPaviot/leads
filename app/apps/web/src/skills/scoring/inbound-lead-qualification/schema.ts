@@ -24,6 +24,7 @@ export const inboundLeadQualificationOutputSchema = z.object({
   recommendedAction: z.string(),
   isDuplicate: z.boolean(),
   existingContactId: z.string().nullable(),
+  knowledgeContext: z.string().optional(),
 });
 
 export type InboundLeadQualificationOutput = z.infer<typeof inboundLeadQualificationOutputSchema>;

@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { chatThreads, chatMessages } from "@/db/schema";
 import { and, eq, asc } from "drizzle-orm";

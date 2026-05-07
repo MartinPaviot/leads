@@ -1,9 +1,9 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { searchPeople, isApolloAvailable } from "@/lib/apollo-client";
-import { getTenantSettings, deriveTargetRoles } from "@/lib/tenant-settings";
+import { searchPeople, isApolloAvailable } from "@/lib/integrations/apollo-client";
+import { getTenantSettings, deriveTargetRoles } from "@/lib/config/tenant-settings";
 
 /** Derive Apollo seniority filters from targetRoles text (e.g. "VP Engineering, CTO") */
 function deriveSeniorities(targetRoles: string): string[] {

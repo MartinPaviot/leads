@@ -1,14 +1,14 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { contacts, companies } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { anthropic } from "@/lib/ai-provider";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
-import { tracedGenerateObject } from "@/lib/traced-ai";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { z } from "zod";
-import { embedEntity, contactToText } from "@/lib/embeddings";
-import { enrichPerson, isApolloAvailable } from "@/lib/apollo-client";
+import { embedEntity, contactToText } from "@/lib/ai/embeddings";
+import { enrichPerson, isApolloAvailable } from "@/lib/integrations/apollo-client";
 
 const llmFallbackSchema = z.object({
   title: z.string().describe("Job title (e.g. CTO, VP Engineering, Founder)"),

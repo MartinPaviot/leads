@@ -1,8 +1,8 @@
-import { withAuthRLS } from "@/lib/auth-utils";
+import { withAuthRLS } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { deals, activities, companies } from "@/db/schema";
 import { and, eq, notInArray, sql, desc } from "drizzle-orm";
-import { getTenantSettings } from "@/lib/tenant-settings";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 import {
   runMonteCarloForecast,
   type ActiveDeal,

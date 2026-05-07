@@ -3,7 +3,7 @@ import {
   computeHealthScore,
   suggestNextStage,
   buildNarrative,
-} from "@/lib/opportunity-health";
+} from "@/lib/deals/opportunity-health";
 
 describe("computeHealthScore", () => {
   const base = {

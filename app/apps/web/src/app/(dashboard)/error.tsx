@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { logger } from "@/lib/logger";
+import { logger } from "@/lib/observability/logger";
 import { EmptyState } from "@/components/ui/empty-state";
 
 /**

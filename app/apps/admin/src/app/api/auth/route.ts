@@ -25,10 +25,17 @@ export async function POST(request: NextRequest) {
   }
 
   const isProduction = process.env.NODE_ENV === "production";
-  const maxAge = 60 * 60 * 24 * 7; // 7 days
+  const maxAge = 60 * 60 * 4; // 4 hours
 
   const response = NextResponse.json({ ok: true });
   response.cookies.set(COOKIE_NAME, secret, {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: isProduction,
+    path: "/",
+    maxAge,
+  });
+  response.cookies.set("admin_issued_at", String(Math.floor(Date.now() / 1000)), {
     httpOnly: true,
     sameSite: "strict",
     secure: isProduction,

@@ -3,8 +3,12 @@ import { coachingInsights, aePerformanceSnapshots } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { makeTool, type ToolContext } from "./context";
-import { searchActivityBodies } from "@/lib/activity-search";
+import { searchActivityBodies } from "@/lib/search/activity-search";
 import { detectTrends } from "@/lib/coaching/performance-aggregator";
+import {
+  retrieveTranscriptChunks,
+  formatChunksForPrompt,
+} from "@/lib/coaching/retrieve-transcript-chunks";
 
 export function buildCoachingTools(ctx: ToolContext) {
   const { tenantId, userId } = ctx;
@@ -122,6 +126,56 @@ export function buildCoachingTools(ctx: ToolContext) {
             meetingsCompleted: s.meetingsCompleted,
             dealsWon: s.dealsWon,
             overallScore: s.overallScore,
+          })),
+        };
+      },
+    }),
+
+    searchTranscripts: makeTool({
+      description: `Retrieve verbatim transcript chunks from this customer's meeting recordings via semantic search. Use this BEFORE answering any question about what was said in a call — "what did they push back on?", "did they confirm budget?", "what objection did they raise?", "summarise their needs", "what's the timeline they mentioned?". The output includes timestamp markers like [12:34] that the user interface turns into clickable chips that seek the recording. ALWAYS quote verbatim with the [mm:ss] marker — never paraphrase a transcript.`,
+      inputSchema: z.object({
+        query: z
+          .string()
+          .describe(
+            "The natural-language question to retrieve transcript context for",
+          ),
+        meetingIds: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Restrict to specific meetings (use when scope is a single deal)",
+          ),
+        k: z
+          .number()
+          .optional()
+          .describe("Top-k chunks to retrieve (default 8)"),
+      }),
+      execute: async (input) => {
+        const chunks = await retrieveTranscriptChunks(
+          input.query,
+          tenantId,
+          { meetingIds: input.meetingIds, k: input.k ?? 8 },
+        );
+        if (chunks.length === 0) {
+          return {
+            count: 0,
+            message:
+              "No relevant transcript chunks found. Answer the user honestly: 'I don't have evidence in the transcript for this.' Do NOT fall back to general knowledge.",
+            chunks: [],
+          };
+        }
+        return {
+          count: chunks.length,
+          // Pre-formatted block — paste this directly into your
+          // answer's quoted-evidence section. The `[mm:ss]` markers
+          // are load-bearing for the UI, preserve them exactly.
+          formattedForCitation: formatChunksForPrompt(chunks),
+          chunks: chunks.map((c) => ({
+            meetingId: c.meetingId,
+            speaker: c.speaker,
+            timestamp: c.startSec,
+            text: c.text,
+            similarity: Math.round(c.similarity * 100) / 100,
           })),
         };
       },

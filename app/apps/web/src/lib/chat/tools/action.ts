@@ -17,20 +17,20 @@ import {
   users,
 } from "@/db/schema";
 import { and, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
-import { anthropic } from "@/lib/ai-provider";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
-import { tracedGenerateObject } from "@/lib/traced-ai";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { z } from "zod";
 import { randomBytes } from "crypto";
-import { buildProspectContext } from "@/lib/prospect-context";
-import { generateSequence } from "@/lib/sequence-generator";
-import { pauseEnrollmentsForContacts } from "@/lib/enrollment";
-import { sendInviteEmail } from "@/lib/email-invite";
+import { buildProspectContext } from "@/lib/context/prospect-context";
+import { generateSequence } from "@/lib/agents/sequence-generator";
+import { pauseEnrollmentsForContacts } from "@/lib/sequences/enrollment";
+import { sendInviteEmail } from "@/lib/emails/email-invite";
 import { runAiAttribute } from "@/lib/chat/ai-attributes";
 import { logToolCall } from "@/lib/chat/tool-call-log";
-import { checkPlanLimit } from "@/lib/plan-limits";
+import { checkPlanLimit } from "@/lib/billing/plan-limits";
 import { escapeForPrompt, wrapUntrustedInput } from "@/lib/chat/prompt-safety";
-import { generateInviteToken } from "@/lib/invite-token";
+import { generateInviteToken } from "@/lib/auth/invite-token";
 import { makeTool, type ToolContext } from "./context";
 
 function pickModel() {
@@ -282,7 +282,7 @@ RULES:
           .describe("true to apply the suggestion; false (default) returns preview only"),
       }),
       execute: async (input) => {
-        const { suggestNextStage } = await import("@/lib/opportunity-health");
+        const { suggestNextStage } = await import("@/lib/deals/opportunity-health");
         const { deals } = await import("@/db/schema");
 
         const [deal] = await db
@@ -463,7 +463,7 @@ RULES:
         title: z.string().optional().describe("Meeting title (default 'Meeting with <contact>')"),
       }),
       execute: async (input) => {
-        const { createCalendarEvent } = await import("@/lib/meeting-booking");
+        const { createCalendarEvent } = await import("@/lib/integrations/meeting-booking");
 
         const [contact] = await db
           .select()

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { retryWithBackoff } from "@/lib/retry";
+import { retryWithBackoff } from "@/lib/infra/retry";
 
 describe("retryWithBackoff", () => {
   it("returns the value on first success — no retry, no sleep", async () => {

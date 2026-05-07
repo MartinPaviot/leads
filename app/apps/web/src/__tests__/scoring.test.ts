@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { calculateFitScore, calculateContactFitScore, getGrade, GRADE_THRESHOLDS } from "@/lib/scoring";
-import { parseSizeRange, parseRoleKeywords } from "@/lib/tenant-settings";
-import { sizesToApolloRanges } from "@/lib/icp-constants";
+import { calculateFitScore, calculateContactFitScore, getGrade, GRADE_THRESHOLDS } from "@/lib/scoring/scoring";
+import { parseSizeRange, parseRoleKeywords } from "@/lib/config/tenant-settings";
+import { sizesToApolloRanges } from "@/lib/config/icp-constants";
 
 // ─── Company Fit Scoring ────────────────────────────────────────────
 

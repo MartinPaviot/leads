@@ -14,13 +14,15 @@ import {
   outboundEmails,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { EMAIL_RULES, ANTI_HALLUCINATION_RULES } from "@/lib/prompts/shared-rules";
-import { buildProspectContext, formatContextForPrompt } from "@/lib/prospect-context";
-import { getAvailableSlots, formatSlotsForEmail } from "@/lib/meeting-booking";
+import { buildProspectContext, formatContextForPrompt } from "@/lib/context/prospect-context";
+import { getAvailableSlots, formatSlotsForEmail } from "@/lib/integrations/meeting-booking";
+import { updateTrustScore } from "@/lib/campaign-engine/trust-score";
+import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
 
 function getLLMModel() {
   if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-6");
@@ -93,6 +95,17 @@ export const handleReplyIntelligently = inngest.createFunction(
 
     if (!contact) return { enrollmentId, result: "skipped", reason: "Contact not found" };
     const tenantId = contact.tenantId;
+
+    await trackPipeline({
+      traceId: enrollmentId,
+      tenantId,
+      contactId: contact.id,
+      companyId: contact.companyId,
+      enrollmentId,
+      stage: "email_replied",
+      sourceSystem: "inngest",
+      metadata: { classification, urgency },
+    });
 
     // Build full prospect context
     const ctx = await step.run("build-context", async () => {
@@ -169,7 +182,7 @@ ADDITIONAL RULES:
       // guardrail helper so reply-handler, autonomous-pipeline, and
       // email-send-worker all agree on what counts as autonomous.
       const settings = await step.run("load-settings", async () => {
-        const { getTenantSettings } = await import("@/lib/tenant-settings");
+        const { getTenantSettings } = await import("@/lib/config/tenant-settings");
         return getTenantSettings(tenantId);
       });
 
@@ -282,6 +295,81 @@ ADDITIONAL RULES:
       });
 
       return { enrollmentId, result: "draft_created", classification, objectionType };
+    }
+
+    // Campaign Engine 1000x: Fire extended reply agent for unhandled classifications
+    const extendedClassifications = ["not_now", "wrong_person", "info_request", "competitor_mention", "question", "unsubscribe", "negative"];
+    if (extendedClassifications.includes(classification)) {
+      const lastEmailForAgent = await step.run("get-original-subject-for-agent", async () => {
+        const [email] = await db
+          .select({ subject: outboundEmails.subject })
+          .from(outboundEmails)
+          .where(eq(outboundEmails.enrollmentId, enrollmentId))
+          .orderBy(outboundEmails.stepNumber)
+          .limit(1);
+        return email?.subject || "";
+      });
+
+      await inngest.send({
+        name: "campaign-engine/reply-received",
+        data: {
+          enrollmentId,
+          tenantId: contact.tenantId,
+          contactId: enrollment.contactId,
+          classification,
+          replyContent,
+          originalSubject: lastEmailForAgent,
+        },
+      });
+
+      return { enrollmentId, result: "delegated_to_reply_agent", classification };
+    }
+
+    // F006/F007: Fire agent reactor so the pipeline auto-progresses
+    const reactorData = await step.run("load-contact-for-reactor", async () => {
+      const [enrollment] = await db
+        .select({ contactId: sequenceEnrollments.contactId, sequenceId: sequenceEnrollments.sequenceId })
+        .from(sequenceEnrollments)
+        .where(eq(sequenceEnrollments.id, enrollmentId))
+        .limit(1);
+      if (!enrollment?.contactId) return null;
+      const { sequences } = await import("@/db/schema");
+      const [seq] = await db.select({ tenantId: sequences.tenantId }).from(sequences)
+        .where(eq(sequences.id, enrollment.sequenceId)).limit(1);
+      return { contactId: enrollment.contactId, tenantId: seq?.tenantId };
+    });
+
+    if (reactorData?.contactId && reactorData.tenantId) {
+      await inngest.send({
+        name: "agent/react",
+        data: {
+          tenantId: reactorData.tenantId,
+          trigger: "email_replied",
+          entityType: "contact",
+          entityId: reactorData.contactId,
+          metadata: {
+            classification,
+            urgency,
+            enrollmentId,
+            replySnippet: replyContent?.slice(0, 200),
+          },
+          deduplicationKey: `email_replied:contact:${reactorData.contactId}`,
+          firedAt: new Date().toISOString(),
+        },
+      }).catch(() => {});
+    }
+
+    // Emit trust score event based on reply classification
+    if (reactorData?.tenantId) {
+      const trustEvent = classification === "positive" || classification === "interested"
+        ? "email_positive_reply" as const
+        : classification === "negative" || classification === "not_interested"
+        ? "email_negative_reply" as const
+        : null;
+
+      if (trustEvent) {
+        await updateTrustScore(reactorData.tenantId, trustEvent).catch(() => {});
+      }
     }
 
     return { enrollmentId, result: "no_action", classification };

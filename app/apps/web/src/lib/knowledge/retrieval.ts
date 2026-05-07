@@ -1,9 +1,9 @@
 import { db } from "@/db";
 import { knowledgeEntries } from "@/db/schema";
 import { eq, and, or, ilike, desc, sql } from "drizzle-orm";
-import { embedText } from "@/lib/embeddings";
+import { embedText } from "@/lib/ai/embeddings";
 import postgres from "postgres";
-import logger from "@/lib/logger";
+import logger from "@/lib/observability/logger";
 
 const rawSql = postgres(process.env.DATABASE_URL!);
 

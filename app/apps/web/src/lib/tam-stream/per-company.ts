@@ -7,9 +7,12 @@ import {
   revenueToRange,
   type ApolloOrganization,
   type OrgSearchOrganization,
-} from "@/lib/apollo-client";
-import { calculateFitScore, getGrade } from "@/lib/scoring";
-import { findWarmPathsToCompany } from "@/lib/relationship-graph";
+} from "@/lib/integrations/apollo-client";
+import { getGrade } from "@/lib/scoring/scoring";
+import { scoreCompanyWithModel } from "@/lib/scoring/company-scorer";
+import { narrateScoreReasons, type NarrativeInput } from "@/lib/scoring/narrative-reasons";
+import { findWarmPathsToCompany } from "@/lib/context/relationship-graph";
+import { enrichCompany as waterfallEnrich } from "@/lib/providers/company-enrichment/waterfall";
 import { companyContactFinderHandler } from "@/skills/enrichment/company-contact-finder/handler";
 import { DEFAULT_SIGNALS } from "@/lib/tam-stream/signals";
 import type { SignalContext } from "@/lib/tam-stream/signals/types";
@@ -120,8 +123,36 @@ export async function runPerCompanyPipeline(args: PerCompanyArgs): Promise<void>
 
   if (abortSignal?.aborted) return;
 
+  // ── 1b. Waterfall gap-fill (Crunchbase, Hunter) ──
+  let waterfallInvestors: string[] = [];
+  try {
+    const wf = await waterfallEnrich(
+      { domain, name: search.name },
+      { tenantId },
+    );
+    if (wf.enriched) {
+      waterfallInvestors = wf.data.investors ?? [];
+    }
+  } catch {
+    // Waterfall is best-effort; Apollo data is sufficient.
+  }
+
+  if (abortSignal?.aborted) return;
+
   // ── 2. Score ──
   const props = buildPropsFromApollo(search, enriched, strategyLabel);
+  if (waterfallInvestors.length > 0) {
+    const existing = (props.investor_names as string[]) ?? [];
+    const seen = new Set(existing.map((s) => (s as string).toLowerCase()));
+    for (const inv of waterfallInvestors) {
+      if (!seen.has(inv.toLowerCase())) {
+        existing.push(inv);
+        seen.add(inv.toLowerCase());
+      }
+    }
+    props.investor_names = existing;
+    props.crunchbase_investors = waterfallInvestors;
+  }
   const companyRow = {
     industry: enriched?.industry ?? search.industry ?? null,
     size: inferSizeLabel(enriched, search),
@@ -129,13 +160,13 @@ export async function runPerCompanyPipeline(args: PerCompanyArgs): Promise<void>
     name: enriched?.name ?? search.name,
     domain,
   };
-  const fit = calculateFitScore(companyRow, props, ctx.icp);
-  const { grade, heat } = getGrade(fit.score);
+  const scored = scoreCompanyWithModel(companyRow, props, ctx.icp, ctx.companyModel ?? null);
+  const { grade, heat } = getGrade(scored.score);
   const scorePayload: ScorePayload = {
-    score: fit.score,
+    score: scored.score,
     grade,
     heat,
-    reasons: fit.reasons,
+    reasons: scored.reasons,
   };
 
   // ── 3. Insert ──
@@ -150,14 +181,15 @@ export async function runPerCompanyPipeline(args: PerCompanyArgs): Promise<void>
         size: companyRow.size,
         revenue: enriched ? revenueToRange(enriched.annual_revenue) : null,
         description: companyRow.description,
-        score: fit.score,
-        scoreReasons: fit.reasons,
+        score: scored.score,
+        scoreReasons: scored.reasons,
         tenantId,
         properties: {
           ...props,
           score_grade: grade,
-          score_fit: fit.score,
-          score_fit_reasons: fit.reasons,
+          score_fit: scored.score,
+          score_fit_reasons: scored.reasons,
+          score_source: scored.source,
           scored_at: ctx.now.toISOString(),
         },
       })
@@ -193,6 +225,7 @@ export async function runPerCompanyPipeline(args: PerCompanyArgs): Promise<void>
   const signalsBySlot: Record<SignalKey, SignalPayload | null> = {
     investor_overlap: null,
     funding_recent: null,
+    funding_crunchbase: null,
     hiring_intent: null,
     yc_company: null,
   };
@@ -302,24 +335,62 @@ export async function runPerCompanyPipeline(args: PerCompanyArgs): Promise<void>
   ]);
   clearTimeout(safetyTimer);
 
-  // Persist signals bundle to properties.tamSignals via jsonb concat.
-  // We use `tamSignals` (not `signals`) to avoid colliding with the
-  // legacy signal-scanner output which stores a flat array of
-  // { type, title, description, ... } under `properties.signals`.
-  // Fire-and-forget; the stream event is the source of truth for
-  // live UI, the DB write is for reload resilience.
+  // ── 7. Narrative reasons (async, non-blocking for row display) ──
+  const signalSummary = Object.entries(signalsBySlot)
+    .filter(([, v]) => v !== null)
+    .map(([k, v]) => ({ type: k, reason: v!.reason, value: v!.value }));
+
+  const narrativeInput: NarrativeInput = {
+    companyName: companyRow.name,
+    companyIndustry: companyRow.industry,
+    companySize: companyRow.size,
+    companyCountry: (props.country as string) ?? null,
+    fundingStage: (props.latest_funding_stage as string) ?? null,
+    totalFunding: (props.total_funding as number) ?? null,
+    fundingRecency: (props.latest_funding_raised_at as string) ?? null,
+    investors: (props.investor_names as string[]) ?? [],
+    technologies: (props.technologies as string[]) ?? [],
+    rawReasons: scored.reasons,
+    signals: signalSummary,
+    tenantName: null,
+    tenantIndustry: ctx.icp?.industries?.[0] ?? null,
+    tenantInvestors: [...ctx.tenantInvestors],
+    topClientNames: [],
+  };
+
+  let narrativeReasons = scored.reasons;
   try {
-    const signalsJson = JSON.stringify({ tamSignals: signalsBySlot });
+    narrativeReasons = await narrateScoreReasons(narrativeInput, tenantId);
+  } catch {
+    // Narrative is best-effort; raw reasons are fine.
+  }
+
+  // Re-score event with narrative reasons so the UI updates
+  if (narrativeReasons !== scored.reasons) {
+    send({
+      type: "company.scored",
+      companyId,
+      score: { score: scored.score, grade, heat, reasons: narrativeReasons },
+    });
+  }
+
+  // ── 8. Persist signals + narrative to DB ──
+  try {
+    const patch = JSON.stringify({
+      tamSignals: signalsBySlot,
+      narrative_reasons: narrativeReasons,
+    });
     await db
       .update(companies)
       .set({
-        properties: sql`COALESCE(${companies.properties}, '{}'::jsonb) || ${signalsJson}::jsonb`,
+        scoreReasons: narrativeReasons,
+        properties: sql`COALESCE(${companies.properties}, '{}'::jsonb) || ${patch}::jsonb`,
         updatedAt: new Date(),
       })
       .where(and(eq(companies.id, companyId), eq(companies.tenantId, tenantId)));
   } catch (err) {
     console.warn(
-      `[tam-stream] persist signals failed for ${companyId}:`,
+      `[tam-stream] persist signals+narrative failed for ${companyId}:`,
       (err as Error)?.message,
     );
   }

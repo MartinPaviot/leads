@@ -1,24 +1,25 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { anthropic } from "@/lib/ai-provider";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
-import { tracedGenerateObject } from "@/lib/traced-ai";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { z } from "zod";
 import {
   searchOrganizations,
   isApolloAvailable,
   type OrgSearchParams,
-} from "@/lib/apollo-client";
+} from "@/lib/integrations/apollo-client";
 import {
   getTenantSettings,
   deriveTargetRoles,
   parseSizeRange,
   parseRoleKeywords,
-} from "@/lib/tenant-settings";
-import { sizesToApolloRanges } from "@/lib/icp-constants";
+} from "@/lib/config/tenant-settings";
+import { getTenantKnowledge, formatKnowledgeBlock } from "@/lib/knowledge/get-tenant-knowledge";
+import { sizesToApolloRanges } from "@/lib/config/icp-constants";
 import { runPerCompanyPipeline } from "@/lib/tam-stream/per-company";
 import type { SignalContext } from "@/lib/tam-stream/signals/types";
 import {
@@ -235,6 +236,9 @@ export async function POST(req: Request) {
             .filter(Boolean),
         );
 
+        const companyModel = (settings as Record<string, unknown>).companyModel as
+          import("@/lib/scoring/company-model-trainer").CompanyScoringModel | null | undefined;
+
         const signalCtx: SignalContext = {
           tenantId: authCtx.tenantId,
           tenantInvestors,
@@ -244,6 +248,7 @@ export async function POST(req: Request) {
             geographies: settings.targetGeographies,
           },
           now: new Date(),
+          companyModel: companyModel ?? null,
         };
 
         const targetTitles = parseRoleKeywords(settings);
@@ -416,6 +421,9 @@ async function planStrategies(args: {
     ? sizesToApolloRanges(settings.targetCompanySizes).join(", ")
     : "";
 
+  const knowledgeEntries = await getTenantKnowledge(tenantId);
+  const knowledgeBlock = formatKnowledgeBlock(knowledgeEntries);
+
   const businessContext = [
     settings.onboardingCompanyName && `Company: ${settings.onboardingCompanyName}`,
     settings.productDescription && `Product: ${settings.productDescription}`,
@@ -429,8 +437,7 @@ async function planStrategies(args: {
       `Target geographies: ${settings.targetGeographies.join(", ")}`,
     // BUG-WS0-008: derive targetRoles at read time
     deriveTargetRoles(settings) && `Buyer personas: ${deriveTargetRoles(settings)}`,
-    settings.knowledge?.length &&
-      `Knowledge base:\n${settings.knowledge.map((k) => `- ${k.topic}: ${k.content}`).join("\n")}`,
+    knowledgeBlock && `Knowledge base:\n${knowledgeBlock}`,
   ]
     .filter(Boolean)
     .join("\n");

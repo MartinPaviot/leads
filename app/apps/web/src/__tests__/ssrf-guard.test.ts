@@ -17,7 +17,7 @@ vi.mock("node:dns/promises", () => ({
   }),
 }));
 
-import { assertPublicUrl } from "@/lib/ssrf-guard";
+import { assertPublicUrl } from "@/lib/infra/ssrf-guard";
 
 describe("assertPublicUrl — SSRF regression (C9)", () => {
   it("accepts a public HTTPS URL", async () => {

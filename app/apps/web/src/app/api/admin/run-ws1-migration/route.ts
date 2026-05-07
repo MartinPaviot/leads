@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import {
   migrateAllTenants,
   migrateTenant,
 } from "@/lib/migrations/ws-1-guardrail-defaults";
-import logger from "@/lib/logger";
+import logger from "@/lib/observability/logger";
 
 /**
  * WS-1 migration admin endpoint.

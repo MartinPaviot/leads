@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { deals, companies, contacts, activities } from "@/db/schema";
 import { eq, and, gte, sql, desc } from "drizzle-orm";
+import { getSkillKnowledge } from "@/skills/skill-knowledge";
 import type { SkillRunOptions } from "@/skills/types";
 import type { PipelineReviewInput, PipelineReviewOutput } from "./schema";
 
@@ -10,11 +11,14 @@ export async function pipelineReviewHandler(
 ): Promise<PipelineReviewOutput> {
   const periodStart = new Date(Date.now() - input.periodDays * 24 * 60 * 60 * 1000);
 
-  // Fetch all active deals
-  const allDeals = await db
-    .select()
-    .from(deals)
-    .where(eq(deals.tenantId, options.tenantId));
+  // Fetch all active deals + knowledge in parallel
+  const [allDeals, knowledgeBlock] = await Promise.all([
+    db
+      .select()
+      .from(deals)
+      .where(eq(deals.tenantId, options.tenantId)),
+    getSkillKnowledge(`pipeline analysis deal stages qualification criteria win rate`, options.tenantId),
+  ]);
 
   // Fetch companies and contacts for context
   const companyIds = [...new Set(allDeals.map((d) => d.companyId).filter(Boolean))] as string[];
@@ -116,5 +120,6 @@ export async function pipelineReviewHandler(
       dealsCreatedInPeriod: createdInPeriod,
       dealsClosedInPeriod: closedInPeriod,
     },
+    knowledgeContext: knowledgeBlock,
   };
 }

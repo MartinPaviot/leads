@@ -7,7 +7,8 @@ import {
   ArrowRight, ArrowLeft, Loader2, Check, Target, Users, Mail,
   Zap, X, Send,
 } from "lucide-react";
-import { INDUSTRIES, COMPANY_SIZES, GEOGRAPHIES, DECISION_MAKER_ROLES } from "@/lib/icp-constants";
+import { INDUSTRIES, COMPANY_SIZES, GEOGRAPHIES, DECISION_MAKER_ROLES } from "@/lib/config/icp-constants";
+import { sanitizeHtml } from "@/lib/infra/sanitize-html";
 
 const pill = "rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all duration-150 cursor-pointer select-none";
 
@@ -493,7 +494,7 @@ export function CampaignWizard({ onClose, onComplete, sequenceId: existingSequen
                       </div>
                       <p className="text-[13px] font-medium mb-1" style={{ color: "var(--color-text-primary)" }}>{email.subject}</p>
                       <div className="text-[12px] leading-relaxed line-clamp-3" style={{ color: "var(--color-text-secondary)" }}
-                        dangerouslySetInnerHTML={{ __html: email.bodyHtml.slice(0, 300) }} />
+                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(email.bodyHtml.slice(0, 300)) }} />
                     </div>
                   ))}
                 </div>

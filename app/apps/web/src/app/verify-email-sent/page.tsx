@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
-import { sanitizeCallbackUrl } from "@/lib/auth-callback";
-import { resolveInboxDeepLinks } from "@/lib/inbox-deep-links";
+import { BodyScrollUnlock } from "@/components/auth/body-scroll-unlock";
+import { sanitizeCallbackUrl } from "@/lib/auth/auth-callback";
+import { resolveInboxDeepLinks } from "@/lib/emails/inbox-deep-links";
 import { ResendVerifyButton } from "./resend-button";
 
 /**
@@ -36,11 +37,12 @@ export default async function VerifyEmailSentPage({
 
   return (
     <div
-      className="bg-grid flex min-h-screen items-center justify-center px-4"
+      className="bg-grid flex min-h-screen flex-col px-4 py-8"
       style={{ background: "var(--color-bg-page)" }}
     >
+      <BodyScrollUnlock />
       <div
-        className="w-full max-w-md space-y-6 rounded-xl p-8 text-center"
+        className="m-auto w-full max-w-md space-y-5 rounded-xl p-7 text-center"
         style={{
           background: "var(--color-bg-card)",
           border: "1px solid var(--color-border-default)",

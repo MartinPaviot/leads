@@ -19,8 +19,8 @@
 
 import { generateObject, type LanguageModel } from "ai";
 import { z } from "zod";
-import { getModelForTask } from "@/lib/ai-provider";
-import logger from "@/lib/logger";
+import { getModelForTask } from "@/lib/ai/ai-provider";
+import logger from "@/lib/observability/logger";
 
 // ── Public Types ──────────────────────────────────────────────
 

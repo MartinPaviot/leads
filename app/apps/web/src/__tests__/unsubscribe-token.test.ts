@@ -3,7 +3,7 @@ import {
   generateUnsubscribeToken,
   verifyUnsubscribeToken,
   buildUnsubscribeUrl,
-} from "@/lib/unsubscribe-token";
+} from "@/lib/emails/unsubscribe-token";
 
 beforeEach(() => {
   process.env.AUTH_SECRET = "test-secret-do-not-use-in-prod";

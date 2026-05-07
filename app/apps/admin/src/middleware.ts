@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const COOKIE_NAME = "admin_token";
+const SESSION_COOKIE = "admin_issued_at";
+const MAX_SESSION_AGE_S = 4 * 60 * 60; // 4 hours
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip auth check for login page, auth API, and static assets
   if (
     pathname === "/login" ||
     pathname.startsWith("/api/auth") ||
@@ -16,8 +17,7 @@ export function middleware(request: NextRequest) {
   }
 
   const secret = process.env.ADMIN_SECRET;
-  if (!secret) {
-    // No secret configured — redirect to login (which will show an error)
+  if (!secret || secret.length < 32) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -36,6 +36,18 @@ export function middleware(request: NextRequest) {
   }
   if (mismatch !== 0) {
     return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  // Session expiry — reject sessions older than MAX_SESSION_AGE_S
+  const issuedAt = request.cookies.get(SESSION_COOKIE)?.value;
+  if (issuedAt) {
+    const age = Math.floor(Date.now() / 1000) - Number(issuedAt);
+    if (age > MAX_SESSION_AGE_S) {
+      const res = NextResponse.redirect(new URL("/login", request.url));
+      res.cookies.delete(COOKIE_NAME);
+      res.cookies.delete(SESSION_COOKIE);
+      return res;
+    }
   }
 
   return NextResponse.next();

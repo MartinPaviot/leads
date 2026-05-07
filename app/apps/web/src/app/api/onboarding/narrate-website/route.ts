@@ -1,9 +1,9 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { anthropic } from "@/lib/ai-provider";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
-import { tracedStreamText } from "@/lib/traced-ai";
-import { assertPublicUrl } from "@/lib/ssrf-guard";
+import { tracedStreamText } from "@/lib/ai/traced-ai";
+import { assertPublicUrl } from "@/lib/infra/ssrf-guard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;

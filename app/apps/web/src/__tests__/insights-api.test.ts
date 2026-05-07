@@ -13,7 +13,7 @@ const { mockGetAuthContext } = vi.hoisted(() => ({
   mockGetAuthContext: vi.fn(),
 }));
 
-vi.mock("@/lib/auth-utils", () => ({
+vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: mockGetAuthContext,
   withAuthRLS: vi.fn(async (handler: (ctx: any) => Promise<Response>) => {
     const ctx = await mockGetAuthContext();
@@ -43,7 +43,7 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 import { auth } from "@/auth";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 
 const insightsModule = await import("@/app/api/insights/route");

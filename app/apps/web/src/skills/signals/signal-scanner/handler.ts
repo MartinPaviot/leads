@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { companies, activities, deals, contacts } from "@/db/schema";
 import { eq, and, inArray, gte, sql, desc } from "drizzle-orm";
-import { getMomentum } from "@/lib/momentum";
+import { getMomentum } from "@/lib/analytics/momentum";
 import type { SkillRunOptions } from "@/skills/types";
 import type { SignalScannerInput, SignalScannerOutput } from "./schema";
 
@@ -42,6 +42,14 @@ export async function signalScannerHandler(
           strength: totalFunding > 10_000_000 ? "high" : totalFunding > 1_000_000 ? "medium" : "low",
           detectedAt: new Date().toISOString(),
           dataSource: "apollo_enrichment",
+          // MONACO-PARITY-01: rule-based signal from Apollo data —
+          // no URL citation, but the rule is deterministic so we
+          // tag confidence high. The classifier will surface this
+          // as "likely" in the 4-state UI badge (urlOutcome=null +
+          // confidence ≥ 0.7 → likely).
+          sourceUrl: null,
+          confidence: 0.95,
+          verificationStatus: null,
         });
       }
     }
@@ -84,6 +92,11 @@ export async function signalScannerHandler(
           strength: recent >= older * 3 ? "high" : "medium",
           detectedAt: new Date().toISOString(),
           dataSource: "activity_history",
+          // MONACO-PARITY-01: derived from local activity table —
+          // deterministic count, high confidence, no URL citation.
+          sourceUrl: null,
+          confidence: 0.9,
+          verificationStatus: null,
         });
       }
     }
@@ -113,6 +126,11 @@ export async function signalScannerHandler(
               strength: daysSinceUpdate > 30 ? "high" : "medium",
               detectedAt: new Date().toISOString(),
               dataSource: "deal_pipeline",
+              // MONACO-PARITY-01: derived from local deal table —
+              // deterministic threshold check, high confidence.
+              sourceUrl: null,
+              confidence: 0.9,
+              verificationStatus: null,
             });
           }
         }
@@ -132,6 +150,10 @@ export async function signalScannerHandler(
           strength: technologies.length > 15 ? "high" : "medium",
           detectedAt: new Date().toISOString(),
           dataSource: "apollo_enrichment",
+          // MONACO-PARITY-01: Apollo-derived deterministic count.
+          sourceUrl: null,
+          confidence: 0.9,
+          verificationStatus: null,
         });
       }
     }

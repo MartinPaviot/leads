@@ -1,5 +1,5 @@
-import { getAuthContext } from "@/lib/auth-utils";
-import { getTenantSettings } from "@/lib/tenant-settings";
+import { getAuthContext } from "@/lib/auth/auth-utils";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 
 export async function GET() {
   const authCtx = await getAuthContext();

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeMultiplier,
   listKnownSignalTypes,
-} from "@/lib/signal-outcomes";
+} from "@/lib/scoring/signal-outcomes";
 
 describe("signal-outcomes math", () => {
   describe("computeMultiplier", () => {
@@ -50,9 +50,10 @@ describe("signal-outcomes math", () => {
   });
 
   describe("listKnownSignalTypes", () => {
-    it("exposes the five shipped signal detectors", () => {
+    it("exposes the six shipped signal detectors", () => {
       const types = listKnownSignalTypes();
       expect(types).toContain("funding");
+      expect(types).toContain("funding_crunchbase");
       expect(types).toContain("hiring");
       expect(types).toContain("tech_stack_change");
       expect(types).toContain("leadership_change");

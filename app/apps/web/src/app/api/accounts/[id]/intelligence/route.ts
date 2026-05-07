@@ -1,10 +1,10 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { companies, contacts, activities, deals } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { exploreGraphAroundEntity } from "@/lib/context-graph";
-import { anthropic } from "@/lib/ai-provider";
-import { tracedGenerateObject } from "@/lib/traced-ai";
+import { exploreGraphAroundEntity } from "@/lib/ai/context-graph";
+import { anthropic } from "@/lib/ai/ai-provider";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { z } from "zod";
 
 const briefSchema = z.object({

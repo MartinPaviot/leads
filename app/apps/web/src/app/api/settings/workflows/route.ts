@@ -1,8 +1,8 @@
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import type { WorkflowDef } from "@/lib/workflow-types";
+import type { WorkflowDef } from "@/lib/config/workflow-types";
 
 export async function GET() {
   const authCtx = await getAuthContext();

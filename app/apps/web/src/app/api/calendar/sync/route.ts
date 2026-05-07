@@ -1,9 +1,9 @@
 import { auth } from "@/auth";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities, contacts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { fetchRecentMeetings } from "@/lib/calendar";
+import { fetchRecentMeetings } from "@/lib/integrations/calendar";
 
 export async function POST() {
   const authCtx = await getAuthContext();

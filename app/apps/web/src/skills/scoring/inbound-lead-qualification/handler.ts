@@ -1,8 +1,9 @@
 import { db } from "@/db";
 import { contacts, companies } from "@/db/schema";
 import { eq, and, ne } from "drizzle-orm";
-import { scoreContact } from "@/lib/contact-scoring";
-import { getGrade } from "@/lib/scoring";
+import { scoreContact } from "@/lib/scoring/contact-scoring";
+import { getGrade } from "@/lib/scoring/scoring";
+import { getSkillKnowledge } from "@/skills/skill-knowledge";
 import type { SkillRunOptions } from "@/skills/types";
 import type { InboundLeadQualificationInput, InboundLeadQualificationOutput } from "./schema";
 
@@ -36,11 +37,14 @@ export async function inboundLeadQualificationHandler(
   input: InboundLeadQualificationInput,
   options: SkillRunOptions,
 ): Promise<InboundLeadQualificationOutput> {
-  // Fetch the contact
-  const [contact] = await db
-    .select()
-    .from(contacts)
-    .where(and(eq(contacts.id, input.contactId), eq(contacts.tenantId, options.tenantId)));
+  // Fetch the contact + retrieve knowledge in parallel
+  const [[contact], knowledgeBlock] = await Promise.all([
+    db
+      .select()
+      .from(contacts)
+      .where(and(eq(contacts.id, input.contactId), eq(contacts.tenantId, options.tenantId))),
+    getSkillKnowledge("inbound lead qualification ideal customer profile priority routing", options.tenantId),
+  ]);
 
   if (!contact) throw new Error(`Contact ${input.contactId} not found`);
 
@@ -101,5 +105,6 @@ export async function inboundLeadQualificationHandler(
     recommendedAction,
     isDuplicate,
     existingContactId,
+    knowledgeContext: knowledgeBlock,
   };
 }

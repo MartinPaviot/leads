@@ -6,7 +6,7 @@
  */
 
 import { inngest } from "./client";
-import { briefAllOpenDeals, buildDealBrief } from "@/lib/deal-briefing";
+import { briefAllOpenDeals, buildDealBrief } from "@/lib/deals/deal-briefing";
 import { db } from "@/db";
 import { notifications, users } from "@/db/schema";
 import { eq } from "drizzle-orm";

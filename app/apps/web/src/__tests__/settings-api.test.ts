@@ -4,28 +4,66 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
-vi.mock("@/lib/auth-utils", () => ({
+vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: vi.fn(),
+  withAuthRLS: vi.fn(async (handler) => { const ctx = await (await import("@/lib/auth/auth-utils")).getAuthContext(); if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 }); return handler(ctx); }),
   requireAdmin: vi.fn(() => null),
+}));
+
+vi.mock("@/lib/auth/permissions", () => ({
+  requirePermission: vi.fn(() => null),
 }));
 
 vi.mock("@/db", () => ({
   db: {
     select: vi.fn(),
     update: vi.fn(),
+    insert: vi.fn(),
   },
 }));
 
 vi.mock("@/db/schema", () => ({
-  tenants: { id: "id" },
+  trustEvents: { id: "id", tenantId: "tenant_id", eventType: "event_type", delta: "delta", reason: "reason", createdAt: "created_at" },
+  systemTrustScore: { id: "id", tenantId: "tenant_id", score: "score", components: "components", createdAt: "created_at" },
+  agentActions: { id: "id", tenantId: "tenant_id", agentId: "agent_id", actionType: "action_type", entityId: "entity_id", summary: "summary", approved: "approved", metadata: "metadata", createdAt: "created_at" },
+  knowledgeEntries: {
+    id: "id",
+    tenantId: "tenantId",
+    title: "title",
+    content: "content",
+    category: "category",
+    metadata: "metadata",
+    createdAt: "created_at",
+    isActive: "isActive",
+    scope: "scope",
+    createdBy: "createdBy",
+    updatedAt: "updatedAt",
+    contentHash: "contentHash",
+  },
+  tenants: { id: "id", settings: "settings", name: "name" },
 }));
 
 vi.mock("drizzle-orm", () => ({
   eq: vi.fn(),
+  and: vi.fn(),
+  or: vi.fn(),
+  desc: vi.fn(),
+}));
+
+vi.mock("@/lib/infra/audit-log", () => ({
+  logAudit: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/guardrails/approval-mode", () => ({
+  readApprovalMode: vi.fn(() => "auto-high-confidence"),
+}));
+
+vi.mock("@/lib/knowledge/retrieval", () => ({
+  embedKnowledgeEntry: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { auth } from "@/auth";
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 
 const knowledgeModule = await import("@/app/api/settings/knowledge/route");
@@ -44,31 +82,43 @@ describe("Settings API", () => {
       expect(res.status).toBe(401);
     });
 
-    it("returns knowledge topics", async () => {
+    it("returns knowledge entries", async () => {
       vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
-      const limitFn = vi.fn().mockResolvedValue([{
-        settings: { knowledge: [{ id: "k1", topic: "ICP", content: "B2B SaaS" }] },
-      }]);
-      const whereFn = vi.fn().mockReturnValue({ limit: limitFn });
+      // The knowledge route now reads from knowledgeEntries table directly
+      // via: db.select().from(knowledgeEntries).where(...).orderBy(...)
+      const orderByFn = vi.fn().mockResolvedValue([
+        {
+          id: "k1",
+          title: "ICP",
+          category: "icp",
+          content: "B2B SaaS",
+          scope: "workspace",
+          createdBy: "u1",
+          isStale: false,
+          updatedAt: new Date(),
+          createdAt: new Date(),
+        },
+      ]);
+      const whereFn = vi.fn().mockReturnValue({ orderBy: orderByFn });
       const fromFn = vi.fn().mockReturnValue({ where: whereFn });
       vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 
       const res = await knowledgeModule.GET();
       const data = await res.json();
       expect(data.knowledge).toHaveLength(1);
-      expect(data.knowledge[0].topic).toBe("ICP");
+      expect(data.knowledge[0].title).toBe("ICP");
     });
   });
 
   describe("POST /api/settings/knowledge", () => {
-    it("returns 400 when topic empty", async () => {
+    it("returns 400 when title empty", async () => {
       vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
 
       const req = new Request("http://localhost/api/settings/knowledge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: "", content: "test" }),
+        body: JSON.stringify({ title: "", content: "test" }),
       });
 
       const res = await knowledgeModule.POST(req);

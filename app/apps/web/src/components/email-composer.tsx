@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { X, Send, ChevronDown, ChevronUp, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { sanitizeHtml } from "@/lib/infra/sanitize-html";
 
 interface EmailComposerProps {
   to: string;
@@ -285,7 +286,7 @@ export function EmailComposer({ to, subject, body, onClose, onSend }: EmailCompo
             onInput={(e) => setEditBody((e.target as HTMLDivElement).innerHTML)}
             className="h-full w-full resize-none bg-transparent text-[13px] leading-relaxed outline-none"
             style={{ color: "var(--color-text-primary)", fontWeight: 400, minHeight: "100%", whiteSpace: "pre-wrap" }}
-            dangerouslySetInnerHTML={{ __html: body }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(body) }}
           />
         </div>
 

@@ -15,7 +15,7 @@
  * Pure math, no LLM. Runs 10,000 simulations in milliseconds.
  */
 
-import { stageProbability } from "@/lib/deal-helpers";
+import { stageProbability } from "@/lib/deals/deal-helpers";
 import type { ScoringModel, ScoreResult } from "@/lib/scoring/predictive-scorer";
 import { scoreDeal, valueToBucket } from "@/lib/scoring/predictive-scorer";
 

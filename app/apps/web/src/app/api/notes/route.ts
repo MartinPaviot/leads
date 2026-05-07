@@ -1,9 +1,9 @@
-import { getAuthContext } from "@/lib/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { notes, companies, contacts, deals } from "@/db/schema";
 import { eq, desc, and, isNull, sql } from "drizzle-orm";
-import { ingestEpisode } from "@/lib/context-graph";
-import { apiError } from "@/lib/api-errors";
+import { ingestEpisode } from "@/lib/ai/context-graph";
+import { apiError } from "@/lib/infra/api-errors";
 import { z } from "zod";
 
 const createNoteSchema = z.object({

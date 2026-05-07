@@ -1,8 +1,8 @@
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { logAudit } from "@/lib/audit-log";
+import { logAudit } from "@/lib/infra/audit-log";
 
 interface PipelineStage {
   id: string;

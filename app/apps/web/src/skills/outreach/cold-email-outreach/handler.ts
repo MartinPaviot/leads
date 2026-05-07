@@ -1,5 +1,6 @@
-import { buildProspectContext } from "@/lib/prospect-context";
-import { generateSequence } from "@/lib/sequence-generator";
+import { buildProspectContext } from "@/lib/context/prospect-context";
+import { generateSequence } from "@/lib/agents/sequence-generator";
+import { getSkillKnowledge } from "@/skills/skill-knowledge";
 import type { SkillRunOptions } from "@/skills/types";
 import type { ColdEmailOutreachInput, ColdEmailOutreachOutput } from "./schema";
 
@@ -7,8 +8,11 @@ export async function coldEmailOutreachHandler(
   input: ColdEmailOutreachInput,
   options: SkillRunOptions,
 ): Promise<ColdEmailOutreachOutput> {
-  // Build prospect context from Elevay DB
-  const ctx = await buildProspectContext(input.contactId, options.tenantId);
+  // Build prospect context and retrieve knowledge in parallel
+  const [ctx, knowledgeBlock] = await Promise.all([
+    buildProspectContext(input.contactId, options.tenantId),
+    getSkillKnowledge("cold email outreach value proposition product positioning", options.tenantId),
+  ]);
   if (!ctx) {
     throw new Error(`Could not build prospect context for contact ${input.contactId}`);
   }
@@ -19,6 +23,7 @@ export async function coldEmailOutreachHandler(
     meetingSlots: input.meetingSlots,
     tenantId: options.tenantId,
     evaluate: input.evaluate,
+    knowledgeContext: knowledgeBlock,
   });
 
   return {

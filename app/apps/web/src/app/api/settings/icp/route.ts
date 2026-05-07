@@ -1,8 +1,8 @@
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { deriveTargetRoles } from "@/lib/tenant-settings";
+import { deriveTargetRoles } from "@/lib/config/tenant-settings";
 
 export async function GET() {
   const authCtx = await getAuthContext();
@@ -15,7 +15,7 @@ export async function GET() {
     const s = (tenant.settings || {}) as Record<string, unknown>;
     // BUG-WS0-008: return derived targetRoles so the UI always reflects
     // the current seniorities + departments combination.
-    const settingsTyped = s as import("@/lib/tenant-settings").TenantSettings;
+    const settingsTyped = s as import("@/lib/config/tenant-settings").TenantSettings;
     return Response.json({
       productDescription: s.productDescription || "",
       salesMotion: s.salesMotion || "",

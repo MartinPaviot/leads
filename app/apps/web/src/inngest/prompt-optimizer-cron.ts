@@ -15,9 +15,9 @@
  */
 
 import { inngest } from "./client";
-import { AGENT_REGISTRY } from "@/lib/observability";
+import { AGENT_REGISTRY } from "@/lib/observability/observability";
 import { runOptimizationCycle } from "@/lib/prompt-optimizer/optimizer";
-import logger from "@/lib/logger";
+import logger from "@/lib/observability/logger";
 
 // ── Weekly Optimization Cron ──────────────────────────────────
 

@@ -1,4 +1,4 @@
-import { adminOnlyOrRedirect } from "@/lib/admin-only";
+import { adminOnlyOrRedirect } from "@/lib/auth/admin-only";
 import McpClient from "./mcp-client";
 
 export default async function McpPage() {

@@ -1,11 +1,11 @@
-import { getAuthContext, requireAdmin } from "@/lib/auth-utils";
-import { requirePermission } from "@/lib/permissions";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { requirePermission } from "@/lib/auth/permissions";
 import { db } from "@/db";
 import { pendingInvites, users, tenants } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { sendInviteEmail } from "@/lib/email-invite";
-import { generateInviteToken } from "@/lib/invite-token";
-import { logAudit } from "@/lib/audit-log";
+import { sendInviteEmail } from "@/lib/emails/email-invite";
+import { generateInviteToken } from "@/lib/auth/invite-token";
+import { logAudit } from "@/lib/infra/audit-log";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
