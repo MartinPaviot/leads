@@ -23,6 +23,7 @@ import { analyzeOutgoingEmail, postInteractionCoaching, analyzeDealEvent, weekly
 import { signalToDealAlert } from "@/inngest/signal-to-deal-alert";
 import { syncSignalsToDeal } from "@/inngest/deal-signal-sync";
 import { routeSequenceStepToDraft } from "@/inngest/sequence-draft-router";
+import { cronExpireSequenceDrafts } from "@/inngest/sequence-draft-expiry";
 import { autoPipelineStep } from "@/inngest/autonomous-pipeline";
 import { handleAutoPipelineDraft } from "@/inngest/auto-pipeline-email-handler";
 import { dailyFounderBrief } from "@/inngest/founder-coach";
@@ -83,6 +84,7 @@ export const { GET, POST, PUT } = serve({
     cronTriggerSequenceSteps,
     // P0-1 sequence-draft queue : routes events to draft / direct
     routeSequenceStepToDraft,
+    cronExpireSequenceDrafts,
     // Campaign pipeline
     prepareCampaign,
     handleReplyIntelligently,
