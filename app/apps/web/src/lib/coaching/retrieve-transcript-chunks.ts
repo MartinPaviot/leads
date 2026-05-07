@@ -17,6 +17,10 @@ import postgres from "postgres";
 import { embedText } from "@/lib/ai/embeddings";
 import { formatSecondsAsTimestamp } from "./citation-parser";
 import { logger } from "@/lib/observability/logger";
+import {
+  applySpeakerBias,
+  type SpeakerHint,
+} from "./speaker-bias";
 
 export interface RetrieveOptions {
   /** Cosine-similarity threshold below which chunks are dropped. */
@@ -26,6 +30,12 @@ export interface RetrieveOptions {
   /** Restrict retrieval to specific meeting ids — used when the chat
    *  scope is a single deal whose meeting list is already known. */
   meetingIds?: string[];
+  /** Speaker-aware bias — when present, chunks whose speaker matches
+   *  get a similarity-units boost (`SPEAKER_BIAS_BOOST`) for ranking
+   *  purposes. Pass via `extractSpeakerHint(question)` from the
+   *  chat tool. The DB query still pulls top-k by raw cosine ; the
+   *  rerank happens in code so the SQL stays simple. */
+  speakerHint?: SpeakerHint | null;
 }
 
 export interface RetrievedChunk {
@@ -104,7 +114,7 @@ export async function retrieveTranscriptChunks(
           LIMIT ${k}
         `;
 
-    return rows.map((r) => {
+    const mapped = rows.map((r) => {
       const startSec = Number(r.start_sec);
       const endSec = Number(r.end_sec);
       const speaker = r.speaker ? String(r.speaker) : null;
@@ -122,6 +132,12 @@ export async function retrieveTranscriptChunks(
         promptLine: `[${ts}${speakerTag}]: "${text}"`,
       };
     });
+    // P0-4 follow-up — apply the speaker-bias rerank when a hint is
+    // present. Pure pass-through when not. Keeps the original
+    // similarity values intact ; only ordering shifts.
+    return options.speakerHint
+      ? applySpeakerBias(mapped, options.speakerHint)
+      : mapped;
   } catch (err) {
     logger.warn("retrieveTranscriptChunks: SQL query failed", {
       tenantId,

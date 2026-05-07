@@ -9,6 +9,7 @@ import {
   retrieveTranscriptChunks,
   formatChunksForPrompt,
 } from "@/lib/coaching/retrieve-transcript-chunks";
+import { extractSpeakerHint } from "@/lib/coaching/speaker-bias";
 
 export function buildCoachingTools(ctx: ToolContext) {
   const { tenantId, userId } = ctx;
@@ -151,14 +152,24 @@ export function buildCoachingTools(ctx: ToolContext) {
           .describe("Top-k chunks to retrieve (default 8)"),
       }),
       execute: async (input) => {
+        // P0-4 follow-up — speaker-aware retrieval. When the question
+        // names a speaker ("What did Sarah push back on?"), bias the
+        // ranking toward chunks whose speaker matches. Detection is
+        // pure heuristic ; null hint passes through unchanged.
+        const speakerHint = extractSpeakerHint(input.query);
         const chunks = await retrieveTranscriptChunks(
           input.query,
           tenantId,
-          { meetingIds: input.meetingIds, k: input.k ?? 8 },
+          {
+            meetingIds: input.meetingIds,
+            k: input.k ?? 8,
+            speakerHint,
+          },
         );
         if (chunks.length === 0) {
           return {
             count: 0,
+            speakerHint: speakerHint?.name ?? null,
             message:
               "No relevant transcript chunks found. Answer the user honestly: 'I don't have evidence in the transcript for this.' Do NOT fall back to general knowledge.",
             chunks: [],
@@ -166,6 +177,11 @@ export function buildCoachingTools(ctx: ToolContext) {
         }
         return {
           count: chunks.length,
+          /** Surfaced for traceability — when present, the LLM knows
+           *  the retrieval was biased toward this speaker, so a
+           *  refusal that says "Sarah didn't talk about X" reads as
+           *  intentional rather than a generic miss. */
+          speakerHint: speakerHint?.name ?? null,
           // Pre-formatted block — paste this directly into your
           // answer's quoted-evidence section. The `[mm:ss]` markers
           // are load-bearing for the UI, preserve them exactly.
