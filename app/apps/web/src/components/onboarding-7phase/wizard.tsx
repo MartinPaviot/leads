@@ -1195,6 +1195,13 @@ function Phase5({ priorData, onSubmit, submitting }: PhaseProps) {
       : "",
   );
 
+  // P0-3 task 3.9 — both voice-capture options surface side-by-side
+  // so the user sees the Loom alternative before they start typing
+  // a 5-email paste (the highest-friction path). The schema accepts
+  // either one ; the active card highlights based on what's filled.
+  const emailsActive = emailsText.trim().length > 0;
+  const loomActive = loomUrl.trim().length > 0;
+
   return (
     <form
       onSubmit={(e) => {
@@ -1212,29 +1219,115 @@ function Phase5({ priorData, onSubmit, submitting }: PhaseProps) {
           approvedSequenceIds,
         });
       }}
-      className="space-y-3"
+      className="space-y-4"
     >
       <SectionLabel n={5} title="Voice & Sequences" />
-      <Field label="Paste 5 emails you've already sent — separate with `---`">
-        <textarea
-          value={emailsText}
-          onChange={(e) => setEmailsText(e.target.value)}
-          rows={6}
-          placeholder="Subject: …&#10;Body…&#10;---&#10;Subject: …"
-          className="w-full rounded-md border px-3 py-2 text-[13px]"
-          style={{ background: "var(--color-bg-base)", borderColor: "var(--color-border-default)" }}
-        />
-      </Field>
-      <Field label="Or paste a 60s Loom URL">
-        <input
-          type="url"
-          value={loomUrl}
-          onChange={(e) => setLoomUrl(e.target.value)}
-          placeholder="https://www.loom.com/share/…"
-          className="w-full rounded-md border px-3 py-2 text-[13px]"
-          style={{ background: "var(--color-bg-base)", borderColor: "var(--color-border-default)" }}
-        />
-      </Field>
+      <p
+        className="text-[12px]"
+        style={{ color: "var(--color-text-secondary)" }}
+      >
+        Pick the path that&apos;s lower friction for you — five emails or a 60-second
+        Loom. Either gives the system enough samples to mirror your tone in
+        future drafts.
+      </p>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        {/* Card A : 5 emails */}
+        <div
+          className="rounded-lg p-3 space-y-2"
+          style={{
+            background: "var(--color-bg-card)",
+            border: emailsActive
+              ? "1px solid var(--color-accent)"
+              : "1px solid var(--color-border-default)",
+          }}
+        >
+          <div
+            className="flex items-center gap-2 text-[12px] font-semibold"
+            style={{ color: "var(--color-text-primary)" }}
+          >
+            <Mic
+              size={13}
+              style={{
+                color: emailsActive
+                  ? "var(--color-accent)"
+                  : "var(--color-text-tertiary)",
+              }}
+            />
+            Option A — paste 5 emails
+          </div>
+          <p
+            className="text-[11px]"
+            style={{ color: "var(--color-text-tertiary)" }}
+          >
+            Real outbound you&apos;ve sent. Separate each one with{" "}
+            <code>---</code>.
+          </p>
+          <textarea
+            value={emailsText}
+            onChange={(e) => setEmailsText(e.target.value)}
+            rows={6}
+            placeholder="Subject: …&#10;Body…&#10;---&#10;Subject: …"
+            className="w-full rounded-md border px-3 py-2 text-[13px]"
+            style={{
+              background: "var(--color-bg-base)",
+              borderColor: "var(--color-border-default)",
+            }}
+          />
+        </div>
+
+        {/* Card B : 60s Loom */}
+        <div
+          className="rounded-lg p-3 space-y-2"
+          style={{
+            background: "var(--color-bg-card)",
+            border: loomActive
+              ? "1px solid var(--color-accent)"
+              : "1px solid var(--color-border-default)",
+          }}
+        >
+          <div
+            className="flex items-center gap-2 text-[12px] font-semibold"
+            style={{ color: "var(--color-text-primary)" }}
+          >
+            <Calendar
+              size={13}
+              style={{
+                color: loomActive
+                  ? "var(--color-accent)"
+                  : "var(--color-text-tertiary)",
+              }}
+            />
+            Option B — drop a 60s Loom
+          </div>
+          <p
+            className="text-[11px]"
+            style={{ color: "var(--color-text-tertiary)" }}
+          >
+            Talk through how you usually pitch ; we&apos;ll transcribe and use the
+            phrasing as a voice template.
+          </p>
+          <input
+            type="url"
+            value={loomUrl}
+            onChange={(e) => setLoomUrl(e.target.value)}
+            placeholder="https://www.loom.com/share/…"
+            className="w-full rounded-md border px-3 py-2 text-[13px]"
+            style={{
+              background: "var(--color-bg-base)",
+              borderColor: "var(--color-border-default)",
+            }}
+          />
+          <p
+            className="text-[10px]"
+            style={{ color: "var(--color-text-tertiary)" }}
+          >
+            Tip : open Loom, hit record, talk for 60s about what you sell, paste
+            the share URL above.
+          </p>
+        </div>
+      </div>
+
       <Field label="IDs of sequences you've approved + started (comma-separated)">
         <input
           type="text"
@@ -1242,7 +1335,10 @@ function Phase5({ priorData, onSubmit, submitting }: PhaseProps) {
           onChange={(e) => setSeqIds(e.target.value)}
           placeholder="seq_abc123, seq_def456"
           className="w-full rounded-md border px-3 py-2 text-[13px]"
-          style={{ background: "var(--color-bg-base)", borderColor: "var(--color-border-default)" }}
+          style={{
+            background: "var(--color-bg-base)",
+            borderColor: "var(--color-border-default)",
+          }}
         />
       </Field>
       <SubmitButton submitting={submitting} label="Save & continue" />
