@@ -218,3 +218,174 @@ export async function runEvalSuite<TOut>(
     perCase,
   };
 }
+
+// ── Prompt-variant A/B framework (P0-4 follow-up) ─────────────────
+//
+// To safely roll new prompts, the team runs N variants in parallel
+// for one or more weeks, then ships the winner. Each variant gets
+// its own `eval_runs` row tagged with a distinct `prompt_id`, so the
+// existing dashboard timeline + drill-down infra works unchanged.
+//
+// `EvalSuiteFamily` defines the variants ; the runner cross-products
+// them : for each variant, build a suite (typically by threading the
+// variant's prompt into the case `run()`), run it, persist. The
+// returned `VariantComparison` ranks variants by pass rate so the
+// caller can flip a flag once a clear winner emerges.
+
+export interface EvalVariant {
+  /** Stable id within the family — surfaces in dashboard labels.
+   *  e.g. "control", "softer-tone", "v3". */
+  id: string;
+  /** Versioned prompt id for this variant — written to
+   *  `eval_runs.prompt_id`. Must differ across variants in the same
+   *  family or the dashboard will conflate the rows. */
+  promptId: string;
+  /** Optional human-readable label for the comparison report. */
+  label?: string;
+}
+
+export interface EvalSuiteFamily<TOut> {
+  /** Surface name shared by every variant — every eval_runs row has
+   *  this surface_id, varying only by prompt_id. */
+  surfaceId: string;
+  /** Variants to evaluate. Two minimum (no point A/B'ing one), but
+   *  the runner accepts any N >= 1 (single-variant degrades to the
+   *  existing single-suite path). */
+  variants: EvalVariant[];
+  /** Build the per-variant suite. Same cases shape across variants
+   *  by convention (apples-to-apples comparison) ; the variant's
+   *  `promptId` flows into the suite's promptId field, and the
+   *  variant context can also be threaded into each case's
+   *  `run()` via closure. */
+  buildSuite: (variant: EvalVariant) => EvalSuite<TOut>;
+}
+
+export interface VariantSummary {
+  variantId: string;
+  promptId: string;
+  label: string;
+  passRate: number;
+  casesTotal: number;
+  casesPassed: number;
+  casesErrored: number;
+  totalLatencyMs: number;
+  metrics: Record<string, number>;
+}
+
+export interface VariantComparison {
+  surfaceId: string;
+  variants: VariantSummary[];
+  /** Variant with the highest pass rate. Null on tie or empty. */
+  winnerId: string | null;
+  /** Pass-rate gap between the top variant and the runner-up.
+   *  Useful threshold for "is this a real signal or noise?". 0
+   *  when there's only one variant or a tie. */
+  marginDelta: number;
+}
+
+/**
+ * Pure : compute the comparison from a list of per-variant
+ * summaries. Exported so the dashboard / report renderer can
+ * reuse the ranking logic without re-running the suites.
+ */
+export function compareVariants(
+  surfaceId: string,
+  summaries: VariantSummary[],
+): VariantComparison {
+  if (summaries.length === 0) {
+    return { surfaceId, variants: [], winnerId: null, marginDelta: 0 };
+  }
+  const sorted = [...summaries].sort((a, b) => b.passRate - a.passRate);
+  const top = sorted[0];
+  const runnerUp = sorted[1] ?? null;
+  // Winner only when the top variant is strictly above the next.
+  // Ties resolve to null so the caller doesn't ship on coin-flip.
+  const winnerId =
+    runnerUp && top.passRate === runnerUp.passRate ? null : top.variantId;
+  const marginDelta = runnerUp
+    ? Math.round((top.passRate - runnerUp.passRate) * 10000) / 10000
+    : 0;
+  return {
+    surfaceId,
+    variants: sorted,
+    winnerId,
+    marginDelta,
+  };
+}
+
+/**
+ * Run every variant in a family. Returns the per-variant summaries
+ * + a comparison. Each variant persists its own eval_runs row via
+ * the existing `runEvalSuite` path, so the dashboard timeline +
+ * per-case drill-down work without further wiring.
+ *
+ * Sequential by design — variants typically share LLM rate-limit
+ * envelopes, parallelism would just rate-limit. Cron caller has
+ * `step.run` framing per variant for Inngest-level retry granularity.
+ */
+export async function runEvalSuiteFamily<TOut>(
+  family: EvalSuiteFamily<TOut>,
+): Promise<{
+  summaries: Array<{ variantId: string; runSummary: EvalRunSummary }>;
+  comparison: VariantComparison;
+}> {
+  if (family.variants.length === 0) {
+    return {
+      summaries: [],
+      comparison: {
+        surfaceId: family.surfaceId,
+        variants: [],
+        winnerId: null,
+        marginDelta: 0,
+      },
+    };
+  }
+
+  const summaries: Array<{ variantId: string; runSummary: EvalRunSummary }> = [];
+  const variantSummaries: VariantSummary[] = [];
+
+  for (const variant of family.variants) {
+    const suite = family.buildSuite(variant);
+    // The family contract : suite.surfaceId must match family.surfaceId
+    // and suite.promptId must match variant.promptId. We re-assert
+    // here so a buggy buildSuite doesn't silently drift the dashboard.
+    if (suite.surfaceId !== family.surfaceId) {
+      logger.warn("eval-family: surface drift, overriding to family surfaceId", {
+        familySurfaceId: family.surfaceId,
+        suiteSurfaceId: suite.surfaceId,
+        variantId: variant.id,
+      });
+    }
+    if (suite.promptId !== variant.promptId) {
+      logger.warn("eval-family: prompt drift, overriding to variant promptId", {
+        variantId: variant.id,
+        suitePromptId: suite.promptId,
+        variantPromptId: variant.promptId,
+      });
+    }
+    const runSummary = await runEvalSuite({
+      ...suite,
+      surfaceId: family.surfaceId,
+      promptId: variant.promptId,
+    });
+    summaries.push({ variantId: variant.id, runSummary });
+    const passRate =
+      runSummary.casesTotal > 0
+        ? runSummary.casesPassed / runSummary.casesTotal
+        : 0;
+    variantSummaries.push({
+      variantId: variant.id,
+      promptId: variant.promptId,
+      label: variant.label ?? variant.id,
+      passRate,
+      casesTotal: runSummary.casesTotal,
+      casesPassed: runSummary.casesPassed,
+      casesErrored: runSummary.casesErrored,
+      totalLatencyMs: runSummary.totalLatencyMs,
+      metrics: runSummary.metrics,
+    });
+  }
+
+  const comparison = compareVariants(family.surfaceId, variantSummaries);
+  return { summaries, comparison };
+}
