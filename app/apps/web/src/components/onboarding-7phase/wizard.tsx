@@ -11,6 +11,11 @@ import {
   type PhaseTransitionRecord,
 } from "@/lib/analytics/onboarding-telemetry";
 import { executeWithRetry } from "@/lib/onboarding/retry";
+import {
+  resolveResumePhase,
+  canNavigateToPhase,
+  canFinalize,
+} from "@/lib/onboarding/resume";
 
 async function fetchWithStatus(
   url: string,
@@ -154,7 +159,20 @@ export function OnboardingWizard() {
       }
       const data = result.body as OnboardingState;
       setState(data);
-      setActivePhase((p) => (p === 1 ? data.currentPhase : p));
+      // P0-3 task 3.5 — pure resume policy decides where to land.
+      // First mount snaps to server's currentPhase ; subsequent
+      // refreshes preserve the user's manual nav.
+      setActivePhase((p) => {
+        const decision = resolveResumePhase(
+          {
+            currentPhase: data.currentPhase,
+            completedPhases: data.completedPhases ?? [],
+            completedAt: data.completedAt,
+          },
+          { currentlyActive: p, isFirstLoad: !mountedRef.current },
+        );
+        return decision.phase;
+      });
 
       // First successful state load → emit started/resumed once.
       if (!mountedRef.current) {
@@ -352,8 +370,20 @@ export function OnboardingWizard() {
             activePhase={activePhase}
             completedSet={completedSet}
             onSelect={(n) => {
-              // Only allow nav to phases the user has unlocked or is on.
-              if (n <= state.currentPhase) setActivePhase(n);
+              // Pure helper enforces nav rules (completed + current
+              // visit, no jumps ahead, range clamp).
+              if (
+                canNavigateToPhase(
+                  {
+                    currentPhase: state.currentPhase,
+                    completedPhases: state.completedPhases ?? [],
+                    completedAt: state.completedAt,
+                  },
+                  n,
+                )
+              ) {
+                setActivePhase(n);
+              }
             }}
           />
 
@@ -383,21 +413,34 @@ export function OnboardingWizard() {
             </div>
           )}
 
-          {activePhase === 7 && completedSet.has(7) && (
-            <button
-              type="button"
-              onClick={completeOnboarding}
-              disabled={completing}
-              className="flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[13px] font-semibold disabled:opacity-50"
-              style={{
-                background: "linear-gradient(135deg, var(--color-accent), var(--color-accent-hover))",
-                color: "white",
-              }}
-            >
-              {completing ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-              Finalise onboarding
-            </button>
-          )}
+          {activePhase === 7 &&
+            canFinalize(
+              {
+                currentPhase: state.currentPhase,
+                completedPhases: state.completedPhases ?? [],
+                completedAt: state.completedAt,
+              },
+              state.checklist.allHardPassed,
+            ) && (
+              <button
+                type="button"
+                onClick={completeOnboarding}
+                disabled={completing}
+                className="flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[13px] font-semibold disabled:opacity-50"
+                style={{
+                  background:
+                    "linear-gradient(135deg, var(--color-accent), var(--color-accent-hover))",
+                  color: "white",
+                }}
+              >
+                {completing ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Check size={14} />
+                )}
+                Finalise onboarding
+              </button>
+            )}
         </div>
 
         {/* Right: live checklist */}
