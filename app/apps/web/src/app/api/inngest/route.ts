@@ -24,6 +24,7 @@ import { signalToDealAlert } from "@/inngest/signal-to-deal-alert";
 import { syncSignalsToDeal } from "@/inngest/deal-signal-sync";
 import { routeSequenceStepToDraft } from "@/inngest/sequence-draft-router";
 import { cronExpireSequenceDrafts } from "@/inngest/sequence-draft-expiry";
+import { draftRejectionLearner } from "@/inngest/sequence-draft-rejection-learner";
 import { autoPipelineStep } from "@/inngest/autonomous-pipeline";
 import { handleAutoPipelineDraft } from "@/inngest/auto-pipeline-email-handler";
 import { dailyFounderBrief } from "@/inngest/founder-coach";
@@ -85,6 +86,7 @@ export const { GET, POST, PUT } = serve({
     // P0-1 sequence-draft queue : routes events to draft / direct
     routeSequenceStepToDraft,
     cronExpireSequenceDrafts,
+    draftRejectionLearner,
     // Campaign pipeline
     prepareCampaign,
     handleReplyIntelligently,
