@@ -103,6 +103,9 @@ export async function GET(req: Request) {
       p95LatencyMs: Number(row.p95LatencyMs ?? 0),
     })),
     evalRuns: recentEvalRuns.map((r) => ({
+      // P0-evals follow-up : surface the run id so the dashboard
+      // can deep-link into the per-case drill-down.
+      id: r.id,
       surfaceId: r.surfaceId,
       promptId: r.promptId,
       createdAt: r.createdAt,

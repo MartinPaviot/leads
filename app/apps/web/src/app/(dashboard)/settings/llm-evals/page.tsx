@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, RefreshCw, TrendingDown, TrendingUp, Activity } from "lucide-react";
+import { AlertTriangle, RefreshCw, TrendingDown, TrendingUp, Activity, ChevronDown } from "lucide-react";
 import { AIThinking, ConfidenceState } from "@/components/ai-ui";
+import { EvalRunDrilldown } from "@/components/evals/eval-run-drilldown";
 
 /**
  * Sprint-1 audit follow-up — admin dashboard surface for the
@@ -30,6 +31,9 @@ interface CallsRow {
 }
 
 interface EvalRow {
+  /** Surfaced from the API so the dashboard can deep-link into the
+   *  per-case drill-down. */
+  id: string;
   surfaceId: string;
   promptId: string;
   createdAt: string;
@@ -123,6 +127,10 @@ export default function LlmEvalsDashboardPage() {
     acc[k].push(r);
     return acc;
   }, {});
+
+  // Per-case drill-down — exclusive : at most one open at a time.
+  // Click a timeline bar OR the explicit "Inspect latest" button.
+  const [drilldownRunId, setDrilldownRunId] = useState<string | null>(null);
 
   return (
     <div className="mx-auto max-w-6xl p-6 space-y-6">
@@ -333,15 +341,19 @@ export default function LlmEvalsDashboardPage() {
                           <TrendIcon size={13} style={{ color: trendColor }} />
                         </div>
                       </div>
-                      {/* Mini timeline of pass-rates */}
+                      {/* Mini timeline of pass-rates — click a bar
+                          to drill into that run's per-case detail. */}
                       <div className="mt-2 flex h-6 items-end gap-0.5">
                         {sorted.map((r) => {
                           const h = Math.max(2, Math.round(r.passRate * 24));
+                          const active = drilldownRunId === r.id;
                           return (
-                            <div
-                              key={r.createdAt}
-                              title={`${new Date(r.createdAt).toLocaleDateString()} — ${formatPercent(r.passRate)} (${r.casesPassed}/${r.casesTotal})`}
-                              className="flex-1 rounded-sm"
+                            <button
+                              key={r.id}
+                              type="button"
+                              onClick={() => setDrilldownRunId(r.id)}
+                              title={`${new Date(r.createdAt).toLocaleDateString()} — ${formatPercent(r.passRate)} (${r.casesPassed}/${r.casesTotal}) — click to inspect`}
+                              className="flex-1 rounded-sm transition-opacity"
                               style={{
                                 height: `${h}px`,
                                 background:
@@ -350,18 +362,45 @@ export default function LlmEvalsDashboardPage() {
                                     : r.passRate >= 0.80
                                       ? "var(--color-warning, #d97706)"
                                       : "var(--color-error, #b91c1c)",
-                                opacity: 0.7,
+                                opacity: active ? 1 : 0.7,
+                                outline: active
+                                  ? "2px solid var(--color-accent, #6366f1)"
+                                  : undefined,
+                                outlineOffset: active ? "1px" : undefined,
+                                cursor: "pointer",
                               }}
+                              aria-label={`Inspect run from ${new Date(r.createdAt).toLocaleDateString()}`}
                             />
                           );
                         })}
                       </div>
+                      {/* Inspect-latest CTA — the bar tooltip is a
+                          discoverability gap, this is the obvious one. */}
+                      <button
+                        type="button"
+                        onClick={() => setDrilldownRunId(last.id)}
+                        className="mt-2 flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium"
+                        style={{
+                          background: "var(--color-bg-card)",
+                          color: "var(--color-text-secondary)",
+                          border: "1px solid var(--color-border-default)",
+                        }}
+                      >
+                        Inspect latest <ChevronDown size={10} aria-hidden />
+                      </button>
                     </div>
                   );
                 })}
               </div>
             )}
           </section>
+
+          {drilldownRunId && (
+            <EvalRunDrilldown
+              runId={drilldownRunId}
+              onClose={() => setDrilldownRunId(null)}
+            />
+          )}
 
           {/* ── Recent failures ─────────────────────────────────────── */}
           <section
