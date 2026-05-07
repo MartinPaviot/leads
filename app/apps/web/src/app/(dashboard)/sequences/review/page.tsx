@@ -17,6 +17,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   SequenceDraftList,
   type DraftListItem,
@@ -30,6 +31,10 @@ const POLL_INTERVAL_MS = 30_000;
 
 export default function ReviewQueuePage() {
   const { toast } = useToast();
+  // P0-1 task 1.9 — accept ?sequenceId=<id> from URL so the legacy
+  // per-sequence review page can redirect here without losing scope.
+  const searchParams = useSearchParams();
+  const sequenceIdParam = searchParams?.get("sequenceId") ?? null;
 
   const [drafts, setDrafts] = useState<DraftListItem[]>([]);
   const [status, setStatus] = useState<string>("pending_approval");
@@ -49,6 +54,7 @@ export default function ReviewQueuePage() {
       try {
         const params = new URLSearchParams({ status: filterStatus, limit: "50" });
         if (useCursor) params.set("cursor", useCursor);
+        if (sequenceIdParam) params.set("sequenceId", sequenceIdParam);
         const res = await fetch(`/api/sequences/drafts?${params.toString()}`);
         if (!res.ok) {
           toast("Failed to load drafts", "error");
@@ -78,7 +84,7 @@ export default function ReviewQueuePage() {
         setLoading(false);
       }
     },
-    [status, selectedDraftId, toast],
+    [status, selectedDraftId, sequenceIdParam, toast],
   );
 
   // Initial load + status change → reload from top.
