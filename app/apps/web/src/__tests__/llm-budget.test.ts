@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 
 // We have to mock before importing the module-under-test because it
 // calls the real db/tenant-settings layer on import paths.
-vi.mock("@/lib/cost-tracker", () => ({
+vi.mock("@/lib/billing/cost-tracker", () => ({
   getTenantCost: vi.fn(),
 }));
-vi.mock("@/lib/tenant-settings", () => ({
+vi.mock("@/lib/config/tenant-settings", () => ({
   getTenantSettings: vi.fn(),
 }));
 

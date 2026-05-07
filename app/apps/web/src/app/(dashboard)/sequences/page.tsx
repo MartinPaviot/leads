@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CampaignWizard } from "@/components/campaign-wizard";
-import { Zap, Plus, Send, Users, Mail } from "lucide-react";
+import { Zap, Plus, Send, Users, Mail, Play, ThumbsDown, Loader2 } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
 
 interface Sequence {
   id: string;
@@ -23,9 +24,13 @@ interface Sequence {
 
 export default function CampaignsPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [sequences, setSequences] = useState<Sequence[]>([]);
   const [loading, setLoading] = useState(true);
   const [showWizard, setShowWizard] = useState(false);
+  // Per-row pending state so we can disable both buttons + show a
+  // spinner during the in-flight approve/reject without flicker.
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   const fetchSequences = useCallback(async () => {
     try {
@@ -41,6 +46,47 @@ export default function CampaignsPage() {
   }, []);
 
   useEffect(() => { fetchSequences(); }, [fetchSequences]);
+
+  // Monaco-parity: when an AI-proposed sequence lands as "draft",
+  // expose Approve (Start) / Reject (thumbs-down) inline so the
+  // founder makes the call without opening the detail page. Approve
+  // flips status → "active" and the dispatch worker picks it up.
+  // Reject archives — non-destructive so the founder can still inspect
+  // history later.
+  const transitionStatus = useCallback(
+    async (id: string, next: "active" | "archived") => {
+      setPendingId(id);
+      // Optimistic update so the UI feels instant; rollback on error.
+      const prev = sequences;
+      setSequences((s) => s.map((x) => (x.id === id ? { ...x, status: next } : x)));
+      try {
+        const res = await fetch(`/api/sequences/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: next }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        toast({
+          variant: next === "active" ? "success" : "info",
+          title: next === "active" ? "Campaign started" : "Campaign rejected",
+          description:
+            next === "active"
+              ? "Sending begins on the next worker tick."
+              : "Archived. You can re-open it from the archive view.",
+        });
+      } catch (err) {
+        setSequences(prev);
+        toast({
+          variant: "error",
+          title: "Action failed",
+          description: err instanceof Error ? err.message : "Try again.",
+        });
+      } finally {
+        setPendingId(null);
+      }
+    },
+    [sequences, toast]
+  );
 
   const statusVariant: Record<string, "success" | "warning" | "neutral" | "info"> = {
     active: "success", paused: "warning", draft: "neutral", archived: "neutral",
@@ -89,32 +135,74 @@ export default function CampaignsPage() {
           />
         ) : (
           <div className="space-y-2">
-            {sequences.map((seq) => (
-              <Card key={seq.id} interactive onClick={() => router.push(`/sequences/${seq.id}`)}>
-                <CardBody>
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-[14px] font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{seq.name}</h3>
-                        <Badge variant={statusVariant[seq.status] || "neutral"} size="sm">
-                          {seq.status}
-                        </Badge>
+            {sequences.map((seq) => {
+              const isDraft = seq.status === "draft";
+              const isPending = pendingId === seq.id;
+              return (
+                <Card key={seq.id} interactive onClick={() => router.push(`/sequences/${seq.id}`)}>
+                  <CardBody>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-[14px] font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{seq.name}</h3>
+                          <Badge variant={statusVariant[seq.status] || "neutral"} size="sm">
+                            {seq.status}
+                          </Badge>
+                        </div>
+                        {seq.description && (
+                          <p className="mt-0.5 text-[12px] truncate" style={{ color: "var(--color-text-tertiary)" }}>{seq.description}</p>
+                        )}
                       </div>
-                      {seq.description && (
-                        <p className="mt-0.5 text-[12px] truncate" style={{ color: "var(--color-text-tertiary)" }}>{seq.description}</p>
-                      )}
+                      <div className="flex items-center gap-5 text-[12px] ml-4" style={{ color: "var(--color-text-tertiary)" }}>
+                        <span className="flex items-center gap-1"><Mail size={11} /> {seq.stepCount} steps</span>
+                        <span className="flex items-center gap-1"><Users size={11} /> {seq.enrolledCount} contacts</span>
+                        {seq.emailStats && totalEmails(seq.emailStats) > 0 && (
+                          <span className="flex items-center gap-1"><Send size={11} /> {seq.emailStats.sent || 0} sent</span>
+                        )}
+                        {/* Monaco-parity: per-sequence Approve/Reject
+                            inline on AI-proposed drafts. Stop click
+                            propagation so the buttons don't trigger the
+                            row navigation. */}
+                        {isDraft && (
+                          <div className="ml-2 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => transitionStatus(seq.id, "active")}
+                              className="flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50"
+                              style={{
+                                background: "var(--color-success-soft, rgba(16,185,129,0.12))",
+                                color: "var(--color-success, #059669)",
+                                border: "1px solid rgba(16,185,129,0.25)",
+                              }}
+                              title="Approve and start sending"
+                            >
+                              {isPending ? <Loader2 size={11} className="animate-spin" /> : <Play size={11} />}
+                              Start
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => transitionStatus(seq.id, "archived")}
+                              className="flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50"
+                              style={{
+                                background: "rgba(220,38,38,0.08)",
+                                color: "var(--color-error, #b91c1c)",
+                                border: "1px solid rgba(220,38,38,0.22)",
+                              }}
+                              title="Reject this AI-proposed campaign — archives it"
+                            >
+                              <ThumbsDown size={11} />
+                              Reject
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-5 text-[12px] ml-4" style={{ color: "var(--color-text-tertiary)" }}>
-                      <span className="flex items-center gap-1"><Mail size={11} /> {seq.stepCount} steps</span>
-                      <span className="flex items-center gap-1"><Users size={11} /> {seq.enrolledCount} contacts</span>
-                      {seq.emailStats && totalEmails(seq.emailStats) > 0 && (
-                        <span className="flex items-center gap-1"><Send size={11} /> {seq.emailStats.sent || 0} sent</span>
-                      )}
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
+                  </CardBody>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>

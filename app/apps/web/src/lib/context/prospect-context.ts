@@ -7,8 +7,8 @@
  */
 
 import { db } from "@/db";
-import { contacts, companies, activities } from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { contacts, companies, activities, knowledgeEntries } from "@/db/schema";
+import { eq, and, desc, or } from "drizzle-orm";
 import { getTenantSettings, type KnowledgeEntry } from "@/lib/config/tenant-settings";
 
 export interface ProspectSignal {
@@ -240,7 +240,22 @@ export async function buildProspectContext(
     bestSignal,
     technologies,
     funding,
-    knowledge: settings.knowledge || [],
+    knowledge: await (async (): Promise<KnowledgeEntry[]> => {
+      try {
+        const rows = await db
+          .select({ title: knowledgeEntries.title, content: knowledgeEntries.content })
+          .from(knowledgeEntries)
+          .where(and(
+            eq(knowledgeEntries.tenantId, tenantId),
+            eq(knowledgeEntries.isActive, true),
+            eq(knowledgeEntries.scope, "workspace"),
+          ))
+          .orderBy(desc(knowledgeEntries.updatedAt))
+          .limit(10);
+        if (rows.length > 0) return rows.map((r) => ({ topic: r.title, content: r.content }));
+      } catch { /* fall through */ }
+      return settings.knowledge || [];
+    })(),
     productDescription: settings.productDescription || "",
     aiTone: settings.aiTone || "Direct",
     companyName: settings.onboardingCompanyName || "",

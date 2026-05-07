@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createHmac } from "crypto";
 
 vi.mock("@/db", () => ({
   db: {
@@ -9,6 +10,11 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
+  trustEvents: { id: "id", tenantId: "tenant_id", eventType: "event_type", delta: "delta", reason: "reason", createdAt: "created_at" },
+  systemTrustScore: { id: "id", tenantId: "tenant_id", score: "score", components: "components", createdAt: "created_at" },
+  agentActions: { id: "id", tenantId: "tenant_id", agentId: "agent_id", actionType: "action_type", entityId: "entity_id", summary: "summary", approved: "approved", metadata: "metadata", createdAt: "created_at" },
+  knowledgeEntries: { id: "id", tenantId: "tenant_id", title: "title", content: "content", category: "category", metadata: "metadata", createdAt: "created_at" },
+  tenants: { id: "id", name: "name", settings: "settings", domain: "domain", stripeCustomerId: "stripe_customer_id", subscriptionId: "subscription_id", plan: "plan", createdAt: "created_at", updatedAt: "updated_at", referralCode: "referral_code" },
   outboundEmails: {
     id: "id",
     messageId: "messageId",
@@ -24,6 +30,8 @@ vi.mock("@/db/schema", () => ({
     tenantId: "tenantId",
     toAddress: "toAddress",
     updatedAt: "updatedAt",
+    contactId: "contactId",
+    subject: "subject",
   },
   connectedMailboxes: {
     id: "id",
@@ -45,8 +53,20 @@ vi.mock("drizzle-orm", () => ({
   sql: vi.fn(() => "sql-fragment"),
 }));
 
-vi.mock("@/lib/enrollment", () => ({
+vi.mock("@/lib/sequences/enrollment", () => ({
   pauseEnrollment: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/inngest/client", () => ({
+  inngest: { send: vi.fn().mockResolvedValue(undefined) },
+}));
+
+vi.mock("@/lib/outcomes/resolve", () => ({
+  checkEmailOutcomes: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/analytics/pipeline-tracker", () => ({
+  trackPipeline: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { db } from "@/db";
@@ -54,23 +74,55 @@ import { pauseEnrollment } from "@/lib/sequences/enrollment";
 
 const mod = await import("@/app/api/webhooks/resend/route");
 
-const origNodeEnv = process.env.NODE_ENV;
-const origSecret = process.env.RESEND_WEBHOOK_SECRET;
+/**
+ * Build a chainable + destructurable mock that resolves to `data`.
+ * Supports both `await chain` and `const [first] = await chain`.
+ */
+function createChain(data: unknown[] = []) {
+  const chain: any = {};
+  const methods = [
+    "select","from","leftJoin","innerJoin","where","groupBy",
+    "orderBy","limit","offset","set","values","returning",
+    "onConflictDoUpdate","onConflictDoNothing",
+  ];
+  for (const m of methods) chain[m] = vi.fn().mockReturnValue(chain);
+  chain.then = (resolve: (v: unknown) => unknown) => Promise.resolve(data).then(resolve);
+  chain[Symbol.iterator] = function* () { yield* data; };
+  for (let i = 0; i < data.length; i++) chain[i] = data[i];
+  chain.length = data.length;
+  return chain;
+}
+
+/* ── Svix signature helper ── */
+const TEST_SVIX_SECRET = "whsec_dGVzdC1zZWNyZXQ="; // base64-encoded "test-secret"
+const TEST_SVIX_ID = "msg_test123";
+
+function svixSign(body: string, timestamp?: number): Record<string, string> {
+  const ts = timestamp ?? Math.floor(Date.now() / 1000);
+  const secretBytes = Buffer.from(
+    TEST_SVIX_SECRET.slice("whsec_".length),
+    "base64"
+  );
+  const toSign = `${TEST_SVIX_ID}.${ts}.${body}`;
+  const sig = createHmac("sha256", secretBytes).update(toSign).digest("base64");
+  return {
+    "svix-id": TEST_SVIX_ID,
+    "svix-timestamp": String(ts),
+    "svix-signature": `v1,${sig}`,
+  };
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Force dev mode + no secret so verifyResendSignature accepts everything.
-  // The signature path itself isn't tested here; the prod-locked branch is
-  // exercised separately below.
-  vi.stubEnv("NODE_ENV", "development");
-  vi.stubEnv("RESEND_WEBHOOK_SECRET", "");
+  vi.stubEnv("RESEND_WEBHOOK_SECRET", TEST_SVIX_SECRET);
+  // Default chains
+  vi.mocked(db.select).mockReturnValue(createChain() as never);
+  vi.mocked(db.insert).mockReturnValue(createChain() as never);
+  vi.mocked(db.update).mockReturnValue(createChain() as never);
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
-  // Belt-and-braces in case the runtime ignored unstub for some keys.
-  if (origNodeEnv !== undefined) vi.stubEnv("NODE_ENV", origNodeEnv);
-  if (origSecret !== undefined) vi.stubEnv("RESEND_WEBHOOK_SECRET", origSecret);
 });
 
 const emailRow = (overrides: Record<string, unknown> = {}) => ({
@@ -82,33 +134,40 @@ const emailRow = (overrides: Record<string, unknown> = {}) => ({
   toAddress: "Bob@Acme.com",
   openedAt: null,
   clickedAt: null,
+  contactId: null,
+  subject: "Test subject",
   ...overrides,
 });
 
 function mockSelectOnce(rows: unknown[]) {
-  const limitFn = vi.fn().mockResolvedValue(rows);
-  const whereFn = vi.fn().mockReturnValue({ limit: limitFn });
-  const fromFn = vi.fn().mockReturnValue({ where: whereFn });
-  vi.mocked(db.select).mockReturnValueOnce({ from: fromFn } as never);
+  vi.mocked(db.select).mockReturnValueOnce(createChain(rows) as never);
 }
 
 function makeReq(body: unknown, headers: Record<string, string> = {}) {
+  const bodyStr = typeof body === "string" ? body : JSON.stringify(body);
   return new Request("http://localhost/api/webhooks/resend", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...headers },
-    body: typeof body === "string" ? body : JSON.stringify(body),
+    body: bodyStr,
   });
 }
 
-describe("POST /api/webhooks/resend — dev mode (no secret)", () => {
+/** Build a signed request with proper Svix headers. */
+function makeSignedReq(payload: unknown): Request {
+  const bodyStr = JSON.stringify(payload);
+  const sigHeaders = svixSign(bodyStr);
+  return makeReq(bodyStr, sigHeaders);
+}
+
+describe("POST /api/webhooks/resend — signed requests", () => {
   it("400 on payload missing type/data", async () => {
-    const res = await mod.POST(makeReq({ type: "x" }));
+    const res = await mod.POST(makeSignedReq({ type: "x" }));
     expect(res.status).toBe(400);
   });
 
   it("200 ignore when message_id missing", async () => {
     const res = await mod.POST(
-      makeReq({ type: "email.delivered", data: {} })
+      makeSignedReq({ type: "email.delivered", data: {} })
     );
     expect(res.status).toBe(200);
   });
@@ -116,20 +175,21 @@ describe("POST /api/webhooks/resend — dev mode (no secret)", () => {
   it("200 ignore when no matching outboundEmail row", async () => {
     mockSelectOnce([]);
     const res = await mod.POST(
-      makeReq({ type: "email.delivered", data: { email_id: "msg_unknown" } })
+      makeSignedReq({ type: "email.delivered", data: { email_id: "msg_unknown" } })
     );
     expect(res.status).toBe(200);
     expect(db.update).not.toHaveBeenCalled();
   });
 
-  it("email.delivered → updates status + deliveredAt", async () => {
+  it("email.delivered — updates status + deliveredAt", async () => {
     mockSelectOnce([emailRow()]);
-    const updateWhere = vi.fn().mockResolvedValue(undefined);
-    const setFn = vi.fn().mockReturnValue({ where: updateWhere });
-    vi.mocked(db.update).mockReturnValue({ set: setFn } as never);
+    const updateChain = createChain();
+    const setFn = vi.fn().mockReturnValue(updateChain);
+    (updateChain as Record<string, unknown>).set = setFn;
+    vi.mocked(db.update).mockReturnValue(updateChain as never);
 
     const res = await mod.POST(
-      makeReq({ type: "email.delivered", data: { email_id: "msg_abc" } })
+      makeSignedReq({ type: "email.delivered", data: { email_id: "msg_abc" } })
     );
     expect(res.status).toBe(200);
     expect(setFn).toHaveBeenCalledWith(
@@ -139,11 +199,12 @@ describe("POST /api/webhooks/resend — dev mode (no secret)", () => {
 
   it("email.opened — first open updates openedAt", async () => {
     mockSelectOnce([emailRow({ openedAt: null })]);
-    const updateWhere = vi.fn().mockResolvedValue(undefined);
-    const setFn = vi.fn().mockReturnValue({ where: updateWhere });
-    vi.mocked(db.update).mockReturnValue({ set: setFn } as never);
+    const updateChain = createChain();
+    const setFn = vi.fn().mockReturnValue(updateChain);
+    (updateChain as Record<string, unknown>).set = setFn;
+    vi.mocked(db.update).mockReturnValue(updateChain as never);
 
-    await mod.POST(makeReq({ type: "email.opened", data: { email_id: "msg_abc" } }));
+    await mod.POST(makeSignedReq({ type: "email.opened", data: { email_id: "msg_abc" } }));
     expect(setFn).toHaveBeenCalledWith(
       expect.objectContaining({ openedAt: expect.any(Date) })
     );
@@ -151,28 +212,30 @@ describe("POST /api/webhooks/resend — dev mode (no secret)", () => {
 
   it("email.opened — second open is a no-op (idempotent)", async () => {
     mockSelectOnce([emailRow({ openedAt: new Date("2026-01-01") })]);
-    await mod.POST(makeReq({ type: "email.opened", data: { email_id: "msg_abc" } }));
+    await mod.POST(makeSignedReq({ type: "email.opened", data: { email_id: "msg_abc" } }));
     expect(db.update).not.toHaveBeenCalled();
   });
 
   it("email.clicked — first click only", async () => {
     mockSelectOnce([emailRow({ clickedAt: new Date("2026-01-01") })]);
-    await mod.POST(makeReq({ type: "email.clicked", data: { email_id: "msg_abc" } }));
+    await mod.POST(makeSignedReq({ type: "email.clicked", data: { email_id: "msg_abc" } }));
     expect(db.update).not.toHaveBeenCalled();
   });
 
-  it("email.bounced (hard) → pauses enrollment + opt-out + mailbox bump", async () => {
+  it("email.bounced (hard) — pauses enrollment + opt-out + mailbox bump", async () => {
     mockSelectOnce([emailRow()]);
-    const updateWhere = vi.fn().mockResolvedValue(undefined);
-    const setFn = vi.fn().mockReturnValue({ where: updateWhere });
-    vi.mocked(db.update).mockReturnValue({ set: setFn } as never);
+    const updateChain = createChain();
+    const setFn = vi.fn().mockReturnValue(updateChain);
+    (updateChain as Record<string, unknown>).set = setFn;
+    vi.mocked(db.update).mockReturnValue(updateChain as never);
 
-    const insertOnConflict = vi.fn().mockResolvedValue(undefined);
-    const valuesFn = vi.fn().mockReturnValue({ onConflictDoNothing: insertOnConflict });
-    vi.mocked(db.insert).mockReturnValue({ values: valuesFn } as never);
+    const insertChain = createChain();
+    const valuesFn = vi.fn().mockReturnValue(insertChain);
+    (insertChain as Record<string, unknown>).values = valuesFn;
+    vi.mocked(db.insert).mockReturnValue(insertChain as never);
 
     const res = await mod.POST(
-      makeReq({
+      makeSignedReq({
         type: "email.bounced",
         data: {
           email_id: "msg_abc",
@@ -193,14 +256,15 @@ describe("POST /api/webhooks/resend — dev mode (no secret)", () => {
     );
   });
 
-  it("email.bounced (soft) → status update only, no enrollment pause / opt-out", async () => {
+  it("email.bounced (soft) — status update only, no enrollment pause / opt-out", async () => {
     mockSelectOnce([emailRow()]);
-    const updateWhere = vi.fn().mockResolvedValue(undefined);
-    const setFn = vi.fn().mockReturnValue({ where: updateWhere });
-    vi.mocked(db.update).mockReturnValue({ set: setFn } as never);
+    const updateChain = createChain();
+    const setFn = vi.fn().mockReturnValue(updateChain);
+    (updateChain as Record<string, unknown>).set = setFn;
+    vi.mocked(db.update).mockReturnValue(updateChain as never);
 
     await mod.POST(
-      makeReq({
+      makeSignedReq({
         type: "email.bounced",
         data: { email_id: "msg_abc", bounce: { type: "soft" } },
       })
@@ -212,18 +276,20 @@ describe("POST /api/webhooks/resend — dev mode (no secret)", () => {
     expect(db.insert).not.toHaveBeenCalled();
   });
 
-  it("email.complained → opt-out + pause + mailbox health drop", async () => {
+  it("email.complained — opt-out + pause + mailbox health drop", async () => {
     mockSelectOnce([emailRow()]);
-    const updateWhere = vi.fn().mockResolvedValue(undefined);
-    const setFn = vi.fn().mockReturnValue({ where: updateWhere });
-    vi.mocked(db.update).mockReturnValue({ set: setFn } as never);
+    const updateChain = createChain();
+    const setFn = vi.fn().mockReturnValue(updateChain);
+    (updateChain as Record<string, unknown>).set = setFn;
+    vi.mocked(db.update).mockReturnValue(updateChain as never);
 
-    const insertOnConflict = vi.fn().mockResolvedValue(undefined);
-    const valuesFn = vi.fn().mockReturnValue({ onConflictDoNothing: insertOnConflict });
-    vi.mocked(db.insert).mockReturnValue({ values: valuesFn } as never);
+    const insertChain = createChain();
+    const valuesFn = vi.fn().mockReturnValue(insertChain);
+    (insertChain as Record<string, unknown>).values = valuesFn;
+    vi.mocked(db.insert).mockReturnValue(insertChain as never);
 
     const res = await mod.POST(
-      makeReq({ type: "email.complained", data: { email_id: "msg_abc" } })
+      makeSignedReq({ type: "email.complained", data: { email_id: "msg_abc" } })
     );
     expect(res.status).toBe(200);
     expect(pauseEnrollment).toHaveBeenCalledWith("enr-1", "complained");
@@ -233,21 +299,17 @@ describe("POST /api/webhooks/resend — dev mode (no secret)", () => {
   });
 });
 
-describe("POST /api/webhooks/resend — prod mode (signature required)", () => {
-  beforeEach(() => {
-    vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("RESEND_WEBHOOK_SECRET", ""); // prod + no secret → reject
-  });
-
-  it("401 in prod when no secret configured", async () => {
+describe("POST /api/webhooks/resend — signature rejection", () => {
+  it("401 when no secret configured", async () => {
+    vi.stubEnv("RESEND_WEBHOOK_SECRET", "");
     const res = await mod.POST(
       makeReq({ type: "email.delivered", data: { email_id: "msg_abc" } })
     );
     expect(res.status).toBe(401);
   });
 
-  it("401 in prod when signature headers missing despite secret set", async () => {
-    vi.stubEnv("RESEND_WEBHOOK_SECRET", "whsec_dGVzdC1zZWNyZXQ=");
+  it("401 when signature headers missing despite secret set", async () => {
+    // Secret is set (from beforeEach) but request has no svix-* headers
     const res = await mod.POST(
       makeReq({ type: "email.delivered", data: { email_id: "msg_abc" } })
     );

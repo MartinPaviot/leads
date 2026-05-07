@@ -6,8 +6,8 @@ import type {
   FilterCondition,
   FilterFieldDef,
   FilterOperator,
-} from "@/lib/filters";
-import { operatorsForType } from "@/lib/filters";
+} from "@/lib/search/filters";
+import { operatorsForType } from "@/lib/search/filters";
 
 /**
  * Controlled filter builder. Accepts a field catalog and renders

@@ -26,6 +26,14 @@ export async function register() {
     } catch (err) {
       console.warn("Custom records table setup skipped:", err instanceof Error ? err.message : err);
     }
+
+    try {
+      // MONACO-PARITY-01 + 05 — coaching transcript chunks + URL cache.
+      const { ensureCoachingTables } = await import("@/db/ensure-coaching-tables");
+      await ensureCoachingTables();
+    } catch (err) {
+      console.warn("Coaching tables setup skipped:", err instanceof Error ? err.message : err);
+    }
   }
 
   if (process.env.NEXT_RUNTIME === "edge") {

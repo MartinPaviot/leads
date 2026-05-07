@@ -4,8 +4,9 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
-vi.mock("@/lib/auth-utils", () => ({
+vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: vi.fn(),
+  withAuthRLS: vi.fn(async (handler) => { const ctx = await (await import("@/lib/auth/auth-utils")).getAuthContext(); if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 }); return handler(ctx); }),
 }));
 
 vi.mock("@/db", () => ({
@@ -15,6 +16,11 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
+  trustEvents: { id: "id", tenantId: "tenant_id", eventType: "event_type", delta: "delta", reason: "reason", createdAt: "created_at" },
+  systemTrustScore: { id: "id", tenantId: "tenant_id", score: "score", components: "components", createdAt: "created_at" },
+  agentActions: { id: "id", tenantId: "tenant_id", agentId: "agent_id", actionType: "action_type", entityId: "entity_id", summary: "summary", approved: "approved", metadata: "metadata", createdAt: "created_at" },
+  knowledgeEntries: { id: "id", tenantId: "tenant_id", title: "title", content: "content", category: "category", metadata: "metadata", createdAt: "created_at" },
+  tenants: { id: "id", name: "name", settings: "settings", domain: "domain", stripeCustomerId: "stripe_customer_id", subscriptionId: "subscription_id", plan: "plan", createdAt: "created_at", updatedAt: "updated_at", referralCode: "referral_code" },
   deals: { id: "id" },
 }));
 

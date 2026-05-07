@@ -1,0 +1,218 @@
+{
+  "nextDataKeys": [],
+  "nextDataSample": null,
+  "scripts": [
+    "https://cdn.snitcher.com/releases/latest/radar.min.js",
+    "https://ddwl4m2hdecbv.cloudfront.net/b/46DJ4HGER161/46DJ4HGER161.js.gz",
+    "https://www.googletagmanager.com/gtag/js?id=G-J4KPGLVFZ1&cx=c&gtm=4e6551",
+    "https://www.monaco.com/_next/static/chunks/d986994a8fc78d48.js?dpl=dpl_4kMtbZ1X57fRPNwnEMFZ2QkWhrdf",
+    "https://www.monaco.com/_next/static/chunks/8361b8c4cda14287.js?dpl=dpl_4kMtbZ1X57fRPNwnEMFZ2QkWhrdf",
+    "https://www.monaco.com/_next/static/chunks/9f2f3ac362a331b3.js?dpl=dpl_4kMtbZ1X57fRPNwnEMFZ2QkWhrdf",
+    "https://www.monaco.com/_next/static/chunks/turbopack-13784f11f8d3150e.js?dpl=dpl_4kMtbZ1X57fRPNwnEMFZ2QkWhrdf",
+    "https://www.monaco.com/_next/static/chunks/c75b17160602108b.js?dpl=dpl_4kMtbZ1X57fRPNwnEMFZ2QkWhrdf",
+    "https://www.monaco.com/_next/static/chunks/6951d1132f66cdbd.js?dpl=dpl_4kMtbZ1X57fRPNwnEMFZ2QkWhrdf",
+    "https://www.monaco.com/_next/static/chunks/429172025f597b97.js?dpl=dpl_4kMtbZ1X57fRPNwnEMFZ2QkWhrdf",
+    "https://www.monaco.com/_next/static/chunks/4417e289223b808f.js?dpl=dpl_4kMtbZ1X57fRPNwnEMFZ2QkWhrdf",
+    "https://www.monaco.com/_next/static/chunks/a5e76b156a58237d.js?dpl=dpl_4kMtbZ1X57fRPNwnEMFZ2QkWhrdf",
+    "https://www.monaco.com/_next/static/chunks/3c4b23875d7b0931.js?dpl=dpl_4kMtbZ1X57fRPNwnEMFZ2QkWhrdf",
+    "https://www.monaco.com/_next/static/chunks/a6dad97d9634a72d.js?dpl=dpl_4kMtbZ1X57fRPNwnEMFZ2QkWhrdf",
+    "https://b-code.liadm.com/lc2.js",
+    "https://www.monaco.com/_next/static/chunks/eb7f36a9c60ce880.js?dpl=dpl_4kMtbZ1X57fRPNwnEMFZ2QkWhrdf",
+    "https://www.googletagmanager.com/gtm.js?id=GTM-525CVB7M"
+  ],
+  "inlineScriptsCount": 31,
+  "inlineScriptsSamples": [
+    "{\"@context\":\"https://schema.org\",\"@type\":\"Organization\",\"name\":\"Monaco\",\"url\":\"https://www.monaco.com\",\"logo\":\"https://www.monaco.com/global/favicon.png\",\"description\":\"Monaco is the first revenue engine for startups, an AI native platform that replaces legacy CRM and disparate sales point solutions.\",\"sameAs\":[\"https://www.linkedin.com/company/monaco-gtm\",\"https://x.com/MonacoGTM\"]}",
+    "{\"@context\":\"https://schema.org\",\"@type\":\"WebSite\",\"name\":\"Monaco\",\"url\":\"https://www.monaco.com\"}",
+    "{\"@context\":\"https://schema.org\",\"@type\":\"SoftwareApplication\",\"name\":\"Monaco\",\"url\":\"https://www.monaco.com\",\"applicationCategory\":\"BusinessApplication\",\"operatingSystem\":\"Web\",\"description\":\"Monaco is the first revenue engine for startups. The AI native platform replaces legacy CRM and disparate sales point solutions, acting as the all-in-one revenue platform and system of record that builds your TAM, runs outbound, captures every interaction, and manages pipeline in one place.\"}"
+  ],
+  "links": [
+    {
+      "rel": "preload",
+      "href": "https://www.monaco.com/_next/static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2",
+      "as": "font"
+    },
+    {
+      "rel": "preload",
+      "href": "https://www.monaco.com/_next/static/media/f67ad414ed34149c-s.p.84166d94.woff2",
+      "as": "font"
+    },
+    {
+      "rel": "preload",
+      "href": "https://www.monaco.com/fonts/SeasonSerif-Regular.woff2",
+      "as": "font"
+    },
+    {
+      "rel": "preload",
+      "href": "https://www.monaco.com/fonts/SeasonSerif-Medium.woff2",
+      "as": "font"
+    },
+    {
+      "rel": "preload",
+      "href": "https://www.monaco.com/global/logo-mark.svg",
+      "as": "image"
+    },
+    {
+      "rel": "stylesheet",
+      "href": "https://www.monaco.com/_next/static/chunks/c6d69ffaa01e987a.css?dpl=dpl_4kMtbZ1X57fRPNwnEMFZ2QkWhrdf",
+      "as": ""
+    },
+    {
+      "rel": "preload",
+      "href": "https://www.monaco.com/_next/static/chunks/eb7f36a9c60ce880.js?dpl=dpl_4kMtbZ1X57fRPNwnEMFZ2QkWhrdf",
+      "as": "script"
+    },
+    {
+      "rel": "preload",
+      "href": "https://www.monaco.com/fonts/SeasonSerif-Regular.woff2",
+      "as": "font"
+    },
+    {
+      "rel": "preload",
+      "href": "https://www.monaco.com/fonts/SeasonSerif-Medium.woff2",
+      "as": "font"
+    },
+    {
+      "rel": "preconnect",
+      "href": "https://www.googletagmanager.com/",
+      "as": ""
+    },
+    {
+      "rel": "dns-prefetch",
+      "href": "https://www.googletagmanager.com/",
+      "as": ""
+    },
+    {
+      "rel": "canonical",
+      "href": "https://www.monaco.com/product",
+      "as": ""
+    },
+    {
+      "rel": "shortcut icon",
+      "href": "https://www.monaco.com/global/favicon.png",
+      "as": ""
+    },
+    {
+      "rel": "icon",
+      "href": "https://www.monaco.com/global/favicon.png",
+      "as": ""
+    },
+    {
+      "rel": "apple-touch-icon",
+      "href": "https://www.monaco.com/global/favicon.png",
+      "as": ""
+    },
+    {
+      "rel": "apple-touch-icon",
+      "href": "https://www.monaco.com/apple-touch-icon-152x152.png",
+      "as": ""
+    },
+    {
+      "rel": "apple-touch-icon",
+      "href": "https://www.monaco.com/apple-touch-icon-120x120.png",
+      "as": ""
+    },
+    {
+      "rel": "apple-touch-icon",
+      "href": "https://www.monaco.com/apple-touch-icon-76x76.png",
+      "as": ""
+    },
+    {
+      "rel": "apple-touch-icon",
+      "href": "https://www.monaco.com/apple-touch-icon.png",
+      "as": ""
+    }
+  ],
+  "metaTags": [
+    {
+      "name": "",
+      "property": null,
+      "content": ""
+    },
+    {
+      "name": "viewport",
+      "property": null,
+      "content": "width=device-width, initial-scale=1"
+    },
+    {
+      "name": "next-size-adjust",
+      "property": null,
+      "content": ""
+    },
+    {
+      "name": "description",
+      "property": null,
+      "content": "Monaco is the all-in-one revenue platform and system of record. One unified platform for database, signals, sequences, pipeline tracking, call recording and more, where every interaction is captured f"
+    },
+    {
+      "name": "",
+      "property": "og:title",
+      "content": "Product | Monaco – Everything you need, all in one place"
+    },
+    {
+      "name": "",
+      "property": "og:description",
+      "content": "Monaco is the all-in-one revenue platform and system of record. One unified platform for database, signals, sequences, pipeline tracking, call recording and more, where every interaction is captured f"
+    },
+    {
+      "name": "",
+      "property": "og:url",
+      "content": "https://www.monaco.com/product"
+    },
+    {
+      "name": "",
+      "property": "og:image",
+      "content": "https://www.monaco.com/og-image.png"
+    },
+    {
+      "name": "",
+      "property": "og:image:width",
+      "content": "1200"
+    },
+    {
+      "name": "",
+      "property": "og:image:height",
+      "content": "630"
+    },
+    {
+      "name": "",
+      "property": "og:image:alt",
+      "content": "Product | Monaco – Everything you need, all in one place"
+    },
+    {
+      "name": "twitter:card",
+      "property": null,
+      "content": "summary_large_image"
+    },
+    {
+      "name": "twitter:title",
+      "property": null,
+      "content": "Product | Monaco – Everything you need, all in one place"
+    },
+    {
+      "name": "twitter:description",
+      "property": null,
+      "content": "Monaco is the all-in-one revenue platform and system of record. One unified platform for database, signals, sequences, pipeline tracking, call recording and more, where every interaction is captured f"
+    },
+    {
+      "name": "twitter:image",
+      "property": null,
+      "content": "https://www.monaco.com/og-image.png"
+    }
+  ],
+  "networkResourcesCount": 52,
+  "uniqueDomains": [
+    "www.monaco.com",
+    "www.googletagmanager.com",
+    "ddwl4m2hdecbv.cloudfront.net",
+    "cdn.snitcher.com",
+    "www.google.com",
+    "region1.google-analytics.com",
+    "radar.snitcher.com",
+    "a.usbrowserspeed.com",
+    "alocdn.com",
+    "b-code.liadm.com",
+    "idx.liadm.com",
+    "rp.liadm.com"
+  ]
+}

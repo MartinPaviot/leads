@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/auth-utils", () => ({
+vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: vi.fn(),
+  withAuthRLS: vi.fn(async (handler) => { const ctx = await (await import("@/lib/auth/auth-utils")).getAuthContext(); if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 }); return handler(ctx); }),
 }));
 
 // O9 — completion path now reads the tenant + user rows to send the
@@ -21,6 +22,10 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
+  trustEvents: { id: "id", tenantId: "tenant_id", eventType: "event_type", delta: "delta", reason: "reason", createdAt: "created_at" },
+  systemTrustScore: { id: "id", tenantId: "tenant_id", score: "score", components: "components", createdAt: "created_at" },
+  agentActions: { id: "id", tenantId: "tenant_id", agentId: "agent_id", actionType: "action_type", entityId: "entity_id", summary: "summary", approved: "approved", metadata: "metadata", createdAt: "created_at" },
+  knowledgeEntries: { id: "id", tenantId: "tenant_id", title: "title", content: "content", category: "category", metadata: "metadata", createdAt: "created_at" },
   tenants: { id: "id", settings: "settings", name: "name" },
   users: { id: "id" },
   authUsers: { id: "id", email: "email", name: "name" },
@@ -31,9 +36,11 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 const updateSettingsMock = vi.fn();
-vi.mock("@/lib/tenant-settings", () => ({
+const getSettingsMock = vi.fn().mockResolvedValue({});
+vi.mock("@/lib/config/tenant-settings", () => ({
   updateTenantSettings: (tenantId: string, updates: Record<string, unknown>) =>
     updateSettingsMock(tenantId, updates),
+  getTenantSettings: (tenantId: string) => getSettingsMock(tenantId),
 }));
 
 vi.mock("@/inngest/client", () => ({
@@ -49,6 +56,20 @@ vi.mock("@/lib/emails/welcome", () => ({
     sent: false,
     reason: "test",
   }),
+}));
+
+vi.mock("@/lib/observability/logger", () => ({
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
+}));
+
+vi.mock("@/lib/analytics/analytics", () => ({
+  posthogEvents: {
+    onboarding_completed: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
+vi.mock("@/lib/knowledge/seed-from-onboarding", () => ({
+  seedKnowledgeFromOnboarding: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { getAuthContext } from "@/lib/auth/auth-utils";
@@ -72,6 +93,7 @@ describe("POST /api/onboarding/save — currentStep persistence (T0.2)", () => {
       appUserId: "u1",
       role: "admin",
     });
+    getSettingsMock.mockResolvedValue({});
   });
 
   it("returns 401 when unauthenticated", async () => {

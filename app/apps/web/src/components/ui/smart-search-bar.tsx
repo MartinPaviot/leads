@@ -19,7 +19,7 @@
 
 import React, { useState } from "react";
 import { Sparkles, Loader2, X } from "lucide-react";
-import type { FilterCondition } from "@/lib/filters";
+import type { FilterCondition } from "@/lib/search/filters";
 
 export interface SmartSearchBarProps {
   resourceType: "account" | "contact";

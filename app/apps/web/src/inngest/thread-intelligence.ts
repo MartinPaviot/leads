@@ -52,7 +52,6 @@ export const extractThreadIntelligenceBatch = inngest.createFunction(
       const s = await getTenantSettings(tenantId);
       return {
         productDescription: s.productDescription || "",
-        knowledge: s.knowledge || [],
       };
     });
 
@@ -136,7 +135,6 @@ export const extractSingleThreadIntelligence = inngest.createFunction(
       const s = await getTenantSettings(tenantId);
       return {
         productDescription: s.productDescription || "",
-        knowledge: s.knowledge || [],
       };
     });
 

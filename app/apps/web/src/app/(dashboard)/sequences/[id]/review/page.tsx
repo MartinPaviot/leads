@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { checkSpamSignals, type SpamCheckResult } from "@/lib/emails/email-spam-check";
 import { sanitizeHtml } from "@/lib/infra/sanitize-html";
+import { HallucinationFallback } from "@/components/ai-ui";
 
 interface OutboundEmail {
   id: string;
@@ -14,6 +15,12 @@ interface OutboundEmail {
   bodyText: string | null;
   status: string;
   stepNumber: number | null;
+  // Set by the personalisation step in `inngest/functions.ts` when the
+  // LLM call failed and we fell back to bare template interpolation.
+  // Null means personalisation succeeded; the `[fallback:...]` prefix is
+  // load-bearing — it's how we distinguish from genuine send failures
+  // (which use the same field with no prefix once status flips to "failed").
+  errorMessage: string | null;
   createdAt: string;
   contact: {
     firstName: string | null;
@@ -160,15 +167,22 @@ export default function ReviewQueuePage({
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
-                    <span>To: {email.toAddress}</span>
-                    {email.contact && (
-                      <span>
-                        ({[email.contact.firstName, email.contact.lastName].filter(Boolean).join(" ")}
-                        {email.contact.title ? ` — ${email.contact.title}` : ""})
-                      </span>
-                    )}
-                    {email.stepNumber && <span>Step {email.stepNumber}</span>}
+                  <div className="space-y-0.5 text-xs text-[var(--color-text-secondary)]">
+                    <div className="flex items-center gap-2">
+                      <span className="w-9 shrink-0 text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)]">From</span>
+                      <span className="font-medium text-[var(--color-text-primary)]">{email.fromAddress}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-9 shrink-0 text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)]">To</span>
+                      <span className="font-medium text-[var(--color-text-primary)]">{email.toAddress}</span>
+                      {email.contact && (
+                        <span>
+                          ({[email.contact.firstName, email.contact.lastName].filter(Boolean).join(" ")}
+                          {email.contact.title ? ` — ${email.contact.title}` : ""})
+                        </span>
+                      )}
+                      {email.stepNumber && <span>· Step {email.stepNumber}</span>}
+                    </div>
                   </div>
 
                   {editingId === email.id ? (
@@ -218,6 +232,22 @@ export default function ReviewQueuePage({
                           user can still approve a flagged draft, but
                           they did so with eyes open. */}
                       <SpamWarnings subject={email.subject} bodyHtml={email.bodyHtml} bodyText={email.bodyText} />
+                      {/* Personalisation fallback indicator — set by
+                          the inngest worker when the LLM personalize
+                          step threw or the prospect context was
+                          missing. The email is still queueable but the
+                          founder needs to see that it's running on
+                          template-only interpolation, not full
+                          per-prospect personalisation. */}
+                      {email.errorMessage?.startsWith("[fallback:") && (
+                        <div className="mt-2">
+                          <HallucinationFallback
+                            severity="warning"
+                            reason={`AI personalisation failed (${email.errorMessage}). Sent with template-only interpolation — review extra carefully or edit before approve.`}
+                            suggestedAction="Edit the body to add prospect-specific context before approving."
+                          />
+                        </div>
+                      )}
                     </>
                   )}
                 </div>

@@ -22,6 +22,7 @@ import { db } from "@/db";
 import { trustEvents } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
+import { getTenantKnowledge } from "@/lib/knowledge/get-tenant-knowledge";
 
 export type MemoryCategory =
   | "inferred-from-website"
@@ -283,10 +284,11 @@ export async function buildMemorySnapshot(
   });
 
   // ── user-provided-knowledge ──
-  if (settings.knowledge && settings.knowledge.length > 0) {
-    for (const [i, k] of settings.knowledge.entries()) {
+  const knowledgeList = await getTenantKnowledge(tenantId);
+  if (knowledgeList.length > 0) {
+    for (const [i, k] of knowledgeList.entries()) {
       entries.push({
-        id: `knowledge-${i}`,
+        id: k.id || `knowledge-${i}`,
         category: "user-provided-knowledge",
         label: k.topic,
         value: k.content,

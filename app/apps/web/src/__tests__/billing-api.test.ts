@@ -4,7 +4,7 @@ const customersCreate = vi.fn();
 const checkoutCreate = vi.fn();
 const portalCreate = vi.fn();
 
-vi.mock("@/lib/stripe", () => ({
+vi.mock("@/lib/billing/stripe", () => ({
   get stripe() {
     return _stripeHandle;
   },
@@ -16,8 +16,9 @@ let _stripeHandle: unknown = {
   billingPortal: { sessions: { create: portalCreate } },
 };
 
-vi.mock("@/lib/auth-utils", () => ({
+vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: vi.fn(),
+  withAuthRLS: vi.fn(async (handler) => { const ctx = await (await import("@/lib/auth/auth-utils")).getAuthContext(); if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 }); return handler(ctx); }),
 }));
 
 vi.mock("@/db", () => ({
@@ -28,6 +29,10 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
+  trustEvents: { id: "id", tenantId: "tenant_id", eventType: "event_type", delta: "delta", reason: "reason", createdAt: "created_at" },
+  systemTrustScore: { id: "id", tenantId: "tenant_id", score: "score", components: "components", createdAt: "created_at" },
+  agentActions: { id: "id", tenantId: "tenant_id", agentId: "agent_id", actionType: "action_type", entityId: "entity_id", summary: "summary", approved: "approved", metadata: "metadata", createdAt: "created_at" },
+  knowledgeEntries: { id: "id", tenantId: "tenant_id", title: "title", content: "content", category: "category", metadata: "metadata", createdAt: "created_at" },
   users: { clerkId: "clerkId", tenantId: "tenantId", email: "email" },
   tenants: { id: "id", plan: "plan" },
 }));

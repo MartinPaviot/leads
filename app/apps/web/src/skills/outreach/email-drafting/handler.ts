@@ -1,6 +1,7 @@
-import { buildProspectContext, formatContextForPrompt } from "@/lib/prospect-context";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { buildProspectContext, formatContextForPrompt } from "@/lib/context/prospect-context";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { getSkillKnowledge } from "@/skills/skill-knowledge";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import type { SkillRunOptions } from "@/skills/types";
@@ -24,7 +25,10 @@ export async function emailDraftingHandler(
   input: EmailDraftingInput,
   options: SkillRunOptions,
 ): Promise<EmailDraftingOutput> {
-  const ctx = await buildProspectContext(input.contactId, options.tenantId);
+  const [ctx, knowledgeBlock] = await Promise.all([
+    buildProspectContext(input.contactId, options.tenantId),
+    getSkillKnowledge("email drafting product positioning value proposition", options.tenantId),
+  ]);
   if (!ctx) {
     throw new Error(`Could not build prospect context for contact ${input.contactId}`);
   }
@@ -68,6 +72,8 @@ export async function emailDraftingHandler(
 ${signalDirective}
 
 ${input.additionalContext ? `## Additional Context\n${input.additionalContext}` : ""}
+
+${knowledgeBlock ? `## Knowledge Base\n${knowledgeBlock}` : ""}
 
 ## Prospect Context
 ${contextBlock}`,

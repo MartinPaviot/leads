@@ -15,6 +15,7 @@ import { buildProspectContext } from "@/lib/context/prospect-context";
 import { personalizeStepEmail } from "@/lib/agents/sequence-generator";
 import { STEP_STRATEGIES } from "@/lib/scoring/outbound-methodologies";
 import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
+import { logger } from "@/lib/observability/logger";
 import {
   enrichOrganization,
   enrichPerson,
@@ -578,25 +579,57 @@ export const sendSequenceStep = inngest.createFunction(
       body = body.replace(pattern, value);
     }
 
-    // Personalize with full prospect intelligence
+    // Personalize with full prospect intelligence.
+    //
+    // Failure mode discipline: when the LLM call or context build
+    // throws, we MUST NOT silently fall back to the bare template
+    // (with raw `{{firstName}}` interpolation only). Monaco-parity
+    // requirement: every fallback is logged with full context so the
+    // founder sees in observability that 8% of step-2 emails went
+    // out unpersonalised — and can choose to either tighten the
+    // prompt or pause the sequence. The caller (review queue) can
+    // also flag the email visually based on `personalisationFallback`.
     const personalized = await step.run("personalize-email", async () => {
       try {
         const ctx = await buildProspectContext(contact.id, enrollment.sequenceId ? "default" : "default");
-        if (!ctx) return null;
+        if (!ctx) {
+          logger.warn("sequence.personalize.missing_context", {
+            tenantId,
+            sequenceId: enrollment.sequenceId,
+            enrollmentId,
+            contactId: contact.id,
+            stepNumber: enrollment.currentStep,
+            reason: "buildProspectContext returned null",
+          });
+          return { ok: false as const, reason: "missing_prospect_context" };
+        }
 
         // Find the step strategy for this step number
         const strategy = STEP_STRATEGIES.find((s) => s.stepNumber === enrollment.currentStep)
           || STEP_STRATEGIES[0];
 
-        return await personalizeStepEmail(ctx, { subject, body }, strategy);
-      } catch {
-        return null; // fallback to template
+        const out = await personalizeStepEmail(ctx, { subject, body }, strategy);
+        return { ok: true as const, out };
+      } catch (err) {
+        logger.warn("sequence.personalize.failed", {
+          tenantId,
+          sequenceId: enrollment.sequenceId,
+          enrollmentId,
+          contactId: contact.id,
+          stepNumber: enrollment.currentStep,
+          errorName: err instanceof Error ? err.name : typeof err,
+          errorMessage: err instanceof Error ? err.message : String(err),
+        });
+        return { ok: false as const, reason: "llm_personalize_threw" };
       }
     });
 
-    if (personalized) {
-      subject = personalized.subject;
-      body = personalized.body;
+    let personalisationFallbackReason: string | null = null;
+    if (personalized.ok) {
+      subject = personalized.out.subject;
+      body = personalized.out.body;
+    } else {
+      personalisationFallbackReason = personalized.reason;
     }
 
     // Check opt-out before sending (within the contact's actual tenant)
@@ -634,6 +667,14 @@ export const sendSequenceStep = inngest.createFunction(
           bodyText: body,
           status: "queued", // Goes straight to queue — review queue can intercept if needed
           queuedAt: new Date(),
+          // Tag personalisation fallbacks with a `[fallback:...]`
+          // prefix so the review-queue UI can flag them visibly and
+          // analytics can distinguish them from genuine send errors
+          // (the latter set `errorMessage` without this prefix when
+          // status flips to "failed").
+          errorMessage: personalisationFallbackReason
+            ? `[fallback:${personalisationFallbackReason}] sent with template-only personalisation`
+            : null,
         })
         .returning();
       return email;

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { TraceContext } from "@/lib/observability";
+import type { TraceContext } from "@/lib/observability/observability";
 
 // ─── Skill Categories ───────────────────────────────────────
 
@@ -49,4 +49,8 @@ export interface SkillResult<T = unknown> {
   costIncurred?: number;
   durationMs: number;
   traceId?: string;
+  degraded?: boolean;
+  degradationReason?: "insufficient_context" | "below_quality_threshold" | "missing_required_data";
+  qualityScore?: number;
+  userSuggestion?: string;
 }

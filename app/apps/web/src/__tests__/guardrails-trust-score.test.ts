@@ -35,6 +35,14 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
+  distillationSamples: { id: "id", tenantId: "tenant_id", agentId: "agent_id", input: "input", output: "output", score: "score", createdAt: "created_at" },
+  actionOutcomes: { id: "id", tenantId: "tenant_id", actionId: "action_id", outcome: "outcome", createdAt: "created_at" },
+  signalOutcomes: { id: "id", tenantId: "tenant_id", signalId: "signal_id", outcome: "outcome", createdAt: "created_at" },
+  agentTraces: { id: "id", tenantId: "tenant_id", agentId: "agent_id", agentCategory: "agent_category", traceId: "trace_id", input: "input", output: "output", model: "model", status: "status", inputTokens: "input_tokens", outputTokens: "output_tokens", estimatedCost: "estimated_cost", latencyMs: "latency_ms", toolCalls: "tool_calls", toolCallsCount: "tool_calls_count", errorMessage: "error_message", evalScore: "eval_score", metadata: "metadata", createdAt: "created_at" },
+  systemTrustScore: { id: "id", tenantId: "tenant_id", score: "score", components: "components", createdAt: "created_at" },
+  agentActions: { id: "id", tenantId: "tenant_id", agentId: "agent_id", actionType: "action_type", entityId: "entity_id", summary: "summary", approved: "approved", metadata: "metadata", createdAt: "created_at" },
+  knowledgeEntries: { id: "id", tenantId: "tenant_id", title: "title", content: "content", category: "category", metadata: "metadata", createdAt: "created_at" },
+  tenants: { id: "id", name: "name", settings: "settings", domain: "domain", stripeCustomerId: "stripe_customer_id", subscriptionId: "subscription_id", plan: "plan", createdAt: "created_at", updatedAt: "updated_at", referralCode: "referral_code" },
   trustEvents: {
     id: "id",
     tenantId: "tenant_id",
@@ -54,13 +62,13 @@ vi.mock("drizzle-orm", () => ({
   desc: (x: unknown) => ({ desc: x }),
 }));
 
-vi.mock("@/lib/tenant-settings", () => ({
+vi.mock("@/lib/config/tenant-settings", () => ({
   getTenantSettings: (tenantId: string) => getSettingsMock(tenantId),
   updateTenantSettings: (tenantId: string, updates: Record<string, unknown>) =>
     updateSettingsMock(tenantId, updates),
 }));
 
-vi.mock("@/lib/logger", () => {
+vi.mock("@/lib/observability/logger", () => {
   const logger = {
     warn: loggerWarnMock,
     info: vi.fn(),

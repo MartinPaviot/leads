@@ -12,7 +12,7 @@ const {
   loggerWarnMock: vi.fn(),
 }));
 
-vi.mock("@/lib/tenant-settings", () => ({
+vi.mock("@/lib/config/tenant-settings", () => ({
   getTenantSettings: (tenantId: string) => getSettingsMock(tenantId),
   updateTenantSettings: (
     tenantId: string,
@@ -32,7 +32,7 @@ vi.mock("@/db/schema", () => ({
   tenants: { id: "id" },
 }));
 
-vi.mock("@/lib/logger", () => {
+vi.mock("@/lib/observability/logger", () => {
   const logger = {
     warn: loggerWarnMock,
     info: vi.fn(),

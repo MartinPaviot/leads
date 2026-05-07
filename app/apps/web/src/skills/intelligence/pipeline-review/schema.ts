@@ -38,6 +38,7 @@ export const pipelineReviewOutputSchema = z.object({
     dealsCreatedInPeriod: z.number(),
     dealsClosedInPeriod: z.number(),
   }),
+  knowledgeContext: z.string().optional(),
 });
 
 export type PipelineReviewOutput = z.infer<typeof pipelineReviewOutputSchema>;

@@ -8,6 +8,7 @@
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
+import { llmCall } from "@/lib/ai/llm-call";
 import { z } from "zod";
 import {
   getMethodology,
@@ -56,7 +57,7 @@ export type GeneratedSequence = z.infer<typeof generatedSequenceSchema>;
  */
 export async function generateSequence(
   ctx: ProspectContext,
-  options?: { stepCount?: number; meetingSlots?: string; tenantId?: string; evaluate?: boolean }
+  options?: { stepCount?: number; meetingSlots?: string; tenantId?: string; evaluate?: boolean; knowledgeContext?: string }
 ): Promise<GeneratedSequence> {
   const model = getLLMModel();
   if (!model) throw new Error("No LLM API key configured");
@@ -66,7 +67,7 @@ export async function generateSequence(
   const stepCount = options?.stepCount || 5;
   const strategies = STEP_STRATEGIES.slice(0, stepCount);
 
-  const basePrompt = buildGenerationPrompt(ctx, methodology, signalAngle, strategies, options?.meetingSlots);
+  const basePrompt = buildGenerationPrompt(ctx, methodology, signalAngle, strategies, options?.meetingSlots, options?.knowledgeContext);
 
   // Standard generation (bulk campaigns)
   if (!options?.evaluate) {
@@ -191,6 +192,7 @@ function buildGenerationPrompt(
   signalAngle: (typeof SIGNAL_ANGLES)[string] | null,
   strategies: StepStrategy[],
   meetingSlots?: string,
+  knowledgeContext?: string,
 ): string {
   const contextBlock = formatContextForPrompt(ctx);
 
@@ -227,6 +229,10 @@ function buildGenerationPrompt(
     ? `\nAVAILABLE MEETING TIMES (use in step 3 or 4 if appropriate):\n${meetingSlots}`
     : "";
 
+  const knowledgeBlock = knowledgeContext
+    ? `\n## Knowledge Base\n${knowledgeContext}`
+    : "";
+
   // Build personalization brief — tells the LLM exactly what signals to use
   const personalizationBrief = buildPersonalizationBrief(ctx);
 
@@ -244,6 +250,7 @@ ${methodologyBlock}
 
 ${signalBlock}
 ${examplesBlock}
+${knowledgeBlock}
 
 SEQUENCE STRUCTURE — Generate ${strategies.length} emails:
 
@@ -329,15 +336,23 @@ export async function personalizeStepEmail(
   const methodology = getMethodology(ctx.contact.seniority);
   const contextBlock = formatContextForPrompt(ctx);
 
-  const { object } = await tracedGenerateObject({
-    model,
-    schema: z.object({
-      subject: z.string(),
-      body: z.string(),
-    }),
-    temperature: 0.5,
-    maxTokens: 500,
-    prompt: `Personalize this email template using the full prospect dossier below. Transform it from a template into an email that feels personally written for this specific person.
+  // Wrapped in llmCall (Sprint-1) so personalisation cost / latency
+  // / fallback land in the admin observability dashboard. Anthropic
+  // primary, gpt-4o-mini fallback when terminally errored — better
+  // a generic-but-personalised email than a hard error that drops
+  // the founder's send.
+  const isPrimaryAnthropic = !!process.env.ANTHROPIC_API_KEY;
+  const result = (await llmCall({
+    fn: tracedGenerateObject,
+    args: [{
+      model,
+      schema: z.object({
+        subject: z.string(),
+        body: z.string(),
+      }),
+      temperature: 0.5,
+      maxTokens: 500,
+      prompt: `Personalize this email template using the full prospect dossier below. Transform it from a template into an email that feels personally written for this specific person.
 
 ${contextBlock}
 
@@ -359,12 +374,26 @@ RULES:
 - Reference specific facts about their company, role, or signals
 - Keep the core message but make it feel personally researched
 - ${methodology.whatNotToDo.join("\n- ")}`,
-    _trace: {
-      agentId: "send-sequence-step",
-      tenantId,
-      inputPreview: `Personalize step for ${ctx.contact.fullName} at ${ctx.company?.name || "unknown"}`,
+      _trace: {
+        agentId: "send-sequence-step",
+        tenantId,
+        inputPreview: `Personalize step for ${ctx.contact.fullName} at ${ctx.company?.name || "unknown"}`,
+      },
+    }] as never,
+    fallbackModel: isPrimaryAnthropic ? openai("gpt-4o-mini") : undefined,
+    retries: 1,
+    timeoutMs: 30_000,
+    trace: {
+      tenantId: tenantId ?? null,
+      surfaceId: "personalize-step-email",
+      promptId: "personalize-step.v1",
+      metadata: {
+        agentId: "send-sequence-step",
+        contactId: ctx.contact.id,
+        stepNumber: stepStrategy.stepNumber,
+      },
     },
-  });
+  })) as { object: { subject: string; body: string } };
 
-  return object as { subject: string; body: string };
+  return result.object;
 }

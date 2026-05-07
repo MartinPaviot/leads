@@ -207,6 +207,19 @@ export async function autofillDealFromIntelligence(
     suggestionsCreated: [],
   };
 
+  // Per-signal-type extraction tally for the end-of-run health log.
+  // We need this to alert on silent extraction regressions: if 8 of
+  // 10 budget signals come in but `extractDollarAmount` returns null
+  // every time, the regex stopped matching some recent format change
+  // (e.g. "€500K" vs "$500K"). Without this tally, the failure is
+  // invisible — emails pass through, deals stay empty, the founder
+  // wonders why auto-fill "doesn't work" but no error ever fires.
+  const tally: Record<string, { attempted: number; extracted: number }> = {
+    budget: { attempted: 0, extracted: 0 },
+    timeline: { attempted: 0, extracted: 0 },
+    authority: { attempted: 0, extracted: 0 },
+  };
+
   // Load deal to check current values
   let deal: {
     value: number | null;
@@ -249,8 +262,23 @@ export async function autofillDealFromIntelligence(
   // ── 1. Budget signals → deal.value ────────────────────────
   for (const signal of intelligence.signals) {
     if (signal.type === "budget") {
+      tally.budget.attempted++;
       const amount = extractDollarAmount(signal.evidence);
-      if (amount === null) continue;
+      if (amount === null) {
+        // The LLM flagged a budget mention but the extractor couldn't
+        // pull a number from the evidence string. Log the evidence so
+        // we can grep production for missed patterns and tighten the
+        // regex.
+        logger.warn("deal-autofill: budget extraction failed", {
+          dealId,
+          tenantId,
+          sourceType,
+          evidence: signal.evidence.slice(0, 200),
+          signalConfidence: signal.confidence,
+        });
+        continue;
+      }
+      tally.budget.extracted++;
 
       // Don't overwrite a higher existing value
       if (deal.value !== null && deal.value >= amount) {
@@ -288,8 +316,19 @@ export async function autofillDealFromIntelligence(
   // ── 2. Timeline signals → deal.expectedCloseDate ──────────
   for (const signal of intelligence.signals) {
     if (signal.type === "timeline") {
+      tally.timeline.attempted++;
       const date = extractTimelineDate(signal.evidence);
-      if (!date) continue;
+      if (!date) {
+        logger.warn("deal-autofill: timeline extraction failed", {
+          dealId,
+          tenantId,
+          sourceType,
+          evidence: signal.evidence.slice(0, 200),
+          signalConfidence: signal.confidence,
+        });
+        continue;
+      }
+      tally.timeline.extracted++;
 
       const confidence =
         signal.confidence * (EXTRACTION_CONFIDENCE_MODIFIER.timeline ?? 0.7);
@@ -400,12 +439,32 @@ export async function autofillDealFromIntelligence(
     }
   }
 
+  // Emit a health-warning at the end of the run if any signal type
+  // had attempts but zero successful extractions. This is the canary
+  // for silent regressions — observability dashboards (Datadog, Sentry
+  // breadcrumbs) can alert when this warning crosses a threshold per
+  // hour. Use `warn` rather than `error` because individual failures
+  // are expected at low rates; aggregation across runs is what flags
+  // a regression.
+  for (const [type, stats] of Object.entries(tally)) {
+    if (stats.attempted > 0 && stats.extracted === 0) {
+      logger.warn("deal-autofill: zero extraction success in run", {
+        dealId,
+        tenantId,
+        sourceType,
+        signalType: type,
+        attempted: stats.attempted,
+      });
+    }
+  }
+
   logger.info("deal-autofill: complete", {
     dealId,
     tenantId,
     sourceType,
     fieldsUpdated: result.fieldsUpdated,
     suggestionsCreated: result.suggestionsCreated,
+    extractionTally: tally,
   });
 
   return result;

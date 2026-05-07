@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const constructEventMock = vi.fn();
 const subscriptionsRetrieveMock = vi.fn();
 
-vi.mock("@/lib/stripe", () => ({
+vi.mock("@/lib/billing/stripe", () => ({
   stripe: {
     webhooks: { constructEvent: constructEventMock },
     subscriptions: { retrieve: subscriptionsRetrieveMock },
@@ -19,6 +19,10 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
+  trustEvents: { id: "id", tenantId: "tenant_id", eventType: "event_type", delta: "delta", reason: "reason", createdAt: "created_at" },
+  systemTrustScore: { id: "id", tenantId: "tenant_id", score: "score", components: "components", createdAt: "created_at" },
+  agentActions: { id: "id", tenantId: "tenant_id", agentId: "agent_id", actionType: "action_type", entityId: "entity_id", summary: "summary", approved: "approved", metadata: "metadata", createdAt: "created_at" },
+  knowledgeEntries: { id: "id", tenantId: "tenant_id", title: "title", content: "content", category: "category", metadata: "metadata", createdAt: "created_at" },
   tenants: { id: "id", plan: "plan", updatedAt: "updatedAt" },
 }));
 
@@ -46,11 +50,34 @@ import { db } from "@/db";
 
 const mod = await import("@/app/api/webhooks/stripe/route");
 
+/**
+ * Build a chainable + destructurable mock that resolves to `data`.
+ * Supports both `await chain` and `const [first] = await chain`.
+ */
+function createChain(data: unknown[] = []) {
+  const chain: any = {};
+  const methods = [
+    "select","from","leftJoin","innerJoin","where","groupBy",
+    "orderBy","limit","offset","set","values","returning",
+    "onConflictDoUpdate","onConflictDoNothing",
+  ];
+  for (const m of methods) chain[m] = vi.fn().mockReturnValue(chain);
+  chain.then = (resolve: (v: unknown) => unknown) => Promise.resolve(data).then(resolve);
+  chain[Symbol.iterator] = function* () { yield* data; };
+  for (let i = 0; i < data.length; i++) chain[i] = data[i];
+  chain.length = data.length;
+  return chain;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_test");
   vi.stubEnv("STRIPE_STARTER_PRICE_ID", "price_starter");
   vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_pro");
+  // Default chains that resolve to empty arrays
+  vi.mocked(db.select).mockReturnValue(createChain() as never);
+  vi.mocked(db.insert).mockReturnValue(createChain() as never);
+  vi.mocked(db.update).mockReturnValue(createChain() as never);
 });
 
 afterEach(() => {
@@ -58,22 +85,24 @@ afterEach(() => {
 });
 
 function mockSelectOnce(rows: unknown[]) {
-  const limitFn = vi.fn().mockResolvedValue(rows);
-  const whereFn = vi.fn().mockReturnValue({ limit: limitFn });
-  const fromFn = vi.fn().mockReturnValue({ where: whereFn });
-  vi.mocked(db.select).mockReturnValueOnce({ from: fromFn } as never);
+  vi.mocked(db.select).mockReturnValueOnce(createChain(rows) as never);
 }
 
 function setupUpdate() {
-  const updateWhere = vi.fn().mockResolvedValue(undefined);
-  const setFn = vi.fn().mockReturnValue({ where: updateWhere });
-  vi.mocked(db.update).mockReturnValue({ set: setFn } as never);
+  const setFn = vi.fn();
+  const chain = createChain();
+  chain.set = setFn;
+  setFn.mockReturnValue(chain);
+  vi.mocked(db.update).mockReturnValue(chain as never);
   return setFn;
 }
 
 function setupInsert() {
-  const valuesFn = vi.fn().mockResolvedValue(undefined);
-  vi.mocked(db.insert).mockReturnValue({ values: valuesFn } as never);
+  const valuesFn = vi.fn();
+  const chain = createChain();
+  chain.values = valuesFn;
+  valuesFn.mockReturnValue(chain);
+  vi.mocked(db.insert).mockReturnValue(chain as never);
   return valuesFn;
 }
 

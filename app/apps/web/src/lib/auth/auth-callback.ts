@@ -83,13 +83,21 @@ export const SIGN_IN_ERROR_COPY: Record<string, string> = {
 
   // --- server / config (shouldn't reach the user, but be polite if it does) ---
   Configuration:
-    "Sign-in is temporarily unavailable. Please try again in a moment.",
+    "This sign-in method is temporarily unreachable from your network. Try a different provider, or use email below.",
   AdapterError:
     "Sign-in is temporarily unavailable. Please try again in a moment.",
   MissingAdapter:
     "Sign-in is temporarily unavailable. Please try again in a moment.",
   MissingSecret:
     "Sign-in is temporarily unavailable. Please try again in a moment.",
+
+  // --- locally-emitted by sign-in/sign-up server actions when the
+  // OAuth bootstrap fetch (provider's well-known / authorization URL)
+  // fails: TLS interception, corporate proxy, captive portal, DNS, etc.
+  // We surface a clearer message than the generic Configuration copy so
+  // the user knows the issue is local + actionable. ---
+  OAuthUnavailable:
+    "This sign-in method is temporarily unreachable from your network. Try a different provider, or use email below.",
 
   // --- catch-alls used by NextAuth's default error page ---
   Default: "Sign-in failed. Please try again.",
@@ -112,3 +120,20 @@ export const SIGN_IN_REASON_COPY: Record<string, string> = {
   "email-verified":
     "Email confirmed. Sign in to continue.",
 };
+
+/**
+ * Next.js signals a successful `redirect()` by throwing an Error whose
+ * `digest` starts with `NEXT_REDIRECT`. `signIn()` from NextAuth uses
+ * `redirect()` internally on success, so any try/catch around `signIn`
+ * MUST rethrow these or the redirect is silently eaten. Same trick for
+ * `notFound()` (digest = NEXT_NOT_FOUND).
+ *
+ * This helper centralizes the check so the two server actions that
+ * wrap OAuth `signIn` (sign-in + sign-up) stay in sync.
+ */
+export function isNextControlFlowError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const digest = (err as { digest?: unknown }).digest;
+  if (typeof digest !== "string") return false;
+  return digest.startsWith("NEXT_REDIRECT") || digest === "NEXT_NOT_FOUND";
+}

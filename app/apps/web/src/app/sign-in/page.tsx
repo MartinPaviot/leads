@@ -3,10 +3,12 @@ import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { PasswordInput } from "@/components/ui/password-input";
 import { AuthSubmitButton } from "@/components/ui/auth-submit-button";
+import { BodyScrollUnlock } from "@/components/auth/body-scroll-unlock";
 import {
   sanitizeCallbackUrl,
   SIGN_IN_REASON_COPY,
   resolveSignInErrorCopy,
+  isNextControlFlowError,
 } from "@/lib/auth/auth-callback";
 
 /**
@@ -49,11 +51,12 @@ export default async function SignInPage({
 
   return (
     <div
-      className="bg-grid flex min-h-screen items-center justify-center"
+      className="bg-grid flex min-h-screen flex-col px-4 py-8"
       style={{ background: "var(--color-bg-page)" }}
     >
+      <BodyScrollUnlock />
       <div
-        className="w-full max-w-sm space-y-6 rounded-xl p-8"
+        className="m-auto w-full max-w-sm space-y-5 rounded-xl p-7"
         style={{
           background: "var(--color-bg-card)",
           border: "1px solid var(--color-border-default)",
@@ -116,7 +119,20 @@ export default async function SignInPage({
             className="flex-1"
             action={async () => {
               "use server";
-              await signIn("google", { redirectTo: callbackUrl });
+              try {
+                await signIn("google", { redirectTo: callbackUrl });
+              } catch (err) {
+                // Rethrow Next's success-redirect signal so the OAuth
+                // hop completes; only catch real failures (TLS, DNS,
+                // provider unreachable). Friendly message via
+                // resolveSignInErrorCopy("OAuthUnavailable").
+                if (isNextControlFlowError(err)) throw err;
+                const cb =
+                  callbackUrl === "/home"
+                    ? ""
+                    : `&callbackUrl=${encodeURIComponent(callbackUrl)}`;
+                redirect(`/sign-in?error=OAuthUnavailable&provider=google${cb}`);
+              }
             }}
           >
             <button
@@ -141,7 +157,18 @@ export default async function SignInPage({
             className="flex-1"
             action={async () => {
               "use server";
-              await signIn("microsoft-entra-id", { redirectTo: callbackUrl });
+              try {
+                await signIn("microsoft-entra-id", { redirectTo: callbackUrl });
+              } catch (err) {
+                if (isNextControlFlowError(err)) throw err;
+                const cb =
+                  callbackUrl === "/home"
+                    ? ""
+                    : `&callbackUrl=${encodeURIComponent(callbackUrl)}`;
+                redirect(
+                  `/sign-in?error=OAuthUnavailable&provider=microsoft${cb}`
+                );
+              }
             }}
           >
             <button

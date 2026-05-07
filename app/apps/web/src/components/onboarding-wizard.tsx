@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { signIn } from "next-auth/react";
 import { ArrowRight, ArrowLeft, Loader2, Check, Mail, Target, Zap, MessageSquare, Users, Building2, Globe, ChevronDown, Calendar, Shield, Eye, EyeOff, Clock, Send, Inbox, Database } from "lucide-react";
-import { INDUSTRIES, COMPANY_SIZES, SALES_MOTIONS, GEOGRAPHIES, JOB_SENIORITIES, JOB_DEPARTMENTS, sizesToApolloRanges } from "@/lib/icp-constants";
+import { INDUSTRIES, COMPANY_SIZES, SALES_MOTIONS, GEOGRAPHIES, JOB_SENIORITIES, JOB_DEPARTMENTS, sizesToApolloRanges } from "@/lib/config/icp-constants";
 import { CompanyLogo } from "@/components/ui/company-logo";
-import { chunkedBulkCall } from "@/lib/chunk-bulk";
+import { chunkedBulkCall } from "@/lib/infra/chunk-bulk";
 import { trackEvent } from "@/components/posthog-provider";
 import type { TamEvent, CompanyCompact, ScorePayload, SignalPayload, SignalKey } from "@/lib/tam-stream/events";
 

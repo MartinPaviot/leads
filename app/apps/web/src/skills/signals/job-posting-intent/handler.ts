@@ -1,11 +1,12 @@
 import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
-import { searchPeople, enrichOrganization } from "@/lib/apollo-client";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { searchPeople, enrichOrganization } from "@/lib/integrations/apollo-client";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
+import { getSkillKnowledge } from "@/skills/skill-knowledge";
 import type { SkillRunOptions } from "@/skills/types";
 import type { JobPostingIntentInput, JobPostingIntentOutput } from "./schema";
 
@@ -30,6 +31,11 @@ export async function jobPostingIntentHandler(
     ));
 
   const model = getLLMModel();
+
+  // Retrieve Knowledge context to improve LLM reasoning about hiring intent
+  const knowledgeBlock = model
+    ? await getSkillKnowledge("job posting hiring intent signals tool adoption indicators", options.tenantId)
+    : "";
 
   for (const company of companyRecords) {
     if (!company.domain) continue;
@@ -84,7 +90,7 @@ export async function jobPostingIntentHandler(
           }),
           prompt: `Company: ${org.name} (${org.industry}), ${org.estimated_num_employees} employees, ${org.latest_funding_stage || "unknown"} funding.
 Tech stack: ${org.technology_names?.slice(0, 10).join(", ") || "unknown"}.
-
+${knowledgeBlock}
 Is this company likely to be hiring for roles that indicate they need new tools/processes?
 - reasoning: why or why not (1-2 sentences)
 - angle: suggested outreach angle if yes (1 sentence)

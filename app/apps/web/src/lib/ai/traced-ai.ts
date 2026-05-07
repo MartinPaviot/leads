@@ -222,10 +222,28 @@ export async function tracedStreamText(
 
     const toolCalls = event.steps
       ?.flatMap((s: any) => s.toolCalls || [])
-      .map((tc: any) => ({ name: tc.toolName })) || [];
+      .map((tc: any) => ({
+        name: tc.toolName,
+        args: JSON.stringify(tc.args || {}).slice(0, 500),
+        result: JSON.stringify(tc.result || "").slice(0, 500),
+      })) || [];
+
+    const toolSelectionMeta = {
+      orchestratorRouted: _trace.orchestratorRouted,
+      orchestratorSpecialists: _trace.orchestratorSpecialists,
+      orchestratorConfidence: _trace.orchestratorConfidence,
+      allowedToolCount: _trace.allowedToolCount,
+      toolsSelected: toolCalls.map((tc: any) => tc.name),
+      userIntent: _trace.inputPreview?.slice(0, 200),
+    };
 
     recordTrace(
-      { agentId: _trace.agentId, tenantId: _trace.tenantId, traceId: _trace.traceId },
+      {
+        agentId: _trace.agentId,
+        tenantId: _trace.tenantId,
+        traceId: _trace.traceId,
+        metadata: toolSelectionMeta,
+      },
       {
         input: _trace.inputPreview || "chat message",
         output: event.text?.slice(0, 2000),

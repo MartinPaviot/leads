@@ -1,0 +1,135 @@
+- generic [active] [ref=e1]:
+  - banner:
+    - generic [ref=e3]:
+      - navigation [ref=e4]:
+        - link "Product" [ref=e5] [cursor=pointer]:
+          - /url: /product
+        - link "Company" [ref=e6] [cursor=pointer]:
+          - /url: /company
+      - link "Monaco Logo" [ref=e8] [cursor=pointer]:
+        - /url: /
+        - img "Monaco Logo" [ref=e10]
+      - generic [ref=e12]:
+        - link "Log in" [ref=e13] [cursor=pointer]:
+          - /url: https://app.monaco.com/login
+        - button "Request demo" [ref=e14] [cursor=pointer]
+  - main [ref=e15]:
+    - generic [ref=e18]:
+      - generic [ref=e20]:
+        - generic [ref=e22]:
+          - generic [ref=e23]:
+            - paragraph [ref=e24]: Garry Tan
+            - paragraph [ref=e25]: Monaco Investor
+          - paragraph [ref=e26]: "\"Monaco solves go-to-market risk for founders without sales backgrounds.\""
+        - generic [ref=e28]:
+          - generic [ref=e29]:
+            - paragraph [ref=e30]: Peter Thiel
+            - paragraph [ref=e31]: Founders Fund • Monaco Investor
+          - paragraph [ref=e32]: "\"No product sells itself — though Monaco comes close.\""
+        - generic [ref=e34]:
+          - generic [ref=e35]:
+            - paragraph [ref=e36]: Ryan Petersen
+            - paragraph [ref=e37]: Founder, Flexport • Monaco Investor
+          - paragraph [ref=e38]: "\"Every founder needs to put their startup on Monaco before their competition.\""
+      - button "Play video" [ref=e41] [cursor=pointer]:
+        - img "Hero background video" [ref=e43]
+        - img [ref=e46]
+      - generic [ref=e49]:
+        - generic [ref=e50]:
+          - heading "The first revenue engine for startups" [level=1] [ref=e51]
+          - paragraph [ref=e52]: The AI native platform that replaces legacy CRM and disparate sales point solutions.
+        - button "Request demo" [ref=e54] [cursor=pointer]
+      - generic [ref=e55]:
+        - generic [ref=e61]:
+          - generic [ref=e62]:
+            - heading "Everything you need, all in one place" [level=2] [ref=e63]
+            - paragraph [ref=e64]: Monaco is the all-in-one revenue platform - and the system of record. It builds your TAM, runs outbound, captures every interaction, and manages pipeline in one place.
+          - generic [ref=e65]:
+            - button "One unified platform Database, signals, sequences, pipeline tracking, call recording, and more." [ref=e66] [cursor=pointer]:
+              - generic [ref=e71]:
+                - paragraph [ref=e72]: One unified platform
+                - paragraph [ref=e74]: Database, signals, sequences, pipeline tracking, call recording, and more.
+            - button "Every interaction catalogued Emails, calls, meeting recordings, and messages are automatically captured, summarized, and turned into structured records." [ref=e75] [cursor=pointer]:
+              - generic [ref=e79]:
+                - paragraph [ref=e80]: Every interaction catalogued
+                - paragraph [ref=e81]: Emails, calls, meeting recordings, and messages are automatically captured, summarized, and turned into structured records.
+            - button "From demand generation to pipeline conversion Monaco agents are constantly taking action to generate new opportunities and close more revenue." [ref=e82] [cursor=pointer]:
+              - generic [ref=e86]:
+                - paragraph [ref=e87]: From demand generation to pipeline conversion
+                - paragraph [ref=e88]: Monaco agents are constantly taking action to generate new opportunities and close more revenue.
+        - generic [ref=e94]:
+          - generic [ref=e95]:
+            - heading "Time to value" [level=2] [ref=e96]
+            - paragraph [ref=e97]: Monaco starts working for you immediately.
+          - generic [ref=e98]:
+            - button "Effortless onboarding We set up your TAM, score all your accounts, overlay signals, build sequences, and import pipeline for you on day 1." [ref=e99] [cursor=pointer]:
+              - generic [ref=e104]:
+                - paragraph [ref=e105]: Effortless onboarding
+                - paragraph [ref=e107]: We set up your TAM, score all your accounts, overlay signals, build sequences, and import pipeline for you on day 1.
+            - button "White-glove activation Each customer is paired with a forward deployed sales executive to ensure immediate impact." [ref=e108] [cursor=pointer]:
+              - generic [ref=e112]:
+                - paragraph [ref=e113]: White-glove activation
+                - paragraph [ref=e114]: Each customer is paired with a forward deployed sales executive to ensure immediate impact.
+            - button "Value in days, not months Within days, Monaco is generating new meetings and progressing pipeline." [ref=e115] [cursor=pointer]:
+              - generic [ref=e119]:
+                - paragraph [ref=e120]: Value in days, not months
+                - paragraph [ref=e121]: Within days, Monaco is generating new meetings and progressing pipeline.
+        - generic [ref=e127]:
+          - generic [ref=e128]:
+            - heading "Agents working for you" [level=2] [ref=e129]
+            - paragraph [ref=e130]: Monaco agents automate demand gen, pipeline management, and follow-ups so you can spend your time with customers.
+          - generic [ref=e131]:
+            - button "Your TAM builds itself Agents continuously discover, enrich, and score accounts so your TAM stays fresh." [ref=e132] [cursor=pointer]:
+              - generic [ref=e137]:
+                - paragraph [ref=e138]: Your TAM builds itself
+                - paragraph [ref=e140]: Agents continuously discover, enrich, and score accounts so your TAM stays fresh.
+            - button "Your system runs itself Outreach, data capture, enrichment, and pipeline updates happen automatically." [ref=e141] [cursor=pointer]:
+              - generic [ref=e145]:
+                - paragraph [ref=e146]: Your system runs itself
+                - paragraph [ref=e147]: Outreach, data capture, enrichment, and pipeline updates happen automatically.
+            - button "CRO Copilot Monaco proactively coaches you on what you should be doing to close more revenue." [ref=e148] [cursor=pointer]:
+              - generic [ref=e152]:
+                - paragraph [ref=e153]: CRO Copilot
+                - paragraph [ref=e154]: Monaco proactively coaches you on what you should be doing to close more revenue.
+      - generic [ref=e157]:
+        - img "Monaco Logo" [ref=e160]
+        - heading "Start growing your revenue faster" [level=2] [ref=e162]
+        - button "Request demo" [ref=e164] [cursor=pointer]
+    - generic [ref=e165]:
+      - generic [ref=e166]:
+        - link "Monaco" [ref=e168] [cursor=pointer]:
+          - /url: /
+          - img "Monaco" [ref=e170]
+        - navigation [ref=e171]:
+          - link "Product" [ref=e172] [cursor=pointer]:
+            - /url: /product
+          - link "Company" [ref=e173] [cursor=pointer]:
+            - /url: /company
+        - navigation [ref=e174]:
+          - link "Log in" [ref=e175] [cursor=pointer]:
+            - /url: https://app.monaco.com/login
+          - button "Request demo" [ref=e176] [cursor=pointer]
+        - navigation [ref=e177]:
+          - link "System Status" [ref=e178] [cursor=pointer]:
+            - /url: https://status.monaco.com
+          - link "Compliance & Trust" [ref=e179] [cursor=pointer]:
+            - /url: https://trust.monaco.com
+        - navigation [ref=e180]:
+          - link "Privacy" [ref=e181] [cursor=pointer]:
+            - /url: /privacy
+          - link "Terms" [ref=e182] [cursor=pointer]:
+            - /url: /terms
+        - navigation [ref=e183]:
+          - link "Security" [ref=e184] [cursor=pointer]:
+            - /url: /security
+          - link "Vulnerability Disclosure" [ref=e185] [cursor=pointer]:
+            - /url: /vulnerability-disclosure
+        - generic [ref=e186]:
+          - link "LinkedIn" [ref=e187] [cursor=pointer]:
+            - /url: https://www.linkedin.com/company/monaco-gtm
+            - img [ref=e188]
+          - link "X" [ref=e190] [cursor=pointer]:
+            - /url: https://x.com/MonacoGTM
+            - img [ref=e191]
+      - paragraph [ref=e196]: Copyright © 2026 Monaco. All rights reserved.
+  - alert [ref=e197]

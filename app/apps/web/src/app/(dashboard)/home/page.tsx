@@ -19,6 +19,9 @@ import { useOnboardingVersion } from "@/hooks/use-onboarding-version";
 import { TAMRevealNotification } from "@/components/TAMRevealNotification";
 import { ScalingPathPrompt } from "@/components/ScalingPathPrompt";
 import { CompanyLogo } from "@/components/ui/company-logo";
+import { HotInboundsWidget } from "@/components/hot-inbounds-widget";
+import { HotVisitorsWidget } from "@/components/hot-visitors-widget";
+import { OnboardingIncompleteBanner } from "@/components/onboarding-7phase/incomplete-banner";
 
 interface Action {
   action: string;
@@ -307,9 +310,27 @@ export default function DashboardPage() {
           </p>
         </div>
 
+        {/* MONACO-PARITY-03: discoverability shim — surfaces the
+            7-phase wizard at /onboarding-v3 if onboarding isn't
+            complete. Hides itself on completion. */}
+        <OnboardingIncompleteBanner />
+
         {/* F010: Agent Activity Feed — primary view */}
         <div className="mb-6">
           <AgentFeed />
+        </div>
+
+        {/* MONACO-PARITY-02: Hot inbounds — speed-to-lead window
+            (~5 min hot vs 60 min = 9x conversion). The widget hides
+            itself when there are no hot leads, so it never adds
+            empty-state padding. */}
+        <div className="mb-6 grid gap-4 md:grid-cols-2">
+          <HotInboundsWidget />
+          {/* MONACO-PARITY-04: anonymous-visitor identification
+              (Snitcher). Shows TAM accounts that just hit the
+              marketing site so the founder can act before the lead
+              cold-shops competitors. */}
+          <HotVisitorsWidget />
         </div>
 
         {/* Welcome Banner (first time after onboarding) */}

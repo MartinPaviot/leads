@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-vi.mock("@/lib/auth-utils", () => ({
+vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: vi.fn(),
+  withAuthRLS: vi.fn(async (handler) => { const ctx = await (await import("@/lib/auth/auth-utils")).getAuthContext(); if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 }); return handler(ctx); }),
 }));
 
 vi.mock("@/db", () => ({
@@ -12,6 +13,11 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
+  trustEvents: { id: "id", tenantId: "tenant_id", eventType: "event_type", delta: "delta", reason: "reason", createdAt: "created_at" },
+  systemTrustScore: { id: "id", tenantId: "tenant_id", score: "score", components: "components", createdAt: "created_at" },
+  agentActions: { id: "id", tenantId: "tenant_id", agentId: "agent_id", actionType: "action_type", entityId: "entity_id", summary: "summary", approved: "approved", metadata: "metadata", createdAt: "created_at" },
+  knowledgeEntries: { id: "id", tenantId: "tenant_id", title: "title", content: "content", category: "category", metadata: "metadata", createdAt: "created_at" },
+  tenants: { id: "id", name: "name", settings: "settings", domain: "domain", stripeCustomerId: "stripe_customer_id", subscriptionId: "subscription_id", plan: "plan", createdAt: "created_at", updatedAt: "updated_at", referralCode: "referral_code" },
   connectedMailboxes: { id: "id", tenantId: "tenantId", createdAt: "createdAt" },
   outboundEmails: { mailboxId: "mailboxId" },
   warmupEmails: { mailboxId: "mailboxId", targetMailboxId: "targetMailboxId" },
@@ -25,8 +31,28 @@ vi.mock("drizzle-orm", () => ({
 
 const loggerError = vi.fn();
 const loggerWarn = vi.fn();
-vi.mock("@/lib/logger", () => ({
+vi.mock("@/lib/observability/logger", () => ({
   logger: { error: loggerError, warn: loggerWarn, info: vi.fn(), debug: vi.fn() },
+}));
+
+// Mock retryWithBackoff to run the fn directly with bounded retries (no real delay)
+vi.mock("@/lib/infra/retry", () => ({
+  retryWithBackoff: vi.fn(async (fn: () => Promise<unknown>, opts?: { attempts?: number }) => {
+    const maxAttempts = opts?.attempts ?? 3;
+    let lastErr: unknown;
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        return await fn();
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    throw lastErr;
+  }),
+}));
+
+vi.mock("@/lib/billing/plan-limits", () => ({
+  checkPlanLimit: vi.fn().mockResolvedValue({ allowed: true, current: 0, limit: 5, plan: "free" }),
 }));
 
 import { getAuthContext } from "@/lib/auth/auth-utils";

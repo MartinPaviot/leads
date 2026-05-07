@@ -7,8 +7,8 @@ import {
   ArrowRight, ArrowLeft, Loader2, Check, Target, Users, Mail,
   Zap, X, Send,
 } from "lucide-react";
-import { INDUSTRIES, COMPANY_SIZES, GEOGRAPHIES, DECISION_MAKER_ROLES } from "@/lib/icp-constants";
-import { sanitizeHtml } from "@/lib/sanitize-html";
+import { INDUSTRIES, COMPANY_SIZES, GEOGRAPHIES, DECISION_MAKER_ROLES } from "@/lib/config/icp-constants";
+import { sanitizeHtml } from "@/lib/infra/sanitize-html";
 
 const pill = "rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all duration-150 cursor-pointer select-none";
 

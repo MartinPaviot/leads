@@ -27,6 +27,7 @@ import {
   extractCitationsFromResponse,
   type RetrievedResult,
 } from "@/lib/evals/rag-quality";
+import { retrieveKnowledge, formatKnowledgeForPrompt } from "@/lib/knowledge/retrieval";
 import { recordTrace } from "@/lib/observability/observability";
 import { allocateContextBudget, formatBudgetSummary, type RagResult } from "@/lib/ai/context-budget";
 
@@ -496,6 +497,14 @@ export async function POST(req: Request) {
     getEntityContext(contextType, contextId, authCtx.tenantId),
     (async () => {
       try {
+        if (lastUserText) {
+          const entries = await retrieveKnowledge(lastUserText, authCtx.tenantId, {
+            userId: authCtx.userId,
+            limit: 8,
+          });
+          if (entries.length > 0) return "\n\n" + formatKnowledgeForPrompt(entries);
+        }
+        // Fallback: load all active entries when no user message for semantic match
         const rows = await db
           .select({
             title: knowledgeEntries.title,

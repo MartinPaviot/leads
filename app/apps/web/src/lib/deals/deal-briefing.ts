@@ -25,6 +25,7 @@ import { and, desc, eq, notInArray, or, inArray } from "drizzle-orm";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
+import { llmCall } from "@/lib/ai/llm-call";
 import { ageInStage } from "./deal-helpers";
 import { dealBriefSchema, type DealBrief } from "./deal-briefing-schema";
 
@@ -147,18 +148,29 @@ export async function buildDealBrief(
     ? [contact.firstName, contact.lastName].filter(Boolean).join(" ") || null
     : null;
 
-  const result = await tracedGenerateObject({
-    model,
-    schema: dealBriefSchema.omit({
-      dealId: true,
-      dealName: true,
-      stage: true,
-      value: true,
-      contactName: true,
-      companyName: true,
-      daysInStage: true,
-    }),
-    prompt: `You are a senior sales analyst producing a deal briefing. Be specific and use evidence from the timeline. Include verbatim quotes when available.
+  // Wrap in llmCall so cost / latency / retries / fallback land in
+  // `llm_calls` for the admin dashboard. Preserves the existing
+  // tracedGenerateObject (which keeps _trace + flywheel + budget
+  // semantics intact) — llmCall just adds observability + retry +
+  // fallback ON TOP. When primary is Anthropic, fall back to
+  // openai gpt-4o-mini ; when primary is already OpenAI, no
+  // fallback (different OpenAI model would degrade quality without
+  // bypassing the actual outage cause).
+  const isPrimaryAnthropic = !!process.env.ANTHROPIC_API_KEY;
+  const result = await llmCall({
+    fn: tracedGenerateObject,
+    args: [{
+      model,
+      schema: dealBriefSchema.omit({
+        dealId: true,
+        dealName: true,
+        stage: true,
+        value: true,
+        contactName: true,
+        companyName: true,
+        daysInStage: true,
+      }),
+      prompt: `You are a senior sales analyst producing a deal briefing. Be specific and use evidence from the timeline. Include verbatim quotes when available.
 
 ## Deal
 - Name: ${deal.name}
@@ -191,9 +203,19 @@ Produce a structured brief with:
 8. **riskLevel**: "low" (progressing normally), "medium" (slowing), "high" (stalled or negative signals), "critical" (likely to lose).
 
 Base everything on EVIDENCE from the timeline, not assumptions.`,
-    _trace: {
-      agentId: "deal-briefing",
+      _trace: {
+        agentId: "deal-briefing",
+        tenantId,
+      },
+    }] as never,
+    fallbackModel: isPrimaryAnthropic ? openai("gpt-4o-mini") : undefined,
+    retries: 1,
+    timeoutMs: 45_000,
+    trace: {
       tenantId,
+      surfaceId: "deal-briefing",
+      promptId: "deal-briefing.v1",
+      metadata: { dealId, agentId: "deal-briefing" },
     },
   });
 
@@ -205,7 +227,7 @@ Base everything on EVIDENCE from the timeline, not assumptions.`,
     contactName,
     companyName,
     daysInStage: age?.days ?? 0,
-    ...result.object,
+    ...(result as { object: Omit<DealBrief, "dealId" | "dealName" | "stage" | "value" | "contactName" | "companyName" | "daysInStage"> }).object,
   };
 }
 

@@ -143,6 +143,31 @@ interface EventCatalog {
   onboarding_skipped: { step: string };
   onboarding_resumed: { fromStep: string };
   onboarding_completed: { userId: string; durationMs?: number };
+  // ── MONACO-PARITY-03 — 7-phase wizard funnel (server-emitted) ──
+  // Sam Blond verbatim: "Onboarding is where Monaco wins or loses."
+  // We measure win/loss per phase so per-phase drop-offs surface in
+  // PostHog without manual SQL.
+  onboarding_v3_phase_submitted: {
+    tenantId: string;
+    phase: number;
+    success: boolean;
+    /** Count of Zod validation errors when success=false. */
+    validationErrors?: number;
+    /** Wall-clock ms since this tenant's onboarding row was created. */
+    durationSinceStartMs?: number;
+  };
+  onboarding_v3_completed: {
+    tenantId: string;
+    success: boolean;
+    /** When success=false: how many hard gates were still failing. */
+    failingGatesCount?: number;
+    durationMs?: number;
+  };
+  onboarding_v3_founder_led_clicked: {
+    tenantId: string;
+    /** Where the upgrade CTA fired from. */
+    source: "wizard_header" | "incomplete_banner" | "settings";
+  };
   onboarding_email_connected: { provider: "google" | "microsoft" };
   // WS-0 additions — coverage gaps found during the 2026-04-21 onboarding audit.
   /** OAuth round-trip complete and the user has landed back on /home. */

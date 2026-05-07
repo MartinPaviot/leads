@@ -5,7 +5,7 @@ const { getSettingsMock, updateSettingsMock } = vi.hoisted(() => ({
   updateSettingsMock: vi.fn(),
 }));
 
-vi.mock("@/lib/tenant-settings", () => ({
+vi.mock("@/lib/config/tenant-settings", () => ({
   getTenantSettings: (tenantId: string) => getSettingsMock(tenantId),
   updateTenantSettings: (tenantId: string, updates: Record<string, unknown>) =>
     updateSettingsMock(tenantId, updates),

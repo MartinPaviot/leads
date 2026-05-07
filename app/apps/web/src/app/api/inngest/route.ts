@@ -30,6 +30,10 @@ import { signalAutoEnroll } from "@/inngest/signal-to-sequence";
 import { nightlyRelationshipGraphBuild, onDemandRelationshipGraphBuild } from "@/inngest/relationship-graph-builder";
 import { customSignalBackfill } from "@/inngest/custom-signal-backfill";
 import { dataRetentionPurge } from "@/inngest/data-retention";
+import { evictSignalUrlCache } from "@/inngest/signal-url-cache-evict";
+import { identifyVisit } from "@/inngest/identify-visit";
+import { weeklyEvalHarness } from "@/inngest/eval-harness-cron";
+import { dailyCsHealthSnapshots } from "@/inngest/cs-health-cron";
 import { weeklyAnonymizedSignalAggregation } from "@/inngest/anonymized-signal-aggregation";
 import { extractThreadIntelligenceBatch, extractSingleThreadIntelligence } from "@/inngest/thread-intelligence";
 import { weeklyModelTraining, trainScoringModelOnDemand } from "@/inngest/scoring-model-trainer";
@@ -128,6 +132,15 @@ export const { GET, POST, PUT } = serve({
     customSignalBackfill,
     // GDPR data-retention: purge canceled tenant data after 30 days
     dataRetentionPurge,
+    // MONACO-PARITY-01: evict expired URL-verification cache rows
+    // (7-day TTL). Runs at 03:30 UTC daily.
+    evictSignalUrlCache,
+    // MONACO-PARITY-04: visitor-ID identification on `visit/created`.
+    identifyVisit,
+    // Sprint-1 audit follow-up: weekly LLM eval harness — Mondays 02:00 UTC.
+    weeklyEvalHarness,
+    // Sprint-2 audit follow-up: daily CS account health snapshots — 04:00 UTC.
+    dailyCsHealthSnapshots,
     // Cross-tenant anonymized benchmarks (#96)
     weeklyAnonymizedSignalAggregation,
     // Email thread intelligence — thread-level buying signal extraction

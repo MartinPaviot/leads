@@ -164,6 +164,14 @@ export async function POST(req: Request) {
         console.warn("Failed to trigger onboarding completion:", err)
       );
 
+    // Seed Knowledge base from onboarding data (product, ICP, company context).
+    // Non-blocking, idempotent — safe to re-run on re-completion.
+    import("@/lib/knowledge/seed-from-onboarding")
+      .then((m) => m.seedKnowledgeFromOnboarding(authCtx.tenantId, authCtx.userId))
+      .catch((err) =>
+        logger.warn("onboarding/save: knowledge seeding failed", { err })
+      );
+
     // O9: welcome email — best-effort, idempotent. We send exactly once
     // per tenant; a re-completion (e.g. user re-runs the wizard) won't
     // mailbomb. Failures are logged but never block the completion.

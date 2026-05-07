@@ -18,6 +18,7 @@ import {
   parseSizeRange,
   parseRoleKeywords,
 } from "@/lib/config/tenant-settings";
+import { getTenantKnowledge, formatKnowledgeBlock } from "@/lib/knowledge/get-tenant-knowledge";
 import { sizesToApolloRanges } from "@/lib/config/icp-constants";
 import { runPerCompanyPipeline } from "@/lib/tam-stream/per-company";
 import type { SignalContext } from "@/lib/tam-stream/signals/types";
@@ -420,6 +421,9 @@ async function planStrategies(args: {
     ? sizesToApolloRanges(settings.targetCompanySizes).join(", ")
     : "";
 
+  const knowledgeEntries = await getTenantKnowledge(tenantId);
+  const knowledgeBlock = formatKnowledgeBlock(knowledgeEntries);
+
   const businessContext = [
     settings.onboardingCompanyName && `Company: ${settings.onboardingCompanyName}`,
     settings.productDescription && `Product: ${settings.productDescription}`,
@@ -433,8 +437,7 @@ async function planStrategies(args: {
       `Target geographies: ${settings.targetGeographies.join(", ")}`,
     // BUG-WS0-008: derive targetRoles at read time
     deriveTargetRoles(settings) && `Buyer personas: ${deriveTargetRoles(settings)}`,
-    settings.knowledge?.length &&
-      `Knowledge base:\n${settings.knowledge.map((k) => `- ${k.topic}: ${k.content}`).join("\n")}`,
+    knowledgeBlock && `Knowledge base:\n${knowledgeBlock}`,
   ]
     .filter(Boolean)
     .join("\n");

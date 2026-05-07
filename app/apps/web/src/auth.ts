@@ -266,6 +266,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   pages: {
     signIn: "/sign-in",
+    // Error fallback. Without this, NextAuth ships its own bare
+    // `/api/auth/error` page that reads as "the product is broken"
+    // when really the OAuth provider was unreachable from the user's
+    // network. Routing back to /sign-in lets `resolveSignInErrorCopy`
+    // surface a friendly message tied to the existing UI.
+    error: "/sign-in",
   },
   session: {
     strategy: "jwt",

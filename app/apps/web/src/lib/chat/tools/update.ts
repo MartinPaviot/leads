@@ -1077,37 +1077,39 @@ export function buildUpdateTools(ctx: ToolContext) {
       description:
         "Edit an existing knowledge base entry (topic and/or content). Admin-only. Use when the user asks to 'update our pricing knowledge', 'fix the value-prop entry'.",
       inputSchema: z.object({
-        id: z.string().describe("Knowledge entry ID (from createKnowledgeEntry)"),
+        id: z.string().describe("Knowledge entry ID"),
         topic: z.string().optional(),
         content: z.string().optional(),
       }),
       execute: async (input) => {
         if (!isAdmin) return { error: "Admin access required" };
 
-        const [tenant] = await db
+        const { knowledgeEntries: keTable } = await import("@/db/schema");
+        const { embedKnowledgeEntry } = await import("@/lib/knowledge/retrieval");
+
+        const [existing] = await db
           .select()
-          .from(tenants)
-          .where(eq(tenants.id, tenantId))
+          .from(keTable)
+          .where(and(eq(keTable.id, input.id), eq(keTable.tenantId, tenantId)))
           .limit(1);
-        if (!tenant) return { error: "Workspace not found" };
+        if (!existing) return { error: "Knowledge entry not found" };
 
-        const settings = (tenant.settings || {}) as Record<string, unknown>;
-        const knowledge = (settings.knowledge as Array<{ id: string; topic: string; content: string }>) || [];
-        const idx = knowledge.findIndex((k) => k.id === input.id);
-        if (idx === -1) return { error: "Knowledge entry not found" };
+        const updates: Record<string, unknown> = { updatedAt: new Date() };
+        if (input.topic !== undefined) updates.title = input.topic.trim();
+        if (input.content !== undefined) updates.content = input.content.trim();
 
-        if (input.topic !== undefined) knowledge[idx].topic = input.topic.trim();
-        if (input.content !== undefined) knowledge[idx].content = input.content.trim();
+        await db.update(keTable).set(updates).where(eq(keTable.id, input.id));
 
-        await db
-          .update(tenants)
-          .set({
-            settings: { ...settings, knowledge },
-            updatedAt: new Date(),
-          })
-          .where(eq(tenants.id, tenantId));
+        if (input.content !== undefined) {
+          embedKnowledgeEntry(
+            tenantId,
+            input.id,
+            (updates.title as string) ?? existing.title,
+            (updates.content as string) ?? existing.content,
+          ).catch(() => {});
+        }
 
-        return { updated: knowledge[idx] };
+        return { updated: { id: input.id, title: updates.title ?? existing.title } };
       },
     }),
 

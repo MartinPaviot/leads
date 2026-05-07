@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { companies, activities, deals } from "@/db/schema";
 import { eq, and, gte, sql, desc } from "drizzle-orm";
+import { getDeepConversationContext } from "@/skills/skill-knowledge";
 import type { SkillRunOptions } from "@/skills/types";
 import type { ChurnRiskDetectorInput, ChurnRiskDetectorOutput } from "./schema";
 
@@ -103,16 +104,42 @@ export async function churnRiskDetectorHandler(
 
     if (!riskLevel) continue; // Not at risk
 
-    // Suggest action
+    // Enrich at-risk accounts with deep conversation context — limit to top 10
+    // to avoid N+1 query explosion on large tenants.
+    const shouldEnrich = atRiskAccounts.length < 10;
+    const conversation = shouldEnrich
+      ? await getDeepConversationContext(options.tenantId, {
+          companyId: company.id,
+          query: "churn risk indicators dissatisfaction",
+        })
+      : { activities: "", notes: "", semanticResults: "" };
+
+    // Build a context-aware suggested action
     let suggestedAction = "Schedule a check-in call";
+    const hasNotes = conversation.notes.length > 0;
+    const hasSemanticContext = conversation.semanticResults.length > 0;
+    const contextSuffix = hasNotes || hasSemanticContext
+      ? ` | Context: ${conversation.notes.slice(0, 150) || conversation.semanticResults.slice(0, 150)}`
+      : "";
+
     if (riskLevel === "critical") {
       suggestedAction = totalDealValue > 10000
-        ? "Executive escalation needed — high-value account going dark"
-        : "Send a personal re-engagement email from the founder";
+        ? `Executive escalation needed — high-value account going dark${contextSuffix}`
+        : `Send a personal re-engagement email from the founder${contextSuffix}`;
     } else if (riskLevel === "high") {
       suggestedAction = negativeSentimentCount > 0
-        ? "Address negative feedback directly — schedule a resolution call"
-        : "Send value-add content and schedule a check-in";
+        ? `Address negative feedback directly — schedule a resolution call${contextSuffix}`
+        : `Send value-add content and schedule a check-in${contextSuffix}`;
+    } else {
+      suggestedAction += contextSuffix;
+    }
+
+    // Append deep-context risk reasons if relevant content found
+    if (conversation.notes) {
+      riskReasons.push(`Notes mention: ${conversation.notes.slice(0, 100)}`);
+    }
+    if (conversation.semanticResults) {
+      riskReasons.push(`Related signals: ${conversation.semanticResults.slice(0, 100)}`);
     }
 
     atRiskAccounts.push({

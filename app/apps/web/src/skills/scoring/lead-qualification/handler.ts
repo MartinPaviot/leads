@@ -1,8 +1,9 @@
 import { db } from "@/db";
 import { contacts, companies } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
-import { scoreContact } from "@/lib/contact-scoring";
-import { getGrade } from "@/lib/scoring";
+import { scoreContact } from "@/lib/scoring/contact-scoring";
+import { getGrade } from "@/lib/scoring/scoring";
+import { getSkillKnowledge } from "@/skills/skill-knowledge";
 import type { SkillRunOptions } from "@/skills/types";
 import type { LeadQualificationInput, LeadQualificationOutput } from "./schema";
 
@@ -10,14 +11,17 @@ export async function leadQualificationHandler(
   input: LeadQualificationInput,
   options: SkillRunOptions,
 ): Promise<LeadQualificationOutput> {
-  // Batch fetch contacts
-  const contactRecords = await db
-    .select()
-    .from(contacts)
-    .where(and(
-      inArray(contacts.id, input.contactIds),
-      eq(contacts.tenantId, options.tenantId),
-    ));
+  // Batch fetch contacts + retrieve knowledge in parallel
+  const [contactRecords, knowledgeBlock] = await Promise.all([
+    db
+      .select()
+      .from(contacts)
+      .where(and(
+        inArray(contacts.id, input.contactIds),
+        eq(contacts.tenantId, options.tenantId),
+      )),
+    getSkillKnowledge("ideal customer profile qualification criteria target industries company size", options.tenantId),
+  ]);
 
   // Batch fetch associated companies
   const companyIds = contactRecords
@@ -68,5 +72,6 @@ export async function leadQualificationHandler(
     totalDisqualified: leads.length - totalQualified,
     avgScore,
     leads,
+    knowledgeContext: knowledgeBlock,
   };
 }

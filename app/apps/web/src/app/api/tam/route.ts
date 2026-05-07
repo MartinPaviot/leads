@@ -18,6 +18,7 @@ import {
   type OrgSearchOrganization,
 } from "@/lib/integrations/apollo-client";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
+import { getTenantKnowledge, formatKnowledgeBlock } from "@/lib/knowledge/get-tenant-knowledge";
 import { sizesToApolloRanges } from "@/lib/config/icp-constants";
 
 /**
@@ -112,6 +113,8 @@ export async function POST(req: Request) {
     );
 
     // Build context for the LLM
+    const knowledgeEntries = await getTenantKnowledge(authCtx.tenantId);
+    const knowledgeBlock = formatKnowledgeBlock(knowledgeEntries);
     const businessContext = [
       settings.onboardingCompanyName && `Company: ${settings.onboardingCompanyName}`,
       productDescription && `Product: ${productDescription}`,
@@ -121,8 +124,7 @@ export async function POST(req: Request) {
       companySizes?.length && `Target company sizes: ${companySizes.join(", ")}`,
       geographies?.length && `Target geographies: ${geographies.join(", ")}`,
       targetRoles && `Buyer personas: ${targetRoles}`,
-      settings.knowledge?.length &&
-        `Knowledge base:\n${settings.knowledge.map((k) => `- ${k.topic}: ${k.content}`).join("\n")}`,
+      knowledgeBlock && `Knowledge base:\n${knowledgeBlock}`,
     ]
       .filter(Boolean)
       .join("\n");

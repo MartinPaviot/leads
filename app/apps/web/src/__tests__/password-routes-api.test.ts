@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/auth-utils", () => ({
+vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: vi.fn(),
+  withAuthRLS: vi.fn(async (handler) => { const ctx = await (await import("@/lib/auth/auth-utils")).getAuthContext(); if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 }); return handler(ctx); }),
 }));
 
 vi.mock("@/db", () => ({
@@ -13,13 +14,23 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
-  authUsers: { id: "id", email: "email", passwordHash: "password_hash" },
+  trustEvents: { id: "id", tenantId: "tenant_id", eventType: "event_type", delta: "delta", reason: "reason", createdAt: "created_at" },
+  systemTrustScore: { id: "id", tenantId: "tenant_id", score: "score", components: "components", createdAt: "created_at" },
+  agentActions: { id: "id", tenantId: "tenant_id", agentId: "agent_id", actionType: "action_type", entityId: "entity_id", summary: "summary", approved: "approved", metadata: "metadata", createdAt: "created_at" },
+  knowledgeEntries: { id: "id", tenantId: "tenant_id", title: "title", content: "content", category: "category", metadata: "metadata", createdAt: "created_at" },
+  tenants: { id: "id", name: "name", settings: "settings", domain: "domain", stripeCustomerId: "stripe_customer_id", subscriptionId: "subscription_id", plan: "plan", createdAt: "created_at", updatedAt: "updated_at", referralCode: "referral_code" },
+  authUsers: { id: "id", email: "email", passwordHash: "password_hash", name: "name" },
   authAccounts: {
     userId: "userId",
     provider: "provider",
     type: "type",
     providerAccountId: "providerAccountId",
     access_token: "access_token",
+  },
+  users: {
+    id: "id",
+    tenantId: "tenantId",
+    clerkId: "clerkId",
   },
 }));
 
@@ -28,11 +39,19 @@ vi.mock("drizzle-orm", () => ({
   and: vi.fn(),
 }));
 
-vi.mock("@/lib/password-reset", () => ({
+vi.mock("@/lib/auth/password-reset", () => ({
   createResetTokenForUser: vi.fn().mockResolvedValue("plain-token-123"),
   validateResetToken: vi.fn(),
   consumeResetToken: vi.fn().mockResolvedValue(undefined),
   isPasswordAcceptable: vi.fn().mockReturnValue(true),
+}));
+
+vi.mock("@/lib/auth/password-hash", () => ({
+  hashPassword: vi.fn().mockResolvedValue("hashed-pw"),
+}));
+
+vi.mock("@/lib/auth/password-pwned", () => ({
+  isPasswordPwned: vi.fn().mockResolvedValue({ pwned: false }),
 }));
 
 vi.mock("@/lib/emails/password-reset", () => ({
@@ -43,9 +62,17 @@ vi.mock("@/lib/emails/password-changed", () => ({
   sendPasswordChangedEmail: vi.fn().mockResolvedValue({ sent: true }),
 }));
 
-vi.mock("@/lib/rate-limit", () => ({
+vi.mock("@/lib/infra/rate-limit", () => ({
   rateLimitPasswordResetEmail: vi.fn().mockResolvedValue({ success: true, remaining: 5, resetAt: Date.now() + 60_000 }),
   rateLimitPasswordResetIp: vi.fn().mockResolvedValue({ success: true, remaining: 5, resetAt: Date.now() + 60_000 }),
+}));
+
+vi.mock("@/lib/observability/logger", () => ({
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
+}));
+
+vi.mock("@/lib/infra/audit-log", () => ({
+  logAudit: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("bcryptjs", () => ({
@@ -216,6 +243,9 @@ describe("POST /api/auth/reset-password", () => {
     const setFn = vi.fn().mockReturnValue({ where: updateWhere });
     vi.mocked(db.update).mockReturnValue({ set: setFn } as never);
     mockSelectOnce([{ provider: "credentials" }]); // existing creds row
+    // Audit-log path does a dynamic db.select(users) — supply an empty result
+    // so the audit is silently skipped. This runs BEFORE the notification lookup.
+    mockSelectOnce([]);
     mockSelectOnce([{ email: "bob@acme.com" }]); // user lookup for notification
 
     const res = await resetMod.POST(
@@ -245,6 +275,8 @@ describe("POST /api/auth/reset-password", () => {
     const valuesFn = vi.fn().mockResolvedValue(undefined);
     vi.mocked(db.insert).mockReturnValue({ values: valuesFn } as never);
     mockSelectOnce([]); // no user email — notification skipped
+    // Audit-log path
+    mockSelectOnce([]);
 
     const res = await resetMod.POST(
       jsonReq("http://localhost/api/auth/reset-password", {

@@ -11,8 +11,9 @@
  */
 
 import { db } from "@/db";
-import { activities, contacts, deals, tenants } from "@/db/schema";
+import { activities, contacts, deals } from "@/db/schema";
 import { and, eq, isNull, or } from "drizzle-orm";
+import { getTenantKnowledge } from "@/lib/knowledge/get-tenant-knowledge";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
@@ -240,10 +241,7 @@ export async function extractAndPersistBatch(
  * Returns an empty list if not configured.
  */
 export async function loadCompetitorList(tenantId: string): Promise<string[]> {
-  const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
-  if (!tenant) return [];
-  const settings = (tenant.settings || {}) as Record<string, unknown>;
-  const knowledge = (settings.knowledge || []) as Array<{ topic?: string; content?: string }>;
+  const knowledge = await getTenantKnowledge(tenantId);
   const competitorEntries = knowledge.filter(
     (e) => typeof e.topic === "string" && /competitor|competitive|competition/i.test(e.topic || ""),
   );

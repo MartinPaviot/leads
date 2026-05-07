@@ -150,6 +150,25 @@ Checkpoints happen AFTER a milestone is built and all its features pass evaluati
 - A feature fails 5 times → escalation
 - A crash you can't recover from
 
+## CRITICAL: If you can do it, do it — don't delegate to Martin
+
+If an action is within your tool capabilities, execute it yourself. Never tell Martin to "reload the page", "run this command", "test this in your browser", "verify chez toi", or otherwise hand off work you can perform.
+
+This includes:
+- Reloading / navigating / verifying pages → use Playwright yourself
+- Restarting servers / killing processes → use Bash/PowerShell yourself
+- Running tests, type checks, lint → execute directly
+- Reading file state, inspecting computed styles, scrolling, clicking — all of it goes through your tools
+
+Only ask Martin to act when you genuinely cannot:
+- Interactive logins requiring his real credentials (Google OAuth in his actual browser, gcloud auth login)
+- Physical-world actions (plug in a USB key, restart his router)
+- Decisions that require his judgment, not actions he could perform
+
+When you finish work, **show the result via your own tools** (screenshot, log excerpt, computed-state evaluation). Don't end on "tu peux tester chez toi" — end on "voila la verification, ca marche / casse pour cette raison".
+
+Note: Playwright in this session may run in a separate browser instance from Martin's. Verifying in your Playwright is necessary but not always sufficient — when reasonable, also reason about what could differ in his environment (zoom level, extensions, browser version) and call that out explicitly.
+
 ## CRITICAL: Git commit frequently
 
 Commit research files, teardown documents, screenshots, specs — everything. If the machine crashes, only what's committed survives. Commit at least every 30 minutes during research, after every test batch, after every file written.

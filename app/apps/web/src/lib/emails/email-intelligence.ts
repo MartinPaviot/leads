@@ -23,6 +23,7 @@ import { eq, and, asc } from "drizzle-orm";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { getModelForTask } from "@/lib/ai/ai-provider";
 import { truncateForLLM } from "@/lib/enrichment/email-extract";
+import { getTenantKnowledge, type TenantKnowledgeEntry } from "@/lib/knowledge/get-tenant-knowledge";
 import type { TenantSettings } from "@/lib/config/tenant-settings";
 
 // ── Public Types ──────────────────────────────────────────────
@@ -106,7 +107,8 @@ export interface ThreadEmail {
 export async function extractThreadIntelligence(
   threadId: string,
   emails: ThreadEmail[],
-  tenantSettings: Pick<TenantSettings, "productDescription" | "knowledge">,
+  tenantSettings: Pick<TenantSettings, "productDescription">,
+  tenantId?: string,
 ): Promise<ThreadIntelligence | null> {
   if (emails.length === 0) return null;
 
@@ -128,7 +130,8 @@ export async function extractThreadIntelligence(
   }).join("\n\n---\n\n");
 
   // Extract known competitor names from tenant knowledge base
-  const competitorHint = extractCompetitorHint(tenantSettings);
+  const knowledge = tenantId ? await getTenantKnowledge(tenantId) : [];
+  const competitorHint = extractCompetitorHint(knowledge);
   const productHint = tenantSettings.productDescription
     ? `\nOur product: ${tenantSettings.productDescription}`
     : "";
@@ -262,12 +265,12 @@ export async function persistThreadIntelligence(
 export async function extractAndPersistThreadIntelligence(
   tenantId: string,
   threadId: string,
-  tenantSettings: Pick<TenantSettings, "productDescription" | "knowledge">,
+  tenantSettings: Pick<TenantSettings, "productDescription">,
 ): Promise<ThreadIntelligence | null> {
   const emails = await loadThreadEmails(tenantId, threadId);
   if (emails.length < 2) return null; // Need at least 2 emails for a meaningful thread
 
-  const intelligence = await extractThreadIntelligence(threadId, emails, tenantSettings);
+  const intelligence = await extractThreadIntelligence(threadId, emails, tenantSettings, tenantId);
   if (!intelligence) return null;
 
   await persistThreadIntelligence(tenantId, threadId, intelligence);
@@ -277,9 +280,8 @@ export async function extractAndPersistThreadIntelligence(
 // ── Helpers ──────────────────────────────────────────────────
 
 function extractCompetitorHint(
-  settings: Pick<TenantSettings, "knowledge">,
+  knowledge: TenantKnowledgeEntry[],
 ): string {
-  const knowledge = settings.knowledge || [];
   const competitorEntries = knowledge.filter(
     (e) =>
       typeof e.topic === "string" &&

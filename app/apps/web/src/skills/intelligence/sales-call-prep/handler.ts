@@ -1,9 +1,9 @@
-import { buildProspectContext, formatContextForPrompt } from "@/lib/prospect-context";
+import { buildProspectContext, formatContextForPrompt } from "@/lib/context/prospect-context";
 import { db } from "@/db";
 import { deals } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import type { SkillRunOptions } from "@/skills/types";

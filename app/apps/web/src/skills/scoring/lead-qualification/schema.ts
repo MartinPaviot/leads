@@ -35,6 +35,7 @@ export const leadQualificationOutputSchema = z.object({
   totalDisqualified: z.number(),
   avgScore: z.number(),
   leads: z.array(qualifiedLeadSchema),
+  knowledgeContext: z.string().optional(),
 });
 
 export type LeadQualificationOutput = z.infer<typeof leadQualificationOutputSchema>;

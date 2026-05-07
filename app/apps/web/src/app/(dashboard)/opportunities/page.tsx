@@ -461,10 +461,45 @@ export default function OpportunitiesPage() {
   /* ── Risk helpers ── */
 
   function getRiskBorder(d: Deal) { const r = (d.properties as Record<string, unknown>)?.riskLevel as string; return RISK_STYLES[r]?.text || "transparent"; }
+  function getRiskReasons(d: Deal): string[] {
+    // The deal-analyze pipeline writes specific risk reasons to
+    // `properties.risks` as `string[]`. The legacy churn-risk-detector
+    // also writes `riskReasons` (different name, same idea). We accept
+    // both so existing data renders without a backfill migration.
+    const props = (d.properties as Record<string, unknown>) || {};
+    const a = Array.isArray(props.risks) ? (props.risks as unknown[]) : [];
+    const b = Array.isArray(props.riskReasons) ? (props.riskReasons as unknown[]) : [];
+    return [...a, ...b].filter((x): x is string => typeof x === "string" && x.trim().length > 0);
+  }
   function getRiskBadge(d: Deal) {
     const r = (d.properties as Record<string, unknown>)?.riskLevel as string;
     if (!r || r === "none") return null;
-    return <Badge variant={r === "high" ? "error" : r === "medium" ? "warning" : "info"} size="sm">{r.toUpperCase()}</Badge>;
+    const reasons = getRiskReasons(d);
+    // Monaco-parity: every risk flag must have a *why*. The native
+    // `title` attribute gives a no-JS, accessible tooltip; the visible
+    // ⓘ glyph hints to the founder that hovering reveals reasons. If
+    // analyse hasn't run yet we still show the badge but mark it
+    // "no reason yet" so the founder knows the data is still warming.
+    const tooltip =
+      reasons.length > 0
+        ? `Why ${r.toUpperCase()} risk:\n• ${reasons.slice(0, 5).join("\n• ")}`
+        : `Risk level: ${r.toUpperCase()} (run /analyze for specific reasons)`;
+    return (
+      <span title={tooltip} className="inline-flex items-center gap-1">
+        <Badge variant={r === "high" ? "error" : r === "medium" ? "warning" : "info"} size="sm">
+          {r.toUpperCase()}
+        </Badge>
+        {reasons.length > 0 && (
+          <span
+            aria-hidden
+            className="text-[10px] leading-none"
+            style={{ color: "var(--color-text-tertiary)" }}
+          >
+            ⓘ
+          </span>
+        )}
+      </span>
+    );
   }
   function hasMomentum(d: Deal) { return ((d.properties as Record<string, unknown>)?.recentActivityCount as number || 0) >= 3; }
 
@@ -1084,37 +1119,50 @@ export default function OpportunitiesPage() {
                   onDrop={(e) => handleDrop(e, stage.id)}
                 >
                   {/* Column header */}
-                  <div className="flex items-center justify-between px-3 py-2.5">
-                    <div className="flex items-center gap-2">
-                      {(() => { const Icon = STAGE_ICONS[stage.id] || CircleDot; return <Icon size={14} style={{ color: dotColor }} />; })()}
-                      <span className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>{stage.name}</span>
-                      <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-                        {stage.wipLimit ? `${stageDeals.length}/${stage.wipLimit}` : stageDeals.length}
-                      </span>
-                      {/* Y9 — over-capacity badge. Amber so it reads as a
-                          nudge, not a hard error; the limit is advisory,
-                          not enforced. */}
-                      {stage.wipLimit != null && stageDeals.length > stage.wipLimit && (
-                        <span
-                          className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider"
-                          style={{
-                            background: "var(--color-warning-soft)",
-                            color: "var(--color-warning)",
-                          }}
-                          title={`${stageDeals.length} deals in this stage — WIP limit is ${stage.wipLimit}. Move some forward before adding more.`}
-                        >
-                          Over capacity
+                  <div className="px-3 py-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {(() => { const Icon = STAGE_ICONS[stage.id] || CircleDot; return <Icon size={14} style={{ color: dotColor }} />; })()}
+                        <span className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>{stage.name}</span>
+                        <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                          {stage.wipLimit ? `${stageDeals.length}/${stage.wipLimit}` : stageDeals.length}
                         </span>
-                      )}
+                        {/* Y9 — over-capacity badge. Amber so it reads as a
+                            nudge, not a hard error; the limit is advisory,
+                            not enforced. */}
+                        {stage.wipLimit != null && stageDeals.length > stage.wipLimit && (
+                          <span
+                            className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider"
+                            style={{
+                              background: "var(--color-warning-soft)",
+                              color: "var(--color-warning)",
+                            }}
+                            title={`${stageDeals.length} deals in this stage — WIP limit is ${stage.wipLimit}. Move some forward before adding more.`}
+                          >
+                            Over capacity
+                          </span>
+                        )}
+                      </div>
+                      <button onClick={() => openCreateForStage(stage.id)}
+                        className="flex h-6 w-6 items-center justify-center rounded-md transition-colors"
+                        style={{ color: "var(--color-text-tertiary)" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-card)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                        title={`Add to ${stage.name}`}>
+                        <Plus size={14} />
+                      </button>
                     </div>
-                    <button onClick={() => openCreateForStage(stage.id)}
-                      className="flex h-6 w-6 items-center justify-center rounded-md transition-colors"
-                      style={{ color: "var(--color-text-tertiary)" }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-card)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                      title={`Add to ${stage.name}`}>
-                      <Plus size={14} />
-                    </button>
+                    {/* Stage $ total — Monaco-parity: pipeline value
+                        per column visible in the header so the founder
+                        sees revenue distribution at a glance. Tabular
+                        nums keep digits aligned across columns. */}
+                    <div
+                      className="mt-1 text-[11px] tabular-nums"
+                      style={{ color: stageTotal > 0 ? "var(--color-success)" : "var(--color-text-tertiary)" }}
+                      title={`Total pipeline value in ${stage.name}`}
+                    >
+                      ${stageTotal.toLocaleString()}
+                    </div>
                   </div>
 
                   {/* Cards */}

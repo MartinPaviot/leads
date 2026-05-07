@@ -1,11 +1,12 @@
 import { db } from "@/db";
-import { deals, companies, contacts, activities } from "@/db/schema";
-import { eq, and, sql, gte, desc } from "drizzle-orm";
-import { predictDealVelocity } from "@/lib/deal-velocity";
-import { tracedGenerateObject } from "@/lib/traced-ai";
-import { anthropic } from "@/lib/ai-provider";
+import { deals, companies } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
+import { predictDealVelocity } from "@/lib/deals/deal-velocity";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
+import { getSkillKnowledge, getDeepConversationContext } from "@/skills/skill-knowledge";
 import type { SkillRunOptions } from "@/skills/types";
 import type { SalesCoachingInput, SalesCoachingOutput } from "./schema";
 
@@ -27,61 +28,22 @@ export async function salesCoachingHandler(
 
   if (!deal) throw new Error(`Deal ${input.dealId} not found`);
 
-  // Fetch company
-  let companyName: string | null = null;
-  if (deal.companyId) {
-    const [company] = await db.select({ name: companies.name }).from(companies).where(eq(companies.id, deal.companyId));
-    companyName = company?.name ?? null;
-  }
+  // Fetch company, velocity, deep conversation context, and knowledge in parallel
+  const [companyRow, velocity, conversation, knowledgeBlock] = await Promise.all([
+    deal.companyId
+      ? db.select({ name: companies.name }).from(companies).where(eq(companies.id, deal.companyId)).then((r) => r[0] ?? null)
+      : null,
+    predictDealVelocity(input.dealId, options.tenantId),
+    getDeepConversationContext(options.tenantId, {
+      dealId: input.dealId,
+      companyId: deal.companyId ?? undefined,
+      query: "sales coaching deal progress",
+      contentMaxChars: 2000,
+    }),
+    getSkillKnowledge(`sales methodology coaching objection handling discovery qualification`, options.tenantId),
+  ]);
 
-  // Get velocity prediction
-  const velocity = await predictDealVelocity(input.dealId, options.tenantId);
-
-  // Get recent activities with raw content — the coach needs specific
-  // quotes, not just activity-type histograms, to call out real moments.
-  const recentActivities = await db
-    .select()
-    .from(activities)
-    .where(and(
-      eq(activities.tenantId, options.tenantId),
-      eq(activities.entityId, input.dealId),
-      eq(activities.entityType, "deal"),
-    ))
-    .orderBy(desc(activities.occurredAt))
-    .limit(20);
-
-  // Build a richer transcript so the LLM can cite specific lines.
-  // Truncate per-entry so 20 activities fit inside the prompt budget
-  // without blowing past context — meetings are the most valuable
-  // source (full summaries), emails second, everything else a one-liner.
-  const activityTranscript = recentActivities.map((a) => {
-    const meta = (a.metadata ?? {}) as Record<string, unknown>;
-    const header = `[${a.occurredAt?.toISOString?.() ?? a.occurredAt}] ${a.activityType} (${a.channel}, ${a.direction}) — sentiment: ${a.sentiment ?? "unknown"}`;
-    // Meeting activities come in several variants (meeting_scheduled /
-    // meeting_completed / meeting_cancelled). For coaching we care about
-    // the ones that carry a summary / transcript — completed + scheduled
-    // count; cancelled has no content to cite.
-    const isMeeting = a.activityType === "meeting_completed" || a.activityType === "meeting_scheduled";
-    if (isMeeting) {
-      const summary = (meta.summary as string) ?? a.rawContent ?? "";
-      const keyPoints = Array.isArray(meta.keyPoints) ? (meta.keyPoints as string[]) : [];
-      const buyingSignals = (meta.buyingSignals ?? {}) as Record<string, unknown>;
-      const lines: string[] = [];
-      if (summary) lines.push(`  summary: ${String(summary).slice(0, 400)}`);
-      if (keyPoints.length) lines.push(`  keyPoints: ${keyPoints.slice(0, 6).join(" | ")}`);
-      if (buyingSignals.painPoints) lines.push(`  painPoints: ${JSON.stringify(buyingSignals.painPoints).slice(0, 200)}`);
-      if (buyingSignals.objections) lines.push(`  objections: ${JSON.stringify(buyingSignals.objections).slice(0, 200)}`);
-      if (buyingSignals.nextSteps) lines.push(`  nextSteps: ${JSON.stringify(buyingSignals.nextSteps).slice(0, 200)}`);
-      return [header, ...lines].join("\n");
-    }
-    if (a.activityType === "email_sent" || a.activityType === "email_replied") {
-      const subject = (meta.subject as string) ?? "";
-      const snippet = (meta.snippet as string) ?? a.rawContent ?? "";
-      return `${header}\n  subject: ${subject}\n  body: ${String(snippet).slice(0, 300)}`;
-    }
-    const note = a.rawContent ?? (meta.note as string) ?? "";
-    return note ? `${header}\n  ${String(note).slice(0, 200)}` : header;
-  }).join("\n\n");
+  const companyName = companyRow?.name ?? null;
 
   // LLM coaching
   const model = getLLMModel();
@@ -119,8 +81,16 @@ No polite hedging. If something went wrong, name it.
 - Risk: ${velocity.risk}
 - Summary: ${deal.summary || "none"}
 
-## Activity transcript (${recentActivities.length} entries, most recent first)
-${activityTranscript || "No activities recorded yet."}
+## Activity transcript (most recent first)
+${conversation.activities || "No activities recorded yet."}
+
+## Internal Notes
+${conversation.notes || "No notes recorded"}
+
+## Related Context (semantic search)
+${conversation.semanticResults || "No additional context found"}
+
+${knowledgeBlock}
 
 ## How to respond
 

@@ -12,13 +12,13 @@ const { getSettingsMock, updateSettingsMock, captureEventMock, loggerWarnMock } 
     loggerWarnMock: vi.fn(),
   }));
 
-vi.mock("@/lib/tenant-settings", () => ({
+vi.mock("@/lib/config/tenant-settings", () => ({
   getTenantSettings: (tenantId: string) => getSettingsMock(tenantId),
   updateTenantSettings: (tenantId: string, updates: Record<string, unknown>) =>
     updateSettingsMock(tenantId, updates),
 }));
 
-vi.mock("@/lib/analytics", () => ({
+vi.mock("@/lib/analytics/analytics", () => ({
   captureEvent: (
     distinctId: string,
     event: string,
@@ -26,7 +26,7 @@ vi.mock("@/lib/analytics", () => ({
   ) => captureEventMock(distinctId, event, props),
 }));
 
-vi.mock("@/lib/logger", () => {
+vi.mock("@/lib/observability/logger", () => {
   const logger = {
     warn: loggerWarnMock,
     info: vi.fn(),

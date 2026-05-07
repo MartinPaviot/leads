@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { X, Send, ChevronDown, ChevronUp, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { sanitizeHtml } from "@/lib/sanitize-html";
+import { sanitizeHtml } from "@/lib/infra/sanitize-html";
 
 interface EmailComposerProps {
   to: string;

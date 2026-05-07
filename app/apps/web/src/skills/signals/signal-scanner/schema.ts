@@ -26,6 +26,25 @@ const signalSchema = z.object({
   strength: z.enum(["high", "medium", "low"]),
   detectedAt: z.string(),
   dataSource: z.string(),
+  // MONACO-PARITY-01 additions — fully optional for back-compat with
+  // existing callers/tests. New emit paths populate them; the
+  // confidence-state classifier in `lib/signals/confidence-state.ts`
+  // turns them into the 4-state UI badge.
+  /** Cited URL evidence, e.g. a LinkedIn post or news article. Null
+   *  for property-derived signals (funding from Apollo) where the
+   *  source is internal data, not a public link. */
+  sourceUrl: z.string().url().nullable().optional(),
+  /** LLM-reported confidence 0-1 for signals where the LLM emitted
+   *  the candidate. Null for rule-based signals (engagement spike,
+   *  property thresholds) that are deterministic. */
+  confidence: z.number().min(0).max(1).nullable().optional(),
+  /** Result of running `verifySignalUrl` against `sourceUrl`. Null
+   *  when no URL was cited. The downstream classifier combines this
+   *  with `confidence` to produce the 4-state badge. */
+  verificationStatus: z
+    .enum(["verified", "unverified"])
+    .nullable()
+    .optional(),
 });
 
 export const signalScannerOutputSchema = z.object({

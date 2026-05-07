@@ -5,8 +5,9 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
-vi.mock("@/lib/auth-utils", () => ({
+vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: vi.fn(),
+  withAuthRLS: vi.fn(async (handler) => { const ctx = await (await import("@/lib/auth/auth-utils")).getAuthContext(); if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 }); return handler(ctx); }),
 }));
 
 vi.mock("@/db", () => ({
@@ -17,12 +18,27 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
+  distillationSamples: { id: "id", tenantId: "tenant_id", agentId: "agent_id", input: "input", output: "output", score: "score", createdAt: "created_at" },
+  actionOutcomes: { id: "id", tenantId: "tenant_id", actionId: "action_id", outcome: "outcome", createdAt: "created_at" },
+  signalOutcomes: { id: "id", tenantId: "tenant_id", signalId: "signal_id", outcome: "outcome", createdAt: "created_at" },
+  agentTraces: { id: "id", tenantId: "tenant_id", agentId: "agent_id", agentCategory: "agent_category", traceId: "trace_id", input: "input", output: "output", model: "model", status: "status", inputTokens: "input_tokens", outputTokens: "output_tokens", estimatedCost: "estimated_cost", latencyMs: "latency_ms", toolCalls: "tool_calls", toolCallsCount: "tool_calls_count", errorMessage: "error_message", evalScore: "eval_score", metadata: "metadata", createdAt: "created_at" },
+  trustEvents: { id: "id", tenantId: "tenant_id", eventType: "event_type", delta: "delta", reason: "reason", createdAt: "created_at" },
+  systemTrustScore: { id: "id", tenantId: "tenant_id", score: "score", components: "components", createdAt: "created_at" },
+  agentActions: { id: "id", tenantId: "tenant_id", agentId: "agent_id", actionType: "action_type", entityId: "entity_id", summary: "summary", approved: "approved", metadata: "metadata", createdAt: "created_at" },
+  knowledgeEntries: { id: "id", tenantId: "tenant_id", title: "title", content: "content", category: "category", metadata: "metadata", createdAt: "created_at" },
+  tenants: { id: "id", name: "name", settings: "settings", domain: "domain", stripeCustomerId: "stripe_customer_id", subscriptionId: "subscription_id", plan: "plan", createdAt: "created_at", updatedAt: "updated_at", referralCode: "referral_code" },
   companies: { id: "id" },
 }));
 
-vi.mock("@/lib/apollo-client", () => ({
+const mockEnrichCompany = vi.fn();
+
+vi.mock("@/lib/providers/company-enrichment", () => ({
+  enrichCompany: (...args: unknown[]) => mockEnrichCompany(...args),
+}));
+
+vi.mock("@/lib/integrations/apollo-client", () => ({
   enrichOrganization: vi.fn(),
-  employeeCountToRange: vi.fn((n: number) => n > 1000 ? "1000+" : "51-200"),
+  employeeCountToRange: vi.fn((n: number | null) => n != null && n > 1000 ? "1000+" : "51-200"),
   revenueToRange: vi.fn(() => "$100M+"),
   isApolloAvailable: vi.fn(() => true),
 }));
@@ -31,7 +47,7 @@ vi.mock("ai", () => ({
   generateObject: vi.fn(),
 }));
 
-vi.mock("@/lib/ai-provider", () => ({
+vi.mock("@/lib/ai/ai-provider", () => ({
   anthropic: vi.fn(() => "mock-anthropic-model"),
 }));
 
@@ -39,7 +55,7 @@ vi.mock("@ai-sdk/openai", () => ({
   openai: vi.fn(() => "mock-openai-model"),
 }));
 
-vi.mock("@/lib/embeddings", () => ({
+vi.mock("@/lib/ai/embeddings", () => ({
   embedEntity: vi.fn(),
   companyToText: vi.fn(() => "test text"),
 }));
@@ -47,6 +63,10 @@ vi.mock("@/lib/embeddings", () => ({
 vi.mock("drizzle-orm", () => ({
   and: vi.fn(),
   eq: vi.fn(),
+}));
+
+vi.mock("@/lib/infra/rate-limit", () => ({
+  checkRateLimit: vi.fn(() => null),
 }));
 
 // Set env before import
@@ -57,7 +77,6 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { generateObject } from "ai";
 import { embedEntity } from "@/lib/ai/embeddings";
-import { enrichOrganization } from "@/lib/integrations/apollo-client";
 
 // Dynamic import to get the route handler
 const { POST } = await import("@/app/api/enrich/route");
@@ -131,26 +150,39 @@ describe("POST /api/enrich", () => {
     const updateSetFn = vi.fn().mockReturnValue({ where: updateWhereFn });
     vi.mocked(db.update).mockReturnValue({ set: updateSetFn } as never);
 
-    // Mock Apollo enrichment response
-    vi.mocked(enrichOrganization).mockResolvedValue({
-      id: "apollo-1",
-      industry: "Fintech",
-      description: "Online payment processing platform",
-      estimated_num_employees: 8000,
-      annual_revenue: 1000000000,
-      linkedin_url: "https://linkedin.com/company/stripe",
-      website_url: "https://stripe.com",
-      founded_year: 2010,
-      technology_names: ["React", "Ruby"],
-      total_funding: 2200000000,
-      total_funding_printed: "$2.2B",
-      latest_funding_stage: "Series I",
-      annual_revenue_printed: "$1B+",
-      city: "San Francisco",
-      state: "CA",
-      country: "US",
-      keywords: ["fintech", "payments"],
-    } as never);
+    // Mock waterfall enrichment result
+    mockEnrichCompany.mockResolvedValue({
+      data: {
+        domain: "stripe.com",
+        name: "Stripe",
+        industry: "Fintech",
+        description: "Online payment processing platform",
+        employeeCount: 8000,
+        sizeRange: "1000+",
+        annualRevenue: 1000000000,
+        revenueRange: "$1B+",
+        foundedYear: 2010,
+        city: "San Francisco",
+        state: "CA",
+        country: "US",
+        technologies: ["React", "Ruby"],
+        keywords: ["fintech", "payments"],
+        fundingStage: "Series I",
+        totalFunding: 2200000000,
+        linkedinUrl: "https://linkedin.com/company/stripe",
+        logoUrl: null,
+        investors: [],
+        raw: null,
+      },
+      provenance: [
+        { provider: "apollo", field: "industry", atIso: new Date().toISOString() },
+      ],
+      attempts: [
+        { ok: true, data: {}, provider: "apollo", durationMs: 100, costCents: 1, error: undefined },
+      ],
+      totalCostCents: 1,
+      enriched: true,
+    });
 
     vi.mocked(embedEntity).mockResolvedValue(undefined);
 
@@ -168,8 +200,11 @@ describe("POST /api/enrich", () => {
     expect(data.enriched).toBe(1);
     expect(data.failed).toBe(0);
 
-    // Verify Apollo was called
-    expect(enrichOrganization).toHaveBeenCalledWith("stripe.com");
+    // Verify waterfall was called
+    expect(mockEnrichCompany).toHaveBeenCalledWith(
+      { domain: "stripe.com", name: "Stripe" },
+      { tenantId: "t1" },
+    );
   });
 
   it("skips already enriched companies", async () => {
@@ -230,8 +265,7 @@ describe("POST /api/enrich", () => {
 
     await POST(req);
 
-    // Should only process 20 companies (each may trigger multiple DB
-    // calls due to LLM fallback path, but the loop cap is 20)
+    // Should only process 20 companies
     expect(limitFn).toHaveBeenCalledTimes(20);
   });
 

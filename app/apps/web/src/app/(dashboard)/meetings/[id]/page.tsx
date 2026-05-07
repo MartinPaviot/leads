@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { formatSecondsAsTimestamp } from "@/lib/coaching/citation-parser";
+import { TranscriptChunks } from "@/components/coaching/transcript-chunks";
 import {
   ArrowLeft, Calendar, Clock, MapPin, Users, ExternalLink,
   FileText, Upload, CheckCircle2, AlertTriangle,
@@ -101,8 +103,19 @@ function BuyingSignalCard({ label, value }: { label: string; value: string | str
 export default function MeetingDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const meetingId = params.id as string;
+
+  // MONACO-PARITY-05: when a coaching citation chip links here, it
+  // appends `?t=<seconds>`. Until we ship a recording player, we
+  // surface a banner showing the deep-link target so the founder sees
+  // the round-trip works and can later jump to the transcript section
+  // (or the player, once it lands).
+  const seekSecondsRaw = searchParams?.get("t");
+  const seekSeconds = seekSecondsRaw && /^\d+$/.test(seekSecondsRaw)
+    ? Math.min(86400, Math.max(0, parseInt(seekSecondsRaw, 10)))
+    : null;
 
   const [data, setData] = useState<MeetingData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -362,6 +375,50 @@ export default function MeetingDetailPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
+      {/* MONACO-PARITY-05: deep-link confirmation banner + transcript
+          chunks viewer. The TranscriptChunks component scrolls to the
+          chunk that contains `?t=` and highlights it, so a coaching
+          citation chip lands the founder right on the verbatim quote
+          even before a recording player ships. */}
+      {seekSeconds !== null && (
+        <div
+          className="rounded-lg px-4 py-3 flex items-center justify-between"
+          style={{
+            background: "var(--color-accent-soft, rgba(99,102,241,0.08))",
+            border: "1px solid var(--color-accent, #6366f1)",
+            color: "var(--color-text-primary)",
+          }}
+        >
+          <div className="flex items-center gap-2 text-[13px]">
+            <span className="rounded px-1.5 py-0.5 text-[11px] font-semibold tabular-nums"
+              style={{ background: "var(--color-accent, #6366f1)", color: "white" }}>
+              {formatSecondsAsTimestamp(seekSeconds)}
+            </span>
+            <span>Coaching citation linked to this moment in the call.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => router.replace(`/meetings/${meetingId}`)}
+            className="text-[12px] underline"
+            style={{ color: "var(--color-accent, #6366f1)" }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Transcript chunks always visible (when indexed). Even
+          without a `?t=` deep-link, founders can read the verbatim
+          chunks and get a click-to-cite preview surface. */}
+      <div className="rounded-xl p-4 space-y-2"
+        style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}>
+        <h3 className="text-[12px] font-semibold uppercase tracking-wider"
+          style={{ color: "var(--color-text-tertiary)" }}>
+          Transcript chunks
+        </h3>
+        <TranscriptChunks meetingId={meetingId} seekSeconds={seekSeconds} />
+      </div>
+
       {/* Review banner for auto-transcribed meetings */}
       {needsReview && (
         <div

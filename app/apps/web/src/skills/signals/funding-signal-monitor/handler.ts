@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
-import { enrichOrganization } from "@/lib/apollo-client";
+import { enrichOrganization } from "@/lib/integrations/apollo-client";
 import type { SkillRunOptions } from "@/skills/types";
 import type { FundingSignalMonitorInput, FundingSignalMonitorOutput } from "./schema";
 

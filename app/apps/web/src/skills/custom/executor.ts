@@ -2,10 +2,10 @@ import { db } from "@/db";
 import { customSkillTemplates } from "@/db/schema";
 import { eq, and, or, desc, sql } from "drizzle-orm";
 import { retrieveKnowledge } from "@/lib/knowledge/retrieval";
-import { anthropic } from "@/lib/ai-provider";
+import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { generateText } from "ai";
-import logger from "@/lib/logger";
+import logger from "@/lib/observability/logger";
 
 interface SkillStep {
   order: number;

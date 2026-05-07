@@ -176,6 +176,22 @@ export async function scoreContact(
     }
   }
 
+  // Does company industry match targetIndustries? (part of the TAM 10 if already scored, otherwise +5 standalone)
+  if (icpSettings?.targetIndustries?.length && contact.companyId && icpScore < 15) {
+    const [company] = icpScore >= 10
+      ? [] // already fetched above for TAM check
+      : await db
+          .select({ industry: companies.industry })
+          .from(companies)
+          .where(and(eq(companies.id, contact.companyId), eq(companies.tenantId, tenantId)))
+          .limit(1);
+    const industry = company?.industry?.toLowerCase() ?? "";
+    if (industry && icpSettings.targetIndustries.some((t) => industry.includes(t.toLowerCase()))) {
+      icpScore = Math.min(15, icpScore + 5);
+      reasons.push("ICP: Industry matches target (+5)");
+    }
+  }
+
   if (icpScore === 0) reasons.push("ICP: No match (0/15)");
 
   const totalScore = Math.min(100, seniorityResult.score + engagementScore + sentimentScore + icpScore);
