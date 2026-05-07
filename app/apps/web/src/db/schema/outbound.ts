@@ -95,6 +95,93 @@ export const sequenceEnrollments = pgTable(
   ]
 );
 
+// === SEQUENCE DRAFTS QUEUE (P0-1) ===
+//
+// Per-email approval queue. The autopilot generates one row per
+// scheduled step ; the founder reviews via /sequences/review and
+// transitions to approved / rejected / edited. The expiry cron
+// reaps stale pendings past 24h. State machine enforced at the
+// API layer (`/api/sequences/drafts/:id/approve|reject|edit`)
+// with optimistic-locking via the `version` column to prevent
+// double-approve races.
+
+export const sequenceDraftStatusEnum = pgEnum("sequence_draft_status", [
+  "pending_approval",
+  "approved",
+  "rejected",
+  "expired",
+  "sent",
+]);
+
+export const sequenceDrafts = pgTable(
+  "sequence_drafts",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").notNull(),
+    sequenceId: text("sequence_id").notNull(),
+    stepId: text("step_id").notNull(),
+    enrollmentId: text("enrollment_id").notNull(),
+    contactId: text("contact_id").notNull(),
+    /** Snapshot at generation time — the founder approves what they
+     *  see, not whatever the step template happens to say later. */
+    subject: text("subject").notNull(),
+    bodyHtml: text("body_html").notNull(),
+    bodyText: text("body_text").notNull(),
+    /** Why the autopilot generated this draft now — surfaced in the
+     *  "Why this draft?" panel of the approval UI. e.g.
+     *  `"scheduled_step_2"`, `"post_funding_signal"`. */
+    triggerReason: text("trigger_reason").notNull(),
+    /** Citations the personalisation step used. Each entry is an
+     *  object `{ kind, label, href, quote? }` matching the
+     *  AI-UI primitive shape so the panel renders consistently. */
+    personalizationSources: jsonb("personalization_sources")
+      .$type<Array<Record<string, unknown>>>()
+      .notNull()
+      .default([]),
+    status: sequenceDraftStatusEnum("status")
+      .notNull()
+      .default("pending_approval"),
+    generatedAt: timestamp("generated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    /** userId of the founder who approved/rejected. Null on auto-mode
+     *  approves and on expiry. */
+    reviewedBy: text("reviewed_by"),
+    /** User-provided rejection reason. 3-200 chars enforced at the
+     *  API layer. Feeds the evaluator-optimizer learner that builds
+     *  preventive rules for the next-draft prompt. */
+    reviewReason: text("review_reason"),
+    /** When the email should fly. Set on approve ; null while pending
+     *  / rejected / expired. */
+    scheduledSendAt: timestamp("scheduled_send_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    /** Optimistic-lock counter — increment on every state change.
+     *  API layer rejects updates whose version stamp doesn't match
+     *  the row's current version, preventing two parallel approves
+     *  from both queueing the email. */
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("sequence_drafts_tenant_status_idx").on(
+      table.tenantId,
+      table.status,
+      table.generatedAt,
+    ),
+    index("sequence_drafts_enrollment_idx").on(table.enrollmentId),
+    index("sequence_drafts_sequence_idx").on(
+      table.sequenceId,
+      table.generatedAt,
+    ),
+  ],
+);
+
 // === OUTBOUND EMAIL TABLES ===
 
 export const mailboxStatusEnum = pgEnum("mailbox_status", [
