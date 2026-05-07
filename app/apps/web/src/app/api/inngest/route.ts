@@ -22,6 +22,7 @@ import { autoBriefingTrigger } from "@/inngest/auto-briefing-trigger";
 import { analyzeOutgoingEmail, postInteractionCoaching, analyzeDealEvent, weeklyPerformanceSnapshot } from "@/inngest/coaching-engine";
 import { signalToDealAlert } from "@/inngest/signal-to-deal-alert";
 import { syncSignalsToDeal } from "@/inngest/deal-signal-sync";
+import { dealPropertyLlmSynthesize } from "@/inngest/deal-property-llm-synthesize";
 import { autoPipelineStep } from "@/inngest/autonomous-pipeline";
 import { handleAutoPipelineDraft } from "@/inngest/auto-pipeline-email-handler";
 import { dailyFounderBrief } from "@/inngest/founder-coach";
@@ -117,6 +118,7 @@ export const { GET, POST, PUT } = serve({
     // Differentiation: proactive deal intelligence, autonomous pipeline, founder coaching
     signalToDealAlert,
     syncSignalsToDeal,
+    dealPropertyLlmSynthesize,
     autoPipelineStep,
     handleAutoPipelineDraft,
     dailyFounderBrief,
