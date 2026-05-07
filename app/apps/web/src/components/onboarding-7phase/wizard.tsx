@@ -943,27 +943,68 @@ function Phase1({ priorData, tenantId, onSubmit, submitting }: PhaseProps) {
   );
 }
 
-function Phase2({ priorData, onSubmit, submitting }: PhaseProps) {
+function Phase2({ priorData, tenantId, onSubmit, submitting }: PhaseProps) {
   const prior = (priorData["2"] as Record<string, unknown>) ?? {};
-  const [best, setBest] = useState<string>(
-    Array.isArray(prior.bestCustomers) ? (prior.bestCustomers as string[]).join("\n") : "",
+  interface Phase2Draft {
+    bestCustomersText: string;
+    antiIcpText: string;
+    relevanceConfirmed: boolean;
+  }
+  const serverPrior: Phase2Draft = {
+    bestCustomersText: Array.isArray(prior.bestCustomers)
+      ? (prior.bestCustomers as string[]).join("\n")
+      : "",
+    antiIcpText: Array.isArray(prior.antiIcp)
+      ? (prior.antiIcp as string[]).join("\n")
+      : "",
+    relevanceConfirmed: Boolean(prior.relevanceConfirmed),
+  };
+  const [best, setBest] = useState<string>(serverPrior.bestCustomersText);
+  const [anti, setAnti] = useState<string>(serverPrior.antiIcpText);
+  const [confirmed, setConfirmed] = useState<boolean>(serverPrior.relevanceConfirmed);
+
+  const liveDraft: Phase2Draft = useMemo(
+    () => ({ bestCustomersText: best, antiIcpText: anti, relevanceConfirmed: confirmed }),
+    [best, anti, confirmed],
   );
-  const [anti, setAnti] = useState<string>(
-    Array.isArray(prior.antiIcp) ? (prior.antiIcp as string[]).join("\n") : "",
-  );
-  const [confirmed, setConfirmed] = useState<boolean>(Boolean(prior.relevanceConfirmed));
+  const { hydratedFrom, hydratedDraft, clearLocal } =
+    useOnboardingAutosave<Phase2Draft>({
+      tenantId,
+      phase: 2,
+      draft: liveDraft,
+      serverPrior,
+    });
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    if (hydratedFrom === "local" && hydratedDraft) {
+      setBest(hydratedDraft.bestCustomersText ?? "");
+      setAnti(hydratedDraft.antiIcpText ?? "");
+      setConfirmed(Boolean(hydratedDraft.relevanceConfirmed));
+      hydratedRef.current = true;
+    } else if (hydratedFrom === "server" || hydratedFrom === "none") {
+      hydratedRef.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydratedFrom, hydratedDraft]);
 
   return (
     <form
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         const bestCustomers = best.split("\n").map((s) => s.trim()).filter(Boolean);
         const antiIcp = anti.split("\n").map((s) => s.trim()).filter(Boolean);
-        onSubmit({ bestCustomers, antiIcp, relevanceConfirmed: confirmed });
+        const ok = await onSubmit({ bestCustomers, antiIcp, relevanceConfirmed: confirmed });
+        if (ok) clearLocal();
       }}
       className="space-y-3"
     >
       <SectionLabel n={2} title="ICP & TAM" />
+      {hydratedFrom === "local" && (
+        <p className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+          Draft restored from your last session.
+        </p>
+      )}
       <Field label="Your 5 best customers (one per line, or 5 ideal prospects)">
         <textarea
           value={best}
@@ -1048,7 +1089,7 @@ function Phase3({ priorData, onSubmit, submitting }: PhaseProps) {
   );
 }
 
-function Phase4({ priorData, onSubmit, submitting }: PhaseProps) {
+function Phase4({ priorData, tenantId, onSubmit, submitting }: PhaseProps) {
   const prior = (priorData["4"] as Record<string, unknown>) ?? {};
   // Resolve the vertical playbook from Phase-1 ICP industry input.
   // The playbook ships 5 canonical signals + 3 sequence templates
@@ -1059,6 +1100,9 @@ function Phase4({ priorData, onSubmit, submitting }: PhaseProps) {
   const industry = (phase1Icp.industry as string) ?? "";
   const playbook: Playbook = resolvePlaybook(industry);
 
+  interface Phase4Draft {
+    signals: Array<{ question: string; rationale: string }>;
+  }
   const initialSignals = Array.isArray(prior.customSignals)
     ? (prior.customSignals as Array<{ question: string; rationale: string }>)
     : // Pre-fill the 3 first playbook signals as starter rows the
@@ -1067,7 +1111,28 @@ function Phase4({ priorData, onSubmit, submitting }: PhaseProps) {
         question: s.label,
         rationale: s.rationale,
       }));
+  const serverPrior: Phase4Draft = { signals: initialSignals };
   const [signals, setSignals] = useState(initialSignals);
+
+  const liveDraft: Phase4Draft = useMemo(() => ({ signals }), [signals]);
+  const { hydratedFrom, hydratedDraft, clearLocal } =
+    useOnboardingAutosave<Phase4Draft>({
+      tenantId,
+      phase: 4,
+      draft: liveDraft,
+      serverPrior,
+    });
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    if (hydratedFrom === "local" && hydratedDraft && Array.isArray(hydratedDraft.signals)) {
+      setSignals(hydratedDraft.signals);
+      hydratedRef.current = true;
+    } else if (hydratedFrom === "server" || hydratedFrom === "none") {
+      hydratedRef.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydratedFrom, hydratedDraft]);
 
   const update = (idx: number, key: "question" | "rationale", value: string) => {
     setSignals((cur) => cur.map((s, i) => (i === idx ? { ...s, [key]: value } : s)));
@@ -1094,13 +1159,21 @@ function Phase4({ priorData, onSubmit, submitting }: PhaseProps) {
 
   return (
     <form
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
-        onSubmit({ customSignals: signals.filter((s) => s.question && s.rationale) });
+        const ok = await onSubmit({
+          customSignals: signals.filter((s) => s.question && s.rationale),
+        });
+        if (ok) clearLocal();
       }}
       className="space-y-3"
     >
       <SectionLabel n={4} title="Signals" />
+      {hydratedFrom === "local" && (
+        <p className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+          Draft restored from your last session.
+        </p>
+      )}
       <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
         Three buying signals at minimum. Each is a phrase the system can boolean-answer per account.
       </p>
@@ -1178,22 +1251,52 @@ function Phase4({ priorData, onSubmit, submitting }: PhaseProps) {
   );
 }
 
-function Phase5({ priorData, onSubmit, submitting }: PhaseProps) {
+function Phase5({ priorData, tenantId, onSubmit, submitting }: PhaseProps) {
   const prior = (priorData["5"] as Record<string, unknown>) ?? {};
-  const initialEmails = Array.isArray(
-    (prior.voiceSamples as Record<string, unknown>)?.emails,
-  )
-    ? ((prior.voiceSamples as Record<string, unknown>).emails as string[]).join("\n---\n")
-    : "";
-  const [emailsText, setEmailsText] = useState(initialEmails);
-  const [loomUrl, setLoomUrl] = useState<string>(
-    ((prior.voiceSamples as Record<string, unknown>)?.loomUrl as string) ?? "",
-  );
-  const [seqIds, setSeqIds] = useState<string>(
-    Array.isArray(prior.approvedSequenceIds)
+  interface Phase5Draft {
+    emailsText: string;
+    loomUrl: string;
+    seqIds: string;
+  }
+  const serverPrior: Phase5Draft = {
+    emailsText: Array.isArray(
+      (prior.voiceSamples as Record<string, unknown>)?.emails,
+    )
+      ? ((prior.voiceSamples as Record<string, unknown>).emails as string[]).join("\n---\n")
+      : "",
+    loomUrl: ((prior.voiceSamples as Record<string, unknown>)?.loomUrl as string) ?? "",
+    seqIds: Array.isArray(prior.approvedSequenceIds)
       ? (prior.approvedSequenceIds as string[]).join(", ")
       : "",
+  };
+  const [emailsText, setEmailsText] = useState(serverPrior.emailsText);
+  const [loomUrl, setLoomUrl] = useState<string>(serverPrior.loomUrl);
+  const [seqIds, setSeqIds] = useState<string>(serverPrior.seqIds);
+
+  const liveDraft: Phase5Draft = useMemo(
+    () => ({ emailsText, loomUrl, seqIds }),
+    [emailsText, loomUrl, seqIds],
   );
+  const { hydratedFrom, hydratedDraft, clearLocal } =
+    useOnboardingAutosave<Phase5Draft>({
+      tenantId,
+      phase: 5,
+      draft: liveDraft,
+      serverPrior,
+    });
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    if (hydratedFrom === "local" && hydratedDraft) {
+      setEmailsText(hydratedDraft.emailsText ?? "");
+      setLoomUrl(hydratedDraft.loomUrl ?? "");
+      setSeqIds(hydratedDraft.seqIds ?? "");
+      hydratedRef.current = true;
+    } else if (hydratedFrom === "server" || hydratedFrom === "none") {
+      hydratedRef.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydratedFrom, hydratedDraft]);
 
   // P0-3 task 3.9 — both voice-capture options surface side-by-side
   // so the user sees the Loom alternative before they start typing
@@ -1204,7 +1307,7 @@ function Phase5({ priorData, onSubmit, submitting }: PhaseProps) {
 
   return (
     <form
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         const emails = emailsText
           .split(/\n-{3,}\n/)
@@ -1214,14 +1317,20 @@ function Phase5({ priorData, onSubmit, submitting }: PhaseProps) {
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean);
-        onSubmit({
+        const ok = await onSubmit({
           voiceSamples: { emails, ...(loomUrl ? { loomUrl } : {}) },
           approvedSequenceIds,
         });
+        if (ok) clearLocal();
       }}
       className="space-y-4"
     >
       <SectionLabel n={5} title="Voice & Sequences" />
+      {hydratedFrom === "local" && (
+        <p className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+          Draft restored from your last session.
+        </p>
+      )}
       <p
         className="text-[12px]"
         style={{ color: "var(--color-text-secondary)" }}
@@ -1346,7 +1455,7 @@ function Phase5({ priorData, onSubmit, submitting }: PhaseProps) {
   );
 }
 
-function Phase6({ priorData, onSubmit, submitting }: PhaseProps) {
+function Phase6({ priorData, tenantId, onSubmit, submitting }: PhaseProps) {
   const prior = (priorData["6"] as Record<string, unknown>) ?? {};
   // Pre-fill stages from the resolved playbook (per Phase-1 industry).
   // Devtools / fintech / healthtech / etc each have distinct
@@ -1357,20 +1466,50 @@ function Phase6({ priorData, onSubmit, submitting }: PhaseProps) {
   const industry = (phase1Icp.industry as string) ?? "";
   const playbook = resolvePlaybook(industry);
 
+  interface Phase6Draft {
+    stages: Array<{ id: string; name: string }>;
+  }
   const initialStages = Array.isArray(prior.stages)
     ? (prior.stages as Array<{ id: string; name: string }>)
     : playbook.defaultStages;
+  const serverPrior: Phase6Draft = { stages: initialStages };
   const [stages, setStages] = useState(initialStages);
+
+  const liveDraft: Phase6Draft = useMemo(() => ({ stages }), [stages]);
+  const { hydratedFrom, hydratedDraft, clearLocal } =
+    useOnboardingAutosave<Phase6Draft>({
+      tenantId,
+      phase: 6,
+      draft: liveDraft,
+      serverPrior,
+    });
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    if (hydratedFrom === "local" && hydratedDraft && Array.isArray(hydratedDraft.stages)) {
+      setStages(hydratedDraft.stages);
+      hydratedRef.current = true;
+    } else if (hydratedFrom === "server" || hydratedFrom === "none") {
+      hydratedRef.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydratedFrom, hydratedDraft]);
 
   return (
     <form
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
-        onSubmit({ stages, confirmedAt: new Date().toISOString() });
+        const ok = await onSubmit({ stages, confirmedAt: new Date().toISOString() });
+        if (ok) clearLocal();
       }}
       className="space-y-3"
     >
       <SectionLabel n={6} title="Pipeline" />
+      {hydratedFrom === "local" && (
+        <p className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+          Draft restored from your last session.
+        </p>
+      )}
       <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
         Rename stages to match how you actually sell. Stages should reflect the buyer's
         decision steps, not internal hygiene categories — pipeline you can&apos;t move on
