@@ -16,6 +16,7 @@ import {
   canNavigateToPhase,
   canFinalize,
 } from "@/lib/onboarding/resume";
+import { useOnboardingAutosave } from "@/hooks/use-onboarding-autosave";
 
 async function fetchWithStatus(
   url: string,
@@ -487,6 +488,7 @@ export function OnboardingWizard() {
             <PhaseBody
               phase={activePhase}
               priorData={state.phaseData}
+              tenantId={state.tenantId ?? null}
               onSubmit={(payload) => submitPhase(activePhase, payload)}
               submitting={submitting}
             />
@@ -667,29 +669,31 @@ function labelForGate(key: string): string {
 function PhaseBody({
   phase,
   priorData,
+  tenantId,
   onSubmit,
   submitting,
 }: {
   phase: number;
   priorData: Record<string, unknown>;
+  tenantId: string | null;
   onSubmit: (payload: unknown) => Promise<boolean>;
   submitting: boolean;
 }) {
   switch (phase) {
     case 1:
-      return <Phase1 priorData={priorData} onSubmit={onSubmit} submitting={submitting} />;
+      return <Phase1 priorData={priorData} tenantId={tenantId} onSubmit={onSubmit} submitting={submitting} />;
     case 2:
-      return <Phase2 priorData={priorData} onSubmit={onSubmit} submitting={submitting} />;
+      return <Phase2 priorData={priorData} tenantId={tenantId} onSubmit={onSubmit} submitting={submitting} />;
     case 3:
-      return <Phase3 priorData={priorData} onSubmit={onSubmit} submitting={submitting} />;
+      return <Phase3 priorData={priorData} tenantId={tenantId} onSubmit={onSubmit} submitting={submitting} />;
     case 4:
-      return <Phase4 priorData={priorData} onSubmit={onSubmit} submitting={submitting} />;
+      return <Phase4 priorData={priorData} tenantId={tenantId} onSubmit={onSubmit} submitting={submitting} />;
     case 5:
-      return <Phase5 priorData={priorData} onSubmit={onSubmit} submitting={submitting} />;
+      return <Phase5 priorData={priorData} tenantId={tenantId} onSubmit={onSubmit} submitting={submitting} />;
     case 6:
-      return <Phase6 priorData={priorData} onSubmit={onSubmit} submitting={submitting} />;
+      return <Phase6 priorData={priorData} tenantId={tenantId} onSubmit={onSubmit} submitting={submitting} />;
     case 7:
-      return <Phase7 priorData={priorData} onSubmit={onSubmit} submitting={submitting} />;
+      return <Phase7 priorData={priorData} tenantId={tenantId} onSubmit={onSubmit} submitting={submitting} />;
     default:
       return null;
   }
@@ -697,33 +701,110 @@ function PhaseBody({
 
 interface PhaseProps {
   priorData: Record<string, unknown>;
+  /** Threaded so the per-phase form can autosave to localStorage
+   *  scoped by tenant. Null disables autosave silently. */
+  tenantId: string | null;
   onSubmit: (payload: unknown) => Promise<boolean>;
   submitting: boolean;
 }
 
-function Phase1({ priorData, onSubmit, submitting }: PhaseProps) {
+function Phase1({ priorData, tenantId, onSubmit, submitting }: PhaseProps) {
   const prior = (priorData["1"] as Record<string, unknown>) ?? {};
   const priorIcp = (prior.icp as Record<string, unknown>) ?? {};
-  const [situation, setSituation] = useState<string>((prior.situation as string) ?? "founder_solo");
-  const [dealsToDate, setDealsToDate] = useState<number>(Number(prior.dealsToDate ?? 0));
-  const [industry, setIndustry] = useState<string>((priorIcp.industry as string) ?? "");
-  const [sizeRange, setSizeRange] = useState<string>((priorIcp.sizeRange as string) ?? "");
-  const [buyer, setBuyer] = useState<string>((priorIcp.buyerPersona as string) ?? "");
-  const [raw, setRaw] = useState<string>((priorIcp.raw as string) ?? "");
+  // P0-3 task 3.7 — hydrate from localStorage if a fresh draft
+  // exists ; otherwise fall back to server priorData.
+  interface Phase1Draft {
+    situation: string;
+    dealsToDate: number;
+    industry: string;
+    sizeRange: string;
+    buyerPersona: string;
+    raw: string;
+  }
+  const serverPrior: Phase1Draft = {
+    situation: (prior.situation as string) ?? "founder_solo",
+    dealsToDate: Number(prior.dealsToDate ?? 0),
+    industry: (priorIcp.industry as string) ?? "",
+    sizeRange: (priorIcp.sizeRange as string) ?? "",
+    buyerPersona: (priorIcp.buyerPersona as string) ?? "",
+    raw: (priorIcp.raw as string) ?? "",
+  };
+  const [situation, setSituation] = useState<string>(serverPrior.situation);
+  const [dealsToDate, setDealsToDate] = useState<number>(serverPrior.dealsToDate);
+  const [industry, setIndustry] = useState<string>(serverPrior.industry);
+  const [sizeRange, setSizeRange] = useState<string>(serverPrior.sizeRange);
+  const [buyer, setBuyer] = useState<string>(serverPrior.buyerPersona);
+  const [raw, setRaw] = useState<string>(serverPrior.raw);
+
+  const liveDraft: Phase1Draft = useMemo(
+    () => ({
+      situation,
+      dealsToDate,
+      industry,
+      sizeRange,
+      buyerPersona: buyer,
+      raw,
+    }),
+    [situation, dealsToDate, industry, sizeRange, buyer, raw],
+  );
+
+  const { hydratedFrom, hydratedDraft, clearLocal } =
+    useOnboardingAutosave<Phase1Draft>({
+      tenantId,
+      phase: 1,
+      draft: liveDraft,
+      serverPrior,
+    });
+
+  // Mount-once hydration : if localStorage gave us a fresh draft,
+  // adopt it. Server prior is already the initial state ; no
+  // re-mount needed for that path.
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    if (hydratedFrom === "local" && hydratedDraft) {
+      setSituation(hydratedDraft.situation ?? serverPrior.situation);
+      setDealsToDate(
+        Number.isFinite(hydratedDraft.dealsToDate)
+          ? hydratedDraft.dealsToDate
+          : serverPrior.dealsToDate,
+      );
+      setIndustry(hydratedDraft.industry ?? "");
+      setSizeRange(hydratedDraft.sizeRange ?? "");
+      setBuyer(hydratedDraft.buyerPersona ?? "");
+      setRaw(hydratedDraft.raw ?? "");
+      hydratedRef.current = true;
+    } else if (hydratedFrom === "server" || hydratedFrom === "none") {
+      hydratedRef.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydratedFrom, hydratedDraft]);
 
   return (
     <form
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
-        onSubmit({
+        const ok = await onSubmit({
           situation,
           dealsToDate,
           icp: { industry, sizeRange, buyerPersona: buyer, raw },
         });
+        // Drop the localStorage draft once the server has accepted
+        // the payload — keeps storage bounded and avoids a stale
+        // draft confusing a future visit.
+        if (ok) clearLocal();
       }}
       className="space-y-3"
     >
       <SectionLabel n={1} title="Diagnostic" />
+      {hydratedFrom === "local" && (
+        <p
+          className="text-[11px]"
+          style={{ color: "var(--color-text-tertiary)" }}
+        >
+          Draft restored from your last session.
+        </p>
+      )}
       <Field label="Situation">
         <select
           value={situation}
