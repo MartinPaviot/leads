@@ -114,13 +114,48 @@ const PHASE_META: Array<{
   blurb: string;
   icon: typeof Sparkles;
 }> = [
-  { n: 1, title: "Diagnostic", blurb: "Your situation + ICP one-liner.", icon: Sparkles },
-  { n: 2, title: "ICP & TAM", blurb: "Best customers, anti-ICP, live TAM.", icon: Inbox },
-  { n: 3, title: "Email & Calendar", blurb: "Connect Gmail/Outlook + Calendar.", icon: Calendar },
-  { n: 4, title: "Signals", blurb: "Configure ≥3 custom buying signals.", icon: Radio },
-  { n: 5, title: "Voice & Sequences", blurb: "Capture voice, approve a sequence.", icon: Mic },
-  { n: 6, title: "Pipeline", blurb: "Define your stages.", icon: ListOrdered },
-  { n: 7, title: "Coaching", blurb: "Ask one question to activate.", icon: MessageSquare },
+  {
+    n: 1,
+    title: "Diagnostic",
+    blurb: "Your current sales situation + a one-line ICP.",
+    icon: Sparkles,
+  },
+  {
+    n: 2,
+    title: "ICP & TAM",
+    blurb: "Best customers, anti-ICP, accounts you'd burn.",
+    icon: Inbox,
+  },
+  {
+    n: 3,
+    title: "Email & Calendar",
+    blurb: "Connect Gmail or Outlook so signal capture starts.",
+    icon: Calendar,
+  },
+  {
+    n: 4,
+    title: "Signals",
+    blurb: "Configure at least 3 custom buying signals.",
+    icon: Radio,
+  },
+  {
+    n: 5,
+    title: "Voice & Sequences",
+    blurb: "Capture how you write, approve one sequence.",
+    icon: Mic,
+  },
+  {
+    n: 6,
+    title: "Pipeline",
+    blurb: "Define stages that match your real sales motion.",
+    icon: ListOrdered,
+  },
+  {
+    n: 7,
+    title: "Coaching",
+    blurb: "Run one chat query to activate the surface.",
+    icon: MessageSquare,
+  },
 ];
 
 export function OnboardingWizard() {
@@ -346,11 +381,21 @@ export function OnboardingWizard() {
   return (
     <div className="mx-auto max-w-4xl p-6 space-y-6">
       <header>
-        <h1 className="text-[22px] font-bold tracking-tight" style={{ color: "var(--color-text-primary)" }}>
-          Set up your sales engine
+        <p
+          className="text-[10px] uppercase tracking-[0.18em] font-semibold"
+          style={{ color: "var(--color-accent)" }}
+        >
+          Elevay setup
+        </p>
+        <h1
+          className="mt-1 text-[22px] font-bold tracking-tight"
+          style={{ color: "var(--color-text-primary)" }}
+        >
+          Configure your outbound engine
         </h1>
         <p className="mt-1 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-          Seven phases. The system blocks each step until the data is good enough — that's the difference between a working pipeline and a pretty empty one.
+          Seven phases. Each phase is gated on data quality, not check-box clicks — you cannot
+          finalise until the system has enough signal to run autonomously.
         </p>
       </header>
 
@@ -1030,7 +1075,9 @@ function Phase6({ priorData, onSubmit, submitting }: PhaseProps) {
     >
       <SectionLabel n={6} title="Pipeline" />
       <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-        Rename stages to match your reality. Sam Blond verbatim: "Stages, risks, and next steps that reflect reality — not rep hygiene."
+        Rename stages to match how you actually sell. Stages should reflect the buyer's
+        decision steps, not internal hygiene categories — pipeline you can&apos;t move on
+        is pipeline you can&apos;t coach on.
       </p>
       <ul className="space-y-2">
         {stages.map((s, i) => (
@@ -1070,7 +1117,10 @@ function Phase7({ onSubmit, submitting }: PhaseProps) {
     >
       <SectionLabel n={7} title="Coaching activation" />
       <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-        Open the chat panel (sidebar) and ask one question — e.g. "What's at risk in my pipeline this week?". Then confirm below.
+        Open the chat panel in the sidebar and ask one question — e.g. &quot;What&apos;s at
+        risk in my pipeline this week?&quot;. Coaching surfaces what the system already
+        knows about your data ; without one query, the surface stays cold. Confirm
+        below once you have a response.
       </p>
       <label className="flex items-center gap-2 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
         <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
