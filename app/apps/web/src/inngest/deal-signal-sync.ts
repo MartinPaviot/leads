@@ -21,6 +21,7 @@ import {
   type SignalsPayload,
 } from "@/lib/deal-autofill/apply-signals";
 import { logger } from "@/lib/observability/logger";
+import { metrics } from "@/lib/observability/metrics";
 
 export const syncSignalsToDeal = inngest.createFunction(
   {
@@ -103,11 +104,32 @@ export const syncSignalsToDeal = inngest.createFunction(
       .set({ properties: cascade.properties, updatedAt: new Date() })
       .where(eq(deals.id, deal.id));
 
-    // Telemetry — one log entry per field changed. Datadog tags get
-    // wired in task 5.7 ; the fields here are the contract metric
-    // keys, so the dashboard YAML in 5.8 already maps to them.
+    // Telemetry — counters per field touched, histogram of LLM
+    // confidence, plus a counter for genuine conflicts so we can
+    // alarm if rule clashes spike (signals an extraction regression).
+    // Tags are kept low-cardinality : tenantId is high cardinality
+    // and is intentionally NOT a tag — it's emitted on the structured
+    // log line for debug traceability instead.
     for (const fu of cascade.fieldUpdates) {
       if (!fu.changed) continue;
+      metrics.increment("deal_autofill.field_updated", {
+        field: fu.fieldName,
+        rule: fu.ruleApplied,
+        source: fu.source,
+        manual: fu.preservedManual,
+      });
+      if (fu.confidence !== undefined) {
+        metrics.histogram("deal_autofill.confidence", fu.confidence, {
+          field: fu.fieldName,
+          source: fu.source,
+        });
+      }
+      if (fu.conflict && !fu.preservedManual) {
+        metrics.increment("deal_autofill.conflict_resolved", {
+          field: fu.fieldName,
+          rule: fu.ruleApplied,
+        });
+      }
       logger.info("deal_autofill.field_updated", {
         tenantId,
         dealId: deal.id,
