@@ -1,0 +1,168 @@
+# Datadog dashboard for deal autofill cascade (P0-5 task 5.8).
+#
+# Provisioned via the official Terraform provider :
+#   resource "datadog_dashboard_json" "deal_autofill" {
+#     dashboard = file("dashboards/deal-autofill.yaml")
+#   }
+#
+# Exact metric names match what `inngest/deal-signal-sync.ts` emits
+# through `lib/observability/metrics.ts` :
+#   - deal_autofill.field_updated  (count, tags : field, rule, source, manual)
+#   - deal_autofill.confidence     (histogram, tags : field, source)
+#   - deal_autofill.conflict_resolved (count, tags : field, rule)
+#
+# Deploy procedure : edit this YAML, open a PR, the CI Terraform job
+# applies on merge. No drift — read-only in the Datadog UI.
+
+title: "Deal Autofill Cascade"
+description: |
+  Telemetry for the MONACO-PARITY P0-5 deal autofill pipeline.
+  Surfaces : per-field write rate, LLM confidence distribution,
+  conflict resolution mix, and red-flag indicators (manual override
+  spike = autofill quality drop).
+layout_type: ordered
+template_variables:
+  - name: tenant
+    prefix: tenant
+    available_values: []
+    default: "*"
+  - name: field
+    prefix: field
+    available_values:
+      - budget
+      - team_size
+      - current_crm
+      - competitors
+      - timeline
+      - point_solutions
+      - stakeholders
+      - next_step
+      - why_now
+      - summary
+    default: "*"
+
+widgets:
+  # ─── Row 1 : volume ───────────────────────────────────────────
+  - definition:
+      type: timeseries
+      title: "Field updates per minute"
+      requests:
+        - q: "sum:deal_autofill.field_updated{$tenant} by {field}.as_rate()"
+          display_type: line
+      yaxis:
+        scale: linear
+        min: "0"
+      markers:
+        - value: "y = 0"
+          display_type: ok dashed
+
+  - definition:
+      type: query_value
+      title: "Updates last hour"
+      requests:
+        - q: "sum:deal_autofill.field_updated{$tenant}.as_count()"
+          aggregator: sum
+      time:
+        live_span: 1h
+      precision: 0
+
+  - definition:
+      type: query_value
+      title: "Conflicts last hour"
+      requests:
+        - q: "sum:deal_autofill.conflict_resolved{$tenant}.as_count()"
+          aggregator: sum
+          conditional_formats:
+            - comparator: ">"
+              value: 50
+              palette: red_on_white
+            - comparator: ">"
+              value: 10
+              palette: yellow_on_white
+            - comparator: ">="
+              value: 0
+              palette: green_on_white
+      time:
+        live_span: 1h
+      precision: 0
+
+  # ─── Row 2 : per-rule mix ────────────────────────────────────
+  - definition:
+      type: toplist
+      title: "Rule mix by field"
+      requests:
+        - q: "top(sum:deal_autofill.field_updated{$tenant} by {field, rule}.as_count(), 25, 'sum', 'desc')"
+
+  - definition:
+      type: heatmap
+      title: "Confidence distribution by field (LLM-extracted)"
+      requests:
+        - q: "avg:deal_autofill.confidence{$tenant} by {field}"
+
+  # ─── Row 3 : source split ───────────────────────────────────
+  - definition:
+      type: timeseries
+      title: "Field updates by source"
+      requests:
+        - q: "sum:deal_autofill.field_updated{$tenant} by {source}.as_rate()"
+          display_type: bars
+          style:
+            line_type: solid
+            line_width: normal
+
+  - definition:
+      type: query_table
+      title: "Manual-preserve rate per field (high = autofill not trusted)"
+      requests:
+        - q: "sum:deal_autofill.field_updated{$tenant, manual:true} by {field}.as_count() / sum:deal_autofill.field_updated{$tenant} by {field}.as_count()"
+          alias: "manual override rate"
+          aggregator: avg
+          conditional_formats:
+            - comparator: ">"
+              value: 0.4
+              palette: red_on_white
+            - comparator: ">"
+              value: 0.2
+              palette: yellow_on_white
+
+  # ─── Row 4 : alerts ──────────────────────────────────────────
+  - definition:
+      type: alert_graph
+      title: "Conflict spike alert"
+      alert_id: "deal_autofill.conflict_spike"  # configured via separate monitor.yaml
+      viz_type: timeseries
+
+  - definition:
+      type: alert_graph
+      title: "Confidence regression alert"
+      alert_id: "deal_autofill.confidence_drop"
+      viz_type: timeseries
+
+  # ─── Row 5 : narrative ───────────────────────────────────────
+  - definition:
+      type: note
+      content: |
+        ## How to read this dashboard
+
+        - **Field updates / minute** : healthy autofill flow has steady
+          activity ; flat line = pipeline broken (check Inngest worker
+          health for `sync-signals-to-deal`).
+        - **Conflicts last hour** : conflict means two sources
+          disagreed. Some conflict is normal (a budget changes from
+          $30K → $50K) — runaway conflict means LLM extraction is
+          regressing or the conflict-resolution rules are mis-tuned.
+        - **Manual override rate per field** : when users keep
+          re-typing a value the autofill keeps overwriting, this
+          spikes. Above 40% = the field's rule is wrong (probably
+          shouldn't be `latest_wins`).
+        - **Confidence distribution** : team_size, why_now, summary
+          surface confidence ; sustained drift below 0.7 → eval the
+          extraction prompt.
+
+        Runbook : `_specs/MONACO-PARITY-P0-5-RUNBOOK.md`.
+      background_color: gray
+      font_size: "14"
+      text_align: left
+      show_tick: false
+      tick_pos: 50%
+      tick_edge: left
