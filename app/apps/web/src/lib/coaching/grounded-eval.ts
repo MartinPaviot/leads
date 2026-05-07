@@ -93,15 +93,28 @@ function pickClosestChunk(
 
 /**
  * Citation accuracy — fraction of the LLM's `[mm:ss]` citations that
- * point at a real chunk. Returns 1 when there are no citations
- * (vacuously true ; refusal cases hit this branch).
+ * point at a real chunk. Special cases :
+ *  - 0 citations + refusal-pattern output → 1.0 (vacuous, the
+ *    LLM correctly refused so no citations expected).
+ *  - 0 citations + chunks present + non-refusal output → 0
+ *    (the LLM produced an answer without citing — that's the
+ *    hallmark hallucination pattern we want to penalise).
+ *  - 0 citations + 0 chunks → 1.0 (vacuous : no citation possible).
  */
 export function citationAccuracy(
   output: string,
   chunks: RetrievedChunk[],
 ): { score: number; total: number; correct: number } {
   const findings = locateCitations(output, chunks);
-  if (findings.length === 0) return { score: 1, total: 0, correct: 0 };
+  if (findings.length === 0) {
+    if (chunks.length === 0) return { score: 1, total: 0, correct: 0 };
+    if (refusalDetected(output)) return { score: 1, total: 0, correct: 0 };
+    // Substantive answer without any citation → flag as 0.
+    if (output.trim().length > 20) {
+      return { score: 0, total: 0, correct: 0 };
+    }
+    return { score: 1, total: 0, correct: 0 };
+  }
   const correct = findings.filter((f) => f.matchesChunk).length;
   return { score: correct / findings.length, total: findings.length, correct };
 }
