@@ -30,6 +30,7 @@ import {
   type PriorIdentification,
 } from "@/lib/visitor-id/dedup";
 import { desc } from "drizzle-orm";
+import { planFanout } from "@/lib/visitor-id/fanout";
 
 interface IdentifyEvent {
   data: { visitId: string; tenantId: string; ip?: string };
@@ -232,8 +233,10 @@ export const identifyVisit = inngest.createFunction(
       return { matched: false };
     }
 
-    // Upsert company by (tenant, domain).
-    const companyId = await step.run("upsert-company", async () => {
+    // Upsert company by (tenant, domain). Returns companyId AND
+    // isNewCompany so the fan-out step knows whether to fire
+    // `company/created` (which kicks off enrichment).
+    const upsertResult = await step.run("upsert-company", async () => {
       const [existing] = await db
         .select({ id: companies.id })
         .from(companies)
@@ -244,7 +247,9 @@ export const identifyVisit = inngest.createFunction(
           ),
         )
         .limit(1);
-      if (existing) return existing.id;
+      if (existing) {
+        return { companyId: existing.id, isNew: false };
+      }
       const [created] = await db
         .insert(companies)
         .values({
@@ -253,8 +258,9 @@ export const identifyVisit = inngest.createFunction(
           domain: result.companyDomain,
         })
         .returning({ id: companies.id });
-      return created.id;
+      return { companyId: created.id, isNew: true };
     });
+    const companyId = upsertResult.companyId;
 
     await db
       .update(visits)
@@ -265,6 +271,41 @@ export const identifyVisit = inngest.createFunction(
         identifiedBy: provider.name,
       })
       .where(eq(visits.id, visitId));
+
+    // P0-2 task 2.3 — fan-out events. Pure planner decides which
+    // events to emit ; we dispatch via inngest.send. company/created
+    // kicks the existing enrich pipeline ; signals/auto-enroll feeds
+    // the existing signal-to-sequence worker which decides whether
+    // to actually enroll contacts.
+    const events = planFanout({
+      tenantId,
+      companyId,
+      companyDomain: result.companyDomain,
+      companyName: result.companyName,
+      visitId,
+      isNewCompany: upsertResult.isNew,
+      fromCache: false,
+      url: row.url,
+    });
+    if (events.length > 0) {
+      try {
+        await inngest.send(
+          events.map((e) => ({
+            name: e.name,
+            data: e.data,
+          })),
+        );
+      } catch (err) {
+        // Fan-out is best-effort — the visit identification has
+        // already landed. Worst case the founder doesn't see the
+        // auto-enrollment ; the enrichment cron sweeps later.
+        logger.warn("identify-visit: fanout dispatch failed (non-blocking)", {
+          visitId,
+          tenantId,
+          err: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
 
     logger.info("identify-visit: matched", {
       visitId,
