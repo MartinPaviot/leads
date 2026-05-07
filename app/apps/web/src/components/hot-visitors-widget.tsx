@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Eye, ArrowUpRight } from "lucide-react";
+import { Eye, ArrowUpRight, Briefcase, Send } from "lucide-react";
 
 /**
  * MONACO-PARITY-04 surface — companies that just visited the
@@ -129,11 +129,20 @@ export function HotVisitorsWidget() {
       <ul className="mt-3 space-y-1.5">
         {items.map((v) => {
           const href = v.companyId ? `/accounts/${v.companyId}` : "#";
+          // P0-2 follow-up : when nobody is working this account
+          // (no open deal AND no active enrollment), surface inline
+          // "Create deal" + "Add to sequence" CTAs so the founder
+          // can act without leaving the dashboard.
+          const showActionRow =
+            !!v.companyId && !v.openDeal && v.activeEnrollments === 0;
           return (
-            <li key={`${v.visitorId}-${v.companyId}`}>
+            <li
+              key={`${v.visitorId}-${v.companyId}`}
+              className="rounded-lg transition-colors hover:bg-[var(--color-bg-hover)]"
+            >
               <Link
                 href={href}
-                className="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-[var(--color-bg-hover)]"
+                className="flex items-center gap-3 px-2 py-2"
               >
                 <div
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold uppercase"
@@ -211,6 +220,39 @@ export function HotVisitorsWidget() {
                   <ArrowUpRight size={11} />
                 </div>
               </Link>
+              {showActionRow && (
+                <div
+                  className="flex flex-wrap items-center gap-1.5 px-2 pb-2 pl-12"
+                  // pl-12 indents past the avatar circle so the CTAs
+                  // visually align under the company info, not the
+                  // avatar — keeps the row's reading rhythm.
+                >
+                  <Link
+                    href={`/opportunities?companyId=${encodeURIComponent(v.companyId!)}&action=new`}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium"
+                    style={{
+                      background: "var(--color-bg-card)",
+                      color: "var(--color-text-secondary)",
+                      border: "1px solid var(--color-border-default)",
+                    }}
+                    title="Create a deal for this account"
+                  >
+                    <Briefcase size={10} aria-hidden /> Create deal
+                  </Link>
+                  <Link
+                    href={`/sequences?companyId=${encodeURIComponent(v.companyId!)}&action=enroll`}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium"
+                    style={{
+                      background: "var(--color-bg-card)",
+                      color: "var(--color-text-secondary)",
+                      border: "1px solid var(--color-border-default)",
+                    }}
+                    title="Pick a sequence to enroll a contact at this account"
+                  >
+                    <Send size={10} aria-hidden /> Add to sequence
+                  </Link>
+                </div>
+              )}
             </li>
           );
         })}

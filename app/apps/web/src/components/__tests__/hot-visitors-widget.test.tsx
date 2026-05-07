@@ -101,6 +101,56 @@ describe("HotVisitorsWidget", () => {
     await waitFor(() => expect(screen.getByText(/5m ago/i)).toBeDefined());
   });
 
+  it("renders 'Create deal' + 'Add to sequence' CTAs when no deal AND no enrollment", async () => {
+    stubFetch([baseItem]);
+    render(<HotVisitorsWidget />);
+    await waitFor(() => expect(screen.getByText(/Acme Corp/i)).toBeDefined());
+    expect(screen.getByText(/Create deal/i)).toBeDefined();
+    expect(screen.getByText(/Add to sequence/i)).toBeDefined();
+  });
+
+  it("CTAs link to the right routes with companyId param", async () => {
+    stubFetch([baseItem]);
+    render(<HotVisitorsWidget />);
+    await waitFor(() => expect(screen.getByText(/Create deal/i)).toBeDefined());
+    const dealLink = screen.getByText(/Create deal/i).closest("a");
+    expect(dealLink?.getAttribute("href")).toContain("/opportunities");
+    expect(dealLink?.getAttribute("href")).toContain("companyId=co-1");
+    expect(dealLink?.getAttribute("href")).toContain("action=new");
+    const seqLink = screen.getByText(/Add to sequence/i).closest("a");
+    expect(seqLink?.getAttribute("href")).toContain("/sequences");
+    expect(seqLink?.getAttribute("href")).toContain("companyId=co-1");
+    expect(seqLink?.getAttribute("href")).toContain("action=enroll");
+  });
+
+  it("hides CTAs when openDeal exists (system already on it)", async () => {
+    stubFetch([
+      { ...baseItem, openDeal: { id: "d-1", name: "Acme Q4", stage: "demo" } },
+    ]);
+    render(<HotVisitorsWidget />);
+    await waitFor(() => expect(screen.getByText(/Open deal/i)).toBeDefined());
+    expect(screen.queryByText(/Create deal/i)).toBeNull();
+    expect(screen.queryByText(/Add to sequence/i)).toBeNull();
+  });
+
+  it("hides CTAs when activeEnrollments > 0 (system already on it)", async () => {
+    stubFetch([{ ...baseItem, activeEnrollments: 1 }]);
+    render(<HotVisitorsWidget />);
+    await waitFor(() => expect(screen.getByText(/1 in sequence/i)).toBeDefined());
+    expect(screen.queryByText(/Create deal/i)).toBeNull();
+    expect(screen.queryByText(/Add to sequence/i)).toBeNull();
+  });
+
+  it("hides CTAs when companyId is null (no target to act on)", async () => {
+    stubFetch([{ ...baseItem, companyId: null }]);
+    render(<HotVisitorsWidget />);
+    await waitFor(() =>
+      expect(screen.getByText(/Acme Corp/i)).toBeDefined(),
+    );
+    expect(screen.queryByText(/Create deal/i)).toBeNull();
+    expect(screen.queryByText(/Add to sequence/i)).toBeNull();
+  });
+
   it("falls back to domain initial when companyName is null", async () => {
     stubFetch([
       { ...baseItem, companyName: null, companyDomain: "stripe.com" },
