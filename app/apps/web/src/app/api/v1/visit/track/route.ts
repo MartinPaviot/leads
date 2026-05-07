@@ -23,6 +23,7 @@ import { inngest } from "@/inngest/client";
 import { logger } from "@/lib/observability/logger";
 import { createHash } from "crypto";
 import { z } from "zod";
+import { hashSubnet } from "@/lib/visitor-id/dedup";
 
 const trackSchema = z.object({
   tenantId: z.string().min(1).max(100),
@@ -60,7 +61,13 @@ export async function POST(req: Request) {
     return Response.json({ ok: false, error: "json" }, { status: 400 });
   }
 
-  const ipHash = sha256(ipFromReq(req));
+  const rawIp = ipFromReq(req);
+  const ipHash = sha256(rawIp);
+  // P0-2 follow-up — populate /24 subnet hash for IPv4 visits so the
+  // dedup window can match same-office traffic that arrives via
+  // different NAT IPs. Null for IPv6 / malformed (helper rejects
+  // both cleanly).
+  const subnetHash = hashSubnet(rawIp);
   const userAgent = (req.headers.get("user-agent") || "").slice(0, 500);
 
   let visitId: string | null = null;
@@ -71,6 +78,7 @@ export async function POST(req: Request) {
         tenantId: parsed.tenantId,
         visitorId: parsed.visitorId,
         ipHash,
+        subnetHash,
         url: parsed.url,
         referrer: parsed.referrer ?? null,
         utm: parsed.utm,
@@ -91,7 +99,6 @@ export async function POST(req: Request) {
   // the provider; it is NOT persisted to the visits row (we keep
   // only the SHA-256 hash there).
   if (visitId) {
-    const rawIp = ipFromReq(req);
     inngest
       .send({
         name: "visit/created",

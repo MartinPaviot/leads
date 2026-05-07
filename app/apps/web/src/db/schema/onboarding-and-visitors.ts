@@ -25,6 +25,8 @@ import {
   jsonb,
   index,
   uniqueIndex,
+  doublePrecision,
+  boolean,
 } from "drizzle-orm/pg-core";
 
 // ── onboarding_progress ──────────────────────────────────────
@@ -81,6 +83,11 @@ export const visits = pgTable(
     visitorId: text("visitor_id").notNull(),
     /** SHA-256(remote IP) — never store the raw IP. */
     ipHash: text("ip_hash").notNull(),
+    /** SHA-256("/24 subnet of ip"). Optional ; pixel endpoint
+     *  populates it for IPv4. Used by the dedup window to catch
+     *  the "same office, different NAT IP" case so we don't pay
+     *  the provider twice. Null for IPv6 / malformed inputs. */
+    subnetHash: text("subnet_hash"),
     url: text("url").notNull(),
     referrer: text("referrer"),
     /** UTM params and other marketing tags. */
@@ -105,5 +112,54 @@ export const visits = pgTable(
     index("visits_visitor_idx").on(table.visitorId),
     index("visits_company_idx").on(table.companyId),
     index("visits_created_at_idx").on(table.createdAt),
+  ],
+);
+
+// ── visitor_id_charges (P0-2 follow-up) ──────────────────────
+//
+// One row per paid lookup at the visitor-ID provider (Snitcher /
+// RB2B / Clearbit Reveal). The spend cap reads sum(cost_usd) from
+// here for accurate budgeting ; the dashboard reads
+// `visitor_id_monthly_spend_by_tenant` (view) for ROI charts.
+//
+// Why a separate table from `visits` : a single visit can produce
+// zero, one, or many charges (cache hit → 0 ; first lookup → 1 ;
+// retried lookup after provider 5xx → 2). Joining 1:1 with `visits`
+// would conflate IO surface with cost surface.
+export const visitorIdCharges = pgTable(
+  "visitor_id_charges",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").notNull(),
+    /** Visit that triggered the lookup. NULL when the worker
+     *  retried for a now-deleted visit. */
+    visitId: text("visit_id"),
+    /** Provider name : "snitcher" | "rb2b" | "clearbit_reveal". */
+    provider: text("provider").notNull(),
+    /** USD cost rounded to 6 decimals (matches `llm_calls.cost_usd`).
+     *  NULL when we couldn't price (provider didn't return rate ;
+     *  spend-cap.ts falls back to DEFAULT_RATE_PER_MATCH_USD). */
+    costUsd: doublePrecision("cost_usd"),
+    /** True iff the provider returned a company match. Lets the
+     *  dashboard show match-rate alongside cost. */
+    matched: boolean("matched").notNull().default(false),
+    /** Provider's raw response — confidence, request id, etc.
+     *  Capped at 1 KB on insert. */
+    responseMeta: jsonb("response_meta")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    chargedAt: timestamp("charged_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("visitor_id_charges_tenant_charged_at_idx").on(
+      table.tenantId,
+      table.chargedAt,
+    ),
+    index("visitor_id_charges_provider_idx").on(table.provider),
   ],
 );

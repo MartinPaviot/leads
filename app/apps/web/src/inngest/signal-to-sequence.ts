@@ -94,10 +94,18 @@ export const signalAutoEnroll = inngest.createFunction(
       return { skipped: true, reason: "No contacts with email addresses" };
     }
 
-    // 3. Find an active outbound sequence for this tenant
+    // 3. Find an active outbound sequence for this tenant whose
+    //    trigger config matches the signal type (P0-2 follow-up).
+    //    Sequences with no triggerSignalTypes match all signals
+    //    (backwards-compat) ; configured sequences only match
+    //    their whitelist.
     const activeSequence = await step.run("find-sequence", async () => {
-      const [seq] = await db
-        .select({ id: sequences.id, name: sequences.name })
+      const candidates = await db
+        .select({
+          id: sequences.id,
+          name: sequences.name,
+          campaignConfig: sequences.campaignConfig,
+        })
         .from(sequences)
         .where(
           and(
@@ -105,9 +113,19 @@ export const signalAutoEnroll = inngest.createFunction(
             eq(sequences.status, "active"),
           ),
         )
-        .orderBy(desc(sequences.createdAt))
-        .limit(1);
-      return seq || null;
+        .orderBy(desc(sequences.createdAt));
+      const { pickSequenceForSignal } = await import(
+        "@/lib/sequences/triggers"
+      );
+      const picked = pickSequenceForSignal(
+        candidates.map((c) => ({
+          id: c.id,
+          name: c.name,
+          campaignConfig: (c.campaignConfig as Record<string, unknown> | null) ?? null,
+        })),
+        signalType,
+      );
+      return picked ? { id: picked.id, name: picked.name } : null;
     });
 
     if (!activeSequence) {

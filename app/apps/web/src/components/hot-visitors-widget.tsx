@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Eye, ArrowUpRight } from "lucide-react";
+import { Eye, ArrowUpRight, Briefcase, Send } from "lucide-react";
 
 /**
  * MONACO-PARITY-04 surface — companies that just visited the
@@ -23,6 +23,10 @@ interface HotVisitor {
   lastUrl: string | null;
   lastVisitAt: string;
   visitCount: number;
+  /** P0-2 task 2.4 — operational state the founder needs to know
+   *  whether the system is already on it. */
+  openDeal: { id: string; name: string; stage: string } | null;
+  activeEnrollments: number;
 }
 
 function relativeTime(iso: string): string {
@@ -125,11 +129,20 @@ export function HotVisitorsWidget() {
       <ul className="mt-3 space-y-1.5">
         {items.map((v) => {
           const href = v.companyId ? `/accounts/${v.companyId}` : "#";
+          // P0-2 follow-up : when nobody is working this account
+          // (no open deal AND no active enrollment), surface inline
+          // "Create deal" + "Add to sequence" CTAs so the founder
+          // can act without leaving the dashboard.
+          const showActionRow =
+            !!v.companyId && !v.openDeal && v.activeEnrollments === 0;
           return (
-            <li key={`${v.visitorId}-${v.companyId}`}>
+            <li
+              key={`${v.visitorId}-${v.companyId}`}
+              className="rounded-lg transition-colors hover:bg-[var(--color-bg-hover)]"
+            >
               <Link
                 href={href}
-                className="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-[var(--color-bg-hover)]"
+                className="flex items-center gap-3 px-2 py-2"
               >
                 <div
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold uppercase"
@@ -168,6 +181,36 @@ export function HotVisitorsWidget() {
                     {pathFromUrl(v.lastUrl)}
                     {v.companyScore != null ? ` · score ${Math.round(v.companyScore)}` : ""}
                   </div>
+                  {(v.openDeal || v.activeEnrollments > 0) && (
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                      {v.openDeal && (
+                        <span
+                          className="rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider"
+                          style={{
+                            background: "var(--color-success-soft, rgba(16,185,129,0.10))",
+                            color: "var(--color-success, #059669)",
+                            border: "1px solid rgba(16,185,129,0.25)",
+                          }}
+                          title={`Open deal in ${v.openDeal.stage}`}
+                        >
+                          Open deal · {v.openDeal.stage}
+                        </span>
+                      )}
+                      {v.activeEnrollments > 0 && (
+                        <span
+                          className="rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                          style={{
+                            background: "var(--color-accent-soft, rgba(99,102,241,0.10))",
+                            color: "var(--color-accent, #6366f1)",
+                            border: "1px solid rgba(99,102,241,0.25)",
+                          }}
+                          title="Contacts at this company are active in a sequence"
+                        >
+                          {v.activeEnrollments} in sequence
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div
                   className="flex shrink-0 items-center gap-1 text-[11px]"
@@ -177,6 +220,39 @@ export function HotVisitorsWidget() {
                   <ArrowUpRight size={11} />
                 </div>
               </Link>
+              {showActionRow && (
+                <div
+                  className="flex flex-wrap items-center gap-1.5 px-2 pb-2 pl-12"
+                  // pl-12 indents past the avatar circle so the CTAs
+                  // visually align under the company info, not the
+                  // avatar — keeps the row's reading rhythm.
+                >
+                  <Link
+                    href={`/opportunities?companyId=${encodeURIComponent(v.companyId!)}&action=new`}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium"
+                    style={{
+                      background: "var(--color-bg-card)",
+                      color: "var(--color-text-secondary)",
+                      border: "1px solid var(--color-border-default)",
+                    }}
+                    title="Create a deal for this account"
+                  >
+                    <Briefcase size={10} aria-hidden /> Create deal
+                  </Link>
+                  <Link
+                    href={`/sequences?companyId=${encodeURIComponent(v.companyId!)}&action=enroll`}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium"
+                    style={{
+                      background: "var(--color-bg-card)",
+                      color: "var(--color-text-secondary)",
+                      border: "1px solid var(--color-border-default)",
+                    }}
+                    title="Pick a sequence to enroll a contact at this account"
+                  >
+                    <Send size={10} aria-hidden /> Add to sequence
+                  </Link>
+                </div>
+              )}
             </li>
           );
         })}

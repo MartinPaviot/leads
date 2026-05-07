@@ -15,30 +15,76 @@
 
 import { inngest } from "./client";
 import { db } from "@/db";
-import { visits, companies } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
-import { getVisitorIdProvider } from "@/lib/visitor-id/snitcher";
+import { visits, companies, tenants, visitorIdCharges } from "@/db/schema";
+import { eq, and, gte, isNotNull, sql } from "drizzle-orm";
+import { snitcherProvider } from "@/lib/visitor-id/snitcher";
+import { rb2bProvider } from "@/lib/visitor-id/rb2b";
+import { clearbitProvider } from "@/lib/visitor-id/clearbit";
+import {
+  resolveProvider,
+  noneProvider,
+  type ProviderRegistry,
+} from "@/lib/visitor-id/provider-resolver";
 import { logger } from "@/lib/observability/logger";
+import {
+  loadSpendDecision,
+  startOfUtcMonth,
+} from "@/lib/visitor-id/spend-cap";
+import {
+  checkDedup,
+  hashSubnet,
+  type DedupCandidate,
+  type PriorIdentification,
+} from "@/lib/visitor-id/dedup";
+import { desc } from "drizzle-orm";
+import { planFanout } from "@/lib/visitor-id/fanout";
+import { metrics } from "@/lib/observability/metrics";
+import { buildChargeRow } from "@/lib/visitor-id/charges";
 
 interface IdentifyEvent {
   data: { visitId: string; tenantId: string; ip?: string };
 }
 
+// P0-2 follow-up : per-tenant provider registry. Each provider is
+// stub-safe (returns null when its API key is missing) so the
+// resolver can fall back cleanly to Snitcher → none without throws.
+const PROVIDER_REGISTRY: ProviderRegistry = {
+  snitcher: snitcherProvider,
+  rb2b: rb2bProvider,
+  clearbit_reveal: clearbitProvider,
+  none: noneProvider,
+};
+
 export const identifyVisit = inngest.createFunction(
   {
     id: "identify-visit",
-    name: "Identify visitor company (Snitcher / RB2B)",
+    name: "Identify visitor company (Snitcher / RB2B / Clearbit)",
     retries: 1,
     triggers: [{ event: "visit/created" }],
   },
   async ({ event, step }: { event: IdentifyEvent; step: any }) => {
     const { visitId, tenantId } = event.data;
 
-    const provider = getVisitorIdProvider();
-    if (!provider.isAvailable()) {
+    // P0-2 follow-up : resolve the per-tenant provider FIRST so the
+    // rest of the worker uses the right one. The default still
+    // routes to Snitcher (Monaco-aligned) when no setting present.
+    const tenantSettings = await step.run("fetch-tenant-settings", async () => {
+      const [t] = await db
+        .select({ settings: tenants.settings })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId))
+        .limit(1);
+      return (t?.settings as Record<string, unknown> | null) ?? null;
+    });
+    const provider = resolveProvider({
+      settings: tenantSettings,
+      registry: PROVIDER_REGISTRY,
+    });
+    if (provider.name === "none") {
       logger.info("identify-visit: provider unavailable, skipping", {
         provider: provider.name,
         visitId,
+        tenantId,
       });
       return { skipped: true, reason: "provider_unavailable" };
     }
@@ -58,6 +104,92 @@ export const identifyVisit = inngest.createFunction(
       return { skipped: true, reason: "already_identified" };
     }
 
+    // P0-2 task 2.1 — per-tenant monthly spend cap. Stop calling
+    // the provider once the tenant's identifications this month
+    // would push spend past their cap (default $50). The visit
+    // row is left unmatched ; next month's reset re-enables it.
+    const spendDecision = await step.run("check-spend-cap", () =>
+      loadSpendDecision({
+        tenantId,
+        deps: {
+          countIdentificationsThisMonth: async (tid, now) => {
+            const since = startOfUtcMonth(now);
+            const [{ c }] = await db
+              .select({ c: sql<number>`count(*)::int` })
+              .from(visits)
+              .where(
+                and(
+                  eq(visits.tenantId, tid),
+                  isNotNull(visits.identifiedAt),
+                  isNotNull(visits.companyDomain),
+                  gte(visits.identifiedAt, since),
+                ),
+              );
+            return c;
+          },
+          loadTenantSettings: async (tid) => {
+            const [t] = await db
+              .select({ settings: tenants.settings })
+              .from(tenants)
+              .where(eq(tenants.id, tid))
+              .limit(1);
+            return (t?.settings as Record<string, unknown> | null) ?? null;
+          },
+          // P0-2 follow-up : ledger-first spend. When the charge
+          // ledger has rows for this tenant in the month, the
+          // sum is authoritative ; otherwise loadSpendDecision
+          // falls back to identifications × rate.
+          sumChargesThisMonth: async (tid, now) => {
+            const since = startOfUtcMonth(now);
+            const [row] = await db
+              .select({
+                totalUsd: sql<number>`COALESCE(SUM(${visitorIdCharges.costUsd}), 0)::float8`,
+                rowCount: sql<number>`count(*)::int`,
+              })
+              .from(visitorIdCharges)
+              .where(
+                and(
+                  eq(visitorIdCharges.tenantId, tid),
+                  gte(visitorIdCharges.chargedAt, since),
+                ),
+              );
+            return {
+              totalUsd: Number(row?.totalUsd ?? 0),
+              rowCount: Number(row?.rowCount ?? 0),
+            };
+          },
+        },
+      }),
+    );
+    if (spendDecision.reached) {
+      logger.warn("identify-visit: monthly cap reached, skipping", {
+        tenantId,
+        spendUsd: spendDecision.spendUsd,
+        capUsd: spendDecision.capUsd,
+      });
+      metrics.increment("visitor_id.cap_reached", { provider: provider.name });
+      return {
+        skipped: true,
+        reason: "cap_reached",
+        spendUsd: spendDecision.spendUsd,
+        capUsd: spendDecision.capUsd,
+      };
+    }
+    if (spendDecision.warning) {
+      // Surface the near-cap signal so the dashboard can render the
+      // warning banner ; we still proceed with the identification.
+      logger.info("identify-visit: spend approaching cap", {
+        tenantId,
+        spendUsd: spendDecision.spendUsd,
+        capUsd: spendDecision.capUsd,
+        remainingUsd: spendDecision.remainingUsd,
+      });
+      metrics.increment("visitor_id.cap_warning", { provider: provider.name });
+    }
+    metrics.histogram("visitor_id.monthly_spend_usd", spendDecision.spendUsd, {
+      provider: provider.name,
+    });
+
     const ip = event.data.ip;
     if (!ip || ip === "0.0.0.0") {
       // No usable IP (loopback or absent). Mark the visit as
@@ -69,10 +201,150 @@ export const identifyVisit = inngest.createFunction(
       return { skipped: true, reason: "no_raw_ip" };
     }
 
+    // P0-2 task 2.2 — dedup against recent identifications. Re-using
+    // a prior result for the same IP / /24 subnet within the
+    // tenant's window saves a paid lookup AND keeps the latency low.
+    const candidate: DedupCandidate = {
+      ipHash: row.ipHash,
+      subnetHash: hashSubnet(ip),
+    };
+    const dedup = await step.run("check-dedup", () =>
+      checkDedup({
+        tenantId,
+        candidate,
+        deps: {
+          findRecentIdentification: async ({ tenantId: tid, candidate: cand, cutoff }) => {
+            // Two-pass match : exact ipHash first (highest confidence,
+            // catches the "same browser came back" case), then /24
+            // subnetHash (catches same-office different-NAT). Only run
+            // the subnet pass when the candidate has a subnet hash —
+            // IPv6 / malformed inputs return null from hashSubnet().
+            const [exactHit] = await db
+              .select({
+                companyDomain: visits.companyDomain,
+                companyId: visits.companyId,
+                identifiedAt: visits.identifiedAt,
+              })
+              .from(visits)
+              .where(
+                and(
+                  eq(visits.tenantId, tid),
+                  isNotNull(visits.companyDomain),
+                  gte(visits.identifiedAt, cutoff),
+                  eq(visits.ipHash, cand.ipHash),
+                ),
+              )
+              .orderBy(desc(visits.identifiedAt))
+              .limit(1);
+            if (exactHit?.companyDomain && exactHit.identifiedAt) {
+              const prior: PriorIdentification = {
+                companyDomain: exactHit.companyDomain,
+                companyId: exactHit.companyId ?? "",
+                identifiedAt: exactHit.identifiedAt,
+                matchedBy: "ip_hash",
+              };
+              return prior;
+            }
+            if (!cand.subnetHash) return null;
+            const [subnetHit] = await db
+              .select({
+                companyDomain: visits.companyDomain,
+                companyId: visits.companyId,
+                identifiedAt: visits.identifiedAt,
+              })
+              .from(visits)
+              .where(
+                and(
+                  eq(visits.tenantId, tid),
+                  isNotNull(visits.companyDomain),
+                  gte(visits.identifiedAt, cutoff),
+                  eq(visits.subnetHash, cand.subnetHash),
+                ),
+              )
+              .orderBy(desc(visits.identifiedAt))
+              .limit(1);
+            if (!subnetHit?.companyDomain || !subnetHit.identifiedAt) return null;
+            const prior: PriorIdentification = {
+              companyDomain: subnetHit.companyDomain,
+              companyId: subnetHit.companyId ?? "",
+              identifiedAt: subnetHit.identifiedAt,
+              matchedBy: "subnet_hash",
+            };
+            return prior;
+          },
+          loadTenantSettings: async (tid) => {
+            const [t] = await db
+              .select({ settings: tenants.settings })
+              .from(tenants)
+              .where(eq(tenants.id, tid))
+              .limit(1);
+            return (t?.settings as Record<string, unknown> | null) ?? null;
+          },
+        },
+      }),
+    );
+    if (dedup.cached) {
+      await db
+        .update(visits)
+        .set({
+          companyDomain: dedup.cached.companyDomain,
+          companyId: dedup.cached.companyId || null,
+          identifiedAt: new Date(),
+          identifiedBy: `${provider.name}_cached`,
+        })
+        .where(eq(visits.id, visitId));
+      logger.info("identify-visit: dedup cache hit", {
+        visitId,
+        tenantId,
+        companyDomain: dedup.cached.companyDomain,
+        windowDays: dedup.windowDays,
+      });
+      metrics.increment("visitor_id.dedup_hit", {
+        provider: provider.name,
+        matched_by: dedup.cached.matchedBy,
+      });
+      return {
+        matched: true,
+        cached: true,
+        companyDomain: dedup.cached.companyDomain,
+        companyId: dedup.cached.companyId,
+      };
+    }
+
     const result = await provider.identify({
       ip,
       userAgent: row.userAgent,
       url: row.url,
+    });
+
+    // P0-2 follow-up — charge ledger row per paid lookup. Snitcher
+    // bills per request whether or not a match landed, so we
+    // record both branches. Best-effort : a ledger insert failure
+    // doesn't unwind the identification (the visit row update
+    // still happens ; the spend tally would fall back to the
+    // count-based estimate next month-eval).
+    await step.run("record-charge", async () => {
+      try {
+        const charge = buildChargeRow({
+          tenantId,
+          visitId,
+          provider: provider.name,
+          matched: result !== null,
+          responseMeta: result
+            ? {
+                companyDomain: result.companyDomain,
+                confidence: result.confidence,
+              }
+            : { matched: false },
+        });
+        await db.insert(visitorIdCharges).values(charge);
+      } catch (err) {
+        logger.warn("identify-visit: charge ledger insert failed (non-blocking)", {
+          tenantId,
+          visitId,
+          err: err instanceof Error ? err.message : String(err),
+        });
+      }
     });
 
     if (!result) {
@@ -81,11 +353,20 @@ export const identifyVisit = inngest.createFunction(
         .update(visits)
         .set({ identifiedAt: new Date(), identifiedBy: provider.name })
         .where(eq(visits.id, visitId));
+      metrics.increment("visitor_id.no_match", { provider: provider.name });
       return { matched: false };
     }
+    metrics.increment("visitor_id.matched", { provider: provider.name });
+    if (typeof result.confidence === "number") {
+      metrics.histogram("visitor_id.confidence", result.confidence, {
+        provider: provider.name,
+      });
+    }
 
-    // Upsert company by (tenant, domain).
-    const companyId = await step.run("upsert-company", async () => {
+    // Upsert company by (tenant, domain). Returns companyId AND
+    // isNewCompany so the fan-out step knows whether to fire
+    // `company/created` (which kicks off enrichment).
+    const upsertResult = await step.run("upsert-company", async () => {
       const [existing] = await db
         .select({ id: companies.id })
         .from(companies)
@@ -96,7 +377,9 @@ export const identifyVisit = inngest.createFunction(
           ),
         )
         .limit(1);
-      if (existing) return existing.id;
+      if (existing) {
+        return { companyId: existing.id, isNew: false };
+      }
       const [created] = await db
         .insert(companies)
         .values({
@@ -105,8 +388,9 @@ export const identifyVisit = inngest.createFunction(
           domain: result.companyDomain,
         })
         .returning({ id: companies.id });
-      return created.id;
+      return { companyId: created.id, isNew: true };
     });
+    const companyId = upsertResult.companyId;
 
     await db
       .update(visits)
@@ -117,6 +401,41 @@ export const identifyVisit = inngest.createFunction(
         identifiedBy: provider.name,
       })
       .where(eq(visits.id, visitId));
+
+    // P0-2 task 2.3 — fan-out events. Pure planner decides which
+    // events to emit ; we dispatch via inngest.send. company/created
+    // kicks the existing enrich pipeline ; signals/auto-enroll feeds
+    // the existing signal-to-sequence worker which decides whether
+    // to actually enroll contacts.
+    const events = planFanout({
+      tenantId,
+      companyId,
+      companyDomain: result.companyDomain,
+      companyName: result.companyName,
+      visitId,
+      isNewCompany: upsertResult.isNew,
+      fromCache: false,
+      url: row.url,
+    });
+    if (events.length > 0) {
+      try {
+        await inngest.send(
+          events.map((e) => ({
+            name: e.name,
+            data: e.data,
+          })),
+        );
+      } catch (err) {
+        // Fan-out is best-effort — the visit identification has
+        // already landed. Worst case the founder doesn't see the
+        // auto-enrollment ; the enrichment cron sweeps later.
+        logger.warn("identify-visit: fanout dispatch failed (non-blocking)", {
+          visitId,
+          tenantId,
+          err: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
 
     logger.info("identify-visit: matched", {
       visitId,

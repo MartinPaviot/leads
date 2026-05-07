@@ -22,6 +22,7 @@ import { CompanyLogo } from "@/components/ui/company-logo";
 import { HotInboundsWidget } from "@/components/hot-inbounds-widget";
 import { HotVisitorsWidget } from "@/components/hot-visitors-widget";
 import { OnboardingIncompleteBanner } from "@/components/onboarding-7phase/incomplete-banner";
+import { VisitorIdCapBanner } from "@/components/visitor-id-cap-banner";
 
 interface Action {
   action: string;
@@ -314,6 +315,13 @@ export default function DashboardPage() {
             7-phase wizard at /onboarding-v3 if onboarding isn't
             complete. Hides itself on completion. */}
         <OnboardingIncompleteBanner />
+
+        {/* P0-2 follow-up : visitor-ID cap banner. Hides itself when
+            spend is healthy ; surfaces amber warning within $5/10%
+            of cap, red alarm at-or-above cap. */}
+        <div className="mb-4">
+          <VisitorIdCapBanner />
+        </div>
 
         {/* F010: Agent Activity Feed — primary view */}
         <div className="mb-6">

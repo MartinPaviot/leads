@@ -11,8 +11,14 @@
  */
 
 import { db } from "@/db";
-import { visits, companies } from "@/db/schema";
-import { and, desc, eq, gte, isNotNull, sql } from "drizzle-orm";
+import {
+  visits,
+  companies,
+  deals,
+  sequenceEnrollments,
+  contacts,
+} from "@/db/schema";
+import { and, desc, eq, gte, inArray, isNotNull, notInArray, sql } from "drizzle-orm";
 import { getAuthContext } from "@/lib/auth/auth-utils";
 
 export async function GET(req: Request) {
@@ -67,6 +73,68 @@ export async function GET(req: Request) {
     .orderBy(desc(sql<Date>`max(${visits.createdAt})`))
     .limit(limit);
 
+  const companyIds = rows
+    .map((r) => r.companyId)
+    .filter((id): id is string => id !== null);
+
+  // P0-2 task 2.4 — enrich each visitor card with the operational
+  // state the founder needs to decide what to do : is there an
+  // open deal? Has anyone been auto-enrolled into a sequence?
+  // These two fan-outs answer "is the system already on it?".
+
+  const openDealsByCompany = new Map<string, { id: string; name: string; stage: string }>();
+  const enrolledByCompany = new Map<string, number>();
+
+  if (companyIds.length > 0) {
+    const dealRows = await db
+      .select({
+        companyId: deals.companyId,
+        id: deals.id,
+        name: deals.name,
+        stage: deals.stage,
+      })
+      .from(deals)
+      .where(
+        and(
+          eq(deals.tenantId, authCtx.tenantId),
+          inArray(deals.companyId, companyIds),
+          notInArray(deals.stage, ["won", "lost"]),
+        ),
+      );
+    for (const d of dealRows) {
+      if (!d.companyId) continue;
+      // Most-recent deal wins on collision — keep first hit since
+      // dealRows isn't ordered ; slight imprecision OK at widget scale.
+      if (!openDealsByCompany.has(d.companyId)) {
+        openDealsByCompany.set(d.companyId, {
+          id: d.id,
+          name: d.name,
+          stage: d.stage ?? "lead",
+        });
+      }
+    }
+
+    const enrollmentRows = await db
+      .select({
+        companyId: contacts.companyId,
+        enrollmentCount: sql<number>`count(*)::int`,
+      })
+      .from(sequenceEnrollments)
+      .innerJoin(contacts, eq(contacts.id, sequenceEnrollments.contactId))
+      .where(
+        and(
+          eq(contacts.tenantId, authCtx.tenantId),
+          inArray(contacts.companyId, companyIds),
+          eq(sequenceEnrollments.status, "active"),
+        ),
+      )
+      .groupBy(contacts.companyId);
+    for (const e of enrollmentRows) {
+      if (!e.companyId) continue;
+      enrolledByCompany.set(e.companyId, Number(e.enrollmentCount ?? 0));
+    }
+  }
+
   const items = rows.map((r) => ({
     visitorId: r.visitorId,
     companyId: r.companyId,
@@ -79,6 +147,8 @@ export async function GET(req: Request) {
         ? r.lastVisitAt.toISOString()
         : new Date(r.lastVisitAt).toISOString(),
     visitCount: Number(r.visitCount ?? 0),
+    openDeal: r.companyId ? openDealsByCompany.get(r.companyId) ?? null : null,
+    activeEnrollments: r.companyId ? enrolledByCompany.get(r.companyId) ?? 0 : 0,
   }));
 
   return Response.json({ items, since: since.toISOString() });
