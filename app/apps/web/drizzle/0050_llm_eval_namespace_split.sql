@@ -40,6 +40,33 @@ ALTER INDEX IF EXISTS eval_case_runs_case_idx
 ALTER INDEX IF EXISTS eval_case_runs_created_at_idx
   RENAME TO llm_eval_case_runs_created_at_idx;
 
+-- 2b. If 0047 was never applied to this database (true for any
+--     environment that received the migrations after 0050 was
+--     authored — including Supabase prod, where 0044-0050 have
+--     not yet run), `eval_case_runs` doesn't exist, the rename
+--     above is a no-op, and we'd later fail on the FK addition
+--     because `llm_eval_case_runs` doesn't exist either. Create
+--     it directly here so 0050 is self-sufficient. Same shape as
+--     the original 0047 declaration, minus the legacy FK that
+--     0050 ultimately wants pointing at `llm_eval_runs`.
+CREATE TABLE IF NOT EXISTS llm_eval_case_runs (
+  id              TEXT PRIMARY KEY,
+  run_id          TEXT NOT NULL,
+  case_id         TEXT NOT NULL,
+  passed          BOOLEAN NOT NULL,
+  errored         BOOLEAN NOT NULL DEFAULT FALSE,
+  latency_ms      INTEGER NOT NULL,
+  error_message   TEXT,
+  output_snippet  TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS llm_eval_case_runs_run_idx
+  ON llm_eval_case_runs (run_id);
+CREATE INDEX IF NOT EXISTS llm_eval_case_runs_case_idx
+  ON llm_eval_case_runs (case_id);
+CREATE INDEX IF NOT EXISTS llm_eval_case_runs_created_at_idx
+  ON llm_eval_case_runs (created_at);
+
 -- 3. Build the aggregate parent under the new name. Mirrors the
 --    block 0041 wanted to install but couldn't.
 CREATE TABLE IF NOT EXISTS llm_eval_runs (
