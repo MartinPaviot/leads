@@ -5,7 +5,7 @@ import { chatThreads } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { Sidebar } from "@/components/sidebar";
 import { PersistentChatBar } from "@/components/persistent-chat-bar";
-import { PostHogPageTracker } from "@/components/posthog-provider";
+import { PostHogIdentify } from "@/components/posthog-provider";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { ToastProvider } from "@/components/ui/toast";
 import { CommandPalette } from "@/components/ui/command-palette";
@@ -83,7 +83,14 @@ export default async function DashboardLayout({
             <main className="flex flex-1 flex-col overflow-hidden" style={{ background: "var(--color-bg-page)" }}>
               <div className="flex-1 overflow-auto">{children}</div>
               <PersistentChatBar />
-              <PostHogPageTracker userId={session.user.id} />
+              <PostHogIdentify
+                userId={session.user.id}
+                traits={{
+                  email: session.user.email ?? undefined,
+                  name: session.user.name ?? undefined,
+                  tenantName: tenantName ?? undefined,
+                }}
+              />
             </main>
 
             <CommandPalette />

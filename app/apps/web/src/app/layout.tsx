@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Inter, JetBrains_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 import { SkipLink } from "@/components/a11y/skip-link";
+import { PostHogProvider } from "@/components/posthog-provider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -65,7 +67,14 @@ export default function RootLayout({
     >
       <body>
         <SkipLink />
-        <div id="main-content">{children}</div>
+        {/* PostHog wraps everything so anonymous landing/marketing/auth
+            pages get autocapture + replay too. Suspense satisfies
+            useSearchParams's RSC requirement. */}
+        <Suspense fallback={null}>
+          <PostHogProvider>
+            <div id="main-content">{children}</div>
+          </PostHogProvider>
+        </Suspense>
       </body>
     </html>
   );
