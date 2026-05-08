@@ -124,7 +124,11 @@ describe("llmCall", () => {
   });
 
   it("marks outcome=timeout when fn hangs past timeoutMs", async () => {
-    const fn = vi.fn(() => new Promise(() => {})); // never resolves
+    // Typed parameter so `Parameters<TFn>` accepts the args tuple ;
+    // `vi.fn(() => …)` would otherwise infer an empty-tuple call.
+    const fn = vi.fn((_arg: { model: ReturnType<typeof fakeModel> }) =>
+      new Promise<unknown>(() => {}),
+    ); // never resolves
 
     await expect(
       llmCall({

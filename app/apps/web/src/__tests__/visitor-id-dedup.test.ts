@@ -5,6 +5,7 @@ import {
   hashIp,
   hashSubnet,
   checkDedup,
+  type DedupCandidate,
 } from "@/lib/visitor-id/dedup";
 
 describe("resolveDedupWindowDays", () => {
@@ -135,7 +136,10 @@ describe("checkDedup", () => {
   });
 
   it("passes the resolved cutoff to the finder", async () => {
-    const finderSpy = vi.fn(async () => null);
+    const finderSpy = vi.fn(
+      async (_args: { tenantId: string; candidate: DedupCandidate; cutoff: Date }) =>
+        null,
+    );
     const now = new Date("2026-05-08T00:00:00Z");
     await checkDedup({
       tenantId: "t-1",
@@ -146,14 +150,17 @@ describe("checkDedup", () => {
         loadTenantSettings: vi.fn(async () => ({ visitorIdDedupWindowDays: 14 })),
       },
     });
-    const args = finderSpy.mock.calls[0][0];
-    expect(args.cutoff.toISOString()).toBe("2026-04-24T00:00:00.000Z");
-    expect(args.candidate).toBe(candidate);
-    expect(args.tenantId).toBe("t-1");
+    const args = finderSpy.mock.calls[0]![0];
+    expect(args!.cutoff.toISOString()).toBe("2026-04-24T00:00:00.000Z");
+    expect(args!.candidate).toBe(candidate);
+    expect(args!.tenantId).toBe("t-1");
   });
 
   it("uses default 7d window when settings missing", async () => {
-    const finderSpy = vi.fn(async () => null);
+    const finderSpy = vi.fn(
+      async (_args: { tenantId: string; candidate: DedupCandidate; cutoff: Date }) =>
+        null,
+    );
     const now = new Date("2026-05-08T00:00:00Z");
     await checkDedup({
       tenantId: "t-1",
@@ -164,7 +171,7 @@ describe("checkDedup", () => {
         loadTenantSettings: vi.fn(async () => null),
       },
     });
-    expect(finderSpy.mock.calls[0][0].cutoff.toISOString()).toBe(
+    expect(finderSpy.mock.calls[0]![0]!.cutoff.toISOString()).toBe(
       "2026-05-01T00:00:00.000Z",
     );
   });

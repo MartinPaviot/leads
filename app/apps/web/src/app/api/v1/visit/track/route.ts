@@ -30,7 +30,7 @@ const trackSchema = z.object({
   visitorId: z.string().min(1).max(100),
   url: z.string().url().max(2000),
   referrer: z.string().nullable().optional(),
-  utm: z.record(z.string()).optional().default({}),
+  utm: z.record(z.string(), z.string()).optional().default({}),
 });
 
 function ipFromReq(req: Request): string {

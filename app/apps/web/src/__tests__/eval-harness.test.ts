@@ -7,7 +7,7 @@ vi.mock("@/db", () => ({
     })),
   },
 }));
-vi.mock("@/db/schema", () => ({ evalRuns: {} }));
+vi.mock("@/db/schema", () => ({ llmEvalRuns: {}, llmEvalCaseRuns: {} }));
 vi.mock("@/lib/observability/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
@@ -44,7 +44,10 @@ describe("runEvalSuite", () => {
   });
 
   it("invokes aggregateMetrics with successful cases only", async () => {
-    const aggregate = vi.fn(() => ({ score: 0.5 }));
+    const aggregate = vi.fn(
+      (_results: Array<{ caseId: string; output: number; passed: boolean }>) =>
+        ({ score: 0.5 }),
+    );
     const suite: EvalSuite<number> = {
       surfaceId: "test",
       promptId: "test.v1",
@@ -63,10 +66,10 @@ describe("runEvalSuite", () => {
 
     const summary = await runEvalSuite(suite);
     expect(aggregate).toHaveBeenCalledOnce();
-    const passedToAgg = aggregate.mock.calls[0][0];
+    const passedToAgg = aggregate.mock.calls[0]![0];
     // Only the successful case should reach the aggregator.
     expect(passedToAgg).toHaveLength(1);
-    expect(passedToAgg[0].caseId).toBe("a");
+    expect(passedToAgg[0]!.caseId).toBe("a");
     expect(summary.metrics.score).toBe(0.5);
   });
 

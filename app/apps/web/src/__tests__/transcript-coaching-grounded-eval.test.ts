@@ -159,6 +159,7 @@ describe("buildGroundedCoachingSuite — tenant fixture overlay", () => {
       tenantFixtures: [
         {
           id: "tenant:already-prefixed",
+          description: "fixture for prefix-handling test",
           question: "x",
           chunks: [],
           expectsRefusal: true,
@@ -177,6 +178,7 @@ describe("buildGroundedCoachingSuite — tenant fixture overlay", () => {
       tenantFixtures: [
         {
           id: "z-tenant",
+          description: "fixture for ordering test",
           question: "x",
           chunks: [],
           expectsRefusal: true,

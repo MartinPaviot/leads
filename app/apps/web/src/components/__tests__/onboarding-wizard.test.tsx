@@ -80,7 +80,7 @@ afterEach(() => {
 
 describe("OnboardingWizard — mount + initial render", () => {
   it("shows a loading spinner before state arrives", async () => {
-    let resolveState: (() => void) | null = null;
+    let resolveState: ((value: void) => void) | null = null;
     const blocking = new Promise<void>((r) => {
       resolveState = r;
     });
@@ -100,7 +100,7 @@ describe("OnboardingWizard — mount + initial render", () => {
     render(<OnboardingWizard />);
     // While fetch is pending, we should not see the heading yet.
     expect(screen.queryByText(/Configure your outbound engine/i)).toBeNull();
-    resolveState?.();
+    (resolveState as ((value: void) => void) | null)?.();
   });
 
   it("renders header + Phase 1 form on fresh start", async () => {

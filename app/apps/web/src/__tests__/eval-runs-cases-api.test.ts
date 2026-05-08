@@ -30,12 +30,12 @@ vi.mock("@/db", () => ({
     select: vi.fn(() => ({
       from: vi.fn((table: { _mockId?: string }) => ({
         where: vi.fn((cond: unknown) => {
-          if (table._mockId === "eval_runs") {
+          if (table._mockId === "llm_eval_runs") {
             return {
               limit: vi.fn(async () => runRows),
             };
           }
-          if (table._mockId === "eval_case_runs") {
+          if (table._mockId === "llm_eval_case_runs") {
             lastCaseConditions = cond;
             return {
               orderBy: vi.fn(async () => caseRows),
@@ -49,8 +49,8 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
-  evalRuns: {
-    _mockId: "eval_runs",
+  llmEvalRuns: {
+    _mockId: "llm_eval_runs",
     id: "id",
     surfaceId: "surfaceId",
     promptId: "promptId",
@@ -62,8 +62,8 @@ vi.mock("@/db/schema", () => ({
     totalCostUsd: "totalCostUsd",
     createdAt: "createdAt",
   },
-  evalCaseRuns: {
-    _mockId: "eval_case_runs",
+  llmEvalCaseRuns: {
+    _mockId: "llm_eval_case_runs",
     id: "id",
     caseId: "caseId",
     passed: "passed",

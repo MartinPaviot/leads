@@ -23,7 +23,7 @@
 import { NextResponse } from "next/server";
 import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { evalRuns, evalCaseRuns } from "@/db/schema";
+import { llmEvalRuns, llmEvalCaseRuns } from "@/db/schema";
 import { and, asc, eq, sql } from "drizzle-orm";
 
 export async function GET(
@@ -47,19 +47,19 @@ export async function GET(
 
   const [run] = await db
     .select({
-      id: evalRuns.id,
-      surfaceId: evalRuns.surfaceId,
-      promptId: evalRuns.promptId,
-      casesTotal: evalRuns.casesTotal,
-      casesPassed: evalRuns.casesPassed,
-      casesErrored: evalRuns.casesErrored,
-      metrics: evalRuns.metrics,
-      totalLatencyMs: evalRuns.totalLatencyMs,
-      totalCostUsd: evalRuns.totalCostUsd,
-      createdAt: evalRuns.createdAt,
+      id: llmEvalRuns.id,
+      surfaceId: llmEvalRuns.surfaceId,
+      promptId: llmEvalRuns.promptId,
+      casesTotal: llmEvalRuns.casesTotal,
+      casesPassed: llmEvalRuns.casesPassed,
+      casesErrored: llmEvalRuns.casesErrored,
+      metrics: llmEvalRuns.metrics,
+      totalLatencyMs: llmEvalRuns.totalLatencyMs,
+      totalCostUsd: llmEvalRuns.totalCostUsd,
+      createdAt: llmEvalRuns.createdAt,
     })
-    .from(evalRuns)
-    .where(eq(evalRuns.id, id))
+    .from(llmEvalRuns)
+    .where(eq(llmEvalRuns.id, id))
     .limit(1);
 
   if (!run) {
@@ -69,23 +69,23 @@ export async function GET(
   // Order : failed (passed=false, errored=false) first, errored
   // (errored=true) next, passed last. Within each bucket, longest
   // latency first — heaviest cases up top is what on-call wants.
-  const conditions = [eq(evalCaseRuns.runId, id)];
+  const conditions = [eq(llmEvalCaseRuns.runId, id)];
   if (onlyFailing) {
-    conditions.push(sql`${evalCaseRuns.passed} = false`);
+    conditions.push(sql`${llmEvalCaseRuns.passed} = false`);
   }
 
   const cases = await db
     .select({
-      id: evalCaseRuns.id,
-      caseId: evalCaseRuns.caseId,
-      passed: evalCaseRuns.passed,
-      errored: evalCaseRuns.errored,
-      latencyMs: evalCaseRuns.latencyMs,
-      errorMessage: evalCaseRuns.errorMessage,
-      outputSnippet: evalCaseRuns.outputSnippet,
-      createdAt: evalCaseRuns.createdAt,
+      id: llmEvalCaseRuns.id,
+      caseId: llmEvalCaseRuns.caseId,
+      passed: llmEvalCaseRuns.passed,
+      errored: llmEvalCaseRuns.errored,
+      latencyMs: llmEvalCaseRuns.latencyMs,
+      errorMessage: llmEvalCaseRuns.errorMessage,
+      outputSnippet: llmEvalCaseRuns.outputSnippet,
+      createdAt: llmEvalCaseRuns.createdAt,
     })
-    .from(evalCaseRuns)
+    .from(llmEvalCaseRuns)
     .where(and(...conditions))
     .orderBy(
       // bucket 0 : failed (not passed and not errored).
@@ -93,11 +93,11 @@ export async function GET(
       // bucket 2 : passed.
       // Postgres-only CASE — works on prod + drizzle's pg adapter.
       sql`CASE
-        WHEN NOT ${evalCaseRuns.passed} AND NOT ${evalCaseRuns.errored} THEN 0
-        WHEN ${evalCaseRuns.errored} THEN 1
+        WHEN NOT ${llmEvalCaseRuns.passed} AND NOT ${llmEvalCaseRuns.errored} THEN 0
+        WHEN ${llmEvalCaseRuns.errored} THEN 1
         ELSE 2
       END`,
-      asc(evalCaseRuns.caseId),
+      asc(llmEvalCaseRuns.caseId),
     );
 
   return NextResponse.json({

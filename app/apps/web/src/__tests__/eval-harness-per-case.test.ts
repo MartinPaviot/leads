@@ -26,7 +26,7 @@ vi.mock("@/db", () => ({
       // for our mock we cheat with a string key the schema mock
       // attaches.
       const tableId = (table as unknown as { _mockId?: string })._mockId;
-      if (tableId === "eval_runs") {
+      if (tableId === "llm_eval_runs") {
         return {
           values: (payload: unknown) => {
             aggregateInsertSpy(payload);
@@ -34,7 +34,7 @@ vi.mock("@/db", () => ({
           },
         };
       }
-      if (tableId === "eval_case_runs") {
+      if (tableId === "llm_eval_case_runs") {
         return {
           values: async (payload: unknown) => {
             caseInsertSpy(payload);
@@ -47,8 +47,8 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
-  evalRuns: { _mockId: "eval_runs", id: "id-col" },
-  evalCaseRuns: { _mockId: "eval_case_runs" },
+  llmEvalRuns: { _mockId: "llm_eval_runs", id: "id-col" },
+  llmEvalCaseRuns: { _mockId: "llm_eval_case_runs" },
 }));
 
 import { runEvalSuite, type EvalSuite } from "@/lib/evals/harness";

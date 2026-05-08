@@ -57,7 +57,7 @@ const inboundPayloadSchema = z.object({
   title: z.string().max(200).optional(),
   /** Free-form properties forwarded to the contact's `properties`
    *  jsonb. Useful for capturing UTM, page, message body, etc. */
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 type InboundPayload = z.infer<typeof inboundPayloadSchema>;

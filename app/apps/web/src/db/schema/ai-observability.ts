@@ -74,8 +74,14 @@ export const llmCalls = pgTable(
  * accuracy, recall@k, MRR, etc. The dashboard reads this to chart
  * weekly drift per surface.
  */
-export const evalRuns = pgTable(
-  "eval_runs",
+/**
+ * Lives under the `llm_eval_runs` namespace to coexist with the
+ * legacy agent-evaluator `eval_runs` table (intelligence.ts) — the
+ * two systems target different problems and were colliding on the
+ * shared `eval_runs` name. The split is enforced by migration 0050.
+ */
+export const llmEvalRuns = pgTable(
+  "llm_eval_runs",
   {
     id: text("id")
       .primaryKey()
@@ -105,8 +111,8 @@ export const evalRuns = pgTable(
       .notNull(),
   },
   (table) => [
-    index("eval_runs_surface_idx").on(table.surfaceId),
-    index("eval_runs_created_at_idx").on(table.createdAt),
+    index("llm_eval_runs_surface_idx").on(table.surfaceId),
+    index("llm_eval_runs_created_at_idx").on(table.createdAt),
   ],
 );
 
@@ -125,14 +131,14 @@ export const evalRuns = pgTable(
  * enough that retaining 4 weeks of weekly history doesn't blow up
  * row size.
  */
-export const evalCaseRuns = pgTable(
-  "eval_case_runs",
+export const llmEvalCaseRuns = pgTable(
+  "llm_eval_case_runs",
   {
     id: text("id")
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
-    /** FK to the parent `eval_runs.id`. Cascade delete : when a run
-     *  is purged from history, its cases go with it. */
+    /** FK to the parent `llm_eval_runs.id`. Cascade delete : when a
+     *  run is purged from history, its cases go with it. */
     runId: text("run_id").notNull(),
     /** Stable case id within the suite — used for case-level diffing
      *  across runs. Same value as `EvalCase.id` in the suite source. */
@@ -152,8 +158,8 @@ export const evalCaseRuns = pgTable(
       .notNull(),
   },
   (table) => [
-    index("eval_case_runs_run_idx").on(table.runId),
-    index("eval_case_runs_case_idx").on(table.caseId),
-    index("eval_case_runs_created_at_idx").on(table.createdAt),
+    index("llm_eval_case_runs_run_idx").on(table.runId),
+    index("llm_eval_case_runs_case_idx").on(table.caseId),
+    index("llm_eval_case_runs_created_at_idx").on(table.createdAt),
   ],
 );

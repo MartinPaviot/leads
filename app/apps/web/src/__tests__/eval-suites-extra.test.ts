@@ -9,7 +9,7 @@ vi.mock("@/db", () => ({
     })),
   },
 }));
-vi.mock("@/db/schema", () => ({ evalRuns: {} }));
+vi.mock("@/db/schema", () => ({ llmEvalRuns: {}, llmEvalCaseRuns: {} }));
 vi.mock("@/lib/observability/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));

@@ -71,9 +71,12 @@ export function canonicaliseUrl(rawUrl: string): string | null {
   }
 }
 
-export interface CachedUrlVerification extends UrlVerificationOutcome {
+// Discriminated-union ancestors can't be extended via `interface`,
+// so we intersect to add the cache-hit flag without losing the
+// status-narrowed branches.
+export type CachedUrlVerification = UrlVerificationOutcome & {
   fromCache: boolean;
-}
+};
 
 /**
  * Verify `rawUrl`, consulting the cache first. Cache misses run the
@@ -111,12 +114,21 @@ export async function verifySignalUrlCached(
       .limit(1);
 
     if (cached) {
+      // Split per branch so the literal `status` narrows the
+      // discriminated-union return type ; the merged-shape return
+      // satisfies neither branch and TS rejects it.
+      if (cached.outcome === "verified") {
+        return {
+          status: "verified",
+          httpStatus: cached.status,
+          reason: cached.reason as "ok" | "blocked_cdn",
+          fromCache: true,
+        };
+      }
       return {
-        status: cached.outcome === "verified" ? "verified" : "unverified",
+        status: "unverified",
         httpStatus: cached.status >= 0 ? cached.status : null,
-        // Reasons are well-known strings; the cast preserves the
-        // discriminated-union shape callers expect.
-        reason: cached.reason as never,
+        reason: cached.reason,
         fromCache: true,
       };
     }

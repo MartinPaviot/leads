@@ -107,7 +107,7 @@ describe("EvalRunDrilldown", () => {
 
   it("toggle 'Failing only' triggers a new fetch with onlyFailing param", async () => {
     const fetchSpy = vi.fn(
-      async () =>
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
         ({
           ok: true,
           status: 200,
@@ -118,12 +118,12 @@ describe("EvalRunDrilldown", () => {
     render(<EvalRunDrilldown runId="r-1" onClose={vi.fn()} />);
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
     // Default state is onlyFailing=true → first call has the param.
-    expect(fetchSpy.mock.calls[0][0]).toContain("onlyFailing=1");
+    expect(fetchSpy.mock.calls[0]![0]).toContain("onlyFailing=1");
     // Click the toggle to flip to "All cases".
     const toggle = screen.getByText(/Failing only|All cases/i).closest("button")!;
     fireEvent.click(toggle);
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2));
-    expect(fetchSpy.mock.calls[1][0]).not.toContain("onlyFailing=1");
+    expect(fetchSpy.mock.calls[1]![0]).not.toContain("onlyFailing=1");
   });
 
   it("calls onClose when the close button is clicked", async () => {
@@ -156,7 +156,7 @@ describe("EvalRunDrilldown", () => {
 
   it("URL-encodes the runId so special chars don't break the path", async () => {
     const fetchSpy = vi.fn(
-      async () =>
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
         ({
           ok: true,
           status: 200,
@@ -166,7 +166,7 @@ describe("EvalRunDrilldown", () => {
     vi.stubGlobal("fetch", fetchSpy);
     render(<EvalRunDrilldown runId="r/with/slash" onClose={vi.fn()} />);
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
-    const url = String(fetchSpy.mock.calls[0][0]);
+    const url = String(fetchSpy.mock.calls[0]![0]);
     expect(url).toContain("r%2Fwith%2Fslash");
   });
 

@@ -66,21 +66,18 @@ export default function CampaignsPage() {
           body: JSON.stringify({ status: next }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        toast({
-          variant: next === "active" ? "success" : "info",
-          title: next === "active" ? "Campaign started" : "Campaign rejected",
-          description:
-            next === "active"
-              ? "Sending begins on the next worker tick."
-              : "Archived. You can re-open it from the archive view.",
-        });
+        toast(
+          next === "active"
+            ? "Campaign started — sending begins on the next worker tick."
+            : "Campaign archived — re-open from the archive view.",
+          next === "active" ? "success" : "info",
+        );
       } catch (err) {
         setSequences(prev);
-        toast({
-          variant: "error",
-          title: "Action failed",
-          description: err instanceof Error ? err.message : "Try again.",
-        });
+        toast(
+          `Action failed — ${err instanceof Error ? err.message : "try again."}`,
+          "error",
+        );
       } finally {
         setPendingId(null);
       }

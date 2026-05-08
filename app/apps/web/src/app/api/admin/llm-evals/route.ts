@@ -16,7 +16,7 @@
 import { NextResponse } from "next/server";
 import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { llmCalls, evalRuns } from "@/db/schema";
+import { llmCalls, llmEvalRuns } from "@/db/schema";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 
 export async function GET(req: Request) {
@@ -56,9 +56,9 @@ export async function GET(req: Request) {
   // ── Eval-run timeline per surface ─────────────────────────
   const recentEvalRuns = await db
     .select()
-    .from(evalRuns)
-    .where(gte(evalRuns.createdAt, evalSince))
-    .orderBy(desc(evalRuns.createdAt))
+    .from(llmEvalRuns)
+    .where(gte(llmEvalRuns.createdAt, evalSince))
+    .orderBy(desc(llmEvalRuns.createdAt))
     .limit(200);
 
   // ── Recent terminal failures (last 50, oldest-first) ──────

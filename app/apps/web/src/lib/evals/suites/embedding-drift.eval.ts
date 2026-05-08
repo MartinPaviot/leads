@@ -126,7 +126,12 @@ export const embeddingDriftEvalSuite: EvalSuite<{
       .filter((r) => r.passed || !r.passed) // include all
       .map((r) => r.output.similarity);
     if (sims.length === 0) {
-      return { mean_similarity: 0, min_similarity: 0, max_similarity: 0 };
+      return {
+        mean_similarity: 0,
+        min_similarity: 0,
+        max_similarity: 0,
+        cases_below_threshold: 0,
+      };
     }
     const mean = sims.reduce((s, v) => s + v, 0) / sims.length;
     return {

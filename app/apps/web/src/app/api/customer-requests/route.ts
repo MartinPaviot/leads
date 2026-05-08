@@ -25,7 +25,7 @@ const captureSchema = z.object({
   source: z
     .enum(["chat", "support", "onboarding_feedback", "in_product_widget"])
     .default("chat"),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   /** Optional override — caller can force a kind/canonicalKey when
    *  the upstream context is richer than what the regex sees (rare). */
   forceKind: z.string().optional(),

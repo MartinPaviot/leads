@@ -14,7 +14,8 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
-  evalRuns: { _mockId: "eval_runs" },
+  llmEvalRuns: { _mockId: "llm_eval_runs" },
+  llmEvalCaseRuns: { _mockId: "llm_eval_case_runs" },
 }));
 
 import {

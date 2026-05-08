@@ -20,7 +20,7 @@
  */
 
 import { db } from "@/db";
-import { evalRuns, evalCaseRuns } from "@/db/schema";
+import { llmEvalRuns, llmEvalCaseRuns } from "@/db/schema";
 import { logger } from "@/lib/observability/logger";
 
 /** Cap on the per-case output snippet — long enough to recognise a
@@ -162,7 +162,7 @@ export async function runEvalSuite<TOut>(
   let runId: string | null = null;
   try {
     const [inserted] = await db
-      .insert(evalRuns)
+      .insert(llmEvalRuns)
       .values({
         surfaceId: suite.surfaceId,
         promptId: suite.promptId,
@@ -172,7 +172,7 @@ export async function runEvalSuite<TOut>(
         metrics,
         totalLatencyMs,
       })
-      .returning({ id: evalRuns.id });
+      .returning({ id: llmEvalRuns.id });
     runId = inserted?.id ?? null;
   } catch (err) {
     logger.warn("eval-harness: persist aggregate failed (non-blocking)", {
@@ -187,7 +187,7 @@ export async function runEvalSuite<TOut>(
   // the round-trip count flat regardless of suite size.
   if (runId && perCase.length > 0) {
     try {
-      await db.insert(evalCaseRuns).values(
+      await db.insert(llmEvalCaseRuns).values(
         perCase.map((c) => ({
           runId,
           caseId: c.caseId,
