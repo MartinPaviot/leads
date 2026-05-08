@@ -42,6 +42,15 @@ const nextConfig: NextConfig = {
       "https://graph.microsoft.com",
       "https://us-east-1.recall.ai",
       "https://api.apollo.io",
+      // PostHog EU ingest + asset host. Without these the autocapture
+      // wired into posthog-provider.tsx fires fetches that the browser
+      // silently drops, so the whole product analytics + session replay
+      // pipeline is dark in prod. Both subdomains are needed — the
+      // ingest host receives `/capture/`, `/decide/`, etc., and the
+      // assets host serves the replay worker bundle that posthog-js
+      // lazy-loads when session_recording is enabled.
+      "https://eu.i.posthog.com",
+      "https://eu-assets.i.posthog.com",
       ...(process.env.NODE_ENV === "development" ? ["http://localhost:8288"] : []),
     ].join(" ");
 
@@ -53,7 +62,11 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
+              // posthog-js dynamically loads its session-replay
+              // bundle from eu-assets.i.posthog.com after init —
+              // pre-allow it on script-src so the lazy-load doesn't
+              // get blocked the first time replay starts.
+              `script-src 'self' 'unsafe-inline' https://eu-assets.i.posthog.com${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' blob: data: https:",
               "font-src 'self' data:",
