@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { logger } from "@/lib/observability/logger";
 import { EmptyState } from "@/components/ui/empty-state";
+import { trackEvent } from "@/components/posthog-provider";
 
 /**
  * Dashboard-scoped error boundary. Catches crashes in any page under
@@ -27,6 +28,11 @@ export default function DashboardError({
   useEffect(() => {
     logger.error("dashboard error boundary tripped", {
       err: error,
+      digest: error.digest,
+    });
+    trackEvent("", "error_boundary_tripped", {
+      boundary: "dashboard",
+      message: error.message,
       digest: error.digest,
     });
   }, [error]);

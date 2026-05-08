@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { logger } from "@/lib/observability/logger";
+import { trackEvent } from "@/components/posthog-provider";
 
 /**
  * Root-level error boundary — catches render crashes that escape the
@@ -19,6 +20,15 @@ export default function GlobalError({
   useEffect(() => {
     logger.error("global-error boundary tripped", {
       err: error,
+      digest: error.digest,
+    });
+    // Cross-reference into PostHog so a session replay carries the
+    // boundary trip alongside the autocaptured DOM events that led
+    // to it. The empty distinct id falls back to the SDK's identified
+    // user — `trackEvent` only forwards it as a hint.
+    trackEvent("", "error_boundary_tripped", {
+      boundary: "global",
+      message: error.message,
       digest: error.digest,
     });
   }, [error]);
