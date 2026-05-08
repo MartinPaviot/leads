@@ -16,6 +16,7 @@ import { CopyButton } from "@/components/chat/copy-button";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { Compass, Send, Mail, Check, Paperclip, Mic, MicOff, Loader2 } from "lucide-react";
+import { trackEvent } from "@/components/posthog-provider";
 
 export default function ChatPage() {
   const searchParams = useSearchParams();
@@ -214,6 +215,14 @@ export default function ChatPage() {
       setAttachedFile(null);
     }
     chat.sendMessage({ text });
+    // PostHog autocapture sees the click but can't measure
+    // queryLength or pair the message to the threadId — both are
+    // load-bearing for funnel analysis (chat usage → conversions).
+    trackEvent("", "chat_message_sent", {
+      queryLength: text.length,
+      threadId: threadId ?? null,
+      hasAttachment: Boolean(attachedFile),
+    });
     setLocalInput("");
     if (inputRef.current) inputRef.current.value = "";
   }

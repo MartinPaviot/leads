@@ -13,6 +13,7 @@ import type { EmailComposerDraft } from "@/components/email-composer-panel";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
 import { OnboardingChat } from "@/components/onboarding-chat";
 import { AgentFeed } from "@/components/agent-feed";
+import { trackEvent } from "@/components/posthog-provider";
 import { OnboardingV2Wrapper } from "@/components/onboarding-v2-wrapper";
 import { WarmLeadPrompt } from "@/components/WarmLeadPrompt";
 import { useOnboardingVersion } from "@/hooks/use-onboarding-version";
@@ -535,7 +536,17 @@ export default function DashboardPage() {
                   <Card
                     key={i}
                     interactive={!!action.entityId}
-                    onClick={() => setSelectedAction(action)}
+                    onClick={() => {
+                      // PostHog autocapture sees the card click but
+                      // can't normalise the action key or priority —
+                      // both feed the home-funnel dashboards.
+                      trackEvent("", "home_action_clicked", {
+                        action: action.action,
+                        priority: action.priority,
+                        category: action.category,
+                      });
+                      setSelectedAction(action);
+                    }}
                   >
                     <CardBody className="!py-3">
                       <div className="flex items-start justify-between gap-2">
