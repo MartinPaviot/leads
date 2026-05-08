@@ -1,0 +1,16 @@
+{
+  "captured_at": "2026-05-08",
+  "inngest_dev_url": "http://localhost:8288/functions",
+  "next_handler_url": "http://localhost:3000/api/inngest",
+  "app_name": "elevay",
+  "total_functions_registered": 87,
+  "session_scope_workers": [
+    { "audit_id": "F7-routeSequenceStepToDraft", "ui_label": "Route Sequence Step → Draft Queue", "trigger": "sequence/step-due", "has_failure_handler": true, "verdict": "REGISTERED" },
+    { "audit_id": "F7-cronExpireSequenceDrafts", "ui_label": "Cron: Expire Pending Sequence Drafts", "trigger": "0 * * * *", "has_failure_handler": true, "verdict": "REGISTERED" },
+    { "audit_id": "F7-draftRejectionLearner", "ui_label": "Sequence Draft Rejection Learner", "trigger": "draft.rejected", "has_failure_handler": true, "verdict": "REGISTERED" },
+    { "audit_id": "F6-dealPropertyLlmSynthesize", "ui_label": "Deal property LLM synthesise (why_now / summary)", "trigger": "deal/property-llm-synthesize", "has_failure_handler": true, "verdict": "REGISTERED" },
+    { "audit_id": "F8-identifyVisit", "ui_label": "Identify visitor company (Snitcher / RB2B / Clearbit)", "trigger": "visit/created", "has_failure_handler": false, "verdict": "REGISTERED" },
+    { "audit_id": "F2-dailyTranscriptFreshnessAlert", "ui_label": "Daily transcript-freshness alert", "trigger": "TZ=UTC 0 6 * * *", "has_failure_handler": true, "verdict": "REGISTERED" },
+    { "audit_id": "F4-weeklyEvalHarness", "ui_label": "Weekly LLM eval harness", "trigger": "TZ=UTC 0 2 * * 1", "has_failure_handler": false, "verdict": "REGISTERED" }
+  ]
+}
