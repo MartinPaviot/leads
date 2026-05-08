@@ -1,7 +1,7 @@
 import { db, agentTraces } from "../../../lib/db";
 import { sql, desc, gte, count } from "drizzle-orm";
 import { StatCard } from "../../../components/stat-card";
-import { AGENT_REGISTRY } from "@web/lib/agent-registry";
+import { AGENT_REGISTRY } from "@web/lib/agents/agent-registry";
 
 export const dynamic = "force-dynamic";
 

@@ -5,7 +5,7 @@ import { Activity, Clock, DollarSign, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 // Import the agent registry from the web app
-import { AGENT_REGISTRY } from "@web/lib/agent-registry";
+import { AGENT_REGISTRY } from "@web/lib/agents/agent-registry";
 
 export const dynamic = "force-dynamic";
 
