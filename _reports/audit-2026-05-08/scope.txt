@@ -1,0 +1,75 @@
+3aa2755 spec: audit plan — 7-layer hostile QA pass on 74-commit session
+e9b95f4 feat: stall indicators carry concrete evidence — mètis, not just labels
+f484f98 fix: whitelist PostHog EU hosts in CSP — without it, prod analytics is silent
+2a6b2f8 chore: drop unused posthog-node dep
+9184505 feat: PostHog instrumentation for chat send + home action click
+d7a8a5e fix: admin app — repoint @web/lib/agent-registry to its real path
+ac1d20a feat: PostHog boundary-tripped events for crash correlation
+36deb11 feat: PostHog autocapture + session replay across the whole app
+8e1ef53 fix: resolve all TS errors — schema collision split + boundary fixes
+b09cef9 fix: post-merge TS hygiene (4 spots, 0 behavior change)
+901c6ab merge: SHIP_GUIDE for the merge train
+ddd7d8d merge: P0-2 visitor-id complete (Snitcher/RB2B/Clearbit + cap + ledger + dedup + CTAs + triggers)
+545c6cf merge: P0-1 sequence drafts queue + manual approval mode
+a1964e7 merge: P0-5 deal autofill cascade + LLM synthesise worker
+b8ac431 merge: eval prompt-variant A/B framework
+b665a90 merge: eval per-case persistence + admin drilldown UI
+0ea53ea merge: speaker-aware transcript retrieval bias
+a2e85d1 merge: P0-4 coaching grounded + video player + freshness alerts + tenant fixtures
+7ea5c42 merge: P0-3 onboarding wizard polish + autosave + velocity tile
+5b1f7d9 feat(notifications): recipient resolution + freshness in-app alerts
+c74d66b feat(evals): multi-tenant eval fixture overlay
+a6dcb2c feat(sequences): trigger config UI — per-sequence signal whitelist
+ba7856d feat(onboarding): per-tenant onboarding velocity admin tile
+42387da feat(visitor-id): inline CTAs on hot-visitors when nobody is acting
+469aff7 feat(visitor-id): per-tenant provider override (RB2B + Clearbit)
+dc41996 feat(evals): prompt-variant A/B framework — EvalSuiteFamily
+cf3cfa1 feat(visitor-id): cap-warning banner on dashboard home
+f991625 feat(visitor-id): charge ledger table + ledger-first spend computation
+83b2024 feat(coaching): daily transcript-freshness alert cron
+11f0816 feat(coaching): wire recording URL into TranscriptVideoPlayer
+ad57e21 feat(onboarding): autosave on Phases 2 / 4 / 5 / 6
+b57d353 feat(visitor-id): subnet_hash dedup column + 2-pass worker match
+d713e70 feat(deal-autofill): LLM synthesise consumer worker for why_now / summary
+dc691bb feat(sequence-drafts): legacy /sequences/[id]/review redirect to global queue
+1fd6726 fix(evals): renumber 0044 → 0047 to avoid collision with P0-5 deal_property_metadata_backfill (0044) and P0-1 sequence_drafts (0045) + tenant_approval_mode (0046)
+930f9d5 feat(coaching): speaker-aware transcript retrieval bias
+a39786f feat(evals): drill-down panel in admin dashboard UI
+bb54b41 feat(evals): admin drill-down API for per-case eval results
+45177fd feat(evals): per-case persistence (eval_case_runs) + harness wiring
+9d02784 docs(visitor-id): RUNBOOK + Datadog metrics on identify worker
+bc05e47 feat(visitor-id): hot-visitors enriched with deal + enrollment state
+987b544 feat(visitor-id): identified-visit fan-out (enrich + auto-enroll)
+9d5c072 feat(visitor-id): identification dedup window
+6cdce94 feat(visitor-id): per-tenant monthly spend cap + warning band
+1ad1f24 docs(coaching): RUNBOOK + register grounded eval suite in weekly cron
+edd80e9 feat(coaching): TranscriptVideoPlayer + multi-provider URL helpers
+94dce0d feat(coaching): grounded LLM eval suite (5 grounding + 3 refusal cases)
+8349f8e feat(coaching): grounded LLM eval helpers
+a3c6888 feat(onboarding): Phase 5 voice capture surface re-order
+7226737 feat(onboarding): ICP pre-fill from founder's email domain
+e4b98fd feat(onboarding): mid-phase autosave to localStorage (Phase 1 wired)
+0971abe docs(onboarding): RUNBOOK for the 7-phase wizard
+9e4ec88 feat(onboarding): wizard component tests + error fallback render
+e703781 chore(onboarding): copy + tone audit for 7-phase wizard
+24eab0a feat(onboarding): pure resume / nav / finalize helpers + wizard wiring
+e870c78 feat(onboarding): per-phase retry with exponential backoff
+e90246e feat(onboarding): client-side telemetry wiring for 7-phase wizard
+9db2f44 docs(sequence-drafts): RUNBOOK + tenant approvalMode default migration
+af315b8 test(sequence-drafts): integration suite — full lifecycle + races
+1a984d2 feat(sequence-drafts): rejection learner — evaluator-optimizer pattern
+4e4ca20 feat(sequence-drafts): hourly expiry cron
+2ddfa03 feat(sequence-drafts): router worker + tenant approvalMode gating
+4ee65b9 feat(sequence-drafts): /sequences/review page + 3 components
+48c4bcb docs(monaco-parity): progress doc — P0-5 code-complete
+6cb69b5 docs(deal-autofill): Datadog dashboard + RUNBOOK
+3c47051 feat(observability): metrics primitive + wire deal-autofill counters
+969bde4 feat(deal-autofill): DealPropertyCell with source attribution tooltip
+0f1b049 feat(deal-autofill): cascade pure fn + worker migration to PropertyEntry shape
+a03d045 docs: P0-1 + P0-5 progress (5 tasks committed, 70+ tests)
+9afed36 feat(sequence-drafts): 5 API routes (P0-1 task 1.2)
+f19a5af feat(sequence-drafts): table + drizzle schema + state machine (P0-1 task 1.1)
+2ae223b docs: P0-5 progress report (3/10 tasks committed)
+69feed9 feat(deal-autofill): GET /api/deals/[id]/property-source/[fieldName] (P0-5 task 5.5)
+c23af60 feat(deal-autofill): property accessor + backfill migration (P0-5 task 5.2)
+0f336d4 feat(deal-autofill): conflict resolution lib (P0-5 task 5.1)
