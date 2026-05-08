@@ -1,0 +1,15 @@
+   check    |                     got                      
+------------+----------------------------------------------
+ F11 tables | eval_runs, llm_eval_case_runs, llm_eval_runs
+(1 row)
+
+     check     |      got      
+---------------+---------------
+ F11 FK target | llm_eval_runs
+(1 row)
+
+      check      |                got                 
+-----------------+------------------------------------
+ F11 view exists | llm_eval_runs_latest_with_failures
+(1 row)
+

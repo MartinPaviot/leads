@@ -1,0 +1,35 @@
+        check         | pass 
+----------------------+------
+ tenants table exists | t
+(1 row)
+
+           check           | column_name 
+---------------------------+-------------
+ visits.subnet_hash column | subnet_hash
+(1 row)
+
+          check           |       indexname        
+--------------------------+------------------------
+ visits subnet_hash index | visits_subnet_hash_idx
+(1 row)
+
+          check           |     table_name     
+--------------------------+--------------------
+ visitor_id_charges table | visitor_id_charges
+(1 row)
+
+         check         |   table_name    
+-----------------------+-----------------
+ sequence_drafts table | sequence_drafts
+(1 row)
+
+           check            |        typname        
+----------------------------+-----------------------
+ sequence_draft_status enum | sequence_draft_status
+(1 row)
+
+            check             |           indexname           
+------------------------------+-------------------------------
+ deal_property_metadata index | deals_props_budget_manual_idx
+(1 row)
+

@@ -1,0 +1,609 @@
+=== 0000_absurd_rachel_grey.sql ===
+CREATE TYPE
+CREATE TYPE
+CREATE TYPE
+CREATE TYPE
+CREATE TYPE
+CREATE TYPE
+CREATE TYPE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0001_aberrant_domino.sql ===
+CREATE TYPE
+CREATE TYPE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0002_naive_rawhide_kid.sql ===
+CREATE TYPE
+CREATE TABLE
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0003_striped_speed_demon.sql ===
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+=== 0004_cuddly_boom_boom.sql ===
+CREATE TYPE
+CREATE TYPE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0005_smooth_silver_fox.sql ===
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+=== 0006_peaceful_hex.sql ===
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0007_jittery_vector.sql ===
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+=== 0008_silky_rhodey.sql ===
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+=== 0009_broad_golden_guardian.sql ===
+CREATE TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0010_dashing_human_robot.sql ===
+CREATE TABLE
+ALTER TABLE
+CREATE INDEX
+=== 0011_fast_rictor.sql ===
+CREATE TABLE
+ALTER TABLE
+CREATE INDEX
+=== 0012_tool_call_events.sql ===
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0012_wandering_hemingway.sql ===
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+ERROR:  relation "custom_skill_templates" does not exist
+ERROR:  relation "custom_skill_templates" does not exist
+ERROR:  relation "custom_skill_templates" does not exist
+ERROR:  relation "custom_skill_templates" does not exist
+ERROR:  relation "custom_skill_templates" does not exist
+ERROR:  relation "custom_skill_templates" does not exist
+ERROR:  relation "custom_skill_templates" does not exist
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+ERROR:  relation "custom_skill_templates" does not exist
+=== 0013_flawless_norrin_radd.sql ===
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0013_memory_scope.sql ===
+ALTER TABLE
+CREATE INDEX
+=== 0014_fluffy_shard.sql ===
+CREATE TYPE
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0014_tree_fork_shared_prompts.sql ===
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+=== 0015_comments.sql ===
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0016_notetaker_channel.sql ===
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE TABLE
+ALTER TABLE
+CREATE TABLE
+ALTER TABLE
+NOTICE:  identifier "referral_credit_events_triggered_by_attribution_tenant_id_tenants_id_fk" will be truncated to "referral_credit_events_triggered_by_attribution_tenant_id_tenan"
+ALTER TABLE
+NOTICE:  identifier "referral_credit_events_triggered_by_exposure_id_notetaker_exposures_id_fk" will be truncated to "referral_credit_events_triggered_by_exposure_id_notetaker_expos"
+ALTER TABLE
+CREATE INDEX
+=== 0017_email_verification_and_lockout.sql ===
+CREATE TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+=== 0018_auth_user_password_hash.sql ===
+ALTER TABLE
+UPDATE 0
+=== 0019_coaching_and_fts.sql ===
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+DO
+=== 0020_sequence_step_channels.sql ===
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+=== 0021_signal_outcomes.sql ===
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0022_inbound_module.sql ===
+CREATE TABLE
+CREATE INDEX
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0023_custom_signals.sql ===
+CREATE TABLE
+DO
+DO
+CREATE INDEX
+CREATE INDEX
+=== 0024_sending_infra_requests.sql ===
+CREATE TABLE
+DO
+ERROR:  relation "public.auth_users" does not exist
+CONTEXT:  SQL statement "ALTER TABLE "sending_infra_requests" ADD CONSTRAINT "sending_infra_requests_requested_by_user_id_auth_users_id_fk" FOREIGN KEY ("requested_by_user_id") REFERENCES "public"."auth_users"("id") ON DELETE no action ON UPDATE no action"
+PL/pgSQL function inline_code_block line 2 at SQL statement
+CREATE INDEX
+CREATE INDEX
+=== 0025_trust_events.sql ===
+CREATE TABLE
+DO
+ERROR:  relation "public.auth_users" does not exist
+CONTEXT:  SQL statement "ALTER TABLE "trust_events" ADD CONSTRAINT "trust_events_user_id_auth_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."auth_users"("id") ON DELETE set null ON UPDATE no action"
+PL/pgSQL function inline_code_block line 2 at SQL statement
+CREATE INDEX
+CREATE INDEX
+=== 0026_agent_actions.sql ===
+CREATE TABLE
+DO
+ERROR:  relation "public.auth_users" does not exist
+CONTEXT:  SQL statement "ALTER TABLE "agent_actions" ADD CONSTRAINT "agent_actions_user_id_auth_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."auth_users"("id") ON DELETE set null ON UPDATE no action"
+PL/pgSQL function inline_code_block line 2 at SQL statement
+ERROR:  relation "public.auth_users" does not exist
+CONTEXT:  SQL statement "ALTER TABLE "agent_actions" ADD CONSTRAINT "agent_actions_reversed_by_user_id_auth_users_id_fk" FOREIGN KEY ("reversed_by_user_id") REFERENCES "public"."auth_users"("id") ON DELETE set null ON UPDATE no action"
+PL/pgSQL function inline_code_block line 2 at SQL statement
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0027_add_company_logo_columns.sql ===
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+=== 0028_rls_policies.sql ===
+ALTER TABLE
+ALTER TABLE
+CREATE POLICY
+ALTER TABLE
+ALTER TABLE
+CREATE POLICY
+ALTER TABLE
+ALTER TABLE
+CREATE POLICY
+ALTER TABLE
+ALTER TABLE
+CREATE POLICY
+=== 0029_fulltext_index.sql ===
+ERROR:  relation "embeddings" does not exist
+ERROR:  relation "embeddings" does not exist
+=== 0030_soft_delete.sql ===
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0031_distillation_and_canary.sql ===
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+ALTER TABLE
+=== 0032_experiments_optouts_benchmarks.sql ===
+DO
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE TABLE
+CREATE INDEX
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0033_agent_tasks.sql ===
+ERROR:  relation "agent_tasks" already exists
+ERROR:  constraint "agent_tasks_tenant_id_tenants_id_fk" for relation "agent_tasks" already exists
+ERROR:  constraint "agent_tasks_user_id_auth_user_id_fk" for relation "agent_tasks" already exists
+ERROR:  relation "agent_tasks_tenant_status_idx" already exists
+ERROR:  relation "agent_tasks_user_active_idx" already exists
+ERROR:  relation "agent_tasks_thread_idx" already exists
+=== 0034_knowledge_entries.sql ===
+ERROR:  relation "knowledge_entries" already exists
+ERROR:  constraint "knowledge_entries_tenant_id_tenants_id_fk" for relation "knowledge_entries" already exists
+ERROR:  constraint "knowledge_entries_created_by_auth_user_id_fk" for relation "knowledge_entries" already exists
+ERROR:  relation "knowledge_entries_tenant_idx" already exists
+ERROR:  relation "knowledge_entries_scope_idx" already exists
+ERROR:  relation "knowledge_entries_category_idx" already exists
+=== 0035_custom_skill_extensions.sql ===
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+=== 0036_code_executions.sql ===
+ERROR:  relation "code_executions" already exists
+ERROR:  constraint "code_executions_tenant_id_tenants_id_fk" for relation "code_executions" already exists
+ERROR:  constraint "code_executions_user_id_auth_user_id_fk" for relation "code_executions" already exists
+ERROR:  relation "code_executions_tenant_idx" already exists
+ERROR:  relation "code_executions_thread_idx" already exists
+=== 0037_pipeline_events.sql ===
+DO
+NOTICE:  relation "pipeline_events" already exists, skipping
+CREATE TABLE
+CREATE INDEX
+NOTICE:  relation "pe_trace_idx" already exists, skipping
+CREATE INDEX
+NOTICE:  relation "pe_tenant_created_idx" already exists, skipping
+CREATE INDEX
+NOTICE:  relation "pe_company_created_idx" already exists, skipping
+CREATE INDEX
+NOTICE:  relation "pe_stage_created_idx" already exists, skipping
+NOTICE:  relation "pe_contact_idx" already exists, skipping
+CREATE INDEX
+CREATE INDEX
+NOTICE:  relation "pe_enrollment_idx" already exists, skipping
+=== 0038_rls_full_coverage.sql ===
+ERROR:  column reference "table_name" is ambiguous
+LINE 3: ...ublic' AND information_schema.tables.table_name = table_name
+                                                             ^
+DETAIL:  It could refer to either a PL/pgSQL variable or a table column.
+QUERY:  NOT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND information_schema.tables.table_name = table_name
+    )
+CONTEXT:  PL/pgSQL function inline_code_block line 60 at IF
+DO
+DO
+DO
+DO
+=== 0039_coaching_chunks_and_signal_url_cache.sql ===
+NOTICE:  extension "vector" already exists, skipping
+CREATE EXTENSION
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE TABLE
+CREATE INDEX
+=== 0040_onboarding_and_visits.sql ===
+CREATE TABLE
+CREATE INDEX
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0041_llm_observability.sql ===
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE TABLE
+NOTICE:  relation "eval_runs" already exists, skipping
+ERROR:  column "surface_id" does not exist
+CREATE INDEX
+=== 0042_cs_health_snapshots.sql ===
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0043_customer_requests.sql ===
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0044_deal_property_metadata_backfill.sql ===
+DO
+CREATE VIEW
+=== 0045_sequence_drafts.sql ===
+DO
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+=== 0046_tenant_approval_mode_default.sql ===
+UPDATE 0
+CREATE VIEW
+=== 0047_eval_case_runs.sql ===
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+ERROR:  column er.surface_id does not exist
+LINE 4:   er.surface_id,
+          ^
+=== 0048_visits_subnet_hash.sql ===
+ALTER TABLE
+CREATE INDEX
+=== 0049_visitor_id_charges.sql ===
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE VIEW
+=== 0050_llm_eval_namespace_split.sql ===
+DROP VIEW
+NOTICE:  view "eval_runs_latest_with_failures" does not exist, skipping
+DROP VIEW
+NOTICE:  view "llm_eval_runs_latest_with_failures" does not exist, skipping
+ALTER TABLE
+ALTER TABLE
+ALTER INDEX
+ALTER INDEX
+ALTER INDEX
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+DO
+CREATE VIEW
