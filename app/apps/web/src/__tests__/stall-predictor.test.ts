@@ -315,6 +315,13 @@ describe("activity drop detection", () => {
       (i) => i.type === "activity_drop",
     );
     expect(dropIndicator).toBeDefined();
+    // Audit-2026-05-08 — F17 mètis pin : evidence must surface the
+    // recent vs prior counts so the founder reads the why.
+    expect(dropIndicator!.evidence).toBeDefined();
+    expect(dropIndicator!.evidence!.length).toBeGreaterThan(0);
+    expect(
+      dropIndicator!.evidence!.some((line) => /\d+ touch/.test(line)),
+    ).toBe(true);
   });
 
   it("does not flag when activity is consistent", async () => {
@@ -395,6 +402,13 @@ describe("one-sided email detection", () => {
       (i) => i.type === "one_sided_email",
     );
     expect(osIndicator).toBeDefined();
+    // Audit-2026-05-08 — F17 mètis pin : the chip must reveal the
+    // outbound/inbound asymmetry, not just the abstract type.
+    expect(osIndicator!.evidence).toBeDefined();
+    expect(osIndicator!.evidence!.length).toBeGreaterThan(0);
+    expect(
+      osIndicator!.evidence!.some((line) => /\d+ sent vs \d+ received/.test(line)),
+    ).toBe(true);
   });
 
   it("does not flag when last email is inbound", async () => {
@@ -638,5 +652,130 @@ describe("edge cases", () => {
     setupDbCalls({ openDeals: [] });
     const predictions = await predictStalls("tenant-1");
     expect(predictions).toEqual([]);
+  });
+});
+
+// ── Audit-2026-05-08 — F17 mètis evidence pin ───────────────────
+//
+// Each indicator type that the founder sees on /opportunities/[id]
+// must carry a non-empty `evidence` array : the chip is the *what*,
+// the evidence list is the *why*. A future regression that drops
+// the pass-through of underlying signal data (e.g. caching the
+// indicator object before evidence is filled, or omitting the
+// field on serialisation) would silently regress the UX back to
+// hover-only tooltips. These tests fail loudly if it does.
+
+describe("F17 audit pin — indicator.evidence is populated", () => {
+  it("intent_cooling carries the top contributing buyer-intent signals", async () => {
+    const now = Date.now();
+    const thirtyDaysAgo = new Date(now - 30 * 86400000);
+
+    scoreBuyerIntentMock.mockResolvedValueOnce({
+      score: 25,
+      trend: "cooling",
+      signals: [
+        {
+          type: "response_time",
+          value: -0.4,
+          weight: 0.3,
+          evidence: "Response time slowed from <1h to 3 days",
+        },
+        {
+          type: "email_length",
+          value: -0.3,
+          weight: 0.2,
+          evidence: "Replies dropped from 250 chars to 60 chars",
+        },
+        {
+          type: "after_hours",
+          value: -0.1,
+          weight: 0.1,
+          evidence: "No after-hours engagement in 21 days",
+        },
+      ],
+      lastUpdated: new Date().toISOString(),
+    });
+
+    setupDbCalls({
+      openDeals: [
+        {
+          id: "deal-1",
+          name: "Cooling Deal",
+          stage: "demo",
+          value: 30000,
+          contactId: "c1",
+          companyId: null,
+          properties: {},
+          createdAt: thirtyDaysAgo,
+          updatedAt: thirtyDaysAgo,
+        },
+      ],
+      dealActivities: [
+        {
+          activityType: "email_received",
+          direction: "inbound",
+          occurredAt: new Date(now - 5 * 86400000),
+        },
+      ],
+      meetings: [{ id: "m1" }],
+      contact: { firstName: "Alex", lastName: "Reyes" },
+    });
+
+    const predictions = await predictStalls("tenant-1");
+    const cool = predictions[0]?.indicators.find(
+      (i) => i.type === "intent_cooling",
+    );
+    expect(cool).toBeDefined();
+    // The scorer's per-signal evidence strings must be propagated up,
+    // not aggregated away.
+    expect(cool!.evidence).toBeDefined();
+    expect(cool!.evidence!.length).toBeGreaterThan(0);
+    expect(
+      cool!.evidence!.some((line) => line.includes("Response time")),
+    ).toBe(true);
+  });
+
+  it("no_recent_activity carries the last-activity date", async () => {
+    const now = Date.now();
+    const fortyFiveDaysAgo = new Date(now - 45 * 86400000);
+
+    setupDbCalls({
+      openDeals: [
+        {
+          id: "deal-1",
+          name: "Forgotten Deal",
+          stage: "qualification",
+          value: 12000,
+          contactId: null,
+          companyId: null,
+          properties: {},
+          createdAt: fortyFiveDaysAgo,
+          updatedAt: fortyFiveDaysAgo,
+        },
+      ],
+      // Only one ancient activity → triggers no_recent_activity (>14d).
+      dealActivities: [
+        {
+          activityType: "email_sent",
+          direction: "outbound",
+          occurredAt: new Date(now - 32 * 86400000),
+        },
+      ],
+      meetings: [],
+      contact: null,
+    });
+
+    const predictions = await predictStalls("tenant-1");
+    const stale = predictions[0]?.indicators.find(
+      (i) => i.type === "no_recent_activity",
+    );
+    expect(stale).toBeDefined();
+    expect(stale!.evidence).toBeDefined();
+    expect(stale!.evidence!.length).toBeGreaterThan(0);
+    // The last-activity line should reference the activity type so
+    // the founder knows what to follow up on.
+    expect(
+      stale!.evidence!.some((line) => /Last activity:/.test(line)),
+    ).toBe(true);
   });
 });

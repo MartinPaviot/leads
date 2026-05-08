@@ -140,6 +140,13 @@ export function PostHogIdentify({
   const identifiedFor = useRef<string | null>(null);
 
   useEffect(() => {
+    // React commits child effects before parent effects, so when this
+    // identify effect first runs, the parent <PostHogProvider> may not
+    // yet have called initOnce(). Without this defensive call we'd
+    // silently miss the very first identify on every page load —
+    // every event would land as anonymous distinct_id, and PostHog
+    // would never see the founder's email/name/tenant traits.
+    initOnce();
     if (!initialised || typeof window === "undefined") return;
     if (userId) {
       if (identifiedFor.current !== userId) {
