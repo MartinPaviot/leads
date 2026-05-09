@@ -16,6 +16,7 @@ import { buildStakeholderTools } from "./stakeholder";
 import { buildWorkflowTools } from "./workflow";
 import { buildImportTools } from "./import";
 import { buildCodeExecutionTools } from "./code-execution";
+import { buildBrainTools } from "./brain";
 
 export type { ToolContext } from "./context";
 export { makeTool } from "./context";
@@ -39,5 +40,6 @@ export function buildAllChatTools(ctx: ToolContext) {
     ...buildWorkflowTools(ctx),
     ...buildImportTools(ctx),
     ...buildCodeExecutionTools(ctx),
+    ...buildBrainTools(ctx),
   };
 }

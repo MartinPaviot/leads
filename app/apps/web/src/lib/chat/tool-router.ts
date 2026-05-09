@@ -187,6 +187,9 @@ const TOOL_GROUPS: Record<string, string> = {
   briefDeal: "briefing",
   getEnrichedContext: "briefing",
 
+  // company brain (brain.ts)
+  getCompanyBrain: "briefing",
+
   // schema (schema.ts)
   listSchema: "schema",
   listAttributeDefinitions: "schema",
@@ -233,6 +236,10 @@ const INTENT_PATTERNS: IntentPattern[] = [
       /\bmorning\s+brief\b/,
       /\bupdate\s+me\b/,
       /\bwhat'?s\s+happening\b/,
+      /\bwhat\s+do\s+we\s+know\s+about\b/,
+      /\bfull\s+picture\b/,
+      /\bbrain\s+on\b/,
+      /\bsummari[sz]e\s+(?:our\s+)?relationship\b/,
     ],
     groups: ["briefing", "intelligence"],
   },

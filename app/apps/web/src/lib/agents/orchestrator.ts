@@ -121,6 +121,8 @@ const TOOL_GROUP_MAP: Record<string, string> = {
   // briefing
   briefAllDeals: "briefing", briefDeal: "briefing",
   getEnrichedContext: "briefing",
+  // company brain
+  getCompanyBrain: "briefing",
   // schema
   listSchema: "schema", listAttributeDefinitions: "schema",
   // undo

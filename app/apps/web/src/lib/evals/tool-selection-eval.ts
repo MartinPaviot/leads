@@ -337,6 +337,46 @@ export const TOOL_SELECTION_CASES: ToolSelectionTestCase[] = [
     category: "intelligence",
   },
   {
+    id: "intel-brain-001",
+    query: "What do we know about Acme?",
+    expectedTools: ["getCompanyBrain"],
+    forbiddenTools: ["createDeal", "draftEmail", "buildTAM"],
+    expectedIntent: "briefing",
+    category: "intelligence",
+  },
+  {
+    id: "intel-brain-002",
+    query: "Tell me about stripe.com",
+    expectedTools: ["getCompanyBrain"],
+    forbiddenTools: ["createAccount", "draftEmail", "createContact"],
+    expectedIntent: "briefing",
+    category: "intelligence",
+  },
+  {
+    id: "intel-brain-003",
+    query: "Brain on Hubspot",
+    expectedTools: ["getCompanyBrain"],
+    forbiddenTools: ["createDeal", "draftEmail"],
+    expectedIntent: "briefing",
+    category: "intelligence",
+  },
+  {
+    id: "intel-brain-004",
+    query: "Give me the full picture on the Meridian Labs account",
+    expectedTools: ["getCompanyBrain", "getAccountIntelligence", "getEnrichedContext"],
+    forbiddenTools: ["createDeal", "createContact"],
+    expectedIntent: "briefing",
+    category: "intelligence",
+  },
+  {
+    id: "intel-brain-005",
+    query: "Summarise our relationship with Stripe",
+    expectedTools: ["getCompanyBrain"],
+    forbiddenTools: ["createDeal", "draftEmail"],
+    expectedIntent: "briefing",
+    category: "intelligence",
+  },
+  {
     id: "intel-010",
     query: "Help me prepare a strategy for re-engaging stalled deals",
     expectedTools: ["reEngageStalledDeal", "getDealCoaching", "analyzePipeline"],
@@ -569,6 +609,8 @@ function buildSyntheticToolRegistry(): Record<string, { name: string }> {
     "exploreRelationships",
     // briefing
     "briefAllDeals", "briefDeal", "getEnrichedContext",
+    // company brain
+    "getCompanyBrain",
     // schema
     "listSchema", "listAttributeDefinitions",
     // undo

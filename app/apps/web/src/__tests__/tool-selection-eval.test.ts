@@ -9,8 +9,8 @@ import {
 // ── Basic suite sanity checks ──────────────────────────────────
 
 describe("tool-selection-eval: dataset integrity", () => {
-  it("has exactly 50 test cases", () => {
-    expect(TOOL_SELECTION_CASES).toHaveLength(50);
+  it("has at least 50 test cases", () => {
+    expect(TOOL_SELECTION_CASES.length).toBeGreaterThanOrEqual(50);
   });
 
   it("has unique IDs", () => {
@@ -18,7 +18,7 @@ describe("tool-selection-eval: dataset integrity", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("covers all 5 categories with 10 cases each", () => {
+  it("covers all 5 categories with at least 10 cases each", () => {
     const categories: ToolSelectionCategory[] = [
       "crm",
       "actions",
@@ -30,7 +30,7 @@ describe("tool-selection-eval: dataset integrity", () => {
       const count = TOOL_SELECTION_CASES.filter(
         (c) => c.category === cat,
       ).length;
-      expect(count).toBe(10);
+      expect(count).toBeGreaterThanOrEqual(10);
     }
   });
 
