@@ -25,7 +25,7 @@
  *   Neither is in this commit.
  */
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db as defaultDb } from "@/db";
 import {
   companies,
@@ -87,6 +87,16 @@ export async function getCompanyBrain(
     throw new Error("getCompanyBrain: companyId is required");
   }
 
+  // Latency instrumentation : every successful brain assembly emits
+  // a single structured log line so prod logs reveal p95 without a
+  // dedicated tracer dep. The Phase 2 `entity_brain_snapshots` cache
+  // gate ("read latency p95 > 200ms") becomes data-driven instead of
+  // vapor.
+  const startedAt =
+    typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : Date.now();
+
   const dbi = deps.db ?? defaultDb;
   const predict = deps.predictStallsFn ?? predictStalls;
   const intent = deps.scoreBuyerIntentFn ?? scoreBuyerIntent;
@@ -109,7 +119,7 @@ export async function getCompanyBrain(
       createdAt: companies.createdAt,
     })
     .from(companies)
-    .where(eq(companies.id, companyId))
+    .where(and(eq(companies.id, companyId), isNull(companies.deletedAt)))
     .limit(1);
 
   if (!company) return null;
@@ -141,6 +151,7 @@ export async function getCompanyBrain(
         and(
           eq(contactsTable.companyId, companyId),
           eq(contactsTable.tenantId, opts.tenantId),
+          isNull(contactsTable.deletedAt),
         ),
       )
       .limit(contactCap + 1),
@@ -158,6 +169,7 @@ export async function getCompanyBrain(
         and(
           eq(dealsTable.companyId, companyId),
           eq(dealsTable.tenantId, opts.tenantId),
+          isNull(dealsTable.deletedAt),
         ),
       ),
     dbi
@@ -176,6 +188,7 @@ export async function getCompanyBrain(
           eq(activitiesTable.tenantId, opts.tenantId),
           eq(activitiesTable.entityType, "company"),
           eq(activitiesTable.entityId, companyId),
+          isNull(activitiesTable.deletedAt),
         ),
       )
       .orderBy(desc(activitiesTable.occurredAt))
@@ -422,9 +435,34 @@ export async function getCompanyBrain(
 
   const freshness = deriveFreshness(baseBrain);
 
-  return {
+  const result = {
     ...baseBrain,
     freshness,
     truncated,
   };
+
+  const durationMs = Math.round(
+    (typeof performance !== "undefined" &&
+    typeof performance.now === "function"
+      ? performance.now()
+      : Date.now()) - startedAt,
+  );
+  // Single structured line — JSON so log aggregators can compute
+  // p95 (`select percentile_cont(0.95) from logs where _brain='company'`).
+  // Payload counts only ; never the brain content itself.
+  console.log(
+    JSON.stringify({
+      _brain: "company",
+      companyId,
+      tenantId: opts.tenantId,
+      durationMs,
+      contacts: result.contacts.length,
+      deals: result.deals.length,
+      activities: result.activities.length,
+      meetings: result.meetings.length,
+      truncated: result.truncated,
+    }),
+  );
+
+  return result;
 }

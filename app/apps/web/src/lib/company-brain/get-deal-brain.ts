@@ -14,7 +14,7 @@
  * array when available, falling back to a minimal stub.
  */
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { db as defaultDb } from "@/db";
 import {
   deals as dealsTable,
@@ -89,7 +89,11 @@ export async function getDealBrain(
     })
     .from(dealsTable)
     .where(
-      and(eq(dealsTable.id, dealId), eq(dealsTable.tenantId, opts.tenantId)),
+      and(
+        eq(dealsTable.id, dealId),
+        eq(dealsTable.tenantId, opts.tenantId),
+        isNull(dealsTable.deletedAt),
+      ),
     )
     .limit(1);
 
@@ -131,6 +135,7 @@ export async function getDealBrain(
         eq(activitiesTable.tenantId, opts.tenantId),
         eq(activitiesTable.entityType, "deal"),
         eq(activitiesTable.entityId, dealId),
+        isNull(activitiesTable.deletedAt),
       ),
     )
     .orderBy(desc(activitiesTable.occurredAt))

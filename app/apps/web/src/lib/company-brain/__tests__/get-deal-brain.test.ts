@@ -89,6 +89,60 @@ beforeEach(() => {
   stubBrain.mockReset();
 });
 
+describe("getDealBrain — multi-tenant safety", () => {
+  it("forwards opts.tenantId to the surrounding company brain", async () => {
+    let call = 0;
+    selectChainMock.mockImplementation(() => {
+      call++;
+      if (call === 1)
+        return chainOf([
+          {
+            id: "d-1",
+            tenantId: "tenant-A",
+            companyId: "co-1",
+            contactId: null,
+          },
+        ]);
+      return chainOf([]);
+    });
+    stubBrain.mockResolvedValue(fakeCompanyBrain());
+    await getDealBrain(
+      "d-1",
+      { tenantId: "tenant-A" },
+      { getCompanyBrainFn: stubBrain as any },
+    );
+    expect(stubBrain).toHaveBeenCalledWith(
+      "co-1",
+      expect.objectContaining({ tenantId: "tenant-A" }),
+      expect.anything(),
+    );
+  });
+
+  it("returns null when the surrounding company brain comes back null (cross-tenant company)", async () => {
+    let call = 0;
+    selectChainMock.mockImplementation(() => {
+      call++;
+      if (call === 1)
+        return chainOf([
+          {
+            id: "d-1",
+            tenantId: "tenant-A",
+            companyId: "co-cross-tenant",
+            contactId: null,
+          },
+        ]);
+      return chainOf([]);
+    });
+    stubBrain.mockResolvedValue(null);
+    const brain = await getDealBrain(
+      "d-1",
+      { tenantId: "tenant-A" },
+      { getCompanyBrainFn: stubBrain as any },
+    );
+    expect(brain).toBeNull();
+  });
+});
+
 describe("getDealBrain — guards", () => {
   it("throws when tenantId missing", async () => {
     await expect(

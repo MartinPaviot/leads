@@ -19,7 +19,7 @@
  * `scoreBuyerIntent` / `predictStalls` calls.
  */
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { db as defaultDb } from "@/db";
 import {
   contacts as contactsTable,
@@ -83,6 +83,7 @@ export async function getContactBrain(
       and(
         eq(contactsTable.id, contactId),
         eq(contactsTable.tenantId, opts.tenantId),
+        isNull(contactsTable.deletedAt),
       ),
     )
     .limit(1);
@@ -128,6 +129,7 @@ export async function getContactBrain(
         eq(activitiesTable.tenantId, opts.tenantId),
         eq(activitiesTable.entityType, "contact"),
         eq(activitiesTable.entityId, contactId),
+        isNull(activitiesTable.deletedAt),
       ),
     )
     .orderBy(desc(activitiesTable.occurredAt))
@@ -156,6 +158,7 @@ export async function getContactBrain(
       and(
         eq(dealsTable.tenantId, opts.tenantId),
         eq(dealsTable.contactId, contactId),
+        isNull(dealsTable.deletedAt),
       ),
     );
   const ownedDealIds = new Set(ownedDealRows.map((r) => r.id));

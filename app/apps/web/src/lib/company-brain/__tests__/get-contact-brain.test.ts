@@ -103,6 +103,53 @@ beforeEach(() => {
   stubBrain.mockReset();
 });
 
+describe("getContactBrain — multi-tenant safety", () => {
+  it("forwards opts.tenantId to the surrounding company brain", async () => {
+    let call = 0;
+    selectChainMock.mockImplementation(() => {
+      call++;
+      if (call === 1)
+        return chainOf([
+          { id: "ct-1", tenantId: "tenant-A", companyId: "co-1" },
+        ]);
+      return chainOf([]);
+    });
+    stubBrain.mockResolvedValue(fakeCompanyBrain());
+    await getContactBrain(
+      "ct-1",
+      { tenantId: "tenant-A" },
+      { getCompanyBrainFn: stubBrain as any },
+    );
+    expect(stubBrain).toHaveBeenCalledWith(
+      "co-1",
+      expect.objectContaining({ tenantId: "tenant-A" }),
+      expect.anything(),
+    );
+  });
+
+  it("returns null when the surrounding company brain comes back null (cross-tenant company)", async () => {
+    let call = 0;
+    selectChainMock.mockImplementation(() => {
+      call++;
+      if (call === 1)
+        return chainOf([
+          // Contact belongs to tenant-A but its company is in tenant-B —
+          // getCompanyBrain refuses cross-tenant and returns null,
+          // which contact brain must propagate.
+          { id: "ct-1", tenantId: "tenant-A", companyId: "co-cross-tenant" },
+        ]);
+      return chainOf([]);
+    });
+    stubBrain.mockResolvedValue(null);
+    const brain = await getContactBrain(
+      "ct-1",
+      { tenantId: "tenant-A" },
+      { getCompanyBrainFn: stubBrain as any },
+    );
+    expect(brain).toBeNull();
+  });
+});
+
 describe("getContactBrain — guards", () => {
   it("throws when tenantId missing", async () => {
     await expect(
