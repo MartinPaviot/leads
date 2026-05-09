@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { contacts } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 export async function POST(
   req: Request,
@@ -18,7 +18,13 @@ export async function POST(
     const companyContacts = await db
       .select()
       .from(contacts)
-      .where(and(eq(contacts.companyId, id), eq(contacts.tenantId, authCtx.tenantId)));
+      .where(
+        and(
+          eq(contacts.companyId, id),
+          eq(contacts.tenantId, authCtx.tenantId),
+          isNull(contacts.deletedAt),
+        ),
+      );
 
     return Response.json({ contacts: companyContacts });
   } catch (error) {

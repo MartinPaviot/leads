@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { deals } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { recordDealOutcome } from "@/lib/scoring/signal-outcomes";
 import { inngest } from "@/inngest/client";
 
@@ -20,7 +20,13 @@ export async function GET(
     const [deal] = await db
       .select()
       .from(deals)
-      .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
+      .where(
+        and(
+          eq(deals.id, id),
+          eq(deals.tenantId, authCtx.tenantId),
+          isNull(deals.deletedAt),
+        ),
+      )
       .limit(1);
 
     if (!deal) {
@@ -110,7 +116,13 @@ export async function PUT(
         const [existing] = await db
           .select({ properties: deals.properties })
           .from(deals)
-          .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
+          .where(
+            and(
+              eq(deals.id, id),
+              eq(deals.tenantId, authCtx.tenantId),
+              isNull(deals.deletedAt),
+            ),
+          )
           .limit(1);
         const priorProps = (existing?.properties ?? {}) as Record<string, unknown>;
         updates.properties = {
@@ -125,7 +137,13 @@ export async function PUT(
     const [updated] = await db
       .update(deals)
       .set(updates)
-      .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
+      .where(
+        and(
+          eq(deals.id, id),
+          eq(deals.tenantId, authCtx.tenantId),
+          isNull(deals.deletedAt),
+        ),
+      )
       .returning();
 
     if (!updated) {

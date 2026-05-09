@@ -75,6 +75,11 @@ export async function getDealBrain(
     throw new Error("getDealBrain: dealId is required");
   }
 
+  const startedAt =
+    typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : Date.now();
+
   const dbi = deps.db ?? defaultDb;
   const getCompanyBrainFn = deps.getCompanyBrainFn ?? defaultGetCompanyBrain;
   const dealActivityCap = opts.dealActivityCap ?? DEFAULT_DEAL_ACTIVITY_CAP;
@@ -170,7 +175,7 @@ export async function getDealBrain(
       companyBrain.contacts.find((c) => c.id === dealRow.contactId) ?? null;
   }
 
-  return {
+  const result = {
     focalDeal,
     primaryContact,
     dealActivities,
@@ -181,4 +186,24 @@ export async function getDealBrain(
     },
     truncated: { dealActivities: dealActivitiesTruncated },
   };
+
+  const durationMs = Math.round(
+    (typeof performance !== "undefined" &&
+    typeof performance.now === "function"
+      ? performance.now()
+      : Date.now()) - startedAt,
+  );
+  console.log(
+    JSON.stringify({
+      _brain: "deal",
+      dealId,
+      tenantId: opts.tenantId,
+      durationMs,
+      dealActivities: dealActivities.length,
+      hasPrimaryContact: primaryContact !== null,
+      truncated: result.truncated,
+    }),
+  );
+
+  return result;
 }

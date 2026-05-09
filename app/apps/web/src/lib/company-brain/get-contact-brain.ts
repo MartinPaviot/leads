@@ -66,6 +66,11 @@ export async function getContactBrain(
     throw new Error("getContactBrain: contactId is required");
   }
 
+  const startedAt =
+    typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : Date.now();
+
   const dbi = deps.db ?? defaultDb;
   const getCompanyBrainFn = deps.getCompanyBrainFn ?? defaultGetCompanyBrain;
   const directActivityCap =
@@ -183,7 +188,7 @@ export async function getContactBrain(
     lastTouchAt: null,
   };
 
-  return {
+  const result = {
     focalContact,
     directActivities,
     ownedDeals,
@@ -197,4 +202,24 @@ export async function getContactBrain(
     },
     truncated: { directActivities: directActivitiesTruncated },
   };
+
+  const durationMs = Math.round(
+    (typeof performance !== "undefined" &&
+    typeof performance.now === "function"
+      ? performance.now()
+      : Date.now()) - startedAt,
+  );
+  console.log(
+    JSON.stringify({
+      _brain: "contact",
+      contactId,
+      tenantId: opts.tenantId,
+      durationMs,
+      directActivities: directActivities.length,
+      ownedDeals: ownedDeals.length,
+      truncated: result.truncated,
+    }),
+  );
+
+  return result;
 }

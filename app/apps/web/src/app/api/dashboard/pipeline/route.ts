@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { deals, activities } from "@/db/schema";
-import { and, eq, notInArray, sql, count, avg, gte, desc } from "drizzle-orm";
+import { and, eq, notInArray, sql, count, avg, gte, desc, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { stageProbability, ageInStage } from "@/lib/deals/deal-helpers";
 
@@ -30,6 +30,7 @@ export async function GET(req: Request) {
       and(
         eq(deals.tenantId, tenantId),
         notInArray(deals.stage, ["won", "lost"]),
+        isNull(deals.deletedAt),
       ),
     );
 
@@ -67,6 +68,7 @@ export async function GET(req: Request) {
       and(
         eq(deals.tenantId, tenantId),
         gte(deals.updatedAt, periodStart),
+        isNull(deals.deletedAt),
       ),
     );
 

@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { companies, deals, contacts, activities } from "@/db/schema";
-import { and, eq, desc, sql } from "drizzle-orm";
+import { and, eq, desc, sql, isNull } from "drizzle-orm";
 
 export async function GET(
   req: Request,
@@ -17,7 +17,13 @@ export async function GET(
   const [account] = await db
     .select()
     .from(companies)
-    .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)))
+    .where(
+      and(
+        eq(companies.id, id),
+        eq(companies.tenantId, authCtx.tenantId),
+        isNull(companies.deletedAt),
+      ),
+    )
     .limit(1);
 
   if (!account) {
@@ -34,7 +40,13 @@ export async function GET(
         value: deals.value,
       })
       .from(deals)
-      .where(and(eq(deals.companyId, id), eq(deals.tenantId, authCtx.tenantId))),
+      .where(
+        and(
+          eq(deals.companyId, id),
+          eq(deals.tenantId, authCtx.tenantId),
+          isNull(deals.deletedAt),
+        ),
+      ),
     db
       .select({
         id: contacts.id,
@@ -44,7 +56,13 @@ export async function GET(
         title: contacts.title,
       })
       .from(contacts)
-      .where(and(eq(contacts.companyId, id), eq(contacts.tenantId, authCtx.tenantId))),
+      .where(
+        and(
+          eq(contacts.companyId, id),
+          eq(contacts.tenantId, authCtx.tenantId),
+          isNull(contacts.deletedAt),
+        ),
+      ),
     db
       .select({
         id: activities.id,
@@ -57,7 +75,14 @@ export async function GET(
         entityId: activities.entityId,
       })
       .from(activities)
-      .where(and(eq(activities.tenantId, authCtx.tenantId), eq(activities.entityType, "company"), eq(activities.entityId, id)))
+      .where(
+        and(
+          eq(activities.tenantId, authCtx.tenantId),
+          eq(activities.entityType, "company"),
+          eq(activities.entityId, id),
+          isNull(activities.deletedAt),
+        ),
+      )
       .orderBy(desc(activities.occurredAt))
       .limit(50),
   ]);
@@ -81,7 +106,14 @@ export async function GET(
           entityId: activities.entityId,
         })
         .from(activities)
-        .where(and(eq(activities.tenantId, authCtx.tenantId), eq(activities.entityType, "contact"), eq(activities.entityId, cId)))
+        .where(
+          and(
+            eq(activities.tenantId, authCtx.tenantId),
+            eq(activities.entityType, "contact"),
+            eq(activities.entityId, cId),
+            isNull(activities.deletedAt),
+          ),
+        )
         .orderBy(desc(activities.occurredAt))
         .limit(10);
       allContactActivities.push(...cActivities);
@@ -132,7 +164,13 @@ export async function PUT(
   const [existing] = await db
     .select({ id: companies.id })
     .from(companies)
-    .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)))
+    .where(
+      and(
+        eq(companies.id, id),
+        eq(companies.tenantId, authCtx.tenantId),
+        isNull(companies.deletedAt),
+      ),
+    )
     .limit(1);
 
   if (!existing) {

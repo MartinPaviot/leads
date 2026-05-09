@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities, deals, tasks, sequenceEnrollments, companies, contacts, outboundEmails } from "@/db/schema";
-import { sql, eq, and, gte, lte, or, ne, desc } from "drizzle-orm";
+import { sql, eq, and, gte, lte, or, ne, desc, isNull } from "drizzle-orm";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
 
 function getGreeting(): string {
@@ -49,7 +49,13 @@ export async function GET() {
           count: sql<number>`count(*)::int`,
         })
         .from(activities)
-        .where(and(eq(activities.tenantId, authCtx.tenantId), gte(activities.occurredAt, weekStart)))
+        .where(
+          and(
+            eq(activities.tenantId, authCtx.tenantId),
+            gte(activities.occurredAt, weekStart),
+            isNull(activities.deletedAt),
+          ),
+        )
         .groupBy(activities.activityType),
       db
         .select({
@@ -61,7 +67,8 @@ export async function GET() {
           and(
             eq(activities.tenantId, authCtx.tenantId),
             gte(activities.occurredAt, prevWeekStart),
-            lte(activities.occurredAt, weekStart)
+            lte(activities.occurredAt, weekStart),
+            isNull(activities.deletedAt),
           )
         )
         .groupBy(activities.activityType),
@@ -98,7 +105,8 @@ export async function GET() {
           and(
             eq(deals.tenantId, authCtx.tenantId),
             eq(deals.stage, "won"),
-            gte(deals.updatedAt, weekStart)
+            gte(deals.updatedAt, weekStart),
+            isNull(deals.deletedAt),
           )
         ),
       db
@@ -109,7 +117,8 @@ export async function GET() {
             eq(deals.tenantId, authCtx.tenantId),
             eq(deals.stage, "won"),
             gte(deals.updatedAt, prevWeekStart),
-            lte(deals.updatedAt, weekStart)
+            lte(deals.updatedAt, weekStart),
+            isNull(deals.deletedAt),
           )
         ),
     ]);
@@ -133,7 +142,8 @@ export async function GET() {
           or(
             and(gte(tasks.dueDate, todayStart), lte(tasks.dueDate, todayEnd)),
             sql`${tasks.dueDate} < ${todayStart}`
-          )
+          ),
+          isNull(tasks.deletedAt),
         )
       )
       .orderBy(tasks.dueDate);
@@ -146,7 +156,13 @@ export async function GET() {
           const company = await db
             .select({ name: companies.name })
             .from(companies)
-            .where(and(eq(companies.id, task.entityId), eq(companies.tenantId, authCtx.tenantId)))
+            .where(
+              and(
+                eq(companies.id, task.entityId),
+                eq(companies.tenantId, authCtx.tenantId),
+                isNull(companies.deletedAt),
+              ),
+            )
             .limit(1);
           accountName = company[0]?.name || null;
         }
@@ -175,7 +191,8 @@ export async function GET() {
           eq(activities.tenantId, authCtx.tenantId),
           eq(activities.activityType, "meeting_scheduled"),
           gte(activities.occurredAt, todayStart),
-          lte(activities.occurredAt, todayEnd)
+          lte(activities.occurredAt, todayEnd),
+          isNull(activities.deletedAt),
         )
       )
       .orderBy(activities.occurredAt);
@@ -199,17 +216,17 @@ export async function GET() {
           lostCount: sql<number>`SUM(CASE WHEN ${deals.stage} = 'lost' THEN 1 ELSE 0 END)::int`,
         })
         .from(deals)
-        .where(eq(deals.tenantId, authCtx.tenantId)),
+        .where(and(eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt))),
       // Total contacts
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(contacts)
-        .where(eq(contacts.tenantId, authCtx.tenantId)),
+        .where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt))),
       // Total accounts
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(companies)
-        .where(eq(companies.tenantId, authCtx.tenantId)),
+        .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt))),
       // Email deliverability (last 7 days)
       db
         .select({
@@ -241,7 +258,8 @@ export async function GET() {
             eq(deals.tenantId, authCtx.tenantId),
             ne(deals.stage, "won"),
             ne(deals.stage, "lost"),
-            lte(deals.updatedAt, new Date(Date.now() - 7 * 86400000))
+            lte(deals.updatedAt, new Date(Date.now() - 7 * 86400000)),
+            isNull(deals.deletedAt),
           )
         )
         .orderBy(desc(deals.value))
