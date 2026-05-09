@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities } from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNull } from "drizzle-orm";
 
 export async function GET(
   _req: Request,
@@ -27,7 +27,8 @@ export async function GET(
         and(
           eq(activities.entityId, id),
           eq(activities.entityType, "deal"),
-          eq(activities.tenantId, authCtx.tenantId)
+          eq(activities.tenantId, authCtx.tenantId),
+          isNull(activities.deletedAt),
         )
       )
       .orderBy(desc(activities.occurredAt));

@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { generateAccountSummary } from "@/lib/ai/ai-account-summary";
 
 /**
@@ -28,7 +28,13 @@ export async function POST(
   const [company] = await db
     .select()
     .from(companies)
-    .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)))
+    .where(
+      and(
+        eq(companies.id, id),
+        eq(companies.tenantId, authCtx.tenantId),
+        isNull(companies.deletedAt),
+      ),
+    )
     .limit(1);
 
   if (!company) {
@@ -71,7 +77,13 @@ export async function POST(
       properties: updatedProps,
       updatedAt: new Date(),
     })
-    .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)));
+    .where(
+      and(
+        eq(companies.id, id),
+        eq(companies.tenantId, authCtx.tenantId),
+        isNull(companies.deletedAt),
+      ),
+    );
 
   return Response.json({
     ai_account_summary: result.ai_account_summary,

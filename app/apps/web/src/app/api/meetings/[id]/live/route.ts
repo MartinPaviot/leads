@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { z } from "zod";
@@ -29,7 +29,13 @@ export async function GET(
   const [activity] = await db
     .select()
     .from(activities)
-    .where(and(eq(activities.id, id), eq(activities.tenantId, authCtx.tenantId)))
+    .where(
+      and(
+        eq(activities.id, id),
+        eq(activities.tenantId, authCtx.tenantId),
+        isNull(activities.deletedAt),
+      ),
+    )
     .limit(1);
 
   if (!activity) return Response.json({ error: "Meeting not found" }, { status: 404 });

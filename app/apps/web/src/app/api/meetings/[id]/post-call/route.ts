@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { activities, tasks, deals, contacts, companies } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { tracedGenerateText } from "@/lib/ai/traced-ai";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
@@ -27,7 +27,11 @@ export async function POST(
     .select()
     .from(activities)
     .where(
-      and(eq(activities.id, id), eq(activities.tenantId, authCtx.tenantId))
+      and(
+        eq(activities.id, id),
+        eq(activities.tenantId, authCtx.tenantId),
+        isNull(activities.deletedAt),
+      )
     )
     .limit(1);
 
@@ -79,7 +83,13 @@ export async function POST(
       const [deal] = await db
         .select()
         .from(deals)
-        .where(and(eq(deals.id, dealId), eq(deals.tenantId, authCtx.tenantId)))
+        .where(
+          and(
+            eq(deals.id, dealId),
+            eq(deals.tenantId, authCtx.tenantId),
+            isNull(deals.deletedAt),
+          ),
+        )
         .limit(1);
 
       if (deal) {
@@ -115,7 +125,13 @@ export async function POST(
             const [company] = await db
               .select()
               .from(companies)
-              .where(and(eq(companies.id, deal.companyId), eq(companies.tenantId, authCtx.tenantId)))
+              .where(
+                and(
+                  eq(companies.id, deal.companyId),
+                  eq(companies.tenantId, authCtx.tenantId),
+                  isNull(companies.deletedAt),
+                ),
+              )
               .limit(1);
             if (company) {
               const companyProps = (company.properties || {}) as Record<string, unknown>;
@@ -183,7 +199,7 @@ export async function POST(
         const [contact] = await db
           .select()
           .from(contacts)
-          .where(eq(contacts.id, activity.entityId))
+          .where(and(eq(contacts.id, activity.entityId), isNull(contacts.deletedAt)))
           .limit(1);
         if (contact) {
           contactContext = `Recipient: ${contact.firstName} ${contact.lastName} (${contact.title || ""})\n`;
@@ -191,7 +207,7 @@ export async function POST(
             const [company] = await db
               .select()
               .from(companies)
-              .where(eq(companies.id, contact.companyId))
+              .where(and(eq(companies.id, contact.companyId), isNull(companies.deletedAt)))
               .limit(1);
             if (company) contactContext += `Company: ${company.name}\n`;
           }

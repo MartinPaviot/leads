@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { withAuthRLS } from "@/lib/auth/auth-utils";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 /**
  * Batch fetch accounts by IDs — replaces N+1 individual fetches.
@@ -33,6 +33,7 @@ export async function POST(req: Request) {
         .where(and(
           eq(companies.tenantId, authCtx.tenantId),
           inArray(companies.id, limitedIds),
+          isNull(companies.deletedAt),
         ));
 
       // Return as a map for easy client-side lookup

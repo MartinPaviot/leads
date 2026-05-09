@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { LIFECYCLE_STAGES, LIFECYCLE_COLORS, type LifecycleStage } from "@/lib/analytics/lifecycle";
 
 export async function POST(
@@ -32,7 +32,13 @@ export async function POST(
     const [company] = await db
       .select()
       .from(companies)
-      .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)))
+      .where(
+        and(
+          eq(companies.id, id),
+          eq(companies.tenantId, authCtx.tenantId),
+          isNull(companies.deletedAt),
+        ),
+      )
       .limit(1);
 
     if (!company) {
@@ -46,7 +52,13 @@ export async function POST(
         properties: { ...currentProperties, lifecycle: stage },
         updatedAt: new Date(),
       })
-      .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)));
+      .where(
+        and(
+          eq(companies.id, id),
+          eq(companies.tenantId, authCtx.tenantId),
+          isNull(companies.deletedAt),
+        ),
+      );
 
     return Response.json({
       success: true,

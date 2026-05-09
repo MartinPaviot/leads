@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { searchPeople, isApolloAvailable } from "@/lib/integrations/apollo-client";
 import { getTenantSettings, deriveTargetRoles } from "@/lib/config/tenant-settings";
 
@@ -34,7 +34,13 @@ export async function GET(
   const [company] = await db
     .select()
     .from(companies)
-    .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)))
+    .where(
+      and(
+        eq(companies.id, id),
+        eq(companies.tenantId, authCtx.tenantId),
+        isNull(companies.deletedAt),
+      ),
+    )
     .limit(1);
 
   if (!company) {

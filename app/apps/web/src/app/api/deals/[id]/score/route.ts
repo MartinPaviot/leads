@@ -13,7 +13,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { deals, tenants, companies, activities } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import {
   scoreDeal,
   valueToBucket,
@@ -38,7 +38,13 @@ export async function GET(
     const [deal] = await db
       .select()
       .from(deals)
-      .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
+      .where(
+        and(
+          eq(deals.id, id),
+          eq(deals.tenantId, authCtx.tenantId),
+          isNull(deals.deletedAt),
+        ),
+      )
       .limit(1);
 
     if (!deal) {
@@ -106,7 +112,7 @@ async function extractLiveDealFeatures(
         properties: companies.properties,
       })
       .from(companies)
-      .where(eq(companies.id, deal.companyId))
+      .where(and(eq(companies.id, deal.companyId), isNull(companies.deletedAt)))
       .limit(1);
 
     if (company) {
@@ -130,6 +136,7 @@ async function extractLiveDealFeatures(
       eq(activities.tenantId, tenantId),
       eq(activities.entityType, "deal"),
       eq(activities.entityId, deal.id),
+      isNull(activities.deletedAt),
     ),
   ];
 
@@ -139,6 +146,7 @@ async function extractLiveDealFeatures(
         eq(activities.tenantId, tenantId),
         eq(activities.entityType, "contact"),
         eq(activities.entityId, deal.contactId),
+        isNull(activities.deletedAt),
       ),
     );
   }

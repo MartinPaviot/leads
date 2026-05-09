@@ -3,7 +3,7 @@ import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/integrations/cale
 import { fetchMicrosoftMeetings } from "@/lib/integrations/calendar-microsoft";
 import { db } from "@/db";
 import { activities, authAccounts } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 import { logger } from "@/lib/observability/logger";
 
 /**
@@ -91,7 +91,8 @@ export async function GET(req: Request) {
       .where(
         and(
           eq(activities.tenantId, authCtx.tenantId),
-          sql`${activities.activityType} IN ('meeting_scheduled', 'meeting_completed')`
+          sql`${activities.activityType} IN ('meeting_scheduled', 'meeting_completed')`,
+          isNull(activities.deletedAt),
         )
       )
       .limit(500);

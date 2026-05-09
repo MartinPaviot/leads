@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { deals } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -53,7 +53,13 @@ export async function POST(
     const [deal] = await db
       .select()
       .from(deals)
-      .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
+      .where(
+        and(
+          eq(deals.id, id),
+          eq(deals.tenantId, authCtx.tenantId),
+          isNull(deals.deletedAt),
+        ),
+      )
       .limit(1);
 
     if (!deal) {
@@ -106,7 +112,13 @@ Extract:
         },
         updatedAt: new Date(),
       })
-      .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)));
+      .where(
+        and(
+          eq(deals.id, id),
+          eq(deals.tenantId, authCtx.tenantId),
+          isNull(deals.deletedAt),
+        ),
+      );
 
     return Response.json({
       budget: result.budget,

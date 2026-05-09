@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { companies, contacts, activities } from "@/db/schema";
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, isNull } from "drizzle-orm";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { tracedGenerateText } from "@/lib/ai/traced-ai";
@@ -28,7 +28,13 @@ export async function POST(
   try {
     // Fetch account + all related data
     const [company] = await db.select().from(companies)
-      .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)))
+      .where(
+        and(
+          eq(companies.id, id),
+          eq(companies.tenantId, authCtx.tenantId),
+          isNull(companies.deletedAt),
+        ),
+      )
       .limit(1);
 
     if (!company) {
@@ -36,13 +42,20 @@ export async function POST(
     }
 
     const companyContacts = await db.select().from(contacts)
-      .where(and(eq(contacts.companyId, id), eq(contacts.tenantId, authCtx.tenantId)));
+      .where(
+        and(
+          eq(contacts.companyId, id),
+          eq(contacts.tenantId, authCtx.tenantId),
+          isNull(contacts.deletedAt),
+        ),
+      );
 
     const companyActivities = await db.select().from(activities)
       .where(and(
         eq(activities.entityId, id),
         eq(activities.entityType, "company"),
         eq(activities.tenantId, authCtx.tenantId),
+        isNull(activities.deletedAt),
       ))
       .orderBy(desc(activities.occurredAt))
       .limit(50);
@@ -55,6 +68,7 @@ export async function POST(
         .where(and(
           eq(activities.entityType, "contact"),
           eq(activities.tenantId, authCtx.tenantId),
+          isNull(activities.deletedAt),
         ))
         .orderBy(desc(activities.occurredAt))
         .limit(50);
@@ -139,7 +153,13 @@ If there's no interaction history, set accountSummary to null. If there's no enr
     await db.update(companies).set({
       properties: updatedProps,
       updatedAt: new Date(),
-    }).where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)));
+    }).where(
+      and(
+        eq(companies.id, id),
+        eq(companies.tenantId, authCtx.tenantId),
+        isNull(companies.deletedAt),
+      ),
+    );
 
     return Response.json({
       accountSummary: summary,

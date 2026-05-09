@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { companies, contacts, activities, deals } from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNull } from "drizzle-orm";
 import { exploreGraphAroundEntity } from "@/lib/ai/context-graph";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -37,7 +37,13 @@ export async function GET(
     const [account] = await db
       .select()
       .from(companies)
-      .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)))
+      .where(
+        and(
+          eq(companies.id, id),
+          eq(companies.tenantId, authCtx.tenantId),
+          isNull(companies.deletedAt),
+        ),
+      )
       .limit(1);
 
     if (!account) {
@@ -58,6 +64,7 @@ export async function GET(
           eq(activities.tenantId, authCtx.tenantId),
           eq(activities.entityType, "company"),
           eq(activities.entityId, id),
+          isNull(activities.deletedAt),
         )
       )
       .orderBy(desc(activities.occurredAt))
@@ -67,14 +74,26 @@ export async function GET(
     const accountContacts = await db
       .select({ firstName: contacts.firstName, lastName: contacts.lastName, title: contacts.title })
       .from(contacts)
-      .where(and(eq(contacts.companyId, id), eq(contacts.tenantId, authCtx.tenantId)))
+      .where(
+        and(
+          eq(contacts.companyId, id),
+          eq(contacts.tenantId, authCtx.tenantId),
+          isNull(contacts.deletedAt),
+        ),
+      )
       .limit(10);
 
     // Fetch deals for this account
     const accountDeals = await db
       .select({ name: deals.name, stage: deals.stage, value: deals.value })
       .from(deals)
-      .where(and(eq(deals.companyId, id), eq(deals.tenantId, authCtx.tenantId)))
+      .where(
+        and(
+          eq(deals.companyId, id),
+          eq(deals.tenantId, authCtx.tenantId),
+          isNull(deals.deletedAt),
+        ),
+      )
       .limit(5);
 
     // Explore context graph
