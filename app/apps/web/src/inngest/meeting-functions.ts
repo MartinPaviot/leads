@@ -256,7 +256,7 @@ export const generateMeetingPrep = inngest.createFunction(
     // Call the existing prep API logic — we import it inline to avoid circular deps
     const { anthropic } = await import("@ai-sdk/anthropic");
     const { openai } = await import("@ai-sdk/openai");
-    const { contacts, companies, deals } = await import("@/db/schema");
+    const { contacts } = await import("@/db/schema");
 
     const model = process.env.ANTHROPIC_API_KEY
       ? anthropic("claude-sonnet-4-6")
@@ -266,57 +266,55 @@ export const generateMeetingPrep = inngest.createFunction(
 
     if (!model) return { error: "No LLM configured" };
 
-    // Gather context from attendees
-    const attendees = meta.attendees || [];
-    let context = `Meeting: ${activity.summary}\nDate: ${meta.startTime}\n\nAttendees:\n`;
+    // Phase 3b: gather context via the Company Brain instead of
+    // composing per-attendee contact + company + recent-activities
+    // queries inline. The brain returns the full account view —
+    // contacts (with champion + intent), open deals (with risk +
+    // stall + citation properties), recent activities, past
+    // meetings (+ transcript chunk counts), knowledge entries,
+    // graph facts, and chat memories — all freshness-tagged.
+    const { composeMeetingPrepContext } = await import(
+      "@/lib/company-brain/meeting-prep-context"
+    );
 
-    for (const att of attendees) {
-      context += `- ${att.displayName || att.email} (${att.email})\n`;
+    const attendees = (meta.attendees || []) as Array<{
+      email?: string;
+      displayName?: string;
+    }>;
+    const attendeeEmails = attendees
+      .map((a) => a.email)
+      .filter((e): e is string => !!e);
 
-      // Look up in CRM
-      if (att.email) {
-        const [contact] = await db
-          .select()
-          .from(contacts)
-          .where(and(eq(contacts.tenantId, tenantId), eq(contacts.email, att.email)))
-          .limit(1);
+    // Resolve company ids :
+    //   1. activity.entityId when entityType === 'company'
+    //   2. companyIds of any contact whose email is in attendees
+    const companyIds = new Set<string>();
+    if (activity.entityType === "company" && activity.entityId) {
+      companyIds.add(activity.entityId);
+    }
 
-        if (contact) {
-          context += `  Role: ${contact.title || "Unknown"}\n`;
-          if (contact.companyId) {
-            const [company] = await db
-              .select()
-              .from(companies)
-              .where(eq(companies.id, contact.companyId))
-              .limit(1);
-            if (company) {
-              context += `  Company: ${company.name} (${company.industry || ""}, ${company.size || ""} employees)\n`;
-            }
-          }
-        }
+    if (attendeeEmails.length > 0) {
+      const matchedContacts = await db
+        .select({ companyId: contacts.companyId })
+        .from(contacts)
+        .where(
+          and(
+            eq(contacts.tenantId, tenantId),
+            sql`${contacts.email} = ANY(${attendeeEmails})`,
+          ),
+        );
+      for (const row of matchedContacts) {
+        if (row.companyId) companyIds.add(row.companyId);
       }
     }
 
-    // Get recent interactions
-    const recentActivities = await db
-      .select()
-      .from(activities)
-      .where(
-        and(
-          eq(activities.tenantId, tenantId),
-          eq(activities.entityId, activity.entityId),
-          sql`${activities.id} != ${activityId}`
-        )
-      )
-      .orderBy(sql`occurred_at DESC`)
-      .limit(5);
-
-    if (recentActivities.length > 0) {
-      context += "\nRecent Interactions:\n";
-      for (const a of recentActivities) {
-        context += `- ${a.activityType} (${a.occurredAt?.toISOString().split("T")[0]}): ${a.summary?.slice(0, 100)}\n`;
-      }
-    }
+    const context = await composeMeetingPrepContext({
+      meetingTitle: activity.summary,
+      startTimeIso: meta.startTime ?? null,
+      attendees,
+      companyIds: Array.from(companyIds),
+      tenantId,
+    });
 
     const { text: prepDoc } = await tracedGenerateText({
       model,
