@@ -60,6 +60,31 @@ dominates.
       freshness ; "View brain" link added in account
       header.
 
+## Phase 4 — entity-level perspectives
+
+- [x] **4a** `lib/company-brain/types.ts` :
+      `ContactBrain`, `DealBrain`, `GetContactBrainOpts`,
+      `GetDealBrainOpts`. Same focal-entity-on-top-of-
+      companyBrain composition pattern.
+- [x] **4b** `lib/company-brain/get-contact-brain.ts` :
+      resolve contact (tenant guard) → companyBrain →
+      direct activities (entityType="contact") + owned
+      deals (deals.contactId match) + hydrated focal
+      contact from companyBrain.contacts. 6 unit tests.
+- [x] **4c** `lib/company-brain/get-deal-brain.ts` :
+      resolve deal (tenant guard) → companyBrain → deal
+      activities (entityType="deal") + primaryContact
+      (deals.contactId) + hydrated focal deal from
+      companyBrain.deals. 7 unit tests.
+- [x] **4d** API routes `/api/brain/contact/[id]` and
+      `/api/brain/deal/[id]` GET handlers, same
+      `parseIntCap` envelope as the company endpoint, 401
+      unauth, 404 not-found, 500 throw.
+- [x] **4e** Chat tools `getContactBrain` + `getDealBrain`
+      registered in tool-router + orchestrator (briefing
+      group). Eval cases intel-brain-006..008 added. F1
+      stays above the 0.85 threshold.
+
 ## Status (2026-05-09)
 
 - Phase 1 : **DONE** — read API + endpoint shipped (commit
@@ -68,5 +93,7 @@ dominates.
   latency pressure before committing to materialised
   cache.
 - Phase 3 : **DONE** — chat tool (3a, f8753ec), meeting
-  prep migration (3b, d486637), brain UI page (3c, this
-  commit).
+  prep migration (3b, d486637), brain UI page (3c,
+  f49cffe).
+- Phase 4 : **DONE** — entity-level brains for contact +
+  deal layered on top of the company brain (this commit).

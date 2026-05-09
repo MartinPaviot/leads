@@ -377,6 +377,30 @@ export const TOOL_SELECTION_CASES: ToolSelectionTestCase[] = [
     category: "intelligence",
   },
   {
+    id: "intel-brain-006",
+    query: "Tell me everything about deal d-4f3a-9b2c",
+    expectedTools: ["getDealBrain", "briefDeal"],
+    forbiddenTools: ["createDeal", "draftEmail"],
+    expectedIntent: "briefing",
+    category: "intelligence",
+  },
+  {
+    id: "intel-brain-007",
+    query: "Brain on contact ct-12345",
+    expectedTools: ["getContactBrain", "getEnrichedContext"],
+    forbiddenTools: ["createContact", "draftEmail"],
+    expectedIntent: "briefing",
+    category: "intelligence",
+  },
+  {
+    id: "intel-brain-008",
+    query: "Deep dive on this opportunity, what should I know?",
+    expectedTools: ["getDealBrain", "briefDeal", "getDealCoaching"],
+    forbiddenTools: ["createDeal", "createContact"],
+    expectedIntent: "briefing",
+    category: "intelligence",
+  },
+  {
     id: "intel-010",
     query: "Help me prepare a strategy for re-engaging stalled deals",
     expectedTools: ["reEngageStalledDeal", "getDealCoaching", "analyzePipeline"],
@@ -610,7 +634,7 @@ function buildSyntheticToolRegistry(): Record<string, { name: string }> {
     // briefing
     "briefAllDeals", "briefDeal", "getEnrichedContext",
     // company brain
-    "getCompanyBrain",
+    "getCompanyBrain", "getContactBrain", "getDealBrain",
     // schema
     "listSchema", "listAttributeDefinitions",
     // undo

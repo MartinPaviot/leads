@@ -189,6 +189,8 @@ const TOOL_GROUPS: Record<string, string> = {
 
   // company brain (brain.ts)
   getCompanyBrain: "briefing",
+  getContactBrain: "briefing",
+  getDealBrain: "briefing",
 
   // schema (schema.ts)
   listSchema: "schema",

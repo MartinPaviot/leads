@@ -123,6 +123,8 @@ const TOOL_GROUP_MAP: Record<string, string> = {
   getEnrichedContext: "briefing",
   // company brain
   getCompanyBrain: "briefing",
+  getContactBrain: "briefing",
+  getDealBrain: "briefing",
   // schema
   listSchema: "schema", listAttributeDefinitions: "schema",
   // undo

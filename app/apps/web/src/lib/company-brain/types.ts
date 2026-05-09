@@ -153,6 +153,76 @@ export interface CompanyBrain {
   truncated: CompanyBrainTruncated;
 }
 
+// ─── Phase 4 : entity-level perspectives ─────────────────────────
+//
+// `getContactBrain` and `getDealBrain` are thin wrappers over
+// `getCompanyBrain`. They resolve the focal entity, fetch the
+// entity-specific activity slice, and return the surrounding
+// company brain unchanged so the consumer has both lenses.
+
+export interface ContactBrain {
+  /** The focal contact, hydrated from the surrounding company
+   *  brain so the same intent / champion derivations apply. */
+  focalContact: CompanyBrainContact;
+  /** Activities tied directly to this contact
+   *  (entityType="contact" + entityId=contactId). Distinct from
+   *  the company brain's activities, which are scoped to
+   *  entityType="company". */
+  directActivities: CompanyBrainActivity[];
+  /** Deals where this contact is the primary contact
+   *  (`deals.contact_id`). May be empty. */
+  ownedDeals: CompanyBrainDeal[];
+  /** Surrounding company context. */
+  companyBrain: CompanyBrain;
+  freshness: {
+    focalContact: Date | null;
+    directActivities: Date | null;
+    ownedDeals: Date | null;
+  };
+  truncated: { directActivities: boolean };
+}
+
+export interface DealBrain {
+  /** The focal deal, fully hydrated with citation-shaped properties
+   *  + risk + stall fields from the company brain. */
+  focalDeal: CompanyBrainDeal;
+  /** Primary contact assigned via `deals.contact_id`. May be null
+   *  for deals that don't have one set. */
+  primaryContact: CompanyBrainContact | null;
+  /** Activities tied directly to this deal
+   *  (entityType="deal" + entityId=dealId). */
+  dealActivities: CompanyBrainActivity[];
+  /** Surrounding company context — includes other open deals so
+   *  the consumer can compare (e.g. "this is the largest deal in
+   *  Acme's pipeline"). */
+  companyBrain: CompanyBrain;
+  freshness: {
+    focalDeal: Date | null;
+    dealActivities: Date | null;
+  };
+  truncated: { dealActivities: boolean };
+}
+
+export interface GetContactBrainOpts {
+  tenantId: string;
+  /** Cap on directActivities. Defaults to 50. */
+  directActivityCap?: number;
+  /** Forwarded to getCompanyBrain — see GetCompanyBrainOpts. */
+  recentActivityCap?: number;
+  contactCap?: number;
+  memoryCap?: number;
+  includeDossier?: boolean;
+}
+
+export interface GetDealBrainOpts {
+  tenantId: string;
+  dealActivityCap?: number;
+  recentActivityCap?: number;
+  contactCap?: number;
+  memoryCap?: number;
+  includeDossier?: boolean;
+}
+
 export interface GetCompanyBrainOpts {
   /** REQUIRED — filter every join by tenantId. Never optional ;
    *  callers MUST pass authCtx.tenantId, never a user-supplied
