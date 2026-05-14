@@ -3,7 +3,7 @@ import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { apiError } from "@/lib/infra/api-errors";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, sql, isNull } from "drizzle-orm";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -106,7 +106,7 @@ export async function POST(req: Request) {
     const existing = await db
       .select({ domain: companies.domain })
       .from(companies)
-      .where(eq(companies.tenantId, authCtx.tenantId))
+      .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
       .limit(2000);
     const existingDomains = new Set(
       existing.map((c) => c.domain?.toLowerCase()).filter(Boolean)
@@ -328,17 +328,17 @@ export async function GET() {
   const result = await db
     .select({ count: sql<number>`count(*)` })
     .from(companies)
-    .where(eq(companies.tenantId, authCtx.tenantId));
+    .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)));
 
   const tamResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(companies)
-    .where(and(eq(companies.tenantId, authCtx.tenantId), sql`properties->>'source' = 'tam'`));
+    .where(and(eq(companies.tenantId, authCtx.tenantId), sql`properties->>'source' = 'tam'`, isNull(companies.deletedAt)));
 
   const apolloResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(companies)
-    .where(and(eq(companies.tenantId, authCtx.tenantId), sql`properties->>'enrichment_source' = 'apollo'`));
+    .where(and(eq(companies.tenantId, authCtx.tenantId), sql`properties->>'enrichment_source' = 'apollo'`, isNull(companies.deletedAt)));
 
   return Response.json({
     totalCompanies: Number(result[0]?.count || 0),

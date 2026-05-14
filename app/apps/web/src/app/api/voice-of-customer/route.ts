@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { activities, companies, contacts, notes } from "@/db/schema";
-import { eq, and, desc, or } from "drizzle-orm";
+import { eq, and, desc, or, isNull } from "drizzle-orm";
 
 /**
  * Voice of Customer API — extracts feature requests, pain points,
@@ -35,20 +35,21 @@ export async function GET() {
           eq(activities.activityType, "meeting_completed"),
           eq(activities.activityType, "call_completed"),
         ),
+        isNull(activities.deletedAt),
       ))
       .orderBy(desc(activities.occurredAt))
       .limit(100);
 
     // Get all notes
     const allNotes = await db.select().from(notes)
-      .where(eq(notes.tenantId, authCtx.tenantId))
+      .where(and(eq(notes.tenantId, authCtx.tenantId), isNull(notes.deletedAt)))
       .orderBy(desc(notes.createdAt))
       .limit(50);
 
     // Get companies and contacts for attribution
     const allCompanies = await db.select({ id: companies.id, name: companies.name })
       .from(companies)
-      .where(eq(companies.tenantId, authCtx.tenantId));
+      .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)));
     const companyMap = new Map(allCompanies.map((c) => [c.id, c.name]));
 
     const allContacts = await db.select({
@@ -57,7 +58,7 @@ export async function GET() {
       lastName: contacts.lastName,
       companyId: contacts.companyId,
     }).from(contacts)
-      .where(eq(contacts.tenantId, authCtx.tenantId));
+      .where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));
     const contactMap = new Map(allContacts.map((c) => [c.id, {
       name: [c.firstName, c.lastName].filter(Boolean).join(" "),
       companyId: c.companyId,
