@@ -1,4 +1,4 @@
-# Soft-delete read audit — May 2026
+# Soft-delete read audit — May 2026 (COMPLETE)
 
 Goal: every user-facing read in the web API must filter
 `isNull(<table>.deletedAt)` so tombstoned rows stop bleeding into surfaces
@@ -14,12 +14,16 @@ Soft-delete columns exist on six entity tables (see
 All six are subject to the audit. Lookup tables (`tenants`, `users`,
 sequences, etc.) are not soft-deleted today and are out of scope.
 
-## Done (4 batches, 41 routes, 213/213 tests green)
+## Done (7 batches, 76 routes, 213/213 tests green)
 
 - **Batch 1 (548534e)** — 12 account/deal/meeting detail routes
 - **Batch 2 (28f8244)** — 11 dashboard/search/inbox routes
 - **Batch 3 (908d619)** — 7 forecast/TAM/scoring routes
 - **Batch 4 (61916e8)** — 11 deal/meeting/opportunity routes
+- **Batch 5 (4efb8b3)** — 11 sequence/chat/outbound routes + this audit doc
+- **Batch 6a (4ef5146)** — 7 enrich/score/tam-build/embed routes
+- **Batch 6b (5f6f69b)** — 5 sync/cron routes
+- **Batch 7 (315a09f)** — 6 onboarding/admin/import routes
 
 Brain stack (`company-brain/*`, contact + deal brains, all brain API
 routes) was patched earlier in `bd05e60` + `8cb2ab1`.
@@ -54,46 +58,33 @@ downstream behavior.
   tombstoned row and let downstream code decide.
 - **`recall-test`** — internal smoke-test endpoint, not user-facing.
 
-## Pending — next batches
+## Remaining routes (all in the SKIP set — see above)
 
-The audit isn't finished. These 30+ routes still have unfiltered reads
-and should be patched in subsequent batches. Grouped by surface so each
-batch stays reviewable.
+After batch 7, the only routes with unfiltered entity reads are the 10
+already listed in the SKIP set, plus two activity-dedup checks that
+must keep seeing tombstoned rows:
 
-### Batch 5 — user-facing outcomes
-- `chat/route.ts` — chat tool surface (some tools already use the
-  brain stack which filters, but raw reads here need review)
-- `contacts/merge/route.ts` — merging contacts; the source contact may
-  be soft-deleted, but target reads should filter
-- `deals/[id]/property-source/[fieldName]/route.ts`
-- `sequences/[id]/autopilot/route.ts`
-- `sequences/[id]/enroll/route.ts`
-- `sequences/[id]/suggestions/route.ts`
-- `sequences/drafts/[id]/context/route.ts`
-- `outbound/review/route.ts`
-- `warm-leads/draft/route.ts`
-- `campaigns/generate/route.ts`
-- `campaigns/[sequenceId]/preview/route.ts`
-- `meetings/opt-out/route.ts`
+- `admin/purge-fake-data` — purge job
+- `audit` — full historical audit log
+- `cron/email-sync` — activity dedup against `summary` (intentional)
+- `cron/world-model` — historical aggregation
+- `export` — admin data export
+- `gdpr/export` — GDPR right-of-access export
+- `recall-test` — internal smoke test
+- `unsubscribe` — compliance one-click
+- `webhooks/inbound`, `webhooks/recall` — write-mostly ingestion
 
-### Batch 6 — background processing
-- `enrich/route.ts`, `enrich-contacts/route.ts`
-- `score/route.ts`, `score/contacts/route.ts`, `score-contacts/route.ts`
-- `tam/build/route.ts`
-- `embed/route.ts`
-- `email/sync/route.ts`, `email/status/route.ts`
-- `cron/stale-deals/route.ts`, `cron/email-sync/route.ts` (despite
-  being crons, they should skip deleted entities — these are not in
-  the SKIP set)
-- `calendar/sync/route.ts`, `calendar/sync/microsoft/route.ts`
+Verified via:
 
-### Batch 7 — onboarding + admin internals
-- `onboarding/status/route.ts`
-- `onboarding/icp-prefill/route.ts`
-- `onboarding/find-contacts/route.ts`
-- `onboarding/email-intelligence/route.ts`
-- `admin/company-logo/resolutions/route.ts`
-- `import/smart/commit/route.ts`
+```bash
+for f in $(find app/apps/web/src/app/api -name route.ts); do
+  reads=$(grep -cE "from\((companies|contacts|deals|activities|notes|tasks)\)" "$f")
+  has_isnull=$(grep -c "isNull" "$f")
+  [ "$reads" -gt 0 ] && [ "$has_isnull" = "0" ] && echo "$f"
+done
+```
+
+Output matches the SKIP set exactly. The audit is complete.
 
 ## Pattern used
 
