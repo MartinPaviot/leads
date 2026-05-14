@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { activities, deals, notifications, tenants, contacts, companies, users, outboundEmails, connectedMailboxes } from "@/db/schema";
-import { eq, and, desc, sql, or, ne } from "drizzle-orm";
+import { eq, and, desc, sql, or, ne, isNull } from "drizzle-orm";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -57,6 +57,7 @@ async function detectStaleDealsByTenant(tenantId: string) {
       eq(deals.tenantId, tenantId),
       ne(deals.stage, "won"),
       ne(deals.stage, "lost"),
+      isNull(deals.deletedAt),
     ));
 
   if (activeDeals.length === 0) return { staleDeals: 0, notificationsCreated: 0 };
@@ -76,6 +77,7 @@ async function detectStaleDealsByTenant(tenantId: string) {
     // Get last activity for this deal or its related contact
     const conditions = [
       eq(activities.tenantId, tenantId),
+      isNull(activities.deletedAt),
       or(
         and(eq(activities.entityType, "deal"), eq(activities.entityId, deal.id)),
         ...(deal.contactId ? [and(eq(activities.entityType, "contact"), eq(activities.entityId, deal.contactId))] : []),
@@ -105,12 +107,12 @@ async function detectStaleDealsByTenant(tenantId: string) {
 
       if (deal.companyId) {
         const [company] = await db.select({ name: companies.name }).from(companies)
-          .where(eq(companies.id, deal.companyId)).limit(1);
+          .where(and(eq(companies.id, deal.companyId), eq(companies.tenantId, tenantId), isNull(companies.deletedAt))).limit(1);
         companyName = company?.name || null;
       }
       if (deal.contactId) {
         const [contact] = await db.select({ firstName: contacts.firstName, lastName: contacts.lastName })
-          .from(contacts).where(eq(contacts.id, deal.contactId)).limit(1);
+          .from(contacts).where(and(eq(contacts.id, deal.contactId), eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt))).limit(1);
         contactName = contact ? [contact.firstName, contact.lastName].filter(Boolean).join(" ") : null;
       }
 
@@ -182,7 +184,7 @@ async function detectStaleDealsByTenant(tenantId: string) {
       if (!deal?.contactId) continue;
 
       const [contact] = await db.select().from(contacts)
-        .where(eq(contacts.id, deal.contactId)).limit(1);
+        .where(and(eq(contacts.id, deal.contactId), eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt))).limit(1);
       if (!contact?.email) continue;
 
       // Find a connected mailbox for this tenant to send from
