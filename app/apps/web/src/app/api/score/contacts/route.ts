@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { contacts } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { scoreContact } from "@/lib/scoring/contact-scoring";
 import { getGrade } from "@/lib/scoring/scoring";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
         const [current] = await db
           .select({ properties: contacts.properties })
           .from(contacts)
-          .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, authCtx.tenantId)))
+          .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
           .limit(1);
 
         const currentProps = (current?.properties || {}) as Record<string, unknown>;
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
             },
             updatedAt: new Date(),
           })
-          .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, authCtx.tenantId)));
+          .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));
 
         scored++;
       } catch (err) {

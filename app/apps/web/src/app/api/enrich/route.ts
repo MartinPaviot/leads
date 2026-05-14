@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { embedEntity, companyToText } from "@/lib/ai/embeddings";
 import { employeeCountToRange, revenueToRange } from "@/lib/integrations/apollo-client";
 import { enrichCompany } from "@/lib/providers/company-enrichment";
@@ -101,7 +101,7 @@ async function persistEnrichment(params: {
       properties: merged,
       updatedAt: new Date(),
     })
-    .where(and(eq(companies.id, companyId), eq(companies.tenantId, tenantId)));
+    .where(and(eq(companies.id, companyId), eq(companies.tenantId, tenantId), isNull(companies.deletedAt)));
 }
 
 /**
@@ -140,7 +140,7 @@ export async function POST(req: Request) {
         const [company] = await db
           .select()
           .from(companies)
-          .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)))
+          .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
           .limit(1);
 
         if (!company) {

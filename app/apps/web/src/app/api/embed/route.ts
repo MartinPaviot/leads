@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { contacts, companies, activities, deals } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import {
   embedEntity,
   contactToText,
@@ -26,10 +26,10 @@ export async function GET() {
     const stats = await getEmbeddingStats(authCtx.tenantId);
 
     // Count CRM entities for coverage calculation
-    const companyCnt = await db.select().from(companies).where(eq(companies.tenantId, authCtx.tenantId));
-    const contactCnt = await db.select().from(contacts).where(eq(contacts.tenantId, authCtx.tenantId));
-    const dealCnt = await db.select().from(deals).where(eq(deals.tenantId, authCtx.tenantId));
-    const activityCnt = await db.select().from(activities).where(eq(activities.tenantId, authCtx.tenantId));
+    const companyCnt = await db.select().from(companies).where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)));
+    const contactCnt = await db.select().from(contacts).where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));
+    const dealCnt = await db.select().from(deals).where(and(eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)));
+    const activityCnt = await db.select().from(activities).where(and(eq(activities.tenantId, authCtx.tenantId), isNull(activities.deletedAt)));
 
     const crmCounts = {
       companies: companyCnt.length,
@@ -100,11 +100,11 @@ export async function POST(req: Request) {
     const tenantId = authCtx.tenantId;
 
     // Build company name lookup for enriching contacts and deals
-    const allCompanies = await db.select().from(companies).where(eq(companies.tenantId, tenantId));
+    const allCompanies = await db.select().from(companies).where(and(eq(companies.tenantId, tenantId), isNull(companies.deletedAt)));
     const companyMap = new Map(allCompanies.map((c) => [c.id, c]));
 
     // Build contact name lookup for enriching deals
-    const allContacts = await db.select().from(contacts).where(eq(contacts.tenantId, tenantId));
+    const allContacts = await db.select().from(contacts).where(and(eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt)));
     const contactMap = new Map(allContacts.map((c) => [c.id, c]));
 
     if (scope === "all" || scope === "contacts") {
@@ -156,7 +156,7 @@ export async function POST(req: Request) {
     }
 
     if (scope === "all" || scope === "deals") {
-      const allDeals = await db.select().from(deals).where(eq(deals.tenantId, tenantId));
+      const allDeals = await db.select().from(deals).where(and(eq(deals.tenantId, tenantId), isNull(deals.deletedAt)));
       for (const deal of allDeals) {
         try {
           const company = deal.companyId ? companyMap.get(deal.companyId) : null;
@@ -185,7 +185,7 @@ export async function POST(req: Request) {
     }
 
     if (scope === "all" || scope === "activities") {
-      const allActivities = await db.select().from(activities).where(eq(activities.tenantId, tenantId));
+      const allActivities = await db.select().from(activities).where(and(eq(activities.tenantId, tenantId), isNull(activities.deletedAt)));
       for (const activity of allActivities) {
         try {
           const text = activityToText({

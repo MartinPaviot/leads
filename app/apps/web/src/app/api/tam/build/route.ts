@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -222,7 +222,7 @@ export async function POST(req: Request) {
         const existing = await db
           .select({ domain: companies.domain })
           .from(companies)
-          .where(eq(companies.tenantId, authCtx.tenantId))
+          .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
           .limit(5000);
         const existingDomains = new Set(
           existing

@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { contacts, companies, activities } from "@/db/schema";
-import { eq, and, gte, sql } from "drizzle-orm";
+import { eq, and, gte, sql, isNull } from "drizzle-orm";
 import { getTenantSettings, parseRoleKeywords } from "@/lib/config/tenant-settings";
 import { calculateContactFitScore, getGrade } from "@/lib/scoring/scoring";
 
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
         const [contact] = await db
           .select()
           .from(contacts)
-          .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId)))
+          .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
           .limit(1);
 
         if (!contact) continue;
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
           const [c] = await db
             .select()
             .from(companies)
-            .where(and(eq(companies.id, contact.companyId), eq(companies.tenantId, authCtx.tenantId)))
+            .where(and(eq(companies.id, contact.companyId), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
             .limit(1);
           if (c) {
             company = c as Record<string, unknown>;
@@ -70,7 +70,8 @@ export async function POST(req: Request) {
               eq(activities.tenantId, authCtx.tenantId),
               eq(activities.entityType, "contact"),
               eq(activities.entityId, id),
-              gte(activities.occurredAt, thirtyDaysAgo)
+              gte(activities.occurredAt, thirtyDaysAgo),
+              isNull(activities.deletedAt)
             )
           );
 
@@ -108,7 +109,7 @@ export async function POST(req: Request) {
             },
             updatedAt: new Date(),
           })
-          .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId)));
+          .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));
 
         scored++;
       } catch (err) {
