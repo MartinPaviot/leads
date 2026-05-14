@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { contacts, companies, activities } from "@/db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, isNull } from "drizzle-orm";
 
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();
@@ -32,8 +32,9 @@ export async function GET(req: Request) {
       eq(activities.entityId, contacts.id),
       eq(activities.entityType, "contact"),
       sql`${activities.occurredAt} > ${thirtyDaysAgo.toISOString()}::timestamp`,
+      isNull(activities.deletedAt),
     ))
-    .where(eq(contacts.tenantId, authCtx.tenantId))
+    .where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
     .groupBy(contacts.id, contacts.firstName, contacts.lastName, contacts.title, contacts.email, contacts.score, companies.name, companies.domain)
     .orderBy(desc(sql`
       count(CASE WHEN ${activities.activityType} IN ('email_received', 'email_sent') THEN 1 END) * 3 +

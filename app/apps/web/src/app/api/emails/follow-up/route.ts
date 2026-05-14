@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { contacts, companies } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     const [contact] = await db
       .select()
       .from(contacts)
-      .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, authCtx.tenantId)))
+      .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
       .limit(1);
 
     if (!contact) {
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       const [c] = await db
         .select()
         .from(companies)
-        .where(and(eq(companies.id, contact.companyId), eq(companies.tenantId, authCtx.tenantId)))
+        .where(and(eq(companies.id, contact.companyId), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
         .limit(1);
       company = c || null;
     }

@@ -1,7 +1,7 @@
 import { withAuthRLS } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { deals, contacts, companies, activities, sequences, sequenceEnrollments } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and, isNull } from "drizzle-orm";
 
 interface Insight {
   id: string;
@@ -16,9 +16,9 @@ export async function GET() {
   return withAuthRLS(async (authCtx) => {
     try {
     const [allDeals, allContacts, allCompanies, allEnrollments] = await Promise.all([
-      db.select().from(deals).where(eq(deals.tenantId, authCtx.tenantId)),
-      db.select().from(contacts).where(eq(contacts.tenantId, authCtx.tenantId)),
-      db.select().from(companies).where(eq(companies.tenantId, authCtx.tenantId)),
+      db.select().from(deals).where(and(eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt))),
+      db.select().from(contacts).where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt))),
+      db.select().from(companies).where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt))),
       db.select().from(sequenceEnrollments),
     ]);
 
