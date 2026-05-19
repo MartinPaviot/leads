@@ -42,6 +42,7 @@ import {
   Bot,
   BookOpen,
   Wand2,
+  Phone,
   type LucideIcon,
 } from "lucide-react";
 import { useTheme } from "@/components/ui/theme-provider";
@@ -89,6 +90,7 @@ const navSections = [
     label: "Engage",
     items: [
       { label: "Inbox", href: "/inbox", icon: Inbox },
+      { label: "Call Mode", href: "/call-mode", icon: Phone },
       { label: "Campaigns", href: "/sequences", icon: Zap },
     ],
   },

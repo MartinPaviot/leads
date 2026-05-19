@@ -34,6 +34,14 @@ export async function register() {
     } catch (err) {
       console.warn("Coaching tables setup skipped:", err instanceof Error ? err.message : err);
     }
+
+    try {
+      // voice-cold-call Phase 1 — calls, voicemail templates, DNC, pool, usage.
+      const { ensureVoiceTables } = await import("@/db/ensure-voice-tables");
+      await ensureVoiceTables();
+    } catch (err) {
+      console.warn("Voice tables setup skipped:", err instanceof Error ? err.message : err);
+    }
   }
 
   if (process.env.NEXT_RUNTIME === "edge") {

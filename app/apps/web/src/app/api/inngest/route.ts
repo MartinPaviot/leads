@@ -58,6 +58,8 @@ import { campaignDecisionEngine, bridgeTrackingEvents } from "@/inngest/campaign
 import { signalMonitorCron, signalTriggeredOutreach } from "@/inngest/signal-monitor";
 import { deliverabilityHealthCron } from "@/inngest/deliverability-monitor";
 import { campaignWeeklyReport } from "@/inngest/campaign-weekly-report";
+// voice-cold-call Phase 1 — post-call LLM extraction + CRM sync
+import { postProcessCall } from "@/inngest/calls-post-process";
 
 // Register task executors so Inngest runner can dispatch by type
 import("@/lib/import/agentic-executor").then((m) => m.registerImportExecutor()).catch(() => {});
@@ -194,5 +196,7 @@ export const { GET, POST, PUT } = serve({
     signalTriggeredOutreach,
     deliverabilityHealthCron,
     campaignWeeklyReport,
+    // voice-cold-call Phase 1 — post-call LLM extraction + CRM sync
+    postProcessCall,
   ],
 });

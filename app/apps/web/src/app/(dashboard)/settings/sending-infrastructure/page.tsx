@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Mail, Shield, Loader2, Save, Plug } from "lucide-react";
+import { Mail, Shield, Loader2, Save, Plug, Phone } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -310,6 +310,9 @@ export default function SendingInfrastructurePage() {
           </CardBody>
         </Card>
 
+        {/* ── Voice (Twilio + Deepgram) — voice-cold-call Phase 1 ── */}
+        <VoiceSection />
+
         {/* ── Elevay-managed setup request ── */}
         <Card>
           <CardBody>
@@ -351,5 +354,142 @@ export default function SendingInfrastructurePage() {
         </Card>
       </div>
     </>
+  );
+}
+
+interface VoiceConfigPayload {
+  configured: boolean;
+  ready: boolean;
+  pool: Array<{ e164: string; countryCode: string; areaCode: string | null }>;
+  usage: {
+    yearMonth: string;
+    minutesUsed: number;
+    minutesIncluded: number;
+    hardCeiling: number;
+    capReached: boolean;
+    hardCeilingReached: boolean;
+  } | null;
+}
+
+function VoiceSection() {
+  const [data, setData] = useState<VoiceConfigPayload | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/calls/config");
+        if (!res.ok) return;
+        const json = (await res.json()) as VoiceConfigPayload;
+        if (!cancelled) setData(json);
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <Card>
+      <CardBody>
+        <div className="flex items-center gap-2">
+          <Phone size={16} style={{ color: "var(--color-text-tertiary)" }} />
+          <h2
+            className="text-[14px] font-semibold"
+            style={{ color: "var(--color-text-primary)" }}
+          >
+            Voice (Twilio)
+          </h2>
+        </div>
+        <p
+          className="mt-1 text-[12px]"
+          style={{ color: "var(--color-text-tertiary)" }}
+        >
+          Configurez Twilio + Deepgram pour activer Call Mode (cold call
+          autonome). Les credentials sont en variables d&apos;environnement —
+          voir <code>docs/voice-bootstrap.md</code> pour la marche à suivre.
+        </p>
+
+        {loading ? (
+          <div className="mt-3 flex items-center gap-2 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+            <Loader2 size={12} className="animate-spin" />
+            Lecture de la configuration…
+          </div>
+        ) : (
+          <div className="mt-3 space-y-3">
+            <div
+              className="rounded-md p-3 text-[12px]"
+              style={{
+                background: data?.configured
+                  ? "rgba(34,197,94,.08)"
+                  : "rgba(234,179,8,.08)",
+                border: data?.configured
+                  ? "1px solid rgba(34,197,94,.3)"
+                  : "1px solid rgba(234,179,8,.3)",
+              }}
+            >
+              <div className="font-medium" style={{
+                color: data?.configured ? "rgb(21,128,61)" : "rgb(133,77,14)",
+              }}>
+                {data?.configured
+                  ? "Twilio connecté"
+                  : "Twilio non configuré"}
+              </div>
+              <div className="mt-0.5" style={{ color: "var(--color-text-tertiary)" }}>
+                {data?.configured
+                  ? data.ready
+                    ? `${data.pool.length} numéro${data.pool.length === 1 ? "" : "s"} actif${data.pool.length === 1 ? "" : "s"} dans le pool.`
+                    : "Aucun numéro sortant provisionné. Voir docs/voice-bootstrap.md pour en acheter un."
+                  : "Ajoutez TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_API_KEY_SID / TWILIO_API_KEY_SECRET / TWILIO_APP_SID dans .env.local puis redémarrez."}
+              </div>
+            </div>
+
+            {data?.usage && (
+              <div
+                className="rounded-md p-3 text-[12px]"
+                style={{
+                  background: "var(--color-bg-hover)",
+                  border: "1px solid var(--color-border-default)",
+                }}
+              >
+                <div className="font-medium" style={{ color: "var(--color-text-primary)" }}>
+                  Usage {data.usage.yearMonth}
+                </div>
+                <div className="mt-1" style={{ color: "var(--color-text-tertiary)" }}>
+                  {data.usage.minutesUsed} / {data.usage.minutesIncluded} min incluses
+                  {data.usage.capReached &&
+                    !data.usage.hardCeilingReached &&
+                    " — en overage ($0.05/min)"}
+                  {data.usage.hardCeilingReached && " — plafond dur atteint, appels bloqués"}
+                </div>
+              </div>
+            )}
+
+            {data?.pool && data.pool.length > 0 && (
+              <div>
+                <div className="text-[11px] uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
+                  Numéros provisionnés
+                </div>
+                <ul className="mt-1 space-y-0.5 text-[12px]" style={{ color: "var(--color-text-primary)" }}>
+                  {data.pool.map((n) => (
+                    <li key={n.e164}>
+                      {n.e164}{" "}
+                      <span style={{ color: "var(--color-text-tertiary)" }}>
+                        ({n.countryCode}{n.areaCode ? ` · ${n.areaCode}` : ""})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </CardBody>
+    </Card>
   );
 }
