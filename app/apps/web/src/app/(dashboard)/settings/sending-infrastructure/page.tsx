@@ -7,6 +7,8 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
+// (VoiceSection uses Card, Button, Input, useToast above — useCallback +
+// useEffect + useState are already imported for the parent page.)
 
 type SendingMode =
   | "primary-with-caps"
@@ -372,27 +374,72 @@ interface VoiceConfigPayload {
 }
 
 function VoiceSection() {
+  const { toast } = useToast();
   const [data, setData] = useState<VoiceConfigPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [buying, setBuying] = useState(false);
+  const [country, setCountry] = useState("FR");
+  const [areaCode, setAreaCode] = useState("");
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch("/api/calls/config");
+      if (!res.ok) return;
+      const json = (await res.json()) as VoiceConfigPayload;
+      setData(json);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const res = await fetch("/api/calls/config");
-        if (!res.ok) return;
-        const json = (await res.json()) as VoiceConfigPayload;
-        if (!cancelled) setData(json);
-      } catch {
-        /* ignore */
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      await refresh();
+      if (!cancelled) setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refresh]);
+
+  const handleBuy = useCallback(async () => {
+    if (buying) return;
+    setBuying(true);
+    try {
+      const res = await fetch("/api/calls/numbers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          countryCode: country,
+          areaCode: areaCode.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const code = body?.code ?? "unknown";
+        toast(
+          code === "no_inventory"
+            ? "Aucun numéro disponible chez Twilio pour ce country/area code."
+            : code === "voice_not_configured"
+              ? "Configurez Twilio dans .env.local avant d'acheter un numéro."
+              : `Échec achat numéro (${code}).`,
+          "error",
+        );
+      } else {
+        toast("Numéro provisionné et ajouté au pool.", "success");
+        setAreaCode("");
+        await refresh();
+      }
+    } catch (err) {
+      toast(
+        `Erreur achat: ${err instanceof Error ? err.message : String(err)}`,
+        "error",
+      );
+    } finally {
+      setBuying(false);
+    }
+  }, [buying, country, areaCode, toast, refresh]);
 
   return (
     <Card>
@@ -485,6 +532,46 @@ function VoiceSection() {
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+
+            {data?.configured && (
+              <div className="pt-2" style={{ borderTop: "1px solid var(--color-border-default)" }}>
+                <div className="text-[11px] uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
+                  Acheter un numéro
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <select
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    className="h-8 rounded-md border px-2 text-[12px]"
+                    style={{
+                      background: "var(--color-bg-card)",
+                      borderColor: "var(--color-border-default)",
+                      color: "var(--color-text-primary)",
+                    }}
+                  >
+                    <option value="FR">FR · France</option>
+                    <option value="US">US · United States</option>
+                    <option value="GB">GB · United Kingdom</option>
+                    <option value="BE">BE · Belgique</option>
+                    <option value="CH">CH · Suisse</option>
+                    <option value="CA">CA · Canada</option>
+                  </select>
+                  <Input
+                    value={areaCode}
+                    onChange={(e) => setAreaCode(e.target.value)}
+                    placeholder="Area code (ex 415, optionnel)"
+                    className="h-8 max-w-[200px] text-[12px]"
+                  />
+                  <Button size="sm" onClick={() => void handleBuy()} disabled={buying}>
+                    {buying ? "Achat…" : "Acheter"}
+                  </Button>
+                </div>
+                <p className="mt-1.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                  Twilio facture ~$1.15/mois par numéro. L&apos;area code laisse choisir
+                  un préfixe local pour une meilleure pickup-rate.
+                </p>
               </div>
             )}
           </div>

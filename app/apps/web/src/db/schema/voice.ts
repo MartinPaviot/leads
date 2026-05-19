@@ -81,6 +81,11 @@ export const calls = pgTable(
     // a two-party-consent region and the disclosure prompt was played.
     recordingConsent: text("recording_consent").default("n_a"),
     twoPartyConsentRegion: boolean("two_party_consent_region").default(false),
+    // Mirrors Twilio's AnsweredBy field — "human" | "machine_start" |
+    // "machine_end_beep" | "machine_end_silence" | "machine_end_other"
+    // | "fax" | "unknown". Drives the auto-VM-drop and outcome
+    // classification paths in Phase 2.
+    answeredBy: text("answered_by"),
 
     // Stamps the post-call worker writes; `null` until processed.
     processingState: text("processing_state").default("pending"),

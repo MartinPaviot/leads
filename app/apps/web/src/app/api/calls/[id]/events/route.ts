@@ -42,6 +42,8 @@ export async function GET(
       let lastEndedAt: Date | null = null;
       let lastProcessing: string | null = null;
       let lastTranscriptCount = 0;
+      let lastAnsweredBy: string | null = null;
+      let lastVoicemailDropped = false;
       let closed = false;
 
       const send = (event: string, data: unknown) => {
@@ -71,6 +73,8 @@ export async function GET(
         connectedAt: initial.connectedAt,
         endedAt: initial.endedAt,
         processingState: initial.processingState,
+        answeredBy: initial.answeredBy,
+        voicemailDropped: initial.voicemailDropped,
       });
       // Seed transcript cursor with what's already on disk so we don't
       // re-emit chunks the client never saw if it (re)connects mid-call.
@@ -80,6 +84,8 @@ export async function GET(
           : [];
         lastTranscriptCount = existing.length;
       }
+      lastAnsweredBy = initial.answeredBy ?? null;
+      lastVoicemailDropped = initial.voicemailDropped ?? false;
 
       const interval = setInterval(async () => {
         if (closed || Date.now() - startedAt > MAX_DURATION_MS) {
@@ -99,6 +105,8 @@ export async function GET(
               outcome: calls.outcome,
               processingState: calls.processingState,
               transcript: calls.transcript,
+              answeredBy: calls.answeredBy,
+              voicemailDropped: calls.voicemailDropped,
             })
             .from(calls)
             .where(and(eq(calls.id, id), eq(calls.tenantId, authCtx.tenantId)))
@@ -108,6 +116,20 @@ export async function GET(
           if (row.connectedAt && !lastConnected) {
             lastConnected = row.connectedAt;
             send("connected", { connectedAt: row.connectedAt });
+          }
+
+          if (row.answeredBy && row.answeredBy !== lastAnsweredBy) {
+            lastAnsweredBy = row.answeredBy;
+            if (row.answeredBy.startsWith("machine")) {
+              send("amd_detected", { answeredBy: row.answeredBy });
+            } else if (row.answeredBy === "human") {
+              send("human_detected", { answeredBy: row.answeredBy });
+            }
+          }
+
+          if (row.voicemailDropped && !lastVoicemailDropped) {
+            lastVoicemailDropped = true;
+            send("voicemail_dropped", {});
           }
 
           // Stream new transcript chunks as the bridge appends them.

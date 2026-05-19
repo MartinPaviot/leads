@@ -83,6 +83,9 @@ export default function CallModePage() {
   const [softphone, setSoftphone] = useState<SoftphoneState>({ kind: "idle" });
   const [transcript, setTranscript] = useState<TranscriptChunk[]>([]);
   const [loading, setLoading] = useState(true);
+  const [amdDetected, setAmdDetected] = useState<string | null>(null);
+  const [voicemailDropping, setVoicemailDropping] = useState(false);
+  const [voicemailDropped, setVoicemailDropped] = useState(false);
 
   // SSE subscription handle so we can tear down on unmount / hangup.
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -139,6 +142,9 @@ export default function CallModePage() {
     async (contactId: string) => {
       setSoftphone({ kind: "starting", contactId });
       setTranscript([]);
+      setAmdDetected(null);
+      setVoicemailDropping(false);
+      setVoicemailDropped(false);
       try {
         const res = await fetch("/api/calls/start", {
           method: "POST",
@@ -203,6 +209,23 @@ export default function CallModePage() {
                 }
               : s,
           );
+        });
+        es.addEventListener("amd_detected", (evt) => {
+          try {
+            const payload = JSON.parse((evt as MessageEvent).data) as {
+              answeredBy?: string;
+            };
+            setAmdDetected(payload.answeredBy ?? "machine");
+          } catch {
+            setAmdDetected("machine");
+          }
+        });
+        es.addEventListener("human_detected", () => {
+          setAmdDetected(null);
+        });
+        es.addEventListener("voicemail_dropped", () => {
+          setVoicemailDropped(true);
+          setVoicemailDropping(false);
         });
         es.addEventListener("transcript", (evt) => {
           try {
@@ -273,6 +296,45 @@ export default function CallModePage() {
       }
     },
     [toast],
+  );
+
+  const handleDropVoicemail = useCallback(
+    async (callId: string) => {
+      if (voicemailDropping || voicemailDropped) return;
+      setVoicemailDropping(true);
+      try {
+        const res = await fetch(`/api/calls/${callId}/voicemail-drop`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          const code = body?.code ?? "unknown";
+          toast(
+            code === "no_voicemail_source"
+              ? "Aucun voicemail template ou VOICE_VOICEMAIL_DEFAULT_URL configuré."
+              : code === "ended"
+                ? "L'appel est déjà terminé."
+                : code === "no_sid"
+                  ? "L'appel n'est pas encore attaché à Twilio."
+                  : `Échec drop voicemail (${code}).`,
+            "error",
+          );
+          setVoicemailDropping(false);
+          return;
+        }
+        // SSE will fire voicemail_dropped to confirm; we keep the
+        // dropping flag true until then to avoid double-click races.
+      } catch (err) {
+        toast(
+          `Erreur drop voicemail: ${err instanceof Error ? err.message : String(err)}`,
+          "error",
+        );
+        setVoicemailDropping(false);
+      }
+    },
+    [toast, voicemailDropping, voicemailDropped],
   );
 
   const handleHangup = useCallback(async () => {
@@ -440,8 +502,48 @@ export default function CallModePage() {
                   selected={selected}
                   onCall={handleAppeler}
                   onHangup={handleHangup}
+                  onDropVoicemail={handleDropVoicemail}
+                  voicemailDropping={voicemailDropping}
+                  voicemailDropped={voicemailDropped}
                 />
               </div>
+              {amdDetected && !voicemailDropped && (
+                <div
+                  className="mt-3 rounded-md p-2.5 text-[12px] flex items-center justify-between"
+                  style={{
+                    background: "rgba(234,179,8,.08)",
+                    border: "1px solid rgba(234,179,8,.3)",
+                    color: "rgb(133,77,14)",
+                  }}
+                >
+                  <span>
+                    Répondeur détecté ({amdDetected}). Drop le voicemail ou raccroche.
+                  </span>
+                  {"callId" in softphone && (
+                    <Button
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => handleDropVoicemail(softphone.callId)}
+                      disabled={voicemailDropping}
+                    >
+                      <Voicemail className="h-3.5 w-3.5" />
+                      {voicemailDropping ? "Drop en cours…" : "Drop voicemail"}
+                    </Button>
+                  )}
+                </div>
+              )}
+              {voicemailDropped && (
+                <div
+                  className="mt-3 rounded-md p-2.5 text-[12px]"
+                  style={{
+                    background: "rgba(34,197,94,.08)",
+                    border: "1px solid rgba(34,197,94,.3)",
+                    color: "rgb(21,128,61)",
+                  }}
+                >
+                  Voicemail droppé. La ligne raccroche automatiquement.
+                </div>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto">
@@ -478,8 +580,11 @@ function SoftphoneControls(props: {
   selected: QueueItem;
   onCall: (contactId: string) => void;
   onHangup: () => void;
+  onDropVoicemail: (callId: string) => void;
+  voicemailDropping: boolean;
+  voicemailDropped: boolean;
 }) {
-  const { state, selected, onCall, onHangup } = props;
+  const { state, selected, onCall, onHangup, onDropVoicemail, voicemailDropping, voicemailDropped } = props;
   switch (state.kind) {
     case "idle":
       return (
@@ -515,9 +620,14 @@ function SoftphoneControls(props: {
             Raccrocher
           </Button>
           {sec >= 8 && (
-            <Button variant="outline" className="gap-2">
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => onDropVoicemail(state.callId)}
+              disabled={voicemailDropping || voicemailDropped}
+            >
               <Voicemail className="h-4 w-4" />
-              Drop voicemail
+              {voicemailDropped ? "Voicemail droppé" : voicemailDropping ? "Drop en cours…" : "Drop voicemail"}
             </Button>
           )}
         </div>
@@ -535,6 +645,15 @@ function SoftphoneControls(props: {
           <Button variant="outline" className="gap-2" disabled>
             {state.muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
             {state.muted ? "Unmute" : "Mute"}
+          </Button>
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => onDropVoicemail(state.callId)}
+            disabled={voicemailDropping || voicemailDropped}
+          >
+            <Voicemail className="h-4 w-4" />
+            {voicemailDropped ? "Voicemail droppé" : voicemailDropping ? "Drop…" : "Drop voicemail"}
           </Button>
           <Button onClick={onHangup} className="gap-2 bg-red-600 hover:bg-red-700">
             <PhoneOff className="h-4 w-4" />

@@ -55,6 +55,7 @@ export async function ensureVoiceTables(): Promise<void> {
         voicemail_template_id       text,
         recording_consent           text DEFAULT 'n_a',
         two_party_consent_region    boolean DEFAULT false,
+        answered_by                 text,
         processing_state            text DEFAULT 'pending',
         processing_error            text,
         created_at                  timestamptz DEFAULT now(),
@@ -66,6 +67,9 @@ export async function ensureVoiceTables(): Promise<void> {
     await sql`CREATE INDEX IF NOT EXISTS calls_contact_idx ON calls (contact_id)`;
     await sql`CREATE INDEX IF NOT EXISTS calls_started_idx ON calls (started_at)`;
     await sql`CREATE INDEX IF NOT EXISTS calls_outcome_idx ON calls (tenant_id, outcome)`;
+    // Phase 2 — back-compat ALTERs for environments that ran the
+    // Phase 1 ensure before the answered_by column existed.
+    await sql`ALTER TABLE calls ADD COLUMN IF NOT EXISTS answered_by text`;
 
     // ── voicemail_templates ──────────────────────────────────
     await sql`

@@ -62,6 +62,23 @@ export async function POST(req: Request) {
     return new Response("OK", { status: 200 });
   }
 
+  // Twilio emits AMD result asynchronously — capture it as soon as we
+  // see AnsweredBy, regardless of CallStatus. This is what feeds the
+  // amd_detected SSE event the UI uses to surface the drop banner.
+  if (params.AnsweredBy && !callRow.answeredBy) {
+    await db
+      .update(calls)
+      .set({
+        answeredBy: params.AnsweredBy,
+        // Mark connected only on confirmed human; machine answers
+        // never reach the AE so the "connected" semantic stays clean.
+        connectedAt:
+          callRow.connectedAt ??
+          (params.AnsweredBy === "human" ? new Date() : null),
+      })
+      .where(eq(calls.id, callRow.id));
+  }
+
   // Discriminate between call-status and recording-status callbacks.
   if (params.CallStatus === "completed" && !callRow.endedAt) {
     const durationSec = Number(params.CallDuration ?? 0);
@@ -70,9 +87,6 @@ export async function POST(req: Request) {
       .set({
         endedAt: new Date(),
         durationSec,
-        connectedAt:
-          callRow.connectedAt ??
-          (params.AnsweredBy === "human" ? new Date() : null),
       })
       .where(eq(calls.id, callRow.id));
 

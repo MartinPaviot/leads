@@ -218,6 +218,22 @@ export const twilioProvider: VoiceProvider = {
     }
   },
 
+  async redirectCall(
+    providerCallSid: string,
+    twiml: string,
+  ): Promise<void> {
+    const client = await getClient();
+    try {
+      await client.calls(providerCallSid).update({ twiml });
+    } catch (err) {
+      throw new VoiceProviderError(
+        "Twilio redirect failed",
+        "provider_down",
+        err,
+      );
+    }
+  },
+
   async getRecording(providerCallSid: string): Promise<RecordingInfo | null> {
     const client = await getClient();
     try {
@@ -288,5 +304,31 @@ export async function buildTwiml(opts: {
     opts.toNumber,
   );
   dial.number(opts.toNumber);
+  return r.toString();
+}
+
+/**
+ * Build the TwiML used to drop a voicemail mid-call. Plays the
+ * supplied MP3 once, then hangs up cleanly. Twilio updates the live
+ * leg's instructions in-flight so the prospect hears the message
+ * regardless of where in the greeting they are.
+ */
+export async function buildVoicemailDropTwiml(opts: {
+  audioUrl: string;
+}): Promise<string> {
+  const twilio = await loadTwilio();
+  const VoiceResponse = (twilio as unknown as {
+    twiml: {
+      VoiceResponse: new () => {
+        play: (url: string) => unknown;
+        hangup: () => unknown;
+        toString: () => string;
+      };
+    };
+  }).twiml.VoiceResponse;
+
+  const r = new VoiceResponse();
+  r.play(opts.audioUrl);
+  r.hangup();
   return r.toString();
 }

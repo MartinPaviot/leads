@@ -97,6 +97,14 @@ export interface VoiceProvider {
    * should proxy it via /api/calls/[id]/recording to enforce auth.
    */
   getRecording(providerCallSid: string): Promise<RecordingInfo | null>;
+
+  /**
+   * Redirects an in-progress call to the supplied TwiML. Used by the
+   * voicemail-drop flow: when the caller clicks "Drop voicemail" we
+   * swap the live leg's instructions to a <Play> + <Hangup>. The
+   * provider returns nothing — failure throws.
+   */
+  redirectCall(providerCallSid: string, twiml: string): Promise<void>;
 }
 
 /**
