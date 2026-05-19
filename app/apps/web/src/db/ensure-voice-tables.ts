@@ -56,6 +56,7 @@ export async function ensureVoiceTables(): Promise<void> {
         recording_consent           text DEFAULT 'n_a',
         two_party_consent_region    boolean DEFAULT false,
         answered_by                 text,
+        coaching_cards              jsonb DEFAULT '[]'::jsonb,
         processing_state            text DEFAULT 'pending',
         processing_error            text,
         created_at                  timestamptz DEFAULT now(),
@@ -70,6 +71,8 @@ export async function ensureVoiceTables(): Promise<void> {
     // Phase 2 — back-compat ALTERs for environments that ran the
     // Phase 1 ensure before the answered_by column existed.
     await sql`ALTER TABLE calls ADD COLUMN IF NOT EXISTS answered_by text`;
+    // Phase 3 — coaching cards jsonb.
+    await sql`ALTER TABLE calls ADD COLUMN IF NOT EXISTS coaching_cards jsonb DEFAULT '[]'::jsonb`;
 
     // ── voicemail_templates ──────────────────────────────────
     await sql`

@@ -87,6 +87,11 @@ export const calls = pgTable(
     // classification paths in Phase 2.
     answeredBy: text("answered_by"),
 
+    // Live coaching cards appended by the Twilio↔Deepgram bridge as
+    // objections are detected. Shape:
+    //   [{ts, objectionClass, label, prospectQuote, suggestedResponses}]
+    coachingCards: jsonb("coaching_cards").default([]),
+
     // Stamps the post-call worker writes; `null` until processed.
     processingState: text("processing_state").default("pending"),
     processingError: text("processing_error"),

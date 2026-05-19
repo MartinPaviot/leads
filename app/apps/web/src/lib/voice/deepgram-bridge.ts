@@ -24,6 +24,27 @@ export interface BridgeDeps {
   appendChunk?: (callId: string, chunk: TranscriptChunk) => Promise<void>;
   /** Optional clock injection for deterministic timestamps in tests. */
   now?: () => Date;
+  /** Phase 3 — invoked on each FINAL prospect chunk. The tap owns its
+   *  own debounce + prefilter and may return a coaching card to
+   *  persist + surface to the UI. Returning null is the common path. */
+  coachingTap?: (input: {
+    callId: string;
+    chunk: TranscriptChunk;
+    recentAgentText: string;
+  }) => Promise<CoachingCardPersisted | null>;
+  /** Persist a coaching card. Override for tests. */
+  appendCoachingCard?: (
+    callId: string,
+    card: CoachingCardPersisted,
+  ) => Promise<void>;
+}
+
+export interface CoachingCardPersisted {
+  ts: number;
+  objectionClass: string;
+  label: string;
+  prospectQuote: string;
+  suggestedResponses: string[];
 }
 
 export interface DeepgramOpenOpts {
@@ -125,6 +146,23 @@ export async function openBridge(
         .where(eq(calls.id, id));
     });
 
+  const appendCoachingCard =
+    deps.appendCoachingCard ??
+    (async (id: string, card: CoachingCardPersisted) => {
+      await db
+        .update(calls)
+        .set({
+          coachingCards: sql`COALESCE(${calls.coachingCards}, '[]'::jsonb) || ${JSON.stringify([card])}::jsonb`,
+          updatedAt: new Date(),
+        })
+        .where(eq(calls.id, id));
+    });
+
+  // Rolling buffer of the agent's last few utterances so the classifier
+  // has conversational context. Capped — we don't need full history.
+  const agentBuffer: string[] = [];
+  const AGENT_BUFFER_MAX = 4;
+
   dg.on("Results", async (raw: unknown) => {
     if (closed) return;
     const payload = raw as DeepgramTranscriptPayload;
@@ -138,12 +176,32 @@ export async function openBridge(
     const tsMs = payload.start
       ? Math.round(payload.start * 1000)
       : Date.now() - startedAt;
+    const chunk: TranscriptChunk = { speaker, text, tsMs };
     try {
-      await appendChunk(callId, { speaker, text, tsMs });
+      await appendChunk(callId, chunk);
     } catch (err) {
       // Swallow — Deepgram should never crash the bridge over a DB hiccup.
       // The next chunk will retry on the same row.
       console.warn("[voice-bridge] appendChunk failed", err);
+    }
+    // Maintain the rolling agent context for the coaching tap.
+    if (speaker === "agent") {
+      agentBuffer.push(text);
+      if (agentBuffer.length > AGENT_BUFFER_MAX) agentBuffer.shift();
+    }
+    // Phase 3 — only prospect chunks feed the classifier. The tap owns
+    // its own debounce + keyword prefilter so we don't gate that here.
+    if (speaker === "prospect" && deps.coachingTap) {
+      try {
+        const card = await deps.coachingTap({
+          callId,
+          chunk,
+          recentAgentText: agentBuffer.join(" "),
+        });
+        if (card) await appendCoachingCard(callId, card);
+      } catch (err) {
+        console.warn("[voice-bridge] coachingTap failed", err);
+      }
     }
   });
 
