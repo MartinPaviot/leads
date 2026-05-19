@@ -44,6 +44,7 @@ export async function GET(
       let lastTranscriptCount = 0;
       let lastAnsweredBy: string | null = null;
       let lastVoicemailDropped = false;
+      let lastCoachingCardCount = 0;
       let closed = false;
 
       const send = (event: string, data: unknown) => {
@@ -75,6 +76,9 @@ export async function GET(
         processingState: initial.processingState,
         answeredBy: initial.answeredBy,
         voicemailDropped: initial.voicemailDropped,
+        coachingCardCount: Array.isArray(initial.coachingCards)
+          ? (initial.coachingCards as unknown[]).length
+          : 0,
       });
       // Seed transcript cursor with what's already on disk so we don't
       // re-emit chunks the client never saw if it (re)connects mid-call.
@@ -86,6 +90,12 @@ export async function GET(
       }
       lastAnsweredBy = initial.answeredBy ?? null;
       lastVoicemailDropped = initial.voicemailDropped ?? false;
+      {
+        const cards = Array.isArray(initial.coachingCards)
+          ? (initial.coachingCards as unknown[])
+          : [];
+        lastCoachingCardCount = cards.length;
+      }
 
       const interval = setInterval(async () => {
         if (closed || Date.now() - startedAt > MAX_DURATION_MS) {
@@ -107,6 +117,7 @@ export async function GET(
               transcript: calls.transcript,
               answeredBy: calls.answeredBy,
               voicemailDropped: calls.voicemailDropped,
+              coachingCards: calls.coachingCards,
             })
             .from(calls)
             .where(and(eq(calls.id, id), eq(calls.tenantId, authCtx.tenantId)))
@@ -147,6 +158,23 @@ export async function GET(
               send("transcript", chunks[i]);
             }
             lastTranscriptCount = chunks.length;
+          }
+
+          // Phase 3 — live coaching cards emitted as they land.
+          const cards = Array.isArray(row.coachingCards)
+            ? (row.coachingCards as Array<{
+                ts: number;
+                objectionClass: string;
+                label: string;
+                prospectQuote: string;
+                suggestedResponses: string[];
+              }>)
+            : [];
+          if (cards.length > lastCoachingCardCount) {
+            for (let i = lastCoachingCardCount; i < cards.length; i++) {
+              send("coaching_card", cards[i]);
+            }
+            lastCoachingCardCount = cards.length;
           }
 
           if (row.endedAt && !lastEndedAt) {

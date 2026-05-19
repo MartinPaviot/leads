@@ -68,6 +68,14 @@ type SoftphoneState =
   | { kind: "connected"; callId: string; toNumber: string; connectedAtMs: number; muted: boolean }
   | { kind: "ended"; callId: string; outcome: string | null };
 
+interface CoachingCardData {
+  ts: number;
+  objectionClass: string;
+  label: string;
+  prospectQuote: string;
+  suggestedResponses: string[];
+}
+
 interface TranscriptChunk {
   speaker: "agent" | "prospect" | string;
   text: string;
@@ -86,6 +94,9 @@ export default function CallModePage() {
   const [amdDetected, setAmdDetected] = useState<string | null>(null);
   const [voicemailDropping, setVoicemailDropping] = useState(false);
   const [voicemailDropped, setVoicemailDropped] = useState(false);
+  // Phase 3 — live coaching cards. Each card auto-dismisses after 12s
+  // unless the user manually closes it. Newest on top, max 5 visible.
+  const [coachingCards, setCoachingCards] = useState<CoachingCardData[]>([]);
 
   // SSE subscription handle so we can tear down on unmount / hangup.
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -145,6 +156,7 @@ export default function CallModePage() {
       setAmdDetected(null);
       setVoicemailDropping(false);
       setVoicemailDropped(false);
+      setCoachingCards([]);
       try {
         const res = await fetch("/api/calls/start", {
           method: "POST",
@@ -226,6 +238,20 @@ export default function CallModePage() {
         es.addEventListener("voicemail_dropped", () => {
           setVoicemailDropped(true);
           setVoicemailDropping(false);
+        });
+        es.addEventListener("coaching_card", (evt) => {
+          try {
+            const card = JSON.parse(
+              (evt as MessageEvent).data,
+            ) as CoachingCardData;
+            setCoachingCards((prev) => [card, ...prev].slice(0, 5));
+            // Auto-dismiss after 12s — peripheral signal, not a TODO list.
+            setTimeout(() => {
+              setCoachingCards((prev) => prev.filter((c) => c.ts !== card.ts));
+            }, 12_000);
+          } catch {
+            /* ignore malformed card */
+          }
         });
         es.addEventListener("transcript", (evt) => {
           try {
@@ -398,7 +424,17 @@ export default function CallModePage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-64px)] w-full">
+    <div className="flex h-[calc(100vh-64px)] w-full relative">
+      {/* Phase 3 — live coaching overlay. Bottom-right, peripheral. */}
+      {coachingCards.length > 0 && (
+        <CoachingCardsOverlay
+          cards={coachingCards}
+          onDismiss={(ts) =>
+            setCoachingCards((prev) => prev.filter((c) => c.ts !== ts))
+          }
+        />
+      )}
+
       {/* ───── LEFT — Queue (320px) ───── */}
       <aside className="w-80 shrink-0 border-r border-zinc-200 dark:border-zinc-800 flex flex-col">
         <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
@@ -798,6 +834,51 @@ function AccountBrainPanel(props: { contactId: string }) {
           tâche de rappel.
         </p>
       </div>
+    </div>
+  );
+}
+
+function CoachingCardsOverlay(props: {
+  cards: CoachingCardData[];
+  onDismiss: (ts: number) => void;
+}) {
+  return (
+    <div className="absolute right-6 bottom-6 z-30 flex flex-col gap-2 max-w-sm pointer-events-none">
+      {props.cards.map((card) => (
+        <div
+          key={card.ts}
+          className="pointer-events-auto rounded-md border bg-white dark:bg-zinc-900 shadow-md p-3 text-[12px]"
+          style={{
+            borderColor: "var(--color-border-default)",
+            color: "var(--color-text-primary)",
+          }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[10px] uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
+              Objection · {card.label}
+            </div>
+            <button
+              onClick={() => props.onDismiss(card.ts)}
+              className="text-[11px] text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-100"
+            >
+              ×
+            </button>
+          </div>
+          <div className="mt-1 italic text-zinc-600 dark:text-zinc-400">
+            « {card.prospectQuote} »
+          </div>
+          <ul className="mt-2 space-y-1.5">
+            {card.suggestedResponses.map((r, i) => (
+              <li
+                key={i}
+                className="rounded-sm bg-zinc-50 dark:bg-zinc-800/50 px-2 py-1.5 leading-snug"
+              >
+                {r}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </div>
   );
 }

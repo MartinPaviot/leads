@@ -27,6 +27,8 @@ import {
   type ListenLiveLike,
   type TwilioMediaStreamEvent,
 } from "../src/lib/voice/deepgram-bridge";
+import { createCoachingTap } from "../src/lib/voice/coaching-tap";
+import { anthropic } from "../src/lib/ai/ai-provider";
 
 const PORT = Number(process.env.VOICE_STREAM_PORT ?? 3001);
 const DEEPGRAM_KEY = process.env.DEEPGRAM_API_KEY;
@@ -38,6 +40,26 @@ if (!DEEPGRAM_KEY) {
 }
 
 const deepgram = createClient(DEEPGRAM_KEY);
+
+// Coaching tap — disabled when ANTHROPIC_API_KEY is missing so the
+// bridge degrades to "transcript only" instead of crashing. Phase 3
+// flag VOICE_COACHING_LIVE=off lets ops disable coaching in prod
+// without removing the env entirely.
+const coachingEnabled =
+  process.env.VOICE_COACHING_LIVE !== "off" &&
+  !!process.env.ANTHROPIC_API_KEY;
+const coachingTap = coachingEnabled
+  ? createCoachingTap({
+      model: anthropic("claude-haiku-4-5-20251001"),
+    })
+  : undefined;
+if (coachingEnabled) {
+  console.log("[voice-stream] live coaching ON (Haiku 4.5)");
+} else {
+  console.log(
+    "[voice-stream] live coaching OFF (set ANTHROPIC_API_KEY + VOICE_COACHING_LIVE!=off to enable)",
+  );
+}
 
 const wss = new WebSocketServer({ port: PORT });
 
@@ -62,6 +84,7 @@ wss.on("connection", async (socket: WebSocket, req) => {
   let bridge: BridgeHandle | null = null;
   try {
     bridge = await openBridge(callId, {
+      coachingTap,
       openDeepgram: async (opts) => {
         const dg = deepgram.listen.live({
           model: "nova-3",
