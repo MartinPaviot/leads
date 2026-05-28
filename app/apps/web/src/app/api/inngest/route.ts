@@ -33,6 +33,7 @@ import { serviceHealthCheck } from "@/inngest/health-checks";
 import { signalAutoEnroll } from "@/inngest/signal-to-sequence";
 import { signalAccelerateCadence } from "@/inngest/signal-accelerate-cadence";
 import { nurtureRecycleD30 } from "@/inngest/nurture-recycle-d30";
+import { meetingCapacityCheck } from "@/inngest/meeting-capacity-check";
 import { nightlyRelationshipGraphBuild, onDemandRelationshipGraphBuild } from "@/inngest/relationship-graph-builder";
 import { customSignalBackfill } from "@/inngest/custom-signal-backfill";
 import { dataRetentionPurge } from "@/inngest/data-retention";
@@ -142,6 +143,10 @@ export const { GET, POST, PUT } = serve({
     // with lastStepAt > 30d ago re-enroll into the tenant's Nurture
     // sequence. Skips contacts already in nurture (no recycle loop).
     nurtureRecycleD30,
+    // Deep-dive capacity check (B7) — weekly Monday 00:30 UTC. Counts
+    // this week's deep-dive meetings per tenant and persists the
+    // load + level (ok/tight/saturated) on tenants.settings.deepDiveLoad.
+    meetingCapacityCheck,
     // Health checks: service status monitoring every 6h
     serviceHealthCheck,
     // Relationship graph: KNOWS edges for warm-intro discovery
