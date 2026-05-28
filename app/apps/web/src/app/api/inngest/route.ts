@@ -31,6 +31,7 @@ import { handleAutoPipelineDraft } from "@/inngest/auto-pipeline-email-handler";
 import { dailyFounderBrief } from "@/inngest/founder-coach";
 import { serviceHealthCheck } from "@/inngest/health-checks";
 import { signalAutoEnroll } from "@/inngest/signal-to-sequence";
+import { signalAccelerateCadence } from "@/inngest/signal-accelerate-cadence";
 import { nightlyRelationshipGraphBuild, onDemandRelationshipGraphBuild } from "@/inngest/relationship-graph-builder";
 import { customSignalBackfill } from "@/inngest/custom-signal-backfill";
 import { dataRetentionPurge } from "@/inngest/data-retention";
@@ -132,6 +133,10 @@ export const { GET, POST, PUT } = serve({
     dailyFounderBrief,
     // Signal → auto-enroll contacts into outbound sequences
     signalAutoEnroll,
+    // Kairos accelerator (B3) — fresh high-weight signal bumps
+    // active enrollments' next_step_at to NOW. Consumer ships first;
+    // producer (`signals/fresh-detected` emission) is a follow-up.
+    signalAccelerateCadence,
     // Health checks: service status monitoring every 6h
     serviceHealthCheck,
     // Relationship graph: KNOWS edges for warm-intro discovery

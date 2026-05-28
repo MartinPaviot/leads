@@ -71,6 +71,16 @@ export const companies = pgTable(
     // "do_not_contact_request").
     excludedReason: text("excluded_reason"),
     excludedAt: timestamp("excluded_at", { withTimezone: true }),
+    // Priority score (B3, _specs/pilae-machine).
+    // Composite of signal lift multiplier × ICP fit score × contact
+    // accessibility. Recomputed by the `signal.score.daily` Inngest
+    // cron. Range ~0.0 - 2.5. NULL until first compute. Used as the
+    // primary sort key for the call queue and the priority view in
+    // the dashboard. See `lib/scoring/priority-score.ts`.
+    priorityScore: real("priority_score"),
+    priorityScoreComputedAt: timestamp("priority_score_computed_at", {
+      withTimezone: true,
+    }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
@@ -80,6 +90,10 @@ export const companies = pgTable(
     index("companies_domain_idx").on(table.domain),
     index("companies_logo_resolved_at_idx").on(table.logoResolvedAt),
     index("companies_excluded_at_idx").on(table.excludedAt),
+    index("companies_priority_score_idx").on(
+      table.tenantId,
+      table.priorityScore,
+    ),
   ]
 );
 
