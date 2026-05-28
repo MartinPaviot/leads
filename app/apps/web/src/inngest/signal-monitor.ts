@@ -16,6 +16,8 @@ import { invalidateBrief, buildIntelligenceBrief } from "@/lib/campaign-engine/b
 import { selectStrategy } from "@/lib/campaign-engine/select-strategy";
 import { fetchRecentNews } from "@/lib/campaign-engine/sources/news";
 import { scrapeJobPostings } from "@/lib/campaign-engine/sources/jobs";
+import { getSignalMultipliers } from "@/lib/scoring/signal-outcomes";
+import { KAIROS_WEIGHT_THRESHOLD } from "@/lib/scoring/priority-score";
 
 interface DetectedSignal {
   companyId: string;
@@ -59,7 +61,7 @@ export const signalMonitorCron = inngest.createFunction(
   }
 );
 
-async function monitorTenant(tenantId: string): Promise<{ newSignals: number; triggered: number }> {
+async function monitorTenant(tenantId: string): Promise<{ newSignals: number; triggered: number; accelerated: number }> {
   // Get top 50 companies by score
   const topCompanies = await db
     .select({ id: companies.id, name: companies.name, domain: companies.domain, properties: companies.properties })
@@ -84,8 +86,19 @@ async function monitorTenant(tenantId: string): Promise<{ newSignals: number; tr
     }
   }
 
+  // Pre-fetch the tenant's outcome-driven signal multipliers once.
+  // Used by the B3 kairos accelerator emission below — we only fire
+  // `signals/fresh-detected` when the multiplier crosses the threshold.
+  // Catch returns null so a multiplier lookup failure can't block
+  // signal persistence (which is what this fn is primarily for).
+  const tenantMultipliers =
+    newSignals.length > 0
+      ? await getSignalMultipliers(tenantId).catch(() => null)
+      : null;
+
   // Process new signals
   let triggered = 0;
+  let accelerated = 0;
   for (const signal of newSignals) {
     // 1. Update company properties with new signal
     await persistSignal(signal);
@@ -110,10 +123,35 @@ async function monitorTenant(tenantId: string): Promise<{ newSignals: number; tr
         });
         triggered++;
       }
+
+      // B3b — kairos accelerator emission. When the signal's outcome
+      // multiplier crosses KAIROS_WEIGHT_THRESHOLD, fan out to every
+      // active enrollment at the company via signals/fresh-detected.
+      // The consumer (signal-accelerate-cadence.ts) bumps next_step_at
+      // to NOW so the cadence reacts before the chronos cron fires.
+      if (tenantMultipliers) {
+        const mult =
+          tenantMultipliers.multipliers[signal.signalType] ?? 1;
+        if (mult >= KAIROS_WEIGHT_THRESHOLD) {
+          await inngest
+            .send({
+              name: "signals/fresh-detected",
+              data: {
+                tenantId: signal.tenantId,
+                companyId: signal.companyId,
+                signalType: signal.signalType,
+                signalFiredAt: signal.detectedAt,
+                signalMultiplier: mult,
+              },
+            })
+            .catch(() => {});
+          accelerated++;
+        }
+      }
     }
   }
 
-  return { newSignals: newSignals.length, triggered };
+  return { newSignals: newSignals.length, triggered, accelerated };
 }
 
 async function checkCompanySignals(

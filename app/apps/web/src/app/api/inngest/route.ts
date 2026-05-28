@@ -35,6 +35,7 @@ import { signalAccelerateCadence } from "@/inngest/signal-accelerate-cadence";
 import { nurtureRecycleD30 } from "@/inngest/nurture-recycle-d30";
 import { meetingCapacityCheck } from "@/inngest/meeting-capacity-check";
 import { playbookCapturePostCall } from "@/inngest/playbook-capture-post-call";
+import { signalScoreDaily } from "@/inngest/signal-score-daily";
 import { nightlyRelationshipGraphBuild, onDemandRelationshipGraphBuild } from "@/inngest/relationship-graph-builder";
 import { customSignalBackfill } from "@/inngest/custom-signal-backfill";
 import { dataRetentionPurge } from "@/inngest/data-retention";
@@ -137,9 +138,13 @@ export const { GET, POST, PUT } = serve({
     // Signal → auto-enroll contacts into outbound sequences
     signalAutoEnroll,
     // Kairos accelerator (B3) — fresh high-weight signal bumps
-    // active enrollments' next_step_at to NOW. Consumer ships first;
-    // producer (`signals/fresh-detected` emission) is a follow-up.
+    // active enrollments' next_step_at to NOW. Producer now wired
+    // into signal-monitor.ts (B3b).
     signalAccelerateCadence,
+    // Priority score recompute (B3b) — daily 06:00 UTC. For each
+    // tenant, walks eligible companies and persists priority_score
+    // (multiplier × fit × accessibility) used by the call queue.
+    signalScoreDaily,
     // Nurture recycle (B6) — daily 07:00 UTC. Completed enrollments
     // with lastStepAt > 30d ago re-enroll into the tenant's Nurture
     // sequence. Skips contacts already in nurture (no recycle loop).
