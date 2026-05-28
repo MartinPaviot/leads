@@ -9,10 +9,15 @@
  *
  * Status filter chips above the list flip between pending_approval
  * (default), approved (queued for send), rejected, expired, sent.
+ *
+ * B5b — multi-select. When the parent supplies `selectedIds` +
+ * `onToggleSelect`, each row gets a checkbox and the header gains a
+ * "select all visible" toggle. The bulk-approve action lives in the
+ * parent so the list stays presentational. Checkboxes only render on
+ * the pending_approval tab — the other statuses can't be bulk-approved.
  */
 
-import { useState } from "react";
-import { Mail, Clock, AlertCircle } from "lucide-react";
+import { Mail, Clock } from "lucide-react";
 
 export interface DraftListItem {
   id: string;
@@ -70,6 +75,12 @@ interface SequenceDraftListProps {
   hasMore: boolean;
   onLoadMore: () => void;
   loading: boolean;
+  /** B5b — multi-select. When provided, each row in the pending tab
+   *  gets a checkbox. Without these props, the list behaves exactly
+   *  as before. */
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+  onToggleSelectAll?: () => void;
 }
 
 export function SequenceDraftList({
@@ -81,7 +92,22 @@ export function SequenceDraftList({
   hasMore,
   onLoadMore,
   loading,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectAll,
 }: SequenceDraftListProps) {
+  // Multi-select is only meaningful for the pending_approval tab —
+  // the only state from which a bulk approve makes sense.
+  const multiSelectEnabled =
+    !!onToggleSelect && status === "pending_approval";
+  const allVisibleSelected =
+    multiSelectEnabled &&
+    drafts.length > 0 &&
+    drafts.every((d) => selectedIds?.has(d.id));
+  const someVisibleSelected =
+    multiSelectEnabled &&
+    !allVisibleSelected &&
+    drafts.some((d) => selectedIds?.has(d.id));
   const statuses = [
     { key: "pending_approval", label: "Pending" },
     { key: "approved", label: "Approved" },
@@ -117,6 +143,36 @@ export function SequenceDraftList({
         ))}
       </div>
 
+      {/* Bulk-select header — only when multi-select is wired and there
+          are pending drafts visible. */}
+      {multiSelectEnabled && drafts.length > 0 && onToggleSelectAll && (
+        <div
+          className="flex shrink-0 items-center gap-2 border-b px-3 py-2"
+          style={{ borderColor: "var(--color-border-default)" }}
+        >
+          <label className="flex cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              ref={(el) => {
+                if (el) el.indeterminate = someVisibleSelected;
+              }}
+              onChange={onToggleSelectAll}
+              aria-label="Select all visible drafts"
+              className="h-3.5 w-3.5 cursor-pointer"
+            />
+            <span
+              className="text-[11px]"
+              style={{ color: "var(--color-text-secondary)" }}
+            >
+              {selectedIds && selectedIds.size > 0
+                ? `${selectedIds.size} selected`
+                : "Select all"}
+            </span>
+          </label>
+        </div>
+      )}
+
       {/* List */}
       <div className="flex-1 overflow-y-auto">
         {drafts.length === 0 && !loading && (
@@ -125,10 +181,19 @@ export function SequenceDraftList({
 
         {drafts.map((d) => {
           const isSelected = d.id === selectedDraftId;
+          const isChecked = !!selectedIds?.has(d.id);
+          // Row is a div now (not a button) so a nested checkbox is
+          // valid HTML when multi-select is enabled.
+          const Row = multiSelectEnabled ? "div" : "button";
           return (
-            <button
+            <Row
               key={d.id}
-              onClick={() => onSelect(d.id)}
+              onClick={
+                multiSelectEnabled
+                  ? undefined
+                  : () => onSelect(d.id)
+              }
+              role={multiSelectEnabled ? undefined : undefined}
               className="block w-full border-b p-3 text-left transition-colors"
               style={{
                 background: isSelected
@@ -138,45 +203,75 @@ export function SequenceDraftList({
                 borderLeft: isSelected
                   ? "2px solid var(--color-accent)"
                   : "2px solid transparent",
+                cursor: multiSelectEnabled ? "default" : "pointer",
               }}
             >
-              <div className="flex items-start justify-between gap-2">
-                <p
-                  className="flex-1 truncate text-[13px] font-medium"
-                  style={{ color: "var(--color-text-primary)" }}
-                >
-                  {d.subject || "(no subject)"}
-                </p>
-                <span
-                  className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider"
-                  style={{
-                    background: "var(--color-bg-card)",
-                    color: STATUS_COLOR[d.status] ?? "var(--color-text-tertiary)",
-                    border: `1px solid ${STATUS_COLOR[d.status] ?? "var(--color-border-default)"}`,
-                  }}
-                >
-                  {STATUS_LABEL[d.status] ?? d.status}
-                </span>
-              </div>
-              <div className="mt-1 flex items-center gap-2 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-                <Clock size={10} />
-                <span>{timeAgo(d.generatedAt)}</span>
-                {d.triggerReason && (
-                  <>
-                    <span>·</span>
-                    <span className="truncate">{d.triggerReason}</span>
-                  </>
+              <div className="flex items-start gap-2">
+                {multiSelectEnabled && onToggleSelect && (
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      onToggleSelect(d.id);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={`Select draft ${d.subject || d.id}`}
+                    className="mt-0.5 h-3.5 w-3.5 cursor-pointer"
+                  />
                 )}
-              </div>
-              {d.bodyText && (
-                <p
-                  className="mt-1 line-clamp-2 text-[11px]"
-                  style={{ color: "var(--color-text-tertiary)" }}
+                <div
+                  className="min-w-0 flex-1 cursor-pointer"
+                  onClick={
+                    multiSelectEnabled
+                      ? () => onSelect(d.id)
+                      : undefined
+                  }
                 >
-                  {d.bodyText.slice(0, 160)}
-                </p>
-              )}
-            </button>
+                  <div className="flex items-start justify-between gap-2">
+                    <p
+                      className="flex-1 truncate text-[13px] font-medium"
+                      style={{ color: "var(--color-text-primary)" }}
+                    >
+                      {d.subject || "(no subject)"}
+                    </p>
+                    <span
+                      className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider"
+                      style={{
+                        background: "var(--color-bg-card)",
+                        color:
+                          STATUS_COLOR[d.status] ??
+                          "var(--color-text-tertiary)",
+                        border: `1px solid ${STATUS_COLOR[d.status] ?? "var(--color-border-default)"}`,
+                      }}
+                    >
+                      {STATUS_LABEL[d.status] ?? d.status}
+                    </span>
+                  </div>
+                  <div
+                    className="mt-1 flex items-center gap-2 text-[11px]"
+                    style={{ color: "var(--color-text-tertiary)" }}
+                  >
+                    <Clock size={10} />
+                    <span>{timeAgo(d.generatedAt)}</span>
+                    {d.triggerReason && (
+                      <>
+                        <span>·</span>
+                        <span className="truncate">{d.triggerReason}</span>
+                      </>
+                    )}
+                  </div>
+                  {d.bodyText && (
+                    <p
+                      className="mt-1 line-clamp-2 text-[11px]"
+                      style={{ color: "var(--color-text-tertiary)" }}
+                    >
+                      {d.bodyText.slice(0, 160)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </Row>
           );
         })}
 

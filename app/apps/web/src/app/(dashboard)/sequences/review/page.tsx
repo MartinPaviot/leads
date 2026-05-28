@@ -43,6 +43,12 @@ export default function ReviewQueuePage() {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  // B5b — multi-select bulk approve. Selection lives at this level so
+  // the action bar + the list share the same source of truth.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [bulkApproving, setBulkApproving] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -114,6 +120,83 @@ export default function ReviewQueuePage() {
 
   const selectedDraft =
     drafts.find((d) => d.id === selectedDraftId) ?? null;
+
+  // B5b — selection helpers. Clear the selection on status change so
+  // checkboxes from the pending tab don't haunt the approved view.
+  function toggleSelectOne(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible() {
+    setSelectedIds((prev) => {
+      const allVisible = drafts.every((d) => prev.has(d.id));
+      if (allVisible) {
+        // Deselect everything currently visible (but keep selections
+        // that point at drafts no longer in the list — defensive).
+        const next = new Set(prev);
+        for (const d of drafts) next.delete(d.id);
+        return next;
+      }
+      const next = new Set(prev);
+      for (const d of drafts) next.add(d.id);
+      return next;
+    });
+  }
+
+  async function handleBulkApprove() {
+    if (selectedIds.size === 0) return;
+    setBulkApproving(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const res = await fetch("/api/sequences/drafts/bulk-approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        approved?: string[];
+        error?: string;
+        failures?: Array<{ id: string; reason: string }>;
+        missingIds?: string[];
+      };
+      if (!res.ok) {
+        if (res.status === 409 && Array.isArray(data.failures)) {
+          toast(
+            `Batch rolled back: ${data.failures.length} draft(s) cannot be approved.`,
+            "error",
+          );
+        } else if (res.status === 404 && Array.isArray(data.missingIds)) {
+          toast(
+            `${data.missingIds.length} draft(s) not found — refresh and retry.`,
+            "error",
+          );
+        } else {
+          toast(data.error ?? `Bulk approve failed (${res.status})`, "error");
+        }
+        return;
+      }
+      const approvedCount = data.approved?.length ?? ids.length;
+      toast(
+        `${approvedCount} draft${approvedCount > 1 ? "s" : ""} approved.`,
+        "success",
+      );
+      const approvedSet = new Set(data.approved ?? ids);
+      setDrafts((prev) => prev.filter((d) => !approvedSet.has(d.id)));
+      setSelectedIds(new Set());
+      if (selectedDraftId && approvedSet.has(selectedDraftId)) {
+        setSelectedDraftId(null);
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Network error", "error");
+    } finally {
+      setBulkApproving(false);
+    }
+  }
 
   async function handleApprove() {
     if (!selectedDraft) return;
@@ -219,6 +302,58 @@ export default function ReviewQueuePage() {
         </p>
       </div>
 
+      {/* B5b — bulk approve action bar, visible only when the pending
+          tab has at least one selection. */}
+      {status === "pending_approval" && selectedIds.size > 0 && (
+        <div
+          className="mt-3 flex items-center justify-between gap-3 border-y px-6 py-2"
+          style={{
+            borderColor: "var(--color-border-default)",
+            background: "var(--color-bg-card)",
+          }}
+        >
+          <p
+            className="text-[12px]"
+            style={{ color: "var(--color-text-secondary)" }}
+          >
+            <strong style={{ color: "var(--color-text-primary)" }}>
+              {selectedIds.size}
+            </strong>{" "}
+            draft{selectedIds.size > 1 ? "s" : ""} selected for batch approve.
+            Atomic: if any can't transition, the whole batch rolls back.
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              disabled={bulkApproving}
+              className="rounded px-3 py-1 text-[12px] font-medium"
+              style={{
+                color: "var(--color-text-secondary)",
+                background: "transparent",
+                border: "1px solid var(--color-border-default)",
+              }}
+            >
+              Clear
+            </button>
+            <button
+              onClick={handleBulkApprove}
+              disabled={bulkApproving}
+              className="rounded px-3 py-1 text-[12px] font-medium"
+              style={{
+                color: "#fff",
+                background: "var(--color-accent)",
+                border: "1px solid var(--color-accent)",
+                opacity: bulkApproving ? 0.6 : 1,
+              }}
+            >
+              {bulkApproving
+                ? "Approving…"
+                : `Approve ${selectedIds.size} selected`}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="mt-4 flex flex-1 overflow-hidden border-t" style={{ borderColor: "var(--color-border-default)" }}>
         {/* Left rail */}
         <aside
@@ -233,12 +368,16 @@ export default function ReviewQueuePage() {
             onStatusChange={(s) => {
               setStatus(s);
               setSelectedDraftId(null);
+              setSelectedIds(new Set());
             }}
             hasMore={hasMore}
             onLoadMore={() =>
               fetchDrafts({ append: true, cursor, status })
             }
             loading={loading}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelectOne}
+            onToggleSelectAll={toggleSelectAllVisible}
           />
         </aside>
 
