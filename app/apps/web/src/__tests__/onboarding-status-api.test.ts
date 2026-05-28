@@ -23,6 +23,7 @@ vi.mock("drizzle-orm", () => ({
   eq: vi.fn(),
   and: vi.fn(),
   sql: vi.fn(() => "sql-tag"),
+  isNull: vi.fn(),
 }));
 
 import { getAuthContext } from "@/lib/auth/auth-utils";

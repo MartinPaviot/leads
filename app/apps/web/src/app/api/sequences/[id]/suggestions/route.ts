@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { contacts, companies, sequenceEnrollments, sequences } from "@/db/schema";
-import { eq, sql, and, isNotNull, notInArray } from "drizzle-orm";
+import { eq, sql, and, isNotNull, notInArray, isNull } from "drizzle-orm";
 
 export async function GET(
   req: Request,
@@ -51,6 +51,7 @@ export async function GET(
           eq(contacts.tenantId, authCtx.tenantId),
           isNotNull(contacts.score),
           isNotNull(contacts.email),
+          isNull(contacts.deletedAt),
           enrolledIds.length > 0
             ? sql`${contacts.id} NOT IN (${sql.join(enrolledIds.map(id => sql`${id}`), sql`, `)})`
             : sql`1=1`
@@ -67,7 +68,7 @@ export async function GET(
           const [company] = await db
             .select({ name: companies.name })
             .from(companies)
-            .where(eq(companies.id, contact.companyId))
+            .where(and(eq(companies.id, contact.companyId), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
             .limit(1);
           companyName = company?.name || "Unknown";
         }

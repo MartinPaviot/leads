@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities, outboundEmails } from "@/db/schema";
-import { and, eq, gte, count, desc } from "drizzle-orm";
+import { and, eq, gte, count, desc, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 /**
@@ -32,6 +32,7 @@ export async function GET(req: Request) {
       and(
         eq(activities.tenantId, tenantId),
         gte(activities.occurredAt, periodStart),
+        isNull(activities.deletedAt),
       ),
     )
     .groupBy(activities.activityType);
@@ -54,6 +55,7 @@ export async function GET(req: Request) {
       and(
         eq(activities.tenantId, tenantId),
         gte(activities.occurredAt, periodStart),
+        isNull(activities.deletedAt),
       ),
     )
     .orderBy(desc(activities.occurredAt))

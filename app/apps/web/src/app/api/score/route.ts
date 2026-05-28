@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { companies, activities } from "@/db/schema";
-import { eq, and, gte, sql } from "drizzle-orm";
+import { eq, and, gte, sql, isNull } from "drizzle-orm";
 import { getTenantSettings, parseSizeRange } from "@/lib/config/tenant-settings";
 import { calculateFitScore, getGrade } from "@/lib/scoring/scoring";
 import { getSignalMultipliers } from "@/lib/scoring/signal-outcomes";
@@ -26,7 +26,8 @@ async function calculateEngagementScore(
         eq(activities.tenantId, tenantId),
         eq(activities.entityType, "company"),
         eq(activities.entityId, companyId),
-        gte(activities.occurredAt, thirtyDaysAgo)
+        gte(activities.occurredAt, thirtyDaysAgo),
+        isNull(activities.deletedAt)
       )
     );
 
@@ -45,7 +46,8 @@ async function calculateEngagementScore(
         eq(activities.entityType, "company"),
         eq(activities.entityId, companyId),
         sql`activity_type IN ('meeting_scheduled', 'meeting_completed')`,
-        gte(activities.occurredAt, thirtyDaysAgo)
+        gte(activities.occurredAt, thirtyDaysAgo),
+        isNull(activities.deletedAt)
       )
     );
 
@@ -63,7 +65,8 @@ async function calculateEngagementScore(
       and(
         eq(activities.tenantId, tenantId),
         eq(activities.entityType, "company"),
-        eq(activities.entityId, companyId)
+        eq(activities.entityId, companyId),
+        isNull(activities.deletedAt)
       )
     );
 
@@ -86,7 +89,8 @@ async function calculateEngagementScore(
         eq(activities.tenantId, tenantId),
         eq(activities.entityType, "company"),
         eq(activities.entityId, companyId),
-        eq(activities.sentiment, "positive")
+        eq(activities.sentiment, "positive"),
+        isNull(activities.deletedAt)
       )
     );
 
@@ -105,7 +109,8 @@ async function calculateEngagementScore(
         eq(activities.tenantId, tenantId),
         eq(activities.entityType, "company"),
         eq(activities.entityId, companyId),
-        eq(activities.actorType, "contact")
+        eq(activities.actorType, "contact"),
+        isNull(activities.deletedAt)
       )
     );
 
@@ -164,7 +169,7 @@ export async function POST(req: Request) {
         const [company] = await db
           .select()
           .from(companies)
-          .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)))
+          .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
           .limit(1);
 
         if (!company) continue;
@@ -213,7 +218,7 @@ export async function POST(req: Request) {
             },
             updatedAt: new Date(),
           })
-          .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)));
+          .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)));
 
         scored++;
       } catch (err) {

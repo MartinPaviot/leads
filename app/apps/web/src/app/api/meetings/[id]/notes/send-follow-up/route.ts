@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, contacts } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth/auth-utils";
@@ -42,7 +42,7 @@ export async function POST(
   const [activity] = await db
     .select()
     .from(activities)
-    .where(and(eq(activities.id, id), eq(activities.tenantId, authCtx.tenantId)))
+    .where(and(eq(activities.id, id), eq(activities.tenantId, authCtx.tenantId), isNull(activities.deletedAt)))
     .limit(1);
   if (!activity) {
     return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
@@ -93,7 +93,7 @@ export async function POST(
     await db
       .select({ email: contacts.email })
       .from(contacts)
-      .where(eq(contacts.tenantId, authCtx.tenantId))
+      .where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
   )
     .map((r) => r.email?.toLowerCase())
     .filter((e): e is string => !!e && attendeeEmails.has(e));
@@ -173,7 +173,7 @@ export async function POST(
     await db
       .update(activities)
       .set({ metadata: nextMeta })
-      .where(eq(activities.id, id));
+      .where(and(eq(activities.id, id), eq(activities.tenantId, authCtx.tenantId), isNull(activities.deletedAt)));
     return NextResponse.json({ ok: true, recipients: toEmails, ctaFootersSent: footerCount });
   } catch (err) {
     logger.error("meetings: follow-up send threw", { err, meetingId: id });

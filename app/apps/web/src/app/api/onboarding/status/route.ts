@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { companies, contacts, authAccounts, tenants, authUsers } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 
 export async function GET() {
   const authCtx = await getAuthContext();
@@ -12,12 +12,12 @@ export async function GET() {
   const [accountCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(companies)
-    .where(eq(companies.tenantId, authCtx.tenantId));
+    .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)));
 
   const [contactCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(contacts)
-    .where(eq(contacts.tenantId, authCtx.tenantId));
+    .where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));
 
   // Check if Google OAuth is connected
   const [googleAccount] = await db

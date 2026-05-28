@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
-import { and, eq, sql, gte, inArray } from "drizzle-orm";
+import { and, eq, sql, gte, inArray, isNull } from "drizzle-orm";
 
 export async function GET(
   req: Request,
@@ -24,6 +24,7 @@ export async function GET(
   const conditions = [
     eq(companies.tenantId, authCtx.tenantId),
     sql`properties->>'source' = 'tam'`,
+    isNull(companies.deletedAt),
   ];
 
   if (minScore > 0) {

@@ -36,6 +36,7 @@ vi.mock("drizzle-orm", () => ({
   eq: vi.fn(),
   and: vi.fn(),
   inArray: vi.fn(),
+  isNull: vi.fn(),
 }));
 
 import { getAuthContext } from "@/lib/auth/auth-utils";

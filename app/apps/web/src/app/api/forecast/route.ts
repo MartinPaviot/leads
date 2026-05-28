@@ -1,7 +1,7 @@
 import { withAuthRLS } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { deals, activities, companies } from "@/db/schema";
-import { and, eq, notInArray, sql, desc } from "drizzle-orm";
+import { and, eq, notInArray, sql, desc, isNull } from "drizzle-orm";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
 import {
   runMonteCarloForecast,
@@ -40,6 +40,7 @@ export async function GET(req: Request) {
         and(
           eq(deals.tenantId, tenantId),
           notInArray(deals.stage, ["won", "lost"]),
+          isNull(deals.deletedAt),
         ),
       );
 
@@ -78,7 +79,7 @@ export async function GET(req: Request) {
               size: companies.size,
             })
             .from(companies)
-            .where(eq(companies.id, deal.companyId))
+            .where(and(eq(companies.id, deal.companyId), eq(companies.tenantId, tenantId), isNull(companies.deletedAt)))
             .limit(1);
           if (company) {
             industry = company.industry || "unknown";
@@ -100,6 +101,7 @@ export async function GET(req: Request) {
             and(
               eq(activities.tenantId, tenantId),
               eq(activities.entityId, dealEntityId),
+              isNull(activities.deletedAt),
             ),
           );
 

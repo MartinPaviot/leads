@@ -27,6 +27,8 @@ vi.mock("@/db/schema", () => ({
 vi.mock("drizzle-orm", () => ({
   eq: vi.fn(),
   sql: vi.fn(),
+  and: vi.fn(),
+  isNull: vi.fn(),
 }));
 
 import { auth } from "@/auth";

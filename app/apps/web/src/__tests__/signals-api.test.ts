@@ -40,6 +40,7 @@ vi.mock("@ai-sdk/openai", () => ({
 vi.mock("drizzle-orm", () => ({
   and: vi.fn(),
   eq: vi.fn(),
+  isNull: vi.fn(),
 }));
 
 process.env.ANTHROPIC_API_KEY = "test-key";

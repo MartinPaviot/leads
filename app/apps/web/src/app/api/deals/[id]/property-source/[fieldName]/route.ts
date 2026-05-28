@@ -25,7 +25,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { deals } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import {
   getDealPropertyEntry,
 } from "@/lib/deal-autofill/property-accessor";
@@ -60,7 +60,7 @@ export async function GET(
       updatedAt: deals.updatedAt,
     })
     .from(deals)
-    .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
+    .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)))
     .limit(1);
 
   if (!deal) {

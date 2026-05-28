@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, or, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, deals } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth/auth-utils";
@@ -29,7 +29,7 @@ export async function GET(_req: Request, { params }: RouteCtx) {
     const [deal] = await db
       .select()
       .from(deals)
-      .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
+      .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)))
       .limit(1);
     if (!deal) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -48,6 +48,7 @@ export async function GET(_req: Request, { params }: RouteCtx) {
       .where(
         and(
           eq(activities.tenantId, authCtx.tenantId),
+          isNull(activities.deletedAt),
           or(
             and(
               eq(activities.entityType, "deal"),

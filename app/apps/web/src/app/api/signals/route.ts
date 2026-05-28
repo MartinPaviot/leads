@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
         const [company] = await db
           .select()
           .from(companies)
-          .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)))
+          .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
           .limit(1);
 
         if (!company) continue;
@@ -146,7 +146,7 @@ Return only signals you can directly support with the facts provided.`,
             },
             updatedAt: new Date(),
           })
-          .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId)));
+          .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)));
 
         if (result.signals.length > 0) detected++;
         totalSignals += result.signals.length;

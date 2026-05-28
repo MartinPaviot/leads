@@ -47,6 +47,7 @@ vi.mock("drizzle-orm", () => ({
   and: vi.fn(),
   eq: vi.fn(),
   sql: vi.fn(),
+  isNull: vi.fn(),
 }));
 
 vi.mock("@/lib/infra/rate-limit", () => ({

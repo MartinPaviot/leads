@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { deals } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { analyzeWinLoss } from "@/lib/analysis/win-loss-engine";
 
 /**
@@ -29,7 +29,7 @@ export async function GET(
         properties: deals.properties,
       })
       .from(deals)
-      .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
+      .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)))
       .limit(1);
 
     if (!deal) {

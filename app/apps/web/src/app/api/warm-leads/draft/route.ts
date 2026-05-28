@@ -6,7 +6,7 @@ import { anthropic } from "@/lib/ai/ai-provider";
 import { z } from "zod";
 import { db } from "@/db";
 import { activities, contacts } from "@/db/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
 
 /**
@@ -47,6 +47,7 @@ export async function POST(req: Request) {
       and(
         eq(contacts.id, body.contactId),
         eq(contacts.tenantId, authCtx.tenantId),
+        isNull(contacts.deletedAt),
       ),
     )
     .limit(1);
@@ -69,6 +70,7 @@ export async function POST(req: Request) {
         eq(activities.tenantId, authCtx.tenantId),
         eq(activities.entityType, "contact"),
         eq(activities.entityId, contact.id),
+        isNull(activities.deletedAt),
       ),
     )
     .orderBy(desc(activities.occurredAt))

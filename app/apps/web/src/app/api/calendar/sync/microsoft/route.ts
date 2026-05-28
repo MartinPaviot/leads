@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities, contacts } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 import { fetchMicrosoftMeetings } from "@/lib/integrations/calendar-microsoft";
 
 export async function POST() {
@@ -15,7 +15,7 @@ export async function POST() {
   try {
     const meetings = await fetchMicrosoftMeetings(session.user.id, 30, 14);
 
-    const allContacts = await db.select().from(contacts).where(eq(contacts.tenantId, authCtx.tenantId));
+    const allContacts = await db.select().from(contacts).where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));
     const contactByEmail = new Map(
       allContacts
         .filter((c) => c.email)

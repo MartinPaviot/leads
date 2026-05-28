@@ -26,7 +26,7 @@
  */
 
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { openai } from "@ai-sdk/openai";
+import { openai, createOpenAI } from "@ai-sdk/openai";
 import { isCircuitClosed, ANTHROPIC_CIRCUIT } from "../infra/circuit-breaker";
 
 // ---------------------------------------------------------------------------
@@ -139,10 +139,44 @@ export const anthropic: ReturnType<typeof createAnthropic> = new Proxy(
 );
 
 // ---------------------------------------------------------------------------
+// Mistral (EU-sovereign opt-in) — OpenAI-compatible endpoint
+// ---------------------------------------------------------------------------
+
+/**
+ * Sovereign-EU LLM provider. Activated by setting MISTRAL_API_KEY and
+ * either LLM_PROVIDER=mistral (force) or LLM_PROVIDER=auto (fallback when
+ * Anthropic is unavailable).
+ *
+ * Mistral exposes an OpenAI-compatible API at https://api.mistral.ai/v1,
+ * so we reuse the AI SDK's createOpenAI factory with a different base URL.
+ * No new dependency required.
+ */
+const MISTRAL_BASE_URL = "https://api.mistral.ai/v1";
+
+let _mistralProvider: ReturnType<typeof createOpenAI> | null = null;
+
+function getMistralProvider(): ReturnType<typeof createOpenAI> | null {
+  if (!process.env.MISTRAL_API_KEY) return null;
+  if (!_mistralProvider) {
+    _mistralProvider = createOpenAI({
+      baseURL: MISTRAL_BASE_URL,
+      apiKey: process.env.MISTRAL_API_KEY,
+    });
+  }
+  return _mistralProvider;
+}
+
+/** Return true if the current `LLM_PROVIDER` setting selects Mistral. */
+function shouldUseMistral(): boolean {
+  const provider = process.env.LLM_PROVIDER?.toLowerCase();
+  return (provider === "mistral" || provider === "auto") && !!process.env.MISTRAL_API_KEY;
+}
+
+// ---------------------------------------------------------------------------
 // Model selection helpers
 // ---------------------------------------------------------------------------
 
-/** Default model IDs per task type. */
+/** Default model IDs per task type and per provider. */
 const MODEL_MAP = {
   /** Primary model for chat, analysis, generation. */
   chat: "claude-sonnet-4-6",
@@ -150,6 +184,13 @@ const MODEL_MAP = {
   lightweight: "claude-haiku-4-5-20251001",
   /** OpenAI embedding model (no Anthropic equivalent). */
   embedding: "text-embedding-3-small",
+} as const;
+
+/** Mistral model IDs equivalent to the Anthropic / OpenAI defaults. */
+const MISTRAL_MODEL_MAP = {
+  chat: "mistral-large-latest",
+  lightweight: "mistral-small-latest",
+  embedding: "mistral-embed",
 } as const;
 
 type TaskType = keyof typeof MODEL_MAP;
@@ -168,9 +209,25 @@ type TaskType = keyof typeof MODEL_MAP;
  * Returns `null` if neither provider is configured for the requested task.
  */
 export function getModelForTask(task: TaskType) {
+  const useMistral = shouldUseMistral();
+  const forceMistral = process.env.LLM_PROVIDER?.toLowerCase() === "mistral";
+
+  // Embeddings: Mistral Embed when the sovereign profile is on, otherwise OpenAI.
   if (task === "embedding") {
+    if (useMistral) {
+      const m = getMistralProvider();
+      if (m) return m.embedding(MISTRAL_MODEL_MAP.embedding);
+      if (forceMistral) return null;
+    }
     if (!process.env.OPENAI_API_KEY) return null;
     return openai.embedding(MODEL_MAP.embedding);
+  }
+
+  // Chat / lightweight: try Mistral (sovereign opt-in) first when configured.
+  if (useMistral) {
+    const m = getMistralProvider();
+    if (m) return m(MISTRAL_MODEL_MAP[task]);
+    if (forceMistral) return null;
   }
 
   const modelId = MODEL_MAP[task];
@@ -193,6 +250,23 @@ export function getModelForTask(task: TaskType) {
     return anthropic(modelId);
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Sovereign profile diagnostics
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the resolved primary provider name. Useful for logging /
+ * health endpoints to expose which profile is active.
+ */
+export function getActiveProvider(): "mistral" | "anthropic-eu" | "anthropic-us" | "openai-fallback" | "none" {
+  if (shouldUseMistral()) return "mistral";
+  if (process.env.ANTHROPIC_API_KEY) {
+    return isAnthropicEuConfigured() ? "anthropic-eu" : "anthropic-us";
+  }
+  if (process.env.OPENAI_API_KEY) return "openai-fallback";
+  return "none";
 }
 
 // ---------------------------------------------------------------------------

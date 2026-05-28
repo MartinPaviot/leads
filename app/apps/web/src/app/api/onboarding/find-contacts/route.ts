@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { companies, contacts } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, isNull } from "drizzle-orm";
 import { runSkill } from "@/skills/runner";
 import { companyContactFinderSkill } from "@/skills/enrichment/company-contact-finder";
 import { leadQualificationSkill } from "@/skills/scoring/lead-qualification";
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   const topCompanies = await db
     .select()
     .from(companies)
-    .where(eq(companies.tenantId, authCtx.tenantId))
+    .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
     .orderBy(desc(companies.score))
     .limit(10);
 
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
       const [existing] = await db
         .select({ id: contacts.id })
         .from(contacts)
-        .where(eq(contacts.email, person.email))
+        .where(and(eq(contacts.tenantId, authCtx.tenantId), eq(contacts.email, person.email), isNull(contacts.deletedAt)))
         .limit(1);
       if (existing) continue;
 
@@ -118,7 +118,7 @@ export async function POST(req: Request) {
         title: contacts.title,
         score: contacts.score,
         companyId: contacts.companyId,
-      }).from(contacts).where(eq(contacts.tenantId, authCtx.tenantId))
+      }).from(contacts).where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
         .orderBy(desc(contacts.score)).limit(20)
     : [];
 

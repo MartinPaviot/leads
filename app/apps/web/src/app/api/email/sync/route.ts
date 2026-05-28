@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities, contacts, companies, users } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { fetchRecentEmails } from "@/lib/integrations/gmail";
 import { ingestEpisode } from "@/lib/ai/context-graph";
 import { embedEntity } from "@/lib/ai/embeddings";
@@ -32,7 +32,7 @@ export async function POST() {
     );
 
     // Get all contacts for email matching
-    const allContacts = await db.select().from(contacts).where(eq(contacts.tenantId, authCtx.tenantId));
+    const allContacts = await db.select().from(contacts).where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));
     const contactByEmail = new Map(
       allContacts
         .filter((c) => c.email)
@@ -40,7 +40,7 @@ export async function POST() {
     );
 
     // Get all companies for domain matching
-    const allCompanies = await db.select().from(companies).where(eq(companies.tenantId, authCtx.tenantId));
+    const allCompanies = await db.select().from(companies).where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)));
     const companyByDomain = new Map(
       allCompanies
         .filter((c) => c.domain)

@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { deals } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and, isNull } from "drizzle-orm";
 
 export async function GET() {
   const authCtx = await getAuthContext();
@@ -10,7 +10,7 @@ export async function GET() {
   }
 
   try {
-    const allDeals = await db.select().from(deals).where(eq(deals.tenantId, authCtx.tenantId));
+    const allDeals = await db.select().from(deals).where(and(eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)));
 
     const activeStages = ["lead", "qualification", "demo", "trial", "proposal", "negotiation"];
     const wonDeals = allDeals.filter((d) => d.stage === "won");

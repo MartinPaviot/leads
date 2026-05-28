@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { deals, activities, contacts, companies } from "@/db/schema";
-import { eq, and, sql, gte, inArray } from "drizzle-orm";
+import { eq, and, sql, gte, inArray, isNull } from "drizzle-orm";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -101,7 +101,7 @@ async function buildPipelinePrompt(tenantId: string): Promise<string> {
       createdAt: deals.createdAt,
     })
     .from(deals)
-    .where(eq(deals.tenantId, tenantId));
+    .where(and(eq(deals.tenantId, tenantId), isNull(deals.deletedAt)));
 
   // Pipeline analytics
   const totalValue = allDeals.reduce((sum, d) => sum + (d.value || 0), 0);
@@ -195,7 +195,8 @@ async function buildWeeklyPrompt(tenantId: string): Promise<string> {
     .where(
       and(
         eq(activities.tenantId, tenantId),
-        gte(activities.occurredAt, sevenDaysAgo)
+        gte(activities.occurredAt, sevenDaysAgo),
+        isNull(activities.deletedAt)
       )
     )
     .groupBy(activities.activityType);
@@ -204,7 +205,7 @@ async function buildWeeklyPrompt(tenantId: string): Promise<string> {
   const newDeals = await db
     .select({ id: deals.id, name: deals.name, value: deals.value, stage: deals.stage })
     .from(deals)
-    .where(and(eq(deals.tenantId, tenantId), gte(deals.createdAt, sevenDaysAgo)));
+    .where(and(eq(deals.tenantId, tenantId), gte(deals.createdAt, sevenDaysAgo), isNull(deals.deletedAt)));
 
   // Deals won/lost this week
   const allDeals = await db
@@ -220,7 +221,8 @@ async function buildWeeklyPrompt(tenantId: string): Promise<string> {
       and(
         eq(deals.tenantId, tenantId),
         inArray(deals.stage, ["won", "lost"]),
-        gte(deals.updatedAt, sevenDaysAgo)
+        gte(deals.updatedAt, sevenDaysAgo),
+        isNull(deals.deletedAt)
       )
     );
   const wonThisWeek = allDeals.filter((d) => d.stage === "won");
@@ -230,13 +232,13 @@ async function buildWeeklyPrompt(tenantId: string): Promise<string> {
   const newContacts = await db
     .select({ count: sql<number>`count(*)` })
     .from(contacts)
-    .where(and(eq(contacts.tenantId, tenantId), gte(contacts.createdAt, sevenDaysAgo)));
+    .where(and(eq(contacts.tenantId, tenantId), gte(contacts.createdAt, sevenDaysAgo), isNull(contacts.deletedAt)));
 
   // New accounts this week
   const newAccounts = await db
     .select({ count: sql<number>`count(*)` })
     .from(companies)
-    .where(and(eq(companies.tenantId, tenantId), gte(companies.createdAt, sevenDaysAgo)));
+    .where(and(eq(companies.tenantId, tenantId), gte(companies.createdAt, sevenDaysAgo), isNull(companies.deletedAt)));
 
   const activitiesSummary = recentActivities
     .map((a) => `- ${a.activityType}: ${a.count}`)
@@ -297,7 +299,7 @@ async function buildWinLossPrompt(tenantId: string): Promise<string> {
     })
     .from(deals)
     .where(
-      and(eq(deals.tenantId, tenantId), inArray(deals.stage, ["won", "lost"]))
+      and(eq(deals.tenantId, tenantId), inArray(deals.stage, ["won", "lost"]), isNull(deals.deletedAt))
     );
 
   const wonDeals = closedDeals.filter((d) => d.stage === "won");

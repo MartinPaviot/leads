@@ -44,6 +44,7 @@ vi.mock("@ai-sdk/openai", () => ({
 vi.mock("drizzle-orm", () => ({
   and: vi.fn(),
   eq: vi.fn(),
+  isNull: vi.fn(),
 }));
 
 vi.mock("@/lib/rate-limit", () => ({

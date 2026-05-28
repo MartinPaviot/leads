@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 import OpenAI from "openai";
 
 function parseVTTorSRT(content: string): string {
@@ -83,7 +83,8 @@ export async function POST(req: Request) {
         .where(
           and(
             eq(activities.id, meetingId),
-            eq(activities.tenantId, authCtx.tenantId)
+            eq(activities.tenantId, authCtx.tenantId),
+            isNull(activities.deletedAt)
           )
         )
         .limit(1);
@@ -131,7 +132,7 @@ export async function POST(req: Request) {
     // Mark the activity with transcript source
     if (activityId) {
       const [existing] = await db.select().from(activities)
-        .where(eq(activities.id, activityId)).limit(1);
+        .where(and(eq(activities.id, activityId), eq(activities.tenantId, authCtx.tenantId), isNull(activities.deletedAt))).limit(1);
       if (existing) {
         const meta = (existing.metadata || {}) as Record<string, unknown>;
         await db.update(activities).set({
@@ -142,7 +143,7 @@ export async function POST(req: Request) {
               ? "audio_whisper"
               : "file_upload",
           },
-        }).where(eq(activities.id, activityId));
+        }).where(and(eq(activities.id, activityId), eq(activities.tenantId, authCtx.tenantId), isNull(activities.deletedAt)));
       }
     }
 

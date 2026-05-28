@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { sequences, sequenceSteps, sequenceEnrollments, contacts } from "@/db/schema";
-import { eq, sql, and, isNotNull, gte } from "drizzle-orm";
+import { eq, sql, and, isNotNull, gte, isNull } from "drizzle-orm";
 
 export async function POST(
   req: Request,
@@ -54,7 +54,8 @@ export async function POST(
         and(
           eq(contacts.tenantId, authCtx.tenantId),
           isNotNull(contacts.email),
-          gte(contacts.score, minScore)
+          gte(contacts.score, minScore),
+          isNull(contacts.deletedAt)
         )
       )
       .orderBy(sql`score DESC NULLS LAST`)

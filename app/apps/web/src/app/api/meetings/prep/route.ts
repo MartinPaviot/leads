@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { activities, companies, contacts, deals, notes } from "@/db/schema";
-import { eq, and, desc, or } from "drizzle-orm";
+import { eq, and, desc, or, isNull } from "drizzle-orm";
 
 /**
  * Generate a meeting prep document for a specific meeting (by activity ID)
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     // If activityId provided, get the meeting details
     if (activityId) {
       const [meeting] = await db.select().from(activities)
-        .where(and(eq(activities.id, activityId), eq(activities.tenantId, authCtx.tenantId)))
+        .where(and(eq(activities.id, activityId), eq(activities.tenantId, authCtx.tenantId), isNull(activities.deletedAt)))
         .limit(1);
 
       if (meeting) {
@@ -46,6 +46,7 @@ export async function POST(req: Request) {
           const attendeeContacts = await db.select().from(contacts)
             .where(and(
               eq(contacts.tenantId, authCtx.tenantId),
+              isNull(contacts.deletedAt),
               or(...attendeeContactIds.map((id) => eq(contacts.id, id)))
             ));
 
@@ -62,6 +63,7 @@ export async function POST(req: Request) {
             const attendeeCompanies = await db.select().from(companies)
               .where(and(
                 eq(companies.tenantId, authCtx.tenantId),
+                isNull(companies.deletedAt),
                 or(...companyIds.map((id) => eq(companies.id, id)))
               ));
             prep.companies = attendeeCompanies.map((c) => ({
@@ -82,7 +84,7 @@ export async function POST(req: Request) {
     const targetAccountId = accountId || (prep.companies as Array<{ id: string }>)?.[0]?.id;
     if (targetAccountId) {
       const [company] = await db.select().from(companies)
-        .where(and(eq(companies.id, targetAccountId), eq(companies.tenantId, authCtx.tenantId)))
+        .where(and(eq(companies.id, targetAccountId), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
         .limit(1);
 
       if (company) {
@@ -101,7 +103,7 @@ export async function POST(req: Request) {
 
         // Get all contacts at this company
         const companyContacts = await db.select().from(contacts)
-          .where(and(eq(contacts.companyId, targetAccountId), eq(contacts.tenantId, authCtx.tenantId)));
+          .where(and(eq(contacts.companyId, targetAccountId), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));
         prep.keyContacts = companyContacts.map((c) => ({
           name: [c.firstName, c.lastName].filter(Boolean).join(" "),
           title: c.title,
@@ -110,7 +112,7 @@ export async function POST(req: Request) {
 
         // Get active deals
         const companyDeals = await db.select().from(deals)
-          .where(and(eq(deals.companyId, targetAccountId), eq(deals.tenantId, authCtx.tenantId)));
+          .where(and(eq(deals.companyId, targetAccountId), eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)));
         prep.activeDeals = companyDeals.map((d) => ({
           name: d.name,
           stage: d.stage,
@@ -127,6 +129,7 @@ export async function POST(req: Request) {
         const recentActivity = await db.select().from(activities)
           .where(and(
             eq(activities.tenantId, authCtx.tenantId),
+            isNull(activities.deletedAt),
             or(...activityOrConditions),
           ))
           .orderBy(desc(activities.occurredAt))
@@ -151,6 +154,7 @@ export async function POST(req: Request) {
         const accountNotes = await db.select().from(notes)
           .where(and(
             eq(notes.tenantId, authCtx.tenantId),
+            isNull(notes.deletedAt),
             or(...noteOrConditions),
           ))
           .orderBy(desc(notes.createdAt))
@@ -168,7 +172,7 @@ export async function POST(req: Request) {
     const targetContactId = contactId;
     if (targetContactId && !targetAccountId) {
       const [contact] = await db.select().from(contacts)
-        .where(and(eq(contacts.id, targetContactId), eq(contacts.tenantId, authCtx.tenantId)))
+        .where(and(eq(contacts.id, targetContactId), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
         .limit(1);
 
       if (contact) {
@@ -183,6 +187,7 @@ export async function POST(req: Request) {
             eq(activities.tenantId, authCtx.tenantId),
             eq(activities.entityType, "contact"),
             eq(activities.entityId, targetContactId),
+            isNull(activities.deletedAt),
           ))
           .orderBy(desc(activities.occurredAt))
           .limit(15);

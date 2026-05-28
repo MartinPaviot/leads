@@ -1,0 +1,166 @@
+{
+  "lastUpdated": "2026-05-19",
+  "notificationPolicy": "We will notify subscribed customers at least 30 days in advance of any new sub-processor. Subscribe at security@elevay.dev.",
+  "subProcessors": [
+    {
+      "name": "Supabase",
+      "purpose": "Primary PostgreSQL database — customer CRM data, mailbox content, conversation history",
+      "region": "EU (AWS eu-central-1, Frankfurt)",
+      "operatorJurisdiction": "United States (Supabase Inc., Delaware)",
+      "cloudActExposure": "yes",
+      "dpaStatus": "available",
+      "dpaUrl": "https://supabase.com/legal/dpa",
+      "notes": "Data residency in Frankfurt; operator is US-headquartered so US CLOUD Act applies. Sovereign migration target: Scaleway Managed DB (FR) or Infomaniak Postgres (CH)."
+    },
+    {
+      "name": "Vercel",
+      "purpose": "Application hosting, edge functions, scheduled crons",
+      "region": "Global (US primary, EU edges available)",
+      "operatorJurisdiction": "United States (Vercel Inc.)",
+      "cloudActExposure": "yes",
+      "dpaStatus": "available",
+      "dpaUrl": "https://vercel.com/legal/dpa",
+      "notes": "Sovereign migration target: Clever Cloud (FR), Scaleway Serverless, or Infomaniak Cloud Server."
+    },
+    {
+      "name": "Anthropic",
+      "purpose": "LLM inference for chat, lead scoring, email drafting",
+      "region": "EU (eu.anthropic.com — Frankfurt)",
+      "operatorJurisdiction": "United States (Anthropic PBC)",
+      "cloudActExposure": "yes",
+      "dpaStatus": "available",
+      "dpaUrl": "https://www.anthropic.com/legal/dpa",
+      "notes": "We pin to the eu.anthropic.com endpoint. Operator remains US-headquartered. Zero data retention requested by default; data is not used to train Anthropic models per their commercial terms."
+    },
+    {
+      "name": "OpenAI",
+      "purpose": "Text embeddings for retrieval and search",
+      "region": "United States (no EU inference endpoint available)",
+      "operatorJurisdiction": "United States",
+      "cloudActExposure": "yes",
+      "dpaStatus": "available",
+      "dpaUrl": "https://openai.com/policies/data-processing-addendum",
+      "notes": "Used only for embeddings. Transferred via SCCs + supplementary measures (minimisation, no PII fields). Sovereign migration target: Mistral Embed (FR)."
+    },
+    {
+      "name": "Mistral AI",
+      "purpose": "EU-sovereign LLM alternative (router-enabled)",
+      "region": "EU (Mistral La Plateforme, FR)",
+      "operatorJurisdiction": "France (Mistral AI SAS)",
+      "cloudActExposure": "no",
+      "dpaStatus": "available",
+      "dpaUrl": "https://mistral.ai/legal/data-processing-agreement",
+      "notes": "Activated via LLM_PROVIDER=mistral. EU-capital and EU-hosted, no extraterritorial US exposure."
+    },
+    {
+      "name": "Resend",
+      "purpose": "Transactional email (invites, password reset, alerts)",
+      "region": "United States",
+      "operatorJurisdiction": "United States (Resend Inc.)",
+      "cloudActExposure": "yes",
+      "dpaStatus": "available",
+      "dpaUrl": "https://resend.com/legal/dpa",
+      "notes": "Sovereign migration target: Brevo (FR) or Mailjet (FR)."
+    },
+    {
+      "name": "Stripe",
+      "purpose": "Payment processing and subscription billing",
+      "region": "United States (data flows) / Ireland (EU billing entity, Stripe Payments Europe Ltd)",
+      "operatorJurisdiction": "United States with EU subsidiary (Ireland)",
+      "cloudActExposure": "yes",
+      "dpaStatus": "available",
+      "dpaUrl": "https://stripe.com/legal/dpa",
+      "notes": "Required for card processing. EU customers are contracted under Stripe Payments Europe Ltd (Dublin). Sovereign alternative for SEPA-only: Mollie (NL), GoCardless."
+    },
+    {
+      "name": "Google (OAuth + Gmail API)",
+      "purpose": "Authentication via Google, read-only access to user mailbox when connected",
+      "region": "Global (Google Cloud)",
+      "operatorJurisdiction": "United States (Google LLC)",
+      "cloudActExposure": "yes",
+      "dpaStatus": "available",
+      "dpaUrl": "https://workspace.google.com/terms/dpa_terms.html",
+      "notes": "Structurally non-substitutable: the user's own mailbox lives at Google. The user has already accepted Google's ToS."
+    },
+    {
+      "name": "Microsoft (Entra + Graph + Outlook)",
+      "purpose": "Authentication via Microsoft, read-only access to Outlook mailbox + Graph calendar",
+      "region": "Global (Microsoft 365)",
+      "operatorJurisdiction": "United States (Microsoft Corp.)",
+      "cloudActExposure": "yes",
+      "dpaStatus": "available",
+      "dpaUrl": "https://www.microsoft.com/licensing/docs/view/Microsoft-Products-and-Services-Data-Protection-Addendum-DPA",
+      "notes": "Structurally non-substitutable: the user's own mailbox lives at Microsoft. The user has already accepted Microsoft's ToS."
+    },
+    {
+      "name": "Inngest",
+      "purpose": "Background job queue and workflow orchestration",
+      "region": "United States",
+      "operatorJurisdiction": "United States (Inngest Inc.)",
+      "cloudActExposure": "yes",
+      "dpaStatus": "available",
+      "dpaUrl": "https://www.inngest.com/legal/dpa",
+      "notes": "Sovereign migration target: BullMQ + Redis on Scaleway/Infomaniak (already partially in place in the worker app)."
+    },
+    {
+      "name": "Sentry",
+      "purpose": "Error reporting and performance monitoring",
+      "region": "EU (de.sentry.io — Frankfurt) when configured, US by default",
+      "operatorJurisdiction": "United States (Functional Software Inc.)",
+      "cloudActExposure": "yes",
+      "dpaStatus": "available",
+      "dpaUrl": "https://sentry.io/legal/dpa/",
+      "notes": "PII scrubbing enabled (sendDefaultPii=false, beforeSend hook). DSN must point to de.sentry.io for EU residency."
+    },
+    {
+      "name": "PostHog",
+      "purpose": "Product analytics (page views, feature usage)",
+      "region": "EU (eu.i.posthog.com — Frankfurt)",
+      "operatorJurisdiction": "United States (PostHog Inc.)",
+      "cloudActExposure": "yes",
+      "dpaStatus": "available",
+      "dpaUrl": "https://posthog.com/dpa",
+      "notes": "Pinned to EU Cloud. Sovereign alternative: Matomo Cloud (FR) or Plausible (EE) for fully EU-capital operator."
+    },
+    {
+      "name": "Recall.ai",
+      "purpose": "Meeting bot — joins Zoom/Meet/Teams, records and transcribes",
+      "region": "United States",
+      "operatorJurisdiction": "United States",
+      "cloudActExposure": "yes",
+      "dpaStatus": "available",
+      "dpaUrl": "https://www.recall.ai/legal/dpa",
+      "notes": "Optional feature; only triggered when the user explicitly connects a meeting calendar. No mature EU-sovereign equivalent exists today; documented gap."
+    },
+    {
+      "name": "Apollo.io",
+      "purpose": "Contact and company enrichment (B2B firmographic data)",
+      "region": "United States",
+      "operatorJurisdiction": "United States",
+      "cloudActExposure": "yes",
+      "dpaStatus": "available",
+      "dpaUrl": "https://www.apollo.io/legal/dpa",
+      "notes": "Used only when the user actively triggers enrichment. Sovereign migration target: Datagma (FR), Dropcontact (FR), Pappers (FR data SIRENE), Cognism (UK)."
+    },
+    {
+      "name": "EmailEngine (self-hosted)",
+      "purpose": "IMAP sync for connected mailboxes",
+      "region": "Self-hosted on Elevay infra",
+      "operatorJurisdiction": "Self (Elevay)",
+      "cloudActExposure": "no (when self-hosted on EU/CH infra)",
+      "dpaStatus": "n/a",
+      "dpaUrl": null,
+      "notes": "Open-source software run by Elevay on its own EU/CH infrastructure. Not a third-party sub-processor."
+    },
+    {
+      "name": "Hunter.io / Datagma / Pappers / Firmable",
+      "purpose": "Secondary enrichment (email finding, EU/ANZ data)",
+      "region": "Mixed: Hunter (FR), Datagma (FR), Pappers (FR), Firmable (AU)",
+      "operatorJurisdiction": "Mixed",
+      "cloudActExposure": "no (Hunter, Datagma, Pappers)",
+      "dpaStatus": "available",
+      "dpaUrl": null,
+      "notes": "Only activated when API keys are configured. Datagma + Pappers are EU-sovereign; preferred for EU lookups."
+    }
+  ]
+}

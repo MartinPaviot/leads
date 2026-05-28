@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { authAccounts, activities } from "@/db/schema";
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, isNull } from "drizzle-orm";
 
 export async function GET() {
   const authCtx = await getAuthContext();
@@ -35,7 +35,7 @@ export async function GET() {
     const [emailCount] = await db
       .select({ value: count() })
       .from(activities)
-      .where(and(eq(activities.channel, "email"), eq(activities.tenantId, authCtx.tenantId)));
+      .where(and(eq(activities.channel, "email"), eq(activities.tenantId, authCtx.tenantId), isNull(activities.deletedAt)));
 
     return Response.json({
       connected: true,

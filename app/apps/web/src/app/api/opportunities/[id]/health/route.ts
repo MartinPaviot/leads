@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, sql, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, deals } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth/auth-utils";
@@ -30,7 +30,7 @@ export async function GET(_req: Request, { params }: RouteCtx) {
     const [deal] = await db
       .select()
       .from(deals)
-      .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
+      .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)))
       .limit(1);
     if (!deal) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -44,7 +44,8 @@ export async function GET(_req: Request, { params }: RouteCtx) {
           eq(activities.entityType, "deal"),
           eq(activities.entityId, id),
           eq(activities.activityType, "email_replied"),
-          gte(activities.occurredAt, thirtyDaysAgo)
+          gte(activities.occurredAt, thirtyDaysAgo),
+          isNull(activities.deletedAt)
         )
       );
     const [meetingCountRow] = await db
@@ -56,7 +57,8 @@ export async function GET(_req: Request, { params }: RouteCtx) {
           eq(activities.entityType, "deal"),
           eq(activities.entityId, id),
           eq(activities.activityType, "meeting_completed"),
-          gte(activities.occurredAt, thirtyDaysAgo)
+          gte(activities.occurredAt, thirtyDaysAgo),
+          isNull(activities.deletedAt)
         )
       );
     const [latest] = await db
@@ -66,7 +68,8 @@ export async function GET(_req: Request, { params }: RouteCtx) {
         and(
           eq(activities.tenantId, authCtx.tenantId),
           eq(activities.entityType, "deal"),
-          eq(activities.entityId, id)
+          eq(activities.entityId, id),
+          isNull(activities.deletedAt)
         )
       )
       .orderBy(desc(activities.occurredAt))

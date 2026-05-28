@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, contacts, deals, sequenceEnrollments, tasks } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth/auth-utils";
@@ -30,7 +30,7 @@ export async function GET() {
     const all = await db
       .select()
       .from(contacts)
-      .where(eq(contacts.tenantId, authCtx.tenantId));
+      .where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));
 
     const byEmail = new Map<string, typeof all>();
     for (const c of all) {
@@ -107,7 +107,8 @@ export async function POST(req: Request) {
       .where(
         and(
           eq(contacts.tenantId, authCtx.tenantId),
-          inArray(contacts.id, [survivorId, ...mergedIds])
+          inArray(contacts.id, [survivorId, ...mergedIds]),
+          isNull(contacts.deletedAt)
         )
       );
     const foundIds = new Set(involved.map((r) => r.id));

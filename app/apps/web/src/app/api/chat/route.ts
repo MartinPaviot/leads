@@ -12,7 +12,7 @@ import { searchSimilar } from "@/lib/ai/embeddings";
 import { searchContextGraph } from "@/lib/ai/context-graph";
 import { db } from "@/db";
 import { companies, contacts, deals, activities, notes, chatMemories, knowledgeEntries } from "@/db/schema";
-import { and, eq, desc, sql, or } from "drizzle-orm";
+import { and, eq, desc, sql, or, isNull } from "drizzle-orm";
 import { getTenantSettings, deriveTargetRoles, type TenantSettings } from "@/lib/config/tenant-settings";
 import { buildChatSystemPrompt } from "@/lib/prompts/chat-system-prompt";
 import { buildAllChatTools, type ToolContext } from "@/lib/chat/tools";
@@ -163,41 +163,41 @@ async function getCRMSnapshot(tenantId: string, settings: TenantSettings): Promi
   const [accountCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(companies)
-    .where(eq(companies.tenantId, tenantId));
+    .where(and(eq(companies.tenantId, tenantId), isNull(companies.deletedAt)));
 
   const [contactCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(contacts)
-    .where(eq(contacts.tenantId, tenantId));
+    .where(and(eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt)));
 
   const [dealCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(deals)
-    .where(eq(deals.tenantId, tenantId));
+    .where(and(eq(deals.tenantId, tenantId), isNull(deals.deletedAt)));
 
   const [activityCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(activities)
-    .where(eq(activities.tenantId, tenantId));
+    .where(and(eq(activities.tenantId, tenantId), isNull(activities.deletedAt)));
 
   const recentAccounts = await db
     .select({ id: companies.id, name: companies.name, domain: companies.domain, industry: companies.industry, score: companies.score })
     .from(companies)
-    .where(eq(companies.tenantId, tenantId))
+    .where(and(eq(companies.tenantId, tenantId), isNull(companies.deletedAt)))
     .orderBy(desc(companies.createdAt))
     .limit(10);
 
   const recentContacts = await db
     .select({ id: contacts.id, firstName: contacts.firstName, lastName: contacts.lastName, email: contacts.email, title: contacts.title, companyId: contacts.companyId })
     .from(contacts)
-    .where(eq(contacts.tenantId, tenantId))
+    .where(and(eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt)))
     .orderBy(desc(contacts.createdAt))
     .limit(10);
 
   const recentDeals = await db
     .select({ id: deals.id, name: deals.name, stage: deals.stage, value: deals.value })
     .from(deals)
-    .where(eq(deals.tenantId, tenantId))
+    .where(and(eq(deals.tenantId, tenantId), isNull(deals.deletedAt)))
     .orderBy(desc(deals.createdAt))
     .limit(10);
 
@@ -212,7 +212,7 @@ async function getCRMSnapshot(tenantId: string, settings: TenantSettings): Promi
       direction: activities.direction,
     })
     .from(activities)
-    .where(eq(activities.tenantId, tenantId))
+    .where(and(eq(activities.tenantId, tenantId), isNull(activities.deletedAt)))
     .orderBy(desc(activities.occurredAt))
     .limit(15);
 
@@ -287,12 +287,12 @@ async function getEntityContext(contextType?: string, contextId?: string, tenant
   if (!contextType || !contextId || !tenantId) return "";
   try {
     if (contextType === "account" || contextType === "company") {
-      const [company] = await db.select().from(companies).where(and(eq(companies.id, contextId), eq(companies.tenantId, tenantId))).limit(1);
+      const [company] = await db.select().from(companies).where(and(eq(companies.id, contextId), eq(companies.tenantId, tenantId), isNull(companies.deletedAt))).limit(1);
       if (company) {
         const props = (company.properties || {}) as Record<string, unknown>;
-        const companyContacts = await db.select().from(contacts).where(and(eq(contacts.companyId, contextId), eq(contacts.tenantId, tenantId)));
-        const companyDeals = await db.select().from(deals).where(and(eq(deals.companyId, contextId), eq(deals.tenantId, tenantId)));
-        const companyActivities = await db.select().from(activities).where(and(eq(activities.entityId, contextId), eq(activities.entityType, "company"), eq(activities.tenantId, tenantId))).orderBy(desc(activities.occurredAt)).limit(20);
+        const companyContacts = await db.select().from(contacts).where(and(eq(contacts.companyId, contextId), eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt)));
+        const companyDeals = await db.select().from(deals).where(and(eq(deals.companyId, contextId), eq(deals.tenantId, tenantId), isNull(deals.deletedAt)));
+        const companyActivities = await db.select().from(activities).where(and(eq(activities.entityId, contextId), eq(activities.entityType, "company"), eq(activities.tenantId, tenantId), isNull(activities.deletedAt))).orderBy(desc(activities.occurredAt)).limit(20);
 
         let ctx = `\n\n## Current Context: Account "${company.name}"
 Domain: ${company.domain || "unknown"}
@@ -317,10 +317,10 @@ Description: ${company.description || "none"}`;
       }
     }
     if (contextType === "contact") {
-      const [contact] = await db.select().from(contacts).where(and(eq(contacts.id, contextId), eq(contacts.tenantId, tenantId))).limit(1);
+      const [contact] = await db.select().from(contacts).where(and(eq(contacts.id, contextId), eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt))).limit(1);
       if (contact) {
-        const contactActivities = await db.select().from(activities).where(and(eq(activities.entityId, contextId), eq(activities.entityType, "contact"), eq(activities.tenantId, tenantId))).orderBy(desc(activities.occurredAt)).limit(20);
-        const contactNotes = await db.select().from(notes).where(and(eq(notes.entityId, contextId), eq(notes.entityType, "contact"), eq(notes.tenantId, tenantId))).orderBy(desc(notes.createdAt)).limit(10);
+        const contactActivities = await db.select().from(activities).where(and(eq(activities.entityId, contextId), eq(activities.entityType, "contact"), eq(activities.tenantId, tenantId), isNull(activities.deletedAt))).orderBy(desc(activities.occurredAt)).limit(20);
+        const contactNotes = await db.select().from(notes).where(and(eq(notes.entityId, contextId), eq(notes.entityType, "contact"), eq(notes.tenantId, tenantId), isNull(notes.deletedAt))).orderBy(desc(notes.createdAt)).limit(10);
 
         const contactName = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "Unknown";
         let ctx = `\n\n## Current Context: Contact "${contactName}"
@@ -338,9 +338,9 @@ Company ID: ${contact.companyId || "unknown"}`;
       }
     }
     if (contextType === "deal") {
-      const [deal] = await db.select().from(deals).where(and(eq(deals.id, contextId), eq(deals.tenantId, tenantId))).limit(1);
+      const [deal] = await db.select().from(deals).where(and(eq(deals.id, contextId), eq(deals.tenantId, tenantId), isNull(deals.deletedAt))).limit(1);
       if (deal) {
-        const dealActivities = await db.select().from(activities).where(and(eq(activities.entityId, contextId), eq(activities.entityType, "deal"), eq(activities.tenantId, tenantId))).orderBy(desc(activities.occurredAt)).limit(20);
+        const dealActivities = await db.select().from(activities).where(and(eq(activities.entityId, contextId), eq(activities.entityType, "deal"), eq(activities.tenantId, tenantId), isNull(activities.deletedAt))).orderBy(desc(activities.occurredAt)).limit(20);
 
         let ctx = `\n\n## Current Context: Deal "${deal.name}"
 Stage: ${deal.stage}
@@ -349,13 +349,13 @@ Summary: ${deal.summary || "none"}`;
 
         // Pull in related contact and account data
         if (deal.contactId) {
-          const [dealContact] = await db.select().from(contacts).where(eq(contacts.id, deal.contactId)).limit(1);
+          const [dealContact] = await db.select().from(contacts).where(and(eq(contacts.id, deal.contactId), eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt))).limit(1);
           if (dealContact) {
             ctx += `\nPrimary Contact: ${[dealContact.firstName, dealContact.lastName].filter(Boolean).join(" ")} <${dealContact.email}>`;
           }
         }
         if (deal.companyId) {
-          const [dealCompany] = await db.select().from(companies).where(eq(companies.id, deal.companyId)).limit(1);
+          const [dealCompany] = await db.select().from(companies).where(and(eq(companies.id, deal.companyId), eq(companies.tenantId, tenantId), isNull(companies.deletedAt))).limit(1);
           if (dealCompany) {
             ctx += `\nAccount: ${dealCompany.name} (${dealCompany.industry || "unknown"})`;
           }

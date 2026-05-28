@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
-import { desc, isNotNull } from "drizzle-orm";
+import { and, desc, isNotNull, isNull } from "drizzle-orm";
 
 export async function GET() {
   const authCtx = await getAuthContext();
@@ -21,7 +21,7 @@ export async function GET() {
       logoResolvedAt: companies.logoResolvedAt,
     })
     .from(companies)
-    .where(isNotNull(companies.logoResolvedAt))
+    .where(and(isNotNull(companies.logoResolvedAt), isNull(companies.deletedAt)))
     .orderBy(desc(companies.logoResolvedAt))
     .limit(200);
 

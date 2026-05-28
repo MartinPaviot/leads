@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { sequences, sequenceSteps, contacts, companies } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 import { buildProspectContext } from "@/lib/context/prospect-context";
 import { generateSequence } from "@/lib/agents/sequence-generator";
 import { buildIntelligenceBrief } from "@/lib/campaign-engine/build-intelligence-brief";
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
       const [bestContact] = await db
         .select({ id: contacts.id })
         .from(contacts)
-        .where(and(eq(contacts.companyId, companyId), eq(contacts.tenantId, authCtx.tenantId)))
+        .where(and(eq(contacts.companyId, companyId), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
         .orderBy(contacts.score)
         .limit(1);
       if (bestContact) resolvedContactId = bestContact.id;
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       const topCompanies = await db
         .select()
         .from(companies)
-        .where(eq(companies.tenantId, authCtx.tenantId))
+        .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
         .orderBy(sql`score DESC NULLS LAST`)
         .limit(10);
 
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
         const [contact] = await db
           .select({ id: contacts.id })
           .from(contacts)
-          .where(and(eq(contacts.companyId, comp.id), eq(contacts.tenantId, authCtx.tenantId)))
+          .where(and(eq(contacts.companyId, comp.id), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
           .orderBy(contacts.score)
           .limit(1);
         if (contact) { resolvedContactId = contact.id; break; }
@@ -63,7 +63,7 @@ export async function POST(req: Request) {
     // Build context — either from contact or from company
     // Kick off intelligence brief in background (non-blocking enrichment for future use)
     const contactForBrief = resolvedContactId;
-    const companyForBrief = companyId || (resolvedContactId ? (await db.select({ companyId: contacts.companyId }).from(contacts).where(eq(contacts.id, resolvedContactId)).limit(1))[0]?.companyId : null);
+    const companyForBrief = companyId || (resolvedContactId ? (await db.select({ companyId: contacts.companyId }).from(contacts).where(and(eq(contacts.id, resolvedContactId), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt))).limit(1))[0]?.companyId : null);
     if (companyForBrief) {
       buildIntelligenceBrief(companyForBrief, authCtx.tenantId, contactForBrief || undefined).catch(() => {});
     }
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
       const { getTenantSettings } = await import("@/lib/config/tenant-settings");
       const settings = await getTenantSettings(authCtx.tenantId);
       const topCompany = await db.select().from(companies)
-        .where(eq(companies.tenantId, authCtx.tenantId))
+        .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
         .orderBy(sql`score DESC NULLS LAST`).limit(1);
 
       const company = topCompany[0];

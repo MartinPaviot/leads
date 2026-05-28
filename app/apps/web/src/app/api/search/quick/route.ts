@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { companies, contacts, deals, tasks, notes, chatThreads } from "@/db/schema";
-import { and, eq, ilike, or, sql } from "drizzle-orm";
+import { and, eq, ilike, or, sql, isNull } from "drizzle-orm";
 
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();
@@ -24,7 +24,7 @@ export async function GET(req: Request) {
       db
         .select({ id: companies.id, name: companies.name, domain: companies.domain })
         .from(companies)
-        .where(and(eq(companies.tenantId, tid), or(ilike(companies.name, pattern), ilike(companies.domain, pattern))))
+        .where(and(eq(companies.tenantId, tid), or(ilike(companies.name, pattern), ilike(companies.domain, pattern)), isNull(companies.deletedAt)))
         .limit(limit),
       db
         .select({
@@ -41,24 +41,25 @@ export async function GET(req: Request) {
               ilike(contacts.firstName, pattern),
               ilike(contacts.lastName, pattern),
               ilike(contacts.email, pattern)
-            )
+            ),
+            isNull(contacts.deletedAt),
           )
         )
         .limit(limit),
       db
         .select({ id: deals.id, name: deals.name, stage: deals.stage })
         .from(deals)
-        .where(and(eq(deals.tenantId, tid), ilike(deals.name, pattern)))
+        .where(and(eq(deals.tenantId, tid), ilike(deals.name, pattern), isNull(deals.deletedAt)))
         .limit(limit),
       db
         .select({ id: tasks.id, title: tasks.title })
         .from(tasks)
-        .where(and(eq(tasks.tenantId, tid), ilike(tasks.title, pattern)))
+        .where(and(eq(tasks.tenantId, tid), ilike(tasks.title, pattern), isNull(tasks.deletedAt)))
         .limit(limit),
       db
         .select({ id: notes.id, title: notes.title })
         .from(notes)
-        .where(and(eq(notes.tenantId, tid), ilike(notes.title, pattern)))
+        .where(and(eq(notes.tenantId, tid), ilike(notes.title, pattern), isNull(notes.deletedAt)))
         .limit(limit),
       db
         .select({ id: chatThreads.id, title: chatThreads.title })

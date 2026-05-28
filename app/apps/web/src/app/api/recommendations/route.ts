@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { contacts, companies, activities, deals } from "@/db/schema";
-import { eq, and, sql, desc, lt } from "drizzle-orm";
+import { eq, and, sql, desc, lt, isNull } from "drizzle-orm";
 import { analyzeFollowUpTiming } from "@/lib/util/follow-up-timing";
 
 export async function GET(req: Request) {
@@ -34,13 +34,14 @@ export async function GET(req: Request) {
         occurredAt: activities.occurredAt,
       })
       .from(activities)
-      .innerJoin(contacts, and(eq(activities.entityId, contacts.id), eq(activities.entityType, "contact")))
+      .innerJoin(contacts, and(eq(activities.entityId, contacts.id), eq(activities.entityType, "contact"), isNull(contacts.deletedAt)))
       .leftJoin(companies, eq(contacts.companyId, companies.id))
       .where(and(
         eq(activities.tenantId, authCtx.tenantId),
         sql`${activities.intent} && ARRAY['budget_mention', 'timeline_mention']::text[]`,
         sql`${activities.occurredAt} > ${sevenDaysAgo.toISOString()}::timestamp`,
         eq(activities.direction, "inbound"),
+        isNull(activities.deletedAt),
       ))
       .orderBy(desc(activities.occurredAt))
       .limit(2);
@@ -69,8 +70,8 @@ export async function GET(req: Request) {
       })
       .from(contacts)
       .leftJoin(companies, eq(contacts.companyId, companies.id))
-      .innerJoin(activities, and(eq(activities.entityId, contacts.id), eq(activities.entityType, "contact")))
-      .where(eq(contacts.tenantId, authCtx.tenantId))
+      .innerJoin(activities, and(eq(activities.entityId, contacts.id), eq(activities.entityType, "contact"), isNull(activities.deletedAt)))
+      .where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
       .groupBy(contacts.id, contacts.firstName, contacts.lastName, companies.name)
       .having(and(
         sql`count(CASE WHEN ${activities.sentiment} = 'positive' THEN 1 END) > 0`,
@@ -108,13 +109,14 @@ export async function GET(req: Request) {
         occurredAt: activities.occurredAt,
       })
       .from(activities)
-      .innerJoin(contacts, and(eq(activities.entityId, contacts.id), eq(activities.entityType, "contact")))
+      .innerJoin(contacts, and(eq(activities.entityId, contacts.id), eq(activities.entityType, "contact"), isNull(contacts.deletedAt)))
       .leftJoin(companies, eq(contacts.companyId, companies.id))
       .where(and(
         eq(activities.tenantId, authCtx.tenantId),
         sql`${activities.activityType} IN ('meeting_scheduled')`,
         sql`${activities.occurredAt} > NOW()`,
         sql`${activities.occurredAt} < ${tomorrow.toISOString()}::timestamp`,
+        isNull(activities.deletedAt),
       ))
       .limit(2);
 
@@ -139,12 +141,13 @@ export async function GET(req: Request) {
         emailCount: sql<number>`count(${activities.id})`,
       })
       .from(companies)
-      .innerJoin(contacts, eq(contacts.companyId, companies.id))
-      .innerJoin(activities, and(eq(activities.entityId, contacts.id), eq(activities.entityType, "contact")))
+      .innerJoin(contacts, and(eq(contacts.companyId, companies.id), isNull(contacts.deletedAt)))
+      .innerJoin(activities, and(eq(activities.entityId, contacts.id), eq(activities.entityType, "contact"), isNull(activities.deletedAt)))
       .where(and(
         eq(companies.tenantId, authCtx.tenantId),
         sql`${companies.properties}->>'source' = 'tam'`,
         sql`${contacts.properties}->>'source' = 'email_sync'`,
+        isNull(companies.deletedAt),
       ))
       .groupBy(companies.id, companies.name)
       .orderBy(desc(sql`count(${activities.id})`))
@@ -175,6 +178,7 @@ export async function GET(req: Request) {
         eq(deals.tenantId, authCtx.tenantId),
         sql`${deals.stage} NOT IN ('won', 'lost')`,
         lt(deals.updatedAt, fourteenDaysAgo),
+        isNull(deals.deletedAt),
       ))
       .limit(2);
 
@@ -202,6 +206,7 @@ export async function GET(req: Request) {
       .where(and(
         eq(companies.tenantId, authCtx.tenantId),
         sql`${companies.score} >= 60`,
+        isNull(companies.deletedAt),
       ))
       .orderBy(desc(companies.score))
       .limit(50);
@@ -219,6 +224,7 @@ export async function GET(req: Request) {
             eq(activities.entityId, acc.id),
             sql`${activities.activityType} IN ('email_sent', 'email_received')`,
             sql`${activities.occurredAt} >= ${fourteenDaysAgo}`,
+            isNull(activities.deletedAt),
           ));
         if (Number(recent?.count || 0) === 0) untouched.push(acc);
         if (untouched.length >= 5) break;

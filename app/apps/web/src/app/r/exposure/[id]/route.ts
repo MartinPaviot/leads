@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { notetakerExposures } from "@/db/schema";
+import { isLikelyEu } from "@/lib/geo-detect";
 
 const LANDING_URL = process.env.WS1_LANDING_URL || "/";
 
@@ -25,30 +26,6 @@ function getAppBaseUrl(req: Request): string {
   } catch {
     return "";
   }
-}
-
-// EU detection heuristic: Vercel's x-vercel-ip-country header is the
-// primary signal, with email TLD as a fallback only when no geo header is
-// present. Region configuration for LLM and database endpoints is
-// centralized in lib/ai-provider.ts and db/index.ts (FINDING-004).
-function isLikelyEu(req: Request, participantEmail: string | null): boolean {
-  const country =
-    req.headers.get("x-vercel-ip-country") ||
-    req.headers.get("cf-ipcountry") ||
-    req.headers.get("x-country-code");
-  const EU = new Set([
-    "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT",
-    "LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE","IS","LI","NO",
-    "GB", // UK treated as EU-equivalent for privacy
-  ]);
-  if (country && EU.has(country.toUpperCase())) return true;
-
-  if (participantEmail) {
-    const tld = participantEmail.split(".").pop()?.toLowerCase();
-    const EU_TLDS = new Set(["fr","de","es","it","pt","nl","be","lu","at","pl","se","fi","dk","no","ie","gr","cz","hu","ro","bg","hr","si","sk","ee","lt","lv","mt","cy","uk"]);
-    if (tld && EU_TLDS.has(tld)) return true;
-  }
-  return false;
 }
 
 export async function GET(

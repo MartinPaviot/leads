@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { sequenceEnrollments, sequenceSteps, sequences, contacts } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 
 export async function POST(
   req: Request,
@@ -60,7 +60,7 @@ export async function POST(
       const [contact] = await db
         .select()
         .from(contacts)
-        .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, authCtx.tenantId)))
+        .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
         .limit(1);
 
       if (!contact || !contact.email) {

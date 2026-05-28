@@ -12,7 +12,7 @@
 
 import { db } from "@/db";
 import { meetingOptOuts, activities } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { verifyOptOutToken } from "@/lib/recording/opt-out-token";
 
 export async function GET(req: Request) {
@@ -41,7 +41,7 @@ export async function GET(req: Request) {
   const [activity] = await db
     .select({ id: activities.id, tenantId: activities.tenantId, summary: activities.summary })
     .from(activities)
-    .where(eq(activities.id, meetingId))
+    .where(and(eq(activities.id, meetingId), isNull(activities.deletedAt)))
     .limit(1);
 
   if (!activity) {

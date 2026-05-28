@@ -1,0 +1,40 @@
+# Force LF on text files. Kills the "LF will be replaced by CRLF" noise
+# that fires every time a Windows checkout meets a source file written
+# with LF. Without this, every `git add` warns and `git status` flags
+# the same files repeatedly.
+
+* text=auto eol=lf
+
+# Shell scripts MUST stay LF — Bash refuses CRLF on the shebang line.
+*.sh   text eol=lf
+*.bash text eol=lf
+
+# Windows-only batch files keep CRLF so `cmd.exe` parses them right.
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# Generated SQL migrations under drizzle/ should not be reformatted —
+# their hash is tracked in __elevay_migrations after first apply.
+drizzle/*.sql -text
+
+# Binary assets — never touch.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+*.otf   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+
+# Lockfiles are big; mark as generated so GitHub collapses the diff by
+# default but keep them tracked normally otherwise.
+package-lock.json linguist-generated=true
+yarn.lock         linguist-generated=true
+pnpm-lock.yaml    linguist-generated=true

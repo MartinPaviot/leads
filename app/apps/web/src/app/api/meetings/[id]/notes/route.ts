@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities, tasks } from "@/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import { logger } from "@/lib/observability/logger";
 import { z } from "zod";
 
@@ -20,7 +20,7 @@ export async function GET(
     .select()
     .from(activities)
     .where(
-      and(eq(activities.id, id), eq(activities.tenantId, authCtx.tenantId))
+      and(eq(activities.id, id), eq(activities.tenantId, authCtx.tenantId), isNull(activities.deletedAt))
     )
     .limit(1);
 
@@ -39,7 +39,8 @@ export async function GET(
       .where(
         and(
           eq(tasks.tenantId, authCtx.tenantId),
-          inArray(tasks.id, meta.generatedTaskIds)
+          inArray(tasks.id, meta.generatedTaskIds),
+          isNull(tasks.deletedAt)
         )
       );
   }
@@ -125,7 +126,7 @@ export async function PATCH(
     .select()
     .from(activities)
     .where(
-      and(eq(activities.id, id), eq(activities.tenantId, authCtx.tenantId))
+      and(eq(activities.id, id), eq(activities.tenantId, authCtx.tenantId), isNull(activities.deletedAt))
     )
     .limit(1);
 
@@ -162,7 +163,7 @@ export async function PATCH(
     await db
       .update(activities)
       .set({ metadata: nextMeta })
-      .where(eq(activities.id, id));
+      .where(and(eq(activities.id, id), eq(activities.tenantId, authCtx.tenantId), isNull(activities.deletedAt)));
 
     return Response.json({ ok: true });
   } catch (err) {

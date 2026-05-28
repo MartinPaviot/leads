@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { outboundEmails, contacts, companies, sequenceEnrollments } from "@/db/schema";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, inArray, sql, isNull } from "drizzle-orm";
 import { recordAutonomyEvent } from "@/lib/guardrails/trust-score";
 import { recordFlywheelCandidate } from "@/lib/evals/flywheel";
 
@@ -52,7 +52,7 @@ export async function GET(req: Request) {
       ? await db
           .select()
           .from(contacts)
-          .where(inArray(contacts.id, contactIds as string[]))
+          .where(and(eq(contacts.tenantId, authCtx.tenantId), inArray(contacts.id, contactIds as string[]), isNull(contacts.deletedAt)))
       : [];
   const contactMap = Object.fromEntries(contactList.map((c) => [c.id, c]));
 

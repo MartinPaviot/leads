@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { companies, contacts, deals } from "@/db/schema";
-import { eq, and, or } from "drizzle-orm";
+import { eq, and, or, isNull } from "drizzle-orm";
 import { inngest } from "@/inngest/client";
 
 /**
@@ -60,13 +60,13 @@ export async function POST(req: Request) {
         const existing = await db
           .select({ email: contacts.email })
           .from(contacts)
-          .where(eq(contacts.tenantId, authCtx.tenantId));
+          .where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));
         existingEmails = new Set(existing.map((e) => e.email?.toLowerCase()).filter(Boolean) as string[]);
       } else if (entityType === "account") {
         const existing = await db
           .select({ domain: companies.domain })
           .from(companies)
-          .where(eq(companies.tenantId, authCtx.tenantId));
+          .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)));
         existingDomains = new Set(existing.map((e) => e.domain?.toLowerCase()).filter(Boolean) as string[]);
       }
     }

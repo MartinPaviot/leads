@@ -47,6 +47,8 @@ export default auth((req) => {
     "/landing",
     "/terms",
     "/privacy",
+    "/sub-processors",
+    "/security",
     "/acceptable-use",
     "/pricing",
     "/api/auth",

@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { activities, contacts, companies, deals } from "@/db/schema";
-import { eq, and, ilike, or } from "drizzle-orm";
+import { eq, and, ilike, or, isNull } from "drizzle-orm";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
@@ -124,7 +124,8 @@ RULES:
             .where(
               and(
                 eq(contacts.tenantId, authCtx.tenantId),
-                eq(contacts.email, email)
+                eq(contacts.email, email),
+                isNull(contacts.deletedAt)
               )
             )
             .limit(1);
@@ -146,7 +147,8 @@ RULES:
               and(
                 eq(contacts.tenantId, authCtx.tenantId),
                 ilike(contacts.firstName, nameParts[0]),
-                ilike(contacts.lastName, nameParts[nameParts.length - 1])
+                ilike(contacts.lastName, nameParts[nameParts.length - 1]),
+                isNull(contacts.deletedAt)
               )
             )
             .limit(1);
@@ -175,7 +177,8 @@ RULES:
         .where(
           and(
             eq(activities.id, activityId),
-            eq(activities.tenantId, authCtx.tenantId)
+            eq(activities.tenantId, authCtx.tenantId),
+            isNull(activities.deletedAt)
           )
         );
     } else {
@@ -241,7 +244,7 @@ RULES:
     if (dealId && notes.buyingSignals) {
       try {
         const [deal] = await db.select().from(deals)
-          .where(and(eq(deals.id, dealId), eq(deals.tenantId, authCtx.tenantId))).limit(1);
+          .where(and(eq(deals.id, dealId), eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt))).limit(1);
         if (deal) {
           const props = (deal.properties || {}) as Record<string, unknown>;
           const extracted: Record<string, unknown> = {};
@@ -263,7 +266,7 @@ RULES:
                 },
               },
               updatedAt: new Date(),
-            }).where(eq(deals.id, dealId));
+            }).where(and(eq(deals.id, dealId), eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)));
           }
         }
       } catch {

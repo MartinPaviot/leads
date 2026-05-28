@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { contacts, companies, activities } from "@/db/schema";
-import { eq, and, sql, isNotNull } from "drizzle-orm";
+import { eq, and, sql, isNotNull, isNull } from "drizzle-orm";
 
 export async function GET() {
   const authCtx = await getAuthContext();
@@ -14,7 +14,7 @@ export async function GET() {
   const [contactCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(contacts)
-    .where(eq(contacts.tenantId, authCtx.tenantId));
+    .where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));
 
   // Count companies with contacts (active conversations proxy)
   const [conversationCount] = await db
@@ -23,7 +23,8 @@ export async function GET() {
     .where(
       and(
         eq(contacts.tenantId, authCtx.tenantId),
-        isNotNull(contacts.companyId)
+        isNotNull(contacts.companyId),
+        isNull(contacts.deletedAt)
       )
     );
 
@@ -31,12 +32,13 @@ export async function GET() {
   const [warmResult] = await db
     .select({ count: sql<number>`count(DISTINCT ${companies.id})` })
     .from(companies)
-    .innerJoin(contacts, eq(contacts.companyId, companies.id))
+    .innerJoin(contacts, and(eq(contacts.companyId, companies.id), isNull(contacts.deletedAt)))
     .where(
       and(
         eq(companies.tenantId, authCtx.tenantId),
         sql`${companies.properties}->>'source' = 'tam'`,
-        sql`${contacts.properties}->>'source' = 'email_sync'`
+        sql`${contacts.properties}->>'source' = 'email_sync'`,
+        isNull(companies.deletedAt)
       )
     );
   const warmMatches = warmResult?.count || 0;
@@ -49,12 +51,14 @@ export async function GET() {
     .innerJoin(activities, and(
       eq(activities.entityId, contacts.id),
       eq(activities.entityType, "contact"),
+      isNull(activities.deletedAt),
     ))
     .where(
       and(
         eq(contacts.tenantId, authCtx.tenantId),
         sql`${contacts.properties}->>'auto_created' = 'true'`,
         sql`${activities.occurredAt} < ${sevenDaysAgo.toISOString()}::timestamp`,
+        isNull(contacts.deletedAt),
       )
     );
   const followUps = followUpResult?.count || 0;

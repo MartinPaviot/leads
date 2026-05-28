@@ -3,7 +3,7 @@ import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { apiError } from "@/lib/infra/api-errors";
 import { db } from "@/db";
 import { deals, activities, companies } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 import { getTenantSettings, getStageNames } from "@/lib/config/tenant-settings";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
         const [deal] = await db
           .select()
           .from(deals)
-          .where(and(eq(deals.id, dealId), eq(deals.tenantId, authCtx.tenantId)))
+          .where(and(eq(deals.id, dealId), eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)))
           .limit(1);
 
         if (!deal) continue;
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
           const [company] = await db
             .select()
             .from(companies)
-            .where(and(eq(companies.id, deal.companyId), eq(companies.tenantId, authCtx.tenantId)))
+            .where(and(eq(companies.id, deal.companyId), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
             .limit(1);
           if (company) {
             companyInfo = `Company: ${company.name}, Industry: ${company.industry || "unknown"}, Size: ${company.size || "unknown"}`;
@@ -93,7 +93,7 @@ export async function POST(req: Request) {
         const activityResult = await db
           .select({ count: sql<number>`count(*)` })
           .from(activities)
-          .where(and(eq(activities.entityId, dealId), eq(activities.tenantId, authCtx.tenantId)));
+          .where(and(eq(activities.entityId, dealId), eq(activities.tenantId, authCtx.tenantId), isNull(activities.deletedAt)));
         const activityCount = Number(activityResult[0]?.count || 0);
 
         const { object } = await tracedGenerateObject({
@@ -139,7 +139,7 @@ Be realistic — don't assume progress without evidence.`,
             },
             updatedAt: new Date(),
           })
-          .where(and(eq(deals.id, dealId), eq(deals.tenantId, authCtx.tenantId)));
+          .where(and(eq(deals.id, dealId), eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)));
 
         results.push({
           dealId,

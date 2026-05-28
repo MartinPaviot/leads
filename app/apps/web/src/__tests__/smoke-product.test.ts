@@ -279,15 +279,18 @@ describe("deriveTargetRoles (BUG-WS0-008 fix)", () => {
 // ─── AI provider configuration ───────────────────────────────────────
 
 describe("AI provider EU routing", () => {
-  it("defaults to US endpoint", async () => {
+  // Sovereignty pack 2026-05-19: EU endpoint is the configured default
+  // (ANTHROPIC_REGION=eu in .env.local). These tests now guard the EU
+  // pinning instead of the old US default.
+  it("routes to the EU endpoint by default", async () => {
     const { getConfiguredAnthropicBaseUrl } = await import("@/lib/ai/ai-provider");
     const url = getConfiguredAnthropicBaseUrl();
-    expect(url).toContain("api.anthropic.com");
+    expect(url).toBe("https://eu.anthropic.com");
   });
 
-  it("reports EU not configured by default", async () => {
+  it("reports EU configured", async () => {
     const { isAnthropicEuConfigured } = await import("@/lib/ai/ai-provider");
-    expect(isAnthropicEuConfigured()).toBe(false);
+    expect(isAnthropicEuConfigured()).toBe(true);
   });
 });
 

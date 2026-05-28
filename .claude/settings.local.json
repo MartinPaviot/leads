@@ -5,7 +5,42 @@
       "Bash(bash \"$CLAUDE_PROJECT_DIR/.claude/commands/review-plan-command.sh\" *)",
       "Bash(bash \"${CLAUDE_PROJECT_DIR:-$PWD}/.claude/commands/review-plan-command.sh\" *)",
       "WebSearch",
-      "Bash(npx tsc *)"
+
+      "Bash(npx tsc *)",
+      "Bash(npx vitest *)",
+      "Bash(npx playwright *)",
+      "Bash(npx drizzle-kit *)",
+      "Bash(npm run test*)",
+      "Bash(npm run tsc*)",
+      "Bash(npm run lint*)",
+      "Bash(npm run db:generate*)",
+      "Bash(npm run db:migrate:apply*)",
+      "Bash(npm run dev*)",
+      "Bash(npm run build*)",
+
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git show*)",
+      "Bash(git blame*)",
+      "Bash(git branch*)",
+      "Bash(git ls-files*)",
+
+      "Bash(gh pr view*)",
+      "Bash(gh pr diff*)",
+      "Bash(gh pr list*)",
+      "Bash(gh pr checks*)",
+      "Bash(gh issue view*)",
+      "Bash(gh issue list*)",
+      "Bash(gh repo view*)",
+      "Bash(gh search*)",
+      "Bash(gh api repos/*/contents/*)",
+      "Bash(gh repo list*)",
+
+      "Bash(ls*)",
+      "Bash(cat C:/Users/marti/leads/*)",
+      "Bash(find C:/Users/marti/leads/ -name*)",
+      "Bash(wc -l*)"
     ]
   }
 }

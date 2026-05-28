@@ -24,7 +24,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { users, companies } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import {
   buildIcpPrefill,
   domainToCompanyName,
@@ -69,6 +69,7 @@ export async function GET() {
         and(
           eq(companies.tenantId, authCtx.tenantId),
           eq(companies.domain, domain),
+          isNull(companies.deletedAt),
         ),
       )
       .limit(1);

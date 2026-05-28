@@ -25,7 +25,7 @@ import {
   deals,
   activities,
 } from "@/db/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 
 export async function GET(
   _req: Request,
@@ -63,6 +63,7 @@ export async function GET(
       and(
         eq(contacts.id, draft.contactId),
         eq(contacts.tenantId, authCtx.tenantId),
+        isNull(contacts.deletedAt),
       ),
     )
     .limit(1);
@@ -78,6 +79,7 @@ export async function GET(
         and(
           eq(companies.id, contactRow.companyId),
           eq(companies.tenantId, authCtx.tenantId),
+          isNull(companies.deletedAt),
         ),
       )
       .limit(1);
@@ -91,6 +93,7 @@ export async function GET(
           and(
             eq(deals.tenantId, authCtx.tenantId),
             eq(deals.companyId, companyRow.id),
+            isNull(deals.deletedAt),
           ),
         )
         .orderBy(desc(deals.updatedAt))
@@ -115,6 +118,7 @@ export async function GET(
         eq(activities.tenantId, authCtx.tenantId),
         eq(activities.entityType, "contact"),
         eq(activities.entityId, draft.contactId),
+        isNull(activities.deletedAt),
       ),
     )
     .orderBy(desc(activities.occurredAt))

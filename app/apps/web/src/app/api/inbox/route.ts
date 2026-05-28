@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { outboundEmails, contacts } from "@/db/schema";
-import { eq, and, isNotNull, desc, sql } from "drizzle-orm";
+import { eq, and, isNotNull, desc, sql, isNull } from "drizzle-orm";
 
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();
@@ -70,7 +70,7 @@ export async function GET(req: Request) {
       const contactRows = await db
         .select({ id: contacts.id, firstName: contacts.firstName, lastName: contacts.lastName, email: contacts.email })
         .from(contacts)
-        .where(sql`${contacts.id} = ANY(${contactIds})`);
+        .where(and(sql`${contacts.id} = ANY(${contactIds})`, isNull(contacts.deletedAt)));
       for (const c of contactRows) {
         contactMap[c.id] = {
           name: [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email || "Unknown",

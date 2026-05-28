@@ -3,7 +3,7 @@ import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { searchSimilar } from "@/lib/ai/embeddings";
 import { db } from "@/db";
 import { companies, contacts, deals } from "@/db/schema";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
@@ -37,13 +37,13 @@ export async function POST(req: Request) {
 
     const [companyRows, contactRows, dealRows] = await Promise.all([
       companyIds.length > 0
-        ? db.select().from(companies).where(and(eq(companies.tenantId, authCtx.tenantId), inArray(companies.id, companyIds)))
+        ? db.select().from(companies).where(and(eq(companies.tenantId, authCtx.tenantId), inArray(companies.id, companyIds), isNull(companies.deletedAt)))
         : Promise.resolve([]),
       contactIds.length > 0
-        ? db.select().from(contacts).where(and(eq(contacts.tenantId, authCtx.tenantId), inArray(contacts.id, contactIds)))
+        ? db.select().from(contacts).where(and(eq(contacts.tenantId, authCtx.tenantId), inArray(contacts.id, contactIds), isNull(contacts.deletedAt)))
         : Promise.resolve([]),
       dealIds.length > 0
-        ? db.select().from(deals).where(and(eq(deals.tenantId, authCtx.tenantId), inArray(deals.id, dealIds)))
+        ? db.select().from(deals).where(and(eq(deals.tenantId, authCtx.tenantId), inArray(deals.id, dealIds), isNull(deals.deletedAt)))
         : Promise.resolve([]),
     ]);
 

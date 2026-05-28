@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
 import { deals, activities } from "@/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, isNull } from "drizzle-orm";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -42,14 +42,14 @@ export async function POST(
     return Response.json({ intel: {} });
   }
 
-  const [deal] = await db.select().from(deals).where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId))).limit(1);
+  const [deal] = await db.select().from(deals).where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt))).limit(1);
   if (!deal) return Response.json({ error: "Not found" }, { status: 404 });
 
   // Get all activities for this deal
   const dealActivities = await db
     .select({ summary: activities.summary, activityType: activities.activityType })
     .from(activities)
-    .where(and(eq(activities.entityId, id), eq(activities.tenantId, authCtx.tenantId)))
+    .where(and(eq(activities.entityId, id), eq(activities.tenantId, authCtx.tenantId), isNull(activities.deletedAt)))
     .orderBy(desc(activities.occurredAt))
     .limit(20);
 
@@ -84,7 +84,7 @@ Only include a field if there's actual evidence. Leave undefined if unknown.`,
         properties: { ...currentProps, extractedIntel: result.intel },
         updatedAt: new Date(),
       })
-      .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)));
+      .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)));
 
     return Response.json({ intel: result.intel });
   } catch {

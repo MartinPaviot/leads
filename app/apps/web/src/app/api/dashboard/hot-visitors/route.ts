@@ -18,7 +18,7 @@ import {
   sequenceEnrollments,
   contacts,
 } from "@/db/schema";
-import { and, desc, eq, gte, inArray, isNotNull, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, notInArray, sql, isNull } from "drizzle-orm";
 import { getAuthContext } from "@/lib/auth/auth-utils";
 
 export async function GET(req: Request) {
@@ -53,6 +53,7 @@ export async function GET(req: Request) {
       and(
         eq(companies.id, visits.companyId),
         eq(companies.tenantId, authCtx.tenantId),
+        isNull(companies.deletedAt),
       ),
     )
     .where(
@@ -99,6 +100,7 @@ export async function GET(req: Request) {
           eq(deals.tenantId, authCtx.tenantId),
           inArray(deals.companyId, companyIds),
           notInArray(deals.stage, ["won", "lost"]),
+          isNull(deals.deletedAt),
         ),
       );
     for (const d of dealRows) {
@@ -126,6 +128,7 @@ export async function GET(req: Request) {
           eq(contacts.tenantId, authCtx.tenantId),
           inArray(contacts.companyId, companyIds),
           eq(sequenceEnrollments.status, "active"),
+          isNull(contacts.deletedAt),
         ),
       )
       .groupBy(contacts.companyId);
