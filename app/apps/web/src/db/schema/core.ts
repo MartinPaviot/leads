@@ -120,8 +120,21 @@ export const deals = pgTable(
     ownerId: text("owner_id").references(() => users.id),
     name: text("name").notNull(),
     stage: dealStageEnum("stage").default("lead"),
+    // Legacy single-bag amount. Kept for backward compatibility with
+    // deals created before the split (B2). New deals should populate
+    // `projectAmount` and/or `platformArr` instead; consumers must
+    // route through `lib/deals/amount.ts#getDealAmountDisplay()` to
+    // avoid implicit blending of the two bookings types.
     value: integer("value"),
     currency: text("currency").default("USD"),
+    // Deal split (B2, _specs/pilae-machine).
+    // projectAmount = one-time project booking (consulting, build,
+    //   delivery — recognised on delivery).
+    // platformArr   = recurring platform booking, annualised — the
+    //   ARR-eligible portion.
+    // NEVER sum these into `value`. Display total via the helper.
+    projectAmount: integer("project_amount"),
+    platformArr: integer("platform_arr"),
     expectedCloseDate: timestamp("expected_close_date", { withTimezone: true }),
     properties: jsonb("properties").default({}),
     score: real("score"),

@@ -19,12 +19,15 @@ import { useToast } from "@/components/ui/toast";
 import { EmailComposerPanel } from "@/components/email-composer-panel";
 import type { EmailComposerDraft } from "@/components/email-composer-panel";
 import { DealPropertyCell } from "@/components/deal-property-cell";
+import { getDealAmountDisplay, formatDealAmount } from "@/lib/deals/amount";
 
 interface Deal {
   id: string;
   name: string;
   stage: string;
   value: number | null;
+  projectAmount: number | null;
+  platformArr: number | null;
   summary: string | null;
   expectedCloseDate: string | null;
   properties: Record<string, unknown> | null;
@@ -706,10 +709,40 @@ export default function DealDetailPage() {
 
         <h3 className="mt-6 text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">Deal details</h3>
         <div className="mt-4 space-y-3">
-          <div>
-            <p className="text-xs text-[var(--color-text-tertiary)]">Value</p>
-            <p className="text-sm text-[var(--color-text-primary)]">{deal.value ? `$${deal.value.toLocaleString()}` : "—"}</p>
-          </div>
+          {(() => {
+            // B2 — never blend project bookings + platform ARR. The
+            // helper enforces the split; legacy deals (value only)
+            // fall back to a single line.
+            const amounts = getDealAmountDisplay({
+              value: deal.value,
+              projectAmount: deal.projectAmount,
+              platformArr: deal.platformArr,
+            });
+            if (amounts.isSplit) {
+              return (
+                <>
+                  <div>
+                    <p className="text-xs text-[var(--color-text-tertiary)]">Project bookings</p>
+                    <p className="text-sm text-[var(--color-text-primary)]">{formatDealAmount(amounts.project)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--color-text-tertiary)]">Platform ARR</p>
+                    <p className="text-sm text-[var(--color-text-primary)]">{formatDealAmount(amounts.platform)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--color-text-tertiary)]">Total bookings</p>
+                    <p className="text-sm text-[var(--color-text-primary)]">{formatDealAmount(amounts.total)}</p>
+                  </div>
+                </>
+              );
+            }
+            return (
+              <div>
+                <p className="text-xs text-[var(--color-text-tertiary)]">Value</p>
+                <p className="text-sm text-[var(--color-text-primary)]">{formatDealAmount(amounts.total)}</p>
+              </div>
+            );
+          })()}
           <div>
             <p className="text-xs text-[var(--color-text-tertiary)]">Stage</p>
             <p className="text-sm text-[var(--color-text-primary)] capitalize">{deal.stage}</p>
