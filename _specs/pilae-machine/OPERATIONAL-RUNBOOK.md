@@ -3,45 +3,43 @@
 > Companion to `spec-v2.md`. Spec describes WHAT shipped; this runbook
 > describes how to USE it day-to-day and how to debug it when something
 > goes sideways.
-> Last updated 2026-05-28 (after PRs #33, #34, #35, #36, #37).
+> Last updated 2026-05-29 (after PRs #33, #34, #35, #36, #37, #38, #39, #40, #41).
 
 ## 1. Bring up a new Pilae-like tenant
 
-Until the tenant-config UI ships, seeding is a SQL job:
+Use the seed script — idempotent, edits the placeholder ICP via DB
+later (or via the future admin UI):
+
+```bash
+tsx --env-file=.env.local scripts/seed-pilae-tenant.ts
+```
+
+The script creates `tenants.id='pilae'` with `locale='fr-fr'`,
+`deepDiveWeeklyCap=2`, an `icp` placeholder (4 verticales / 3 persona
+buckets / anti-ICP list / extended signal taxonomy for NIS2 / DORA /
+HDS), and `approvalMode='manual'`. Re-running surfaces existing
+settings keys instead of inserting twice.
+
+After the seed:
 
 ```sql
--- 1. Create the tenant
-INSERT INTO tenants (id, name, plan, settings)
-VALUES (
-  'pilae',                           -- or any other slug
-  'Pilae',
-  'trial',
-  jsonb_build_object(
-    -- B7 capacity rule
-    'deepDiveWeeklyCap', 2,
-    -- ICP config (edit verticales / personas / anti_icp per the
-    -- actual GTM list)
-    'icp', jsonb_build_object(
-      'verticales', '["saas_tech","fintech","sante","agence"]'::jsonb,
-      'geo', '["FR","CH"]'::jsonb,
-      'personas', jsonb_build_object(
-        'decideur', '["CTO","Head of Platform"]'::jsonb,
-        'influenceur', '["DevOps","SRE"]'::jsonb,
-        'bloqueur', '["RSSI","DAF"]'::jsonb
-      ),
-      'anti_icp', '["pre_seed","< 5 FTE"]'::jsonb
-    )
-  )
-);
-
--- 2. Connect mailbox + Unipile via the existing settings UI
---    (/settings/sending-infrastructure + /settings/linkedin)
-
--- 3. Seed 250-400 TAM companies via Apollo (Settings → ICP → Build TAM)
-
--- 4. Create the first sequence (e.g. "Founder classic FR" 4-touche)
---    via /sequences and enrol the first cohort
+-- Refine the ICP to match your real GTM list (verticales / personas /
+-- anti-ICP) — edit any time, no code change needed
+UPDATE tenants
+SET settings = jsonb_set(
+  settings, '{icp,verticales}',
+  '["actual_vertical_1","actual_vertical_2"]'::jsonb
+)
+WHERE id = 'pilae';
 ```
+
+Then via the UI:
+
+1. Connect mailbox: `/settings/sending-infrastructure`
+2. Connect Unipile (once LinkedIn S1 merges): `/settings/linkedin`
+3. Seed 250-400 TAM companies via Apollo (Settings → ICP → Build TAM)
+4. Create the first sequence (e.g. "Founder classic FR" 4-touche) via
+   `/sequences` and enrol the first cohort
 
 After step 1 the dashboard at `/insights/pilae` starts polling and
 will render once any data lands. The cron jobs (§4) pick up the new
@@ -96,7 +94,8 @@ cron will hammer the priority index every morning.
 | `meetingCapacityCheck` | cron `30 0 * * 1` UTC (Mon) | Counts deep-dive activities this ISO week per tenant, persists `tenants.settings.deepDiveLoad` for the dashboard badge. |
 | `playbookCapturePostCall` | event `playbook/capture-from-activity` | Validates candidates via `validatePlaybookBatch` and inserts survivors into `playbook_entries`. Sink — security boundary. |
 | `playbookExtractFromActivity` | event `coaching/post-interaction` | Loads activity, calls Claude with `extractionResponseSchema`, emits to the sink. Falls back to gpt-4o-mini when no Anthropic key. |
-| `sequenceDraftToOutbound` | event `email.send.queued` | Bridge: translates an approved `sequence_drafts` row into an `outbound_emails` row (status=queued) so the existing `processOutboundEmails` cron sends it. Closes the loop on the single + bulk approve flow (PR #37). |
+| `sequenceDraftToOutbound` | event `email.send.queued` | Bridge: translates an approved `sequence_drafts` row into an `outbound_emails` row (status=queued) so the existing `processOutboundEmails` cron sends it. Closes the loop on the single + bulk approve flow (PR #37). Channel-aware via `sequenceSteps.stepType` since PR #41 — also dispatches phone_task drafts via `phone/task-queued` event (consumer ships with feat/voice-cold-call). |
+| `visitorPhoneEnrichRequest` | cron `*/5 * * * *` | Stub: scans the last 15 min of identified visits, emits `phone/enrich-requested` for phone-less contacts at the resolved company. Consumer (Apollo→Kaspr→Lusha waterfall) ships with feat/voice-cold-call. |
 
 Check the Inngest dashboard at `/api/inngest` — each fn shows last 100
 runs with their return shape.
@@ -119,8 +118,8 @@ Run before any release: `npm test`.
 
 | Item | Why it's a gap | When/how to close |
 |---|---|---|
-| Tenant config admin UI | All seeding is currently SQL. | A `/settings/tenant-config` page that edits `tenants.settings` — substantial, ~3 days. |
-| `phone_task` handler | The `voice cold call` branch (feat/voice-cold-call) ships the Twilio + Deepgram dialer. Until then `phone_task` drafts are inert. | Wire in `sequence-draft-router` once voice merges (~1 day). See spec §C. |
+| Tenant config admin UI | Seeding works via `scripts/seed-pilae-tenant.ts` (PR #41), but settings edits still need SQL. | A `/settings/tenant-config` page that edits `tenants.settings` — substantial, ~3 days. |
+| `phone_task` CONSUMER (Twilio dialer) | Producer ships in PR #41 — `sequenceDraftToOutbound` emits `phone/task-queued` with draft snapshot + contact phone + script body. Consumer (actual Twilio + Deepgram dial) lives on `feat/voice-cold-call`. | Drop-in: subscribe to `phone/task-queued` on that branch. |
 | ICP scorer feeding `companies.score` | The priority score formula uses `fitScore = companies.score`. If the score isn't populated the formula falls back to `NEUTRAL_FIT_SCORE = 0.5`. Acceptable but lossy. | The existing scoring infra (`lib/scoring/`) populates it for some tenants; a Pilae-specific scorer or a manual import via the TAM builder is needed for full signal. |
 
 ## 7. Rolling back
