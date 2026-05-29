@@ -39,6 +39,7 @@ import { playbookExtractFromActivity } from "@/inngest/playbook-extract-from-act
 import { sequenceDraftToOutbound } from "@/inngest/sequence-draft-to-outbound";
 import { signalScoreDaily } from "@/inngest/signal-score-daily";
 import { visitorPhoneEnrichRequest } from "@/inngest/visitor-phone-enrich-request";
+import { phoneTaskNotification } from "@/inngest/phone-task-notification";
 import { nightlyRelationshipGraphBuild, onDemandRelationshipGraphBuild } from "@/inngest/relationship-graph-builder";
 import { customSignalBackfill } from "@/inngest/custom-signal-backfill";
 import { dataRetentionPurge } from "@/inngest/data-retention";
@@ -176,6 +177,11 @@ export const { GET, POST, PUT } = serve({
     // Consumer (Apollo→Kaspr→Lusha waterfall) lives on
     // feat/voice-cold-call — drop-in when that merges.
     visitorPhoneEnrichRequest,
+    // Consumer of phone/task-queued — inserts a notification per
+    // tenant user so the agent sees the phone task and dials via
+    // the existing softphone. Voice Phase 1 is pull-based so this
+    // is the smallest bridge between push event and pull queue.
+    phoneTaskNotification,
     // Health checks: service status monitoring every 6h
     serviceHealthCheck,
     // Relationship graph: KNOWS edges for warm-intro discovery
