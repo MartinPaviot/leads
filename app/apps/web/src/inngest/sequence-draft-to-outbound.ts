@@ -31,6 +31,7 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import {
   sequenceDrafts,
+  sequenceSteps,
   outboundEmails,
   contacts,
   connectedMailboxes,
@@ -69,6 +70,7 @@ export const sequenceDraftToOutbound = inngest.createFunction(
         tenantId: sequenceDrafts.tenantId,
         enrollmentId: sequenceDrafts.enrollmentId,
         contactId: sequenceDrafts.contactId,
+        stepId: sequenceDrafts.stepId,
         subject: sequenceDrafts.subject,
         bodyHtml: sequenceDrafts.bodyHtml,
         bodyText: sequenceDrafts.bodyText,
@@ -89,10 +91,17 @@ export const sequenceDraftToOutbound = inngest.createFunction(
 
     // The drafts table on main doesn't carry a `channel` column yet —
     // that column lives on the linkedin-multichannel branch (S1.1).
-    // We hard-code "email" here so the dispatcher works today; when
-    // LinkedIn S1 merges, replace this literal with `draft.channel`
-    // and the routing matrix in decideDispatch takes over.
-    const draftChannel = "email";
+    // We derive the channel from `sequenceSteps.stepType` instead so
+    // the dispatcher routes correctly TODAY (phone_task vs email)
+    // without waiting on the LinkedIn merge. When LinkedIn S1 merges,
+    // the sequenceDrafts.channel column becomes the preferred source
+    // and overrides this fallback — one line change.
+    const [stepRow] = await db
+      .select({ stepType: sequenceSteps.stepType })
+      .from(sequenceSteps)
+      .where(eq(sequenceSteps.id, draft.stepId))
+      .limit(1);
+    const draftChannel = stepRow?.stepType ?? "email";
 
     const decision = decideDispatch({
       status: draft.status as DraftStatus,
@@ -104,6 +113,89 @@ export const sequenceDraftToOutbound = inngest.createFunction(
         draftId,
         channel: draftChannel,
         status: draft.status,
+      };
+    }
+
+    // B (task) — phone_task branch. Emits phone/task-queued with the
+    // draft snapshot + contact phone. Consumer (Twilio + Deepgram on
+    // feat/voice-cold-call) creates the actual CallTask row + dial
+    // queue entry. Producer ships here so the loop is structurally
+    // wired before voice-cold-call merges.
+    if (decision.via === "phone_task") {
+      const [callContact] = await db
+        .select({
+          id: contacts.id,
+          firstName: contacts.firstName,
+          lastName: contacts.lastName,
+          phone: contacts.phone,
+          email: contacts.email,
+        })
+        .from(contacts)
+        .where(
+          and(
+            eq(contacts.id, draft.contactId),
+            eq(contacts.tenantId, tenantId),
+          ),
+        )
+        .limit(1);
+
+      if (!callContact?.phone) {
+        // No phone on file — the phone-enrich pipeline will fill it
+        // (visitor-phone-enrich-request stub already emits
+        // phone/enrich-requested for company-resolved visits). Drop
+        // the draft to expired so the founder isn't queue-blocked;
+        // a re-enrol once phone lands restarts the cadence.
+        await step.run("mark-no-phone", async () => {
+          await db
+            .update(sequenceDrafts)
+            .set({
+              status: "expired",
+              reviewedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(sequenceDrafts.id, draftId));
+        });
+        return { skipped: "contact_phone_missing", draftId };
+      }
+
+      await step.run("emit-phone-task", async () => {
+        await inngest.send({
+          name: "phone/task-queued",
+          data: {
+            tenantId,
+            draftId,
+            enrollmentId: draft.enrollmentId,
+            contactId: callContact.id,
+            contactName:
+              [callContact.firstName, callContact.lastName]
+                .filter(Boolean)
+                .join(" ") ||
+              callContact.email ||
+              "Prospect",
+            phone: callContact.phone,
+            stepId: draft.stepId,
+            scriptSubject: draft.subject,
+            scriptBody: draft.bodyText,
+          },
+        });
+      });
+
+      await step.run("mark-sent-phone", async () => {
+        await db
+          .update(sequenceDrafts)
+          .set({
+            status: "sent",
+            sentAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(sequenceDrafts.id, draftId));
+      });
+
+      return {
+        dispatched: true,
+        via: "phone_task",
+        draftId,
+        contactId: callContact.id,
       };
     }
 

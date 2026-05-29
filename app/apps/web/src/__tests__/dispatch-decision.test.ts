@@ -44,10 +44,14 @@ describe("decideDispatch", () => {
     ).toEqual({ dispatch: false, reason: "channel_routed_elsewhere" });
   });
 
-  it("waits for the voice handler on phone_task (no error, draft stays approved)", () => {
+  it("dispatches an approved phone_task via the phone_task channel", () => {
+    // After the B (phone_task) task ship, the dispatcher emits
+    // phone/task-queued for phone_task drafts. The voice cold call
+    // consumer (Twilio + Deepgram) handles them when feat/voice-cold-call
+    // merges; producer ships ahead.
     expect(
       decideDispatch({ status: "approved", channel: "phone_task" }),
-    ).toEqual({ dispatch: false, reason: "channel_pending_handler" });
+    ).toEqual({ dispatch: true, via: "phone_task" });
   });
 
   it("flags an unknown channel without crashing", () => {

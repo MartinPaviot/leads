@@ -34,13 +34,12 @@ export type DispatchInputs = {
 };
 
 export type DispatchDecision =
-  | { dispatch: true; via: "email" }
+  | { dispatch: true; via: "email" | "phone_task" }
   | {
       dispatch: false;
       reason:
         | "status_not_approved"
         | "channel_routed_elsewhere"
-        | "channel_pending_handler"
         | "channel_unknown";
     };
 
@@ -51,14 +50,18 @@ export function decideDispatch(i: DispatchInputs): DispatchDecision {
   switch (i.channel) {
     case "email":
       return { dispatch: true, via: "email" };
+    case "phone_task":
+      // The dispatcher emits `phone/task-queued` with the draft +
+      // contact context. The voice cold call consumer (Twilio +
+      // Deepgram on feat/voice-cold-call) creates the actual
+      // CallTask row + dial queue entry. Until that branch merges,
+      // the event is dead-letter, but the producer half is in place.
+      return { dispatch: true, via: "phone_task" };
     case "linkedin_invite":
     case "linkedin_message":
       // Handled by linkedin-send-worker (reads from linkedinMessages
       // directly, not from this dispatcher).
       return { dispatch: false, reason: "channel_routed_elsewhere" };
-    case "phone_task":
-      // Waiting on the voice cold call stack to merge.
-      return { dispatch: false, reason: "channel_pending_handler" };
     default:
       return { dispatch: false, reason: "channel_unknown" };
   }
