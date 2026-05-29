@@ -67,7 +67,7 @@ tenant automatically — no per-tenant registration needed.
    `override: true` to force-book — the dashboard badge keeps
    showing saturation.
 
-## 3. The 4 migrations on prod
+## 3. The 5 migrations on prod
 
 The custom runner is `scripts/apply-migrations.ts` (NOT drizzle-kit's
 journal — see the header comment in that file for why). Apply in
@@ -79,10 +79,15 @@ order, all are additive + idempotent:
 | `0052_deal_split.sql` | `deals.project_amount`, `platform_arr` |
 | `0053_priority_score.sql` | `companies.priority_score`, `priority_score_computed_at` + index |
 | `0054_playbook_entries.sql` | new table + 3 indexes |
+| `0055_voice_tables.sql` | voice cold call Phase 1: `calls`, `voicemail_templates`, `do_not_call_list`, `phone_number_pool`, `voice_usage_monthly` + `call_outcome` enum + 12 indexes (hand-crafted from `db/schema/voice.ts` — PR #32 shipped the schema file but no migration) |
 
 Run on staging first, eyeball `EXPLAIN` on a 10k-row companies table
-to confirm the new indexes serve the right queries. The `signal.score.daily`
-cron will hammer the priority index every morning.
+to confirm the new indexes serve the right queries. The
+`signal.score.daily` cron hammers the priority index every morning;
+the voice queue hammers `calls_tenant_idx` + `calls_outcome_idx`.
+
+Verify scripts: `verify-pilae-schema.ts` (12 checks for 0051-0054) +
+`verify-voice-schema.ts` (18 checks for 0055).
 
 ## 4. The 7 Inngest fns shipped
 
