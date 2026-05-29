@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
+import { useToast } from "@/components/ui/toast";
 import { Phone, MousePointerClick, Eye, Globe, Flame } from "lucide-react";
 
 type SignalKind = "click" | "visit" | "open";
@@ -55,12 +56,61 @@ const POLL_MS = 30_000;
 const DEFAULT_HOURS = 168;
 
 export default function HotToCallPage() {
+  const { toast } = useToast();
   const [items, setItems] = useState<Item[]>([]);
   const [windowHours, setWindowHours] = useState(DEFAULT_HOURS);
   const [hours, setHours] = useState(DEFAULT_HOURS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
+  const [dialingContactId, setDialingContactId] = useState<string | null>(null);
+
+  const startCall = useCallback(
+    async (contactId: string) => {
+      setDialingContactId(contactId);
+      try {
+        const res = await fetch("/api/calls/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contactId }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          callId?: string;
+          error?: string;
+          code?: string;
+        };
+        if (!res.ok) {
+          if (data.code === "voice_not_configured") {
+            toast(
+              "Voice not configured — add Twilio creds in Settings → Voice.",
+              "error",
+            );
+          } else if (data.code === "no_phone") {
+            toast("Contact has no phone number.", "error");
+          } else if (data.code === "dnc") {
+            toast("Contact is on the Do Not Call list.", "error");
+          } else if (data.code === "quiet_hours") {
+            toast(
+              "Outside quiet-hours window for this contact's timezone.",
+              "error",
+            );
+          } else {
+            toast(data.error ?? `Call failed (${res.status})`, "error");
+          }
+          return;
+        }
+        toast(
+          `Call initiated — ringing… open Softphone for the live UI.`,
+          "success",
+        );
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "Network error", "error");
+      } finally {
+        setDialingContactId(null);
+      }
+    },
+    [toast],
+  );
 
   const fetchItems = useCallback(async (windowH: number) => {
     setLoading(true);
@@ -150,7 +200,12 @@ export default function HotToCallPage() {
 
         <div className="space-y-2">
           {items.map((item) => (
-            <HotCard key={item.contactId} item={item} />
+            <HotCard
+              key={item.contactId}
+              item={item}
+              onCall={startCall}
+              dialing={dialingContactId === item.contactId}
+            />
           ))}
         </div>
       </div>
@@ -182,7 +237,15 @@ function WindowChip({
   );
 }
 
-function HotCard({ item }: { item: Item }) {
+function HotCard({
+  item,
+  onCall,
+  dialing,
+}: {
+  item: Item;
+  onCall: (contactId: string) => void;
+  dialing: boolean;
+}) {
   const SignalIcon = SIGNAL_ICON[item.lastSignal.kind];
   const signalLabel = SIGNAL_LABEL[item.lastSignal.kind];
   return (
@@ -270,18 +333,19 @@ function HotCard({ item }: { item: Item }) {
               {item.phone}
             </p>
             <button
-              disabled
-              title="Twilio + Deepgram dialer ships when feat/voice-cold-call merges"
+              onClick={() => onCall(item.contactId)}
+              disabled={dialing}
+              title="Dial via Twilio + Deepgram softphone"
               className="flex items-center gap-1 rounded px-3 py-1 text-[12px] font-medium"
               style={{
-                color: "var(--color-text-tertiary)",
-                background: "var(--color-bg-card)",
-                border: "1px solid var(--color-border-default)",
-                cursor: "not-allowed",
-                opacity: 0.6,
+                color: "#fff",
+                background: "var(--color-accent)",
+                border: "1px solid var(--color-accent)",
+                cursor: dialing ? "not-allowed" : "pointer",
+                opacity: dialing ? 0.6 : 1,
               }}
             >
-              <Phone size={12} /> Call
+              <Phone size={12} /> {dialing ? "Dialing…" : "Call"}
             </button>
           </div>
         </div>
@@ -313,8 +377,8 @@ function EmptyState({ hours }: { hours: number }) {
     >
       No callable hot leads in the last {hours}h. Either no signals fired, or
       none of the engaged contacts have a phone on file. Contacts get a phone
-      via the Apollo enrichment (and the Kaspr / Lusha waterfall once
-      <code> feat/voice-cold-call </code> merges).
+      via Apollo enrichment (the Kaspr / Lusha waterfall is a follow-up — voice
+      Phase 1 ships the dialer; Phase 2 adds the number waterfall).
     </div>
   );
 }

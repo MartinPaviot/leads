@@ -3,7 +3,7 @@
 > Companion to `spec-v2.md`. Spec describes WHAT shipped; this runbook
 > describes how to USE it day-to-day and how to debug it when something
 > goes sideways.
-> Last updated 2026-05-29 (after PRs #33, #34, #35, #36, #37, #38, #39, #40, #41).
+> Last updated 2026-05-29 (after PRs #33-#42 + voice merge #32).
 
 ## 1. Bring up a new Pilae-like tenant
 
@@ -119,7 +119,8 @@ Run before any release: `npm test`.
 | Item | Why it's a gap | When/how to close |
 |---|---|---|
 | Tenant config admin UI | Seeding works via `scripts/seed-pilae-tenant.ts` (PR #41), but settings edits still need SQL. | A `/settings/tenant-config` page that edits `tenants.settings` — substantial, ~3 days. |
-| `phone_task` CONSUMER (Twilio dialer) | Producer ships in PR #41 — `sequenceDraftToOutbound` emits `phone/task-queued` with draft snapshot + contact phone + script body. Consumer (actual Twilio + Deepgram dial) lives on `feat/voice-cold-call`. | Drop-in: subscribe to `phone/task-queued` on that branch. |
+| `phone/task-queued` event consumer | PR #32 (voice Phase 1) ships the Twilio dialer + `/api/calls/start` + `lib/voice/queue.ts` `buildQueue()`. But voice uses a **pull-based queue** (recomputes from `contacts.score`), not a push-based event consumer. So `phone/task-queued` (emitted by the producer in PR #41) currently fires into the void — the agent dials from the pull-based queue or from `/insights/hot-to-call`. | Voice Phase 2 or 3 to consume the event and surface phone_task drafts in the agent's call queue. |
+| `phone/enrich-requested` event consumer (Apollo → Kaspr → Lusha waterfall) | Voice Phase 1 (PR #32) did NOT include the number-waterfall planned in `_specs/voice-cold-call/`. `contacts.phone` is populated by whatever Apollo enrichment already runs on contact creation; the waterfall expansion is deferred. | Voice Phase 2 ships the waterfall as a consumer of `phone/enrich-requested`. |
 | ICP scorer feeding `companies.score` | The priority score formula uses `fitScore = companies.score`. If the score isn't populated the formula falls back to `NEUTRAL_FIT_SCORE = 0.5`. Acceptable but lossy. | The existing scoring infra (`lib/scoring/`) populates it for some tenants; a Pilae-specific scorer or a manual import via the TAM builder is needed for full signal. |
 
 ## 7. Rolling back
