@@ -15,3 +15,4 @@ export * from "./schema/ai-observability";
 export * from "./schema/cs";
 export * from "./schema/voice-of-customer";
 export * from "./schema/voice";
+export * from "./schema/icp";
