@@ -20,11 +20,13 @@ import postgres from "postgres";
 
 const PILAE_TENANT_ID = "pilae";
 
-// Funding window: last raise 12-30 months ago = the bill has compounded.
-const now = Date.now();
-const MONTH_MS = 30 * 24 * 60 * 60 * 1000;
-const FUNDING_MIN = now - 30 * MONTH_MS; // oldest acceptable raise
-const FUNDING_MAX = now - 12 * MONTH_MS; // most recent acceptable raise
+// Funding window (12-30 months ago = the bill has compounded) is a
+// PRIORITISATION SIGNAL, not a TAM sourcing filter. Apollo lacks a
+// funding date for many companies (bootstrapped / unknown), so using
+// it as a hard search filter collapsed ICP-1 from 544 → 34 accounts
+// (verified via scripts/apollo-relax-diag.ts). It belongs in the
+// signal layer that times/prioritises the call, not in the criteria
+// that select the TAM. So it's intentionally NOT an icp_criterion.
 
 type Crit = {
   fieldKey: string;
@@ -90,9 +92,12 @@ const ICPS: IcpSeed[] = [
         isRequired: false,
       },
       { fieldKey: "person_seniorities", operator: "in", value: ["c_suite", "founder", "vp", "director"], weight: 1, isRequired: false },
-      // Funding: stage + the 12-30 month window.
+      // Funding stage as a soft scoring signal (apollo_enrich →
+      // post-filter, does NOT restrict the TAM sourcing). The 12-30mo
+      // funding-DATE window is deliberately omitted as a criterion —
+      // see the header note: it's a prioritisation signal, and as an
+      // Apollo search filter it collapsed the TAM 544 → 34.
       { fieldKey: "latest_funding_stage", operator: "in", value: ["seed", "series_a", "series_b"], weight: 1, isRequired: false },
-      { fieldKey: "latest_funding_date", operator: "between", value: { min: FUNDING_MIN, max: FUNDING_MAX }, weight: 1, isRequired: false },
     ],
   },
   {
@@ -200,7 +205,7 @@ async function main() {
     created++;
   }
 
-  console.log(`\n  ${created} ICPs created. Funding window: ${new Date(FUNDING_MIN).toISOString().slice(0, 10)} → ${new Date(FUNDING_MAX).toISOString().slice(0, 10)}`);
+  console.log(`\n  ${created} ICPs created. (Funding window is a prioritisation signal, not a sourcing filter — see header.)`);
   console.log("  Build TAM (ICP-1 first): /settings/icp-profiles → 'Build TAM', or");
   console.log("  POST /api/tam/build { icpId: '<Scale-up Tech / SaaS B2B id>' }");
   await sql.end();
