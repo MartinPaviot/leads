@@ -27,11 +27,12 @@ describe("criteriaToApolloParams — array params", () => {
     expect(params.organization_locations).toEqual(["France", "Switzerland"]);
   });
 
-  it("maps technologies in → currently_using_any_of_technology_uids", () => {
+  it("maps technologies in → currently_using_any_of_technology_uids (slug UIDs)", () => {
     const { params } = criteriaToApolloParams([
-      crit({ fieldKey: "technologies", operator: "in", value: ["kubernetes"] }),
+      crit({ fieldKey: "technologies", operator: "in", value: ["Datadog", "New Relic", "MongoDB Atlas"] }),
     ]);
-    expect(params.currently_using_any_of_technology_uids).toEqual(["kubernetes"]);
+    // Display names normalised to Apollo slug UIDs.
+    expect(params.currently_using_any_of_technology_uids).toEqual(["datadog", "new_relic", "mongodb"]);
   });
 
   it("unions two criteria targeting the same param (industry + keywords both → keyword_tags)", () => {

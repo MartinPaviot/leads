@@ -25,6 +25,7 @@
 import type { OrgSearchParams } from "@/lib/integrations/apollo-client";
 import { getStandardField } from "./field-catalog";
 import type { Criterion } from "./criteria-engine";
+import { toTechnologyUid } from "./apollo-technology-uids";
 
 function toStringArray(value: unknown): string[] {
   if (Array.isArray(value)) return value.map((v) => String(v));
@@ -101,7 +102,8 @@ export function criteriaToApolloParams(criteria: Criterion[]): {
         toStringArray(c.value).forEach((v) => locations.add(v));
         break;
       case "currently_using_any_of_technology_uids":
-        toStringArray(c.value).forEach((v) => techUids.add(v));
+        // Display name → Apollo slug UID ("Datadog" → "datadog").
+        toStringArray(c.value).forEach((v) => techUids.add(toTechnologyUid(v)));
         break;
       case "q_organization_job_titles":
         toStringArray(c.value).forEach((v) => jobTitles.add(v));
