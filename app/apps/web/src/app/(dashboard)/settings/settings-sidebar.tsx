@@ -62,6 +62,7 @@ const settingsNav: NavSection[] = [
     items: [
       { label: "General", href: "/settings/workspace", icon: Building },
       { label: "ICP & Product", href: "/settings/icp", icon: Target },
+      { label: "ICP Profiles", href: "/settings/icp-profiles", icon: Target },
       { label: "Mail & Calendar", href: "/settings/mail-calendar", icon: Mail },
       { label: "Members", href: "/settings/members", icon: Users },
       { label: "Knowledge", href: "/settings/knowledge", icon: BookOpen },
