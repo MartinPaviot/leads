@@ -40,6 +40,7 @@ import { sequenceDraftToOutbound } from "@/inngest/sequence-draft-to-outbound";
 import { signalScoreDaily } from "@/inngest/signal-score-daily";
 import { visitorPhoneEnrichRequest } from "@/inngest/visitor-phone-enrich-request";
 import { phoneTaskNotification } from "@/inngest/phone-task-notification";
+import { icpFitRecomputeTenant, icpFitRecomputeDaily } from "@/inngest/icp-fit-recompute";
 import { nightlyRelationshipGraphBuild, onDemandRelationshipGraphBuild } from "@/inngest/relationship-graph-builder";
 import { customSignalBackfill } from "@/inngest/custom-signal-backfill";
 import { dataRetentionPurge } from "@/inngest/data-retention";
@@ -182,6 +183,11 @@ export const { GET, POST, PUT } = serve({
     // the existing softphone. Voice Phase 1 is pull-based so this
     // is the smallest bridge between push event and pull queue.
     phoneTaskNotification,
+    // Multi-ICP fit recompute (Phase 1b) — populates the company_icp_fit
+    // matrix + mirrors the primary-ICP fit into companies.score.
+    // Event-triggered per tenant + daily safety-net cron.
+    icpFitRecomputeTenant,
+    icpFitRecomputeDaily,
     // Health checks: service status monitoring every 6h
     serviceHealthCheck,
     // Relationship graph: KNOWS edges for warm-intro discovery
