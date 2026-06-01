@@ -1,8 +1,10 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
-import { companies } from "@/db/schema";
+import { companies, icps, icpCriteria } from "@/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
+import { icpToStrategy, icpToSignalIcp } from "@/lib/icp/icp-to-tam";
+import type { Criterion } from "@/lib/icp/criteria-engine";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -239,10 +241,59 @@ export async function POST(req: Request) {
         const companyModel = (settings as Record<string, unknown>).companyModel as
           import("@/lib/scoring/company-model-trainer").CompanyScoringModel | null | undefined;
 
+        // ── Multi-ICP sourcing (Phase 3) ──
+        // When the request names an ICP, source from its criteria
+        // (translated to Apollo params) instead of the LLM planner over
+        // flat settings. We load it here so the signal context below
+        // can reflect the ICP's firmographics too.
+        let icpStrategy: ReturnType<typeof icpToStrategy> = null;
+        let icpSignalIcp: ReturnType<typeof icpToSignalIcp> | null = null;
+        let icpName: string | null = null;
+        if (body.icpId) {
+          const [icp] = await db
+            .select({ id: icps.id, name: icps.name })
+            .from(icps)
+            .where(and(eq(icps.id, body.icpId), eq(icps.tenantId, authCtx.tenantId)))
+            .limit(1);
+          if (!icp) {
+            send({
+              type: "error",
+              stage: "icp.load",
+              message: "ICP not found for this tenant",
+              recoverable: false,
+            });
+            return;
+          }
+          const critRows = await db
+            .select()
+            .from(icpCriteria)
+            .where(eq(icpCriteria.icpId, icp.id));
+          const criteria: Criterion[] = critRows.map((r) => ({
+            id: r.id,
+            fieldKey: r.fieldKey,
+            operator: r.operator as Criterion["operator"],
+            value: r.value,
+            weight: r.weight,
+            isRequired: r.isRequired,
+          }));
+          icpStrategy = icpToStrategy(icp.name, criteria);
+          if (!icpStrategy) {
+            send({
+              type: "error",
+              stage: "icp.translate",
+              message: `ICP "${icp.name}" has no Apollo-sourceable criteria (add industry / size / geo / tech / funding / hiring criteria).`,
+              recoverable: false,
+            });
+            return;
+          }
+          icpSignalIcp = icpToSignalIcp(criteria);
+          icpName = icp.name;
+        }
+
         const signalCtx: SignalContext = {
           tenantId: authCtx.tenantId,
           tenantInvestors,
-          icp: {
+          icp: icpSignalIcp ?? {
             industries: settings.targetIndustries,
             sizeRange: parseSizeRange(settings) ?? undefined,
             geographies: settings.targetGeographies,
@@ -258,13 +309,21 @@ export async function POST(req: Request) {
 
         console.log(`[tam-stream ${jobId.slice(0, 8)}] context loaded — existingDomains=${existingDomains.size} investors=${tenantInvestors.size} industries=${settings.targetIndustries?.length ?? 0}`);
 
-        // ── Plan strategies via LLM ──
-        const strategies = await planStrategies({
-          model,
-          tenantId: authCtx.tenantId,
-          settings,
-          strategyCount,
-        });
+        // ── Plan strategies ──
+        // ICP mode: a single deterministic strategy from the ICP's
+        // criteria — no LLM, we source exactly what the founder defined.
+        // Legacy mode: the LLM planner over the tenant's flat settings.
+        const strategies = icpStrategy
+          ? [icpStrategy]
+          : await planStrategies({
+              model,
+              tenantId: authCtx.tenantId,
+              settings,
+              strategyCount,
+            });
+        if (icpName) {
+          console.log(`[tam-stream ${jobId.slice(0, 8)}] ICP mode — sourcing for "${icpName}"`);
+        }
         summary.strategiesRun = strategies.length;
         send({
           type: "strategy.generated",

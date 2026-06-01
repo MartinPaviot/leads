@@ -254,6 +254,11 @@ export interface BuildRequest {
   targetCount?: number;
   /** How many LLM strategies to generate. Clamped server-side to 2..6. */
   strategyCount?: number;
+  /** Multi-ICP (Phase 3, _specs/multi-icp). When set, the TAM build
+   * sources from THIS ICP's criteria (translated to Apollo params)
+   * instead of the LLM planner over the tenant's flat settings. Absent
+   * → legacy tenant-wide planner (unchanged). */
+  icpId?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
