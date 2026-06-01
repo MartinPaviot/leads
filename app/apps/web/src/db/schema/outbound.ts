@@ -41,12 +41,19 @@ export const sequences = pgTable(
     description: text("description"),
     status: sequenceStatusEnum("status").default("draft"),
     campaignConfig: jsonb("campaign_config"),
+    // Multi-ICP binding (Phase 3, _specs/multi-icp R9). Nullable: a
+    // sequence may target a specific ICP (its message/cadence tuned to
+    // that segment) or stay tenant-wide (null). FK is ON DELETE SET
+    // NULL — deleting an ICP unbinds its sequences rather than
+    // cascading them away.
+    icpId: text("icp_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   },
   (table) => [
     index("sequences_tenant_id_idx").on(table.tenantId),
     index("sequences_status_idx").on(table.status),
+    index("sequences_icp_idx").on(table.icpId),
   ]
 );
 

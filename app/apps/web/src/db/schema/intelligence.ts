@@ -689,6 +689,11 @@ export const customSignals = pgTable(
      * shows a "Backfilling…" banner under the column header until
      * this is set. */
     backfilledAt: timestamp("backfilled_at", { withTimezone: true }),
+    // Multi-ICP binding (Phase 3, _specs/multi-icp R9). Nullable: a
+    // signal can be scoped to one ICP (e.g. "HDS mention" matters for
+    // the Santé ICP only) or stay tenant-wide (null). ON DELETE SET
+    // NULL via the migration.
+    icpId: text("icp_id"),
     createdByUserId: text("created_by_user_id").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -699,6 +704,7 @@ export const customSignals = pgTable(
   },
   (table) => [
     index("custom_signals_tenant_idx").on(table.tenantId),
+    index("custom_signals_icp_idx").on(table.icpId),
     uniqueIndex("custom_signals_tenant_name_idx").on(
       table.tenantId,
       table.name,
