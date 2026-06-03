@@ -35,6 +35,12 @@ import {
   Activity,
   Lightbulb,
   FileText,
+  Calendar,
+  BarChart3,
+  CheckSquare,
+  BookOpen,
+  Wand2,
+  Zap,
   User,
   type LucideIcon,
 } from "lucide-react";
@@ -45,9 +51,8 @@ const PHOTO = {
   julien: "https://randomuser.me/api/portraits/men/32.jpg",
   sarah: "https://randomuser.me/api/portraits/women/44.jpg",
   tom: "https://randomuser.me/api/portraits/men/75.jpg",
+  martin: "https://randomuser.me/api/portraits/men/41.jpg",
 };
-// Brand marks for the integration strip.
-const logo = (slug: string) => `https://cdn.simpleicons.org/${slug}`;
 // Full-colour real company logos (the brand's actual favicon).
 const clogo = (domain: string) => `https://icon.horse/icon/${domain}`;
 
@@ -184,14 +189,14 @@ export function AppFrame({
 
 /* ── 1. HERO: the "Up next" dashboard ──────────────────────────── */
 
-const navItems: { icon: LucideIcon; label: string; active?: boolean }[] = [
-  { icon: Clock, label: "Up next", active: true },
-  { icon: Building2, label: "Accounts" },
-  { icon: Users, label: "Contacts" },
-  { icon: CircleDot, label: "Opportunities" },
-  { icon: Inbox, label: "Inbox" },
-  { icon: Phone, label: "Call Mode" },
-  { icon: Send, label: "Campaigns" },
+// Mirrors the real app sidebar (components/sidebar.tsx): labelled
+// sections + the same items, icons, and order.
+const navSections: { label?: string; items: { icon: LucideIcon; label: string; active?: boolean }[] }[] = [
+  { items: [{ icon: Clock, label: "Up next", active: true }] },
+  { label: "AI", items: [{ icon: BookOpen, label: "Knowledge" }, { icon: Wand2, label: "Skills" }] },
+  { label: "CRM", items: [{ icon: Building2, label: "Accounts" }, { icon: Users, label: "Contacts" }, { icon: CircleDot, label: "Opportunities" }] },
+  { label: "Engage", items: [{ icon: Inbox, label: "Inbox" }, { icon: Phone, label: "Call Mode" }, { icon: Zap, label: "Campaigns" }] },
+  { label: "Activity", items: [{ icon: Calendar, label: "Meetings" }, { icon: FileText, label: "Notes" }, { icon: CheckSquare, label: "Tasks" }, { icon: BarChart3, label: "Insights" }] },
 ];
 
 const heroPriorities: {
@@ -209,22 +214,35 @@ export function DashboardMock() {
   return (
     <AppFrame>
       <div className="flex" style={{ minHeight: 380 }}>
-        <aside className="hidden w-40 shrink-0 flex-col border-r border-[#EFEFF5] bg-white px-2 py-3 sm:flex">
-          <div className="mb-4 flex items-center gap-1.5 px-1.5">
+        <aside className="hidden w-[164px] shrink-0 flex-col border-r border-[#EFEFF5] bg-white sm:flex">
+          <div className="flex h-[42px] shrink-0 items-center gap-1.5 border-b border-[#EFEFF5] px-3">
             <img src="/logo-Elevay.svg" alt="" className="h-5 w-5" />
             <span className="text-[13px] font-bold" style={{ background: BRAND, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Elevay</span>
           </div>
-          <div className="space-y-0.5">
-            {navItems.map((n) => {
-              const Icon = n.icon;
-              return (
-                <div key={n.label} className="flex h-7 items-center gap-2 rounded-md px-2 text-[11px] font-medium"
-                  style={{ color: n.active ? "#1A1A2E" : "#64648C", background: n.active ? "rgba(44,107,237,0.08)" : "transparent", boxShadow: n.active ? "inset 2px 0 0 0 #2C6BED" : undefined }}>
-                  <Icon size={13} style={{ color: n.active ? "#2C6BED" : "#9CA3AF" }} />
-                  {n.label}
+          <div className="min-h-0 flex-1 px-2 py-2">
+            {navSections.map((section, si) => (
+              <div key={section.label || si} className={si > 0 ? "mt-2" : ""}>
+                {section.label && (
+                  <div className="mb-0.5 px-2 text-[8.5px] font-semibold uppercase tracking-wider text-[#B4B8C4]">{section.label}</div>
+                )}
+                <div className="space-y-px">
+                  {section.items.map((n) => {
+                    const Icon = n.icon;
+                    return (
+                      <div key={n.label} className="flex h-[22px] items-center gap-2 rounded-md px-2 text-[10.5px] font-medium"
+                        style={{ color: n.active ? "#1A1A2E" : "#64648C", background: n.active ? "rgba(44,107,237,0.08)" : "transparent", boxShadow: n.active ? "inset 2px 0 0 0 #2C6BED" : undefined }}>
+                        <Icon size={12} style={{ color: n.active ? "#2C6BED" : "#9CA3AF" }} />
+                        {n.label}
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </div>
+            ))}
+          </div>
+          <div className="flex shrink-0 items-center gap-2 border-t border-[#EFEFF5] px-3 py-2">
+            <Avatar src={PHOTO.martin} size={20} />
+            <span className="text-[11px] font-medium text-[#1A1A2E]">Martin</span>
           </div>
         </aside>
 
@@ -554,15 +572,14 @@ function ProductCard({ children }: { children: React.ReactNode }) {
 /* ── Integrations strip — real brand logos ──────────────────────── */
 
 export function IntegrationsStrip() {
-  // Simple Icons for the brands it still carries; icon.horse for the
-  // Microsoft logos Simple Icons removed.
+  // Real full-colour brand logos (favicons), highest-res source per brand.
   const items = [
-    { src: logo("gmail"), l: "Gmail" },
+    { src: "https://icon.horse/icon/gmail.com", l: "Gmail" },
     { src: "https://icon.horse/icon/outlook.com", l: "Outlook" },
-    { src: logo("googlemeet"), l: "Google Meet" },
-    { src: logo("zoom"), l: "Zoom" },
+    { src: "https://www.google.com/s2/favicons?domain=meet.google.com&sz=128", l: "Google Meet" },
+    { src: "https://icon.horse/icon/zoom.us", l: "Zoom" },
     { src: "https://icon.horse/icon/teams.microsoft.com", l: "Teams" },
-    { src: logo("googlecalendar"), l: "Calendar" },
+    { src: "https://icon.horse/icon/calendar.google.com", l: "Calendar" },
   ];
   return (
     <div aria-hidden="true" className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
