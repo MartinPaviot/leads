@@ -16,3 +16,4 @@ export * from "./schema/cs";
 export * from "./schema/voice-of-customer";
 export * from "./schema/voice";
 export * from "./schema/icp";
+export * from "./schema/proposals";
