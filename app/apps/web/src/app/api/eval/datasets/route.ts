@@ -14,7 +14,11 @@ export async function GET() {
     name: evalDatasets.name,
     description: evalDatasets.description,
     createdAt: evalDatasets.createdAt,
-    caseCount: sql<number>`(SELECT count(*) FROM eval_cases WHERE dataset_id = ${evalDatasets.id})`,
+    // Qualify the outer ref literally: ${evalDatasets.id} renders an
+    // unqualified "id" that binds to eval_cases.id inside the subquery
+    // (eval_cases has its own id), making every count 0. See the same
+    // fix in api/icps/route.ts.
+    caseCount: sql<number>`(SELECT count(*) FROM eval_cases WHERE dataset_id = "eval_datasets"."id")`,
   }).from(evalDatasets)
     .where(eq(evalDatasets.tenantId, authCtx.tenantId))
     .orderBy(desc(evalDatasets.createdAt));

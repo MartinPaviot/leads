@@ -79,9 +79,30 @@ export function buildCompanyContext(
   const emp = toEmployeeCount(company.size, props);
   if (emp != null) ctx.employee_count = emp;
 
-  // geography: properties.country (Apollo) preferred
-  const country = prop(props, "country") ?? prop(props, "geography");
-  if (country != null && country !== "") ctx.geography = country;
+  // geography: a criterion lists regions/cities/countries ("Vaud",
+  // "Geneva", "Île-de-France", "Switzerland"), but Apollo splits a
+  // location across state / city / country. Expose ALL of them as an
+  // array so an `in` criterion matches whichever granularity it used.
+  // (Apollo's `state` holds the canton/region — "Geneva", "Vaud",
+  // "Zurich" for CH; "Île-de-France" for FR — which is what the
+  // geography wedge filters on.)
+  const geoTokens = [
+    prop(props, "state"),
+    prop(props, "city"),
+    prop(props, "country"),
+    prop(props, "geography"),
+  ].filter((t): t is string => typeof t === "string" && t.trim() !== "");
+  if (geoTokens.length > 0) {
+    // de-dupe case-insensitively, preserve first-seen casing
+    const seen = new Set<string>();
+    const uniq = geoTokens.filter((t) => {
+      const k = t.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    ctx.geography = uniq;
+  }
 
   // revenue: column (string) or properties.annual_revenue
   const revenue = toNumber(company.revenue) ?? toNumber(prop(props, "annual_revenue"));

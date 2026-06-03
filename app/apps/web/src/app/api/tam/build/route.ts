@@ -23,6 +23,7 @@ import {
 import { getTenantKnowledge, formatKnowledgeBlock } from "@/lib/knowledge/get-tenant-knowledge";
 import { sizesToApolloRanges } from "@/lib/config/icp-constants";
 import { runPerCompanyPipeline } from "@/lib/tam-stream/per-company";
+import { inngest } from "@/inngest/client";
 import type { SignalContext } from "@/lib/tam-stream/signals/types";
 import {
   initSummary,
@@ -42,7 +43,12 @@ const MAX_CONCURRENT_PIPELINES = 6;
 
 const DEFAULT_TARGET_COUNT = 300;
 const DEFAULT_STRATEGY_COUNT = 4;
-const MAX_PAGES_PER_STRATEGY = 3;
+// 6 pages × 100 = up to 600 orgs per strategy. ICP mode runs a single
+// strategy, so this is what lets one ICP build reach a 500+ TAM
+// (e.g. ICP-1 ≈ 544 reachable) rather than capping at 300. Bounded by
+// `targetCount` and the 300s maxDuration — very large TAMs should be
+// sourced via scripts/source-icp-tam.ts which has no time limit.
+const MAX_PAGES_PER_STRATEGY = 6;
 const APOLLO_PAGE_SIZE = 100;
 
 // ── LLM strategy schema ──────────────────────────────────────────
@@ -428,6 +434,17 @@ export async function POST(req: Request) {
         }
 
         await Promise.allSettled(allPerCompanyWork);
+
+        // Fill the multi-ICP fit matrix for the freshly-sourced rows.
+        // The per-company pipeline writes companies.score (legacy) but
+        // NOT company_icp_fit — that matrix (and the ICP card's "N
+        // companies fit") is only populated by the recompute job. Fire
+        // it now so a build is immediately reflected on the ICP.
+        if (summary.companiesInserted > 0) {
+          inngest
+            .send({ name: "icp/recompute-tenant", data: { tenantId: authCtx.tenantId } })
+            .catch(() => {});
+        }
 
         summary.durationMs = Date.now() - startedAt;
         console.log(`[tam-stream ${jobId.slice(0, 8)}] done — inserted=${summary.companiesInserted} skipped=${summary.companiesSkipped} aBurning=${summary.aBurningCount} duration=${summary.durationMs}ms`);

@@ -3,6 +3,7 @@ import { apolloCompanyEnrichmentProvider } from "./apollo-adapter";
 import { datagmaCompanyEnrichmentProvider } from "./datagma-adapter";
 import { firmableCompanyEnrichmentProvider } from "./firmable-adapter";
 import { hunterCompanyEnrichmentProvider } from "./hunter-adapter";
+import { crunchbaseCompanyEnrichmentProvider } from "./crunchbase-adapter";
 import { llmFallbackCompanyEnrichmentProvider } from "./llm-fallback-adapter";
 
 /**
@@ -13,6 +14,8 @@ import { llmFallbackCompanyEnrichmentProvider } from "./llm-fallback-adapter";
  *   10  Apollo     — cheapest, broadest US firmographics
  *   20  Datagma    — EU gap-fill (geoAffinity: EU → boosted to -30 for .fr/.de/.uk)
  *   20  Firmable   — AU/NZ specialist (geoAffinity: AU → boosted to -30 for .com.au)
+ *   20  Crunchbase — funding stage/total + investor names (feeds the
+ *                    funding + investor-overlap signals); global, no geo
  *   30  Hunter     — email finding + verification, global
  *  100  LLM        — last resort when no API keys or all miss
  *
@@ -25,6 +28,7 @@ export function registerDefaults(): void {
   registerProvider(apolloCompanyEnrichmentProvider);
   registerProvider(datagmaCompanyEnrichmentProvider);
   registerProvider(firmableCompanyEnrichmentProvider);
+  registerProvider(crunchbaseCompanyEnrichmentProvider);
   registerProvider(hunterCompanyEnrichmentProvider);
   registerProvider(llmFallbackCompanyEnrichmentProvider);
 }

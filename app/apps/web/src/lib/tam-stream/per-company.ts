@@ -358,11 +358,17 @@ export async function runPerCompanyPipeline(args: PerCompanyArgs): Promise<void>
     topClientNames: [],
   };
 
+  // TAM_SKIP_NARRATION=1 disables the per-row narration LLM call. The
+  // narration is a streaming-UX nicety (prettier score reasons) and is
+  // irrelevant to the TAM / fit; bulk backfills (scripts/source-icp-tam)
+  // set this so they don't pay one LLM round-trip per company.
   let narrativeReasons = scored.reasons;
-  try {
-    narrativeReasons = await narrateScoreReasons(narrativeInput, tenantId);
-  } catch {
-    // Narrative is best-effort; raw reasons are fine.
+  if (process.env.TAM_SKIP_NARRATION !== "1") {
+    try {
+      narrativeReasons = await narrateScoreReasons(narrativeInput, tenantId);
+    } catch {
+      // Narrative is best-effort; raw reasons are fine.
+    }
   }
 
   // Re-score event with narrative reasons so the UI updates

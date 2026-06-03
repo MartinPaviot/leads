@@ -35,7 +35,7 @@ import { logger } from "@/lib/observability/logger";
 
 const PRIMARY_FIT_THRESHOLD = 0.5;
 
-async function recomputeTenant(tenantId: string): Promise<{
+export async function recomputeTenant(tenantId: string): Promise<{
   companies: number;
   icps: number;
   cells: number;

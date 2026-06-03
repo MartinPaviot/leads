@@ -8,7 +8,8 @@ import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { z } from "zod";
 import { embedEntity, contactToText } from "@/lib/ai/embeddings";
-import { enrichPerson, isApolloAvailable } from "@/lib/integrations/apollo-client";
+import { isApolloAvailable } from "@/lib/integrations/apollo-client";
+import { enrichContact } from "@/lib/providers/contact-enrichment/waterfall";
 
 const llmFallbackSchema = z.object({
   title: z.string().describe("Job title (e.g. CTO, VP Engineering, Founder)"),
@@ -60,79 +61,90 @@ export async function POST(req: Request) {
           continue;
         }
 
-        // Try Apollo first
-        if (isApolloAvailable()) {
-          try {
-            const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
-            const domain = contact.email?.split("@")[1];
-
-            const person = await enrichPerson({
+        // Enrich via the CH/FR-aware contact waterfall (Apollo → Kaspr →
+        // Lusha, geo-routed by prospect country). Degrades to Apollo-only
+        // when the other keys are absent, so behaviour is unchanged until
+        // KASPR_API_KEY / LUSHA_API_KEY are provisioned.
+        try {
+          const domain = contact.email?.split("@")[1];
+          const wf = await enrichContact(
+            {
+              firstName: contact.firstName || undefined,
+              lastName: contact.lastName || undefined,
               email: contact.email || undefined,
-              first_name: contact.firstName || undefined,
-              last_name: contact.lastName || undefined,
-              domain: domain || undefined,
-            });
+              linkedinUrl: contact.linkedinUrl || undefined,
+              companyDomain: domain || undefined,
+              knownPhoneE164: contact.phone || undefined,
+            },
+            { tenantId: authCtx.tenantId },
+          );
 
-            if (person) {
-              // Try to associate with existing company
-              let companyId = contact.companyId;
-              if (!companyId && person.organization?.name) {
-                const [existingCompany] = await db
-                  .select()
-                  .from(companies)
-                  .where(and(eq(companies.name, person.organization.name), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
-                  .limit(1);
-                if (existingCompany) {
-                  companyId = existingCompany.id;
-                }
-              }
+          if (wf.enriched) {
+            // Best reachable number first; phoneType drives the call-queue
+            // accessibility weight (mobile = 1.0 in lib/voice/queue.ts).
+            const phone =
+              wf.data.mobilePhone ?? wf.data.directPhone ?? wf.data.phones[0]?.number ?? contact.phone;
+            const phoneType = wf.data.mobilePhone
+              ? "mobile"
+              : wf.data.directPhone
+                ? "direct"
+                : (wf.data.phones[0]?.type ?? null);
+            const providers = wf.attempts.filter((a) => a.ok).map((a) => a.provider);
 
-              const phone = person.phone_numbers?.[0]?.raw_number || contact.phone;
-
-              await db
-                .update(contacts)
-                .set({
-                  title: person.title || contact.title,
-                  linkedinUrl: person.linkedin_url || contact.linkedinUrl,
-                  phone: phone,
-                  companyId: companyId || contact.companyId,
-                  properties: {
-                    ...props,
-                    enrichment_source: "apollo",
-                    apollo_id: person.id,
-                    seniority: person.seniority,
-                    departments: person.departments,
-                    email_status: person.email_status,
-                    headline: person.headline,
-                    city: person.city,
-                    state: person.state,
-                    country: person.country,
-                    organization_name: person.organization?.name,
-                    enriched_at: new Date().toISOString(),
-                  },
-                  updatedAt: new Date(),
-                })
-                .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));
-
-              const text = contactToText({
-                firstName: contact.firstName,
-                lastName: contact.lastName,
-                title: person.title,
-                email: contact.email,
-                phone: phone,
-                companyName: person.organization?.name,
-              });
-              if (text && process.env.OPENAI_API_KEY) {
-                await embedEntity(authCtx.tenantId, "contact", id, text).catch(console.warn);
-              }
-
-              enriched++;
-              continue;
+            // Best-effort company association from Apollo's org payload.
+            const apolloRaw = (wf.data.raw?.apollo ?? null) as { organization?: { name?: string } } | null;
+            const orgName = apolloRaw?.organization?.name ?? null;
+            let companyId = contact.companyId;
+            if (!companyId && orgName) {
+              const [existingCompany] = await db
+                .select()
+                .from(companies)
+                .where(and(eq(companies.name, orgName), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
+                .limit(1);
+              if (existingCompany) companyId = existingCompany.id;
             }
-          } catch (err) {
-            console.warn(`Apollo contact enrichment failed for ${contact.email}:`, err);
-            // Fall through to LLM fallback
+
+            await db
+              .update(contacts)
+              .set({
+                title: wf.data.title || contact.title,
+                linkedinUrl: wf.data.linkedinUrl || contact.linkedinUrl,
+                phone,
+                email: contact.email || wf.data.email,
+                companyId: companyId || contact.companyId,
+                properties: {
+                  ...props,
+                  enrichment_source: providers.length ? providers.join("+") : "apollo",
+                  email_status: wf.data.emailStatus,
+                  phoneType,
+                  phones: wf.data.phones,
+                  seniority: wf.data.seniority,
+                  organization_name: orgName,
+                  enrichment_cost_cents: wf.totalCostCents,
+                  enriched_at: new Date().toISOString(),
+                },
+                updatedAt: new Date(),
+              })
+              .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));
+
+            const text = contactToText({
+              firstName: contact.firstName,
+              lastName: contact.lastName,
+              title: wf.data.title,
+              email: contact.email || wf.data.email,
+              phone,
+              companyName: orgName,
+            });
+            if (text && process.env.OPENAI_API_KEY) {
+              await embedEntity(authCtx.tenantId, "contact", id, text).catch(console.warn);
+            }
+
+            enriched++;
+            continue;
           }
+        } catch (err) {
+          console.warn(`Contact enrichment waterfall failed for ${contact.email}:`, err);
+          // Fall through to "unavailable" marking.
         }
 
         // No LLM fallback — mark as unavailable instead of hallucinating

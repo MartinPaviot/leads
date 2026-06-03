@@ -28,8 +28,13 @@ export async function GET() {
       status: icps.status,
       priority: icps.priority,
       createdAt: icps.createdAt,
-      criteriaCount: sql<number>`(SELECT count(*)::int FROM icp_criteria WHERE icp_criteria.icp_id = ${icps.id})`,
-      fitCount: sql<number>`(SELECT count(*)::int FROM company_icp_fit WHERE company_icp_fit.icp_id = ${icps.id} AND company_icp_fit.fit_score >= 0.5)`,
+      // NOTE: reference the outer table as the literal "icps"."id".
+      // Interpolating ${icps.id} renders an UNqualified "id", which
+      // inside these subqueries binds to icp_criteria.id / company_icp_fit.id
+      // (both have their own id column) instead of the outer icps row —
+      // making every count silently 0. Keep the qualifier hardcoded.
+      criteriaCount: sql<number>`(SELECT count(*)::int FROM icp_criteria WHERE icp_criteria.icp_id = "icps"."id")`,
+      fitCount: sql<number>`(SELECT count(*)::int FROM company_icp_fit WHERE company_icp_fit.icp_id = "icps"."id" AND company_icp_fit.fit_score >= 0.5)`,
     })
     .from(icps)
     .where(eq(icps.tenantId, authCtx.tenantId))

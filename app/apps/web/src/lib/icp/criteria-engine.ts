@@ -61,7 +61,19 @@ function norm(v: unknown): string {
   return String(v)
     .trim()
     .toLowerCase()
-    .replace(/[\s_-]+/g, " ");
+    // Strip diacritics so the francophone wedge matches: Apollo returns
+    // "Ile-de-France" / "Neuchatel" (ASCII) while a criterion is authored
+    // "Île-de-France" / "Neuchâtel". Without this, the (required)
+    // geography criterion zeroes the fit of every French company.
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    // Apollo writes industries with an ampersand ("information
+    // technology & services") while criteria authored by hand / the AI
+    // use the word ("...and services"). Equate the two so industry,
+    // keyword, etc. comparisons aren't defeated by "&" vs "and".
+    .replace(/&/g, " and ")
+    .replace(/[\s_-]+/g, " ")
+    .trim();
 }
 
 /**

@@ -16,6 +16,46 @@ function crit(partial: Partial<Criterion> & Pick<Criterion, "fieldKey" | "operat
   };
 }
 
+describe("evaluateCriterion — ampersand & geography-token resilience", () => {
+  it("matches industry across '&' vs 'and'", () => {
+    // Apollo: "information technology & services"; criterion: "...and..."
+    expect(
+      evaluateCriterion(
+        crit({
+          fieldKey: "industry",
+          operator: "in",
+          value: ["Information Technology and Services"],
+        }),
+        { industry: "information technology & services" },
+      ),
+    ).toBe(true);
+  });
+  it("matches a region criterion against the company's state token", () => {
+    expect(
+      evaluateCriterion(
+        crit({ fieldKey: "geography", operator: "in", value: ["Vaud", "Geneva", "Zug", "Zurich"] }),
+        { geography: ["Geneva", "Genève", "Switzerland"] },
+      ),
+    ).toBe(true);
+  });
+  it("rejects geography when no token is in the allowed region set", () => {
+    expect(
+      evaluateCriterion(
+        crit({ fieldKey: "geography", operator: "in", value: ["Vaud", "Geneva"] }),
+        { geography: ["Zurich", "Switzerland"] },
+      ),
+    ).toBe(false);
+  });
+  it("matches geography across accents (Apollo 'Ile-de-France' vs 'Île-de-France')", () => {
+    expect(
+      evaluateCriterion(
+        crit({ fieldKey: "geography", operator: "in", value: ["Île-de-France", "Neuchâtel"] }),
+        { geography: ["Ile-de-France", "France"] },
+      ),
+    ).toBe(true);
+  });
+});
+
 describe("evaluateCriterion — eq", () => {
   it("matches a scalar field case-insensitively", () => {
     expect(

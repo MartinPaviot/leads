@@ -115,7 +115,9 @@ describe("buildCompanyContext", () => {
         investor_names: ["Sequoia"],
       },
     });
-    expect(ctx.geography).toBe("France");
+    // geography is now an array of location tokens (state/city/country)
+    // so a criterion listing regions can match Apollo's `state`.
+    expect(ctx.geography).toEqual(["France"]);
     expect(ctx.revenue).toBe(5_000_000);
     expect(ctx.technologies).toEqual(["Kubernetes", "React"]);
     expect(ctx.latest_funding_stage).toBe("Series A");
@@ -123,6 +125,20 @@ describe("buildCompanyContext", () => {
     expect(ctx.num_open_jobs).toBe(8);
     expect(ctx.founded_year).toBe(2019);
     expect(ctx.investor_names).toEqual(["Sequoia"]);
+  });
+
+  it("exposes state + city + country as geography tokens (region wedge)", () => {
+    const ctx = buildCompanyContext({
+      properties: { state: "Geneva", city: "Genève", country: "Switzerland" },
+    });
+    expect(ctx.geography).toEqual(["Geneva", "Genève", "Switzerland"]);
+  });
+
+  it("de-dupes geography tokens case-insensitively", () => {
+    const ctx = buildCompanyContext({
+      properties: { state: "Vaud", city: "vaud", country: "Switzerland" },
+    });
+    expect(ctx.geography).toEqual(["Vaud", "Switzerland"]);
   });
 
   it("converts funding date to epoch ms for numeric between", () => {

@@ -102,9 +102,13 @@ export async function selectFromNumber(
 }
 
 // Two-party consent regions where recording disclosure must be played
-// before any content is captured. France treats voice recording as
-// personal data; the US states listed are "all-party" jurisdictions.
-const TWO_PARTY_CONSENT_COUNTRIES = new Set(["FR", "CA"]);
+// before any content is captured.
+//   - CH: Swiss Penal Code art. 179bis/179ter — recording a non-public
+//     conversation without every party's consent is a criminal offence.
+//     The francophone wedge (Geneva/Vaud) makes this non-optional.
+//   - FR: voice recording is personal data (CNIL) — disclosure required.
+//   - CA + the US area codes below are "all-party" jurisdictions.
+const TWO_PARTY_CONSENT_COUNTRIES = new Set(["CH", "FR", "CA"]);
 const TWO_PARTY_CONSENT_US_AREA_CODES = new Set<string>([
   // California
   "213", "310", "323", "408", "415", "424", "510", "530", "559", "562",
