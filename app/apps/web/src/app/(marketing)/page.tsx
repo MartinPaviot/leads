@@ -54,7 +54,7 @@ function Section({
 }) {
   // Reveal on MOUNT, not on scroll. A scroll-gated reveal (useInView)
   // can strand whole sections at opacity:0 when the observer never
-  // fires — full-page render, fast scroll, a restored scroll position,
+  // fires: full-page render, fast scroll, a restored scroll position,
   // or a browser that evaluates intersection differently. That reads as
   // a "broken / totally shifted" page with big blank gaps. Mount-based
   // reveal can never leave content invisible; below-the-fold sections
@@ -97,7 +97,7 @@ function Animate({
 }
 
 /* =================================================================
-   FEATURE ROW — copy on one side, a real product mockup on the
+   FEATURE ROW: copy on one side, a real product mockup on the
    other. Alternates sides via `flip`. Pattern: "Product Demo +
    Features" (ui-ux-pro-max landing.csv).
    ================================================================= */
@@ -139,7 +139,7 @@ function FeatureRow({
         </ul>
       </Animate>
 
-      {/* Visual side — the mock cards carry their own box-shadow for
+      {/* Visual side: the mock cards carry their own box-shadow for
           depth. No blurred glow layer: when filter:blur() doesn't
           composite (HW accel off / GPU quirk), an unblurred teal radial
           renders as a solid green blob. Shadows are bulletproof. */}
@@ -157,7 +157,7 @@ function FeatureRow({
 const faqs = [
   {
     q: "How is this different from a CRM like HubSpot or Salesforce?",
-    a: "Those are databases you keep up to date by hand. Elevay builds the target list, captures every email and call for you, tells you who to work next, and drafts the outreach. You approve and close — it does the data work.",
+    a: "Those are databases you keep up to date by hand. Elevay builds the target list, captures every email and call for you, tells you who to work next, and drafts the outreach. You approve and close; it does the data work.",
   },
   {
     q: "Isn't this just another AI SDR that spams people?",
@@ -173,17 +173,17 @@ const faqs = [
   },
   {
     q: "Do I need a sales team to use it?",
-    a: "No — Elevay is built for founder-led sales. It's the back office a founder doesn't have yet: prospecting, list-building, drafting, and note-taking, so one person can run a full pipeline.",
+    a: "No. Elevay is built for founder-led sales. It's the back office a founder doesn't have yet: prospecting, list-building, drafting, and note-taking, so one person can run a full pipeline.",
   },
   {
     q: "What does it cost, and is my data secure?",
-    a: "Start with a 14-day free trial on your real data — no credit card. Paid plans scale with your volume. Your data is encrypted in transit and at rest, we connect over OAuth (never your password), and you can revoke access anytime.",
+    a: "Start with a 14-day free trial on your real data, no credit card. Paid plans scale with your volume. Your data is encrypted in transit and at rest, we connect over OAuth (never your password), and you can revoke access anytime.",
   },
 ];
 
 function FAQItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
-  // L10 — stable id from the question so screen readers get a meaningful
+  // L10,stable id from the question so screen readers get a meaningful
   // aria-controls target.
   const slug = q
     .toLowerCase()
@@ -235,12 +235,12 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 
 const steps = [
   { num: "01", title: "Connect your inbox", desc: "One click to link Gmail or Outlook. Elevay syncs your email, calendar, and contacts and starts capturing automatically.", icon: Inbox },
-  { num: "02", title: "Tell Elevay who you sell to", desc: "A short chat about your product and ideal customer. From that, it builds your target market — companies scored against your ICP.", icon: MessageSquare },
-  { num: "03", title: "Get your priorities, ranked", desc: "Each day opens on who to engage and why — silent deals, warm inbounds, target accounts showing intent. Highest-leverage first.", icon: BarChart3 },
+  { num: "02", title: "Tell Elevay who you sell to", desc: "A short chat about your product and ideal customer. From that, it builds your target market: companies scored against your ICP.", icon: MessageSquare },
+  { num: "03", title: "Get your priorities, ranked", desc: "Each day opens on who to engage and why: silent deals, warm inbounds, target accounts showing intent. Highest-leverage first.", icon: BarChart3 },
   { num: "04", title: "Run outreach across email and calls", desc: "Approve AI-drafted sequences written from real context. Work your call queue with a brief for each conversation.", icon: Send },
   { num: "05", title: "Let the bot handle the notes", desc: "A recorder joins your meetings, transcribes them, and extracts action items and deal intel. Review and confirm.", icon: Play },
   { num: "06", title: "Ask anything about your pipeline", desc: "Natural-language answers with citations to the original email, call, or meeting.", icon: Search },
-  { num: "07", title: "Walk in prepared, close in person", desc: "Before each call, a full brief: history, open threads, talking points, likely objections. Elevay does the prep — the meeting is yours.", icon: Clock },
+  { num: "07", title: "Walk in prepared, close in person", desc: "Before each call, a full brief: history, open threads, talking points, likely objections. Elevay does the prep. The meeting is yours.", icon: Clock },
 ];
 
 /* =================================================================
@@ -272,8 +272,11 @@ export default function LandingPage() {
   }, [mobileMenuOpen]);
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* NAV — floating glass per ui-ux-pro-max (top spacing, backdrop blur). */}
+    // overflow-x clip is a guard: even if any element ever runs wider than
+    // the viewport it cannot create a horizontal scrollbar / right-side gap.
+    // `clip` (not `hidden`) so the sticky nav keeps working.
+    <div className="min-h-screen bg-white" style={{ overflowX: "clip" }}>
+      {/* NAV: floating glass per ui-ux-pro-max (top spacing, backdrop blur). */}
       <nav
         aria-label="Primary"
         className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? "bg-white/85 shadow-[0_1px_3px_rgba(0,0,0,0.06)] backdrop-blur-md" : "bg-white/60 backdrop-blur-sm"}`}
@@ -381,7 +384,7 @@ export default function LandingPage() {
         <div className="relative mx-auto max-w-[1240px] px-6 text-center">
           <Animate><p className="text-xs font-semibold uppercase tracking-wider text-gray-500">The pre-built revenue engine for founder-led sales</p></Animate>
           <Animate><h1 className="mx-auto mt-6 max-w-[800px] text-[32px] font-bold leading-[1.08] tracking-tight text-gray-900 sm:text-[56px]">Elevay runs your pipeline.<br className="hidden sm:block" /> You run the conversations.</h1></Animate>
-          <Animate><p className="mx-auto mt-6 max-w-[620px] text-lg leading-relaxed text-gray-600">It builds your target list, tells you who to reach and when, drafts your outreach across email and calls, and captures every meeting in your CRM — automatically. You review, decide, and close.</p></Animate>
+          <Animate><p className="mx-auto mt-6 max-w-[620px] text-lg leading-relaxed text-gray-600">It builds your target list, tells you who to reach and when, drafts your outreach across email and calls, and captures every meeting in your CRM. You review, decide, and close.</p></Animate>
           <Animate>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link href="/sign-up" className="cursor-pointer rounded-lg px-6 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Try for free</Link>
@@ -411,7 +414,7 @@ export default function LandingPage() {
           <div className="max-w-3xl">
             <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2C6BED]">Why Elevay</p></Animate>
             <Animate><h2 className="mt-4 text-3xl font-bold leading-snug tracking-tight text-gray-900 sm:text-[34px]">In founder-led sales, you are the sales team.<br />Elevay is the team behind you.</h2></Animate>
-            <Animate><p className="mt-6 max-w-2xl text-lg leading-relaxed text-gray-600">Prospecting, list-building, data entry, first drafts, call notes — the work a sales org does in the background, you do at night. Elevay takes that off your plate so your hours go to the conversations that actually close deals.</p></Animate>
+            <Animate><p className="mt-6 max-w-2xl text-lg leading-relaxed text-gray-600">Prospecting, list-building, data entry, first drafts, call notes: the work a sales org does in the background, you do at night. Elevay takes that off your plate so your hours go to the conversations that actually close deals.</p></Animate>
           </div>
 
           <Animate>
@@ -439,13 +442,13 @@ export default function LandingPage() {
         </div>
       </Section>
 
-      {/* PRODUCT — alternating feature rows, each with a real mockup */}
+      {/* PRODUCT: alternating feature rows, each with a real mockup */}
       <div className="mx-auto max-w-[1240px] px-6">
         <Section className="pt-28">
           <FeatureRow
             eyebrow="Auto-built TAM"
             title="It builds your target market"
-            body="Tell Elevay who you sell to. It searches real B2B data sources, scores every company against your ICP, and assembles your account list — ready to work."
+            body="Tell Elevay who you sell to. It searches real B2B data sources, scores every company against your ICP, and assembles your account list, ready to work."
             points={[
               "Real B2B data sources, not a stale CSV",
               "Every company scored against your ICP",
@@ -460,7 +463,7 @@ export default function LandingPage() {
             flip
             eyebrow="Signal-based priorities"
             title="It tells you who to work next"
-            body="Each morning opens on a ranked list — not a flat spreadsheet. The reasons are concrete: a deal going quiet, a target account on your site, an inbound that just replied."
+            body="Each morning opens on a ranked list, not a flat spreadsheet. The reasons are concrete: a deal going quiet, a target account on your site, an inbound that just replied."
             points={[
               "Website visits from your target accounts",
               "Replies, opens, and deal silence tracked",
@@ -474,7 +477,7 @@ export default function LandingPage() {
           <FeatureRow
             eyebrow="Email + calls"
             title="It drafts your outreach"
-            body="Sequences and follow-ups written from the last thread and the last call — not templates. Call Mode hands you a prioritized dial queue with a brief and live coaching for every conversation."
+            body="Sequences and follow-ups written from the last thread and the last call, not templates. Call Mode hands you a prioritized dial queue with a brief and live coaching for every conversation."
             points={[
               "Email sequences drafted from real context",
               "Call Mode: prioritized queue + live coaching",
@@ -494,7 +497,7 @@ export default function LandingPage() {
             flip
             eyebrow="Auto-capture"
             title="It captures every email and meeting"
-            body="Connect Gmail or Outlook and a recorder joins your calls. Emails, transcripts, action items, and buying signals land on the right contact — you just review and confirm."
+            body="Connect Gmail or Outlook and a recorder joins your calls. Emails, transcripts, action items, and buying signals land on the right contact. You just review and confirm."
             points={[
               "A bot joins Meet, Zoom, and Teams calls",
               "Transcripts, action items, buying signals",
@@ -508,7 +511,7 @@ export default function LandingPage() {
           <FeatureRow
             eyebrow="Pipeline chat"
             title="It answers anything about your pipeline"
-            body="Ask in plain language and get an answer with a citation to the exact email or transcript — so you can trust it and click through to the source."
+            body="Ask in plain language and get an answer with a citation to the exact email or transcript, so you can trust it and click through to the source."
             points={[
               "Plain-language answers about your pipeline",
               "Every answer cites the original source",
@@ -519,7 +522,7 @@ export default function LandingPage() {
         </Section>
       </div>
 
-      {/* LANDSCAPE — positioning vs the three alternatives */}
+      {/* LANDSCAPE: positioning vs the three alternatives */}
       <Section className="pt-32">
         <div className="mx-auto max-w-[1240px] px-6">
           <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2C6BED]">Landscape</p></Animate>
@@ -527,7 +530,7 @@ export default function LandingPage() {
           <Animate><p className="mt-6 max-w-2xl text-lg leading-relaxed text-gray-600">Each category solves one slice and leaves you holding the rest. Elevay is built to not be any of them.</p></Animate>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {[
-              { icon: Database, kind: "Legacy CRMs", examples: "Salesforce, HubSpot, Attio", headline: "You maintain them.", body: "Per-seat pricing, manual data entry, dashboards that go stale the moment you stop typing. They store what you sell — they don't help you sell it." },
+              { icon: Database, kind: "Legacy CRMs", examples: "Salesforce, HubSpot, Attio", headline: "You maintain them.", body: "Per-seat pricing, manual data entry, dashboards that go stale the moment you stop typing. They store what you sell; they don't help you sell it." },
               { icon: Megaphone, kind: "AI SDRs", examples: "11x, Artisan, AiSDR", headline: "They act without you.", body: "Autonomous senders that blast generic messages under your name. The output is forgettable; the cost lands on your domain and your reputation." },
               { icon: Layers, kind: "Tool stacks", examples: "Apollo + Instantly + Clay + a CRM", headline: "Five tools, no memory.", body: "Prospecting here, sequences there, enrichment elsewhere. Each tool forgets what the others did, and you become the integration between them." },
             ].map((card) => { const Icon = card.icon; return (
@@ -544,7 +547,7 @@ export default function LandingPage() {
           </div>
           <Animate>
             <p className="mt-12 max-w-2xl text-base leading-relaxed text-gray-700">
-              <span className="font-semibold text-gray-900">Elevay is the fourth option:</span> one system that builds the list, works the signals, drafts the outreach, and remembers every conversation — and never acts without you.
+              <span className="font-semibold text-gray-900">Elevay is the fourth option:</span> one system that builds the list, works the signals, drafts the outreach, and remembers every conversation, and never acts without you.
             </p>
           </Animate>
         </div>
@@ -590,11 +593,11 @@ export default function LandingPage() {
             </Animate>
             <Animate><p className="mt-5 text-xs font-semibold uppercase tracking-wider text-gray-400">Human in the loop</p></Animate>
             <Animate><h2 className="mt-3 max-w-2xl text-3xl font-bold tracking-tight text-gray-900">It does the work. You make the calls.</h2></Animate>
-            <Animate><p className="mt-5 max-w-2xl text-lg leading-relaxed text-gray-600">Elevay never sends an email, books a meeting, or changes a deal without you. It handles the research, the list-building, the first drafts, and the note-taking — the work that doesn&apos;t need a person. The conversations, the judgment, and the relationships stay yours.</p></Animate>
+            <Animate><p className="mt-5 max-w-2xl text-lg leading-relaxed text-gray-600">Elevay never sends an email, books a meeting, or changes a deal without you. It handles the research, the list-building, the first drafts, and the note-taking: the work that doesn&apos;t need a person. The conversations, the judgment, and the relationships stay yours.</p></Animate>
             <div className="mt-10 grid gap-8 md:grid-cols-3">
               {[
-                { title: "Elevay handles", body: "Prospecting, enrichment, scoring, drafting, transcription, and follow-up reminders — the repeatable work, done continuously." },
-                { title: "You handle", body: "The conversations, the pitch, the read on the room, and the close — the part of selling that needs a human." },
+                { title: "Elevay handles", body: "Prospecting, enrichment, scoring, drafting, transcription, and follow-up reminders, the repeatable work, done continuously." },
+                { title: "You handle", body: "The conversations, the pitch, the read on the room, and the close: the part of selling that needs a human." },
                 { title: "Autonomy you control", body: "Approve more and Elevay does more. Pull it back to drafts-only anytime. It earns scope, it never assumes it." },
               ].map((col) => (
                 <Animate key={col.title}>
@@ -643,7 +646,7 @@ export default function LandingPage() {
       <Section className="mt-32">
         <div className="py-24" style={{ background: "linear-gradient(180deg, #FAFAFA 0%, #FFFFFF 100%)" }}>
           <div className="mx-auto max-w-[1240px] px-6 text-center">
-            <Animate><h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Stop running five tools.<br />Start working your pipeline.</h2></Animate>
+            <Animate><h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Run your whole pipeline<br />from one place.</h2></Animate>
             <Animate><p className="mt-4 text-lg text-gray-600">Free to start. Connected in 3 minutes.</p></Animate>
             <Animate>
               <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">

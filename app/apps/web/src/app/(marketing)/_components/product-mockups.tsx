@@ -1,26 +1,17 @@
 /**
  * Marketing product mockups.
  *
- * Crafted, on-brand recreations of the real Elevay app surfaces, styled
- * with the exact light-theme tokens from globals.css so they read as
- * genuine product shots.
+ * Crafted recreations of the real Elevay app surfaces, styled with the
+ * light-theme tokens from globals.css so they read as genuine product
+ * shots. People use real portrait photos and companies use real brand
+ * logos (full-colour favicons); every image has an onError glyph
+ * fallback so a blocked CDN never shows a broken image.
  *
- * People are shown with real portrait photos and companies with real
- * brand logos (loaded from public CDNs) instead of initials — initials
- * read as a placeholder/AI mockup. Every image has an onError fallback
- * (a User / Building2 glyph) so a blocked CDN never shows a broken image.
- *
- * Icons are chosen for specificity, not the AI-generated cliché set
- * (no Sparkles / Bot / Zap / Wand / Rocket): Activity for live signals,
- * Lightbulb for a coaching tip, Send for campaigns, Building2 for
- * accounts, Megaphone for blast-style senders.
+ * Status colours are a smooth, muted palette (see C) rather than vivid
+ * Tailwind green/red/amber, which read as generic.
  *
  * Every export is decorative: the root carries aria-hidden so assistive
- * tech skips the faux UI and reads the adjacent marketing copy.
- *
- * Tokens (light): text #1A1A2E / secondary #64648C / tertiary #9CA3AF,
- * border #E8E8F0, page #FAFAFA, card #FFFFFF, accent #2C6BED,
- * success #10B981, warning #F59E0B, error #EF4444.
+ * tech skips the faux UI and reads the adjacent copy.
  */
 
 import {
@@ -50,14 +41,27 @@ import {
 
 const BRAND = "linear-gradient(90deg,#17C3B2,#2C6BED,#FF7A3D)";
 
-/* Real assets via public CDNs. randomuser = portrait photos,
-   simpleicons = brand marks (default = official brand colour). */
 const PHOTO = {
   julien: "https://randomuser.me/api/portraits/men/32.jpg",
   sarah: "https://randomuser.me/api/portraits/women/44.jpg",
   tom: "https://randomuser.me/api/portraits/men/75.jpg",
 };
+// Brand marks for the integration strip.
 const logo = (slug: string) => `https://cdn.simpleicons.org/${slug}`;
+// Full-colour real company logos (the brand's actual favicon).
+const clogo = (domain: string) => `https://icon.horse/icon/${domain}`;
+
+// Smooth, muted status palette (softer than #10B981 / #EF4444 / #F59E0B).
+const C = {
+  green: "#4E9E86",
+  greenSoft: "rgba(78,158,134,0.13)",
+  red: "#D17B76",
+  redSoft: "rgba(209,123,118,0.13)",
+  amber: "#CDA25C",
+  amberSoft: "rgba(205,162,92,0.15)",
+  blue: "#2C6BED",
+  blueSoft: "rgba(44,107,237,0.10)",
+};
 
 /* ── photo avatar with glyph fallback ──────────────────────────── */
 
@@ -108,7 +112,7 @@ function Logo({
         width={size}
         height={size}
         loading="lazy"
-        className="absolute inset-0 m-auto h-full w-full object-contain p-[18%]"
+        className="absolute inset-0 m-auto h-full w-full object-contain p-[10%]"
         onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
       />
     </span>
@@ -120,10 +124,10 @@ function Logo({
 function ScorePill({ score }: { score: number }) {
   const tone =
     score >= 90
-      ? { c: "#10B981", b: "rgba(16,185,129,0.10)" }
+      ? { c: C.green, b: C.greenSoft }
       : score >= 80
-        ? { c: "#2C6BED", b: "rgba(44,107,237,0.10)" }
-        : { c: "#F59E0B", b: "rgba(245,158,11,0.12)" };
+        ? { c: C.blue, b: C.blueSoft }
+        : { c: C.amber, b: C.amberSoft };
   return (
     <span
       className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums"
@@ -196,9 +200,9 @@ const heroPriorities: {
   text: string;
   badge: { label: string; color: string; bg: string };
 }[] = [
-  { icon: Bell, tint: "#EF4444", text: "Re-engage Linear — 12 days silent", badge: { label: "Stalled", color: "#EF4444", bg: "rgba(239,68,68,0.10)" } },
-  { icon: Reply, tint: "#2C6BED", text: "Reply to Julien — asked about pricing", badge: { label: "high", color: "#F59E0B", bg: "rgba(245,158,11,0.12)" } },
-  { icon: Send, tint: "#10B981", text: "Send sequence to 18 new ICP-1 accounts", badge: { label: "ready", color: "#10B981", bg: "rgba(16,185,129,0.10)" } },
+  { icon: Bell, tint: C.red, text: "Re-engage Linear · 12 days silent", badge: { label: "Stalled", color: C.red, bg: C.redSoft } },
+  { icon: Reply, tint: C.blue, text: "Reply to Julien about pricing", badge: { label: "high", color: C.amber, bg: C.amberSoft } },
+  { icon: Send, tint: C.green, text: "Send sequence to 18 new ICP-1 accounts", badge: { label: "ready", color: C.green, bg: C.greenSoft } },
 ];
 
 export function DashboardMock() {
@@ -261,17 +265,17 @@ export function DashboardMock() {
               <div className="mb-1.5 mt-3 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF]"><AlertTriangle size={10} /> Deals at risk</div>
               <div className="space-y-1.5">
                 {[
-                  { logo: "notion", n: "Notion — Pro plan", v: "$36K", r: 78 },
-                  { logo: "webflow", n: "Webflow — Team", v: "$22K", r: 41 },
+                  { dom: "notion.so", n: "Notion · Pro plan", v: "$36K", r: 78 },
+                  { dom: "webflow.com", n: "Webflow · Team", v: "$22K", r: 41 },
                 ].map((d) => (
                   <div key={d.n} className="flex items-center justify-between rounded-lg border border-[#E8E8F0] bg-white px-3 py-2">
                     <span className="flex min-w-0 items-center gap-2">
-                      <Logo src={logo(d.logo)} size={18} />
+                      <Logo src={clogo(d.dom)} size={18} />
                       <span className="truncate text-[11.5px] font-medium text-[#1A1A2E]">{d.n}</span>
                     </span>
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-semibold text-[#10B981]">{d.v}</span>
-                      <MiniBadge color={d.r >= 70 ? "#EF4444" : "#F59E0B"} bg={d.r >= 70 ? "rgba(239,68,68,0.10)" : "rgba(245,158,11,0.12)"}>{d.r}% stall risk</MiniBadge>
+                      <span className="text-[11px] font-semibold" style={{ color: C.green }}>{d.v}</span>
+                      <MiniBadge color={d.r >= 70 ? C.red : C.amber} bg={d.r >= 70 ? C.redSoft : C.amberSoft}>{d.r}% stall risk</MiniBadge>
                     </div>
                   </div>
                 ))}
@@ -282,9 +286,9 @@ export function DashboardMock() {
               <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF]">Today&apos;s meetings</div>
               <div className="rounded-lg border border-[#E8E8F0] bg-white px-3 py-2">
                 <div className="flex items-center gap-2">
-                  <Logo src={logo("linear")} size={18} />
+                  <Logo src={clogo("linear.app")} size={18} />
                   <div className="min-w-0">
-                    <div className="truncate text-[11.5px] font-medium text-[#1A1A2E]">Linear — discovery</div>
+                    <div className="truncate text-[11.5px] font-medium text-[#1A1A2E]">Linear · discovery</div>
                     <div className="text-[10px] text-[#9CA3AF]">2:30 PM · Zoom</div>
                   </div>
                 </div>
@@ -319,16 +323,16 @@ export function DashboardMock() {
 
 export function TamMock() {
   const rows = [
-    { slug: "linear", n: "Linear", t: "Dev SaaS · 180 · Berlin", s: 94 },
-    { slug: "notion", n: "Notion", t: "Productivity · 600 · London", s: 89 },
-    { slug: "webflow", n: "Webflow", t: "MarTech · 240 · Paris", s: 85 },
-    { slug: "airtable", n: "Airtable", t: "No-code · 140 · Amsterdam", s: 78 },
+    { dom: "linear.app", n: "Linear", t: "Dev SaaS · 180 · Berlin", s: 94 },
+    { dom: "notion.so", n: "Notion", t: "Productivity · 600 · London", s: 89 },
+    { dom: "webflow.com", n: "Webflow", t: "MarTech · 240 · Paris", s: 85 },
+    { dom: "airtable.com", n: "Airtable", t: "No-code · 140 · Amsterdam", s: 78 },
   ];
   return (
     <ProductCard>
       <div className="flex items-center justify-between border-b border-[#EFEFF5] px-4 py-3">
         <div className="flex items-center gap-2">
-          <Building2 size={14} style={{ color: "#2C6BED" }} />
+          <Building2 size={14} style={{ color: C.blue }} />
           <span className="text-[12.5px] font-semibold text-[#1A1A2E]">Target accounts</span>
         </div>
         <div className="rounded-md px-2.5 py-1 text-[11px] font-semibold text-white" style={{ background: BRAND }}>Build TAM</div>
@@ -341,7 +345,7 @@ export function TamMock() {
       <div className="px-2 py-2">
         {rows.map((r) => (
           <div key={r.n} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-[#FAFAFA]">
-            <Logo src={logo(r.slug)} size={26} />
+            <Logo src={clogo(r.dom)} size={26} />
             <div className="min-w-0 flex-1">
               <div className="truncate text-[12px] font-medium text-[#1A1A2E]">{r.n}</div>
               <div className="truncate text-[10.5px] text-[#9CA3AF]">{r.t}</div>
@@ -359,15 +363,15 @@ export function TamMock() {
 
 export function SignalsMock() {
   const sigs: { icon: LucideIcon; tint: string; bg: string; t: string; time: string }[] = [
-    { icon: Eye, tint: "#2C6BED", bg: "rgba(44,107,237,0.10)", t: "Linear viewed your pricing page", time: "5m" },
-    { icon: Reply, tint: "#10B981", bg: "rgba(16,185,129,0.10)", t: "Julien replied to your sequence", time: "1h" },
-    { icon: AlertTriangle, tint: "#EF4444", bg: "rgba(239,68,68,0.10)", t: "Notion deal silent for 14 days", time: "today" },
-    { icon: TrendingUp, tint: "#F59E0B", bg: "rgba(245,158,11,0.12)", t: "3 ICP-1 accounts started hiring SDRs", time: "2h" },
+    { icon: Eye, tint: C.blue, bg: C.blueSoft, t: "Linear viewed your pricing page", time: "5m" },
+    { icon: Reply, tint: C.green, bg: C.greenSoft, t: "Julien replied to your sequence", time: "1h" },
+    { icon: AlertTriangle, tint: C.red, bg: C.redSoft, t: "Notion deal silent for 14 days", time: "today" },
+    { icon: TrendingUp, tint: C.amber, bg: C.amberSoft, t: "3 ICP-1 accounts started hiring SDRs", time: "2h" },
   ];
   return (
     <ProductCard>
       <div className="flex items-center gap-2 border-b border-[#EFEFF5] px-4 py-3">
-        <Activity size={14} style={{ color: "#2C6BED" }} />
+        <Activity size={14} style={{ color: C.blue }} />
         <span className="text-[12.5px] font-semibold text-[#1A1A2E]">Why now</span>
       </div>
       <div className="px-2 py-2">
@@ -392,7 +396,7 @@ export function OutreachMock() {
     <ProductCard>
       <div className="flex items-center justify-between border-b border-[#EFEFF5] px-4 py-3">
         <div className="flex items-center gap-2">
-          <Send size={14} style={{ color: "#2C6BED" }} />
+          <Send size={14} style={{ color: C.blue }} />
           <span className="text-[12.5px] font-semibold text-[#1A1A2E]">Sequence · Step 2 · Email</span>
         </div>
         <MiniBadge color="#64648C" bg="#F3F3F8">Draft</MiniBadge>
@@ -400,14 +404,14 @@ export function OutreachMock() {
       <div className="px-4 py-3 text-[11.5px]">
         <div className="flex items-center gap-2 text-[#64648C]">
           <span className="text-[#9CA3AF]">To</span>
-          <span className="flex items-center gap-1.5 rounded-full bg-[#FAFAFA] px-2 py-0.5 text-[#1A1A2E]"><Logo src={logo("webflow")} size={14} bordered={false} /> tom@webflow.com</span>
+          <span className="flex items-center gap-1.5 rounded-full bg-[#FAFAFA] px-2 py-0.5 text-[#1A1A2E]"><Logo src={clogo("webflow.com")} size={14} bordered={false} /> tom@webflow.com</span>
         </div>
-        <div className="mt-2 font-semibold text-[#1A1A2E]">Re: the manual-prospecting problem you mentioned</div>
+        <div className="mt-2 font-semibold text-[#1A1A2E]">Re: the manual prospecting problem you mentioned</div>
         <div className="mt-1.5 space-y-1 text-[#64648C]">
-          <p>Hi Tom — you said your team loses ~6h/week stitching lists together.</p>
+          <p>Hi Tom, you said your team loses ~6 hours a week stitching lists together.</p>
           <p>That&apos;s exactly the gap we close. Worth 15 minutes Thursday?</p>
         </div>
-        <div className="mt-2.5 flex items-center gap-1.5 rounded-md bg-[rgba(44,107,237,0.06)] px-2.5 py-1.5 text-[10.5px] text-[#2C6BED]">
+        <div className="mt-2.5 flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[10.5px]" style={{ background: C.blueSoft, color: C.blue }}>
           <FileText size={11} /> Drafted from your Apr 28 call with Webflow
         </div>
       </div>
@@ -426,10 +430,10 @@ export function CallMock() {
     <ProductCard>
       <div className="flex items-center justify-between border-b border-[#EFEFF5] px-4 py-3">
         <div className="flex items-center gap-2">
-          <Phone size={14} style={{ color: "#2C6BED" }} />
+          <Phone size={14} style={{ color: C.blue }} />
           <span className="text-[12.5px] font-semibold text-[#1A1A2E]">Call Mode</span>
         </div>
-        <span className="flex items-center gap-1.5 text-[11px] font-medium text-[#10B981]"><span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" /> Connected 02:14</span>
+        <span className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: C.green }}><span className="h-1.5 w-1.5 rounded-full" style={{ background: C.green }} /> Connected 02:14</span>
       </div>
       <div className="flex items-center gap-2.5 px-4 py-3">
         <Avatar src={PHOTO.julien} size={28} />
@@ -439,14 +443,14 @@ export function CallMock() {
         </div>
         <span className="flex items-center gap-0.5">
           {[6, 12, 9, 16, 7, 13, 5].map((h, i) => (
-            <span key={i} className="w-[3px] rounded-full bg-[#2C6BED]" style={{ height: h, opacity: 0.35 + (i % 3) * 0.22 }} />
+            <span key={i} className="w-[3px] rounded-full" style={{ height: h, background: C.blue, opacity: 0.35 + (i % 3) * 0.22 }} />
           ))}
         </span>
       </div>
-      <div className="mx-4 mb-3 rounded-lg border border-[rgba(44,107,237,0.18)] bg-[rgba(44,107,237,0.05)] px-3 py-2.5">
-        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#2C6BED]"><Lightbulb size={11} /> Live coaching</div>
+      <div className="mx-4 mb-3 rounded-lg px-3 py-2.5" style={{ border: "1px solid rgba(44,107,237,0.18)", background: "rgba(44,107,237,0.05)" }}>
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: C.blue }}><Lightbulb size={11} /> Live coaching</div>
         <div className="mt-1 text-[11px] text-[#1A1A2E]">Objection: <span className="font-medium">&quot;too expensive&quot;</span></div>
-        <div className="mt-0.5 text-[11px] text-[#64648C]">Anchor on ROI — they spend 6h/week on manual prospecting.</div>
+        <div className="mt-0.5 text-[11px] text-[#64648C]">Anchor on ROI: they spend ~6 hours a week on manual prospecting.</div>
       </div>
     </ProductCard>
   );
@@ -459,8 +463,8 @@ export function MeetingMock() {
     <ProductCard>
       <div className="flex items-center justify-between border-b border-[#EFEFF5] px-4 py-3">
         <div className="flex items-center gap-2">
-          <Logo src={logo("notion")} size={18} />
-          <span className="text-[12.5px] font-semibold text-[#1A1A2E]">Notion — Discovery call</span>
+          <Logo src={clogo("notion.so")} size={18} />
+          <span className="text-[12.5px] font-semibold text-[#1A1A2E]">Notion · Discovery call</span>
         </div>
         <span className="text-[10.5px] text-[#9CA3AF]">Zoom · 32 min</span>
       </div>
@@ -469,7 +473,7 @@ export function MeetingMock() {
         <div className="mt-1.5 space-y-1.5">
           {["Send security overview to Sarah", "Loop in their CFO on pricing"].map((a) => (
             <div key={a} className="flex items-center gap-2 text-[11.5px] text-[#1A1A2E]">
-              <span className="flex h-4 w-4 items-center justify-center rounded border border-[#E8E8F0]"><Check size={10} style={{ color: "#10B981" }} /></span>
+              <span className="flex h-4 w-4 items-center justify-center rounded border border-[#E8E8F0]"><Check size={10} style={{ color: C.green }} /></span>
               {a}
             </div>
           ))}
@@ -499,12 +503,12 @@ export function ChatMock() {
   return (
     <ProductCard>
       <div className="flex items-center gap-2 border-b border-[#EFEFF5] px-4 py-3">
-        <MessageSquare size={14} style={{ color: "#2C6BED" }} />
+        <MessageSquare size={14} style={{ color: C.blue }} />
         <span className="text-[12.5px] font-semibold text-[#1A1A2E]">Ask Elevay</span>
       </div>
       <div className="space-y-3 px-4 py-3.5">
         <div className="flex justify-end">
-          <div className="max-w-[78%] rounded-2xl rounded-br-sm px-3 py-2 text-[11.5px] text-white" style={{ background: "#2C6BED" }}>
+          <div className="max-w-[78%] rounded-2xl rounded-br-sm px-3 py-2 text-[11.5px] text-white" style={{ background: C.blue }}>
             What did Sarah say about budget last Thursday?
           </div>
         </div>
@@ -516,7 +520,7 @@ export function ChatMock() {
                 { i: Phone, t: "Call · Notion demo · May 28" },
                 { i: Inbox, t: "Email · Re: pricing · May 30" },
               ].map((c) => { const Icon = c.i; return (
-                <span key={c.t} className="inline-flex items-center gap-1 rounded-full border border-[rgba(44,107,237,0.25)] bg-[rgba(44,107,237,0.06)] px-2 py-0.5 text-[10px] font-medium text-[#2C6BED]">
+                <span key={c.t} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ border: "1px solid rgba(44,107,237,0.25)", background: C.blueSoft, color: C.blue }}>
                   <Icon size={9} /> {c.t}
                 </span>
               ); })}
@@ -550,8 +554,8 @@ function ProductCard({ children }: { children: React.ReactNode }) {
 /* ── Integrations strip — real brand logos ──────────────────────── */
 
 export function IntegrationsStrip() {
-  // Simple Icons for brands it still carries (clean monochrome marks);
-  // icon.horse for Microsoft logos, which Simple Icons removed (404).
+  // Simple Icons for the brands it still carries; icon.horse for the
+  // Microsoft logos Simple Icons removed.
   const items = [
     { src: logo("gmail"), l: "Gmail" },
     { src: "https://icon.horse/icon/outlook.com", l: "Outlook" },
