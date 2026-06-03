@@ -1,11 +1,12 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { activities, contacts, companies, users } from "@/db/schema";
+import { activities, contacts, companies, users, tenants } from "@/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { fetchRecentEmails } from "@/lib/integrations/gmail";
 import { ingestEpisode } from "@/lib/ai/context-graph";
 import { embedEntity } from "@/lib/ai/embeddings";
 import { getTenantSettings, backsyncRangeToDays, buildIgnoredDomains, shouldAutoCreateContact } from "@/lib/config/tenant-settings";
+import { recordCapturedActivity, getCaptureApprovalMode } from "@/lib/capture/approval";
 
 export async function POST() {
   const authCtx = await getAuthContext();
@@ -24,6 +25,14 @@ export async function POST() {
     const ignoredDomains = buildIgnoredDomains(settings, ownDomain);
     const creationMode = settings.contactCreationMode || "selective";
     const daysBack = backsyncRangeToDays(settings.backsyncRange);
+    // Capture-approval mode (gap E) — read once from the raw tenant
+    // settings; 'auto' inserts directly (default), 'review' queues.
+    const [tenantRow] = await db
+      .select({ settings: tenants.settings })
+      .from(tenants)
+      .where(eq(tenants.id, authCtx.tenantId))
+      .limit(1);
+    const captureMode = getCaptureApprovalMode(tenantRow?.settings as Record<string, unknown> | null);
 
     const emails = await fetchRecentEmails(
       authCtx.userId,
@@ -125,29 +134,35 @@ export async function POST() {
       const entityType = matchedContact ? "contact" : "company";
       const entityId = matchedContact?.id || "unknown";
 
-      await db.insert(activities).values({
+      await recordCapturedActivity({
         tenantId: authCtx.tenantId,
-        actorType: email.direction === "inbound" ? "contact" : "user",
-        actorId:
-          email.direction === "inbound"
-            ? matchedContact?.id || null
-            : authCtx.userId,
-        entityType,
-        entityId,
-        activityType:
-          email.direction === "inbound" ? "email_received" : "email_sent",
-        channel: "email",
-        direction: email.direction,
-        occurredAt: email.date,
-        summary: email.subject,
-        metadata: {
-          gmailMessageId: email.gmailMessageId,
-          threadId: email.threadId,
-          from: email.from,
-          to: email.to,
-          cc: email.cc,
-          snippet: email.snippet,
-          body: email.body,
+        mode: captureMode,
+        kind: "email",
+        sourceRef: email.gmailMessageId,
+        activity: {
+          tenantId: authCtx.tenantId,
+          actorType: email.direction === "inbound" ? "contact" : "user",
+          actorId:
+            email.direction === "inbound"
+              ? matchedContact?.id || null
+              : authCtx.userId,
+          entityType,
+          entityId,
+          activityType:
+            email.direction === "inbound" ? "email_received" : "email_sent",
+          channel: "email",
+          direction: email.direction,
+          occurredAt: email.date,
+          summary: email.subject,
+          metadata: {
+            gmailMessageId: email.gmailMessageId,
+            threadId: email.threadId,
+            from: email.from,
+            to: email.to,
+            cc: email.cc,
+            snippet: email.snippet,
+            body: email.body,
+          },
         },
       });
 

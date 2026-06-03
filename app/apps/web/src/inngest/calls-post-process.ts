@@ -21,7 +21,7 @@
 
 import { inngest } from "./client";
 import { db } from "@/db";
-import { calls, activities } from "@/db/schema";
+import { calls, activities, tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -30,6 +30,7 @@ import { openai } from "@ai-sdk/openai";
 import { llmCall } from "@/lib/ai/llm-call";
 import { callNotesSchema, type CallNotes } from "@/lib/voice/extraction-schema";
 import { detectDncRequest, addToDnc } from "@/lib/voice/dnc";
+import { recordCapturedActivity, getCaptureApprovalMode } from "@/lib/capture/approval";
 import { indexTranscript } from "@/lib/coaching/index-transcript";
 import { logger } from "@/lib/observability/logger";
 
@@ -200,25 +201,40 @@ RULES:
     });
 
     await step.run("create-activity", async () => {
-      await db.insert(activities).values({
+      // Route through the capture-approval seam (gap E): 'auto' inserts
+      // now (default); 'review' parks it for human approval, deduped by
+      // the call id.
+      const [t] = await db
+        .select({ settings: tenants.settings })
+        .from(tenants)
+        .where(eq(tenants.id, callRow.tenantId))
+        .limit(1);
+      const mode = getCaptureApprovalMode(t?.settings as Record<string, unknown> | null);
+      await recordCapturedActivity({
         tenantId: callRow.tenantId,
-        actorType: "user",
-        actorId: callRow.userId,
-        entityType: "contact",
-        entityId: callRow.contactId,
-        activityType: "call_completed",
-        channel: "call",
-        direction: "outbound",
-        sentiment: notes.sentiment,
-        summary: notes.summary,
-        metadata: {
-          callId: callRow.id,
-          dealId: callRow.dealId,
-          outcome: notes.outcome,
-          buyingSignals: notes.buyingSignals,
-          actionItems: notes.actionItems,
-          durationSec: callRow.durationSec,
-          recordingUrl: callRow.recordingUrl,
+        mode,
+        kind: "call",
+        sourceRef: callRow.id,
+        activity: {
+          tenantId: callRow.tenantId,
+          actorType: "user",
+          actorId: callRow.userId,
+          entityType: "contact",
+          entityId: callRow.contactId,
+          activityType: "call_completed",
+          channel: "call",
+          direction: "outbound",
+          sentiment: notes.sentiment,
+          summary: notes.summary,
+          metadata: {
+            callId: callRow.id,
+            dealId: callRow.dealId,
+            outcome: notes.outcome,
+            buyingSignals: notes.buyingSignals,
+            actionItems: notes.actionItems,
+            durationSec: callRow.durationSec,
+            recordingUrl: callRow.recordingUrl,
+          },
         },
       });
     });

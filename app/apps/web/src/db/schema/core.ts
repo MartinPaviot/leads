@@ -196,6 +196,32 @@ export const activities = pgTable(
   ]
 );
 
+// Human-in-the-loop capture approval (gap E / Lightfield-parity). Holds
+// pending auto-captured interactions awaiting review when a tenant sets
+// settings.captureApprovalMode = 'review'. On approval the proposedActivity
+// is inserted verbatim into `activities`. See lib/capture/approval.ts.
+export const captureApprovals = pgTable(
+  "capture_approvals",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    kind: text("kind").notNull(), // "email" | "meeting" | "call"
+    // idempotency key (gmailMessageId / meetingId / callId)
+    sourceRef: text("source_ref"),
+    // the activities row to insert verbatim on approval
+    proposedActivity: jsonb("proposed_activity").notNull(),
+    summary: text("summary"),
+    status: text("status").notNull().default("pending"), // pending|approved|rejected
+    appliedActivityId: text("applied_activity_id"),
+    reviewedByUserId: text("reviewed_by_user_id"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("capture_approvals_tenant_status_idx").on(table.tenantId, table.status),
+  ],
+);
+
 export const notes = pgTable(
   "notes",
   {
