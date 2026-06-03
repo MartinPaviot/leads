@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
-import { activities, contacts, companies, deals } from "@/db/schema";
+import { activities, contacts, companies, deals, tenants } from "@/db/schema";
 import { eq, and, ilike, or, isNull } from "drizzle-orm";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { anthropic } from "@/lib/ai/ai-provider";
@@ -12,6 +12,7 @@ import { ingestEpisode } from "@/lib/ai/context-graph";
 import { indexTranscript } from "@/lib/coaching/index-transcript";
 import { logger } from "@/lib/observability/logger";
 import { llmCall } from "@/lib/ai/llm-call";
+import { recordCapturedActivity, getCaptureApprovalMode } from "@/lib/capture/approval";
 
 const meetingNotesSchema = z.object({
   summary: z.string().describe("2-3 sentence meeting summary"),
@@ -192,28 +193,48 @@ RULES:
         entityId = "";
       }
 
-      const [insertedActivity] = await db.insert(activities).values({
+      // Pre-generate the activity id so (a) the transcript indexes under
+      // it regardless of capture mode and (b) the activity — inserted now
+      // in 'auto' or on approval in 'review' — reuses the same id. Routes
+      // through the capture-approval seam (gap E).
+      const meetingActivityId = crypto.randomUUID();
+      const [t] = await db
+        .select({ settings: tenants.settings })
+        .from(tenants)
+        .where(eq(tenants.id, authCtx.tenantId))
+        .limit(1);
+      const mode = getCaptureApprovalMode(t?.settings as Record<string, unknown> | null);
+      await recordCapturedActivity({
         tenantId: authCtx.tenantId,
-        actorType: "user",
-        actorId: authCtx.appUserId,
-        entityType,
-        entityId: entityId || "unknown",
-        activityType: "meeting_completed",
-        channel: "meeting",
-        direction: "internal",
-        occurredAt: meetingDate ? new Date(meetingDate) : new Date(),
-        summary: notes.summary,
-        rawContent: transcript.slice(0, 10000),
-        sentiment: notes.sentiment,
-        metadata: {
-          title: meetingTitle,
-          structuredNotes: notes,
-          matchedContacts,
-          transcriptLength: transcript.length,
-          processedAt: new Date().toISOString(),
+        mode,
+        kind: "meeting",
+        sourceRef: meetingActivityId,
+        activity: {
+          id: meetingActivityId,
+          tenantId: authCtx.tenantId,
+          actorType: "user",
+          actorId: authCtx.appUserId,
+          entityType,
+          entityId: entityId || "unknown",
+          activityType: "meeting_completed",
+          channel: "meeting",
+          direction: "internal",
+          occurredAt: meetingDate ? new Date(meetingDate) : new Date(),
+          summary: notes.summary,
+          rawContent: transcript.slice(0, 10000),
+          sentiment: notes.sentiment,
+          metadata: {
+            title: meetingTitle,
+            structuredNotes: notes,
+            matchedContacts,
+            transcriptLength: transcript.length,
+            processedAt: new Date().toISOString(),
+          },
         },
-      }).returning({ id: activities.id });
-      resolvedMeetingId = insertedActivity?.id ?? null;
+      });
+      // Index the transcript under this id even in review mode — the
+      // coaching RAG shouldn't wait on CRM approval.
+      resolvedMeetingId = meetingActivityId;
     }
 
     // MONACO-PARITY-05: index the transcript into transcript_chunks
