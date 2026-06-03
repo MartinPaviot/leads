@@ -165,7 +165,7 @@ const faqs = [
   },
   {
     q: "Where does the target list come from?",
-    a: "Elevay searches real B2B data sources, scores companies against the ICP you describe, and enriches decision-makers with verified contact details. You can refine the criteria anytime and rebuild the list.",
+    a: "Elevay searches live B2B databases, scores companies against the ICP you describe, and enriches decision-makers with verified contact details. You can refine the criteria anytime and rebuild the list.",
   },
   {
     q: "How does meeting capture work?",
@@ -177,7 +177,7 @@ const faqs = [
   },
   {
     q: "What does it cost, and is my data secure?",
-    a: "Start with a 14-day free trial on your real data, no credit card. Paid plans scale with your volume. Your data is encrypted in transit and at rest, we connect over OAuth (never your password), and you can revoke access anytime.",
+    a: "Start with a 14-day free trial on your own data, no credit card. Paid plans scale with your volume. Your data is encrypted in transit and at rest, we connect over OAuth (never your password), and you can revoke access anytime.",
   },
 ];
 
@@ -237,7 +237,7 @@ const steps = [
   { num: "01", title: "Connect your inbox", desc: "One click to link Gmail or Outlook. Elevay syncs your email, calendar, and contacts and starts capturing automatically.", icon: Inbox },
   { num: "02", title: "Tell Elevay who you sell to", desc: "A short chat about your product and ideal customer. From that, it builds your target market: companies scored against your ICP.", icon: MessageSquare },
   { num: "03", title: "Get your priorities, ranked", desc: "Each day opens on who to engage and why: silent deals, warm inbounds, target accounts showing intent. Highest-leverage first.", icon: BarChart3 },
-  { num: "04", title: "Run outreach across email and calls", desc: "Approve AI-drafted sequences written from real context. Work your call queue with a brief for each conversation.", icon: Send },
+  { num: "04", title: "Run outreach across email and calls", desc: "Approve AI-drafted sequences written from your actual threads and calls. Work your call queue with a brief for each conversation.", icon: Send },
   { num: "05", title: "Let the bot handle the notes", desc: "A recorder joins your meetings, transcribes them, and extracts action items and deal intel. Review and confirm.", icon: Play },
   { num: "06", title: "Ask anything about your pipeline", desc: "Natural-language answers with citations to the original email, call, or meeting.", icon: Search },
   { num: "07", title: "Walk in prepared, close in person", desc: "Before each call, a full brief: history, open threads, talking points, likely objections. Elevay does the prep. The meeting is yours.", icon: Clock },
@@ -293,7 +293,7 @@ export default function LandingPage() {
           </div>
           <div className="hidden items-center gap-4 md:flex">
             <Link href="/sign-in" className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900">Log in</Link>
-            <Link href="/sign-up" className="cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Try free</Link>
+            <Link href="/sign-up" className="cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: "#2C6BED" }}>Try free</Link>
           </div>
           <button
             type="button"
@@ -384,14 +384,14 @@ export default function LandingPage() {
         <div className="relative mx-auto max-w-[1240px] px-6 text-center">
           <Animate><p className="text-xs font-semibold uppercase tracking-wider text-gray-500">The pre-built revenue engine for founder-led sales</p></Animate>
           <Animate><h1 className="mx-auto mt-6 max-w-[800px] text-[32px] font-bold leading-[1.08] tracking-tight text-gray-900 sm:text-[56px]">Elevay runs your pipeline.<br className="hidden sm:block" /> You run the conversations.</h1></Animate>
-          <Animate><p className="mx-auto mt-6 max-w-[620px] text-lg leading-relaxed text-gray-600">It builds your target list, tells you who to reach and when, drafts your outreach across email and calls, and captures every meeting in your CRM. You review, decide, and close.</p></Animate>
+          <Animate><p className="mx-auto mt-6 max-w-[620px] text-lg leading-relaxed text-gray-600">It builds your target list, tells you who to reach and when, drafts your outreach across email and calls, and captures every meeting in your CRM. You review and close.</p></Animate>
           <Animate>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link href="/sign-up" className="cursor-pointer rounded-lg px-6 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Try for free</Link>
               <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-700 transition-colors hover:border-gray-400">Book a demo <ArrowRight size={14} className="text-gray-400" /></a>
             </div>
           </Animate>
-          <Animate><p className="mt-4 text-xs text-gray-500">14-day free trial on your real data. No credit card.</p></Animate>
+          <Animate><p className="mt-4 text-xs text-gray-500">14-day free trial on your own data. No credit card.</p></Animate>
         </div>
 
         {/* The product shot */}
@@ -448,9 +448,9 @@ export default function LandingPage() {
           <FeatureRow
             eyebrow="Auto-built TAM"
             title="It builds your target market"
-            body="Tell Elevay who you sell to. It searches real B2B data sources, scores every company against your ICP, and assembles your account list, ready to work."
+            body="Tell Elevay who you sell to. It searches live B2B databases, scores every company against your ICP, and assembles your account list, ready to work."
             points={[
-              "Real B2B data sources, not a stale CSV",
+              "Live B2B databases, not a stale CSV",
               "Every company scored against your ICP",
               "Decision-makers enriched with verified contacts",
             ]}
@@ -526,7 +526,7 @@ export default function LandingPage() {
       <Section className="pt-32">
         <div className="mx-auto max-w-[1240px] px-6">
           <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2C6BED]">Landscape</p></Animate>
-          <Animate><h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">The market gives founders three bad choices</h2></Animate>
+          <Animate><h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">The alternatives weren&apos;t built for founder-led sales</h2></Animate>
           <Animate><p className="mt-6 max-w-2xl text-lg leading-relaxed text-gray-600">Each category solves one slice and leaves you holding the rest. Elevay is built to not be any of them.</p></Animate>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {[
@@ -593,7 +593,7 @@ export default function LandingPage() {
             </Animate>
             <Animate><p className="mt-5 text-xs font-semibold uppercase tracking-wider text-gray-400">Human in the loop</p></Animate>
             <Animate><h2 className="mt-3 max-w-2xl text-3xl font-bold tracking-tight text-gray-900">It does the work. You make the calls.</h2></Animate>
-            <Animate><p className="mt-5 max-w-2xl text-lg leading-relaxed text-gray-600">Elevay never sends an email, books a meeting, or changes a deal without you. It handles the research, the list-building, the first drafts, and the note-taking: the work that doesn&apos;t need a person. The conversations, the judgment, and the relationships stay yours.</p></Animate>
+            <Animate><p className="mt-5 max-w-2xl text-lg leading-relaxed text-gray-600">Elevay never sends an email, books a meeting, or changes a deal without you. It handles the research, the list-building, the first drafts, and the note-taking: the work that doesn&apos;t need a person. The conversations and the relationships stay yours.</p></Animate>
             <div className="mt-10 grid gap-8 md:grid-cols-3">
               {[
                 { title: "Elevay handles", body: "Prospecting, enrichment, scoring, drafting, transcription, and follow-up reminders, the repeatable work, done continuously." },
@@ -620,7 +620,7 @@ export default function LandingPage() {
               <h2 className="text-2xl font-bold tracking-tight text-gray-900">See Elevay on your own pipeline</h2>
               <p className="mx-auto mt-3 max-w-md text-[15px] text-gray-600">15 minutes. We&apos;ll connect your inbox live, build a target list from your ICP, and show you the priorities it surfaces.</p>
               <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-                <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="inline-flex cursor-pointer items-center gap-2 rounded-lg px-8 py-3.5 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Book a demo <ArrowRight size={14} /></a>
+                <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="inline-flex cursor-pointer items-center gap-2 rounded-lg px-8 py-3.5 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: "#2C6BED" }}>Book a demo <ArrowRight size={14} /></a>
                 <Link href="/sign-up" className="cursor-pointer text-sm font-semibold text-gray-600 transition-colors hover:text-gray-900">or try it yourself &rarr;</Link>
               </div>
             </div>
