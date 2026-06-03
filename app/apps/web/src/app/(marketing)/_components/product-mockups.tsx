@@ -24,6 +24,7 @@ import {
   Bell,
   MessageSquare,
   Send,
+  Compass,
   Search,
   Check,
   TrendingUp,
@@ -246,7 +247,8 @@ export function DashboardMock() {
           </div>
         </aside>
 
-        <div className="min-w-0 flex-1 bg-[#FAFAFA] px-4 py-3.5">
+        <div className="flex min-w-0 flex-1 flex-col bg-[#FAFAFA]">
+          <div className="flex-1 px-4 py-3.5">
           <div className="flex items-center gap-1.5 text-[11px] text-[#9CA3AF]"><Clock size={11} /> Up next · Wed, Jun 3</div>
           <div className="mt-1.5 text-[15px] font-bold text-[#1A1A2E]">Good morning, Martin</div>
 
@@ -329,6 +331,16 @@ export function DashboardMock() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+          </div>
+          {/* Persistent "Ask Elevay" chat bar — mirrors the real
+              PersistentChatBar shown on the Up-next page. */}
+          <div className="border-t border-[#EFEFF5] px-4 pb-3 pt-2.5">
+            <div className="relative mx-auto max-w-md">
+              <Compass size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#9CA3AF" }} />
+              <div className="w-full rounded-xl border border-[#E8E8F0] bg-white py-2 pl-9 pr-9 text-[11px] text-[#9CA3AF]" style={{ boxShadow: "0 1px 2px rgba(26,26,46,0.05)" }}>Show my best prospects, pipeline health, draft email…</div>
+              <div className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-white" style={{ background: "#2C6BED" }}><Send size={11} /></div>
             </div>
           </div>
         </div>

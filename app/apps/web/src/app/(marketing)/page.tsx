@@ -6,10 +6,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import {
   ChevronDown,
   Inbox,
-  Search,
   Send,
-  Clock,
-  Play,
   ArrowRight,
   Menu,
   X,
@@ -19,18 +16,13 @@ import {
   UserCheck,
   MessageSquare,
   BarChart3,
-  Check,
+  Target,
 } from "lucide-react";
 import {
   DashboardMock,
   IntegrationsStrip,
-  TamMock,
-  SignalsMock,
-  OutreachMock,
-  CallMock,
-  MeetingMock,
-  ChatMock,
 } from "./_components/product-mockups";
+import { ProcessTour } from "./_components/process-tour";
 
 const CALENDLY_URL = "https://calendly.com/contact-elevay/30min";
 
@@ -93,60 +85,6 @@ function Animate({
     >
       {children}
     </motion.div>
-  );
-}
-
-/* =================================================================
-   FEATURE ROW: copy on one side, a real product mockup on the
-   other. Alternates sides via `flip`. Pattern: "Product Demo +
-   Features" (ui-ux-pro-max landing.csv).
-   ================================================================= */
-
-function FeatureRow({
-  eyebrow,
-  title,
-  body,
-  points,
-  visual,
-  flip = false,
-}: {
-  eyebrow: string;
-  title: string;
-  body: string;
-  points: string[];
-  visual: React.ReactNode;
-  flip?: boolean;
-}) {
-  return (
-    <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
-      <Animate className={flip ? "lg:order-2" : ""}>
-        <p className="text-xs font-semibold uppercase tracking-wider text-[#2C6BED]">
-          {eyebrow}
-        </p>
-        <h3 className="mt-3 text-2xl font-bold tracking-tight text-gray-900 sm:text-[28px]">
-          {title}
-        </h3>
-        <p className="mt-4 text-[15px] leading-relaxed text-gray-600">{body}</p>
-        <ul className="mt-5 space-y-2.5">
-          {points.map((p) => (
-            <li key={p} className="flex items-start gap-2.5">
-              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full" style={{ background: "rgba(44,107,237,0.1)" }}>
-                <Check size={11} style={{ color: "#2C6BED" }} />
-              </span>
-              <span className="text-[14px] leading-relaxed text-gray-600">{p}</span>
-            </li>
-          ))}
-        </ul>
-      </Animate>
-
-      {/* Visual side: the mock cards carry their own box-shadow for
-          depth. No blurred glow layer: when filter:blur() doesn't
-          composite (HW accel off / GPU quirk), an unblurred teal radial
-          renders as a solid green blob. Shadows are bulletproof. */}
-      <Animate className={flip ? "lg:order-1" : ""}>
-        {visual}
-      </Animate>
-    </div>
   );
 }
 
@@ -228,20 +166,6 @@ function FAQItem({ q, a }: { q: string; a: string }) {
     </div>
   );
 }
-
-/* =================================================================
-   HOW IT WORKS
-   ================================================================= */
-
-const steps = [
-  { num: "01", title: "Connect your inbox", desc: "One click to link Gmail or Outlook. Elevay syncs your email, calendar, and contacts and starts capturing automatically.", icon: Inbox },
-  { num: "02", title: "Tell Elevay who you sell to", desc: "A short chat about your product and ideal customer. From that, it builds your target market: companies scored against your ICP.", icon: MessageSquare },
-  { num: "03", title: "Get your priorities, ranked", desc: "Each day opens on who to engage and why: silent deals, warm inbounds, target accounts showing intent. Highest-leverage first.", icon: BarChart3 },
-  { num: "04", title: "Run outreach across email and calls", desc: "Approve AI-drafted sequences written from your actual threads and calls. Work your call queue with a brief for each conversation.", icon: Send },
-  { num: "05", title: "Let the bot handle the notes", desc: "A recorder joins your meetings, transcribes them, and extracts action items and deal intel. Review and confirm.", icon: Play },
-  { num: "06", title: "Ask anything about your pipeline", desc: "Natural-language answers with citations to the original email, call, or meeting.", icon: Search },
-  { num: "07", title: "Walk in prepared, close in person", desc: "Before each call, a full brief: history, open threads, talking points, likely objections. Elevay does the prep. The meeting is yours.", icon: Clock },
-];
 
 /* =================================================================
    MAIN PAGE
@@ -442,112 +366,40 @@ export default function LandingPage() {
         </div>
       </Section>
 
-      {/* PRODUCT: alternating feature rows, each with a real mockup */}
-      <div className="mx-auto max-w-[1240px] px-6">
-        <Section className="pt-28">
-          <FeatureRow
-            eyebrow="Auto-built TAM"
-            title="It builds your target market"
-            body="Tell Elevay who you sell to. It searches live B2B databases, scores every company against your ICP, and assembles your account list, ready to work."
-            points={[
-              "Live B2B databases, not a stale CSV",
-              "Every company scored against your ICP",
-              "Decision-makers enriched with verified contacts",
-            ]}
-            visual={<TamMock />}
-          />
-        </Section>
-
-        <Section className="pt-28">
-          <FeatureRow
-            flip
-            eyebrow="Signal-based priorities"
-            title="It tells you who to work next"
-            body="Each morning opens on a ranked list, not a flat spreadsheet. The reasons are concrete: a deal going quiet, a target account on your site, an inbound that just replied."
-            points={[
-              "Website visits from your target accounts",
-              "Replies, opens, and deal silence tracked",
-              "Ranked so you always start at the top",
-            ]}
-            visual={<SignalsMock />}
-          />
-        </Section>
-
-        <Section className="pt-28">
-          <FeatureRow
-            eyebrow="Email + calls"
-            title="It drafts your outreach"
-            body="Sequences and follow-ups written from the last thread and the last call, not templates. Call Mode hands you a prioritized dial queue with a brief and live coaching for every conversation."
-            points={[
-              "Email sequences drafted from real context",
-              "Call Mode: prioritized queue + live coaching",
-              "Nothing sends without your approval",
-            ]}
-            visual={
-              <div className="space-y-5">
-                <OutreachMock />
-                <CallMock />
-              </div>
-            }
-          />
-        </Section>
-
-        <Section className="pt-28">
-          <FeatureRow
-            flip
-            eyebrow="Auto-capture"
-            title="It captures every email and meeting"
-            body="Connect Gmail or Outlook and a recorder joins your calls. Emails, transcripts, action items, and buying signals land on the right contact. You just review and confirm."
-            points={[
-              "A bot joins Meet, Zoom, and Teams calls",
-              "Transcripts, action items, buying signals",
-              "You review before it touches the CRM",
-            ]}
-            visual={<MeetingMock />}
-          />
-        </Section>
-
-        <Section className="pt-28">
-          <FeatureRow
-            eyebrow="Pipeline chat"
-            title="It answers anything about your pipeline"
-            body="Ask in plain language and get an answer with a citation to the exact email or transcript, so you can trust it and click through to the source."
-            points={[
-              "Plain-language answers about your pipeline",
-              "Every answer cites the original source",
-              "No more searching your inbox by hand",
-            ]}
-            visual={<ChatMock />}
-          />
-        </Section>
-      </div>
+      {/* CAPABILITIES: compact bento. The deep, animated visuals live in
+          the process tour below, so this stays a tight checklist. */}
+      <Section className="pt-28">
+        <div className="mx-auto max-w-[1240px] px-6">
+          <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2C6BED]">What it does</p></Animate>
+          <Animate><h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">A whole sales operation, in one place</h2></Animate>
+          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              { icon: Target, title: "Auto-built TAM", body: "A scored target list from your ICP, with verified decision-makers." },
+              { icon: BarChart3, title: "Signal-based priorities", body: "Who to work next, ranked by intent, replies, and deal risk." },
+              { icon: Send, title: "Outreach, email and calls", body: "Sequences and a cold-call cockpit, drafted from real context." },
+              { icon: Inbox, title: "Every meeting captured", body: "Calls transcribed; action items and buying signals extracted." },
+              { icon: MessageSquare, title: "Ask your pipeline", body: "Plain-language answers, each cited to the email or transcript." },
+              { icon: Database, title: "A CRM that fills itself", body: "Accounts, contacts, and deals stay current without data entry." },
+            ].map((c) => { const Icon = c.icon; return (
+              <Animate key={c.title}>
+                <div className="flex h-full flex-col rounded-xl border border-gray-200 bg-white p-5 transition-shadow duration-200 hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]">
+                  <div className="mb-3 inline-flex w-fit rounded-lg p-2" style={{ background: "rgba(44,107,237,0.08)" }}><Icon size={17} style={{ color: "#2C6BED" }} /></div>
+                  <h3 className="text-[15px] font-semibold text-gray-900">{c.title}</h3>
+                  <p className="mt-1.5 text-[13.5px] leading-relaxed text-gray-600">{c.body}</p>
+                </div>
+              </Animate>
+            ); })}
+          </div>
+        </div>
+      </Section>
 
       {/* HOW IT WORKS */}
       <Section id="how-it-works" className="pt-32">
         <div className="mx-auto max-w-[1240px] px-6">
           <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2C6BED]">How it works</p></Animate>
-          <Animate><h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">From connect to close in seven steps</h2></Animate>
-          <div className="mt-14 grid gap-x-12 gap-y-2 md:grid-cols-2">
-            {steps.map((step) => {
-              const Icon = step.icon;
-              return (
-                <Animate key={step.num}>
-                  <div className="flex items-start gap-5 border-b border-gray-100 py-6">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: "linear-gradient(135deg, rgba(23,195,178,0.1), rgba(44,107,237,0.1))" }}>
-                      <Icon size={18} style={{ color: "#2C6BED" }} />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-xs font-semibold tabular-nums text-gray-300">{step.num}</span>
-                        <h3 className="text-[16px] font-semibold text-gray-900">{step.title}</h3>
-                      </div>
-                      <p className="mt-1.5 text-[14px] leading-relaxed text-gray-600">{step.desc}</p>
-                    </div>
-                  </div>
-                </Animate>
-              );
-            })}
-          </div>
+          <Animate><h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">From a cold list to a closed deal</h2></Animate>
+          <Animate><p className="mt-4 max-w-2xl text-lg leading-relaxed text-gray-600">The five moves Elevay runs for you. Click any step, or watch it play.</p></Animate>
+          <Animate><div className="mt-12"><ProcessTour /></div></Animate>
         </div>
       </Section>
 
