@@ -141,6 +141,22 @@ describe("buildCompanyContext", () => {
     expect(ctx.geography).toEqual(["Vaud", "Switzerland"]);
   });
 
+  it("includes a SIRENE region in geography tokens (so region criteria match)", () => {
+    const ctx = buildCompanyContext({
+      properties: { region: "Île-de-France", departement: "75", country: "France" },
+    });
+    expect(ctx.geography).toContain("Île-de-France");
+  });
+
+  it("maps a SIRENE effectif tranche to an employee-count midpoint", () => {
+    expect(buildCompanyContext({ properties: { effectif_tranche: "21" } }).employee_count).toBe(74);
+    expect(buildCompanyContext({ properties: { effectif_tranche: "22" } }).employee_count).toBe(149);
+    // a real number still wins over the tranche
+    expect(
+      buildCompanyContext({ properties: { estimated_num_employees: 120, effectif_tranche: "21" } }).employee_count,
+    ).toBe(120);
+  });
+
   it("converts funding date to epoch ms for numeric between", () => {
     const ctx = buildCompanyContext({
       properties: { latest_funding_raised_at: "2026-01-15" },

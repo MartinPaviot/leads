@@ -40,3 +40,34 @@ export function departementsForRegions(values: string[]): string[] {
 export function isFrenchRegionName(value: string): boolean {
   return Boolean(REGION_DEPARTEMENTS[norm(value)]);
 }
+
+// Pretty region names (for storing back on a company), keyed by the
+// normalized form used internally.
+const PRETTY_REGION: Record<string, string> = {
+  "ile de france": "Île-de-France",
+  "auvergne rhone alpes": "Auvergne-Rhône-Alpes",
+  occitanie: "Occitanie",
+  "nouvelle aquitaine": "Nouvelle-Aquitaine",
+  "provence alpes cote d azur": "Provence-Alpes-Côte d'Azur",
+  "hauts de france": "Hauts-de-France",
+  "grand est": "Grand Est",
+  "pays de la loire": "Pays de la Loire",
+  bretagne: "Bretagne",
+  normandie: "Normandie",
+  "bourgogne franche comte": "Bourgogne-Franche-Comté",
+  "centre val de loire": "Centre-Val de Loire",
+  corse: "Corse",
+};
+
+// Reverse index: département code → normalized region key.
+const DEPT_TO_REGION = new Map<string, string>();
+for (const [region, depts] of Object.entries(REGION_DEPARTEMENTS)) {
+  for (const d of depts) DEPT_TO_REGION.set(d, region);
+}
+
+/** The (pretty) region name a département belongs to, or null. */
+export function regionNameForDepartement(dept: string | null | undefined): string | null {
+  if (!dept) return null;
+  const key = DEPT_TO_REGION.get(String(dept).trim());
+  return key ? PRETTY_REGION[key] : null;
+}

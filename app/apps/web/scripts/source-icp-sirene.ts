@@ -12,7 +12,7 @@ import { db, companies, icps, icpCriteria } from "../src/db";
 import { and, eq, sql } from "drizzle-orm";
 import type { Criterion } from "../src/lib/icp/criteria-engine";
 import { nafForIndustries, employeeRangeToTranches } from "../src/lib/integrations/pappers-codes";
-import { departementsForRegions } from "../src/lib/integrations/fr-departments";
+import { departementsForRegions, regionNameForDepartement } from "../src/lib/integrations/fr-departments";
 import { searchCompaniesSirene } from "../src/lib/integrations/recherche-entreprises-client";
 
 function asArr(v: unknown): string[] {
@@ -72,6 +72,7 @@ async function main() {
             code_postal: c.postalCode,
             city: c.city,
             departement: c.departement,
+            region: regionNameForDepartement(c.departement),
             country: "France",
             registry_verified: true,
             active: c.active,

@@ -3,6 +3,7 @@ import {
   departementsForRegion,
   departementsForRegions,
   isFrenchRegionName,
+  regionNameForDepartement,
 } from "@/lib/integrations/fr-departments";
 
 describe("fr-departments", () => {
@@ -23,5 +24,12 @@ describe("fr-departments", () => {
     expect(isFrenchRegionName("Nouvelle-Aquitaine")).toBe(true);
     expect(isFrenchRegionName("Auvergne-Rhône-Alpes")).toBe(true);
     expect(isFrenchRegionName("Zug")).toBe(false);
+  });
+  it("maps a département back to its (pretty) region name", () => {
+    expect(regionNameForDepartement("75")).toBe("Île-de-France");
+    expect(regionNameForDepartement("69")).toBe("Auvergne-Rhône-Alpes");
+    expect(regionNameForDepartement("31")).toBe("Occitanie");
+    expect(regionNameForDepartement("99")).toBeNull();
+    expect(regionNameForDepartement(null)).toBeNull();
   });
 });
