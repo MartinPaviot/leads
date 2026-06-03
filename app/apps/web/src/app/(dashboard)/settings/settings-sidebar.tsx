@@ -28,6 +28,7 @@ import {
   Layers,
   DollarSign,
   Radio,
+  Inbox,
 } from "lucide-react";
 
 interface NavItem {
@@ -64,6 +65,7 @@ const settingsNav: NavSection[] = [
       { label: "ICP & Product", href: "/settings/icp", icon: Target },
       { label: "ICP Profiles", href: "/settings/icp-profiles", icon: Target },
       { label: "Mail & Calendar", href: "/settings/mail-calendar", icon: Mail },
+      { label: "Capture approvals", href: "/settings/capture-approvals", icon: Inbox },
       { label: "Members", href: "/settings/members", icon: Users },
       { label: "Knowledge", href: "/settings/knowledge", icon: BookOpen },
       { label: "Notifications", href: "/settings/notifications", icon: Bell },
