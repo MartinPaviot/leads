@@ -355,6 +355,14 @@ export default function LandingPage() {
             <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2C6BED]">Why Elevay</p></Animate>
             <Animate><h2 className="mt-4 text-3xl font-bold leading-snug tracking-tight text-gray-900 sm:text-[34px]">In founder-led sales, you are the sales team.<br />Elevay is the team behind you.</h2></Animate>
             <Animate><p className="mt-6 max-w-2xl text-lg leading-relaxed text-gray-600">Prospecting, list-building, data entry, first drafts, call notes: the work a sales org does in the background, you do at night. Elevay takes that off your plate so your hours go to the conversations that actually close deals.</p></Animate>
+            {/* Market evidence — a cited third-party stat. Honest borrowed
+                credibility in lieu of customer proof we don't have yet. */}
+            <Animate>
+              <div className="mt-8 flex items-baseline gap-4 border-l-2 pl-5" style={{ borderColor: "#2C6BED" }}>
+                <span className="shrink-0 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">70%</span>
+                <p className="max-w-md text-[15px] leading-relaxed text-gray-600">of a sales rep&apos;s week goes to admin, CRM data entry, and research instead of selling <span className="text-gray-400">(Salesforce, State of Sales)</span>. For a founder doing it solo, that lands on you. Elevay takes it back.</p>
+              </div>
+            </Animate>
           </div>
 
           <Animate>
