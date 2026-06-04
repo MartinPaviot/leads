@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { writeZip } from "@/lib/proposals/ooxml";
 
 const {
   getAuthContextMock,
@@ -116,7 +117,12 @@ function jsonReq(body: unknown): Request {
   return { json: async () => body } as unknown as Request;
 }
 function docxFile(name = "tpl.docx", size?: number): File {
-  const bytes = size != null ? new Uint8Array(size) : new Uint8Array([0x50, 0x4b, 3, 4, 1, 2]);
+  // Real (small, valid) zip so the PROPOSAL-010 pre-flight inspector passes;
+  // the oversize case keeps invalid bytes (the size gate fires before inspection).
+  const bytes =
+    size != null
+      ? new Uint8Array(size)
+      : new Uint8Array(writeZip([{ name: "word/document.xml", bytes: Buffer.from("<w:document/>", "utf8") }]));
   return new File([bytes], name);
 }
 
@@ -206,6 +212,17 @@ describe("POST /api/proposals/templates", () => {
     });
     expect(data.userSuggestion).toBeTruthy();
     expect(dbMock.update).not.toHaveBeenCalled();
+  });
+
+  it("422 archive_rejected for a suspicious archive (too many entries)", async () => {
+    const bomb = writeZip(
+      Array.from({ length: 600 }, (_, i) => ({ name: `f${i}.xml`, bytes: Buffer.from("x") })),
+    );
+    const fd = new FormData();
+    fd.append("file", new File([new Uint8Array(bomb)], "bomb.docx"));
+    const res = await listRoute.POST(postReq(fd));
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toBe("archive_rejected");
   });
 });
 

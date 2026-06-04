@@ -10,7 +10,14 @@
  */
 
 import { deflateRawSync } from "node:zlib";
-import { writeZip, assembleFilledDocx, readAllZipEntries, extractDocxText } from "../src/lib/proposals/ooxml";
+import {
+  writeZip,
+  assembleFilledDocx,
+  readAllZipEntries,
+  extractDocxText,
+  inspectArchive,
+  ArchiveTooLarge,
+} from "../src/lib/proposals/ooxml";
 
 const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
 
@@ -37,7 +44,7 @@ console.log(
 );
 
 console.log("\n=== WEAKNESS 2: zip-bomb exposure (no decompressed-size cap) ===");
-function deflateZip(name: string, raw: Buffer): Buffer {
+function deflateZip(name: string, raw: Buffer, declaredUncomp?: number): Buffer {
   const data = deflateRawSync(raw);
   const nameBuf = Buffer.from(name, "utf8");
   const lh = Buffer.alloc(30);
@@ -55,7 +62,7 @@ function deflateZip(name: string, raw: Buffer): Buffer {
   ch.writeUInt16LE(20, 6);
   ch.writeUInt16LE(8, 10);
   ch.writeUInt32LE(data.length, 20);
-  ch.writeUInt32LE(raw.length, 24);
+  ch.writeUInt32LE(declaredUncomp ?? raw.length, 24);
   ch.writeUInt16LE(nameBuf.length, 28);
   ch.writeUInt32LE(0, 42);
   const central = Buffer.concat([ch, nameBuf]);
@@ -68,11 +75,21 @@ function deflateZip(name: string, raw: Buffer): Buffer {
   return Buffer.concat([local, central, eocd]);
 }
 
-const payload = Buffer.alloc(8 * 1024 * 1024, 0x41); // 8 MB, highly compressible
-const bombZip = deflateZip("word/document.xml", payload);
-const entries = readAllZipEntries(bombZip);
-const decompressed = entries[0].bytes.length;
-console.log(`  compressed zip size: ${(bombZip.length / 1024).toFixed(1)} KB`);
-console.log(`  decompressed entry:  ${(decompressed / (1024 * 1024)).toFixed(1)} MB`);
-console.log(`  amplification:       ${Math.round(decompressed / bombZip.length)}x with NO cap`);
-console.log("  VERDICT: a small upload can force unbounded memory allocation. CONFIRMED (scale linearly to a GB bomb).");
+// Honest-header bomb: declares 200 MB -> rejected pre-inflation by inspectArchive.
+const declaredBomb = deflateZip("word/document.xml", Buffer.from("x"), 200 * 1024 * 1024);
+const insp = inspectArchive(declaredBomb);
+console.log(`  inspectArchive(declares 200MB):          ok=${insp.ok} reason=${insp.reason ?? "-"}`);
+// Lying header (small declared, large actual): caught by the inflate cap.
+const lying = deflateZip("word/document.xml", Buffer.alloc(8 * 1024 * 1024, 0x41));
+let capped = false;
+try {
+  readAllZipEntries(lying, { maxEntryBytes: 1024 * 1024 });
+} catch (e) {
+  capped = e instanceof ArchiveTooLarge;
+}
+console.log(`  readAllZipEntries(cap 1MB) on 8MB entry: ArchiveTooLarge=${capped}`);
+console.log(
+  !insp.ok && capped
+    ? "  VERDICT: bounded — honest and lying bombs both rejected. FIXED."
+    : "  VERDICT: still exposed.",
+);

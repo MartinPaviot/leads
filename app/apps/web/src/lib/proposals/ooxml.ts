@@ -24,6 +24,68 @@ export interface DocHeading {
 const EOCD_SIG = 0x06054b50; // End Of Central Directory
 const CD_SIG = 0x02014b50; // Central Directory file header
 
+// PROPOSAL-010: caps against zip-bomb / unbounded inflation.
+export class ArchiveTooLarge extends Error {
+  reason: string;
+  constructor(reason: string) {
+    super(`archive rejected: ${reason}`);
+    this.name = "ArchiveTooLarge";
+    this.reason = reason;
+  }
+}
+const MAX_ENTRY_BYTES = 50 * 1024 * 1024;
+const MAX_TOTAL_BYTES = 100 * 1024 * 1024;
+const MAX_ENTRIES = 512;
+
+function inflateCapped(comp: Buffer, cap: number): Buffer {
+  try {
+    return inflateRawSync(comp, { maxOutputLength: cap });
+  } catch (e) {
+    if (e instanceof RangeError) throw new ArchiveTooLarge("entry_too_large");
+    throw e;
+  }
+}
+
+/**
+ * Cheap pre-flight check (no inflation): reject archives whose central
+ * directory declares too many entries or an implausibly large total/entry
+ * uncompressed size. Catches classic (honest-header) zip bombs before any
+ * allocation; lying headers are still caught by the inflate cap.
+ */
+export function inspectArchive(
+  buf: Buffer,
+  opts?: { maxEntryBytes?: number; maxTotalBytes?: number; maxEntries?: number },
+): { ok: boolean; reason?: string } {
+  const maxEntry = opts?.maxEntryBytes ?? MAX_ENTRY_BYTES;
+  const maxTotal = opts?.maxTotalBytes ?? MAX_TOTAL_BYTES;
+  const maxEntries = opts?.maxEntries ?? MAX_ENTRIES;
+  let eocd = -1;
+  const minSearch = Math.max(0, buf.length - 22 - 0xffff);
+  for (let i = buf.length - 22; i >= minSearch; i--) {
+    if (buf.readUInt32LE(i) === EOCD_SIG) {
+      eocd = i;
+      break;
+    }
+  }
+  if (eocd < 0) return { ok: false, reason: "not_an_archive" };
+  const cdCount = buf.readUInt16LE(eocd + 10);
+  if (cdCount > maxEntries) return { ok: false, reason: "too_many_entries" };
+  let p = buf.readUInt32LE(eocd + 16);
+  let total = 0;
+  for (let n = 0; n < cdCount; n++) {
+    if (p + 46 > buf.length || buf.readUInt32LE(p) !== CD_SIG) break;
+    const uncompSize = buf.readUInt32LE(p + 24);
+    if (uncompSize > maxEntry) return { ok: false, reason: "entry_too_large" };
+    total += uncompSize;
+    if (total > maxTotal) return { ok: false, reason: "package_too_large" };
+    const nameLen = buf.readUInt16LE(p + 28);
+    const extraLen = buf.readUInt16LE(p + 30);
+    const commentLen = buf.readUInt16LE(p + 32);
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  return { ok: true };
+}
+
 /**
  * Read a single entry from a ZIP buffer by name, via the central
  * directory (robust against streamed/data-descriptor local headers).
@@ -64,7 +126,7 @@ export function readZipEntry(buf: Buffer, name: string): Buffer | null {
       const dataStart = localOffset + 30 + lNameLen + lExtraLen;
       const comp = buf.subarray(dataStart, dataStart + compSize);
       if (method === 0) return Buffer.from(comp);
-      if (method === 8) return inflateRawSync(comp);
+      if (method === 8) return inflateCapped(comp, MAX_ENTRY_BYTES);
       return null; // unsupported compression
     }
     p += 46 + nameLen + extraLen + commentLen;
@@ -151,7 +213,13 @@ export function extractDocxText(buf: Buffer): { text: string; outline: DocHeadin
 // ──────────────────────────────────────────────────────────────────
 
 /** Read every entry from a ZIP (STORE + DEFLATE), in central-directory order. */
-export function readAllZipEntries(buf: Buffer): Array<{ name: string; bytes: Buffer }> {
+export function readAllZipEntries(
+  buf: Buffer,
+  opts?: { maxEntryBytes?: number; maxTotalBytes?: number; maxEntries?: number },
+): Array<{ name: string; bytes: Buffer }> {
+  const maxEntry = opts?.maxEntryBytes ?? MAX_ENTRY_BYTES;
+  const maxTotal = opts?.maxTotalBytes ?? MAX_TOTAL_BYTES;
+  const maxEntries = opts?.maxEntries ?? MAX_ENTRIES;
   const out: Array<{ name: string; bytes: Buffer }> = [];
   let eocd = -1;
   const minSearch = Math.max(0, buf.length - 22 - 0xffff);
@@ -163,7 +231,9 @@ export function readAllZipEntries(buf: Buffer): Array<{ name: string; bytes: Buf
   }
   if (eocd < 0) return out;
   const cdCount = buf.readUInt16LE(eocd + 10);
+  if (cdCount > maxEntries) throw new ArchiveTooLarge("too_many_entries");
   let p = buf.readUInt32LE(eocd + 16);
+  let total = 0;
   for (let n = 0; n < cdCount; n++) {
     if (p + 46 > buf.length || buf.readUInt32LE(p) !== CD_SIG) break;
     const method = buf.readUInt16LE(p + 10);
@@ -179,8 +249,11 @@ export function readAllZipEntries(buf: Buffer): Array<{ name: string; bytes: Buf
     const comp = buf.subarray(dataStart, dataStart + compSize);
     let bytes: Buffer;
     if (method === 0) bytes = Buffer.from(comp);
-    else if (method === 8) bytes = inflateRawSync(comp);
+    else if (method === 8) bytes = inflateCapped(comp, maxEntry);
     else bytes = Buffer.alloc(0);
+    if (bytes.length > maxEntry) throw new ArchiveTooLarge("entry_too_large");
+    total += bytes.length;
+    if (total > maxTotal) throw new ArchiveTooLarge("package_too_large");
     out.push({ name, bytes });
     p += 46 + nameLen + extraLen + commentLen;
   }

@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { proposalTemplates } from "@/db/schema";
 import { and, eq, desc, isNull } from "drizzle-orm";
 import { getProposalStorage } from "@/lib/proposals/storage";
+import { inspectArchive } from "@/lib/proposals/ooxml";
 import { extractDocx } from "@/lib/proposals/ingest-docx";
 import { extractPptx } from "@/lib/proposals/pptx";
 import {
@@ -47,6 +48,12 @@ export async function POST(req: Request) {
     }
 
     const bytes = Buffer.from(await file.arrayBuffer());
+
+    // PROPOSAL-010: reject zip-bombs before storing or inflating.
+    const inspection = inspectArchive(bytes);
+    if (!inspection.ok) {
+      return Response.json({ error: "archive_rejected", reason: inspection.reason }, { status: 422 });
+    }
 
     const storage = getProposalStorage();
     let storageRef: string;
