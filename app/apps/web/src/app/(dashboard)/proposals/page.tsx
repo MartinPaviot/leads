@@ -71,6 +71,7 @@ export default function ProposalsPage() {
     components: Array<FilledComponent>;
     unmappedSections: string[];
   } | null>(null);
+  const [edits, setEdits] = useState<Record<string, string>>({});
 
   const loadList = useCallback(async () => {
     const res = await fetch("/api/proposals/templates");
@@ -95,6 +96,7 @@ export default function ProposalsPage() {
     setSelected(d.template);
     setDraft(d.template.componentMap ?? null);
     setFilled(null);
+    setEdits({});
     setDealId("");
   }, []);
 
@@ -182,6 +184,7 @@ export default function ProposalsPage() {
     setFilling(true);
     setNotice(null);
     setFilled(null);
+    setEdits({});
     const res = await fetch(`/api/proposals/templates/${selected.id}/fill`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -211,6 +214,32 @@ export default function ProposalsPage() {
       components: d.components ?? [],
       unmappedSections: d.unmappedSections ?? [],
     });
+  }
+
+  async function saveEdits() {
+    if (!filled || Object.keys(edits).length === 0) return;
+    const components = Object.entries(edits).map(([componentId, content]) => ({ componentId, content }));
+    const res = await fetch(`/api/proposals/${filled.proposalId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ components }),
+    });
+    if (!res.ok) {
+      setNotice("Could not save edits.");
+      return;
+    }
+    setFilled((f) =>
+      f
+        ? {
+            ...f,
+            components: f.components.map((c) =>
+              edits[c.componentId] != null ? { ...c, content: edits[c.componentId] } : c,
+            ),
+          }
+        : f,
+    );
+    setEdits({});
+    setNotice("Edits saved — the download reflects your changes.");
   }
 
   return (
@@ -411,13 +440,22 @@ export default function ProposalsPage() {
                     >
                       {filling ? "Drafting…" : "Draft proposal"}
                     </button>
+                    {filled && Object.keys(edits).length > 0 && (
+                      <button
+                        onClick={() => void saveEdits()}
+                        className="rounded-md px-3 py-1.5 text-[13px] font-medium"
+                        style={{ background: "var(--color-accent-soft)", color: "var(--color-text-primary)" }}
+                      >
+                        Save edits
+                      </button>
+                    )}
                     {filled && (
                       <a
                         href={`/api/proposals/${filled.proposalId}/download`}
                         className="text-[13px] underline"
                         style={{ color: "var(--color-accent)" }}
                       >
-                        Download .docx
+                        Download
                       </a>
                     )}
                   </div>
@@ -459,9 +497,13 @@ export default function ProposalsPage() {
                               </span>
                             )}
                           </div>
-                          <div className="whitespace-pre-wrap text-[13px]" style={{ color: "var(--color-text-primary)" }}>
-                            {c.content || "—"}
-                          </div>
+                          <textarea
+                            value={edits[c.componentId] ?? c.content}
+                            onChange={(e) => setEdits((m) => ({ ...m, [c.componentId]: e.target.value }))}
+                            rows={Math.min(10, Math.max(2, (edits[c.componentId] ?? c.content).split("\n").length + 1))}
+                            className="w-full rounded border px-2 py-1 text-[13px]"
+                            style={{ borderColor: "var(--color-border-default)", background: "transparent", color: "var(--color-text-primary)" }}
+                          />
                           {c.citations.length > 0 && (
                             <div className="mt-1.5 flex flex-wrap gap-1">
                               {c.citations.map((cit) => (

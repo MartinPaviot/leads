@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { getAuthContextMock, dbMock, buildFillMock, storageGetMock } = vi.hoisted(() => ({
   getAuthContextMock: vi.fn(),
-  dbMock: { select: vi.fn() },
+  dbMock: { select: vi.fn(), update: vi.fn() },
   buildFillMock: vi.fn(),
   storageGetMock: vi.fn(),
 }));
@@ -44,7 +44,7 @@ vi.mock("@/lib/proposals/storage", () => ({
 }));
 
 // ooxml is intentionally NOT mocked — the download test exercises the real writer.
-const { writeZip } = await import("@/lib/proposals/ooxml");
+const { writeZip, readZipEntry } = await import("@/lib/proposals/ooxml");
 const fillRoute = await import("@/app/api/proposals/templates/[id]/fill/route");
 const detailRoute = await import("@/app/api/proposals/[proposalId]/route");
 const downloadRoute = await import("@/app/api/proposals/[proposalId]/download/route");
@@ -121,6 +121,37 @@ describe("GET /api/proposals/[proposalId]", () => {
   });
 });
 
+describe("PATCH /api/proposals/[proposalId] (proofread edits)", () => {
+  it("persists component edits, tenant-scoped", async () => {
+    dbMock.select.mockReturnValue(selectChain([{ id: "p1" }]));
+    const where = vi.fn().mockResolvedValue(undefined);
+    dbMock.update.mockReturnValue({ set: vi.fn().mockReturnValue({ where }) });
+    const res = await detailRoute.PATCH(
+      jsonReq({ components: [{ componentId: "sec1", content: "human-edited" }] }),
+      { params: Promise.resolve({ proposalId: "p1" }) },
+    );
+    expect(res.status).toBe(200);
+    expect((await res.json()).updated).toBe(1);
+    expect(where).toHaveBeenCalled();
+  });
+
+  it("404 when the proposal is not in the tenant", async () => {
+    dbMock.select.mockReturnValue(selectChain([]));
+    const res = await detailRoute.PATCH(
+      jsonReq({ components: [{ componentId: "x", content: "y" }] }),
+      { params: Promise.resolve({ proposalId: "missing" }) },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("400 when no components are provided", async () => {
+    const res = await detailRoute.PATCH(jsonReq({}), {
+      params: Promise.resolve({ proposalId: "p1" }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("GET /api/proposals/[proposalId]/download", () => {
   it("streams a filled .docx assembled from the original template", async () => {
     const docXml = `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Executive Summary</w:t></w:r></w:p><w:p><w:r><w:t>OLD</w:t></w:r></w:p></w:body></w:document>`;
@@ -157,6 +188,8 @@ describe("GET /api/proposals/[proposalId]/download", () => {
     expect(res.headers.get("Content-Disposition")).toContain("SOW-filled.docx");
     const out = Buffer.from(await res.arrayBuffer());
     expect(out.length).toBeGreaterThan(0);
-    expect(out.toString("utf8")).toContain("Filled exec body");
+    // output is DEFLATE-compressed now (PROPOSAL-011) — read the entry, don't grep bytes
+    const doc = readZipEntry(out, "word/document.xml")!.toString("utf8");
+    expect(doc).toContain("Filled exec body");
   });
 });
