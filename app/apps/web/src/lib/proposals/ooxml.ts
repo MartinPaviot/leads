@@ -72,7 +72,7 @@ export function readZipEntry(buf: Buffer, name: string): Buffer | null {
   return null;
 }
 
-function decodeXmlEntities(s: string): string {
+export function decodeXmlEntities(s: string): string {
   return s
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
@@ -250,7 +250,7 @@ export function writeZip(entries: Array<{ name: string; bytes: Buffer }>): Buffe
   return Buffer.concat([localBuf, centralBuf, eocd]);
 }
 
-function xmlEscape(s: string): string {
+export function xmlEscape(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 

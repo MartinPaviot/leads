@@ -115,7 +115,7 @@ export default function ProposalsPage() {
     if (!res.ok) {
       setNotice(
         d.error === "unsupported_format"
-          ? "Only .docx templates are supported in this version."
+          ? "Only .docx and .pptx templates are supported."
           : d.error === "file_too_large"
             ? "That file is over the 10 MB limit."
             : d.error === "unreadable_docx"
@@ -225,18 +225,18 @@ export default function ProposalsPage() {
           Proposals
         </h1>
         <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-          Upload a Word template; Elevay maps its components so it can be drafted per prospect.
+          Upload a Word or PowerPoint template; Elevay maps its components so it can be drafted per prospect.
         </span>
         <div className="flex-1" />
         <label
           className="cursor-pointer rounded-md px-3 py-1.5 text-[13px] font-medium"
           style={{ background: "var(--color-accent)", color: "#fff", opacity: busy ? 0.6 : 1 }}
         >
-          {busy ? "Working…" : "Upload .docx"}
+          {busy ? "Working…" : "Upload template"}
           <input
             ref={fileRef}
             type="file"
-            accept=".docx"
+            accept=".docx,.pptx"
             className="hidden"
             disabled={busy}
             onChange={onUpload}

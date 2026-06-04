@@ -4,12 +4,15 @@ import { proposals, proposalComponents, proposalTemplates } from "@/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { getProposalStorage } from "@/lib/proposals/storage";
 import { assembleFilledDocx, type DocxFillComponent } from "@/lib/proposals/ooxml";
+import { assembleFilledPptx } from "@/lib/proposals/pptx";
 import type { ComponentMap } from "@/lib/proposals/component-map";
 
 type Params = { params: Promise<{ proposalId: string }> };
 
 const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const PPTX_MIME =
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation";
 
 /**
  * GET /api/proposals/[proposalId]/download — assemble + stream the filled .docx
@@ -64,14 +67,18 @@ export async function GET(_req: Request, { params }: Params) {
       kind: c.kind,
       anchorHeading: c.anchor.headingText,
     }));
-    const { bytes } = assembleFilledDocx(stored.bytes, fillComponents, contentById);
+    const isPptx = tpl.sourceFormat === "pptx";
+    const { bytes } = isPptx
+      ? assembleFilledPptx(stored.bytes, fillComponents, contentById)
+      : assembleFilledDocx(stored.bytes, fillComponents, contentById);
 
     const safeName = (tpl.name || "proposal").replace(/[^a-z0-9._-]+/gi, "_").slice(0, 80);
+    const ext = isPptx ? "pptx" : "docx";
     return new Response(new Uint8Array(bytes), {
       status: 200,
       headers: {
-        "Content-Type": DOCX_MIME,
-        "Content-Disposition": `attachment; filename="${safeName}-filled.docx"`,
+        "Content-Type": isPptx ? PPTX_MIME : DOCX_MIME,
+        "Content-Disposition": `attachment; filename="${safeName}-filled.${ext}"`,
       },
     });
   });

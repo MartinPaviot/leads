@@ -4,6 +4,7 @@ import { proposalTemplates } from "@/db/schema";
 import { and, eq, desc, isNull } from "drizzle-orm";
 import { getProposalStorage } from "@/lib/proposals/storage";
 import { extractDocx } from "@/lib/proposals/ingest-docx";
+import { extractPptx } from "@/lib/proposals/pptx";
 import {
   detectComponents,
   DetectionUnavailable,
@@ -12,6 +13,8 @@ import {
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const PPTX_MIME =
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation";
 
 /**
  * POST /api/proposals/templates
@@ -34,7 +37,9 @@ export async function POST(req: Request) {
     }
     const name = ((form.get("name") as string | null)?.trim() || file.name).slice(0, 200);
 
-    if (!file.name.toLowerCase().endsWith(".docx")) {
+    const lower = file.name.toLowerCase();
+    const sourceFormat = lower.endsWith(".pptx") ? "pptx" : lower.endsWith(".docx") ? "docx" : null;
+    if (!sourceFormat) {
       return Response.json({ error: "unsupported_format" }, { status: 400 });
     }
     if (file.size > MAX_BYTES) {
@@ -46,14 +51,19 @@ export async function POST(req: Request) {
     const storage = getProposalStorage();
     let storageRef: string;
     try {
-      storageRef = await storage.put(authCtx.tenantId, bytes, file.type || DOCX_MIME);
+      storageRef = await storage.put(
+        authCtx.tenantId,
+        bytes,
+        file.type || (sourceFormat === "pptx" ? PPTX_MIME : DOCX_MIME),
+      );
     } catch (e) {
       console.error("proposal upload: storage failed", e);
       return Response.json({ error: "storage_failed" }, { status: 500 });
     }
 
     const id = crypto.randomUUID();
-    const { text, outline, error: extractErr } = extractDocx(bytes);
+    const { text, outline, error: extractErr } =
+      sourceFormat === "pptx" ? extractPptx(bytes) : extractDocx(bytes);
 
     if (extractErr || !text.trim()) {
       await db.insert(proposalTemplates).values({
@@ -61,7 +71,7 @@ export async function POST(req: Request) {
         tenantId: authCtx.tenantId,
         createdByUserId: authCtx.userId,
         name,
-        sourceFormat: "docx",
+        sourceFormat,
         originalFileName: file.name,
         storageRef,
         status: "failed",
@@ -75,7 +85,7 @@ export async function POST(req: Request) {
       tenantId: authCtx.tenantId,
       createdByUserId: authCtx.userId,
       name,
-      sourceFormat: "docx",
+      sourceFormat,
       originalFileName: file.name,
       storageRef,
       status: "uploaded",

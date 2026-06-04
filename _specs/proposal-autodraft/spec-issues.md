@@ -38,3 +38,18 @@ the template's look survives). Deliberate v1 limits:
 - Re-zipped with the STORE method (valid, slightly larger); CRC32 computed.
 True visual fidelity must be confirmed by opening the result in Word (the live
 run); the sandbox validates structure + text deterministically via fixtures.
+
+## SI-4: PPTX writer (PROPOSAL-005) — v1 fidelity envelope
+`assembleFilledPptx` (zero-dep, `pptx.ts`) does **slide-title-anchored** replacement:
+for each component anchored to a slide title, it replaces the first non-title text
+placeholder's body and re-zips every other part (masters/layouts/theme/media)
+untouched. Slide order is resolved from `presentation.xml` + rels (fallback: numeric
+`slideN.xml` sort). Deliberate v1 limits:
+- One body placeholder per slide is filled (the first non-title text shape); decks
+  with multiple content columns/placeholders fill only the first.
+- Tables, charts, SmartArt and grouped shapes are not filled.
+- Autofit (`a:normAutofit fontScale`) is not recomputed — long content may overflow
+  until PowerPoint reflows it on open.
+- Components with no matching slide title are returned in `unplaced`.
+Validated deterministically via a fixture .pptx (presentation.xml + rels + slides);
+true visual fidelity needs a live open in PowerPoint.
