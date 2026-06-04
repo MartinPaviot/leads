@@ -8,8 +8,8 @@
  * Visuals alternate left/right down the page.
  */
 
-import { useRef, type ComponentType } from "react";
-import { useInView, useReducedMotion } from "framer-motion";
+import { useEffect, useRef, useState, type ComponentType } from "react";
+import { motion, useInView, useReducedMotion } from "framer-motion";
 import { AppFrame } from "./product-mockups";
 import {
   AccountsPhase,
@@ -62,23 +62,71 @@ const steps: { label: string; headline: string; body: string; Phase: Phase }[] =
 ];
 
 /**
- * A faithful product page that animates ONCE, the first time the step
- * reaches the viewport. Until then it renders in its settled (reduced)
- * state — so nothing animates off-screen on load, and it never re-runs on
- * every scroll-by (lighter, and calmer to read).
+ * A faithful product page that, as the step reaches the viewport:
+ *   1. fades and settles in (transparent -> in place),
+ *   2. plays its own intro animation once, then
+ *   3. gently auto-pans the page inside the frame (top -> bottom -> top) so
+ *      the whole surface is revealed, not just the top.
+ * The auto-pan only runs while the step is on screen (lighter on weak GPUs),
+ * and everything is disabled under prefers-reduced-motion.
  */
 function AnimatedSurface({ Phase }: { Phase: Phase }) {
   const ref = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion() ?? false;
-  const inView = useInView(ref, { once: true, margin: "-90px 0px" });
+  const inView = useInView(ref, { margin: "-80px 0px" });
+  const [live, setLive] = useState(false);
+  useEffect(() => { if (inView) setLive(true); }, [inView]);
+
+  useEffect(() => {
+    if (!live || !inView || reduced) return;
+    const root = ref.current;
+    if (!root) return;
+    let raf = 0;
+    let cancelled = false;
+    // Let the page's own intro animation play first, then start panning.
+    const begin = setTimeout(() => {
+      const sc = root.querySelector<HTMLElement>(".overflow-y-auto");
+      if (!sc) return;
+      const CYCLE = 11000;
+      const DWELL = 0.14;
+      const t0 = performance.now();
+      const tick = (now: number) => {
+        if (cancelled) return;
+        const max = sc.scrollHeight - sc.clientHeight;
+        if (max > 4) {
+          const p = ((now - t0) / CYCLE) % 1;
+          let prog: number;
+          if (p < DWELL) prog = 0;
+          else if (p < 0.5 - DWELL) prog = (p - DWELL) / (0.5 - 2 * DWELL);
+          else if (p < 0.5 + DWELL) prog = 1;
+          else if (p < 1 - DWELL) prog = 1 - (p - (0.5 + DWELL)) / (0.5 - 2 * DWELL);
+          else prog = 0;
+          sc.scrollTop = prog * max;
+        }
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    }, 2000);
+    return () => {
+      cancelled = true;
+      clearTimeout(begin);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [live, inView, reduced]);
+
   return (
-    <div ref={ref}>
+    <motion.div
+      ref={ref}
+      initial={reduced ? false : { opacity: 0, y: 22, scale: 0.97 }}
+      animate={live ? { opacity: 1, y: 0, scale: 1 } : undefined}
+      transition={{ duration: reduced ? 0 : 0.6, ease: [0.22, 0.61, 0.36, 1] }}
+    >
       <AppFrame>
         <div style={{ height: 374 }} className="overflow-hidden bg-[#FAFAFA]">
-          {inView ? <Phase key="live" reduced={reduced} /> : <Phase key="static" reduced />}
+          {live ? <Phase key="live" reduced={reduced} /> : <Phase key="static" reduced />}
         </div>
       </AppFrame>
-    </div>
+    </motion.div>
   );
 }
 
