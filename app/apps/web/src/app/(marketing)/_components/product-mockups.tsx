@@ -368,7 +368,7 @@ export function TamMock() {
         <div className="rounded-md px-2.5 py-1 text-[11px] font-semibold text-white" style={{ background: BRAND }}>Build TAM</div>
       </div>
       <div className="flex flex-wrap items-center gap-1.5 px-4 pt-3 text-[10px]">
-        {["Industry: SaaS", "Headcount 50–500", "Region: EU", "Hiring SDRs"].map((f) => (
+        {["Industry: SaaS", "Headcount 50 to 500", "Region: EU", "Hiring SDRs"].map((f) => (
           <span key={f} className="rounded-full border border-[#E8E8F0] bg-[#FAFAFA] px-2 py-0.5 text-[#64648C]">{f}</span>
         ))}
       </div>
@@ -599,6 +599,47 @@ export function IntegrationsStrip() {
         <div key={i.l} className="flex items-center gap-2">
           <Logo src={i.src} size={24} rounded="rounded-md" bordered={false} />
           <span className="text-[13px] font-medium text-[#475569]">{i.l}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── "Built on" infrastructure credibility row ──────────────────── */
+
+export function BuiltOnStrip() {
+  // Borrowed credibility, but every name is real and verifiable in the
+  // codebase: Anthropic + OpenAI (@ai-sdk/anthropic, @ai-sdk/openai),
+  // Twilio (twilio), Deepgram (@deepgram/sdk), Recall.ai (RECALL_API_KEY
+  // + /api/webhooks/recall). Logos render grayscale so a mix of brand
+  // colours reads as one calm row, and colour up on hover. The text name
+  // always shows, so a blocked logo CDN never costs us the credibility.
+  const items: { src: string; l: string; w: string }[] = [
+    { src: "https://cdn.simpleicons.org/anthropic", l: "Anthropic", w: "Reasoning" },
+    // OpenAI was pulled from Simple Icons (trademark request); use favicon.
+    { src: "https://www.google.com/s2/favicons?domain=openai.com&sz=128", l: "OpenAI", w: "Drafting" },
+    { src: "https://cdn.simpleicons.org/twilio", l: "Twilio", w: "Calls" },
+    { src: "https://cdn.simpleicons.org/deepgram", l: "Deepgram", w: "Transcription" },
+    { src: "https://www.google.com/s2/favicons?domain=recall.ai&sz=128", l: "Recall.ai", w: "Capture" },
+  ];
+  return (
+    <div aria-hidden="true" className="flex flex-wrap items-center justify-center gap-x-7 gap-y-5 sm:gap-x-10">
+      {items.map((i) => (
+        <div key={i.l} className="group flex items-center gap-2.5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={i.src}
+            alt=""
+            width={20}
+            height={20}
+            loading="lazy"
+            className="h-5 w-5 shrink-0 object-contain opacity-65 grayscale transition duration-200 group-hover:opacity-100 group-hover:grayscale-0"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+          <span className="flex flex-col leading-none">
+            <span className="text-[13.5px] font-semibold tracking-tight text-[#3A4252]">{i.l}</span>
+            <span className="mt-[3px] text-[10.5px] font-medium uppercase tracking-wider text-[#AEB4C0]">{i.w}</span>
+          </span>
         </div>
       ))}
     </div>
