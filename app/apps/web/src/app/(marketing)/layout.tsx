@@ -41,12 +41,8 @@ const softwareJsonLd = {
   url: APP_URL,
   description:
     "The pre-built revenue engine for founder-led sales. Connect your inbox, build your TAM, write sequences, capture calls, automate follow-ups.",
-  offers: {
-    "@type": "Offer",
-    price: "0",
-    priceCurrency: "USD",
-    description: "14-day free trial, no credit card required.",
-  },
+  // No `offers` block: pricing is deliberately not stated on the landing, so
+  // we don't assert a price (not even "0") in structured data either.
 };
 
 export default function MarketingLayout({

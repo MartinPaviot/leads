@@ -108,7 +108,7 @@ const faqs = [
   },
   {
     q: "What does it cost, and is my data secure?",
-    a: "Start with a 14-day free trial on your own data, no credit card. Paid plans scale with your volume. Your data is encrypted in transit and at rest, we connect over OAuth (never your password), and you can revoke access anytime.",
+    a: "Start with a 14-day free trial on your own data, no credit card required. Your data is encrypted in transit and at rest, we connect over OAuth (never your password), and you can revoke access anytime.",
   },
 ];
 
