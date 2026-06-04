@@ -18,18 +18,21 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence, useReducedMotion, useInView } from "framer-motion";
+import { motion, AnimatePresence, LayoutGroup, useReducedMotion, useInView } from "framer-motion";
 import {
   Building2, Users, CircleDot, Inbox, Phone, Clock, BookOpen, Wand2, Zap,
   Calendar, FileText, CheckSquare, BarChart3, Send, Compass, Bell, Reply,
-  Eye, Check, Search, Sparkles, Target, Plus, Gauge, Radio, Mic, type LucideIcon,
+  Eye, Check, Search, Sparkles, Target, Plus, Gauge, Radio, Mic,
+  TrendingUp, RefreshCw, type LucideIcon,
 } from "lucide-react";
 import { AppFrame, Avatar, Logo, PHOTO, clogo } from "./product-mockups";
 
 const BRAND = "linear-gradient(90deg,#17C3B2,#2C6BED,#FF7A3D)";
 const T = { text: "#1A1A2E", sec: "#64648C", ter: "#9CA3AF", border: "#E8E8F0", soft: "#EFEFF5", page: "#FAFAFA", card: "#FFFFFF", accent: "#2C6BED", accentSoft: "rgba(44,107,237,0.08)" };
 const C = { green: "#4E9E86", greenSoft: "rgba(78,158,134,0.13)", red: "#D17B76", redSoft: "rgba(209,123,118,0.13)", amber: "#CDA25C", amberSoft: "rgba(205,162,92,0.15)", blue: "#2C6BED", blueSoft: "rgba(44,107,237,0.10)" };
-const PHASE_MS = [5200, 4600, 5800, 5400, 6600];
+// Accounts, Up next, Campaigns, Meetings, Opportunities, Chat.
+// Accounts runs longer so the list is scrollable before it advances.
+const PHASE_MS = [6000, 4600, 5800, 5400, 5600, 6600];
 
 /* ── helpers ─────────────────────────────────────────────────────── */
 
@@ -107,13 +110,13 @@ function Sidebar({ active }: { active: string }) {
         <img src="/logo-Elevay.svg" alt="" className="h-5 w-5" />
         <span className="text-[13px] font-bold" style={{ background: BRAND, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Elevay</span>
       </div>
-      <div className="min-h-0 flex-1 px-2 py-2">
+      <div className="min-h-0 flex-1 overflow-hidden px-2 py-1.5">
         {navSections.map((s, si) => (
-          <div key={s.label || si} className={si > 0 ? "mt-2" : ""}>
+          <div key={s.label || si} className={si > 0 ? "mt-1.5" : ""}>
             {s.label && <div className="mb-0.5 px-2 text-[8.5px] font-semibold uppercase tracking-wider" style={{ color: "#B4B8C4" }}>{s.label}</div>}
             <div className="space-y-px">
               {s.items.map((n) => { const Icon = n.icon; const on = n.label === active; return (
-                <div key={n.label} className="flex h-[22px] items-center gap-2 rounded-md px-2 text-[10.5px] font-medium transition-colors" style={{ color: on ? T.text : T.sec, background: on ? T.accentSoft : "transparent", boxShadow: on ? `inset 2px 0 0 0 ${T.accent}` : undefined }}>
+                <div key={n.label} className="flex h-[20px] items-center gap-2 rounded-md px-2 text-[10.5px] font-medium transition-colors" style={{ color: on ? T.text : T.sec, background: on ? T.accentSoft : "transparent", boxShadow: on ? `inset 2px 0 0 0 ${T.accent}` : undefined }}>
                   <Icon size={12} style={{ color: on ? T.accent : T.ter }} />{n.label}
                 </div>
               ); })}
@@ -121,7 +124,9 @@ function Sidebar({ active }: { active: string }) {
           </div>
         ))}
       </div>
-      <div className="flex shrink-0 items-center gap-2 border-t px-3 py-2" style={{ borderColor: T.soft }}>
+      {/* Footer height is locked to the chat bar's (BAR_H) so their top
+          borders form one continuous line across the shell. */}
+      <div className="flex h-[44px] shrink-0 items-center gap-2 border-t px-3" style={{ borderColor: T.soft }}>
         <Avatar src={PHOTO.martin} size={20} /><span className="text-[11px] font-medium" style={{ color: T.text }}>Martin</span>
       </div>
     </aside>
@@ -134,8 +139,16 @@ function AccountsPhase({ reduced }: { reduced: boolean }) {
   const rows = [
     { dom: "linear.app", n: "Linear", ind: "Dev tools", size: "180", s: 94, sig: ["Hiring", "YC"] },
     { dom: "notion.so", n: "Notion", ind: "Productivity", size: "600", s: 89, sig: ["Funding"] },
+    { dom: "figma.com", n: "Figma", ind: "Design", size: "1200", s: 92, sig: ["Expanding"] },
     { dom: "webflow.com", n: "Webflow", ind: "MarTech", size: "240", s: 85, sig: ["Hiring"] },
+    { dom: "vercel.com", n: "Vercel", ind: "Dev tools", size: "550", s: 88, sig: ["Funding", "Hiring"] },
     { dom: "airtable.com", n: "Airtable", ind: "No-code", size: "140", s: 78, sig: ["Investor"] },
+    { dom: "supabase.com", n: "Supabase", ind: "Database", size: "120", s: 90, sig: ["YC", "Hiring"] },
+    { dom: "ramp.com", n: "Ramp", ind: "Fintech", size: "730", s: 86, sig: ["Expanding"] },
+    { dom: "retool.com", n: "Retool", ind: "Dev tools", size: "280", s: 81, sig: ["Funding"] },
+    { dom: "posthog.com", n: "PostHog", ind: "Analytics", size: "90", s: 79, sig: ["Open source"] },
+    { dom: "loom.com", n: "Loom", ind: "Video", size: "320", s: 76, sig: ["Hiring"] },
+    { dom: "intercom.com", n: "Intercom", ind: "Support", size: "950", s: 83, sig: ["Enterprise"] },
   ];
   return (
     <div className="flex h-full flex-col">
@@ -145,17 +158,19 @@ function AccountsPhase({ reduced }: { reduced: boolean }) {
         <HBtn icon={Plus} gradient>Create</HBtn>
       </PageHeaderBar>
       <FilterBar>
-        {["All", "Prospects 544", "Manual"].map((t, i) => (
-          <span key={t} className="rounded-md px-2 py-1 text-[11px] font-medium" style={{ background: i === 1 ? T.accentSoft : "transparent", color: i === 1 ? T.accent : T.ter }}>{t}</span>
-        ))}
-        <span className="ml-auto flex items-center gap-1.5 rounded-md border px-2 py-1 text-[10.5px]" style={{ borderColor: T.border, color: T.ter }}><Search size={11} /> Search accounts</span>
+        {["All 544", "ICP-1 320", "ICP-2 188", "Customers 44", "Manual"].map((t) => { const on = t === "ICP-1 320"; return (
+          <span key={t} className="shrink-0 rounded-md px-2 py-1 text-[11px] font-medium" style={{ background: on ? T.accentSoft : "transparent", color: on ? T.accent : T.ter }}>{t}</span>
+        ); })}
+        <span className="ml-auto flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[10.5px]" style={{ borderColor: T.border, color: T.ter }}><Search size={11} /> Search</span>
       </FilterBar>
-      <div className="min-h-0 flex-1 overflow-hidden px-3 pt-2">
+      {/* Scrollable list: hover pauses the demo, so the full TAM can be
+          scrolled before it advances. */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-2">
         <table className="w-full" style={{ borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ color: T.ter }}>
               {[{ l: "Account", i: Building2 }, { l: "Industry", i: null }, { l: "Size", i: null }, { l: "Score", i: Gauge }, { l: "Signals", i: Radio }].map((c) => (
-                <th key={c.l} className="border-b px-2 py-1.5 text-left text-[8.5px] font-semibold uppercase tracking-wider" style={{ borderColor: T.border }}>
+                <th key={c.l} className="sticky top-0 z-10 border-b px-2 py-1.5 text-left text-[8.5px] font-semibold uppercase tracking-wider" style={{ borderColor: T.border, background: T.page }}>
                   <span className="flex items-center gap-1">{c.i && <c.i size={9} style={{ opacity: 0.6 }} />}{c.l}</span>
                 </th>
               ))}
@@ -294,7 +309,86 @@ function MeetingsPhase({ reduced }: { reduced: boolean }) {
   );
 }
 
-/* ── phase 5 · Chat (real chat page) ────────────────────────────── */
+/* ── phase 5 · Opportunities (the deal updates itself from the call) ─ */
+
+type Deal = { id: string; dom: string; n: string; val: string; chips: string[]; hot?: boolean };
+
+function OpportunitiesPhase({ reduced }: { reduced: boolean }) {
+  const [synced, setSynced] = useState(reduced);
+  useEffect(() => {
+    if (reduced) return;
+    const t = setTimeout(() => setSynced(true), 1900);
+    return () => clearTimeout(t);
+  }, [reduced]);
+
+  // Continuity with the Meetings phase: the Notion discovery call we just
+  // captured flows straight into the deal board. The card advances
+  // Discovery -> Proposal, its value lands on the ~$40K from the call, and
+  // it picks up the Q3 close date and Salesforce competitor from the notes.
+  const notion: Deal = synced
+    ? { id: "notion", dom: "notion.so", n: "Notion", val: "$40K", chips: ["Close Q3", "vs Salesforce"], hot: true }
+    : { id: "notion", dom: "notion.so", n: "Notion", val: "$24K", chips: [] };
+
+  const columns: { name: string; deals: Deal[] }[] = [
+    { name: "Discovery", deals: [...(synced ? [] : [notion]), { id: "airtable", dom: "airtable.com", n: "Airtable", val: "$18K", chips: [] }] },
+    { name: "Proposal", deals: [...(synced ? [notion] : []), { id: "figma", dom: "figma.com", n: "Figma", val: "$52K", chips: [] }] },
+    { name: "Negotiation", deals: [{ id: "webflow", dom: "webflow.com", n: "Webflow", val: "$28K", chips: [] }] },
+  ];
+
+  return (
+    <div className="flex h-full flex-col">
+      <PageHeaderBar icon={CircleDot} title="Opportunities" count="$138K open" />
+      <div className="min-h-0 flex-1 px-3 py-2.5" style={{ background: T.page }}>
+        <div className="mb-2.5 flex items-center gap-2 rounded-lg border px-3 py-1.5 text-[11px] font-medium transition-colors"
+          style={{ borderColor: synced ? "rgba(78,158,134,0.4)" : "rgba(44,107,237,0.22)", background: synced ? C.greenSoft : C.blueSoft, color: T.text }}>
+          {synced
+            ? <Check size={13} style={{ color: C.green }} />
+            : <motion.span className="inline-flex" animate={reduced ? undefined : { rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}><RefreshCw size={12} style={{ color: T.accent }} /></motion.span>}
+          {synced ? "Notion deal updated from your Discovery call" : "Syncing notes from Notion · Discovery call…"}
+        </div>
+
+        <LayoutGroup>
+          <div className="grid grid-cols-3 gap-2">
+            {columns.map((col) => (
+              <div key={col.name}>
+                <div className="mb-1.5 flex items-center justify-between px-0.5">
+                  <span className="text-[9.5px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>{col.name}</span>
+                  <span className="text-[9.5px]" style={{ color: T.ter }}>{col.deals.length}</span>
+                </div>
+                <div className="space-y-1.5">
+                  {col.deals.map((d) => (
+                    <motion.div key={d.id} layout={!reduced} layoutId={reduced ? undefined : d.id}
+                      transition={{ layout: { duration: 0.55, ease: [0.22, 0.61, 0.36, 1] } }}
+                      className="rounded-lg border px-2.5 py-2"
+                      style={{ background: T.card, borderColor: d.hot ? "rgba(78,158,134,0.55)" : T.border, boxShadow: d.hot ? "0 0 0 1px rgba(78,158,134,0.25)" : "0 1px 2px rgba(26,26,46,0.04)" }}>
+                      <div className="flex items-center gap-1.5">
+                        <Logo src={clogo(d.dom)} size={15} />
+                        <span className="text-[11px] font-medium" style={{ color: T.text }}>{d.n}</span>
+                        <span className="ml-auto flex items-center gap-1 text-[11px] font-semibold tabular-nums" style={{ color: d.hot ? C.green : T.text }}>
+                          {d.hot && <TrendingUp size={10} />}{d.val}
+                        </span>
+                      </div>
+                      {d.chips.length > 0 && (
+                        <motion.div className="mt-1.5 flex flex-wrap gap-1"
+                          initial={reduced ? false : { opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: reduced ? 0 : 0.45 }}>
+                          {d.chips.map((c) => (
+                            <span key={c} className="rounded px-1.5 py-0.5 text-[9px] font-medium" style={{ background: C.blueSoft, color: T.accent }}>{c}</span>
+                          ))}
+                        </motion.div>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </LayoutGroup>
+      </div>
+    </div>
+  );
+}
+
+/* ── phase 6 · Chat (real chat page) ────────────────────────────── */
 
 function ChatPhase({ reduced }: { reduced: boolean }) {
   const [showA, setShowA] = useState(reduced);
@@ -335,16 +429,17 @@ const phases = [
   { nav: "Up next", el: UpNextPhase },
   { nav: "Campaigns", el: CampaignsPhase },
   { nav: "Meetings", el: MeetingsPhase },
+  { nav: "Opportunities", el: OpportunitiesPhase },
   { nav: "Up next", el: ChatPhase },
 ];
 
 /* ── persistent chat bar (types the query during the Chat phase) ── */
 
 function ChatBar({ phase, reduced }: { phase: number; reduced: boolean }) {
-  const asking = phase === 4;
+  const asking = phase === 5;
   return (
-    <div className="border-t px-4 pb-3 pt-2.5" style={{ borderColor: T.soft, background: T.card }}>
-      <div className="relative mx-auto max-w-md">
+    <div className="flex h-[44px] shrink-0 items-center border-t px-4" style={{ borderColor: T.soft, background: T.card }}>
+      <div className="relative mx-auto w-full max-w-md">
         <Compass size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: T.ter }} />
         <div className="w-full truncate rounded-xl border py-2 pl-9 pr-9 text-[11px]" style={{ borderColor: asking ? "rgba(44,107,237,0.4)" : T.border, color: asking ? T.text : T.ter, background: T.card, boxShadow: "0 1px 2px rgba(26,26,46,0.05)" }}>
           {asking ? <Typewriter key={phase} text="What did Sarah say about budget last Thursday?" start={!reduced} speed={22} caret /> : "Show my best prospects, pipeline health, draft email…"}
