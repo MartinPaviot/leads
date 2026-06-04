@@ -21,7 +21,6 @@ import {
 import { and, eq } from "drizzle-orm";
 import { getDealAmountDisplay, formatDealAmount } from "@/lib/deals/amount";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
-import { getSkillKnowledge } from "@/skills/skill-knowledge";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { getModelForTask } from "@/lib/ai/ai-provider";
 import { collectCitableSources, type CitableSource } from "./sources";
@@ -288,23 +287,16 @@ export async function buildProposalFill(
   let generated: Record<string, GeneratedSection> = {};
   let sourcesById = new Map<string, CitableSource>();
   if (sectionComponents.length > 0) {
-    const [knowledgeBlock, sources] = await Promise.all([
-      getSkillKnowledge(
-        `commercial proposal pricing positioning ${company?.name ?? ""} ${company?.industry ?? ""}`,
-        opts.tenantId,
-      ),
-      collectCitableSources(opts.tenantId, {
-        dealId,
-        companyId: deal.companyId ?? undefined,
-        contactId: deal.contactId ?? undefined,
-      }),
-    ]);
+    const sources = await collectCitableSources(opts.tenantId, {
+      dealId,
+      companyId: deal.companyId ?? undefined,
+      contactId: deal.contactId ?? undefined,
+      knowledgeQuery: `commercial proposal pricing positioning ${company?.name ?? ""} ${company?.industry ?? ""}`,
+    });
     sourcesById = sources.byId;
     const contextBlock = `## Our Company
 - Name: ${settings.onboardingCompanyName || "our company"}
 - Product: ${settings.productDescription || "not specified"}
-
-${knowledgeBlock}
 
 ## Prospect
 - Company: ${company?.name || "unknown"}
@@ -316,7 +308,7 @@ ${knowledgeBlock}
 - Stage: ${deal.stage}
 - Amount: ${formatDealAmount(getDealAmountDisplay(deal).total)}
 
-## SOURCE INTERACTIONS (cite these by id)
+## SOURCE INTERACTIONS (cite these by id; [K..] entries are Elevay knowledge)
 ${sources.block}`;
 
     generated = await generateSections(

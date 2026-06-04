@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { dbMock } = vi.hoisted(() => ({ dbMock: { select: vi.fn() } }));
+const { dbMock, retrieveMock } = vi.hoisted(() => ({
+  dbMock: { select: vi.fn() },
+  retrieveMock: vi.fn(),
+}));
 
 vi.mock("@/db", () => ({ db: dbMock }));
 vi.mock("@/db/schema", () => ({
@@ -12,6 +15,9 @@ vi.mock("drizzle-orm", () => ({
   eq: (...a: unknown[]) => ({ eq: a }),
   or: (...a: unknown[]) => ({ or: a }),
   desc: (x: unknown) => ({ desc: x }),
+}));
+vi.mock("@/lib/knowledge/retrieval", () => ({
+  retrieveKnowledge: (...a: unknown[]) => retrieveMock(...a),
 }));
 
 const { collectCitableSources } = await import("../sources");
@@ -54,5 +60,14 @@ describe("collectCitableSources", () => {
     expect(sources).toEqual([]);
     expect(block).toBe("(no recorded interactions)");
     expect(dbMock.select).not.toHaveBeenCalled();
+  });
+
+  it("includes Elevay knowledge as citable [K..] sources (PROPOSAL-009 AC3)", async () => {
+    retrieveMock.mockResolvedValue([{ title: "Pricing", content: "Starter 49, Pro 99" }]);
+    const { sources, block, byId } = await collectCitableSources("t1", { knowledgeQuery: "pricing" });
+    expect(sources).toHaveLength(1);
+    expect(sources[0]).toMatchObject({ id: "K1", type: "knowledge", label: "Pricing", snippet: "Starter 49, Pro 99" });
+    expect(block).toContain("[K1]");
+    expect(byId.get("K1")).toBeDefined();
   });
 });

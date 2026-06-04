@@ -10,8 +10,8 @@ import { activities, notes } from "@/db/schema";
 import { and, eq, or, desc } from "drizzle-orm";
 
 export interface CitableSource {
-  id: string; // "A1", "N1"
-  type: "activity" | "note";
+  id: string; // "A1", "N1", "K1"
+  type: "activity" | "note" | "knowledge";
   label: string;
   snippet: string;
   date: string | null;
@@ -25,6 +25,8 @@ export async function collectCitableSources(
     contactId?: string;
     activityLimit?: number;
     noteLimit?: number;
+    knowledgeQuery?: string;
+    knowledgeLimit?: number;
   },
 ): Promise<{ sources: CitableSource[]; block: string; byId: Map<string, CitableSource> }> {
   const actFilters = [];
@@ -85,6 +87,28 @@ export async function collectCitableSources(
       date: n.createdAt ? n.createdAt.toISOString().split("T")[0] : null,
     });
   });
+
+  // PROPOSAL-009 AC3: make Elevay knowledge (pricing/positioning) citable too,
+  // so claims grounded on it carry a [K..] citation instead of looking ungrounded.
+  if (opts.knowledgeQuery) {
+    try {
+      const { retrieveKnowledge } = await import("@/lib/knowledge/retrieval");
+      const knowRows = (await retrieveKnowledge(opts.knowledgeQuery, tenantId, {
+        limit: opts.knowledgeLimit ?? 4,
+      })) as Array<{ title?: string | null; content?: string | null }>;
+      knowRows.forEach((k, i) => {
+        sources.push({
+          id: `K${i + 1}`,
+          type: "knowledge",
+          label: k.title || "knowledge",
+          snippet: (k.content || "").slice(0, 400),
+          date: null,
+        });
+      });
+    } catch {
+      // knowledge is optional grounding
+    }
+  }
 
   const block = sources.length
     ? sources.map((s) => `[${s.id}] (${s.date ?? "?"}, ${s.label}) ${s.snippet}`).join("\n")
