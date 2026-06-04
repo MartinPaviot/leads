@@ -23,7 +23,7 @@ import {
   Building2, Users, CircleDot, Inbox, Phone, Clock, BookOpen, Wand2, Zap,
   Calendar, FileText, CheckSquare, BarChart3, Send, Compass, Bell, Reply,
   Eye, Check, Search, Sparkles, Target, Plus, Gauge, Radio, Mic,
-  TrendingUp, RefreshCw, type LucideIcon,
+  TrendingUp, RefreshCw, DollarSign, AlertTriangle, type LucideIcon,
 } from "lucide-react";
 import { AppFrame, Avatar, Logo, PHOTO, clogo } from "./product-mockups";
 
@@ -214,7 +214,7 @@ function AccountsPhase({ reduced }: { reduced: boolean }) {
 /* ── phase 2 · Up next (priorities) ─────────────────────────────── */
 
 function UpNextPhase({ reduced }: { reduced: boolean }) {
-  const rows = [
+  const priorities = [
     { icon: Bell, tint: C.red, t: "Re-engage Linear · 12 days silent", b: { l: "Stalled", c: C.red, bg: C.redSoft } },
     { icon: Reply, tint: C.blue, t: "Reply to Julien about pricing", b: { l: "high", c: C.amber, bg: C.amberSoft } },
     { icon: Send, tint: C.green, t: "Send sequence to 18 new ICP-1 accounts", b: { l: "ready", c: C.green, bg: C.greenSoft } },
@@ -222,22 +222,44 @@ function UpNextPhase({ reduced }: { reduced: boolean }) {
   return (
     <div className="flex h-full flex-col">
       <PageHeaderBar icon={Clock} title="Up next" count="Wed, Jun 3" />
-      <div className="relative min-h-0 flex-1 px-4 py-3" style={{ background: T.page }}>
+      <div className="relative min-h-0 flex-1 overflow-y-auto px-4 py-3" style={{ background: T.page }}>
         <div className="text-[14px] font-bold" style={{ color: T.text }}>Good morning, Martin</div>
-        <div className="mb-2 mt-2 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>Your priorities today</div>
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border px-3.5 py-2.5" style={{ borderColor: T.border, background: T.card }}>
+          {[{ i: Building2, v: "544", l: "accounts" }, { i: Users, v: "312", l: "contacts" }, { i: DollarSign, v: "$148K", l: "pipeline" }, { i: TrendingUp, v: "9", l: "deals" }].map((s) => { const I = s.i; return (
+            <div key={s.l} className="flex items-center gap-1.5"><I size={12} style={{ color: T.ter }} /><span className="text-[13px] font-bold tabular-nums" style={{ color: T.text }}>{s.v}</span><span className="text-[11px]" style={{ color: T.ter }}>{s.l}</span></div>
+          ); })}
+        </div>
+        <div className="mb-1.5 mt-3 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>Your priorities today</div>
         <motion.div className="space-y-1.5" variants={listV} initial={reduced ? false : "hidden"} animate="show">
-          {rows.map((r) => { const Icon = r.icon; return (
+          {priorities.map((r) => { const Icon = r.icon; return (
             <motion.div key={r.t} variants={reduced ? undefined : itemV} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2" style={{ borderColor: T.border, background: T.card }}>
               <span className="flex min-w-0 items-center gap-2"><Icon size={13} style={{ color: r.tint }} className="shrink-0" /><span className="truncate text-[11.5px] font-medium" style={{ color: T.text }}>{r.t}</span></span>
-              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ color: r.b.c, background: r.b.bg }}>{r.b.l}</span>
+              <span className="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ color: r.b.c, background: r.b.bg }}>{r.b.l}</span>
             </motion.div>
           ); })}
         </motion.div>
-        <motion.div className="mt-2.5 inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-[11px] font-medium" style={{ borderColor: "rgba(44,107,237,0.22)", background: C.blueSoft, color: T.text }}
+        <motion.div className="mt-2 flex w-fit items-center gap-2 rounded-lg border px-3 py-2 text-[11px] font-medium" style={{ borderColor: "rgba(44,107,237,0.22)", background: C.blueSoft, color: T.text }}
           initial={reduced ? false : { opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: reduced ? 0 : 1.4, duration: 0.4 }}>
           <span className="flex h-5 w-5 items-center justify-center rounded-md" style={{ background: C.blueSoft }}><Eye size={12} style={{ color: T.accent }} /></span>
           Linear just viewed your pricing page <span style={{ color: T.ter }}>· now</span>
         </motion.div>
+        <div className="mb-1.5 mt-3 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}><AlertTriangle size={10} /> Deals at risk</div>
+        <div className="space-y-1.5">
+          {[{ dom: "notion.so", n: "Notion · Pro plan", v: "$36K", r: 78 }, { dom: "webflow.com", n: "Webflow · Team", v: "$22K", r: 41 }].map((d) => (
+            <div key={d.n} className="flex items-center justify-between rounded-lg border px-3 py-2" style={{ borderColor: T.border, background: T.card }}>
+              <span className="flex min-w-0 items-center gap-2"><Logo src={clogo(d.dom)} size={18} /><span className="truncate text-[11.5px] font-medium" style={{ color: T.text }}>{d.n}</span></span>
+              <div className="flex shrink-0 items-center gap-2"><span className="text-[11px] font-semibold" style={{ color: C.green }}>{d.v}</span><span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ color: d.r >= 70 ? C.red : C.amber, background: d.r >= 70 ? C.redSoft : C.amberSoft }}>{d.r}% risk</span></div>
+            </div>
+          ))}
+        </div>
+        <div className="mb-1.5 mt-3 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}><Users size={10} /> Hot contacts</div>
+        <div className="space-y-1.5">
+          {[{ photo: PHOTO.julien, n: "Julien Meyer", t: "VP Sales · Linear", s: 92 }, { photo: PHOTO.sarah, n: "Sarah Klein", t: "COO · Notion", s: 88 }, { photo: PHOTO.tom, n: "Tom Bauer", t: "Founder · Webflow", s: 81 }].map((p) => (
+            <div key={p.n} className="flex items-center gap-2 rounded-lg border px-2.5 py-1.5" style={{ borderColor: T.border, background: T.card }}>
+              <Avatar src={p.photo} size={22} /><div className="min-w-0 flex-1"><div className="truncate text-[11px] font-medium" style={{ color: T.text }}>{p.n}</div><div className="truncate text-[10px]" style={{ color: T.ter }}>{p.t}</div></div><ScorePill score={p.s} />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -251,7 +273,7 @@ function CampaignsPhase({ reduced }: { reduced: boolean }) {
   return (
     <div className="flex h-full flex-col">
       <PageHeaderBar icon={Zap} title="Campaigns" count="6"><HBtn icon={Plus} gradient>New campaign</HBtn></PageHeaderBar>
-      <div className="min-h-0 flex-1 px-4 py-3" style={{ background: T.page }}>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3" style={{ background: T.page }}>
         <div className="overflow-hidden rounded-xl border" style={{ borderColor: T.border, background: T.card }}>
           <div className="flex items-center justify-between border-b px-3.5 py-2" style={{ borderColor: T.soft }}>
             <span className="flex items-center gap-2 text-[12px] font-semibold" style={{ color: T.text }}><Send size={13} style={{ color: T.accent }} /> ICP-1 outbound · Step 2 · Email</span>
@@ -274,6 +296,27 @@ function CampaignsPhase({ reduced }: { reduced: boolean }) {
             {!sent && <span className="rounded-md border px-3 py-1.5 text-[11px] font-medium" style={{ borderColor: T.border, color: T.sec }}>Edit</span>}
           </div>
         </div>
+        <div className="mb-1.5 mt-3 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>All campaigns</div>
+        <div className="overflow-hidden rounded-xl border" style={{ borderColor: T.border, background: T.card }}>
+          {[
+            { n: "ICP-2 · SaaS founders", c: C.green, sent: "142", opened: "61%", replied: "14%" },
+            { n: "Re-engage · stalled deals", c: C.green, sent: "38", opened: "55%", replied: "9%" },
+            { n: "Event follow-up · SaaStr", c: C.amber, sent: "76", opened: "48%", replied: "11%" },
+            { n: "Webflow lookalikes", c: T.ter, sent: "0", opened: "—", replied: "—" },
+          ].map((c, i, arr) => (
+            <div key={c.n} className={`flex items-center justify-between gap-2 px-3.5 py-2 ${i < arr.length - 1 ? "border-b" : ""}`} style={{ borderColor: T.soft }}>
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: c.c }} />
+                <span className="truncate text-[11.5px] font-medium" style={{ color: T.text }}>{c.n}</span>
+              </div>
+              <div className="flex shrink-0 items-center gap-3 text-[10.5px] tabular-nums" style={{ color: T.ter }}>
+                <span><span className="font-semibold" style={{ color: T.sec }}>{c.sent}</span> sent</span>
+                <span><span className="font-semibold" style={{ color: T.sec }}>{c.opened}</span> open</span>
+                <span><span className="font-semibold" style={{ color: C.green }}>{c.replied}</span> reply</span>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -285,7 +328,7 @@ function MeetingsPhase({ reduced }: { reduced: boolean }) {
   return (
     <div className="flex h-full flex-col">
       <PageHeaderBar icon={Calendar} title="Meetings" count="32" />
-      <div className="min-h-0 flex-1 px-4 py-3" style={{ background: T.page }}>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3" style={{ background: T.page }}>
         <div className="overflow-hidden rounded-xl border" style={{ borderColor: T.border, background: T.card }}>
           <div className="flex items-center justify-between border-b px-3.5 py-2.5" style={{ borderColor: T.soft }}>
             <span className="flex items-center gap-2 text-[12px] font-semibold" style={{ color: T.text }}><Logo src={clogo("notion.so")} size={18} /> Notion · Discovery call</span>
@@ -311,6 +354,25 @@ function MeetingsPhase({ reduced }: { reduced: boolean }) {
             <span data-action="confirm" className="rounded-md px-3 py-1.5 text-[11px] font-semibold text-white" style={{ background: BRAND }}>Review &amp; confirm</span>
             <span className="flex items-center gap-1 text-[10.5px]" style={{ color: T.ter }}><Mic size={11} /> Transcribed via Recall.ai</span>
           </div>
+        </div>
+        <div className="mb-1.5 mt-3 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>Recent meetings</div>
+        <div className="overflow-hidden rounded-xl border" style={{ borderColor: T.border, background: T.card }}>
+          {[
+            { dom: "linear.app", n: "Linear · Demo", when: "Yesterday · 42 min", tag: "Proposal sent", c: C.green, bg: C.greenSoft },
+            { dom: "figma.com", n: "Figma · Intro call", when: "Mon · 28 min", tag: "Follow-up", c: C.blue, bg: C.blueSoft },
+            { dom: "ramp.com", n: "Ramp · Discovery", when: "Last Fri · 35 min", tag: "Nurture", c: C.amber, bg: C.amberSoft },
+          ].map((m, i, arr) => (
+            <div key={m.n} className={`flex items-center justify-between gap-2 px-3.5 py-2 ${i < arr.length - 1 ? "border-b" : ""}`} style={{ borderColor: T.soft }}>
+              <div className="flex min-w-0 items-center gap-2">
+                <Logo src={clogo(m.dom)} size={18} />
+                <div className="min-w-0">
+                  <div className="truncate text-[11.5px] font-medium" style={{ color: T.text }}>{m.n}</div>
+                  <div className="text-[10px]" style={{ color: T.ter }}>{m.when}</div>
+                </div>
+              </div>
+              <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ color: m.c, background: m.bg }}>{m.tag}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -338,15 +400,15 @@ function OpportunitiesPhase({ reduced }: { reduced: boolean }) {
     : { id: "notion", dom: "notion.so", n: "Notion", val: "$24K", chips: [] };
 
   const columns: { name: string; deals: Deal[] }[] = [
-    { name: "Discovery", deals: [...(synced ? [] : [notion]), { id: "airtable", dom: "airtable.com", n: "Airtable", val: "$18K", chips: [] }] },
-    { name: "Proposal", deals: [...(synced ? [notion] : []), { id: "figma", dom: "figma.com", n: "Figma", val: "$52K", chips: [] }] },
-    { name: "Negotiation", deals: [{ id: "webflow", dom: "webflow.com", n: "Webflow", val: "$28K", chips: [] }] },
+    { name: "Discovery", deals: [...(synced ? [] : [notion]), { id: "airtable", dom: "airtable.com", n: "Airtable", val: "$18K", chips: [] }, { id: "retool", dom: "retool.com", n: "Retool", val: "$15K", chips: [] }] },
+    { name: "Proposal", deals: [...(synced ? [notion] : []), { id: "figma", dom: "figma.com", n: "Figma", val: "$52K", chips: [] }, { id: "vercel", dom: "vercel.com", n: "Vercel", val: "$44K", chips: [] }] },
+    { name: "Negotiation", deals: [{ id: "webflow", dom: "webflow.com", n: "Webflow", val: "$28K", chips: [] }, { id: "ramp", dom: "ramp.com", n: "Ramp", val: "$61K", chips: [] }] },
   ];
 
   return (
     <div className="flex h-full flex-col">
-      <PageHeaderBar icon={CircleDot} title="Opportunities" count="$138K open" />
-      <div className="min-h-0 flex-1 px-3 py-2.5" style={{ background: T.page }}>
+      <PageHeaderBar icon={CircleDot} title="Opportunities" count="$258K open" />
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2.5" style={{ background: T.page }}>
         <div className="mb-2.5 flex items-center gap-2 rounded-lg border px-3 py-1.5 text-[11px] font-medium transition-colors"
           style={{ borderColor: synced ? "rgba(78,158,134,0.4)" : "rgba(44,107,237,0.22)", background: synced ? C.greenSoft : C.blueSoft, color: T.text }}>
           {synced
