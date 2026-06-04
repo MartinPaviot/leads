@@ -39,6 +39,8 @@ interface FilledComponent {
   order: number;
   confidence: "high" | "medium" | "low";
   abstained: boolean;
+  supportRatio: number;
+  unsupported: boolean;
   citations: FilledCitation[];
 }
 
@@ -445,6 +447,15 @@ export default function ProposalsPage() {
                                 style={{ background: "var(--color-bg-hover)", color: "var(--color-text-secondary)" }}
                               >
                                 needs input
+                              </span>
+                            )}
+                            {c.unsupported && !c.abstained && (
+                              <span
+                                className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+                                style={{ background: "#7c2d12", color: "#fff" }}
+                                title={`Only ${Math.round(c.supportRatio * 100)}% of claims trace to a cited source`}
+                              >
+                                unsupported
                               </span>
                             )}
                           </div>

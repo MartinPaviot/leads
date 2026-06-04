@@ -20,6 +20,8 @@ export const proposalFillOutputSchema = z.object({
       order: z.number(),
       confidence: z.enum(["high", "medium", "low"]),
       abstained: z.boolean(),
+      supportRatio: z.number(),
+      unsupported: z.boolean(),
       citations: z.array(
         z.object({
           id: z.string(),

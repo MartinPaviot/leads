@@ -25,6 +25,7 @@ import { getSkillKnowledge } from "@/skills/skill-knowledge";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { getModelForTask } from "@/lib/ai/ai-provider";
 import { collectCitableSources, type CitableSource } from "./sources";
+import { gradeSection } from "./grade";
 import type { ComponentMap } from "./component-map";
 
 export type Confidence = "high" | "medium" | "low";
@@ -186,6 +187,8 @@ export interface FilledComponent {
   confidence: Confidence;
   abstained: boolean;
   citations: Citation[];
+  supportRatio: number; // PROPOSAL-009: independent grounding score (0..1)
+  unsupported: boolean; // claims not backed by the cited sources
 }
 
 export interface FillResult {
@@ -320,6 +323,8 @@ ${sources.block}`;
           confidence: trust.confidence,
           abstained: trust.abstained,
           citations,
+          supportRatio: trust.abstained ? 0 : 1,
+          unsupported: trust.abstained,
         };
       }
       const g = generated[c.id] ?? { content: "", confidence: "low" as Confidence, citationIds: [], abstained: true };
@@ -327,15 +332,20 @@ ${sources.block}`;
         .map((id) => sourcesById.get(id))
         .filter((s): s is CitableSource => Boolean(s))
         .map((s) => ({ id: s.id, type: s.type, label: s.label, snippet: s.snippet, date: s.date }));
+      // PROPOSAL-009: grade grounding independently; the model's self-rating is
+      // only an upper bound, never the source of truth.
+      const grade = gradeSection(g.content, citations.map((x) => x.snippet), g.confidence);
       return {
         componentId: c.id,
         kind: c.kind,
         label: c.label,
         content: g.content,
         order: c.order,
-        confidence: g.confidence,
+        confidence: grade.confidence,
         abstained: g.abstained,
         citations,
+        supportRatio: grade.supportRatio,
+        unsupported: grade.unsupported,
       };
     });
 
@@ -368,7 +378,12 @@ ${sources.block}`;
           dataKey: c?.dataKey ?? null,
           content: f.content,
           confidence: f.confidence,
-          source: { citations: f.citations, abstained: f.abstained },
+          source: {
+            citations: f.citations,
+            abstained: f.abstained,
+            supportRatio: f.supportRatio,
+            unsupported: f.unsupported,
+          },
           order: f.order,
         };
       }),

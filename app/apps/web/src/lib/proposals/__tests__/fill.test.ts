@@ -156,6 +156,13 @@ describe("buildProposalFill (trust)", () => {
     expect(sec.citations).toHaveLength(1);
     expect(sec.citations[0]).toMatchObject({ id: "A1", type: "activity", date: "2026-05-28" });
 
+    // PROPOSAL-009: independent grading — the cited source ("pricing deck") does
+    // not support the prose ("Generated summary") -> flagged unsupported.
+    expect(sec.unsupported).toBe(true);
+    expect(sec.supportRatio).toBe(0);
+    expect(field.unsupported).toBe(false);
+    expect(field.supportRatio).toBe(1);
+
     // proposals + proposal_components share one mocked values() fn; the 2nd
     // call is the components array. Assert persisted confidence + source.
     const valuesFn = dbMock.insert.mock.results[0].value.values as ReturnType<typeof vi.fn>;
