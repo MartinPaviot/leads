@@ -473,9 +473,12 @@ export function HeroDemo() {
   const reduced = useReducedMotion() ?? false;
   const ref = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-100px 0px" });
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const [clicking, setClicking] = useState(false);
+  // Camera focus: a brief push-in toward the button the agent just clicked.
+  const [zoom, setZoom] = useState<{ ox: number; oy: number; on: boolean }>({ ox: 50, oy: 50, on: false });
 
   useEffect(() => {
     if (reduced || paused || !inView) return;
@@ -507,7 +510,19 @@ export function HeroDemo() {
     const act = phases[phase].action;
     if (act) {
       timers.push(setTimeout(() => moveTo(frame.querySelector(`[data-action="${act.key}"]`)), Math.max(720, act.at - 720)));
-      timers.push(setTimeout(pulse, act.at));
+      timers.push(setTimeout(() => {
+        pulse();
+        const btn = frame.querySelector(`[data-action="${act.key}"]`);
+        const vp = viewportRef.current;
+        if (btn && vp) {
+          const vr = vp.getBoundingClientRect();
+          const br = btn.getBoundingClientRect();
+          const ox = Math.max(12, Math.min(88, ((br.left + br.width / 2) - vr.left) / vr.width * 100));
+          const oy = Math.max(12, Math.min(88, ((br.top + br.height / 2) - vr.top) / vr.height * 100));
+          setZoom({ ox, oy, on: true });
+          timers.push(setTimeout(() => setZoom((z) => ({ ...z, on: false })), 540));
+        }
+      }, act.at));
     }
     return () => timers.forEach(clearTimeout);
   }, [phase, reduced, inView]);
@@ -534,13 +549,16 @@ export function HeroDemo() {
                   <span key={i} className="h-1.5 rounded-full transition-all duration-300" style={{ width: i === phase ? 18 : 6, background: i === phase ? T.accent : "#D9DCE4" }} />
                 ))}
               </div>
-              <div className="relative min-h-0 flex-1 overflow-hidden pt-1.5">
+              <motion.div ref={viewportRef} className="relative min-h-0 flex-1 overflow-hidden pt-1.5"
+                animate={{ scale: zoom.on ? 1.04 : 1 }}
+                transition={{ duration: zoom.on ? 0.5 : 0.45, ease: [0.22, 0.61, 0.36, 1] }}
+                style={{ transformOrigin: `${zoom.ox}% ${zoom.oy}%` }}>
                 <AnimatePresence mode="wait">
                   <motion.div key={phase} className="h-full" initial={reduced ? false : { opacity: 0, y: 12, scale: 0.992 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={reduced ? { opacity: 0 } : { opacity: 0, y: -10, scale: 0.992 }} transition={{ duration: reduced ? 0 : 0.42, ease: [0.22, 0.61, 0.36, 1] }}>
                     <PhaseEl reduced={reduced} />
                   </motion.div>
                 </AnimatePresence>
-              </div>
+              </motion.div>
               <ChatBar phase={phase} reduced={reduced} />
             </div>
           </div>
