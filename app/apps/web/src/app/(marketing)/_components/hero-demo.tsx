@@ -675,3 +675,7 @@ export function HeroDemo() {
     </div>
   );
 }
+
+// Reused by the how-it-works step sequence: the same faithful, animated
+// product surfaces, each replayed when its step scrolls into view.
+export { AccountsPhase, UpNextPhase, CampaignsPhase, MeetingsPhase, OpportunitiesPhase, ChatPhase };
