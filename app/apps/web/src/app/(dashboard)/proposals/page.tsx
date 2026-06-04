@@ -38,6 +38,13 @@ export default function ProposalsPage() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const [dealId, setDealId] = useState("");
+  const [filling, setFilling] = useState(false);
+  const [filled, setFilled] = useState<{
+    proposalId: string;
+    components: Array<{ componentId: string; kind: string; label: string; content: string; order: number }>;
+    unmappedSections: string[];
+  } | null>(null);
 
   const loadList = useCallback(async () => {
     const res = await fetch("/api/proposals/templates");
@@ -61,6 +68,8 @@ export default function ProposalsPage() {
     const d = (await res.json()) as { template: TemplateDetail };
     setSelected(d.template);
     setDraft(d.template.componentMap ?? null);
+    setFilled(null);
+    setDealId("");
   }, []);
 
   async function onUpload(e: ChangeEvent<HTMLInputElement>) {
@@ -137,9 +146,45 @@ export default function ProposalsPage() {
       );
       return;
     }
-    setNotice("Template mapped. It is ready to fill from a deal (coming next).");
+    setNotice("Template mapped. Draft a proposal from a deal below.");
     await loadList();
     await openTemplate(selected.id);
+  }
+
+  async function runFill() {
+    if (!selected || !dealId.trim()) return;
+    setFilling(true);
+    setNotice(null);
+    setFilled(null);
+    const res = await fetch(`/api/proposals/templates/${selected.id}/fill`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dealId: dealId.trim() }),
+    });
+    const d = (await res.json().catch(() => ({}))) as {
+      proposalId?: string;
+      components?: Array<{ componentId: string; kind: string; label: string; content: string; order: number }>;
+      unmappedSections?: string[];
+      error?: string;
+      message?: string;
+      userSuggestion?: string;
+    };
+    setFilling(false);
+    if (!res.ok) {
+      setNotice(
+        d.error === "deal_not_found"
+          ? "No deal found with that id."
+          : d.error === "template_not_mapped"
+            ? "Confirm the mapping before drafting."
+            : d.userSuggestion ?? d.message ?? "Drafting failed.",
+      );
+      return;
+    }
+    setFilled({
+      proposalId: d.proposalId ?? "",
+      components: d.components ?? [],
+      unmappedSections: d.unmappedSections ?? [],
+    });
   }
 
   return (
@@ -317,6 +362,59 @@ export default function ProposalsPage() {
                     </span>
                   </div>
                 </>
+              )}
+
+              {selected.status === "mapped" && (
+                <div className="mt-6 pt-4" style={{ borderTop: "1px solid var(--color-border-default)" }}>
+                  <div className="mb-2 text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                    Draft from a deal
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={dealId}
+                      onChange={(e) => setDealId(e.target.value)}
+                      placeholder="Deal id"
+                      className="rounded border px-2 py-1 text-[13px]"
+                      style={{ borderColor: "var(--color-border-default)", background: "transparent", color: "var(--color-text-primary)" }}
+                    />
+                    <button
+                      onClick={() => void runFill()}
+                      disabled={filling || !dealId.trim()}
+                      className="rounded-md px-3 py-1.5 text-[13px] font-medium"
+                      style={{ background: "var(--color-accent)", color: "#fff", opacity: filling || !dealId.trim() ? 0.6 : 1 }}
+                    >
+                      {filling ? "Drafting…" : "Draft proposal"}
+                    </button>
+                    {filled && (
+                      <a
+                        href={`/api/proposals/${filled.proposalId}/download`}
+                        className="text-[13px] underline"
+                        style={{ color: "var(--color-accent)" }}
+                      >
+                        Download .docx
+                      </a>
+                    )}
+                  </div>
+                  {filled && (
+                    <div className="mt-3 space-y-2">
+                      {filled.unmappedSections.length > 0 && (
+                        <div className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                          Not placed in the document: {filled.unmappedSections.join(", ")}
+                        </div>
+                      )}
+                      {filled.components.map((c) => (
+                        <div key={c.componentId} className="rounded-md p-2" style={{ border: "1px solid var(--color-border-default)" }}>
+                          <div className="text-[11px] uppercase" style={{ color: "var(--color-text-tertiary)" }}>
+                            {c.label} · {c.kind}
+                          </div>
+                          <div className="whitespace-pre-wrap text-[13px]" style={{ color: "var(--color-text-primary)" }}>
+                            {c.content || "—"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}

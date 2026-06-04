@@ -39,6 +39,7 @@ import { draftProposalSkill } from "./intelligence/draft-proposal";
 import { handleObjectionSkill } from "./intelligence/handle-objection";
 import { reEngageStalledSkill } from "./intelligence/re-engage-stalled";
 import { proposalTemplateDetectSkill } from "./intelligence/proposal-template-detect";
+import { proposalFillSkill } from "./intelligence/proposal-fill";
 
 export function registerAllSkills() {
   registerSkill(tamBuilderSkill);
@@ -71,4 +72,5 @@ export function registerAllSkills() {
   registerSkill(handleObjectionSkill);
   registerSkill(reEngageStalledSkill);
   registerSkill(proposalTemplateDetectSkill);
+  registerSkill(proposalFillSkill);
 }

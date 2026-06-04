@@ -145,3 +145,266 @@ export function extractDocxText(buf: Buffer): { text: string; outline: DocHeadin
   if (!xml) throw new Error("not_a_docx");
   return parseDocumentXml(xml.toString("utf8"));
 }
+
+// ──────────────────────────────────────────────────────────────────
+// Write side (PROPOSAL-002): fill a template and re-emit the .docx.
+// ──────────────────────────────────────────────────────────────────
+
+/** Read every entry from a ZIP (STORE + DEFLATE), in central-directory order. */
+export function readAllZipEntries(buf: Buffer): Array<{ name: string; bytes: Buffer }> {
+  const out: Array<{ name: string; bytes: Buffer }> = [];
+  let eocd = -1;
+  const minSearch = Math.max(0, buf.length - 22 - 0xffff);
+  for (let i = buf.length - 22; i >= minSearch; i--) {
+    if (buf.readUInt32LE(i) === EOCD_SIG) {
+      eocd = i;
+      break;
+    }
+  }
+  if (eocd < 0) return out;
+  const cdCount = buf.readUInt16LE(eocd + 10);
+  let p = buf.readUInt32LE(eocd + 16);
+  for (let n = 0; n < cdCount; n++) {
+    if (p + 46 > buf.length || buf.readUInt32LE(p) !== CD_SIG) break;
+    const method = buf.readUInt16LE(p + 10);
+    const compSize = buf.readUInt32LE(p + 20);
+    const nameLen = buf.readUInt16LE(p + 28);
+    const extraLen = buf.readUInt16LE(p + 30);
+    const commentLen = buf.readUInt16LE(p + 32);
+    const localOffset = buf.readUInt32LE(p + 42);
+    const name = buf.toString("utf8", p + 46, p + 46 + nameLen);
+    const lNameLen = buf.readUInt16LE(localOffset + 26);
+    const lExtraLen = buf.readUInt16LE(localOffset + 28);
+    const dataStart = localOffset + 30 + lNameLen + lExtraLen;
+    const comp = buf.subarray(dataStart, dataStart + compSize);
+    let bytes: Buffer;
+    if (method === 0) bytes = Buffer.from(comp);
+    else if (method === 8) bytes = inflateRawSync(comp);
+    else bytes = Buffer.alloc(0);
+    out.push({ name, bytes });
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  return out;
+}
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(buf: Buffer): number {
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+/** Re-emit a ZIP using the STORE method (no compression). Word reads it fine. */
+export function writeZip(entries: Array<{ name: string; bytes: Buffer }>): Buffer {
+  const locals: Buffer[] = [];
+  const centrals: Buffer[] = [];
+  let offset = 0;
+  for (const e of entries) {
+    const nameBuf = Buffer.from(e.name, "utf8");
+    const data = e.bytes;
+    const crc = crc32(data);
+
+    const lh = Buffer.alloc(30);
+    lh.writeUInt32LE(0x04034b50, 0);
+    lh.writeUInt16LE(20, 4);
+    lh.writeUInt16LE(0, 6);
+    lh.writeUInt16LE(0, 8); // STORE
+    lh.writeUInt32LE(crc, 14);
+    lh.writeUInt32LE(data.length, 18);
+    lh.writeUInt32LE(data.length, 22);
+    lh.writeUInt16LE(nameBuf.length, 26);
+    lh.writeUInt16LE(0, 28);
+    locals.push(lh, nameBuf, data);
+
+    const ch = Buffer.alloc(46);
+    ch.writeUInt32LE(0x02014b50, 0);
+    ch.writeUInt16LE(20, 4);
+    ch.writeUInt16LE(20, 6);
+    ch.writeUInt16LE(0, 8);
+    ch.writeUInt16LE(0, 10); // STORE
+    ch.writeUInt32LE(crc, 16);
+    ch.writeUInt32LE(data.length, 20);
+    ch.writeUInt32LE(data.length, 24);
+    ch.writeUInt16LE(nameBuf.length, 28);
+    ch.writeUInt32LE(offset, 42); // local header offset
+    centrals.push(ch, nameBuf);
+    offset += 30 + nameBuf.length + data.length;
+  }
+  const localBuf = Buffer.concat(locals);
+  const centralBuf = Buffer.concat(centrals);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(entries.length, 8);
+  eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(centralBuf.length, 12);
+  eocd.writeUInt32LE(localBuf.length, 16);
+  return Buffer.concat([localBuf, centralBuf, eocd]);
+}
+
+function xmlEscape(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+interface ParaInfo {
+  start: number;
+  end: number;
+  full: string;
+  text: string;
+  isHeading: boolean;
+  pPr: string;
+  rPr: string;
+}
+
+function scanParagraphs(xml: string): ParaInfo[] {
+  const re = /<w:p\b[^>]*?(?:\/>|>([\s\S]*?)<\/w:p>)/g;
+  const out: ParaInfo[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(xml)) !== null) {
+    const inner = m[1] ?? "";
+    let text = "";
+    const tRe = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g;
+    let t: RegExpExecArray | null;
+    while ((t = tRe.exec(inner)) !== null) text += decodeXmlEntities(t[1]);
+    const styleVal = inner.match(/<w:pStyle\b[^>]*\bw:val="([^"]*)"/)?.[1] ?? null;
+    const outlineLvl = inner.match(/<w:outlineLvl\b[^>]*\bw:val="(\d+)"/)?.[1] ?? null;
+    out.push({
+      start: m.index,
+      end: re.lastIndex,
+      full: m[0],
+      text: text.trim(),
+      isHeading: headingLevel(styleVal, outlineLvl) != null,
+      pPr: inner.match(/<w:pPr>[\s\S]*?<\/w:pPr>/)?.[0] ?? "",
+      rPr: inner.match(/<w:rPr>[\s\S]*?<\/w:rPr>/)?.[0] ?? "",
+    });
+  }
+  return out;
+}
+
+function contentToParagraphs(content: string, pPr: string, rPr: string): string {
+  const lines = content
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+  return lines
+    .map((l) => `<w:p>${pPr}<w:r>${rPr}<w:t xml:space="preserve">${xmlEscape(l)}</w:t></w:r></w:p>`)
+    .join("");
+}
+
+export interface DocxFillComponent {
+  id: string;
+  kind: string; // 'section' | 'field'
+  anchorHeading: string | null;
+}
+
+export interface AssembleResult {
+  bytes: Buffer;
+  unplaced: string[]; // component ids that could not be located in the document
+}
+
+function fillDocumentXml(
+  xml: string,
+  components: DocxFillComponent[],
+  contentById: Record<string, string>,
+): { xml: string; unplaced: string[] } {
+  const paras = scanParagraphs(xml);
+  const unplaced: string[] = [];
+
+  // Each anchored component -> the first unused paragraph whose text matches.
+  const used = new Set<number>();
+  const compHeading = new Map<number, number>();
+  components.forEach((c, ci) => {
+    const target = c.anchorHeading?.trim();
+    if (!target) {
+      unplaced.push(c.id);
+      return;
+    }
+    let found = -1;
+    for (let i = 0; i < paras.length; i++) {
+      if (!used.has(i) && paras[i].text === target) {
+        found = i;
+        break;
+      }
+    }
+    if (found < 0) {
+      unplaced.push(c.id);
+      return;
+    }
+    used.add(found);
+    compHeading.set(ci, found);
+  });
+
+  const mappedHeading = new Set<number>([...compHeading.values()]);
+  type Action =
+    | { type: "keep" }
+    | { type: "delete" }
+    | { type: "replace"; html: string }
+    | { type: "appendAfter"; html: string };
+  const actions: Action[] = paras.map(() => ({ type: "keep" }));
+
+  for (const [ci, h] of compHeading) {
+    const content = contentById[components[ci].id] ?? "";
+    // Region ends at the next anchored heading or any heading paragraph.
+    let boundary = paras.length;
+    for (let j = h + 1; j < paras.length; j++) {
+      if (mappedHeading.has(j) || paras[j].isHeading) {
+        boundary = j;
+        break;
+      }
+    }
+    const firstBody = h + 1;
+    if (firstBody < boundary) {
+      const html = contentToParagraphs(content, paras[firstBody].pPr, paras[firstBody].rPr);
+      actions[firstBody] = html ? { type: "replace", html } : { type: "delete" };
+      for (let j = firstBody + 1; j < boundary; j++) actions[j] = { type: "delete" };
+    } else {
+      const html = contentToParagraphs(content, paras[h].pPr, "");
+      if (html) actions[h] = { type: "appendAfter", html };
+    }
+  }
+
+  let result = "";
+  let cursor = 0;
+  for (let i = 0; i < paras.length; i++) {
+    const p = paras[i];
+    result += xml.slice(cursor, p.start);
+    const a = actions[i];
+    if (a.type === "keep") result += p.full;
+    else if (a.type === "replace") result += a.html;
+    else if (a.type === "appendAfter") result += p.full + a.html;
+    // 'delete' emits nothing
+    cursor = p.end;
+  }
+  result += xml.slice(cursor);
+  return { xml: result, unplaced };
+}
+
+/**
+ * Produce a filled .docx from the original template bytes: replace each
+ * anchored component's region with its content, leave every other zip entry
+ * (styles.xml, headers, media, tables) untouched.
+ */
+export function assembleFilledDocx(
+  originalBytes: Buffer,
+  components: DocxFillComponent[],
+  contentById: Record<string, string>,
+): AssembleResult {
+  const entries = readAllZipEntries(originalBytes);
+  const docIdx = entries.findIndex((e) => e.name === "word/document.xml");
+  if (docIdx < 0) throw new Error("not_a_docx");
+  const { xml, unplaced } = fillDocumentXml(
+    entries[docIdx].bytes.toString("utf8"),
+    components,
+    contentById,
+  );
+  entries[docIdx] = { name: "word/document.xml", bytes: Buffer.from(xml, "utf8") };
+  return { bytes: writeZip(entries), unplaced };
+}

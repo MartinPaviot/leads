@@ -22,3 +22,19 @@ only ANTHROPIC_*/OPENAI_* env; there is no DATABASE_URL). Apply in Martin's
 environment with `pnpm -C app/apps/web db:migrate:apply` after a schema diff,
 per the migration-drift guidance. Unit tests mock `@/db`, so they do not need
 a live database.
+
+## SI-3: DOCX writer (PROPOSAL-002) — v1 fidelity envelope
+`assembleFilledDocx` (zero-dep, in `ooxml.ts`) does **heading-anchored section
+replacement**: it locates each component's anchor heading in `word/document.xml`,
+replaces the body paragraphs under it with the filled content, and re-zips with
+**every other entry untouched** (styles.xml, headers, media, tables preserved →
+the template's look survives). Deliberate v1 limits:
+- Components whose anchor heading can't be located are returned in `unplaced`
+  (never mis-placed, never silently dropped).
+- Replaced paragraphs inherit the first replaced paragraph's `pPr`/`rPr`;
+  multi-line content becomes one `<w:p>` per non-empty line.
+- Inline fields without their own heading, and table-internal fills, are not
+  placed in v1 (they still resolve + persist + show in the review UI).
+- Re-zipped with the STORE method (valid, slightly larger); CRC32 computed.
+True visual fidelity must be confirmed by opening the result in Word (the live
+run); the sandbox validates structure + text deterministically via fixtures.

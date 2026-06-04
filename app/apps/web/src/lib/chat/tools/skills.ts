@@ -702,5 +702,23 @@ export function buildSkillsTools(ctx: ToolContext) {
         return { templates };
       },
     }),
+
+    fillProposal: makeTool({
+      description: `Draft a commercial proposal by filling a MAPPED template from a deal's information base (resolves field values + generates each section's prose). Use when the user asks "draft a proposal for deal X using template Y", "fill my proposal template for this deal", or "generate the proposal".`,
+      inputSchema: z.object({
+        templateId: z.string().describe("A mapped proposal template id"),
+        dealId: z.string().describe("The deal to draft the proposal for"),
+      }),
+      execute: async (input) => {
+        const { runSkill } = await import("@/skills/runner");
+        const { proposalFillSkill } = await import("@/skills/intelligence/proposal-fill");
+        const result = await runSkill(
+          proposalFillSkill,
+          { templateId: input.templateId, dealId: input.dealId },
+          { tenantId, dryRun: false },
+        );
+        return result.data ?? { error: result.error };
+      },
+    }),
   };
 }
