@@ -68,6 +68,9 @@ export const detectedComponentSchema = z.object({
   label: z.string(),
   placeholderToken: z.string(),
   dataKey: z.string().nullable(),
+  // PROPOSAL-008: index into the numbered outline that begins this component.
+  // Preferred over free-text; the stored anchor uses the outline's exact text.
+  anchorIndex: z.number().nullable(),
   anchorHeading: z.string().nullable(),
   required: z.boolean(),
   confidence: z.enum(CONFIDENCE_LEVELS),

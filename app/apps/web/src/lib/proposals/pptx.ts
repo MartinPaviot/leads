@@ -16,6 +16,7 @@ import {
   writeZip,
   decodeXmlEntities,
   xmlEscape,
+  matchHeading,
   type DocHeading,
   type DocxFillComponent,
   type AssembleResult,
@@ -177,7 +178,12 @@ export function assembleFilledPptx(
       unplaced.push(c.id);
       continue;
     }
-    const slideName = order.find((n) => !used.has(n) && titleByName.get(n) === target);
+    const candidates = order.filter((n) => !used.has(n));
+    const mi = matchHeading(
+      candidates.map((n) => titleByName.get(n) ?? ""),
+      target,
+    );
+    const slideName = mi >= 0 ? candidates[mi] : undefined;
     if (slideName === undefined) {
       unplaced.push(c.id);
       continue;

@@ -310,6 +310,63 @@ export interface AssembleResult {
   unplaced: string[]; // component ids that could not be located in the document
 }
 
+// ── Anchor reconciliation (PROPOSAL-008) ───────────────────────────
+// Heading anchors must survive drift between what the LLM returned and the
+// document's exact text. Match exact -> normalized -> fuzzy so a case/space
+// difference can never silently drop a component.
+
+function normHeading(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function tokenSetRatio(a: string, b: string): number {
+  const ta = new Set(normHeading(a).split(" ").filter(Boolean));
+  const tb = new Set(normHeading(b).split(" ").filter(Boolean));
+  if (!ta.size || !tb.size) return 0;
+  let inter = 0;
+  for (const t of ta) if (tb.has(t)) inter++;
+  return inter / Math.max(ta.size, tb.size);
+}
+
+/** Best match of `target` in `candidates`: exact -> normalized -> fuzzy(>=0.9). Index or -1. */
+export function matchHeading(candidates: string[], target: string): number {
+  const t = target.trim();
+  let i = candidates.findIndex((c) => c.trim() === t);
+  if (i >= 0) return i;
+  const nt = normHeading(t);
+  i = candidates.findIndex((c) => normHeading(c) === nt);
+  if (i >= 0) return i;
+  let best = -1;
+  let bestScore = 0.9;
+  candidates.forEach((c, idx) => {
+    const s = tokenSetRatio(c, t);
+    if (s >= bestScore) {
+      bestScore = s;
+      best = idx;
+    }
+  });
+  return best;
+}
+
+/** Match an anchor to a paragraph index, respecting `used`; fuzzy only on headings. */
+function matchParagraph(paras: ParaInfo[], used: Set<number>, target: string): number {
+  const t = target.trim();
+  for (let i = 0; i < paras.length; i++) if (!used.has(i) && paras[i].text.trim() === t) return i;
+  const nt = normHeading(t);
+  for (let i = 0; i < paras.length; i++) if (!used.has(i) && normHeading(paras[i].text) === nt) return i;
+  let best = -1;
+  let bestScore = 0.9;
+  for (let i = 0; i < paras.length; i++) {
+    if (used.has(i) || !paras[i].isHeading) continue;
+    const s = tokenSetRatio(paras[i].text, t);
+    if (s >= bestScore) {
+      bestScore = s;
+      best = i;
+    }
+  }
+  return best;
+}
+
 function fillDocumentXml(
   xml: string,
   components: DocxFillComponent[],
@@ -327,13 +384,7 @@ function fillDocumentXml(
       unplaced.push(c.id);
       return;
     }
-    let found = -1;
-    for (let i = 0; i < paras.length; i++) {
-      if (!used.has(i) && paras[i].text === target) {
-        found = i;
-        break;
-      }
-    }
+    const found = matchParagraph(paras, used, target);
     if (found < 0) {
       unplaced.push(c.id);
       return;

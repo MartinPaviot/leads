@@ -67,4 +67,18 @@ describe("assembleFilledDocx", () => {
       readAllZipEntries(bytes).find((e) => e.name === "word/styles.xml")!.bytes.toString(),
     ).toBe("<w:styles/>");
   });
+
+  it("reconciles a drifted anchor (case + spacing) instead of dropping it — PROPOSAL-008", () => {
+    const drifted: DocxFillComponent[] = [
+      { id: "sec1", kind: "section", anchorHeading: "  executive   SUMMARY " },
+    ];
+    const { bytes, unplaced } = assembleFilledDocx(fixtureDocx(), drifted, {
+      sec1: "RECONCILED CONTENT",
+    });
+    const { text } = extractDocxText(bytes);
+    // C1 regression: previously this silently dropped the content (unplaced).
+    expect(unplaced).toEqual([]);
+    expect(text).toContain("RECONCILED CONTENT");
+    expect(text).not.toContain("OLD exec body");
+  });
 });

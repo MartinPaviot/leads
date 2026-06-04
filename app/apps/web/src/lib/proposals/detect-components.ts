@@ -54,7 +54,8 @@ Rules:
 - Preserve document order.
 - Never drop a recognizable section. If unsure of its purpose, still return it with a best-effort label and confidence "low".
 - placeholderToken: a snake_case token in double braces, e.g. {{executive_summary}} or {{client_name}}.
-- anchorHeading: copy the exact heading text (from the OUTLINE) that begins this component, or null if it has none.
+- anchorIndex: the NUMBER of the OUTLINE entry that begins this component (e.g. 0, 1, 2), or null if it has no heading. Prefer this over free text.
+- anchorHeading: optionally copy that heading's exact text, or null.
 - required: true for components essential to a proposal (executive summary, proposed solution, pricing), false otherwise.
 - confidence: "high" | "medium" | "low".
 
@@ -88,8 +89,7 @@ export async function detectComponents(
   const truncated = text.length > MAX_TEXT_CHARS;
   const windowText = truncated ? text.slice(0, MAX_TEXT_CHARS) : text;
   const outlineText =
-    outline.map((h) => `${"#".repeat(Math.min(h.level, 6))} ${h.text}`).join("\n") ||
-    "(no headings detected)";
+    outline.map((h, i) => `${i}: ${h.text}`).join("\n") || "(no headings detected)";
   const basePrompt = buildPrompt(outlineText, windowText);
 
   let detection: DetectionResult | null = null;
@@ -121,22 +121,30 @@ export async function detectComponents(
     );
   }
 
-  const components = detection.components.map((c, i) => ({
-    id: crypto.randomUUID(),
-    kind: c.kind,
-    label: c.label,
-    placeholderToken: normalizeToken(c.placeholderToken, c.label),
-    // Only fields carry a dataKey; coerce unknown keys to null so the
-    // confirm step surfaces them for the user to fix.
-    dataKey: c.kind === "field" && isKnownDataKey(c.dataKey) ? c.dataKey : null,
-    anchor: {
-      headingText: c.anchorHeading,
-      offset: findAnchorOffset(outline, text, c.anchorHeading),
-    },
-    required: c.required,
-    confidence: c.confidence,
-    order: i,
-  }));
+  const components = detection.components.map((c, i) => {
+    // PROPOSAL-008: prefer the outline index so the stored anchor is the
+    // extractor's EXACT heading text (drift-proof), not the model's paraphrase.
+    const fromIdx =
+      c.anchorIndex != null && c.anchorIndex >= 0 && c.anchorIndex < outline.length
+        ? outline[c.anchorIndex]
+        : null;
+    return {
+      id: crypto.randomUUID(),
+      kind: c.kind,
+      label: c.label,
+      placeholderToken: normalizeToken(c.placeholderToken, c.label),
+      // Only fields carry a dataKey; coerce unknown keys to null so the
+      // confirm step surfaces them for the user to fix.
+      dataKey: c.kind === "field" && isKnownDataKey(c.dataKey) ? c.dataKey : null,
+      anchor: {
+        headingText: fromIdx ? fromIdx.text : c.anchorHeading,
+        offset: fromIdx ? fromIdx.offset : findAnchorOffset(outline, text, c.anchorHeading),
+      },
+      required: c.required,
+      confidence: c.confidence,
+      order: i,
+    };
+  });
 
   const componentMap: ComponentMap = componentMapSchema.parse({
     version: 1,
