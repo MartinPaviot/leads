@@ -533,7 +533,45 @@ export function MeetingMock() {
   );
 }
 
-/* ── 7. Chat with citations ─────────────────────────────────────── */
+/* ── 7. Opportunities: the deal updates itself from the call ────── */
+
+export function OppMock() {
+  const deals = [
+    { dom: "notion.so", n: "Notion · Pro plan", stage: "Proposal", sc: C.blue, sb: C.blueSoft, val: "$40K", up: true },
+    { dom: "linear.app", n: "Linear · Team", stage: "Negotiation", sc: C.amber, sb: C.amberSoft, val: "$36K", up: false },
+    { dom: "figma.com", n: "Figma · Org", stage: "Discovery", sc: C.green, sb: C.greenSoft, val: "$52K", up: false },
+  ];
+  return (
+    <ProductCard>
+      <div className="flex items-center justify-between border-b border-[#EFEFF5] px-4 py-3">
+        <div className="flex items-center gap-2">
+          <CircleDot size={14} style={{ color: C.blue }} />
+          <span className="text-[12.5px] font-semibold text-[#1A1A2E]">Opportunities</span>
+        </div>
+        <span className="text-[11px] text-[#9CA3AF]">$148K open</span>
+      </div>
+      <div className="px-2 py-2">
+        {deals.map((d) => (
+          <div key={d.n} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2">
+            <Logo src={clogo(d.dom)} size={24} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[12px] font-medium text-[#1A1A2E]">{d.n}</div>
+              <span className="mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[9.5px] font-semibold" style={{ color: d.sc, background: d.sb }}>{d.stage}</span>
+            </div>
+            <span className="flex shrink-0 items-center gap-1 text-[12px] font-semibold tabular-nums" style={{ color: d.up ? C.green : "#1A1A2E" }}>
+              {d.up && <TrendingUp size={11} />}{d.val}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-1.5 border-t border-[#EFEFF5] px-4 py-2 text-[10.5px]" style={{ color: C.green }}>
+        <Check size={11} /> Notion advanced to Proposal from your discovery call
+      </div>
+    </ProductCard>
+  );
+}
+
+/* ── 8. Chat with citations ─────────────────────────────────────── */
 
 export function ChatMock() {
   return (

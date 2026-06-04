@@ -14,7 +14,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { IntegrationsStrip, BuiltOnStrip, OutreachMock, Logo, clogo } from "./_components/product-mockups";
-import { ProcessTour } from "./_components/process-tour";
+import { ProcessSteps } from "./_components/process-steps";
 import { HeroDemo } from "./_components/hero-demo";
 
 const CALENDLY_URL = "https://calendly.com/contact-elevay/30min";
@@ -409,7 +409,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-[1240px] px-6">
           <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2C6BED]">How it works</p></Animate>
           <Animate><h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">From a cold list to a closed deal</h2></Animate>
-          <Animate><p className="mt-4 max-w-2xl text-lg leading-relaxed text-gray-600">The five moves Elevay runs for you. Click any step, or watch it play.</p></Animate>
+          <Animate><p className="mt-4 max-w-2xl text-lg leading-relaxed text-gray-600">Six moves, one continuous flow. Here is exactly what Elevay does at each stage, and what it puts in your hands.</p></Animate>
           {/* Market evidence — speed-to-lead. Cited third-party data
               (Dr. James Oldroyd, MIT / InsideSales), the reason the
               "prioritize" step exists: timing is most of the win. */}
@@ -419,7 +419,7 @@ export default function LandingPage() {
               <p className="max-w-md text-[15px] leading-relaxed text-gray-600">more likely to qualify a lead you reach within five minutes than one you reach at thirty <span className="text-gray-400">(MIT / InsideSales)</span>. Elevay surfaces who&apos;s ready now, so you reach them in the window that still converts.</p>
             </div>
           </Animate>
-          <Animate><div className="mt-12"><ProcessTour /></div></Animate>
+          <Animate><div className="mt-14"><ProcessSteps /></div></Animate>
         </div>
       </Section>
 
