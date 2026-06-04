@@ -10,7 +10,7 @@
 
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { motion, useInView, useReducedMotion } from "framer-motion";
-import { AppFrame } from "./product-mockups";
+import { AppFrame, Logo, clogo } from "./product-mockups";
 import {
   AccountsPhase,
   UpNextPhase,
@@ -61,6 +61,22 @@ const steps: { label: string; headline: string; body: string; Phase: Phase }[] =
   },
 ];
 
+// The same account carried through every step — the visible proof that
+// Elevay is one connected system with memory, not six separate tools.
+const thread = [
+  "scored into your TAM",
+  "flagged, 12 days silent",
+  "re-engagement drafted",
+  "discovery call captured",
+  "advanced to Proposal",
+  "everything, one answer",
+];
+
+// Per-phase frame height: tall enough for the dense pages (they auto-pan the
+// little that still overflows), snug for the short ones so they don't leave a
+// dead white band. Order matches `steps`.
+const heights = [460, 460, 440, 440, 300, 344];
+
 /**
  * A faithful product page that, as the step reaches the viewport:
  *   1. fades and settles in (transparent -> in place),
@@ -70,7 +86,7 @@ const steps: { label: string; headline: string; body: string; Phase: Phase }[] =
  * The auto-pan only runs while the step is on screen (lighter on weak GPUs),
  * and everything is disabled under prefers-reduced-motion.
  */
-function AnimatedSurface({ Phase }: { Phase: Phase }) {
+function AnimatedSurface({ Phase, h }: { Phase: Phase; h: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion() ?? false;
   const inView = useInView(ref, { margin: "-80px 0px" });
@@ -130,7 +146,7 @@ function AnimatedSurface({ Phase }: { Phase: Phase }) {
       transition={{ duration: reduced ? 0 : 0.6, ease: [0.22, 0.61, 0.36, 1] }}
     >
       <AppFrame>
-        <div style={{ height: 460 }} className="overflow-hidden bg-[#FAFAFA]">
+        <div style={{ height: h }} className="overflow-hidden bg-[#FAFAFA]">
           {live ? <Phase key="live" reduced={reduced} /> : <Phase key="static" reduced />}
         </div>
       </AppFrame>
@@ -157,9 +173,16 @@ export function ProcessSteps() {
               </div>
               <h3 className="mt-3 text-[24px] font-bold leading-snug tracking-tight text-gray-900">{s.headline}</h3>
               <p className="mt-3 max-w-md text-[15px] leading-relaxed text-gray-600">{s.body}</p>
+              {/* The thread: the same account, one stage further each step. */}
+              <div className="mt-4 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-[5px] text-[11px]" style={{ borderColor: "rgba(44,107,237,0.22)", background: "rgba(44,107,237,0.05)" }}>
+                <Logo src={clogo("notion.so")} size={14} rounded="rounded-[4px]" bordered={false} />
+                <span className="font-semibold text-gray-700">Notion</span>
+                <span className="text-gray-300">·</span>
+                <span className="text-gray-500">{thread[i]}</span>
+              </div>
             </div>
             <div className={`min-w-0 ${flip ? "lg:order-1" : ""}`}>
-              <AnimatedSurface Phase={s.Phase} />
+              <AnimatedSurface Phase={s.Phase} h={heights[i]} />
             </div>
           </div>
         );

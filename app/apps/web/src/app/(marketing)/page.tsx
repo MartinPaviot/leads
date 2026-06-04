@@ -367,7 +367,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-[1240px] px-6">
           <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2C6BED]">How it works</p></Animate>
           <Animate><h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">From a cold list to a closed deal</h2></Animate>
-          <Animate><p className="mt-4 max-w-2xl text-lg leading-relaxed text-gray-600">Six moves, one continuous flow. Here is exactly what Elevay does at each stage, and what it puts in your hands.</p></Animate>
+          <Animate><p className="mt-4 max-w-2xl text-lg leading-relaxed text-gray-600">Watch one account, Notion, travel from a cold list to a closed deal. Each step moves the same deal one stage forward, because Elevay remembers every interaction.</p></Animate>
           {/* Market evidence — speed-to-lead. Cited third-party data
               (Dr. James Oldroyd, MIT / InsideSales), the reason the
               "prioritize" step exists: timing is most of the win. */}

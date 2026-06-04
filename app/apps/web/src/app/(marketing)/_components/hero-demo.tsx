@@ -282,10 +282,10 @@ function CampaignsPhase({ reduced }: { reduced: boolean }) {
             <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ color: sent ? C.green : T.sec, background: sent ? C.greenSoft : "#F3F3F8" }}>{sent ? "active" : "draft"}</span>
           </div>
           <div className="px-3.5 py-3 text-[11.5px]">
-            <div className="flex items-center gap-2" style={{ color: T.sec }}><span style={{ color: T.ter }}>To</span><span className="flex items-center gap-1.5 rounded-full px-2 py-0.5" style={{ background: T.page, color: T.text }}><Logo src={clogo("webflow.com")} size={14} bordered={false} /> tom@webflow.com</span></div>
-            <div className="mt-2 min-h-[16px] font-semibold" style={{ color: T.text }}><Typewriter text="Re: the manual prospecting problem you mentioned" start={!reduced} delay={300} caret /></div>
-            <div className="mt-1.5 min-h-[30px]" style={{ color: T.sec }}><Typewriter text="Hi Tom, you said your team loses ~6 hours a week stitching lists together. That's exactly the gap we close." start={!reduced} delay={1500} speed={17} caret /></div>
-            <motion.div className="mt-2.5 flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[10.5px]" style={{ background: C.blueSoft, color: T.accent }} initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: reduced ? 0 : 3.5 }}><FileText size={11} /> Drafted from your Apr 28 call with Webflow</motion.div>
+            <div className="flex items-center gap-2" style={{ color: T.sec }}><span style={{ color: T.ter }}>To</span><span className="flex items-center gap-1.5 rounded-full px-2 py-0.5" style={{ background: T.page, color: T.text }}><Logo src={clogo("notion.so")} size={14} bordered={false} /> sarah@notion.so</span></div>
+            <div className="mt-2 min-h-[16px] font-semibold" style={{ color: T.text }}><Typewriter text="Re: the prospecting problem you raised" start={!reduced} delay={300} caret /></div>
+            <div className="mt-1.5 min-h-[30px]" style={{ color: T.sec }}><Typewriter text="Hi Sarah, you raised this a few weeks back, then went quiet. You just posted 4 SDR roles, so the timing looks right to pick it up." start={!reduced} delay={1500} speed={17} caret /></div>
+            <motion.div className="mt-2.5 flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[10.5px]" style={{ background: C.blueSoft, color: T.accent }} initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: reduced ? 0 : 3.5 }}><FileText size={11} /> Drafted from Notion&apos;s signals · 12 days silent, hiring 4 SDRs</motion.div>
           </div>
           <div className="flex items-center gap-2 border-t px-3.5 py-2.5" style={{ borderColor: T.soft }}>
             <AnimatePresence mode="wait">
