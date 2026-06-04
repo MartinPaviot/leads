@@ -8,7 +8,7 @@
  * Visuals alternate left/right down the page.
  */
 
-import { useEffect, useRef, useState, type ComponentType } from "react";
+import { useRef, type ComponentType } from "react";
 import { useInView, useReducedMotion } from "framer-motion";
 import { AppFrame } from "./product-mockups";
 import {
@@ -61,20 +61,21 @@ const steps: { label: string; headline: string; body: string; Phase: Phase }[] =
   },
 ];
 
-/** Renders a faithful product page and replays its animation on scroll-in. */
+/**
+ * A faithful product page that animates ONCE, the first time the step
+ * reaches the viewport. Until then it renders in its settled (reduced)
+ * state — so nothing animates off-screen on load, and it never re-runs on
+ * every scroll-by (lighter, and calmer to read).
+ */
 function AnimatedSurface({ Phase }: { Phase: Phase }) {
   const ref = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion() ?? false;
-  const inView = useInView(ref, { margin: "-90px 0px" });
-  const [playKey, setPlayKey] = useState(0);
-  useEffect(() => {
-    if (inView && !reduced) setPlayKey((k) => k + 1);
-  }, [inView, reduced]);
+  const inView = useInView(ref, { once: true, margin: "-90px 0px" });
   return (
     <div ref={ref}>
       <AppFrame>
         <div style={{ height: 374 }} className="overflow-hidden bg-[#FAFAFA]">
-          <Phase key={playKey} reduced={reduced} />
+          {inView ? <Phase key="live" reduced={reduced} /> : <Phase key="static" reduced />}
         </div>
       </AppFrame>
     </div>
