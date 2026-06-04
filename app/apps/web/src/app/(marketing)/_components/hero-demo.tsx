@@ -666,10 +666,9 @@ export function HeroDemo() {
               <motion.span className="absolute -left-2 -top-2 block h-8 w-8 rounded-full" style={{ border: `2px solid ${T.accent}` }}
                 initial={{ scale: 0.2, opacity: 0.7 }} animate={{ scale: 1.5, opacity: 0 }} transition={{ duration: 0.5, ease: "easeOut" }} />
             )}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path d="M5.5 3.5L5.5 19.5L10 15.3L12.7 21L15.2 19.9L12.5 14.5L18 14.5Z" fill={T.accent} stroke="#fff" strokeWidth="1.4" strokeLinejoin="round" />
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+              <path d="M5.5 3.5L5.5 19.5L10 15.3L12.7 21L15.2 19.9L12.5 14.5L18 14.5Z" fill={T.accent} stroke="#fff" strokeWidth="1.6" strokeLinejoin="round" />
             </svg>
-            <span className="absolute left-3.5 top-3 whitespace-nowrap rounded-[5px] px-1.5 py-[3px] text-[8px] font-bold leading-none text-white" style={{ background: T.accent, boxShadow: "0 2px 5px rgba(44,107,237,0.4)" }}>Elevay</span>
           </motion.div>
         )}
       </div>
