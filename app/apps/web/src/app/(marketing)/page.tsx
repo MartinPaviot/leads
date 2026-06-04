@@ -215,10 +215,12 @@ export default function LandingPage() {
     // the viewport it cannot create a horizontal scrollbar / right-side gap.
     // `clip` (not `hidden`) so the sticky nav keeps working.
     <div className="min-h-screen bg-white" style={{ overflowX: "clip" }}>
-      {/* NAV: floating glass per ui-ux-pro-max (top spacing, backdrop blur). */}
+      {/* NAV: solid white. No backdrop-blur — backdrop-filter is a GPU
+          compositing risk on this environment (it has smeared the page into
+          a green band before). Solid bg renders identically everywhere. */}
       <nav
         aria-label="Primary"
-        className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? "bg-white/85 shadow-[0_1px_3px_rgba(0,0,0,0.06)] backdrop-blur-md" : "bg-white/60 backdrop-blur-sm"}`}
+        className={`sticky top-0 z-50 transition-shadow duration-300 ${scrolled ? "bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]" : "bg-white"}`}
       >
         <div className="mx-auto flex max-w-[1240px] items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center gap-2">

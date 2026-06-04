@@ -592,14 +592,9 @@ export function HeroDemo() {
 
   return (
     <div ref={ref} className="relative" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
-      {/* Stage: a soft brand aura so the window reads as floating on a
-          designed surface. Radial gradients only (painted), never a blur
-          filter, which can fail to composite and smear on some GPUs. */}
-      {!reduced && (
-        <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-[130%] w-[118%] -translate-x-1/2 -translate-y-1/2"
-          style={{ background: "radial-gradient(42% 44% at 50% 36%, rgba(44,107,237,0.12), transparent 70%), radial-gradient(40% 42% at 80% 66%, rgba(23,195,178,0.09), transparent 72%), radial-gradient(36% 40% at 20% 74%, rgba(255,122,61,0.07), transparent 72%)" }} />
-      )}
-
+      {/* No background aura / glow here: large soft-colour overlays fail to
+          composite on some GPUs and smear into a solid green/teal band that
+          breaks the whole hero layout. Keep the stage plain. */}
       <div ref={frameRef} className="relative z-10">
         <AppFrame>
           <div className="flex" style={{ height: 460 }}>
@@ -621,43 +616,18 @@ export function HeroDemo() {
                     <PhaseEl reduced={reduced} />
                   </motion.div>
                 </AnimatePresence>
-                {/* Depth of field: while the camera focuses, blur + dim the
-                    periphery and keep a sharp "hole" on the clicked button
-                    (radial mask). The agent cursor sits above this layer, so
-                    it stays sharp. If the GPU can't composite backdrop-blur,
-                    the rgba tint still gives a clean spotlight dim. */}
-                {!reduced && (
-                  <motion.div aria-hidden className="pointer-events-none absolute inset-0 z-20"
-                    initial={false} animate={{ opacity: zoom.on ? 1 : 0 }} transition={{ duration: 0.42, ease: "easeOut" }}
-                    style={{
-                      backdropFilter: "blur(3px)",
-                      WebkitBackdropFilter: "blur(3px)",
-                      background: "rgba(17,17,38,0.16)",
-                      maskImage: `radial-gradient(circle at ${zoom.ox}% ${zoom.oy}%, transparent 0%, transparent 14%, #000 46%)`,
-                      WebkitMaskImage: `radial-gradient(circle at ${zoom.ox}% ${zoom.oy}%, transparent 0%, transparent 14%, #000 46%)`,
-                    }} />
-                )}
+                {/* (depth-of-field overlay removed — backdrop-filter blur is
+                    a GPU compositing risk; the subtle camera push-in stays.) */}
               </motion.div>
               <ChatBar phase={phase} reduced={reduced} />
             </div>
           </div>
         </AppFrame>
 
-        {/* soft motion trail — two glow dots on laggier springs than the
-            cursor, so they string out into a comet tail while it moves and
-            settle into a faint aura at rest. Radial gradients, no blur. */}
-        {cursor && !reduced && (
-          <>
-            <motion.span aria-hidden className="pointer-events-none absolute left-0 top-0 z-20 hidden h-[20px] w-[20px] rounded-full sm:block"
-              initial={false} animate={{ x: cursor.x - 6, y: cursor.y - 6 }} transition={{ type: "spring", stiffness: 105, damping: 15, mass: 0.85 }}
-              style={{ background: "radial-gradient(circle, rgba(44,107,237,0.36), rgba(44,107,237,0) 68%)" }} />
-            <motion.span aria-hidden className="pointer-events-none absolute left-0 top-0 z-20 hidden h-[14px] w-[14px] rounded-full sm:block"
-              initial={false} animate={{ x: cursor.x - 3, y: cursor.y - 3 }} transition={{ type: "spring", stiffness: 72, damping: 16, mass: 1.0 }}
-              style={{ background: "radial-gradient(circle, rgba(44,107,237,0.22), rgba(44,107,237,0) 70%)" }} />
-          </>
-        )}
+        {/* (motion trail removed — radial-gradient glow dots are another
+            soft-colour compositing risk on weak GPUs.) */}
 
-        {/* multiplayer-style agent pointer */}
+        {/* multiplayer-style agent pointer (transform only — GPU-safe) */}
         {cursor && !reduced && (
           <motion.div className="pointer-events-none absolute left-0 top-0 z-30 hidden sm:block"
             initial={false} animate={{ x: cursor.x, y: cursor.y }} transition={{ type: "spring", stiffness: 130, damping: 16, mass: 0.7 }}>
