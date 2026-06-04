@@ -558,6 +558,22 @@ export function HeroDemo() {
                     <PhaseEl reduced={reduced} />
                   </motion.div>
                 </AnimatePresence>
+                {/* Depth of field: while the camera focuses, blur + dim the
+                    periphery and keep a sharp "hole" on the clicked button
+                    (radial mask). The agent cursor sits above this layer, so
+                    it stays sharp. If the GPU can't composite backdrop-blur,
+                    the rgba tint still gives a clean spotlight dim. */}
+                {!reduced && (
+                  <motion.div aria-hidden className="pointer-events-none absolute inset-0 z-20"
+                    initial={false} animate={{ opacity: zoom.on ? 1 : 0 }} transition={{ duration: 0.42, ease: "easeOut" }}
+                    style={{
+                      backdropFilter: "blur(3px)",
+                      WebkitBackdropFilter: "blur(3px)",
+                      background: "rgba(17,17,38,0.16)",
+                      maskImage: `radial-gradient(circle at ${zoom.ox}% ${zoom.oy}%, transparent 0%, transparent 14%, #000 46%)`,
+                      WebkitMaskImage: `radial-gradient(circle at ${zoom.ox}% ${zoom.oy}%, transparent 0%, transparent 14%, #000 46%)`,
+                    }} />
+                )}
               </motion.div>
               <ChatBar phase={phase} reduced={reduced} />
             </div>
