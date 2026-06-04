@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildTwiml, buildVoicemailDropTwiml } from "@/lib/voice/twilio";
+import { buildTwiml, buildVoicemailDropTwiml, buildFallbackTwiml } from "@/lib/voice/twilio";
 
 /**
  * Exercises the TwiML composition helpers against the real Twilio SDK
@@ -56,5 +56,20 @@ describe("buildVoicemailDropTwiml", () => {
     expect(xml).toContain("https://cdn.example.com/voicemail-fr.mp3");
     expect(xml).toContain("<Hangup");
     expect(xml).not.toContain("<Dial");
+  });
+});
+
+describe("buildFallbackTwiml", () => {
+  it("says an apology in French and hangs up — no dial/stream", async () => {
+    const xml = await buildFallbackTwiml();
+    expect(xml).toContain("<Say");
+    expect(xml).toContain("<Hangup");
+    expect(xml).not.toContain("<Dial");
+    expect(xml).not.toContain("<Stream");
+  });
+
+  it("uses a custom message when supplied", async () => {
+    const xml = await buildFallbackTwiml({ message: "Message de test ABC123" });
+    expect(xml).toContain("Message de test ABC123");
   });
 });

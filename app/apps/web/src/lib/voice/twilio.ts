@@ -332,3 +332,33 @@ export async function buildVoicemailDropTwiml(opts: {
   r.hangup();
   return r.toString();
 }
+
+/**
+ * Build the graceful fallback TwiML — served by /api/calls/twiml-fallback,
+ * which Twilio's Voice "Fallback URL" hits ONLY when the primary TwiML
+ * webhook errors or times out. Plays a short FR apology, then hangs up
+ * cleanly, so a failure degrades politely instead of Twilio's default
+ * error tone. Dependency-free on purpose (no DB, no signature) so it can
+ * never itself fail the way the primary path might.
+ */
+export async function buildFallbackTwiml(opts?: { message?: string }): Promise<string> {
+  const twilio = await loadTwilio();
+  const VoiceResponse = (twilio as unknown as {
+    twiml: {
+      VoiceResponse: new () => {
+        say: (attrs: { language?: string }, message: string) => unknown;
+        hangup: () => unknown;
+        toString: () => string;
+      };
+    };
+  }).twiml.VoiceResponse;
+
+  const r = new VoiceResponse();
+  r.say(
+    { language: "fr-FR" },
+    opts?.message ??
+      "Nous rencontrons un incident technique et ne pouvons pas poursuivre cet appel. Nous vous recontacterons rapidement. Merci et excusez-nous.",
+  );
+  r.hangup();
+  return r.toString();
+}
