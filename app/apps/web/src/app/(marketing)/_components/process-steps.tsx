@@ -76,6 +76,14 @@ function AnimatedSurface({ Phase }: { Phase: Phase }) {
   const inView = useInView(ref, { margin: "-80px 0px" });
   const [live, setLive] = useState(false);
   useEffect(() => { if (inView) setLive(true); }, [inView]);
+  // Safety net: the fade-in is gated on the observer, so a misfire (fast
+  // scroll, restored scroll position, full-page render) could leave a step
+  // stranded at opacity 0. Force it visible after a few seconds no matter
+  // what, so a surface can never stay invisible.
+  useEffect(() => {
+    const t = setTimeout(() => setLive(true), 6000);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     if (!live || !inView || reduced) return;
@@ -87,8 +95,8 @@ function AnimatedSurface({ Phase }: { Phase: Phase }) {
     const begin = setTimeout(() => {
       const sc = root.querySelector<HTMLElement>(".overflow-y-auto");
       if (!sc) return;
-      const CYCLE = 11000;
-      const DWELL = 0.14;
+      const CYCLE = 15000;
+      const DWELL = 0.2;
       const t0 = performance.now();
       const tick = (now: number) => {
         if (cancelled) return;
@@ -122,7 +130,7 @@ function AnimatedSurface({ Phase }: { Phase: Phase }) {
       transition={{ duration: reduced ? 0 : 0.6, ease: [0.22, 0.61, 0.36, 1] }}
     >
       <AppFrame>
-        <div style={{ height: 374 }} className="overflow-hidden bg-[#FAFAFA]">
+        <div style={{ height: 460 }} className="overflow-hidden bg-[#FAFAFA]">
           {live ? <Phase key="live" reduced={reduced} /> : <Phase key="static" reduced />}
         </div>
       </AppFrame>
