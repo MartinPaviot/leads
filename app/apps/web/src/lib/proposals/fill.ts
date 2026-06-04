@@ -67,6 +67,17 @@ export interface FieldContext {
   };
   settings: { onboardingCompanyName?: string | null; productDescription?: string | null };
   now: Date;
+  locale: string; // BCP-47 (e.g. "fr-FR"); drives date.today formatting
+}
+
+/** Normalize a tenant locale to a BCP-47 tag. Handles the pilae REGION-language
+ *  form (e.g. "FR-fr" -> "fr-FR", "US-en" -> "en-US"); leaves valid tags as-is. */
+export function toBcp47(locale: string): string {
+  const m = locale.match(/^([A-Za-z]{2})-([A-Za-z]{2})$/);
+  if (m && m[1] === m[1].toUpperCase() && m[2] === m[2].toLowerCase()) {
+    return `${m[2].toLowerCase()}-${m[1].toUpperCase()}`;
+  }
+  return locale;
 }
 
 /** Resolve a field component's value from the closed dataKey vocabulary. */
@@ -91,8 +102,14 @@ export function resolveFieldValue(dataKey: string | null, ctx: FieldContext): st
     case "deal.amount":
       // Sanctioned headline total (never a manual project+platform sum).
       return formatDealAmount(getDealAmountDisplay(ctx.deal).total);
-    case "date.today":
-      return ctx.now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    case "date.today": {
+      const opts = { year: "numeric", month: "long", day: "numeric" } as const;
+      try {
+        return ctx.now.toLocaleDateString(ctx.locale || "en-US", opts);
+      } catch {
+        return ctx.now.toLocaleDateString("en-US", opts);
+      }
+    }
     case "seller.companyName":
       return ctx.settings.onboardingCompanyName ?? "";
     case "seller.productDescription":
@@ -260,6 +277,11 @@ export async function buildProposalFill(
       productDescription: settings.productDescription,
     },
     now,
+    locale: toBcp47(
+      typeof (settings as Record<string, unknown>).locale === "string"
+        ? ((settings as Record<string, unknown>).locale as string)
+        : "en-US",
+    ),
   };
 
   const sectionComponents = map.components.filter((c) => c.kind === "section");

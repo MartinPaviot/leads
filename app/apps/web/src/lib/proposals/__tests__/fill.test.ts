@@ -46,7 +46,7 @@ vi.mock("@/lib/ai/ai-provider", () => ({
 }));
 // @/lib/deals/amount intentionally NOT mocked — exercise the real helper.
 
-const { resolveFieldValue, generateSections, buildProposalFill, FillUnavailable } =
+const { resolveFieldValue, generateSections, buildProposalFill, FillUnavailable, toBcp47 } =
   await import("../fill");
 
 function chainOf(rows: unknown[]) {
@@ -64,6 +64,7 @@ const BASE_FIELD_CTX = {
   deal: { name: "Acme Deal", summary: "Q2 rollout", value: 50000, projectAmount: null, platformArr: null },
   settings: { onboardingCompanyName: "Elevay", productDescription: "Autonomous GTM" },
   now: FIXED_NOW,
+  locale: "en-US",
 };
 
 describe("resolveFieldValue", () => {
@@ -74,6 +75,18 @@ describe("resolveFieldValue", () => {
     expect(resolveFieldValue("deal.amount", { ...BASE_FIELD_CTX, deal: { ...BASE_FIELD_CTX.deal, value: null, projectAmount: 30000, platformArr: 20000 } })).toBe("$50,000");
     expect(resolveFieldValue("not.a.key", BASE_FIELD_CTX)).toBe("");
     expect(resolveFieldValue("company.name", { ...BASE_FIELD_CTX, company: null })).toBe("");
+  });
+
+  it("formats date.today per locale and never throws (PROPOSAL-011)", () => {
+    expect(resolveFieldValue("date.today", { ...BASE_FIELD_CTX, locale: "en-US" })).toContain("2026");
+    expect(resolveFieldValue("date.today", { ...BASE_FIELD_CTX, locale: "fr-FR" })).toContain("2026");
+    expect(() => resolveFieldValue("date.today", { ...BASE_FIELD_CTX, locale: "@@bad@@" })).not.toThrow();
+  });
+
+  it("toBcp47 normalizes pilae REGION-language tags", () => {
+    expect(toBcp47("FR-fr")).toBe("fr-FR");
+    expect(toBcp47("US-en")).toBe("en-US");
+    expect(toBcp47("fr-FR")).toBe("fr-FR");
   });
 });
 

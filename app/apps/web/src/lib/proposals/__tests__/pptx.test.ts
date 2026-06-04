@@ -69,4 +69,26 @@ describe("assembleFilledPptx", () => {
     expect(entries.get("ppt/presentation.xml")).toBe(PRESENTATION);
     expect(entries.get("[Content_Types].xml")).toBe("<Types/>");
   });
+
+  it("resets normAutofit so PowerPoint reflows the new text (PROPOSAL-011)", () => {
+    const slideXml =
+      `<p:sld ${P_NS} ${A_NS}><p:cSld><p:spTree>` +
+      `<p:sp><p:nvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:txBody><a:bodyPr/><a:p><a:r><a:t>Pricing</a:t></a:r></a:p></p:txBody></p:sp>` +
+      `<p:sp><p:nvSpPr><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:txBody><a:bodyPr><a:normAutofit fontScale="62500" lnSpcReduction="20000"/></a:bodyPr><a:p><a:r><a:t>OLD</a:t></a:r></a:p></p:txBody></p:sp>` +
+      `</p:spTree></p:cSld></p:sld>`;
+    const fixture = writeZip([
+      { name: "ppt/presentation.xml", bytes: Buffer.from(`<p:presentation ${P_NS} ${R_NS}><p:sldIdLst><p:sldId id="256" r:id="rId2"/></p:sldIdLst></p:presentation>`, "utf8") },
+      { name: "ppt/_rels/presentation.xml.rels", bytes: Buffer.from(`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId2" Type="x" Target="slides/slide1.xml"/></Relationships>`, "utf8") },
+      { name: "ppt/slides/slide1.xml", bytes: Buffer.from(slideXml, "utf8") },
+    ]);
+    const { bytes } = assembleFilledPptx(
+      fixture,
+      [{ id: "s1", kind: "section", anchorHeading: "Pricing" }],
+      { s1: "NEW pricing" },
+    );
+    const out = readAllZipEntries(bytes).find((e) => e.name === "ppt/slides/slide1.xml")!.bytes.toString();
+    expect(out).toContain("NEW pricing");
+    expect(out).toContain("<a:normAutofit/>");
+    expect(out).not.toContain("fontScale");
+  });
 });

@@ -29,6 +29,13 @@ describe("writeZip / readAllZipEntries round-trip", () => {
     expect(entries.map((e) => e.name).sort()).toEqual(["word/document.xml", "word/styles.xml"]);
     expect(entries.find((e) => e.name === "word/styles.xml")!.bytes.toString()).toBe("<w:styles/>");
   });
+
+  it("compresses entries losslessly (DEFLATE, PROPOSAL-011)", () => {
+    const big = Buffer.from("A".repeat(50000), "utf8");
+    const z = writeZip([{ name: "a.xml", bytes: big }]);
+    expect(z.length).toBeLessThan(big.length); // smaller than the raw payload
+    expect(readAllZipEntries(z)[0].bytes.toString()).toBe(big.toString()); // lossless
+  });
 });
 
 describe("assembleFilledDocx", () => {

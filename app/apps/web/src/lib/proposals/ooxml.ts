@@ -13,7 +13,7 @@
  * _specs/proposal-autodraft/spec-issues.md SI-1.
  */
 
-import { inflateRawSync } from "node:zlib";
+import { inflateRawSync, deflateRawSync } from "node:zlib";
 
 export interface DocHeading {
   level: number; // 1..9
@@ -283,17 +283,19 @@ export function writeZip(entries: Array<{ name: string; bytes: Buffer }>): Buffe
   let offset = 0;
   for (const e of entries) {
     const nameBuf = Buffer.from(e.name, "utf8");
-    const data = e.bytes;
-    const crc = crc32(data);
+    // PROPOSAL-011: DEFLATE so the rewritten package is not larger than the input.
+    const raw = e.bytes;
+    const data = deflateRawSync(raw);
+    const crc = crc32(raw); // CRC is of the UNCOMPRESSED bytes
 
     const lh = Buffer.alloc(30);
     lh.writeUInt32LE(0x04034b50, 0);
     lh.writeUInt16LE(20, 4);
     lh.writeUInt16LE(0, 6);
-    lh.writeUInt16LE(0, 8); // STORE
+    lh.writeUInt16LE(8, 8); // DEFLATE
     lh.writeUInt32LE(crc, 14);
-    lh.writeUInt32LE(data.length, 18);
-    lh.writeUInt32LE(data.length, 22);
+    lh.writeUInt32LE(data.length, 18); // compressed size
+    lh.writeUInt32LE(raw.length, 22); // uncompressed size
     lh.writeUInt16LE(nameBuf.length, 26);
     lh.writeUInt16LE(0, 28);
     locals.push(lh, nameBuf, data);
@@ -302,11 +304,10 @@ export function writeZip(entries: Array<{ name: string; bytes: Buffer }>): Buffe
     ch.writeUInt32LE(0x02014b50, 0);
     ch.writeUInt16LE(20, 4);
     ch.writeUInt16LE(20, 6);
-    ch.writeUInt16LE(0, 8);
-    ch.writeUInt16LE(0, 10); // STORE
+    ch.writeUInt16LE(8, 10); // DEFLATE
     ch.writeUInt32LE(crc, 16);
-    ch.writeUInt32LE(data.length, 20);
-    ch.writeUInt32LE(data.length, 24);
+    ch.writeUInt32LE(data.length, 20); // compressed
+    ch.writeUInt32LE(raw.length, 24); // uncompressed (also read by inspectArchive)
     ch.writeUInt16LE(nameBuf.length, 28);
     ch.writeUInt32LE(offset, 42); // local header offset
     centrals.push(ch, nameBuf);

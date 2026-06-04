@@ -135,7 +135,12 @@ function fillSlideBody(xml: string, content: string): string {
   const txBody = bodyShape.match(/<p:txBody>([\s\S]*?)<\/p:txBody>/);
   if (!txBody) return xml;
   const inner = txBody[1];
-  const bodyPr = inner.match(/<a:bodyPr\b[\s\S]*?(?:\/>|<\/a:bodyPr>)/)?.[0] ?? "<a:bodyPr/>";
+  const bodyPrRaw = inner.match(/<a:bodyPr\b[\s\S]*?(?:\/>|<\/a:bodyPr>)/)?.[0] ?? "<a:bodyPr/>";
+  // PROPOSAL-011: drop the precomputed autofit scale so PowerPoint reflows the
+  // (possibly longer) generated text instead of overflowing the placeholder.
+  const bodyPr = bodyPrRaw
+    .replace(/<a:normAutofit\b[^>]*\/>/g, "<a:normAutofit/>")
+    .replace(/<a:normAutofit\b[^>]*>[\s\S]*?<\/a:normAutofit>/g, "<a:normAutofit/>");
   const lstStyle = inner.match(/<a:lstStyle\b[\s\S]*?(?:\/>|<\/a:lstStyle>)/)?.[0] ?? "<a:lstStyle/>";
   const rPr = inner.match(/<a:rPr\b[\s\S]*?(?:\/>|<\/a:rPr>)/)?.[0] ?? "";
 
