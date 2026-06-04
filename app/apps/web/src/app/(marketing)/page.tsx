@@ -180,19 +180,20 @@ export default function LandingPage() {
   // shift the whole page right — a symptom that never reproduces in a
   // headless/overlay-scrollbar browser. Clipping the *viewport* itself
   // (the <html> scroll container) makes horizontal scroll structurally
-  // impossible no matter what any child does. `scrollbar-gutter: stable`
-  // reserves the scrollbar lane so centering can't shift when it toggles.
-  // Scoped to the marketing route: both styles are reverted on unmount, so
-  // the dashboard (which legitimately scrolls wide tables) is untouched.
+  // impossible no matter what any child does.
+  // NB: we deliberately do NOT set `scrollbar-gutter: stable`. On Windows 11
+  // overlay / auto-hide scrollbars it reserves a ~17px lane on the right that
+  // stays EMPTY (the overlay bar paints 0px), which reads as the whole page
+  // being shifted/decalee to the right. With no gutter, content is centred in
+  // the real available width whatever the scrollbar style.
+  // Scoped to the marketing route: reverted on unmount, so the dashboard
+  // (which legitimately scrolls wide tables) is untouched.
   useEffect(() => {
     const html = document.documentElement;
     const prevOverflowX = html.style.overflowX;
-    const prevGutter = html.style.scrollbarGutter;
     html.style.overflowX = "clip";
-    html.style.scrollbarGutter = "stable";
     return () => {
       html.style.overflowX = prevOverflowX;
-      html.style.scrollbarGutter = prevGutter;
     };
   }, []);
 
