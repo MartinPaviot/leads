@@ -169,16 +169,22 @@ export function AppFrame({
   return (
     <div
       aria-hidden="true"
-      className={`overflow-hidden rounded-2xl border border-[#E8E8F0] bg-white ${className}`}
-      style={{ boxShadow: "0 24px 70px -20px rgba(26,26,46,0.28)" }}
+      className={`relative overflow-hidden rounded-2xl bg-white ${className}`}
+      // Layered depth: a tight contact shadow, a mid ambient, and a long
+      // soft cast, plus a 1px inner hairline border and a top glass
+      // highlight. Reads as a real window floating above the page.
+      style={{
+        boxShadow:
+          "0 2px 4px -1px rgba(26,26,46,0.05), 0 14px 30px -12px rgba(26,26,46,0.16), 0 46px 84px -34px rgba(26,26,46,0.34), inset 0 0 0 1px rgba(26,26,46,0.06), inset 0 1px 0 rgba(255,255,255,0.9)",
+      }}
     >
-      <div className="flex h-9 items-center gap-2 border-b border-[#EFEFF5] bg-[#FBFBFD] px-3.5">
+      <div className="flex h-9 items-center gap-2 border-b px-3.5" style={{ borderColor: "#EFEFF5", background: "linear-gradient(180deg,#FFFFFF 0%,#F6F7FA 100%)" }}>
         <div className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#F0A8A0]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[#F3D08A]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[#A9DCA0]" />
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: "#F0A8A0", boxShadow: "inset 0 1px 1.5px rgba(255,255,255,0.55), inset 0 -1px 1px rgba(0,0,0,0.06)" }} />
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: "#F3D08A", boxShadow: "inset 0 1px 1.5px rgba(255,255,255,0.55), inset 0 -1px 1px rgba(0,0,0,0.06)" }} />
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: "#A9DCA0", boxShadow: "inset 0 1px 1.5px rgba(255,255,255,0.55), inset 0 -1px 1px rgba(0,0,0,0.06)" }} />
         </div>
-        <div className="mx-auto flex items-center gap-1.5 rounded-md border border-[#EAEAF2] bg-white px-2.5 py-1 text-[10px] text-[#9CA3AF]">
+        <div className="mx-auto flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[10px]" style={{ borderColor: "#EAEAF2", background: "#fff", color: "#9CA3AF", boxShadow: "0 1px 1px rgba(26,26,46,0.03)" }}>
           <Lock size={9} />
           {url}
         </div>

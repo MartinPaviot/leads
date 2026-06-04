@@ -116,7 +116,7 @@ function Sidebar({ active }: { active: string }) {
             {s.label && <div className="mb-0.5 px-2 text-[8.5px] font-semibold uppercase tracking-wider" style={{ color: "#B4B8C4" }}>{s.label}</div>}
             <div className="space-y-px">
               {s.items.map((n) => { const Icon = n.icon; const on = n.label === active; return (
-                <div key={n.label} className="flex h-[20px] items-center gap-2 rounded-md px-2 text-[10.5px] font-medium transition-colors" style={{ color: on ? T.text : T.sec, background: on ? T.accentSoft : "transparent", boxShadow: on ? `inset 2px 0 0 0 ${T.accent}` : undefined }}>
+                <div key={n.label} data-nav={n.label} className="flex h-[20px] items-center gap-2 rounded-md px-2 text-[10.5px] font-medium transition-colors" style={{ color: on ? T.text : T.sec, background: on ? T.accentSoft : "transparent", boxShadow: on ? `inset 2px 0 0 0 ${T.accent}` : undefined }}>
                   <Icon size={12} style={{ color: on ? T.accent : T.ter }} />{n.label}
                 </div>
               ); })}
@@ -165,7 +165,8 @@ function AccountsPhase({ reduced }: { reduced: boolean }) {
       </FilterBar>
       {/* Scrollable list: hover pauses the demo, so the full TAM can be
           scrolled before it advances. */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-2">
+      <div className="relative min-h-0 flex-1">
+        <div className="h-full overflow-y-auto px-3 pt-2">
         <table className="w-full" style={{ borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ color: T.ter }}>
@@ -198,6 +199,13 @@ function AccountsPhase({ reduced }: { reduced: boolean }) {
             ))}
           </motion.tbody>
         </table>
+        </div>
+        {/* A light beam sweeps the list once: Elevay scoring in real time. */}
+        {!reduced && (
+          <motion.div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 z-10 w-1/3"
+            style={{ background: "linear-gradient(90deg, transparent, rgba(44,107,237,0.13), transparent)" }}
+            initial={{ x: "-130%" }} animate={{ x: "360%" }} transition={{ duration: 1.15, delay: 0.35, ease: "easeInOut" }} />
+        )}
       </div>
     </div>
   );
@@ -359,8 +367,12 @@ function OpportunitiesPhase({ reduced }: { reduced: boolean }) {
                   {col.deals.map((d) => (
                     <motion.div key={d.id} layout={!reduced} layoutId={reduced ? undefined : d.id}
                       transition={{ layout: { duration: 0.55, ease: [0.22, 0.61, 0.36, 1] } }}
-                      className="rounded-lg border px-2.5 py-2"
+                      className="relative rounded-lg border px-2.5 py-2"
                       style={{ background: T.card, borderColor: d.hot ? "rgba(78,158,134,0.55)" : T.border, boxShadow: d.hot ? "0 0 0 1px rgba(78,158,134,0.25)" : "0 1px 2px rgba(26,26,46,0.04)" }}>
+                      {d.hot && !reduced && (
+                        <motion.span aria-hidden className="pointer-events-none absolute -inset-px rounded-lg" style={{ border: `1.5px solid ${C.green}` }}
+                          initial={{ opacity: 0.85, scale: 1 }} animate={{ opacity: 0, scale: 1.08 }} transition={{ duration: 1, ease: "easeOut" }} />
+                      )}
                       <div className="flex items-center gap-1.5">
                         <Logo src={clogo(d.dom)} size={15} />
                         <span className="text-[11px] font-medium" style={{ color: T.text }}>{d.n}</span>
@@ -457,7 +469,10 @@ export function HeroDemo() {
   const [paused, setPaused] = useState(false);
   const reduced = useReducedMotion() ?? false;
   const ref = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-100px 0px" });
+  const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
+  const [clicking, setClicking] = useState(false);
 
   useEffect(() => {
     if (reduced || paused || !inView) return;
@@ -465,30 +480,72 @@ export function HeroDemo() {
     return () => clearTimeout(t);
   }, [phase, paused, inView, reduced]);
 
+  // Agent cursor: glide to the active sidebar item, then "click". Makes the
+  // demo read as Elevay actually operating the app, not a slideshow.
+  useEffect(() => {
+    if (reduced) return;
+    const frame = frameRef.current;
+    if (!frame) return;
+    const item = frame.querySelector(`[data-nav="${phases[phase].nav}"]`) as HTMLElement | null;
+    if (!item) return;
+    const fr = frame.getBoundingClientRect();
+    const ir = item.getBoundingClientRect();
+    setCursor({ x: ir.left - fr.left + 12, y: ir.top - fr.top + ir.height / 2 - 1 });
+    setClicking(false);
+    const t1 = setTimeout(() => setClicking(true), 540);
+    const t2 = setTimeout(() => setClicking(false), 1000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [phase, reduced, inView]);
+
   const PhaseEl = phases[phase].el;
 
   return (
-    <div ref={ref} onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
-      <AppFrame>
-        <div className="flex" style={{ height: 460 }}>
-          <Sidebar active={phases[phase].nav} />
-          <div className="flex min-w-0 flex-1 flex-col" style={{ background: T.page }}>
-            <div className="flex items-center gap-1.5 px-4 pt-2.5">
-              {phases.map((_, i) => (
-                <span key={i} className="h-1.5 rounded-full transition-all duration-300" style={{ width: i === phase ? 18 : 6, background: i === phase ? T.accent : "#D9DCE4" }} />
-              ))}
+    <div ref={ref} className="relative" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+      {/* Stage: a soft brand aura so the window reads as floating on a
+          designed surface. Radial gradients only (painted), never a blur
+          filter, which can fail to composite and smear on some GPUs. */}
+      {!reduced && (
+        <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-[130%] w-[118%] -translate-x-1/2 -translate-y-1/2"
+          style={{ background: "radial-gradient(42% 44% at 50% 36%, rgba(44,107,237,0.12), transparent 70%), radial-gradient(40% 42% at 80% 66%, rgba(23,195,178,0.09), transparent 72%), radial-gradient(36% 40% at 20% 74%, rgba(255,122,61,0.07), transparent 72%)" }} />
+      )}
+
+      <div ref={frameRef} className="relative z-10">
+        <AppFrame>
+          <div className="flex" style={{ height: 460 }}>
+            <Sidebar active={phases[phase].nav} />
+            <div className="flex min-w-0 flex-1 flex-col" style={{ background: T.page }}>
+              <div className="flex items-center gap-1.5 px-4 pt-2.5">
+                {phases.map((_, i) => (
+                  <span key={i} className="h-1.5 rounded-full transition-all duration-300" style={{ width: i === phase ? 18 : 6, background: i === phase ? T.accent : "#D9DCE4" }} />
+                ))}
+              </div>
+              <div className="relative min-h-0 flex-1 overflow-hidden pt-1.5">
+                <AnimatePresence mode="wait">
+                  <motion.div key={phase} className="h-full" initial={reduced ? false : { opacity: 0, y: 12, scale: 0.992 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={reduced ? { opacity: 0 } : { opacity: 0, y: -10, scale: 0.992 }} transition={{ duration: reduced ? 0 : 0.42, ease: [0.22, 0.61, 0.36, 1] }}>
+                    <PhaseEl reduced={reduced} />
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+              <ChatBar phase={phase} reduced={reduced} />
             </div>
-            <div className="relative min-h-0 flex-1 overflow-hidden pt-1.5">
-              <AnimatePresence mode="wait">
-                <motion.div key={phase} className="h-full" initial={reduced ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={reduced ? { opacity: 0 } : { opacity: 0, y: -10 }} transition={{ duration: reduced ? 0 : 0.3, ease: "easeOut" }}>
-                  <PhaseEl reduced={reduced} />
-                </motion.div>
-              </AnimatePresence>
-            </div>
-            <ChatBar phase={phase} reduced={reduced} />
           </div>
-        </div>
-      </AppFrame>
+        </AppFrame>
+
+        {/* multiplayer-style agent pointer */}
+        {cursor && !reduced && (
+          <motion.div className="pointer-events-none absolute left-0 top-0 z-30 hidden sm:block"
+            initial={false} animate={{ x: cursor.x, y: cursor.y }} transition={{ type: "spring", stiffness: 130, damping: 16, mass: 0.7 }}>
+            {clicking && (
+              <motion.span className="absolute -left-2 -top-2 block h-8 w-8 rounded-full" style={{ border: `2px solid ${T.accent}` }}
+                initial={{ scale: 0.2, opacity: 0.7 }} animate={{ scale: 1.5, opacity: 0 }} transition={{ duration: 0.5, ease: "easeOut" }} />
+            )}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M5.5 3.5L5.5 19.5L10 15.3L12.7 21L15.2 19.9L12.5 14.5L18 14.5Z" fill={T.accent} stroke="#fff" strokeWidth="1.4" strokeLinejoin="round" />
+            </svg>
+            <span className="absolute left-3.5 top-3 whitespace-nowrap rounded-[5px] px-1.5 py-[3px] text-[8px] font-bold leading-none text-white" style={{ background: T.accent, boxShadow: "0 2px 5px rgba(44,107,237,0.4)" }}>Elevay</span>
+          </motion.div>
+        )}
+      </div>
     </div>
   );
 }
