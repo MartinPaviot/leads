@@ -546,6 +546,20 @@ export function HeroDemo() {
           </div>
         </AppFrame>
 
+        {/* soft motion trail — two glow dots on laggier springs than the
+            cursor, so they string out into a comet tail while it moves and
+            settle into a faint aura at rest. Radial gradients, no blur. */}
+        {cursor && !reduced && (
+          <>
+            <motion.span aria-hidden className="pointer-events-none absolute left-0 top-0 z-20 hidden h-[20px] w-[20px] rounded-full sm:block"
+              initial={false} animate={{ x: cursor.x - 6, y: cursor.y - 6 }} transition={{ type: "spring", stiffness: 105, damping: 15, mass: 0.85 }}
+              style={{ background: "radial-gradient(circle, rgba(44,107,237,0.36), rgba(44,107,237,0) 68%)" }} />
+            <motion.span aria-hidden className="pointer-events-none absolute left-0 top-0 z-20 hidden h-[14px] w-[14px] rounded-full sm:block"
+              initial={false} animate={{ x: cursor.x - 3, y: cursor.y - 3 }} transition={{ type: "spring", stiffness: 72, damping: 16, mass: 1.0 }}
+              style={{ background: "radial-gradient(circle, rgba(44,107,237,0.22), rgba(44,107,237,0) 70%)" }} />
+          </>
+        )}
+
         {/* multiplayer-style agent pointer */}
         {cursor && !reduced && (
           <motion.div className="pointer-events-none absolute left-0 top-0 z-30 hidden sm:block"
