@@ -13,7 +13,7 @@ import {
   Key,
   RotateCcw,
 } from "lucide-react";
-import { IntegrationsStrip, BuiltOnStrip, OutreachMock, Logo, clogo } from "./_components/product-mockups";
+import { IntegrationsStrip, BuiltOnStrip, Logo, clogo } from "./_components/product-mockups";
 import { ProcessSteps } from "./_components/process-steps";
 import { HeroDemo } from "./_components/hero-demo";
 
@@ -423,37 +423,30 @@ export default function LandingPage() {
         </div>
       </Section>
 
-      {/* HUMAN IN THE LOOP — grounded in the real approval UI. The
-          OutreachMock shows the literal "Approve & send" gate, so the
-          control claim is shown, not just asserted. */}
+      {/* HUMAN IN THE LOOP — the control principle. Its "nothing sends
+          without you" proof now lives, animated, in the steps above
+          (Approve & send, Review & confirm), so this stays a clean
+          statement of the principle, not a duplicate static mock. */}
       <Section className="pt-32">
         <div className="mx-auto max-w-[1240px] px-6">
-          <div className="grid items-center gap-10 rounded-2xl border border-gray-200 bg-gray-50/60 p-8 md:p-12 lg:grid-cols-2 lg:gap-14">
-            <div>
-              <Animate><p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Human in the loop</p></Animate>
-              <Animate><h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-900">It does the work. You make the calls.</h2></Animate>
-              <Animate><p className="mt-5 text-lg leading-relaxed text-gray-600">Every email, meeting, and deal change waits for your go-ahead. Elevay does the research, the list-building, the first drafts, and the note-taking, the work that doesn&apos;t need a person. The conversations and the relationships stay yours.</p></Animate>
-              <div className="mt-8 space-y-4">
-                {[
-                  { h: "Elevay handles", b: "Prospecting, enrichment, scoring, drafting, transcription, and follow-up reminders, run continuously in the background." },
-                  { h: "You handle", b: "The pitch, the read on the room, and the close, the part of selling that needs a person." },
-                  { h: "Autonomy you control", b: "Approve more and it does more. Pull it back to drafts-only anytime. It earns scope, it never assumes it." },
-                ].map((col) => (
-                  <Animate key={col.h}>
-                    <div className="border-l-2 pl-4" style={{ borderColor: "rgba(44,107,237,0.22)" }}>
-                      <h3 className="text-sm font-semibold text-gray-900">{col.h}</h3>
-                      <p className="mt-1 text-sm leading-relaxed text-gray-600">{col.b}</p>
-                    </div>
-                  </Animate>
-                ))}
-              </div>
+          <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-10 md:p-14">
+            <Animate><p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Human in the loop</p></Animate>
+            <Animate><h2 className="mt-3 max-w-2xl text-3xl font-bold tracking-tight text-gray-900">It does the work. You make the calls.</h2></Animate>
+            <Animate><p className="mt-5 max-w-2xl text-lg leading-relaxed text-gray-600">Every email, meeting, and deal change waits for your go-ahead. Elevay does the research, the list-building, the first drafts, and the note-taking, the work that doesn&apos;t need a person. The conversations and the relationships stay yours.</p></Animate>
+            <div className="mt-10 grid gap-8 md:grid-cols-3">
+              {[
+                { h: "Elevay handles", b: "Prospecting, enrichment, scoring, drafting, transcription, and follow-up reminders, run continuously in the background." },
+                { h: "You handle", b: "The pitch, the read on the room, and the close, the part of selling that needs a person." },
+                { h: "Autonomy you control", b: "Approve more and it does more. Pull it back to drafts-only anytime. It earns scope, it never assumes it." },
+              ].map((col) => (
+                <Animate key={col.h}>
+                  <div className="border-l-2 pl-4" style={{ borderColor: "rgba(44,107,237,0.22)" }}>
+                    <h3 className="text-sm font-semibold text-gray-900">{col.h}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-gray-600">{col.b}</p>
+                  </div>
+                </Animate>
+              ))}
             </div>
-            <Animate>
-              <div>
-                <OutreachMock />
-                <p className="mt-3 text-center text-xs text-gray-400">A drafted email sits on <span className="font-medium text-gray-500">Approve &amp; send</span>. It never goes out on its own.</p>
-              </div>
-            </Animate>
           </div>
         </div>
       </Section>
