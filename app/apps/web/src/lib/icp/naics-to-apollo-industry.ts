@@ -236,23 +236,34 @@ const SIC4: Record<string, ApolloIndustry> = {
 
 // ── Name heuristic (last resort, no usable code) ─────────────────────
 const NAME_RULES: Array<[RegExp, ApolloIndustry]> = [
-  [/nations unies|united nations|\bonu\b|\boim\b|\bunhcr\b|interpol|\bwipo\b|\bilo\b|\bwho\b|\bwto\b|\bomc\b|intergovernmental|organisation internationale/i, A.intl_affairs],
-  [/cabinet médical|cliniqu|h[oô]pital|h[oô]pitaux|m[ée]dical|m[ée]decin|radiolog|pneumolog|dentaire|th[ée]rap|pharma|sant[ée]/i, A.hospital_health],
-  [/fondation|foundation|\bngo\b|nonprofit|caritas|secours|croix-rouge|association|f[ée]d[ée]ration/i, A.nonprofit_alt],
+  [/nations unies|united nations|\bonu\b|\boim\b|\bunhcr\b|interpol|\bwipo\b|\bilo\b|\bwho\b|\bwto\b|\bomc\b|intergovernmental|organisation internationale|world (triathlon|athletics|rugby|federation)/i, A.intl_affairs],
+  [/cabinet médical|cliniqu|h[oô]pital|h[oô]pitaux|m[ée]dical|m[ée]decin|radiolog|pneumolog|orthophon|dentaire|th[ée]rap|pharma|\bems\b|sant[ée]|elderly|nursing/i, A.hospital_health],
+  // sports clubs/federations before the generic nonprofit catch-all.
+  [/hockey|\bfootball\b|triathlon|\bfc\b|\bhc\b|sporting|club sportif|basketball|\brugby\b/i, A.sports],
+  [/fondation|foundation|\bngo\b|nonprofit|caritas|secours|croix-rouge|association|f[ée]d[ée]ration|coop[ée]rative|forest trust/i, A.nonprofit_alt],
   [/universit|\bhes\b|\bheg\b|\bhep\b|gymnase|coll[èe]ge|[ée]cole|institut|formation/i, A.edu_mgmt],
   [/canton|commune|municipalit|office cantonal|administration|[ée]tat de|service public/i, A.gov_admin],
   [/\bbanque\b|\bbank\b|crédit|caisse d['e]épargne/i, A.banking],
   [/assurance|insurance/i, A.insurance],
-  [/invest|capital|asset|wealth|patrimo|gestion de fortune|holding/i, A.investment_mgmt],
+  // newspapers / press / publishing houses.
+  [/\ble temps\b|gazette|tribune|\bpresse\b|journal|newspaper|[ée]ditions?\b|m[ée]dias?\b/i, A.publishing],
+  // legal practices (en + fr).
+  [/avocat|\bétude\b|notaire|\blegal\b|juridique|lawyers?\b|law firm/i, A.law_practice],
+  // ground / rail / air transport + taxi + heavy haulage.
+  [/\bbahn\b|railway|chemin de fer|\bsbb\b|\bcff\b|transports? publics|\btaxi\b|d[ée]m[ée]nag|heavy haul/i, A.trucking],
+  [/transport|logistique|\bfret\b|freight|shipping|navitrans/i, A.logistics],
+  [/automobile|\bauto\b|garage|carrosserie|v[ée]hicul/i, A.automotive],
+  [/semiconduct|wireless|microelectron|\bnxp\b/i, A.semiconductors],
+  [/[ée]nergie|\benergy\b|[ée]lectricit|\bgaz\b|utilit/i, A.utilities],
+  [/invest|capital|\basset\b|wealth|patrimo|gestion de fortune|holding|\btrust\b/i, A.investment_mgmt],
   [/h[oô]tel|resort|h[ôo]tellerie/i, A.hospitality],
-  [/restaurant|brasserie|traiteur/i, A.restaurants],
-  [/montre|horlog|watch|manufacture/i, A.consumer_goods],
-  [/construction|b[âa]timent|g[ée]nie civil|entreprise g[ée]n[ée]rale/i, A.construction],
-  [/transport|logistique|fret|d[ée]m[ée]nag/i, A.logistics],
+  [/restaurant|brasserie|traiteur|pizza|pizzeria/i, A.restaurants],
+  [/montre|horlog|watch|\btimex\b|manufacture/i, A.consumer_goods],
+  [/construction|b[âa]timent|g[ée]nie civil|entreprise g[ée]n[ée]rale|routes?\b|colas/i, A.construction],
   [/immobili[èe]r|r[ée]gie|g[ée]rance/i, A.real_estate],
-  [/software|logiciel|\bsaas\b|informatique|num[ée]rique|digital|\bdata\b|cyber|cloud/i, A.it_services],
-  [/conseil|consulting|advisory|fiduciaire/i, A.mgmt_consulting],
-  [/avocat|\bétude\b|notaire|legal|juridique/i, A.legal_services],
+  [/film|cin[ée]ma|production audiovisuelle|recordings?\b|\bmusic\b/i, A.media_production],
+  [/software|logiciel|\bsaas\b|informatique|num[ée]rique|digital|\bdata\b|cyber|cloud|wireless/i, A.it_services],
+  [/conseil|consulting|advisory|fiduciaire|\bpartners?\b/i, A.mgmt_consulting],
 ];
 
 export interface IndustryResult {
