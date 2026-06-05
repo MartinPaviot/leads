@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Building2, Search, Plus, Zap, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, type LucideIcon } from "lucide-react";
+import { Building2, Search, Plus, Zap, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, Trash2, UserPlus, type LucideIcon } from "lucide-react";
 import { useTamStream } from "@/hooks/use-tam-stream";
 import { TamBuildProgress } from "@/components/tam-build-progress";
 import { SignalChip } from "@/components/signal-chip";
@@ -35,6 +35,8 @@ import { BulkActionsBar } from "@/components/ui/bulk-actions-bar";
 import { SmartSearchBar, ActiveFiltersChips } from "@/components/ui/smart-search-bar";
 import { applyFilters } from "@/lib/search/filters";
 import type { FilterCondition } from "@/lib/search/filters";
+import { ColumnFilter, isColumnFilterActive, type ColumnFilterKind, type ColumnFilterState } from "@/components/ui/column-filter";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface Account {
   id: string;
@@ -124,11 +126,15 @@ export default function AccountsPage() {
   const [enrichStatus, setEnrichStatus] = useState<Record<string, EnrichStatus>>({});
   const [enrichAllRunning, setEnrichAllRunning] = useState(false);
   const [filter, setFilter] = useState<"all" | "tam" | "manual">("all");
-  // Faceted filters driven by the data actually loaded. "all" = no
-  // constraint. Industry matches `account.industry`; geography matches
-  // the account's country (the broadest, most reliable geo unit).
-  const [industryFilter, setIndustryFilter] = useState<string>("all");
-  const [geographyFilter, setGeographyFilter] = useState<string>("all");
+  // Per-column header filters (Notion / Excel style). Keyed by the
+  // column's filterKey → its filter state. An entry only exists while
+  // the column constrains the list; clearing it deletes the key.
+  const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilterState>>({});
+  const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null);
+  // Bulk contact extraction (Apollo) + delete flows.
+  const [extractingContacts, setExtractingContacts] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: "single" | "bulk" | "all"; id?: string; name?: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [scoreAllRunning, setScoreAllRunning] = useState(false);
   const [detectingSignals, setDetectingSignals] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -185,11 +191,13 @@ export default function AccountsPage() {
     // sourcing query so "Find more accounts" pulls exactly the slice the
     // user is filtering on (instead of the full tenant-wide plan).
     const apolloOverrides: { industries?: string[]; geographies?: string[] } = {};
-    if (industryFilter !== "all") apolloOverrides.industries = [industryFilter];
-    if (geographyFilter !== "all") apolloOverrides.geographies = [geographyFilter];
+    const indVals = columnFilters.industry?.values ?? [];
+    const geoVals = columnFilters.geography?.values ?? [];
+    if (indVals.length > 0) apolloOverrides.industries = indVals;
+    if (geoVals.length > 0) apolloOverrides.geographies = geoVals;
     const hasOverrides = !!apolloOverrides.industries || !!apolloOverrides.geographies;
     await tamStream.start({ targetCount: 300, ...(hasOverrides ? { apolloOverrides } : {}) });
-  }, [tamStream, industryFilter, geographyFilter]);
+  }, [tamStream, columnFilters]);
 
   // Single "popover open" selector shared across all signal chips in
   // the table. Ensures only one popover is open at a time and it
@@ -560,6 +568,86 @@ export default function AccountsPage() {
     } finally { setDetectingSignals(false); }
   }
 
+  // Pull real contacts (Apollo) for the selected accounts and persist
+  // them. Deduped server-side against contacts already on each account.
+  async function extractContactsSelected() {
+    const ids = Array.from(selectedRows);
+    if (ids.length === 0) return;
+    setExtractingContacts(true);
+    toast(`Extracting contacts for ${ids.length} account${ids.length === 1 ? "" : "s"}…`, "info");
+    try {
+      const res = await fetch("/api/accounts/extract-contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountIds: ids }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast(data?.error || "Failed to extract contacts.", "error");
+        return;
+      }
+      if (data.totalCreated > 0) {
+        toast(
+          `Added ${data.totalCreated} contact${data.totalCreated === 1 ? "" : "s"} across ${data.accountsProcessed} account${data.accountsProcessed === 1 ? "" : "s"}.`,
+          "success",
+        );
+      } else {
+        toast("No new contacts found for the selected accounts.", "info");
+      }
+    } catch (e) {
+      toast("Failed to extract contacts.", "error");
+      console.warn("accounts: extract contacts failed", e);
+    } finally {
+      setExtractingContacts(false);
+    }
+  }
+
+  // Soft-delete: single row, the current selection, or every account in
+  // the tenant. Driven by `deleteTarget` + confirmed via <ConfirmDialog>.
+  async function performDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      let ok = false;
+      let deletedCount = 0;
+      if (deleteTarget.type === "single" && deleteTarget.id) {
+        const res = await fetch(`/api/accounts/${deleteTarget.id}`, { method: "DELETE" });
+        ok = res.ok;
+        deletedCount = ok ? 1 : 0;
+      } else if (deleteTarget.type === "bulk") {
+        const ids = Array.from(selectedRows);
+        const res = await fetch("/api/accounts/batch", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids }),
+        });
+        ok = res.ok;
+        if (ok) deletedCount = (await res.json().catch(() => ({}))).deleted ?? ids.length;
+      } else if (deleteTarget.type === "all") {
+        const res = await fetch("/api/accounts/batch", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ all: true }),
+        });
+        ok = res.ok;
+        if (ok) deletedCount = (await res.json().catch(() => ({}))).deleted ?? 0;
+      }
+      if (!ok) {
+        toast("Delete failed.", "error");
+        return;
+      }
+      toast(`Deleted ${deletedCount} account${deletedCount === 1 ? "" : "s"}.`, "success");
+      setSelectedRows(new Set());
+      await refetchLoadedAccounts();
+    } catch (e) {
+      toast("Delete failed.", "error");
+      console.warn("accounts: delete failed", e);
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  }
+
   async function handleSemanticSearch() {
     if (!searchQuery.trim()) { setSearchResults(null); return; }
     setSearching(true);
@@ -778,30 +866,57 @@ export default function AccountsPage() {
     return n;
   }
 
-  // Distinct industries / countries present in the loaded set, for the
-  // facet dropdowns. Sorted alphabetically; empty values dropped.
-  const industryOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          mergedAccounts
-            .map((a) => a.industry?.trim())
-            .filter((v): v is string => !!v),
-        ),
-      ).sort((a, b) => a.localeCompare(b)),
-    [mergedAccounts],
-  );
-  const geographyOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          mergedAccounts
-            .map((a) => getCountry(a))
-            .filter((v): v is string => !!v),
-        ),
-      ).sort((a, b) => a.localeCompare(b)),
-    [mergedAccounts],
-  );
+  // Per-column filter config — each filterable header column maps to a
+  // kind (text / enum / presence) and a value accessor. The header
+  // renders a <ColumnFilter> for every key here; `filteredAccounts`
+  // applies them. Single source of truth for both sides.
+  const FILTER_COLUMNS: Record<string, { label: string; kind: ColumnFilterKind; get: (a: Account) => string | null }> = {
+    name: { label: "Account", kind: "text", get: (a) => a.name },
+    domain: { label: "Website", kind: "text", get: (a) => a.domain },
+    linkedin: { label: "LinkedIn", kind: "presence", get: (a) => getLinkedInUrl(a) },
+    industry: { label: "Industry", kind: "enum", get: (a) => a.industry?.trim() || null },
+    geography: { label: "Geography", kind: "enum", get: (a) => getCountry(a) },
+    size: { label: "Size", kind: "enum", get: (a) => a.size },
+    revenue: { label: "Revenue", kind: "enum", get: (a) => a.revenue },
+    stage: { label: "Stage", kind: "enum", get: (a) => getLifecycleStage(a) },
+    score: { label: "Score", kind: "enum", get: (a) => formatScore(a.score)?.grade ?? null },
+  };
+
+  // Distinct values per enum column, computed from the loaded rows, for
+  // the column-filter checkboxes. Sorted alphabetically; empties dropped.
+  const columnOptions = useMemo(() => {
+    const out: Record<string, string[]> = {};
+    for (const [key, cfg] of Object.entries(FILTER_COLUMNS)) {
+      if (cfg.kind !== "enum") continue;
+      const set = new Set<string>();
+      for (const a of mergedAccounts) {
+        const v = cfg.get(a);
+        if (v) set.add(String(v));
+      }
+      out[key] = Array.from(set).sort((a, b) => a.localeCompare(b));
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mergedAccounts]);
+
+  /** Apply every active per-column header filter to one row. */
+  function passesColumnFilters(a: Account): boolean {
+    for (const [key, f] of Object.entries(columnFilters)) {
+      const cfg = FILTER_COLUMNS[key];
+      if (!cfg || !isColumnFilterActive(f)) continue;
+      const v = cfg.get(a);
+      if (cfg.kind === "text") {
+        if (!String(v ?? "").toLowerCase().includes((f.text ?? "").toLowerCase())) return false;
+      } else if (cfg.kind === "enum") {
+        if (f.values && f.values.length > 0 && (v == null || !f.values.includes(String(v)))) return false;
+      } else if (cfg.kind === "presence") {
+        const has = !!(v && String(v).trim());
+        if (f.presence === "has" && !has) return false;
+        if (f.presence === "empty" && has) return false;
+      }
+    }
+    return true;
+  }
 
   const filteredAccounts = (smartFilters.length > 0
     ? applyFilters(mergedAccounts, smartFilters)
@@ -809,8 +924,7 @@ export default function AccountsPage() {
     .filter((a) => {
       if (filter === "tam" && !isTAM(a)) return false;
       if (filter === "manual" && isTAM(a)) return false;
-      if (industryFilter !== "all" && a.industry?.trim() !== industryFilter) return false;
-      if (geographyFilter !== "all" && getCountry(a) !== geographyFilter) return false;
+      if (!passesColumnFilters(a)) return false;
       if (searchQuery.trim() && !searchResults) {
         const q = searchQuery.toLowerCase();
         return a.name.toLowerCase().includes(q) || (a.domain?.toLowerCase().includes(q) ?? false) || (a.industry?.toLowerCase().includes(q) ?? false);
@@ -853,6 +967,12 @@ export default function AccountsPage() {
           { label: "Score", icon: <Target size={13} />, onClick: bulkScoreSelected },
           { label: "Detect signals", icon: <Radio size={13} />, onClick: detectSignals },
           {
+            label: extractingContacts ? "Extracting…" : "Extract contacts",
+            icon: <UserPlus size={13} />,
+            onClick: extractContactsSelected,
+            disabled: extractingContacts,
+          },
+          {
             label: "Call Mode",
             icon: <Phone size={13} />,
             onClick: () => {
@@ -860,6 +980,12 @@ export default function AccountsPage() {
               if (ids.length === 0) return;
               window.location.href = `/call-mode?accounts=${encodeURIComponent(ids.join(","))}`;
             },
+          },
+          {
+            label: "Delete",
+            icon: <Trash2 size={13} />,
+            variant: "danger",
+            onClick: () => setDeleteTarget({ type: "bulk" }),
           },
         ]}
       />
@@ -869,6 +995,17 @@ export default function AccountsPage() {
         title="Accounts"
         subtitle={`${totalAccounts}`}
       >
+        {totalAccounts > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={<Trash2 size={13} />}
+            onClick={() => setDeleteTarget({ type: "all" })}
+            title="Delete every account in this workspace"
+          >
+            Delete all
+          </Button>
+        )}
         <Button
           variant="outline"
           size="sm"
@@ -913,7 +1050,7 @@ export default function AccountsPage() {
         >
           {tamStream.isRunning
             ? "Building..."
-            : (industryFilter !== "all" || geographyFilter !== "all")
+            : ((columnFilters.industry?.values?.length ?? 0) > 0 || (columnFilters.geography?.values?.length ?? 0) > 0)
               ? "Find more (filtered)"
               : "Find more accounts"}
         </Button>
@@ -958,51 +1095,27 @@ export default function AccountsPage() {
           ))}
         </div>
 
-        {/* Faceted filters — sector (industry) and geography (country).
-            Populated from the loaded rows; hidden until there's at least
-            one value to choose from so they never render empty. */}
-        {industryOptions.length > 0 && (
-          <div className="flex items-center gap-1">
-            <Factory size={12} style={{ color: "var(--color-text-muted)" }} />
-            <select
-              value={industryFilter}
-              onChange={(e) => setIndustryFilter(e.target.value)}
-              aria-label="Filter by sector"
-              className="h-7 rounded-md px-2 text-[12px]"
-              style={{
-                border: "1px solid var(--color-border-default)",
-                background: industryFilter !== "all" ? "var(--color-accent-soft)" : "var(--color-bg-card)",
-                color: industryFilter !== "all" ? "var(--color-accent)" : "var(--color-text-secondary)",
-              }}
+        {/* Per-column filters now live in the table headers (click the
+            filter icon on Industry / Geography / Size / etc.). When any
+            are active, surface a count + one-click reset here so the user
+            isn't hunting through headers to clear them. */}
+        {(() => {
+          const activeKeys = Object.keys(columnFilters).filter((k) =>
+            isColumnFilterActive(columnFilters[k]),
+          );
+          if (activeKeys.length === 0) return null;
+          return (
+            <button
+              type="button"
+              onClick={() => setColumnFilters({})}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium transition-colors"
+              style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
             >
-              <option value="all">All sectors</option>
-              {industryOptions.map((opt) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        {geographyOptions.length > 0 && (
-          <div className="flex items-center gap-1">
-            <MapPin size={12} style={{ color: "var(--color-text-muted)" }} />
-            <select
-              value={geographyFilter}
-              onChange={(e) => setGeographyFilter(e.target.value)}
-              aria-label="Filter by geography"
-              className="h-7 rounded-md px-2 text-[12px]"
-              style={{
-                border: "1px solid var(--color-border-default)",
-                background: geographyFilter !== "all" ? "var(--color-accent-soft)" : "var(--color-bg-card)",
-                color: geographyFilter !== "all" ? "var(--color-accent)" : "var(--color-text-secondary)",
-              }}
-            >
-              <option value="all">All geographies</option>
-              {geographyOptions.map((opt) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
-          </div>
-        )}
+              <X size={12} />
+              {activeKeys.length} column filter{activeKeys.length === 1 ? "" : "s"} — clear
+            </button>
+          );
+        })()}
 
         <div className="ml-auto flex items-center gap-2">
           {/* Smart Search — NL → structured filters. Independent of the
@@ -1200,15 +1313,15 @@ export default function AccountsPage() {
                   />
                 </th>
                 {([
-                  { label: "Account", icon: Building2 },
-                  { label: "Website", icon: Globe },
-                  { label: "LinkedIn", icon: null },
-                  { label: "Industry", icon: Factory },
-                  { label: "Geography", icon: MapPin },
-                  { label: "Size", icon: Ruler },
-                  { label: "Revenue", icon: DollarSign },
-                  { label: "Stage", icon: GitBranch },
-                  { label: "Score", icon: Gauge },
+                  { label: "Account", icon: Building2, filterKey: "name" },
+                  { label: "Website", icon: Globe, filterKey: "domain" },
+                  { label: "LinkedIn", icon: null, filterKey: "linkedin" },
+                  { label: "Industry", icon: Factory, filterKey: "industry" },
+                  { label: "Geography", icon: MapPin, filterKey: "geography" },
+                  { label: "Size", icon: Ruler, filterKey: "size" },
+                  { label: "Revenue", icon: DollarSign, filterKey: "revenue" },
+                  { label: "Stage", icon: GitBranch, filterKey: "stage" },
+                  { label: "Score", icon: Gauge, filterKey: "score" },
                   { label: "Last Interaction", icon: Clock },
                   { label: "Connected to", icon: Users },
                   // TAM streaming signal columns — one per default
@@ -1231,15 +1344,36 @@ export default function AccountsPage() {
                   ...customBoolColumns.map((c) => ({ label: c, icon: Target as LucideIcon })),
                   ...customFields.map((f) => ({ label: f.name, icon: null as LucideIcon | null })),
                   { label: "", icon: null },
-                ] as Array<{ label: string; icon: LucideIcon | null }>).map((col, i) => (
+                ] as Array<{ label: string; icon: LucideIcon | null; filterKey?: string }>).map((col, i) => {
+                  const fcfg = col.filterKey ? FILTER_COLUMNS[col.filterKey] : undefined;
+                  return (
                   <th key={i}>
                     <span className="flex items-center gap-1.5">
                       {col.icon && <col.icon size={12} style={{ opacity: 0.5 }} />}
                       {col.label === "LinkedIn" && <span style={{ opacity: 0.5 }}><LinkedInIcon size={12} /></span>}
                       {col.label}
+                      {col.filterKey && fcfg && (
+                        <ColumnFilter
+                          label={fcfg.label}
+                          kind={fcfg.kind}
+                          options={columnOptions[col.filterKey]}
+                          state={columnFilters[col.filterKey]}
+                          onChange={(next) =>
+                            setColumnFilters((prev) => {
+                              const n = { ...prev };
+                              if (next) n[col.filterKey!] = next;
+                              else delete n[col.filterKey!];
+                              return n;
+                            })
+                          }
+                          open={openColumnFilter === col.filterKey}
+                          onOpenChange={(o) => setOpenColumnFilter(o ? col.filterKey! : null)}
+                        />
+                      )}
                     </span>
                   </th>
-                ))}
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -1716,16 +1850,31 @@ export default function AccountsPage() {
 
                     {/* Actions */}
                     <td className="actions">
-                      {!isEnriched(account) && enrichStatus[account.id] !== "enriching" && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => enrichSingle(account.id)}
-                          className="!px-2 !py-0.5"
+                      <div className="flex items-center gap-1">
+                        {!isEnriched(account) && enrichStatus[account.id] !== "enriching" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => enrichSingle(account.id)}
+                            className="!px-2 !py-0.5"
+                          >
+                            Enrich
+                          </Button>
+                        )}
+                        <button
+                          type="button"
+                          aria-label={`Delete ${account.name}`}
+                          title="Delete account"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteTarget({ type: "single", id: account.id, name: account.name });
+                          }}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
+                          style={{ color: "var(--color-text-muted)" }}
                         >
-                          Enrich
-                        </Button>
-                      )}
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                   {/* Expanded contacts row */}
@@ -1977,6 +2126,36 @@ export default function AccountsPage() {
           );
         })()}
       </SlideOver>
+
+      {/* Delete confirmation — single row, current selection, or all. */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={
+          deleteTarget?.type === "all"
+            ? "Delete all accounts?"
+            : deleteTarget?.type === "bulk"
+              ? `Delete ${selectedRows.size} account${selectedRows.size === 1 ? "" : "s"}?`
+              : "Delete account?"
+        }
+        description={
+          deleteTarget?.type === "all"
+            ? `This removes every account in this workspace (${totalAccounts}). Contacts and deals keep their records but are no longer attached to a listed account. This can be undone by support, but not from here.`
+            : deleteTarget?.type === "bulk"
+              ? `The selected account${selectedRows.size === 1 ? "" : "s"} will be removed from your Accounts list. Their contacts and deals are kept.`
+              : `"${deleteTarget?.name ?? "This account"}" will be removed from your Accounts list. Its contacts and deals are kept.`
+        }
+        confirmLabel={
+          deleteTarget?.type === "all"
+            ? "Delete all"
+            : deleteTarget?.type === "bulk"
+              ? `Delete ${selectedRows.size}`
+              : "Delete"
+        }
+        variant="destructive"
+        busy={deleting}
+        onConfirm={performDelete}
+        onCancel={() => { if (!deleting) setDeleteTarget(null); }}
+      />
     </div>
   );
 }
