@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { TrendingUp } from "lucide-react";
 import { SlideOver, PropertyRow } from "./slide-over";
-import { CompanyLogo } from "./ui/company-logo";
+import { GeneratedCompanyAvatar } from "./ui/generated-company-avatar";
 
 type EntityType = "contact" | "account" | "deal";
 
@@ -74,7 +74,7 @@ export function parseEntityHref(href: string): { type: EntityType; id: string; d
   return null;
 }
 
-export function EntityLink({ type, id, name, domain }: EntityLinkProps) {
+export function EntityLink({ type, id, name }: EntityLinkProps) {
   const [slideOverOpen, setSlideOverOpen] = useState(false);
   const [entityData, setEntityData] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
@@ -123,8 +123,8 @@ export function EntityLink({ type, id, name, domain }: EntityLinkProps) {
       >
         {type === "deal" ? (
           <TrendingUp size={12} style={{ flexShrink: 0 }} />
-        ) : type === "account" && domain ? (
-          <CompanyLogo domain={domain} name={name} size={16} />
+        ) : type === "account" ? (
+          <GeneratedCompanyAvatar companyName={name} size={16} />
         ) : (
           <span
             className="inline-flex items-center justify-center rounded-full text-[9px] font-semibold"
