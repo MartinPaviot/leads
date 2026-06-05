@@ -707,13 +707,18 @@ export async function POST(req: Request) {
         system: systemPrompt,
         messages: convertedMessages,
         tools: chatTools,
-        // @ts-ignore maxTokens exists in AI SDK but type definition may lag
-        maxTokens: 2000,
+        // AI SDK v6 renamed maxTokens -> maxOutputTokens; the old name was
+        // silently ignored. Anthropic also requires max_tokens > thinking
+        // budget, so the previous `thinking.budgetTokens: 16000` (with no
+        // honoured cap) produced an invalid request that streamed empty —
+        // hence the 200-with-no-answer. Extended thinking is dropped for the
+        // interactive chat: it added 16k hidden tokens of latency for little
+        // gain. Re-add with budget < maxOutputTokens if deep reasoning is needed.
+        maxOutputTokens: 4000,
         temperature: 0.4,
         stopWhen: stepCountIs(10),
         providerOptions: {
           anthropic: {
-            thinking: { type: "enabled", budgetTokens: 16000 },
             cacheControl: { type: "ephemeral" },
           },
         },
