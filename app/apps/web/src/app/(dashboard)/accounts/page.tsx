@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Building2, Search, Plus, Zap, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, type LucideIcon } from "lucide-react";
+import { Building2, Search, Plus, Zap, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, type LucideIcon } from "lucide-react";
 import { useTamStream } from "@/hooks/use-tam-stream";
 import { TamBuildProgress } from "@/components/tam-build-progress";
 import { SignalChip } from "@/components/signal-chip";
@@ -124,6 +124,11 @@ export default function AccountsPage() {
   const [enrichStatus, setEnrichStatus] = useState<Record<string, EnrichStatus>>({});
   const [enrichAllRunning, setEnrichAllRunning] = useState(false);
   const [filter, setFilter] = useState<"all" | "tam" | "manual">("all");
+  // Faceted filters driven by the data actually loaded. "all" = no
+  // constraint. Industry matches `account.industry`; geography matches
+  // the account's country (the broadest, most reliable geo unit).
+  const [industryFilter, setIndustryFilter] = useState<string>("all");
+  const [geographyFilter, setGeographyFilter] = useState<string>("all");
   const [scoreAllRunning, setScoreAllRunning] = useState(false);
   const [detectingSignals, setDetectingSignals] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -159,6 +164,11 @@ export default function AccountsPage() {
   }>>>({});
   const [warmPathsPopoverId, setWarmPathsPopoverId] = useState<string | null>(null);
   const warmPathsPopoverRef = useRef<HTMLDivElement>(null);
+  // Infinite scroll — the scroll container is the observer root, and a
+  // sentinel just below the last row triggers the next page when it
+  // scrolls into view (see the IntersectionObserver effect below).
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
 
   // ── TAM streaming build ──
   // Live stream of new rows + signals from /api/tam/build. Rows arrive
@@ -171,8 +181,15 @@ export default function AccountsPage() {
 
   const startTamBuild = useCallback(async () => {
     setStreamBanner(true);
-    await tamStream.start({ targetCount: 300 });
-  }, [tamStream]);
+    // Push the active sector/geography facets straight into the Apollo
+    // sourcing query so "Find more accounts" pulls exactly the slice the
+    // user is filtering on (instead of the full tenant-wide plan).
+    const apolloOverrides: { industries?: string[]; geographies?: string[] } = {};
+    if (industryFilter !== "all") apolloOverrides.industries = [industryFilter];
+    if (geographyFilter !== "all") apolloOverrides.geographies = [geographyFilter];
+    const hasOverrides = !!apolloOverrides.industries || !!apolloOverrides.geographies;
+    await tamStream.start({ targetCount: 300, ...(hasOverrides ? { apolloOverrides } : {}) });
+  }, [tamStream, industryFilter, geographyFilter]);
 
   // Single "popover open" selector shared across all signal chips in
   // the table. Ensures only one popover is open at a time and it
@@ -264,6 +281,28 @@ export default function AccountsPage() {
   }, [fetchAccounts, loadingMore, currentPage, totalPages]);
 
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
+
+  // Auto-load on scroll: when the bottom sentinel enters the scroll
+  // container's viewport, pull the next page. `rootMargin` pre-fetches a
+  // little before the user reaches the very bottom so growth feels
+  // seamless. `loadMoreAccounts` is internally guarded (no-op while a
+  // load is in flight or once the last page is reached), and this effect
+  // re-binds after every page load (currentPage/totalPages change) so it
+  // keeps chaining until the sentinel is off-screen or the list is
+  // exhausted. Replaces the manual "Load more" click.
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel) return;
+    if (currentPage >= totalPages) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMoreAccounts();
+      },
+      { root: scrollContainerRef.current ?? null, rootMargin: "300px 0px", threshold: 0 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMoreAccounts, currentPage, totalPages, loading]);
 
   // When the TAM stream terminates, refetch so the rows picked up
   // from the stream also land in the DB-backed list (enrichment
@@ -566,6 +605,32 @@ export default function AccountsPage() {
     return (props?.linkedinUrl as string) || (props?.linkedin_url as string) || null;
   }
 
+  /** Country alone — the unit the geography filter groups by. Both the
+   * TAM stream and /api/enrich persist it under `properties.country`. */
+  function getCountry(account: Account): string | null {
+    const c = (account.properties as Record<string, unknown> | null)?.country;
+    return typeof c === "string" && c.trim() ? c.trim() : null;
+  }
+
+  /** Human-readable location for the table cell: city, state, country,
+   * de-duplicated and in that order. Returns null when nothing is
+   * known so the cell renders "—". */
+  function formatGeography(account: Account): string | null {
+    const props = account.properties as Record<string, unknown> | null;
+    if (!props) return null;
+    const parts = [props.city, props.state, props.country]
+      .map((p) => (typeof p === "string" ? p.trim() : ""))
+      .filter(Boolean);
+    const seen = new Set<string>();
+    const unique = parts.filter((p) => {
+      const k = p.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    return unique.length > 0 ? unique.join(", ") : null;
+  }
+
   function timeAgo(dateStr: string): string {
     const diff = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
@@ -713,12 +778,39 @@ export default function AccountsPage() {
     return n;
   }
 
+  // Distinct industries / countries present in the loaded set, for the
+  // facet dropdowns. Sorted alphabetically; empty values dropped.
+  const industryOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          mergedAccounts
+            .map((a) => a.industry?.trim())
+            .filter((v): v is string => !!v),
+        ),
+      ).sort((a, b) => a.localeCompare(b)),
+    [mergedAccounts],
+  );
+  const geographyOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          mergedAccounts
+            .map((a) => getCountry(a))
+            .filter((v): v is string => !!v),
+        ),
+      ).sort((a, b) => a.localeCompare(b)),
+    [mergedAccounts],
+  );
+
   const filteredAccounts = (smartFilters.length > 0
     ? applyFilters(mergedAccounts, smartFilters)
     : mergedAccounts)
     .filter((a) => {
       if (filter === "tam" && !isTAM(a)) return false;
       if (filter === "manual" && isTAM(a)) return false;
+      if (industryFilter !== "all" && a.industry?.trim() !== industryFilter) return false;
+      if (geographyFilter !== "all" && getCountry(a) !== geographyFilter) return false;
       if (searchQuery.trim() && !searchResults) {
         const q = searchQuery.toLowerCase();
         return a.name.toLowerCase().includes(q) || (a.domain?.toLowerCase().includes(q) ?? false) || (a.industry?.toLowerCase().includes(q) ?? false);
@@ -760,6 +852,15 @@ export default function AccountsPage() {
           { label: "Enrich", icon: <Zap size={13} />, onClick: bulkEnrichSelected },
           { label: "Score", icon: <Target size={13} />, onClick: bulkScoreSelected },
           { label: "Detect signals", icon: <Radio size={13} />, onClick: detectSignals },
+          {
+            label: "Call Mode",
+            icon: <Phone size={13} />,
+            onClick: () => {
+              const ids = Array.from(selectedRows);
+              if (ids.length === 0) return;
+              window.location.href = `/call-mode?accounts=${encodeURIComponent(ids.join(","))}`;
+            },
+          },
         ]}
       />
       {/* Page header */}
@@ -810,7 +911,11 @@ export default function AccountsPage() {
           disabled={tamStream.isRunning}
           loading={tamStream.isRunning}
         >
-          {tamStream.isRunning ? "Building..." : "Find more accounts"}
+          {tamStream.isRunning
+            ? "Building..."
+            : (industryFilter !== "all" || geographyFilter !== "all")
+              ? "Find more (filtered)"
+              : "Find more accounts"}
         </Button>
         <Button
           variant="gradient"
@@ -852,6 +957,52 @@ export default function AccountsPage() {
             </button>
           ))}
         </div>
+
+        {/* Faceted filters — sector (industry) and geography (country).
+            Populated from the loaded rows; hidden until there's at least
+            one value to choose from so they never render empty. */}
+        {industryOptions.length > 0 && (
+          <div className="flex items-center gap-1">
+            <Factory size={12} style={{ color: "var(--color-text-muted)" }} />
+            <select
+              value={industryFilter}
+              onChange={(e) => setIndustryFilter(e.target.value)}
+              aria-label="Filter by sector"
+              className="h-7 rounded-md px-2 text-[12px]"
+              style={{
+                border: "1px solid var(--color-border-default)",
+                background: industryFilter !== "all" ? "var(--color-accent-soft)" : "var(--color-bg-card)",
+                color: industryFilter !== "all" ? "var(--color-accent)" : "var(--color-text-secondary)",
+              }}
+            >
+              <option value="all">All sectors</option>
+              {industryOptions.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {geographyOptions.length > 0 && (
+          <div className="flex items-center gap-1">
+            <MapPin size={12} style={{ color: "var(--color-text-muted)" }} />
+            <select
+              value={geographyFilter}
+              onChange={(e) => setGeographyFilter(e.target.value)}
+              aria-label="Filter by geography"
+              className="h-7 rounded-md px-2 text-[12px]"
+              style={{
+                border: "1px solid var(--color-border-default)",
+                background: geographyFilter !== "all" ? "var(--color-accent-soft)" : "var(--color-bg-card)",
+                color: geographyFilter !== "all" ? "var(--color-accent)" : "var(--color-text-secondary)",
+              }}
+            >
+              <option value="all">All geographies</option>
+              {geographyOptions.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           {/* Smart Search — NL → structured filters. Independent of the
@@ -1000,12 +1151,12 @@ export default function AccountsPage() {
       </Modal>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto">
         {loading ? (
           <TableSkeleton
             rows={8}
             // +4 for built-in TAM signals + N for custom signals.
-            cols={8 + 4 + customSignals.length + signalTypeColumns.length + customBoolColumns.length + customFields.length}
+            cols={9 + 4 + customSignals.length + signalTypeColumns.length + customBoolColumns.length + customFields.length}
           />
         ) : mergedAccounts.length === 0 ? (
           <EmptyState
@@ -1053,6 +1204,7 @@ export default function AccountsPage() {
                   { label: "Website", icon: Globe },
                   { label: "LinkedIn", icon: null },
                   { label: "Industry", icon: Factory },
+                  { label: "Geography", icon: MapPin },
                   { label: "Size", icon: Ruler },
                   { label: "Revenue", icon: DollarSign },
                   { label: "Stage", icon: GitBranch },
@@ -1149,7 +1301,12 @@ export default function AccountsPage() {
                         )}
 
                         {/* Logo */}
-                        <CompanyLogo domain={account.domain} name={account.name} size={24} />
+                        <CompanyLogo
+                          domain={account.domain}
+                          name={account.name}
+                          size={24}
+                          logoUrl={(account.properties?.logo_url as string | undefined) ?? null}
+                        />
 
                         {/* Name + description */}
                         <div className="min-w-0">
@@ -1160,9 +1317,6 @@ export default function AccountsPage() {
                               style={{ color: "var(--color-text-primary)" }}>
                               {account.name}
                             </button>
-                            {isTAM(account) && (
-                              <Badge variant="info" size="sm">TAM</Badge>
-                            )}
                             {/* A4 — per-row similarity score, only when a
                                 semantic search is active. Helps users
                                 see *why* this row is here vs. the next. */}
@@ -1225,6 +1379,19 @@ export default function AccountsPage() {
                       {account.industry ? (
                         <PropertyBadge value={account.industry} />
                       ) : <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>}
+                    </td>
+
+                    {/* Geography -- city / state / country */}
+                    <td>
+                      {(() => {
+                        const geo = formatGeography(account);
+                        return geo ? (
+                          <span className="inline-flex items-center gap-1 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                            <MapPin size={11} style={{ color: "var(--color-text-muted)" }} />
+                            {geo}
+                          </span>
+                        ) : <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>;
+                      })()}
                     </td>
 
                     {/* Size */}
@@ -1601,21 +1768,32 @@ export default function AccountsPage() {
               })}
             </tbody>
           </table>
-          {/* Pagination: Load more */}
+          {/* Infinite scroll sentinel — the IntersectionObserver effect
+              auto-loads the next page when this enters view, so the list
+              grows on scroll with no click. The text doubles as a manual
+              fallback (clickable) for the rare case the observer can't
+              fire (e.g. the loaded rows are shorter than the viewport). */}
           {currentPage < totalPages && (
-            <div className="flex items-center justify-center gap-3 border-t py-4" style={{ borderColor: "var(--color-border-default)" }}>
-              <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-                Showing {accounts.length} of {totalAccounts} accounts
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={loadMoreAccounts}
-                disabled={loadingMore}
-                loading={loadingMore}
-              >
-                {loadingMore ? "Loading..." : `Load more (${Math.min(50, totalAccounts - accounts.length)} more)`}
-              </Button>
+            <div
+              ref={loadMoreSentinelRef}
+              className="flex items-center justify-center gap-2 border-t py-4"
+              style={{ borderColor: "var(--color-border-default)" }}
+            >
+              {loadingMore ? (
+                <span className="inline-flex items-center gap-2 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                  <Loader2 size={14} className="animate-spin" />
+                  Loading more…
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={loadMoreAccounts}
+                  className="text-[12px] transition-colors hover:underline"
+                  style={{ color: "var(--color-text-tertiary)" }}
+                >
+                  Showing {accounts.length} of {totalAccounts} — scroll to load more
+                </button>
+              )}
             </div>
           )}
           {currentPage >= totalPages && accounts.length > 0 && (
