@@ -32,6 +32,7 @@ interface Deal {
   expectedCloseDate: string | null;
   properties: Record<string, unknown> | null;
   companyName: string | null;
+  companyId: string | null;
 }
 
 interface Activity {
@@ -757,7 +758,13 @@ export default function DealDetailPage() {
           </div>
           <div>
             <p className="text-xs text-[var(--color-text-tertiary)]">Account</p>
-            <p className="text-sm text-[var(--color-text-primary)]">{deal.companyName || "—"}</p>
+            {deal.companyId && deal.companyName ? (
+              <Link href={`/accounts/${deal.companyId}`} className="text-sm hover:underline" style={{ color: "var(--color-accent)" }}>
+                {deal.companyName}
+              </Link>
+            ) : (
+              <p className="text-sm text-[var(--color-text-primary)]">{deal.companyName || "—"}</p>
+            )}
           </div>
         </div>
       </div>

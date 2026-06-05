@@ -79,6 +79,7 @@ export async function GET(
       expectedCloseDate: deal.expectedCloseDate?.toISOString() || null,
       properties: deal.properties,
       companyName,
+      companyId: deal.companyId,
       // Y2 — expose updatedAt so the detail page can compute
       // age-in-stage and render a stall banner without a second fetch.
       updatedAt: deal.updatedAt?.toISOString() || null,
