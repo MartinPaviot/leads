@@ -214,16 +214,36 @@ async function getAgentOutput(
       }),
     });
 
-    // Stream response to text
+    // Parse the AI SDK v6 UI-message stream (SSE). The chat route now returns
+    // `toUIMessageStreamResponse()`, so the body is a sequence of `data: {json}`
+    // events rather than raw text — extract the `text-delta` pieces to
+    // reconstruct the assistant's plain-text answer for grading.
     const reader = res.body?.getReader();
     let fullText = "";
     if (reader) {
       const decoder = new TextDecoder();
+      let buffer = "";
       let done = false;
       while (!done) {
         const { value, done: d } = await reader.read();
         done = d;
-        if (value) fullText += decoder.decode(value, { stream: true });
+        if (value) buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? ""; // keep the (possibly incomplete) tail
+        for (const evt of events) {
+          for (const line of evt.split("\n")) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data:")) continue;
+            const payload = trimmed.slice(5).trim();
+            if (!payload || payload === "[DONE]") continue;
+            try {
+              const obj = JSON.parse(payload) as { type?: string; delta?: string; textDelta?: string };
+              if (obj.type === "text-delta") fullText += obj.delta ?? obj.textDelta ?? "";
+            } catch {
+              // Non-JSON keepalive / comment line — ignore.
+            }
+          }
+        }
       }
     }
 

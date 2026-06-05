@@ -794,7 +794,7 @@ export async function POST(req: Request) {
         })();
       }
 
-      return result.toTextStreamResponse();
+      return result.toUIMessageStreamResponse({ sendReasoning: false });
     } catch (err) {
       if (model === primaryModel && fallbackModel) {
         console.warn("Primary model failed, falling back to OpenAI:", err);
@@ -812,7 +812,7 @@ export async function POST(req: Request) {
             allowedToolCount: Object.keys(chatTools).length,
           },
         });
-        return result.toTextStreamResponse();
+        return result.toUIMessageStreamResponse({ sendReasoning: false });
       }
       return apiError("PROVIDER_UNAVAILABLE", "AI service temporarily unavailable. Please try again."
       );

@@ -407,3 +407,62 @@ export function ToolCallGroup({ calls }: { calls: { toolName: string; args: Reco
     </div>
   );
 }
+
+/** A normalized tool call extracted from AI SDK v6 UI-message parts. */
+export interface ParsedToolCall {
+  toolName: string;
+  args: Record<string, unknown>;
+  result: unknown;
+  isStreaming: boolean;
+}
+
+/**
+ * Extract tool calls from an AI SDK v6 `UIMessage.parts`, normalizing the
+ * typed tool-part shape into the flat shape `ToolCallGroup` consumes.
+ *
+ * AI SDK v6 (`toUIMessageStreamResponse()`) dropped the v4
+ * `{ type: "tool-invocation", toolInvocation }` wrapper. Each tool is now its
+ * own part: `type: "tool-<name>"` for static tools, or `"dynamic-tool"` with a
+ * `toolName` field, carrying `state: "input-streaming" | "input-available" |
+ * "output-available" | "output-error"`, plus `input` / `output` / `errorText`.
+ *
+ * In-progress calls (input-streaming / input-available) are included so the
+ * panel renders research steps live as they stream, not only once complete.
+ */
+export function parseUiToolParts(
+  parts: readonly { type: string }[],
+): ParsedToolCall[] {
+  return parts
+    .filter(
+      (p) =>
+        p.type === "dynamic-tool" ||
+        (typeof p.type === "string" && p.type.startsWith("tool-")),
+    )
+    .map((p) => {
+      const part = p as {
+        type: string;
+        toolName?: string;
+        state?: string;
+        input?: Record<string, unknown>;
+        output?: unknown;
+        errorText?: string;
+      };
+      const toolName =
+        part.type === "dynamic-tool"
+          ? part.toolName ?? "tool"
+          : part.type.slice("tool-".length);
+      const done =
+        part.state === "output-available" || part.state === "output-error";
+      return {
+        toolName,
+        args: part.input ?? {},
+        result:
+          part.state === "output-available"
+            ? part.output
+            : part.state === "output-error"
+              ? { error: part.errorText }
+              : undefined,
+        isStreaming: !done,
+      };
+    });
+}

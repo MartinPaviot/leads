@@ -6,7 +6,7 @@ import { DefaultChatTransport } from "ai";
 import { useRef, useEffect, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ChatMarkdown } from "@/components/chat-markdown";
-import { ToolCallGroup } from "@/components/tool-call-panel";
+import { ToolCallGroup, parseUiToolParts } from "@/components/tool-call-panel";
 import { ActionCard, parseToolResultForCard } from "@/components/action-card";
 import { EmailComposerPanel } from "@/components/email-composer-panel";
 import type { EmailComposerDraft } from "@/components/email-composer-panel";
@@ -526,19 +526,7 @@ export default function ChatPage() {
 
                   {/* Tool call transparency panels — show both in-progress and completed */}
                   {(() => {
-                    const toolCalls = message.parts
-                      .filter((p) => p.type === "tool-invocation")
-                      .map((p) => {
-                        const inv = (p as unknown as { toolInvocation: { state: string; toolName: string; args: Record<string, unknown>; result: unknown } }).toolInvocation;
-                        if (!inv) return null;
-                        return {
-                          toolName: inv.toolName,
-                          args: inv.args || {},
-                          result: inv.state === "result" ? inv.result : undefined,
-                          isStreaming: inv.state !== "result",
-                        };
-                      })
-                      .filter(Boolean) as { toolName: string; args: Record<string, unknown>; result: unknown; isStreaming: boolean }[];
+                    const toolCalls = parseUiToolParts(message.parts);
                     if (toolCalls.length === 0) return null;
                     return (
                       <>

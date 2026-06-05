@@ -1,10 +1,10 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { TextStreamChatTransport } from "ai";
+import { DefaultChatTransport } from "ai";
 import { useRef, useEffect, useState } from "react";
 import { ChatMarkdown } from "./chat-markdown";
-import { ToolCallGroup } from "./tool-call-panel";
+import { ToolCallGroup, parseUiToolParts } from "./tool-call-panel";
 import { Compass, Send, Building2, Users, TrendingUp, Calendar, List, X, Maximize2, Minimize2, Loader2 } from "lucide-react";
 
 interface ScopedChatProps {
@@ -36,7 +36,7 @@ const contextColors = {
 
 export function ScopedChat({ contextType, contextId, contextLabel }: ScopedChatProps) {
   const chat = useChat({
-    transport: new TextStreamChatTransport({
+    transport: new DefaultChatTransport({
       api: "/api/chat",
       credentials: "include",
       body: { contextType, contextId },
@@ -117,14 +117,7 @@ export function ScopedChat({ contextType, contextId, contextLabel }: ScopedChatP
         {chat.messages.map((msg) => (
           <div key={msg.id} className={msg.role === "user" ? "text-right" : ""}>
             {msg.role === "assistant" && (() => {
-              const toolCalls = msg.parts
-                .filter((p) => p.type === "tool-invocation")
-                .map((p) => {
-                  const inv = (p as unknown as { toolInvocation: { state: string; toolName: string; args: Record<string, unknown>; result: unknown } }).toolInvocation;
-                  if (!inv || inv.state !== "result") return null;
-                  return { toolName: inv.toolName, args: inv.args, result: inv.result };
-                })
-                .filter(Boolean) as { toolName: string; args: Record<string, unknown>; result: unknown }[];
+              const toolCalls = parseUiToolParts(msg.parts);
               if (toolCalls.length === 0) return null;
               return <ToolCallGroup calls={toolCalls} />;
             })()}
