@@ -211,7 +211,7 @@ export default function CallModePage() {
         const body = await res.json().catch(() => ({}));
         if (res.ok) {
           toast(
-            "Enrichissement lancé — Zeliq complète email et téléphone en arrière-plan.",
+            "Enrichment started — Zeliq is completing email and phone in the background.",
             "info",
           );
           // Invalidate the cache so the next selection re-pulls the brain.
@@ -219,12 +219,12 @@ export default function CallModePage() {
         } else {
           toast(
             body?.error ??
-              "Enrichissement indisponible (ZELIQ_API_KEY non configuré ?).",
+              "Enrichment unavailable (ZELIQ_API_KEY not configured?).",
             "error",
           );
         }
       } catch {
-        toast("Échec de l'enrichissement du contact.", "error");
+        toast("Failed to enrich the contact.", "error");
       } finally {
         setEnriching(false);
       }
@@ -263,16 +263,16 @@ export default function CallModePage() {
           const code = body?.code ?? "unknown";
           toast(
             code === "voice_not_configured"
-              ? "Configurez Twilio dans Settings → Voice avant d'appeler."
+              ? "Configure Twilio in Settings → Voice before calling."
               : code === "dnc"
-                ? "Ce contact est sur la liste DNC du workspace."
+                ? "This contact is on the workspace Do Not Call list."
                 : code === "quiet_hours"
-                  ? `Hors plages d'appel — fuseau ${body.timezone} (${body.localTime}). Réessayez plus tard.`
+                  ? `Outside calling hours — timezone ${body.timezone} (${body.localTime}). Try again later.`
                   : code === "usage_cap"
-                    ? "Plafond mensuel atteint. Voir Settings → Voice."
+                    ? "Monthly cap reached. See Settings → Voice."
                     : code === "no_pool_number"
-                      ? "Aucun numéro sortant provisionné. Achetez-en un dans Settings → Voice."
-                      : `Échec démarrage appel (${code}).`,
+                      ? "No outbound number provisioned. Buy one in Settings → Voice."
+                      : `Failed to start call (${code}).`,
             "error",
           );
           setSoftphone({ kind: "idle" });
@@ -407,13 +407,13 @@ export default function CallModePage() {
           // failed to attach — the prospect just hears silence. We
           // surface a non-fatal warning toast and the user can hang up.
           toast(
-            "Audio navigateur indisponible — l'appel a démarré côté serveur, raccrochez si nécessaire.",
+            "Browser audio unavailable — the call started server-side, hang up if needed.",
             "info",
           );
         }
       } catch (err) {
         console.warn("call-mode: start error", err);
-        toast(`Erreur démarrage appel: ${err instanceof Error ? err.message : String(err)}`, "error");
+        toast(`Call start error: ${err instanceof Error ? err.message : String(err)}`, "error");
         setSoftphone({ kind: "idle" });
       }
     },
@@ -435,12 +435,12 @@ export default function CallModePage() {
           const code = body?.code ?? "unknown";
           toast(
             code === "no_voicemail_source"
-              ? "Aucun voicemail template ou VOICE_VOICEMAIL_DEFAULT_URL configuré."
+              ? "No voicemail template or VOICE_VOICEMAIL_DEFAULT_URL configured."
               : code === "ended"
-                ? "L'appel est déjà terminé."
+                ? "The call has already ended."
                 : code === "no_sid"
-                  ? "L'appel n'est pas encore attaché à Twilio."
-                  : `Échec drop voicemail (${code}).`,
+                  ? "The call isn't attached to Twilio yet."
+                  : `Failed to drop voicemail (${code}).`,
             "error",
           );
           setVoicemailDropping(false);
@@ -450,7 +450,7 @@ export default function CallModePage() {
         // dropping flag true until then to avoid double-click races.
       } catch (err) {
         toast(
-          `Erreur drop voicemail: ${err instanceof Error ? err.message : String(err)}`,
+          `Voicemail drop error: ${err instanceof Error ? err.message : String(err)}`,
           "error",
         );
         setVoicemailDropping(false);
@@ -497,9 +497,9 @@ export default function CallModePage() {
         <div className="flex flex-1 items-center justify-center px-6">
           <EmptyState
             icon={<Phone size={20} />}
-            title="Voice n'est pas encore configuré"
-            description="Pour activer Call Mode, configurez Twilio dans Settings → Voice. Vous aurez besoin d'un Account SID, d'un Auth Token et d'au moins un numéro sortant provisionné."
-            actionLabel="Aller dans Settings → Voice"
+            title="Voice isn't configured yet"
+            description="To enable Call Mode, configure Twilio in Settings → Voice. You'll need an Account SID, an Auth Token, and at least one provisioned outbound number."
+            actionLabel="Go to Settings → Voice"
             onAction={() => {
               window.location.href = "/settings/sending-infrastructure";
             }}
@@ -515,9 +515,9 @@ export default function CallModePage() {
         <div className="flex flex-1 items-center justify-center px-6">
           <EmptyState
             icon={<Phone size={20} />}
-            title="Aucun numéro sortant provisionné"
-            description="Twilio est connecté mais aucun numéro n'est encore acheté. Allez dans Settings → Voice pour en provisionner un (un par pays cible, idéalement par area code US si vous appelez les US)."
-            actionLabel="Provisionner un numéro"
+            title="No outbound number provisioned"
+            description="Twilio is connected but no number has been purchased yet. Go to Settings → Voice to provision one (one per target country, ideally per US area code if you call the US)."
+            actionLabel="Provision a number"
             onAction={() => {
               window.location.href = "/settings/sending-infrastructure";
             }}
@@ -544,7 +544,7 @@ export default function CallModePage() {
       <aside className="w-80 shrink-0 border-r border-zinc-200 dark:border-zinc-800 flex flex-col">
         <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            À appeler maintenant
+            To call now
           </h2>
           <p className="text-xs text-zinc-500 mt-0.5">
             {filteredQueue.length} contact{filteredQueue.length === 1 ? "" : "s"}
@@ -552,7 +552,7 @@ export default function CallModePage() {
           <div className="flex gap-1.5 mt-2 flex-wrap">
             {(
               [
-                ["all", "Tous"],
+                ["all", "All"],
                 ["high_intent", "High intent"],
                 ["trial_expiring", "Trial expiring"],
                 ["reply_received", "Reply received"],
@@ -575,20 +575,20 @@ export default function CallModePage() {
         {accountScope > 0 && (
           <div className="flex items-center justify-between gap-2 border-b border-indigo-100 bg-indigo-50/60 px-4 py-2 text-[12px] dark:border-indigo-900/40 dark:bg-indigo-950/30">
             <span className="text-indigo-700 dark:text-indigo-300">
-              Filtré sur {accountScope} compte{accountScope === 1 ? "" : "s"}
+              Filtered to {accountScope} account{accountScope === 1 ? "" : "s"}
             </span>
             <a
               href="/call-mode"
               className="font-medium text-indigo-600 hover:underline dark:text-indigo-400"
             >
-              Tout afficher
+              Show all
             </a>
           </div>
         )}
         <div className="flex-1 overflow-y-auto">
           {filteredQueue.length === 0 ? (
             <div className="p-6 text-sm text-zinc-500">
-              File vide. Importez ou enrichissez des contacts pour démarrer.
+              Queue is empty. Import or enrich contacts to get started.
             </div>
           ) : (
             filteredQueue.map((item) => {
@@ -686,7 +686,7 @@ export default function CallModePage() {
                   }}
                 >
                   <span>
-                    Répondeur détecté ({amdDetected}). Drop le voicemail ou raccroche.
+                    Answering machine detected ({amdDetected}). Drop the voicemail or hang up.
                   </span>
                   {"callId" in softphone && (
                     <Button
@@ -696,7 +696,7 @@ export default function CallModePage() {
                       disabled={voicemailDropping}
                     >
                       <Voicemail className="h-3.5 w-3.5" />
-                      {voicemailDropping ? "Drop en cours…" : "Drop voicemail"}
+                      {voicemailDropping ? "Dropping…" : "Drop voicemail"}
                     </Button>
                   )}
                 </div>
@@ -710,7 +710,7 @@ export default function CallModePage() {
                     color: "rgb(21,128,61)",
                   }}
                 >
-                  Voicemail droppé. La ligne raccroche automatiquement.
+                  Voicemail dropped. The line hangs up automatically.
                 </div>
               )}
             </div>
@@ -740,7 +740,7 @@ export default function CallModePage() {
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-sm text-zinc-500">
-            Sélectionnez un contact dans la file.
+            Select a contact from the queue.
           </div>
         )}
       </main>
@@ -755,7 +755,7 @@ export default function CallModePage() {
           />
         ) : (
           <div className="h-full flex items-center justify-center p-6 text-sm text-zinc-500">
-            Sélectionnez un contact pour voir le compte.
+            Select a contact to see the account.
           </div>
         )}
       </aside>
@@ -775,7 +775,7 @@ function CallModeShell({ children }: { children: React.ReactNode }) {
       <PageHeader
         icon={<Phone size={15} />}
         title="Call Mode"
-        subtitle="Cold call autonome depuis Elevay"
+        subtitle="Autonomous cold calling from Elevay"
       />
       {children}
     </div>
@@ -799,23 +799,23 @@ function SoftphoneControls(props: {
       return (
         <Button onClick={() => onCall(selected.contactId)} className="gap-2">
           <Phone className="h-4 w-4" />
-          Appeler
+          Call
         </Button>
       );
     case "starting":
       return (
         <Button disabled className="gap-2">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Préparation…
+          Preparing…
         </Button>
       );
     case "dialing":
       return (
         <div className="flex items-center gap-3">
-          <span className="text-sm text-zinc-500">Composing {state.toNumber}…</span>
+          <span className="text-sm text-zinc-500">Dialing {state.toNumber}…</span>
           <Button variant="outline" onClick={onHangup} className="gap-2">
             <PhoneOff className="h-4 w-4" />
-            Annuler
+            Cancel
           </Button>
         </div>
       );
@@ -823,10 +823,10 @@ function SoftphoneControls(props: {
       const sec = Math.floor((Date.now() - state.ringingSinceMs) / 1000);
       return (
         <div className="flex items-center gap-3">
-          <span className="text-sm text-zinc-500">Sonne depuis {sec}s</span>
+          <span className="text-sm text-zinc-500">Ringing for {sec}s</span>
           <Button variant="outline" onClick={onHangup} className="gap-2">
             <PhoneOff className="h-4 w-4" />
-            Raccrocher
+            Hang up
           </Button>
           {sec >= 8 && (
             <Button
@@ -836,7 +836,7 @@ function SoftphoneControls(props: {
               disabled={voicemailDropping || voicemailDropped}
             >
               <Voicemail className="h-4 w-4" />
-              {voicemailDropped ? "Voicemail droppé" : voicemailDropping ? "Drop en cours…" : "Drop voicemail"}
+              {voicemailDropped ? "Voicemail dropped" : voicemailDropping ? "Dropping…" : "Drop voicemail"}
             </Button>
           )}
         </div>
@@ -862,11 +862,11 @@ function SoftphoneControls(props: {
             disabled={voicemailDropping || voicemailDropped}
           >
             <Voicemail className="h-4 w-4" />
-            {voicemailDropped ? "Voicemail droppé" : voicemailDropping ? "Drop…" : "Drop voicemail"}
+            {voicemailDropped ? "Voicemail dropped" : voicemailDropping ? "Drop…" : "Drop voicemail"}
           </Button>
           <Button onClick={onHangup} className="gap-2 bg-red-600 hover:bg-red-700">
             <PhoneOff className="h-4 w-4" />
-            Raccrocher
+            Hang up
           </Button>
         </div>
       );
@@ -877,7 +877,7 @@ function SoftphoneControls(props: {
           <Badge>{state.outcome ?? "ended"}</Badge>
           <Button onClick={() => onCall(selected.contactId)} className="gap-2">
             <Phone className="h-4 w-4" />
-            Rappeler
+            Call again
           </Button>
         </div>
       );

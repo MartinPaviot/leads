@@ -33,7 +33,7 @@ type PlaybookEntry = {
 
 const TYPE_LABELS: Record<string, string> = {
   objection: "Objections",
-  accroche: "Accroches",
+  accroche: "Hooks",
   question: "Questions",
 };
 
@@ -74,7 +74,7 @@ export default function PlaybookPage() {
     <div className="flex h-full flex-col">
       <PageHeader
         title="Playbook"
-        subtitle="Objections, accroches, questions — distilled from every call, meeting, reply."
+        subtitle="Objections, hooks, questions — distilled from every call, meeting, reply."
       />
       <div className="flex-1 overflow-y-auto p-6">
         <div className="mb-4 flex items-center justify-between">
