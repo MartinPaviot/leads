@@ -33,11 +33,17 @@ import { isCircuitClosed, ANTHROPIC_CIRCUIT } from "../infra/circuit-breaker";
 // Region configuration
 // ---------------------------------------------------------------------------
 
-/** Anthropic's EU endpoint base URL. */
-const ANTHROPIC_EU_BASE_URL = "https://eu.anthropic.com";
+// NOTE: `@ai-sdk/anthropic`'s `createAnthropic({ baseURL })` treats baseURL as
+// the full API PREFIX and appends "/messages" to it. The SDK's own default is
+// "https://api.anthropic.com/v1", so the prefix MUST include "/v1" — otherwise
+// requests hit ".../messages" (no /v1) and Anthropic returns 404 Not Found,
+// which surfaced as empty chat responses + inert intelligence in prod.
 
-/** Anthropic's default (US) endpoint base URL. */
-const ANTHROPIC_DEFAULT_BASE_URL = "https://api.anthropic.com";
+/** Anthropic's EU endpoint base URL (must include the /v1 API prefix). */
+const ANTHROPIC_EU_BASE_URL = "https://eu.anthropic.com/v1";
+
+/** Anthropic's default (US) endpoint base URL (must include the /v1 API prefix). */
+const ANTHROPIC_DEFAULT_BASE_URL = "https://api.anthropic.com/v1";
 
 /**
  * Allowed base URLs for the Anthropic SDK. Any other value in
