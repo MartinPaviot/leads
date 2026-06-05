@@ -42,7 +42,12 @@ export const FLAG_DEFAULTS: Record<KnownFlag, boolean> = {
   "onboarding.v2.confirmation-card": true,
   "onboarding.v2.warm-lead-prompt": true,
   "onboarding.v2.tam-reveal-async": true,
-  "logo.v2.cascade": false,
+  // Soak closed — the cascade resolver (Apollo logo_url -> Google V2 with
+  // globe rejection -> homepage scrape) plus the generated-avatar fallback
+  // is strictly better than the V1 path (dead Clearbit -> raw favicon ->
+  // flat initials), so it ships on by default. No-domain rows still get
+  // the deterministic generated avatar.
+  "logo.v2.cascade": true,
 };
 
 /** Read a flag for a specific tenant. Order of precedence:

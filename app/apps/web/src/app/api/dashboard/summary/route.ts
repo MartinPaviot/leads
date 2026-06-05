@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities, deals, tasks, sequenceEnrollments, companies, contacts, outboundEmails } from "@/db/schema";
-import { sql, eq, and, gte, lte, or, ne, desc, isNull } from "drizzle-orm";
+import { sql, eq, and, gte, lte, ne, desc, isNull } from "drizzle-orm";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
 
 function getGreeting(): string {
@@ -139,10 +139,11 @@ export async function GET() {
         and(
           eq(tasks.tenantId, authCtx.tenantId),
           eq(tasks.status, "pending"),
-          or(
-            and(gte(tasks.dueDate, todayStart), lte(tasks.dueDate, todayEnd)),
-            sql`${tasks.dueDate} < ${todayStart}`
-          ),
+          // Due today OR overdue == dueDate <= end of today. Kept as a
+          // single typed comparison so the Date is mapped to the column's
+          // driver value (ISO string); a raw sql`${date}` fragment skips
+          // that mapping and makes postgres-js throw on the Date param.
+          lte(tasks.dueDate, todayEnd),
           isNull(tasks.deletedAt),
         )
       )

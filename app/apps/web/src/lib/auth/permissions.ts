@@ -10,6 +10,7 @@ export type Permission =
   | "contacts:read"
   | "contacts:write"
   | "contacts:delete"
+  | "companies:delete"
   | "deals:read"
   | "deals:write"
   | "deals:delete"
@@ -27,6 +28,7 @@ const ALL_PERMISSIONS: Permission[] = [
   "contacts:read",
   "contacts:write",
   "contacts:delete",
+  "companies:delete",
   "deals:read",
   "deals:write",
   "deals:delete",
@@ -46,6 +48,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   member: [
     "contacts:read",
     "contacts:write",
+    "companies:delete",
     "deals:read",
     "deals:write",
     "sequences:read",

@@ -2,6 +2,9 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { companies, deals, contacts, activities } from "@/db/schema";
 import { and, eq, desc, sql, isNull } from "drizzle-orm";
+import { requirePermission } from "@/lib/auth/permissions";
+import { softDelete } from "@/lib/infra/soft-delete";
+import { logAudit } from "@/lib/infra/audit-log";
 
 export async function GET(
   req: Request,
@@ -202,4 +205,52 @@ export async function PUT(
     .returning();
 
   return Response.json({ account: updated });
+}
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const denied = requirePermission(authCtx.role, "companies:delete");
+  if (denied) return denied;
+
+  const { id } = await params;
+
+  // Verify the account exists and belongs to this tenant before deleting.
+  const [existing] = await db
+    .select({ id: companies.id, name: companies.name })
+    .from(companies)
+    .where(
+      and(
+        eq(companies.id, id),
+        eq(companies.tenantId, authCtx.tenantId),
+        isNull(companies.deletedAt),
+      ),
+    )
+    .limit(1);
+
+  if (!existing) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // Soft-delete the account itself. Its contacts/deals keep their own
+  // rows (they may be re-pointed to another account) — we only remove
+  // the company from the Accounts list.
+  await softDelete("companies", id, authCtx.tenantId);
+
+  await logAudit({
+    tenantId: authCtx.tenantId,
+    userId: authCtx.appUserId,
+    action: "delete",
+    entityType: "company",
+    entityId: id,
+    metadata: { name: existing.name, softDeleted: true },
+  });
+
+  return Response.json({ success: true, id });
 }

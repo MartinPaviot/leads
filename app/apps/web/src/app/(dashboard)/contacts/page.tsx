@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, type LucideIcon } from "lucide-react";
+import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, Trash2, type LucideIcon } from "lucide-react";
 import { SmartImport } from "@/components/smart-import";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { formatScore, ENRICHMENT_COLORS } from "@/lib/util/ui-utils";
@@ -19,6 +19,8 @@ import { useToast } from "@/components/ui/toast";
 import { SmartSearchBar, ActiveFiltersChips } from "@/components/ui/smart-search-bar";
 import { applyFilters } from "@/lib/search/filters";
 import type { FilterCondition } from "@/lib/search/filters";
+import { ColumnFilter, isColumnFilterActive, type ColumnFilterKind, type ColumnFilterState } from "@/components/ui/column-filter";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 function LinkedInIcon({ size = 13 }: { size?: number }) {
   return (
@@ -90,6 +92,12 @@ export default function ContactsPage() {
   const [importHistory, setImportHistory] = useState<Array<{ id: string; fileName: string; recordType: string; totalRows: number; createdCount: number; skippedCount: number; companiesCreated: number; status: string; createdAt: string }>>([]);
   const [showImportHistory, setShowImportHistory] = useState(false);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  // Per-column header filters (Notion / Excel style), parity with Accounts.
+  const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilterState>>({});
+  const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null);
+  // Delete confirmation (single row or current selection).
+  const [deleteTarget, setDeleteTarget] = useState<{ type: "single" | "bulk"; id?: string; name?: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const { fields: customFields } = useCustomFields("contact");
 
   const fetchContacts = useCallback(async () => {
@@ -195,10 +203,15 @@ export default function ContactsPage() {
     }
   }
 
-  // Bulk delete
-  async function bulkDeleteSelected() {
-    const ids = Array.from(selectedRows);
-    if (ids.length === 0) return;
+  // Delete — single row or the current selection. Confirmed via the
+  // <ConfirmDialog>; the actual requests fire here.
+  async function performDelete() {
+    if (!deleteTarget) return;
+    const ids = deleteTarget.type === "single" && deleteTarget.id
+      ? [deleteTarget.id]
+      : Array.from(selectedRows);
+    if (ids.length === 0) { setDeleteTarget(null); return; }
+    setDeleting(true);
     let deleted = 0;
     let errors = 0;
     for (const id of ids) {
@@ -209,8 +222,10 @@ export default function ContactsPage() {
       } catch { errors++; }
     }
     setSelectedRows(new Set());
+    setDeleting(false);
+    setDeleteTarget(null);
     if (deleted > 0) {
-      toast(`Deleted ${deleted} contact${deleted > 1 ? "s" : ""}${errors > 0 ? ` (${errors} failed)` : ""}`, deleted > 0 ? "success" : "error");
+      toast(`Deleted ${deleted} contact${deleted > 1 ? "s" : ""}${errors > 0 ? ` (${errors} failed)` : ""}`, "success");
       fetchContacts();
     } else {
       toast(`Delete failed for ${errors} contact${errors > 1 ? "s" : ""}`, "error");
@@ -255,9 +270,56 @@ export default function ContactsPage() {
 
   const unenrichedCount = contacts.filter((c) => !isEnriched(c)).length;
 
-  const smartFilteredContacts = smartFilters.length > 0
+  // Per-column filter config — drives both the header <ColumnFilter>s and
+  // the `passesColumnFilters` predicate below. NB: operates on the loaded
+  // page (contacts paginate 50/page), so enum options reflect that page.
+  const FILTER_COLUMNS: Record<string, { label: string; kind: ColumnFilterKind; get: (c: Contact) => string | null }> = {
+    contact: { label: "Contact", kind: "text", get: (c) => [c.firstName, c.lastName].filter(Boolean).join(" ") || null },
+    companyName: { label: "Company", kind: "enum", get: (c) => c.companyName },
+    email: { label: "Email", kind: "text", get: (c) => c.email },
+    title: { label: "Title", kind: "text", get: (c) => c.title },
+    linkedin: { label: "LinkedIn", kind: "presence", get: (c) => c.linkedinUrl },
+    phone: { label: "Phone", kind: "presence", get: (c) => c.phone },
+    score: { label: "Score", kind: "enum", get: (c) => formatScore(c.score)?.grade ?? null },
+  };
+
+  const columnOptions = useMemo(() => {
+    const out: Record<string, string[]> = {};
+    for (const [key, cfg] of Object.entries(FILTER_COLUMNS)) {
+      if (cfg.kind !== "enum") continue;
+      const set = new Set<string>();
+      for (const c of contacts) {
+        const v = cfg.get(c);
+        if (v) set.add(String(v));
+      }
+      out[key] = Array.from(set).sort((a, b) => a.localeCompare(b));
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contacts]);
+
+  function passesColumnFilters(c: Contact): boolean {
+    for (const [key, f] of Object.entries(columnFilters)) {
+      const cfg = FILTER_COLUMNS[key];
+      if (!cfg || !isColumnFilterActive(f)) continue;
+      const v = cfg.get(c);
+      if (cfg.kind === "text") {
+        if (!String(v ?? "").toLowerCase().includes((f.text ?? "").toLowerCase())) return false;
+      } else if (cfg.kind === "enum") {
+        if (f.values && f.values.length > 0 && (v == null || !f.values.includes(String(v)))) return false;
+      } else if (cfg.kind === "presence") {
+        const has = !!(v && String(v).trim());
+        if (f.presence === "has" && !has) return false;
+        if (f.presence === "empty" && has) return false;
+      }
+    }
+    return true;
+  }
+
+  const smartFilteredContacts = (smartFilters.length > 0
     ? applyFilters(contacts, smartFilters)
-    : contacts;
+    : contacts
+  ).filter(passesColumnFilters);
 
   const textFiltered = searchQuery.trim()
     ? smartFilteredContacts.filter((c) => {
@@ -300,8 +362,9 @@ export default function ContactsPage() {
           },
           {
             label: "Delete",
-            icon: <X size={13} />,
-            onClick: bulkDeleteSelected,
+            icon: <Trash2 size={13} />,
+            variant: "danger",
+            onClick: () => setDeleteTarget({ type: "bulk" }),
           },
         ]}
       />
@@ -336,6 +399,21 @@ export default function ContactsPage() {
             </button>
           )}
         </div>
+        {(() => {
+          const activeKeys = Object.keys(columnFilters).filter((k) => isColumnFilterActive(columnFilters[k]));
+          if (activeKeys.length === 0) return null;
+          return (
+            <button
+              type="button"
+              onClick={() => setColumnFilters({})}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium transition-colors"
+              style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
+            >
+              <X size={12} />
+              {activeKeys.length} column filter{activeKeys.length === 1 ? "" : "s"} — clear
+            </button>
+          );
+        })()}
         <div className="w-64">
           <SmartSearchBar
             resourceType="contact"
@@ -429,17 +507,19 @@ export default function ContactsPage() {
                   />
                 </th>
                 {([
-                  { label: "Contact", icon: Users, field: "firstName" },
-                  { label: "Company", icon: Briefcase, field: "companyName" },
-                  { label: "Email", icon: Mail, field: "email" },
-                  { label: "Title", icon: Briefcase, field: "title" },
-                  { label: "LinkedIn", icon: null as LucideIcon | null, field: null },
-                  { label: "Phone", icon: Phone, field: null },
-                  { label: "Score", icon: Gauge, field: "score" },
+                  { label: "Contact", icon: Users, field: "firstName", filterKey: "contact" },
+                  { label: "Company", icon: Briefcase, field: "companyName", filterKey: "companyName" },
+                  { label: "Email", icon: Mail, field: "email", filterKey: "email" },
+                  { label: "Title", icon: Briefcase, field: "title", filterKey: "title" },
+                  { label: "LinkedIn", icon: null as LucideIcon | null, field: null, filterKey: "linkedin" },
+                  { label: "Phone", icon: Phone, field: null, filterKey: "phone" },
+                  { label: "Score", icon: Gauge, field: "score", filterKey: "score" },
                   { label: "Last Interaction", icon: Clock, field: null },
                   ...customFields.map((f) => ({ label: f.name, icon: null as LucideIcon | null, field: null })),
                   { label: "", icon: null, field: null },
-                ] as Array<{ label: string; icon: LucideIcon | null; field: string | null }>).map((col, i) => (
+                ] as Array<{ label: string; icon: LucideIcon | null; field: string | null; filterKey?: string }>).map((col, i) => {
+                  const fcfg = col.filterKey ? FILTER_COLUMNS[col.filterKey] : undefined;
+                  return (
                   <th
                     key={i}
                     onClick={col.field ? () => handleSort(col.field!) : undefined}
@@ -452,9 +532,28 @@ export default function ContactsPage() {
                       {col.field && sortField === col.field && (
                         <span className="text-[10px]">{sortDir === "asc" ? "^" : "v"}</span>
                       )}
+                      {col.filterKey && fcfg && (
+                        <ColumnFilter
+                          label={fcfg.label}
+                          kind={fcfg.kind}
+                          options={columnOptions[col.filterKey]}
+                          state={columnFilters[col.filterKey]}
+                          onChange={(next) =>
+                            setColumnFilters((prev) => {
+                              const n = { ...prev };
+                              if (next) n[col.filterKey!] = next;
+                              else delete n[col.filterKey!];
+                              return n;
+                            })
+                          }
+                          open={openColumnFilter === col.filterKey}
+                          onOpenChange={(o) => setOpenColumnFilter(o ? col.filterKey! : null)}
+                        />
+                      )}
                     </span>
                   </th>
-                ))}
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -585,9 +684,21 @@ export default function ContactsPage() {
 
                     {/* Actions */}
                     <td className="actions" onClick={(e) => e.stopPropagation()}>
-                      {!isEnriched(contact) && enrichStatus[contact.id] !== "enriching" && (
-                        <Button variant="ghost" size="sm" onClick={() => enrichSingle(contact.id)} className="!px-2 !py-0.5">Enrich</Button>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {!isEnriched(contact) && enrichStatus[contact.id] !== "enriching" && (
+                          <Button variant="ghost" size="sm" onClick={() => enrichSingle(contact.id)} className="!px-2 !py-0.5">Enrich</Button>
+                        )}
+                        <button
+                          type="button"
+                          aria-label={`Delete ${name}`}
+                          title="Delete contact"
+                          onClick={() => setDeleteTarget({ type: "single", id: contact.id, name })}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
+                          style={{ color: "var(--color-text-muted)" }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -674,6 +785,28 @@ export default function ContactsPage() {
           </div>
         </div>
       )}
+
+      {/* Delete confirmation — single row or current selection. */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={
+          deleteTarget?.type === "bulk"
+            ? `Delete ${selectedRows.size} contact${selectedRows.size === 1 ? "" : "s"}?`
+            : "Delete contact?"
+        }
+        description={
+          deleteTarget?.type === "bulk"
+            ? `The selected contact${selectedRows.size === 1 ? "" : "s"} will be removed. Their activity history is kept.`
+            : `"${deleteTarget?.name || "This contact"}" will be removed. Their activity history is kept.`
+        }
+        confirmLabel={
+          deleteTarget?.type === "bulk" ? `Delete ${selectedRows.size}` : "Delete"
+        }
+        variant="destructive"
+        busy={deleting}
+        onConfirm={performDelete}
+        onCancel={() => { if (!deleting) setDeleteTarget(null); }}
+      />
     </div>
   );
 }
