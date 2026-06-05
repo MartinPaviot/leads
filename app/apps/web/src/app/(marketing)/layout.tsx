@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Elevay — Your Revenue Engine Is Ready",
+  title: "Elevay: Your Revenue Engine for Founder-Led Sales",
   description:
-    "The pre-built revenue engine for founder-led sales. Connect your inbox, build your TAM, write sequences, capture calls, automate follow-ups — everything a sales org does, without the sales org.",
+    "The pre-built revenue engine for founder-led sales. Elevay builds your target list, tells you who to engage and when, drafts your outreach across email and calls, and captures every meeting in your CRM. You review, decide, and close.",
   openGraph: {
-    title: "Elevay — Your Revenue Engine Is Ready",
+    title: "Elevay: Your Revenue Engine for Founder-Led Sales",
     description:
-      "The pre-built revenue engine for founder-led sales. Connect your inbox, build your TAM, write sequences, capture calls, automate follow-ups.",
+      "Elevay runs your pipeline. You run the conversations. It builds your target list, surfaces who to engage and when, drafts your outreach, and captures every meeting. You review and close.",
     url: "/",
     siteName: "Elevay",
     locale: "en_US",
@@ -15,9 +15,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Elevay — Your Revenue Engine Is Ready",
+    title: "Elevay: Your Revenue Engine for Founder-Led Sales",
     description:
-      "The pre-built revenue engine for founder-led sales. Everything a sales org does — without the sales org.",
+      "Elevay runs your pipeline. You run the conversations. The work that doesn't need a person, done for you. The selling stays yours.",
   },
 };
 
@@ -41,12 +41,8 @@ const softwareJsonLd = {
   url: APP_URL,
   description:
     "The pre-built revenue engine for founder-led sales. Connect your inbox, build your TAM, write sequences, capture calls, automate follow-ups.",
-  offers: {
-    "@type": "Offer",
-    price: "0",
-    priceCurrency: "USD",
-    description: "14-day free trial, no credit card required.",
-  },
+  // No `offers` block: pricing is deliberately not stated on the landing, so
+  // we don't assert a price (not even "0") in structured data either.
 };
 
 export default function MarketingLayout({

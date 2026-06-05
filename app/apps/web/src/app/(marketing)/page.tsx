@@ -1,27 +1,21 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { motion, useInView, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
-  Mail,
-  MessageSquare,
-  BarChart3,
   ChevronDown,
-  Inbox,
-  Search,
-  Users,
-  Send,
-  ListChecks,
-  Clock,
-  Play,
   ArrowRight,
   Menu,
   X,
-  Database,
-  Bot,
-  Layers,
+  UserCheck,
+  Lock,
+  Key,
+  RotateCcw,
 } from "lucide-react";
+import { IntegrationsStrip, BuiltOnStrip, Logo, clogo } from "./_components/product-mockups";
+import { ProcessSteps } from "./_components/process-steps";
+import { HeroDemo } from "./_components/hero-demo";
 
 const CALENDLY_URL = "https://calendly.com/contact-elevay/30min";
 
@@ -43,24 +37,24 @@ function Section({
   className?: string;
   id?: string;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px 0px" });
-  // L15 — respect prefers-reduced-motion. When the user opts out of
-  // motion at the OS level, we render the section as-is from the start
-  // (no fade-in / slide-up) instead of letting the animation chain
-  // play. Framer's hook returns null on the server, which is why the
-  // fallback `?? false` matters.
+  // Reveal on MOUNT, not on scroll. A scroll-gated reveal (useInView)
+  // can strand whole sections at opacity:0 when the observer never
+  // fires: full-page render, fast scroll, a restored scroll position,
+  // or a browser that evaluates intersection differently. That reads as
+  // a "broken / totally shifted" page with big blank gaps. Mount-based
+  // reveal can never leave content invisible; below-the-fold sections
+  // simply finish their fade off-screen and are just *there* when you
+  // reach them. (Also matches the skill's "don't animate everything".)
   const reduced = useReducedMotion();
 
   return (
     <motion.section
-      ref={ref}
       id={id}
       className={className}
       initial={reduced ? "visible" : "hidden"}
-      animate={reduced ? "visible" : inView ? "visible" : "hidden"}
+      animate="visible"
       variants={{
-        visible: { transition: { staggerChildren: reduced ? 0 : 0.1 } },
+        visible: { transition: { staggerChildren: reduced ? 0 : 0.06 } },
       }}
     >
       {children}
@@ -88,94 +82,44 @@ function Animate({
 }
 
 /* =================================================================
-   HOW IT WORKS DATA
-   ================================================================= */
-
-const steps = [
-  {
-    num: "01",
-    title: "Connect your email",
-    desc: "One click to link Gmail or Outlook. Elevay syncs your emails, calendar, and contacts — automatically.",
-    icon: Inbox,
-  },
-  {
-    num: "02",
-    title: "A bot connects to your calls",
-    desc: "Elevay connects to Google Meet, Zoom, and Teams via Recall.ai. It records, transcribes, and extracts buying signals — budget, timeline, competitors, objections.",
-    icon: Play,
-  },
-  {
-    num: "03",
-    title: "Review and confirm",
-    desc: "After each call, review the extracted data — action items, deal intel, matched contacts — and confirm with one click before it enters your CRM.",
-    icon: ListChecks,
-  },
-  {
-    num: "04",
-    title: "Ask anything about your pipeline",
-    desc: "Natural language queries with citations. \"What did Sarah say about budget last Thursday?\" — answered with the exact email or call transcript.",
-    icon: Search,
-  },
-  {
-    num: "05",
-    title: "Build your TAM automatically",
-    desc: "Define your ideal customer. Elevay searches real databases, scores every company, and builds your target account list — ready for outreach.",
-    icon: Users,
-  },
-  {
-    num: "06",
-    title: "Send personalized sequences",
-    desc: "AI writes outreach from real meeting notes and email threads. Follow-ups based on what was actually discussed, not templates.",
-    icon: Send,
-  },
-  {
-    num: "07",
-    title: "Walk into meetings prepared",
-    desc: "24 hours before each call, get a full brief: who you're meeting, deal history, recent interactions, talking points, potential objections.",
-    icon: Clock,
-  },
-];
-
-/* =================================================================
    FAQ DATA
    ================================================================= */
 
 const faqs = [
   {
-    q: "How is this different from HubSpot or Salesforce?",
-    a: "They're databases you update manually. Elevay captures every email, connects a bot to your calls via Recall.ai, transcribes and extracts deal intel automatically, and writes your follow-ups. You review and confirm — it does the rest.",
+    q: "How is this different from a CRM like HubSpot or Salesforce?",
+    a: "Those are databases you keep up to date by hand. Elevay builds the target list, captures every email and call for you, tells you who to work next, and drafts the outreach. You approve and close; it does the data work.",
   },
   {
-    q: "How does the meeting bot work?",
-    a: "When you have a meeting with a Google Meet, Zoom, or Teams link in your calendar, Elevay connects a bot via Recall.ai to record the call. After the call, it extracts structured notes, buying signals, action items, and lets you review before updating your CRM.",
+    q: "Isn't this just another AI SDR that spams people?",
+    a: "No. Elevay doesn't fire off autonomous cold-email blasts. It drafts from real context and waits for your approval before anything goes out, so you stay in control of your domain and your reputation.",
   },
   {
-    q: "Do I need a sales team?",
-    a: "No. Elevay is built for founders doing founder-led sales. One person, one tool, full pipeline — from finding leads to closing deals.",
+    q: "Where does the target list come from?",
+    a: "Elevay searches live B2B databases, scores companies against the ICP you describe, and enriches decision-makers with verified contact details. You can refine the criteria anytime and rebuild the list.",
   },
   {
-    q: "How does the AI know about my customers?",
-    a: "It syncs your email and calendar, transcribes your calls, and builds a complete memory of every conversation. When you ask a question, it answers with citations to the original email, call, or meeting.",
+    q: "How does meeting capture work?",
+    a: "When a meeting with a Google Meet, Zoom, or Teams link is on your calendar, a recorder bot joins via Recall.ai, transcribes the call, and extracts notes, action items, and buying signals. You review before any of it touches your CRM.",
   },
   {
-    q: "Is my data secure?",
-    a: "Your data is encrypted at rest and in transit. We use OAuth to connect — we never store your email password. You can revoke access anytime from your Google or Microsoft account.",
+    q: "Do I need a sales team to use it?",
+    a: "No. Elevay is built for founder-led sales. It's the back office a founder doesn't have yet: prospecting, list-building, drafting, and note-taking, so one person can run a full pipeline.",
+  },
+  {
+    q: "What does it cost, and is my data secure?",
+    a: "Start with a 14-day free trial on your own data, no credit card required. Your data is encrypted in transit and at rest, we connect over OAuth (never your password), and you can revoke access anytime.",
   },
 ];
 
-/* =================================================================
-   FAQ ITEM COMPONENT
-   ================================================================= */
-
 function FAQItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
-  // L10 — stable id derived from the question so screen readers get a
-  // meaningful aria-controls target. Slug-cased to keep it valid HTML
-  // id syntax and human-readable in DevTools.
+  // L10,stable id from the question so screen readers get a meaningful
+  // aria-controls target.
   const slug = q
     .toLowerCase()
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
@@ -190,7 +134,7 @@ function FAQItem({ q, a }: { q: string; a: string }) {
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between py-5 text-left transition-colors hover:text-gray-900"
+        className="flex w-full cursor-pointer items-center justify-between py-5 text-left transition-colors hover:text-gray-900"
       >
         <span className="pr-8 text-base font-medium text-gray-900">{q}</span>
         <ChevronDown
@@ -210,7 +154,7 @@ function FAQItem({ q, a }: { q: string; a: string }) {
           open ? "max-h-96 pb-5" : "max-h-0"
         }`}
       >
-        <p className="text-[15px] leading-relaxed text-gray-500">{a}</p>
+        <p className="text-[15px] leading-relaxed text-gray-600">{a}</p>
       </div>
     </div>
   );
@@ -222,16 +166,35 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
-  // L5 — mobile menu open state. Lives at the page level so the close
-  // handler can target it from anywhere (overlay tap, ESC key, link
-  // click). Body scroll is locked while the menu is open so the page
-  // behind the sheet doesn't drift.
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // STRUCTURAL OVERFLOW GUARD (root cause, not a patch).
+  // Some environments (no GPU compositing, classic OS scrollbars, browser
+  // zoom) can let a single wide descendant push a horizontal scrollbar or
+  // shift the whole page right — a symptom that never reproduces in a
+  // headless/overlay-scrollbar browser. Clipping the *viewport* itself
+  // (the <html> scroll container) makes horizontal scroll structurally
+  // impossible no matter what any child does.
+  // NB: we deliberately do NOT set `scrollbar-gutter: stable`. On Windows 11
+  // overlay / auto-hide scrollbars it reserves a ~17px lane on the right that
+  // stays EMPTY (the overlay bar paints 0px), which reads as the whole page
+  // being shifted/decalee to the right. With no gutter, content is centred in
+  // the real available width whatever the scrollbar style.
+  // Scoped to the marketing route: reverted on unmount, so the dashboard
+  // (which legitimately scrolls wide tables) is untouched.
+  useEffect(() => {
+    const html = document.documentElement;
+    const prevOverflowX = html.style.overflowX;
+    html.style.overflowX = "clip";
+    return () => {
+      html.style.overflowX = prevOverflowX;
+    };
   }, []);
 
   useEffect(() => {
@@ -249,42 +212,44 @@ export default function LandingPage() {
   }, [mobileMenuOpen]);
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* NAV */}
+    // overflow-x clip is a guard: even if any element ever runs wider than
+    // the viewport it cannot create a horizontal scrollbar / right-side gap.
+    // `clip` (not `hidden`) so the sticky nav keeps working.
+    <div className="min-h-screen bg-white" style={{ overflowX: "clip" }}>
+      {/* NAV: solid white. No backdrop-blur — backdrop-filter is a GPU
+          compositing risk on this environment (it has smeared the page into
+          a green band before). Solid bg renders identically everywhere. */}
       <nav
         aria-label="Primary"
-        className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? "bg-white/95 shadow-[0_1px_3px_rgba(0,0,0,0.06)] backdrop-blur-md" : "bg-white"}`}
+        className={`sticky top-0 z-50 transition-shadow duration-300 ${scrolled ? "bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]" : "bg-white"}`}
       >
-        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-[1240px] items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center gap-2">
             <img src="/logo-Elevay.svg" alt="Elevay" className="h-7 w-7" />
             <span className="text-xl font-bold" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Elevay</span>
           </Link>
           <div className="hidden items-center gap-8 md:flex">
+            <Link href="#product" className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900">Product</Link>
             <Link href="#how-it-works" className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900">How it works</Link>
             <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900">Book a demo</a>
           </div>
           <div className="hidden items-center gap-4 md:flex">
             <Link href="/sign-in" className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900">Log in</Link>
-            <Link href="/sign-up" className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Try free</Link>
+            <Link href="/sign-up" className="cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: "#2C6BED" }}>Try free</Link>
           </div>
-          {/* L5 — mobile hamburger. Visible below md only. */}
           <button
             type="button"
             aria-label="Open menu"
             aria-expanded={mobileMenuOpen}
             aria-controls="mobile-menu"
             onClick={() => setMobileMenuOpen(true)}
-            className="rounded-md p-2 text-gray-700 hover:bg-gray-100 md:hidden"
+            className="cursor-pointer rounded-md p-2 text-gray-700 hover:bg-gray-100 md:hidden"
           >
             <Menu size={22} />
           </button>
         </div>
       </nav>
 
-      {/* L5 — mobile menu sheet. Slide-in from the right with a backdrop
-          overlay; ESC + overlay tap close it. The links pull the same
-          set as the desktop nav so the two stay in sync. */}
       {mobileMenuOpen && (
         <div
           id="mobile-menu"
@@ -307,19 +272,25 @@ export default function LandingPage() {
                 type="button"
                 aria-label="Close menu"
                 onClick={() => setMobileMenuOpen(false)}
-                className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100"
+                className="cursor-pointer rounded-md p-1.5 text-gray-500 hover:bg-gray-100"
               >
                 <X size={18} />
               </button>
             </div>
             <nav aria-label="Mobile" className="flex flex-1 flex-col px-5 py-4">
-              <Link
-                href="#how-it-works"
-                onClick={() => setMobileMenuOpen(false)}
-                className="rounded-md px-2 py-3 text-base font-medium text-gray-700 hover:bg-gray-100"
-              >
-                How it works
-              </Link>
+              {[
+                { href: "#product", label: "Product" },
+                { href: "#how-it-works", label: "How it works" },
+              ].map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="rounded-md px-2 py-3 text-base font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  {l.label}
+                </Link>
+              ))}
               <a
                 href={CALENDLY_URL}
                 target="_blank"
@@ -339,12 +310,8 @@ export default function LandingPage() {
               <Link
                 href="/sign-up"
                 onClick={() => setMobileMenuOpen(false)}
-                className="mt-4 rounded-lg px-4 py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90"
-                style={{
-                  background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)",
-                  backgroundSize: "120% 100%",
-                  backgroundPosition: "center",
-                }}
+                className="mt-4 rounded-lg px-4 py-3 text-center text-sm font-semibold text-white"
+                style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}
               >
                 Try free
               </Link>
@@ -353,209 +320,173 @@ export default function LandingPage() {
         </div>
       )}
 
-      {/* HERO */}
-      <Section className="relative pb-24 pt-20">
-        <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(0,0,0,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.025) 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
-        <div className="relative mx-auto max-w-[1400px] px-6 text-center">
-          <Animate><p className="text-xs font-medium uppercase tracking-wider text-gray-500">The progressively autonomous GTM engine for founders</p></Animate>
-          <Animate><h1 className="mx-auto mt-6 max-w-[800px] text-[28px] font-bold leading-tight tracking-tight text-gray-900 sm:text-5xl">Your CRM finds customers, connects to your meetings, and does the work for you.</h1></Animate>
-          <Animate><p className="mx-auto mt-6 max-w-[600px] text-lg leading-relaxed text-gray-500">Connect your email. A meeting bot connects to your calls via Recall.ai, transcribes everything, and updates your CRM. You just review and close.</p></Animate>
+      {/* HERO + product shot */}
+      <Section className="relative overflow-hidden pb-20 pt-16 sm:pt-20">
+        <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(0,0,0,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.025) 1px, transparent 1px)", backgroundSize: "32px 32px", maskImage: "linear-gradient(to bottom, black, transparent 75%)", WebkitMaskImage: "linear-gradient(to bottom, black, transparent 75%)" }} />
+        <div className="relative mx-auto max-w-[1240px] px-6 text-center">
+          <Animate><p className="text-xs font-semibold uppercase tracking-wider text-gray-500">The pre-built revenue engine for founder-led sales</p></Animate>
+          <Animate><h1 className="mx-auto mt-6 max-w-[800px] text-[32px] font-bold leading-[1.08] tracking-tight text-gray-900 sm:text-[56px]">Elevay runs your pipeline.<br className="hidden sm:block" /> You run the conversations.</h1></Animate>
+          <Animate><p className="mx-auto mt-6 max-w-[620px] text-lg leading-relaxed text-gray-600">It builds your target list, tells you who to reach and when, drafts your outreach across email and calls, and captures every meeting in your CRM. You review and close.</p></Animate>
           <Animate>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-              <Link href="/sign-up" className="rounded-lg px-6 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Try for free</Link>
-              <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-700 transition-colors hover:border-gray-400">Book a demo <ArrowRight size={14} className="text-gray-400" /></a>
+              <Link href="/sign-up" className="cursor-pointer rounded-lg px-6 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Build my target list</Link>
+              <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-700 transition-colors hover:border-gray-400">Book a demo <ArrowRight size={14} className="text-gray-400" /></a>
             </div>
           </Animate>
+          <Animate><p className="mt-4 text-xs text-gray-500">Free 14-day trial on your own data · No credit card · Cancel anytime</p></Animate>
+        </div>
+
+        {/* The product shot */}
+        <div id="product" className="relative mx-auto mt-14 max-w-5xl px-6">
+          <Animate><HeroDemo /></Animate>
         </div>
       </Section>
 
-      {/* GRADIENT SEPARATOR */}
-      <div className="mx-auto max-w-[1400px] px-6"><div className="h-px" style={{ background: "linear-gradient(90deg, transparent, #17C3B2, #2C6BED, #FF7A3D, transparent)" }} /></div>
-
-      {/* WHY ELEVAY */}
-      <Section className="pt-32">
-        <div className="mx-auto max-w-[1400px] px-6">
-          <div className="max-w-3xl">
-            <Animate><p className="text-xs font-medium uppercase tracking-wider text-gray-400">Why Elevay</p></Animate>
-            <Animate><h2 className="mt-4 text-3xl font-bold leading-snug tracking-tight text-gray-900">Traditional CRMs make you do the work.<br />Elevay does it for you.</h2></Animate>
-            <Animate><p className="mt-6 max-w-2xl text-lg leading-relaxed text-gray-500">You shouldn&apos;t spend hours logging notes, updating fields, and guessing who to call next. Elevay connects to your email and your meetings, learns your customers, finds new ones, and runs your outbound — so you can focus on closing.</p></Animate>
-          </div>
-
-          {/* L13 — concrete comparison table. Same set of sales tasks,
-               two columns. Sharper than the paragraph above because it
-               names the specific chore Traditional CRMs push onto the
-               rep (you remember, you type, you Ctrl-F) vs. the Elevay
-               behaviour that replaces it. */}
+      {/* INTEGRATIONS / trust strip */}
+      <Section className="pb-8 pt-8">
+        <div className="mx-auto max-w-[1240px] px-6">
+          <Animate><p className="text-center text-xs font-medium uppercase tracking-wider text-gray-400">Works with the tools you already use</p></Animate>
+          <Animate><div className="mt-7"><IntegrationsStrip /></div></Animate>
+          {/* Trust / control band — honest anxiety-reducers (MECLABS A).
+              Every claim is true today: see the FAQ (encryption, OAuth,
+              revoke) and the human-in-the-loop principle. */}
           <Animate>
-            <div className="mt-12 overflow-hidden rounded-xl border border-gray-200">
-              <div className="grid grid-cols-[1.2fr_1fr_1fr] gap-0 bg-gray-50 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                <div className="px-5 py-3">Task</div>
-                <div className="border-l border-gray-200 px-5 py-3">Traditional CRM</div>
-                <div
-                  className="border-l border-gray-200 px-5 py-3 text-gray-900"
-                  style={{
-                    background: "linear-gradient(90deg, rgba(23,195,178,0.08), rgba(44,107,237,0.08), rgba(255,122,61,0.08))",
-                  }}
-                >
-                  Elevay
-                </div>
-              </div>
+            <div className="mt-9 flex flex-wrap items-center justify-center gap-x-6 gap-y-2.5">
               {[
-                {
-                  task: "Log meeting notes",
-                  old: "15 min / call, manual",
-                  elevay: "Auto-transcribed + structured",
-                },
-                {
-                  task: "Update deal stage",
-                  old: "You remember to",
-                  elevay: "Suggested from meeting signals",
-                },
-                {
-                  task: "Find new accounts",
-                  old: "Import CSV, enrich, score",
-                  elevay: "Auto-built TAM from your ICP",
-                },
-                {
-                  task: "Write follow-ups",
-                  old: "Template, then edit",
-                  elevay: "Drafted from actual call content",
-                },
-                {
-                  task: "Answer “what did Sarah say?”",
-                  old: "Ctrl-F your inbox",
-                  elevay: "Chat with citations",
-                },
-              ].map((row, i, arr) => (
-                <div
-                  key={row.task}
-                  className={`grid grid-cols-[1.2fr_1fr_1fr] gap-0 text-[14px] ${i < arr.length - 1 ? "border-b border-gray-100" : ""}`}
-                >
-                  <div className="px-5 py-4 font-medium text-gray-900">
-                    {row.task}
-                  </div>
-                  <div className="border-l border-gray-200 px-5 py-4 text-gray-500">
-                    {row.old}
-                  </div>
-                  <div className="border-l border-gray-200 px-5 py-4 text-gray-900">
-                    {row.elevay}
-                  </div>
-                </div>
-              ))}
+                { icon: Lock, t: "Encrypted in transit and at rest" },
+                { icon: Key, t: "OAuth login, never your password" },
+                { icon: RotateCcw, t: "Revoke access anytime" },
+                { icon: UserCheck, t: "Nothing sends without you" },
+              ].map((c) => { const Icon = c.icon; return (
+                <span key={c.t} className="inline-flex items-center gap-1.5 text-[12px] text-gray-500"><Icon size={13} className="text-gray-400" /> {c.t}</span>
+              ); })}
             </div>
           </Animate>
-        </div>
-      </Section>
-
-      {/* LANDSCAPE — three categories of alternatives (and why none fit founder-led sales).
-           Keeps the tone matter-of-fact: name the category, point to the pain the prospect
-           already feels, move on. No ad-hominem on specific vendors; categories are what
-           matters. Placed right before FOUNDATIONS so the reader has the mental map of
-           "what are the alternatives?" before we describe what we actually do. */}
-      <Section className="pt-32">
-        <div className="mx-auto max-w-[1400px] px-6">
-          <Animate><p className="text-xs font-medium uppercase tracking-wider text-gray-400">Landscape</p></Animate>
-          <Animate><h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">The market gives you three bad choices</h2></Animate>
-          <Animate><p className="mt-6 max-w-2xl text-lg leading-relaxed text-gray-500">Every category has a problem founders keep running into. We built Elevay to not be any of them.</p></Animate>
-          <div className="mt-12 grid gap-6 md:grid-cols-3">
-            {[
-              {
-                icon: Database,
-                kind: "Legacy CRMs",
-                examples: "Salesforce, HubSpot, Attio",
-                headline: "They make you fill them.",
-                body: "Per-seat pricing, dashboards nobody opens, 40% of your week in data entry. Built before AI could do the job — now you're paying to do the AI's work.",
-              },
-              {
-                icon: Bot,
-                kind: "AI SDR v1",
-                examples: "11x, Artisan, AiSDR",
-                headline: "They spam on your behalf.",
-                body: "Autonomous agents that send a thousand cold emails a day and burn your domain reputation. One major vendor publicly lost 70-80% of customers within months. Generic outputs, real damage.",
-              },
-              {
-                icon: Layers,
-                kind: "Outbound stack",
-                examples: "Apollo + Instantly + Clay + a CRM",
-                headline: "Five tools, zero memory.",
-                body: "Data in one tool, sequences in another, enrichment in a third, pipeline somewhere else. Each tool forgets what the others did. You are the integration — and the cost adds up fast.",
-              },
-            ].map((card) => { const Icon = card.icon; return (
-              <Animate key={card.kind}>
-                <div className="flex h-full flex-col rounded-xl border border-gray-200 bg-white p-8 transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)]">
-                  <div className="mb-4 inline-flex w-fit rounded-lg border border-gray-100 bg-gray-50 p-2.5"><Icon size={20} className="text-gray-600" /></div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">{card.kind}</p>
-                  <p className="mt-1 text-xs text-gray-500">{card.examples}</p>
-                  <h3 className="mt-4 text-base font-semibold text-gray-900">{card.headline}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-gray-500">{card.body}</p>
-                </div>
-              </Animate>
-            ); })}
-          </div>
-          <Animate>
-            <p className="mt-12 max-w-2xl text-base leading-relaxed text-gray-700">
-              <span className="font-semibold text-gray-900">Elevay is the fourth option:</span> a chat-first CRM that replaces the stack, captures everything without typing, and remembers what your buyers told you last Tuesday.
-            </p>
-          </Animate>
-        </div>
-      </Section>
-
-      {/* FOUNDATIONS */}
-      <Section className="pt-24">
-        <div className="mx-auto max-w-[1400px] px-6">
-          <Animate><p className="text-xs font-medium uppercase tracking-wider text-gray-400">Foundations</p></Animate>
-          <Animate><h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">Everything you need to sell, in one place</h2></Animate>
-          <div className="mt-12 grid gap-6 md:grid-cols-3">
-            {[
-              { icon: Mail, title: "Auto-capture everything", body: "Emails, meetings, call transcripts — captured and linked to the right contact automatically. Your CRM is always up to date without typing a word." },
-              { icon: BarChart3, title: "A bot connects to your calls", body: "Via Recall.ai, a recording bot connects to your Google Meet, Zoom, and Teams calls. It transcribes, extracts buying signals, and updates your deals — you just review and confirm." },
-              { icon: MessageSquare, title: "Outreach that sounds like you", body: "AI writes follow-ups from real meeting notes and email threads. Not templates — personalized sequences based on what was actually discussed." },
-            ].map((card) => { const Icon = card.icon; return (
-              <Animate key={card.title}><div className="rounded-xl border border-gray-200 bg-white p-8 transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)]"><div className="mb-4 inline-flex rounded-lg border border-gray-100 bg-gray-50 p-2.5"><Icon size={20} className="text-gray-600" /></div><h3 className="text-base font-semibold text-gray-900">{card.title}</h3><p className="mt-2 text-sm leading-relaxed text-gray-500">{card.body}</p></div></Animate>
-            ); })}
-          </div>
         </div>
       </Section>
 
       {/* HOW IT WORKS */}
       <Section id="how-it-works" className="pt-32">
-        <div className="mx-auto max-w-[1400px] px-6">
-          <Animate><p className="text-xs font-medium uppercase tracking-wider text-gray-400">How it works</p></Animate>
-          <Animate><h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">From connect to close in 7 steps</h2></Animate>
-          <div className="mt-16 space-y-0">
-            {steps.map((step, i) => {
-              const Icon = step.icon;
-              return (
-                <Animate key={step.num}>
-                  <div className={`flex items-start gap-8 py-8 ${i < steps.length - 1 ? "border-b border-gray-100" : ""}`}>
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl" style={{ background: "linear-gradient(135deg, rgba(23,195,178,0.1), rgba(44,107,237,0.1))" }}>
-                      <Icon size={20} style={{ color: "#2C6BED" }} />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-semibold tabular-nums text-gray-300">{step.num}</span>
-                        <h3 className="text-[17px] font-semibold text-gray-900">{step.title}</h3>
-                      </div>
-                      <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-gray-500">{step.desc}</p>
-                    </div>
+        <div className="mx-auto max-w-[1240px] px-6">
+          <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2C6BED]">How it works</p></Animate>
+          <Animate><h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">From a cold list to a closed deal</h2></Animate>
+          <Animate><p className="mt-4 max-w-2xl text-lg leading-relaxed text-gray-600">Watch one account, Notion, travel from a cold list to a closed deal. Each step moves the same deal one stage forward, because Elevay remembers every interaction.</p></Animate>
+          {/* Market evidence — speed-to-lead. Cited third-party data
+              (Dr. James Oldroyd, MIT / InsideSales), the reason the
+              "prioritize" step exists: timing is most of the win. */}
+          <Animate>
+            <div className="mt-8 flex items-baseline gap-4 border-l-2 pl-5" style={{ borderColor: "#2C6BED" }}>
+              <span className="shrink-0 text-4xl font-bold tracking-tight text-gray-900 sm:text-[44px]">21&times;</span>
+              <p className="max-w-md text-[15px] leading-relaxed text-gray-600">more likely to qualify a lead you reach within five minutes than one you reach at thirty <span className="text-gray-400">(MIT / InsideSales)</span>. Elevay surfaces who&apos;s ready now, so you reach them in the window that still converts.</p>
+            </div>
+          </Animate>
+          <Animate><div className="mt-14"><ProcessSteps /></div></Animate>
+        </div>
+      </Section>
+
+      {/* HUMAN IN THE LOOP — the control principle. Its "nothing sends
+          without you" proof now lives, animated, in the steps above
+          (Approve & send, Review & confirm), so this stays a clean
+          statement of the principle, not a duplicate static mock. */}
+      <Section className="pt-32">
+        <div className="mx-auto max-w-[1240px] px-6">
+          <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-10 md:p-14">
+            <Animate><p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Human in the loop</p></Animate>
+            <Animate><h2 className="mt-3 max-w-2xl text-3xl font-bold tracking-tight text-gray-900">It does the work. You make the calls.</h2></Animate>
+            <Animate><p className="mt-5 max-w-2xl text-lg leading-relaxed text-gray-600">Every email, meeting, and deal change waits for your go-ahead. Elevay does the research, the list-building, the first drafts, and the note-taking, the work that doesn&apos;t need a person. The conversations and the relationships stay yours.</p></Animate>
+            <div className="mt-10 grid gap-8 md:grid-cols-3">
+              {[
+                { h: "Elevay handles", b: "Prospecting, enrichment, scoring, drafting, transcription, and follow-up reminders, run continuously in the background." },
+                { h: "You handle", b: "The pitch, the read on the room, and the close, the part of selling that needs a person." },
+                { h: "Autonomy you control", b: "Approve more and it does more. Pull it back to drafts-only anytime. It earns scope, it never assumes it." },
+              ].map((col) => (
+                <Animate key={col.h}>
+                  <div className="border-l-2 pl-4" style={{ borderColor: "rgba(44,107,237,0.22)" }}>
+                    <h3 className="text-sm font-semibold text-gray-900">{col.h}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-gray-600">{col.b}</p>
                   </div>
                 </Animate>
-              );
-            })}
+              ))}
+            </div>
           </div>
+        </div>
+      </Section>
+
+      {/* FROM THE FOUNDER — honest trust to stand in for the customer proof
+          a pre-revenue product can't show yet: the mission in the founder's
+          own words, plus a real early-access commitment. No fabricated
+          metrics or customers. TODO(martin): confirm this copy is true to you. */}
+      <Section className="pt-32">
+        <div className="mx-auto max-w-[1240px] px-6">
+          <div className="mx-auto max-w-3xl rounded-2xl border border-gray-200 bg-white p-8 md:p-12">
+            <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2C6BED]">From the founder</p></Animate>
+            <Animate>
+              <blockquote className="mt-5 text-[19px] leading-relaxed text-gray-800 md:text-[21px] md:leading-[1.65]">
+                In founder-led sales, you are the pipeline. The conversations are yours to win, but everything around them, the lists, the data, the first drafts, the call notes, quietly eats your week. Salesforce puts it at <span className="font-semibold text-gray-900">70% of a rep&apos;s time</span> on admin and data entry, not selling. I&apos;m building Elevay to be the back office a founder doesn&apos;t have yet: it does that work and hands you the conversations. It&apos;s early, and I onboard every founder myself, so when you start, you&apos;re talking to me.
+              </blockquote>
+            </Animate>
+            <Animate>
+              <div className="mt-7 flex items-center gap-3">
+                <img src="/martin_paviot.jpg" alt="Martin Paviot" width={44} height={44} className="h-11 w-11 shrink-0 rounded-full object-cover" style={{ boxShadow: "0 1px 3px rgba(26,26,46,0.18)" }} />
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">Martin Paviot</div>
+                  <div className="text-xs text-gray-500">Founder, Elevay</div>
+                </div>
+              </div>
+            </Animate>
+            <Animate>
+              <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-gray-100 pt-6 text-[13px] text-gray-500">
+                <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full" style={{ background: "#10B981" }} /> In early access, onboarding founders one at a time</span>
+                <span className="inline-flex items-center gap-1.5"><UserCheck size={14} className="text-gray-400" /> You talk to the founder, not a sales team</span>
+              </div>
+            </Animate>
+          </div>
+        </div>
+      </Section>
+
+      {/* LANDSCAPE: positioning vs the alternatives (after the product
+          story, before the conversion CTAs) */}
+      <Section className="pt-32">
+        <div className="mx-auto max-w-[1240px] px-6">
+          <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2C6BED]">Landscape</p></Animate>
+          <Animate><h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">The alternatives weren&apos;t built for founder-led sales</h2></Animate>
+          <Animate><p className="mt-6 max-w-2xl text-lg leading-relaxed text-gray-600">Each category solves one slice and leaves you holding the rest. Elevay is built to not be any of them.</p></Animate>
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            {[
+              { logos: ["salesforce.com", "hubspot.com", "attio.com"], kind: "Legacy CRMs", headline: "You maintain them.", body: "Per-seat pricing, manual data entry, dashboards that go stale the moment you stop typing. They store what you sell; they don't help you sell it." },
+              { logos: ["11x.ai", "artisan.co", "aisdr.com"], kind: "AI SDRs", headline: "They act without you.", body: "Autonomous senders that blast generic messages under your name. The output is forgettable; the cost lands on your domain and your reputation." },
+              { logos: ["apollo.io", "instantly.ai", "clay.com"], kind: "Tool stacks", headline: "Five tools, no memory.", body: "Prospecting here, sequences there, enrichment elsewhere. Each tool forgets what the others did, and you become the integration between them." },
+            ].map((card) => (
+              <Animate key={card.kind}>
+                <div className="flex h-full flex-col rounded-xl border border-gray-200 bg-white p-8 transition-shadow duration-200 hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]">
+                  <div className="mb-4 flex items-center gap-1.5">
+                    {card.logos.map((d) => <Logo key={d} src={clogo(d)} size={28} rounded="rounded-lg" />)}
+                  </div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">{card.kind}</p>
+                  <h3 className="mt-2 text-base font-semibold text-gray-900">{card.headline}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-gray-600">{card.body}</p>
+                </div>
+              </Animate>
+            ))}
+          </div>
+          <Animate>
+            <p className="mt-12 max-w-2xl text-base leading-relaxed text-gray-700">
+              <span className="font-semibold text-gray-900">Elevay is the fourth option:</span> one system that builds the list, works the signals, drafts the outreach, and remembers every conversation, and never acts without you.
+            </p>
+          </Animate>
         </div>
       </Section>
 
       {/* BOOK A DEMO CTA */}
       <Section className="pt-32 text-center">
-        <div className="mx-auto max-w-[1400px] px-6">
+        <div className="mx-auto max-w-[1240px] px-6">
           <Animate>
-            <div className="mx-auto max-w-2xl rounded-2xl p-12" style={{ background: "linear-gradient(135deg, rgba(23,195,178,0.06), rgba(44,107,237,0.06), rgba(255,122,61,0.06))", border: "1px solid rgba(44,107,237,0.12)" }}>
-              <h2 className="text-2xl font-bold tracking-tight text-gray-900">See Elevay in action</h2>
-              <p className="mx-auto mt-3 max-w-md text-[15px] text-gray-500">15-minute demo. We&apos;ll connect your email live and show you the full pipeline — from auto-capture to closing.</p>
+            <div className="mx-auto max-w-2xl rounded-2xl p-12" style={{ background: "#F6F8FC", border: "1px solid rgba(44,107,237,0.12)" }}>
+              <h2 className="text-2xl font-bold tracking-tight text-gray-900">See Elevay on your own pipeline</h2>
+              <p className="mx-auto mt-3 max-w-md text-[15px] text-gray-600">15 minutes. We&apos;ll connect your inbox live, build a target list from your ICP, and show you the priorities it surfaces.</p>
               <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-                <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg px-8 py-3.5 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Book a demo <ArrowRight size={14} /></a>
-                <Link href="/sign-up" className="text-sm font-semibold text-gray-600 transition-colors hover:text-gray-900">or try it yourself &rarr;</Link>
+                <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="inline-flex cursor-pointer items-center gap-2 rounded-lg px-8 py-3.5 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: "#2C6BED" }}>Book a demo <ArrowRight size={14} /></a>
+                <Link href="/sign-up" className="cursor-pointer text-sm font-semibold text-gray-600 transition-colors hover:text-gray-900">or try it yourself &rarr;</Link>
               </div>
             </div>
           </Animate>
@@ -565,11 +496,7 @@ export default function LandingPage() {
       {/* FAQ */}
       <Section className="pt-32">
         <div className="mx-auto max-w-3xl px-6">
-          <Animate>
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900">
-              Questions
-            </h2>
-          </Animate>
+          <Animate><h2 className="text-3xl font-bold tracking-tight text-gray-900">Questions</h2></Animate>
           <Animate>
             <div className="mt-8">
               {faqs.map((faq) => (
@@ -580,108 +507,62 @@ export default function LandingPage() {
         </div>
       </Section>
 
+      {/* BUILT ON — honest borrowed credibility. Every vendor named is
+          really wired in (see package.json / RECALL_API_KEY). The value
+          is a reliability signal: specialists, not homegrown shortcuts. */}
+      <Section className="pt-32">
+        <div className="mx-auto max-w-[1240px] px-6">
+          <div className="rounded-2xl border border-gray-200 bg-gray-50/60 px-8 py-11 text-center md:px-12">
+            <Animate><p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Under the hood</p></Animate>
+            <Animate><h2 className="mx-auto mt-3 max-w-xl text-2xl font-bold tracking-tight text-gray-900">The infrastructure Elevay is built on</h2></Animate>
+            <Animate><p className="mx-auto mt-3 max-w-lg text-[15px] leading-relaxed text-gray-600">We don&apos;t reinvent the hard parts. Reasoning, drafting, voice, transcription, and meeting capture run on specialized providers built for exactly that.</p></Animate>
+            <Animate><div className="mt-9"><BuiltOnStrip /></div></Animate>
+          </div>
+        </div>
+      </Section>
+
       {/* FINAL CTA */}
       <Section className="mt-32">
-        <div
-          className="py-24"
-          style={{
-            background:
-              "linear-gradient(180deg, rgba(23,195,178,0.03) 0%, rgba(44,107,237,0.03) 50%, rgba(255,255,255,1) 100%)",
-          }}
-        >
-          <div className="mx-auto max-w-[1400px] px-6 text-center">
-            <Animate>
-              <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-                Stop updating your CRM.
-                <br />
-                Start closing deals.
-              </h2>
-            </Animate>
-            <Animate>
-              <p className="mt-4 text-lg text-gray-500">
-                Free to start. Set up in 3 minutes.
-              </p>
-            </Animate>
+        <div className="py-24" style={{ background: "linear-gradient(180deg, #FAFAFA 0%, #FFFFFF 100%)" }}>
+          <div className="mx-auto max-w-[1240px] px-6 text-center">
+            <Animate><h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Run your whole pipeline<br />from one place.</h2></Animate>
+            <Animate><p className="mt-4 text-lg text-gray-600">Free to start. Connected in 3 minutes.</p></Animate>
             <Animate>
               <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-                <Link
-                  href="/sign-up"
-                  className="inline-block rounded-lg px-8 py-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-                  style={{
-                    background:
-                      "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)",
-                    backgroundSize: "120% 100%",
-                    backgroundPosition: "center",
-                  }}
-                >
-                  Get started free
-                </Link>
-                <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-gray-600 transition-colors hover:text-gray-900">or book a demo &rarr;</a>
+                <Link href="/sign-up" className="inline-block cursor-pointer rounded-lg px-8 py-4 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Build my target list</Link>
+                <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="cursor-pointer text-sm font-semibold text-gray-600 transition-colors hover:text-gray-900">or book a demo &rarr;</a>
               </div>
             </Animate>
-            <Animate>
-              <p className="mt-4 text-xs text-gray-400">
-                No credit card required
-              </p>
-            </Animate>
+            <Animate><p className="mt-4 text-xs text-gray-500">No credit card · Cancel anytime · Your data stays yours</p></Animate>
           </div>
         </div>
       </Section>
 
       {/* FOOTER */}
       <footer className="border-t border-gray-200 bg-white">
-        <div className="mx-auto max-w-[1400px] px-6 pb-8 pt-12">
+        <div className="mx-auto max-w-[1240px] px-6 pb-8 pt-12">
           <div className="flex flex-col items-center justify-between gap-8 md:flex-row">
             <div className="flex items-center gap-2">
               <img src="/logo-Elevay.svg" alt="Elevay" className="h-6 w-6" />
-              <span
-                className="text-base font-bold"
-                style={{
-                  background:
-                    "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)",
-                  backgroundSize: "120% 100%",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                }}
-              >
-                Elevay
-              </span>
+              <span className="text-base font-bold" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Elevay</span>
             </div>
-
             <div className="flex flex-wrap items-center justify-center gap-6">
               {[
-                { label: "Product", href: "#how-it-works" },
+                { label: "Product", href: "#product" },
+                { label: "How it works", href: "#how-it-works" },
                 { label: "Book a demo", href: CALENDLY_URL, external: true },
                 { label: "Privacy", href: "/privacy" },
                 { label: "Terms", href: "/terms" },
               ].map((link) =>
                 (link as any).external ? (
-                  <a
-                    key={link.label}
-                    href={link.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-gray-500 transition-colors hover:text-gray-700"
-                  >
-                    {link.label}
-                  </a>
+                  <a key={link.label} href={link.href} target="_blank" rel="noopener noreferrer" className="text-sm text-gray-500 transition-colors hover:text-gray-700">{link.label}</a>
                 ) : (
-                  <Link
-                    key={link.label}
-                    href={link.href}
-                    className="text-sm text-gray-500 transition-colors hover:text-gray-700"
-                  >
-                    {link.label}
-                  </Link>
+                  <Link key={link.label} href={link.href} className="text-sm text-gray-500 transition-colors hover:text-gray-700">{link.label}</Link>
                 )
               )}
             </div>
-
           </div>
-
-          <p className="mt-8 text-center text-xs text-gray-400">
-            &copy; 2026 Elevay. All rights reserved.
-          </p>
+          <p className="mt-8 text-center text-xs text-gray-400">&copy; 2026 Elevay. All rights reserved.</p>
         </div>
       </footer>
     </div>
