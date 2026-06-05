@@ -92,8 +92,13 @@ function FilterBar({ children }: { children: React.ReactNode }) {
   return <div className="flex h-[36px] shrink-0 items-center gap-2 border-b px-4" style={{ borderColor: T.border, background: T.card }}>{children}</div>;
 }
 
-const listV = { hidden: {}, show: { transition: { staggerChildren: 0.11, delayChildren: 0.2 } } };
-const itemV = { hidden: { opacity: 0, y: 9 }, show: { opacity: 1, y: 0, transition: { duration: 0.32 } } };
+const listV = { hidden: {}, show: { transition: { staggerChildren: 0.1, delayChildren: 0.15 } } };
+// Items don't just fade — they spring into place, so each one reads as having
+// "landed" rather than appeared. (opacity + y only; safe on table rows.)
+const itemV = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 340, damping: 26, mass: 0.7 } } };
+// A card/panel that pops in with a touch of scale — used for the moments that
+// should feel like the agent just produced something (extractions, answers).
+const popV = { hidden: { opacity: 0, y: 12, scale: 0.96 }, show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 260, damping: 22 } } };
 
 /* ── sidebar (mirrors the real app) ─────────────────────────────── */
 
@@ -232,11 +237,15 @@ function AccountsPhase({ reduced }: { reduced: boolean }) {
 /* ── phase 2 · Up next (priorities) ─────────────────────────────── */
 
 function UpNextPhase({ reduced }: { reduced: boolean }) {
-  const priorities = [
-    { icon: Bell, tint: C.red, t: "Re-engage Linear · 12 days silent", b: { l: "Stalled", c: C.red, bg: C.redSoft } },
-    { icon: Reply, tint: C.blue, t: "Reply to Julien about pricing", b: { l: "high", c: C.amber, bg: C.amberSoft } },
-    { icon: Send, tint: C.green, t: "Send sequence to 18 new ICP-1 accounts", b: { l: "ready", c: C.green, bg: C.greenSoft } },
-  ];
+  // Script: a fresh signal fires and the day re-sorts itself — the account
+  // that just went warm (Linear viewed pricing) springs to the top.
+  const [fired, setFired] = useState(reduced);
+  useEffect(() => { if (reduced) return; const t = setTimeout(() => setFired(true), 1900); return () => clearTimeout(t); }, [reduced]);
+  const julien = { id: "julien", icon: Reply, tint: C.blue, t: "Reply to Julien about pricing", b: { l: "high", c: C.amber, bg: C.amberSoft }, hot: false };
+  const seq = { id: "seq", icon: Send, tint: C.green, t: "Send sequence to 18 new ICP-1 accounts", b: { l: "ready", c: C.green, bg: C.greenSoft }, hot: false };
+  const linearCold = { id: "linear", icon: Bell, tint: C.red, t: "Re-engage Linear · 12 days silent", b: { l: "stalled", c: C.red, bg: C.redSoft }, hot: false };
+  const linearHot = { id: "linear", icon: Eye, tint: T.accent, t: "Linear just viewed your pricing page", b: { l: "now", c: T.accent, bg: C.blueSoft }, hot: true };
+  const priorities = fired ? [linearHot, julien, seq] : [julien, seq, linearCold];
   return (
     <div className="flex h-full flex-col">
       <PageHeaderBar icon={Clock} title="Up next" count="Wed, Jun 3" />
@@ -247,34 +256,30 @@ function UpNextPhase({ reduced }: { reduced: boolean }) {
             <div key={s.l} className="flex items-center gap-1.5"><I size={12} style={{ color: T.ter }} /><span className="text-[13px] font-bold tabular-nums" style={{ color: T.text }}>{s.v}</span><span className="text-[11px]" style={{ color: T.ter }}>{s.l}</span></div>
           ); })}
         </div>
-        <div className="mb-1.5 mt-3 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>Your priorities today</div>
-        <motion.div className="space-y-1.5" variants={listV} initial={reduced ? false : "hidden"} animate="show">
-          {priorities.map((r) => { const Icon = r.icon; return (
-            <motion.div key={r.t} variants={reduced ? undefined : itemV} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2" style={{ borderColor: T.border, background: T.card }}>
-              <span className="flex min-w-0 items-center gap-2"><Icon size={13} style={{ color: r.tint }} className="shrink-0" /><span className="truncate text-[11.5px] font-medium" style={{ color: T.text }}>{r.t}</span></span>
-              <span className="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ color: r.b.c, background: r.b.bg }}>{r.b.l}</span>
-            </motion.div>
-          ); })}
-        </motion.div>
-        <motion.div className="mt-2 flex w-fit items-center gap-2 rounded-lg border px-3 py-2 text-[11px] font-medium" style={{ borderColor: "rgba(44,107,237,0.22)", background: C.blueSoft, color: T.text }}
-          initial={reduced ? false : { opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: reduced ? 0 : 1.4, duration: 0.4 }}>
-          <span className="flex h-5 w-5 items-center justify-center rounded-md" style={{ background: C.blueSoft }}><Eye size={12} style={{ color: T.accent }} /></span>
-          Linear just viewed your pricing page <span style={{ color: T.ter }}>· now</span>
-        </motion.div>
+        <div className="mb-1.5 mt-3 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>Your priorities today{fired && <motion.span initial={reduced ? false : { opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold normal-case tracking-normal" style={{ color: T.accent, background: C.blueSoft }}><Radio size={8} /> re-sorted by a live signal</motion.span>}</div>
+        <LayoutGroup>
+          <div className="space-y-1.5">
+            {priorities.map((r) => { const Icon = r.icon; return (
+              <motion.div key={r.id} layout={!reduced} layoutId={reduced ? undefined : r.id}
+                transition={{ layout: { type: "spring", stiffness: 340, damping: 30 } }}
+                className="relative flex items-center justify-between gap-2 rounded-lg border px-3 py-2"
+                style={{ borderColor: r.hot ? "rgba(44,107,237,0.5)" : T.border, background: T.card, boxShadow: r.hot ? "0 0 0 1px rgba(44,107,237,0.18)" : undefined }}>
+                {r.hot && !reduced && (
+                  <motion.span aria-hidden className="pointer-events-none absolute -inset-px rounded-lg" style={{ border: `1.5px solid ${T.accent}` }}
+                    initial={{ opacity: 0.8, scale: 1 }} animate={{ opacity: 0, scale: 1.06 }} transition={{ duration: 1, ease: "easeOut" }} />
+                )}
+                <span className="flex min-w-0 items-center gap-2"><Icon size={13} style={{ color: r.tint }} className="shrink-0" /><span className="truncate text-[11.5px] font-medium" style={{ color: T.text }}>{r.t}</span></span>
+                <span className="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ color: r.b.c, background: r.b.bg }}>{r.b.l}</span>
+              </motion.div>
+            ); })}
+          </div>
+        </LayoutGroup>
         <div className="mb-1.5 mt-3 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}><AlertTriangle size={10} /> Deals at risk</div>
         <div className="space-y-1.5">
           {[{ dom: "notion.so", n: "Notion · Pro plan", v: "$36K", r: 78 }, { dom: "webflow.com", n: "Webflow · Team", v: "$22K", r: 41 }].map((d) => (
             <div key={d.n} className="flex items-center justify-between rounded-lg border px-3 py-2" style={{ borderColor: T.border, background: T.card }}>
               <span className="flex min-w-0 items-center gap-2"><Logo src={clogo(d.dom)} size={18} /><span className="truncate text-[11.5px] font-medium" style={{ color: T.text }}>{d.n}</span></span>
               <div className="flex shrink-0 items-center gap-2"><span className="text-[11px] font-semibold" style={{ color: C.green }}>{d.v}</span><span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ color: d.r >= 70 ? C.red : C.amber, background: d.r >= 70 ? C.redSoft : C.amberSoft }}>{d.r}% risk</span></div>
-            </div>
-          ))}
-        </div>
-        <div className="mb-1.5 mt-3 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}><Users size={10} /> Hot contacts</div>
-        <div className="space-y-1.5">
-          {[{ n: "Julien Meyer", t: "VP Sales · Linear", s: 92 }, { n: "Sarah Klein", t: "COO · Notion", s: 88 }, { n: "Tom Bauer", t: "Founder · Webflow", s: 81 }].map((p) => (
-            <div key={p.n} className="flex items-center gap-2 rounded-lg border px-2.5 py-1.5" style={{ borderColor: T.border, background: T.card }}>
-              <Avatar name={p.n} size={22} /><div className="min-w-0 flex-1"><div className="truncate text-[11px] font-medium" style={{ color: T.text }}>{p.n}</div><div className="truncate text-[10px]" style={{ color: T.ter }}>{p.t}</div></div><ScorePill score={p.s} />
             </div>
           ))}
         </div>
@@ -294,14 +299,26 @@ function CampaignsPhase({ reduced }: { reduced: boolean }) {
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3" style={{ background: T.page }}>
         <div className="overflow-hidden rounded-xl border" style={{ borderColor: T.border, background: T.card }}>
           <div className="flex items-center justify-between border-b px-3.5 py-2" style={{ borderColor: T.soft }}>
-            <span className="flex items-center gap-2 text-[12px] font-semibold" style={{ color: T.text }}><Send size={13} style={{ color: T.accent }} /> ICP-1 outbound · Step 2 · Email</span>
+            <span className="flex items-center gap-2 text-[12px] font-semibold" style={{ color: T.text }}><Send size={13} style={{ color: T.accent }} /> Re-engage · stalled deals</span>
             <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ color: sent ? C.green : T.sec, background: sent ? C.greenSoft : "#F3F3F8" }}>{sent ? "active" : "draft"}</span>
           </div>
+          {/* multi-touch sequence: email + a cold call, this is touch 2 of 4 */}
+          <div className="flex items-center gap-0.5 border-b px-3.5 py-2" style={{ borderColor: T.soft }}>
+            {[{ i: Check, l: "Day 1", st: "done" }, { i: Send, l: "Day 3", st: "on" }, { i: Phone, l: "Day 5", st: "next" }, { i: Send, l: "Day 8", st: "next" }].map((s, i, arr) => { const I = s.i; const on = s.st === "on", done = s.st === "done"; return (
+              <span key={i} className="flex items-center">
+                <span className="flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-medium" style={{ background: on ? C.blueSoft : done ? C.greenSoft : T.soft, color: on ? T.accent : done ? C.green : T.ter }}>
+                  <I size={8} /> {s.l}
+                </span>
+                {i < arr.length - 1 && <span className="h-px w-2.5" style={{ background: T.border }} />}
+              </span>
+            ); })}
+            <span className="ml-auto text-[9px] font-medium uppercase tracking-wider" style={{ color: T.ter }}>Email + call</span>
+          </div>
           <div className="px-3.5 py-3 text-[11.5px]">
-            <div className="flex items-center gap-2" style={{ color: T.sec }}><span style={{ color: T.ter }}>To</span><span className="flex items-center gap-1.5 rounded-full px-2 py-0.5" style={{ background: T.page, color: T.text }}><Logo src={clogo("notion.so")} size={14} bordered={false} /> sarah@notion.so</span></div>
+            <div className="flex items-center gap-2" style={{ color: T.sec }}><span style={{ color: T.ter }}>To</span><span className="flex items-center gap-1.5 rounded-full px-2 py-0.5" style={{ background: T.page, color: T.text }}><Logo src={clogo("notion.so")} name="Notion" size={14} bordered={false} /> sarah@notion.so</span></div>
             <div className="mt-2 min-h-[16px] font-semibold" style={{ color: T.text }}><Typewriter text="Re: the prospecting problem you raised" start={!reduced} delay={300} caret /></div>
             <div className="mt-1.5 min-h-[30px]" style={{ color: T.sec }}><Typewriter text="Hi Sarah, you raised this a few weeks back, then went quiet. You just posted 4 SDR roles, so the timing looks right to pick it up." start={!reduced} delay={1500} speed={17} caret /></div>
-            <motion.div className="mt-2.5 flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[10.5px]" style={{ background: C.blueSoft, color: T.accent }} initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: reduced ? 0 : 3.5 }}><FileText size={11} /> Drafted from Notion&apos;s signals · 12 days silent, hiring 4 SDRs</motion.div>
+            <motion.div className="mt-2.5 flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[10.5px]" style={{ background: C.blueSoft, color: T.accent }} initial={reduced ? false : { opacity: 0, y: 8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 300, damping: 20, delay: reduced ? 0 : 3.4 }}><FileText size={11} /> Drafted from Notion&apos;s signals · 12 days silent, hiring 4 SDRs</motion.div>
           </div>
           <div className="flex items-center gap-2 border-t px-3.5 py-2.5" style={{ borderColor: T.soft }}>
             <AnimatePresence mode="wait">
@@ -318,9 +335,7 @@ function CampaignsPhase({ reduced }: { reduced: boolean }) {
         <div className="overflow-hidden rounded-xl border" style={{ borderColor: T.border, background: T.card }}>
           {[
             { n: "ICP-2 · SaaS founders", c: C.green, sent: "142", opened: "61%", replied: "14%" },
-            { n: "Re-engage · stalled deals", c: C.green, sent: "38", opened: "55%", replied: "9%" },
             { n: "Event follow-up · SaaStr", c: C.amber, sent: "76", opened: "48%", replied: "11%" },
-            { n: "Webflow lookalikes", c: T.ter, sent: "0", opened: "—", replied: "—" },
           ].map((c, i, arr) => (
             <div key={c.n} className={`flex items-center justify-between gap-2 px-3.5 py-2 ${i < arr.length - 1 ? "border-b" : ""}`} style={{ borderColor: T.soft }}>
               <div className="flex min-w-0 items-center gap-2">
@@ -343,54 +358,59 @@ function CampaignsPhase({ reduced }: { reduced: boolean }) {
 /* ── phase 4 · Meetings (call captured) ─────────────────────────── */
 
 function MeetingsPhase({ reduced }: { reduced: boolean }) {
+  // Script: the bot is on a live call -> the transcript streams in -> Elevay
+  // extracts the summary, action items and buying signals on its own, ready
+  // for you to review. Nothing is typed by hand.
+  const [extracted, setExtracted] = useState(reduced);
+  useEffect(() => { if (reduced) return; const t = setTimeout(() => setExtracted(true), 2800); return () => clearTimeout(t); }, [reduced]);
   return (
     <div className="flex h-full flex-col">
       <PageHeaderBar icon={Calendar} title="Meetings" count="32" />
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3" style={{ background: T.page }}>
         <div className="overflow-hidden rounded-xl border" style={{ borderColor: T.border, background: T.card }}>
           <div className="flex items-center justify-between border-b px-3.5 py-2.5" style={{ borderColor: T.soft }}>
-            <span className="flex items-center gap-2 text-[12px] font-semibold" style={{ color: T.text }}><Logo src={clogo("notion.so")} size={18} /> Notion · Discovery call</span>
+            <span className="flex items-center gap-2 text-[12px] font-semibold" style={{ color: T.text }}><Logo src={clogo("notion.so")} name="Notion" size={18} /> Notion · Discovery call</span>
             <span className="flex items-center gap-1.5 text-[10.5px] font-medium" style={{ color: C.red }}><motion.span className="h-1.5 w-1.5 rounded-full" style={{ background: C.red }} animate={reduced ? undefined : { opacity: [1, 0.3, 1] }} transition={{ duration: 1.2, repeat: Infinity }} /> Recording · Zoom</span>
           </div>
-          <div className="px-3.5 py-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>Action items</div>
-            <motion.div className="mt-1.5 space-y-1.5" variants={listV} initial={reduced ? false : "hidden"} animate="show">
-              {["Send security overview to Sarah", "Loop in their CFO on pricing"].map((a) => (
-                <motion.div key={a} variants={reduced ? undefined : itemV} className="flex items-center gap-2 text-[11.5px]" style={{ color: T.text }}>
-                  <span className="flex h-4 w-4 items-center justify-center rounded border" style={{ borderColor: T.border }}><Check size={10} style={{ color: C.green }} /></span>{a}
-                </motion.div>
-              ))}
-            </motion.div>
-            <div className="mt-3 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>Buying signals</div>
-            <motion.div className="mt-1.5 flex flex-wrap gap-1.5" initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: reduced ? 0 : 1.4 }}>
-              {[["Budget", "~$40K"], ["Timeline", "Q3"], ["Competitor", "Salesforce"]].map(([k, v]) => (
-                <span key={k} className="rounded-full border px-2 py-0.5 text-[10.5px]" style={{ borderColor: T.border, background: T.page, color: T.sec }}>{k}: <span className="font-medium" style={{ color: T.text }}>{v}</span></span>
-              ))}
-            </motion.div>
+          {/* attendees on the call */}
+          <div className="flex items-center gap-2 border-b px-3.5 py-2" style={{ borderColor: T.soft }}>
+            <span className="flex -space-x-1.5">
+              <span className="rounded-full ring-2 ring-white"><Avatar name="Martin Paviot" size={20} /></span>
+              <span className="rounded-full ring-2 ring-white"><Avatar name="Sarah Klein" size={20} /></span>
+            </span>
+            <span className="text-[10.5px]" style={{ color: T.sec }}>You, Sarah Klein <span style={{ color: T.ter }}>· COO, Notion</span></span>
+            <span className="ml-auto text-[10px] tabular-nums" style={{ color: T.ter }}>32:04</span>
           </div>
+          {/* live transcript streaming in */}
+          <div className="space-y-1.5 px-3.5 py-2.5">
+            <div className="flex gap-1.5 text-[11px]"><span className="shrink-0 font-semibold" style={{ color: T.accent }}>Sarah</span><span style={{ color: T.sec }}><Typewriter text="We lose hours every week stitching prospect lists together by hand." start={!reduced} speed={14} /></span></div>
+            <div className="flex gap-1.5 text-[11px]"><span className="shrink-0 font-semibold" style={{ color: T.text }}>You</span><span style={{ color: T.sec }}><Typewriter text="That is exactly the part we automate, end to end." start={!reduced} delay={1600} speed={14} caret /></span></div>
+          </div>
+          {/* extraction appears once the call has been understood */}
+          {extracted && (
+            <motion.div variants={popV} initial={reduced ? false : "hidden"} animate="show" className="border-t px-3.5 py-3" style={{ borderColor: T.soft, background: T.page }}>
+              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.accent }}><motion.span initial={reduced ? false : { scale: 0, rotate: -40 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 420, damping: 13, delay: 0.12 }}><Sparkles size={11} /></motion.span> Extracted by Elevay</div>
+              <p className="mt-1.5 text-[11px] leading-relaxed" style={{ color: T.text }}>Strong pain around manual prospecting. ~$40K budget, CFO sign-off needed, weighing Elevay against Salesforce, aiming to close in Q3.</p>
+              <div className="mt-2.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>Action items</div>
+              <motion.div className="mt-1.5 space-y-1.5" variants={listV} initial={reduced ? false : "hidden"} animate="show">
+                {["Send security overview to Sarah", "Loop in their CFO on pricing", "Share the Q3 rollout timeline"].map((a) => (
+                  <motion.div key={a} variants={reduced ? undefined : itemV} className="flex items-center gap-2 text-[11.5px]" style={{ color: T.text }}>
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded border" style={{ borderColor: T.border, background: T.card }}><Check size={10} style={{ color: C.green }} /></span>{a}
+                  </motion.div>
+                ))}
+              </motion.div>
+              <div className="mt-3 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>Buying signals</div>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {[["Budget", "~$40K"], ["Timeline", "Q3"], ["Competitor", "Salesforce"], ["Authority", "CFO sign-off"]].map(([k, v]) => (
+                  <span key={k} className="rounded-full border px-2 py-0.5 text-[10.5px]" style={{ borderColor: T.border, background: T.card, color: T.sec }}>{k}: <span className="font-medium" style={{ color: T.text }}>{v}</span></span>
+                ))}
+              </div>
+            </motion.div>
+          )}
           <div className="flex items-center justify-between border-t px-3.5 py-2.5" style={{ borderColor: T.soft }}>
             <span data-action="confirm" className="rounded-md px-3 py-1.5 text-[11px] font-semibold text-white" style={{ background: BRAND }}>Review &amp; confirm</span>
             <span className="flex items-center gap-1 text-[10.5px]" style={{ color: T.ter }}><Mic size={11} /> Transcribed via Recall.ai</span>
           </div>
-        </div>
-        <div className="mb-1.5 mt-3 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>Recent meetings</div>
-        <div className="overflow-hidden rounded-xl border" style={{ borderColor: T.border, background: T.card }}>
-          {[
-            { dom: "linear.app", n: "Linear · Demo", when: "Yesterday · 42 min", tag: "Proposal sent", c: C.green, bg: C.greenSoft },
-            { dom: "figma.com", n: "Figma · Intro call", when: "Mon · 28 min", tag: "Follow-up", c: C.blue, bg: C.blueSoft },
-            { dom: "ramp.com", n: "Ramp · Discovery", when: "Last Fri · 35 min", tag: "Nurture", c: C.amber, bg: C.amberSoft },
-          ].map((m, i, arr) => (
-            <div key={m.n} className={`flex items-center justify-between gap-2 px-3.5 py-2 ${i < arr.length - 1 ? "border-b" : ""}`} style={{ borderColor: T.soft }}>
-              <div className="flex min-w-0 items-center gap-2">
-                <Logo src={clogo(m.dom)} size={18} />
-                <div className="min-w-0">
-                  <div className="truncate text-[11.5px] font-medium" style={{ color: T.text }}>{m.n}</div>
-                  <div className="text-[10px]" style={{ color: T.ter }}>{m.when}</div>
-                </div>
-              </div>
-              <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ color: m.c, background: m.bg }}>{m.tag}</span>
-            </div>
-          ))}
         </div>
       </div>
     </div>
@@ -511,8 +531,15 @@ function OpportunitiesPhase({ reduced }: { reduced: boolean }) {
 /* ── phase 6 · Chat (real chat page) ────────────────────────────── */
 
 function ChatPhase({ reduced }: { reduced: boolean }) {
-  const [showA, setShowA] = useState(reduced);
-  useEffect(() => { if (reduced) return; const t = setTimeout(() => setShowA(true), 2300); return () => clearTimeout(t); }, [reduced]);
+  // Script: question -> Elevay retrieves across your real calls + emails (a
+  // brief grounded "searching" beat) -> the answer streams, each fact cited.
+  const [stage, setStage] = useState(reduced ? 2 : 0); // 0 asking, 1 searching, 2 answered
+  useEffect(() => {
+    if (reduced) return;
+    const t1 = setTimeout(() => setStage(1), 1700);
+    const t2 = setTimeout(() => setStage(2), 3100);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [reduced]);
   return (
     <div className="flex h-full flex-col">
       <PageHeaderBar icon={Compass} title="Chat" count="Ask anything" />
@@ -523,8 +550,14 @@ function ChatPhase({ reduced }: { reduced: boolean }) {
               <Typewriter text="What did Sarah say about budget last Thursday?" start={!reduced} speed={22} />
             </div>
           </div>
-          {showA && (
-            <motion.div initial={reduced ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          {stage === 1 && (
+            <motion.div initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 text-[11px] font-medium" style={{ color: T.sec }}>
+              <motion.span className="inline-flex" animate={reduced ? undefined : { rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}><RefreshCw size={12} style={{ color: T.accent }} /></motion.span>
+              Searching across 142 calls and emails…
+            </motion.div>
+          )}
+          {stage === 2 && (
+            <motion.div variants={popV} initial={reduced ? false : "hidden"} animate="show">
               <p className="text-[12px] leading-relaxed" style={{ color: T.text }}><Typewriter text="Sarah said budget approval needs CFO sign-off, but she expects ~$40K is feasible this quarter." start={!reduced} speed={13} /></p>
               <motion.div className="mt-2.5 flex flex-wrap gap-1.5" initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: reduced ? 0 : 1.9 }}>
                 {[{ i: Phone, t: "Call · Notion demo · May 28" }, { i: Inbox, t: "Email · Re: pricing · May 30" }].map((c) => { const Icon = c.i; return (

@@ -61,19 +61,16 @@ const steps: { label: string; headline: string; body: string; Phase: Phase }[] =
   },
 ];
 
-// Per-phase frame height: tall enough for the dense pages (they auto-pan the
-// little that still overflows), snug for the short ones so they don't leave a
-// dead white band. Order matches `steps`.
-const heights = [460, 460, 440, 440, 300, 344];
+// Per-phase frame height, sized so each scene fits in one view: no inner
+// scroll and no dead band. Accounts (the TAM) is a list, so it stays a touch
+// taller and may scroll. Order matches `steps`.
+const heights = [470, 412, 444, 490, 318, 228];
 
 /**
- * A faithful product page that, as the step reaches the viewport:
- *   1. fades and settles in (transparent -> in place),
- *   2. plays its own intro animation once, then
- *   3. gently auto-pans the page inside the frame (top -> bottom -> top) so
- *      the whole surface is revealed, not just the top.
- * The auto-pan only runs while the step is on screen (lighter on weak GPUs),
- * and everything is disabled under prefers-reduced-motion.
+ * A faithful product page that fades and settles into place as its step
+ * reaches the viewport, then plays its own intro animation once. Each frame is
+ * sized to its scene so it fits in one view — no inner scroll, no auto-pan
+ * (a long list like the TAM is the one exception). Off under reduced-motion.
  */
 function AnimatedSurface({ Phase, h }: { Phase: Phase; h: number }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -89,43 +86,6 @@ function AnimatedSurface({ Phase, h }: { Phase: Phase; h: number }) {
     const t = setTimeout(() => setLive(true), 6000);
     return () => clearTimeout(t);
   }, []);
-
-  useEffect(() => {
-    if (!live || !inView || reduced) return;
-    const root = ref.current;
-    if (!root) return;
-    let raf = 0;
-    let cancelled = false;
-    // Let the page's own intro animation play first, then start panning.
-    const begin = setTimeout(() => {
-      const sc = root.querySelector<HTMLElement>(".overflow-y-auto");
-      if (!sc) return;
-      const CYCLE = 15000;
-      const DWELL = 0.2;
-      const t0 = performance.now();
-      const tick = (now: number) => {
-        if (cancelled) return;
-        const max = sc.scrollHeight - sc.clientHeight;
-        if (max > 4) {
-          const p = ((now - t0) / CYCLE) % 1;
-          let prog: number;
-          if (p < DWELL) prog = 0;
-          else if (p < 0.5 - DWELL) prog = (p - DWELL) / (0.5 - 2 * DWELL);
-          else if (p < 0.5 + DWELL) prog = 1;
-          else if (p < 1 - DWELL) prog = 1 - (p - (0.5 + DWELL)) / (0.5 - 2 * DWELL);
-          else prog = 0;
-          sc.scrollTop = prog * max;
-        }
-        raf = requestAnimationFrame(tick);
-      };
-      raf = requestAnimationFrame(tick);
-    }, 2000);
-    return () => {
-      cancelled = true;
-      clearTimeout(begin);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, [live, inView, reduced]);
 
   return (
     <motion.div
