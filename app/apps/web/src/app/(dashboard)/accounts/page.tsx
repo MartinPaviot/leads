@@ -15,7 +15,7 @@ function LinkedInIcon({ size = 13 }: { size?: number }) {
     </svg>
   );
 }
-import { getLifecycleStyle, formatScore } from "@/lib/util/ui-utils";
+import { getLifecycleStyle, displayScore } from "@/lib/util/ui-utils";
 import { SlideOver, PropertyRow } from "@/components/slide-over";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { IntelligenceBrief } from "@/components/intelligence-brief";
@@ -958,7 +958,7 @@ export default function AccountsPage() {
     size: { label: "Size", kind: "enum", get: (a) => a.size },
     revenue: { label: "Revenue", kind: "enum", get: (a) => a.revenue },
     stage: { label: "Stage", kind: "enum", get: (a) => getLifecycleStage(a) },
-    score: { label: "Score", kind: "enum", get: (a) => (isEnriched(a) ? formatScore(a.score)?.grade ?? null : null) },
+    score: { label: "Score", kind: "enum", get: (a) => displayScore(a.score, isEnriched(a))?.grade ?? null },
   };
 
   // Distinct values per enum column, computed from the loaded rows, for
@@ -1663,13 +1663,11 @@ export default function AccountsPage() {
                     {/* Score */}
                     <td>
                       {(() => {
-                        const scoreInfo = formatScore(account.score);
-                        // A fit score is only meaningful once the account
-                        // has real firmographic data. Un-enriched accounts
-                        // land on the floor grade ("F / Cold") which reads
-                        // as a verdict when it's really "no data yet" — so
-                        // we surface "Not scored" instead until enriched.
-                        if (!scoreInfo || !isEnriched(account)) {
+                        // displayScore() centralises the rule: no grade
+                        // until the account is enriched (otherwise the
+                        // no-data floor grade reads as a verdict).
+                        const scoreInfo = displayScore(account.score, isEnriched(account));
+                        if (!scoreInfo) {
                           return <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>Not scored</span>;
                         }
                         return (
@@ -2105,7 +2103,7 @@ export default function AccountsPage() {
       >
         {slideOverAccount && (() => {
           const a = slideOverAccount;
-          const scoreInfo = formatScore(a.score);
+          const scoreInfo = displayScore(a.score, isEnriched(a));
           const lc = ((a.properties as Record<string, unknown>)?.lifecycleStage as string) || "new";
           const lcStyle = getLifecycleStyle(lc);
           return (
@@ -2143,7 +2141,7 @@ export default function AccountsPage() {
                 </span>
               } />
               <PropertyRow label="Score" value={
-                scoreInfo && isEnriched(a) ? (
+                scoreInfo ? (
                   <span className="flex items-center gap-1.5">
                     <span
                       className="inline-flex h-[20px] w-[20px] items-center justify-center rounded-full text-[9px] font-bold text-white shrink-0"

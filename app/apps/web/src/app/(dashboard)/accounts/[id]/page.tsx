@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { DetailPageSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { formatScore } from "@/lib/util/ui-utils";
+import { displayScore } from "@/lib/util/ui-utils";
 
 interface Account {
   id: string;
@@ -386,7 +386,7 @@ export default function AccountDetailPage() {
             // no-data floor (F/Cold), so show "Not scored" instead of a
             // misleading grade — consistent with the accounts/contacts tables.
             const enriched = !!(account.industry && account.description);
-            const s = enriched ? formatScore(account.score) : null;
+            const s = displayScore(account.score, enriched);
             return (
               <div>
                 <p className="text-xs text-[var(--color-text-tertiary)]">Score</p>

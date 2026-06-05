@@ -98,6 +98,22 @@ export function formatScore(score: number | null | undefined): {
   };
 }
 
+/**
+ * Score to display in list/detail cells. A fit score is only meaningful
+ * once the row carries real firmographics — an un-enriched row lands on
+ * the no-data floor grade ("F" / Cold) which reads as a verdict when it's
+ * really "no data yet". Returns null (render as "Not scored") whenever the
+ * row isn't enriched or has no score. Single source of truth for the
+ * accounts table, contacts table, account detail, and the slide-over.
+ */
+export function displayScore(
+  score: number | null | undefined,
+  enriched: boolean,
+): ReturnType<typeof formatScore> {
+  if (!enriched) return null;
+  return formatScore(score);
+}
+
 /** Score circle background color for the grade badge */
 export function scoreCircleBg(score: number): string {
   const g = getGrade(score);

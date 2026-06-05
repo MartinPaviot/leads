@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, Trash2, type LucideIcon } from "lucide-react";
 import { SmartImport } from "@/components/smart-import";
 import { CompanyLogo } from "@/components/ui/company-logo";
-import { formatScore, ENRICHMENT_COLORS } from "@/lib/util/ui-utils";
+import { displayScore, ENRICHMENT_COLORS } from "@/lib/util/ui-utils";
 import { useCustomFields } from "@/hooks/use-custom-fields";
 import { getCustomFieldValue, formatFieldValue } from "@/lib/context/custom-fields";
 import { PageHeader, FilterBar } from "@/components/ui/page-header";
@@ -281,7 +281,7 @@ export default function ContactsPage() {
     title: { label: "Title", kind: "text", get: (c) => c.title },
     linkedin: { label: "LinkedIn", kind: "presence", get: (c) => c.linkedinUrl },
     phone: { label: "Phone", kind: "presence", get: (c) => c.phone },
-    score: { label: "Score", kind: "enum", get: (c) => (isEnriched(c) ? formatScore(c.score)?.grade ?? null : null) },
+    score: { label: "Score", kind: "enum", get: (c) => displayScore(c.score, isEnriched(c))?.grade ?? null },
   };
 
   const columnOptions = useMemo(() => {
@@ -655,12 +655,10 @@ export default function ContactsPage() {
                     {/* Score */}
                     <td>
                       {(() => {
-                        const scoreInfo = formatScore(contact.score);
-                        // Mirror the accounts table: a fit score is only
-                        // meaningful once the contact is enriched. Un-enriched
-                        // contacts land on the floor grade (F/Cold) which reads
-                        // as a verdict when it's really "no data yet".
-                        if (!scoreInfo || !isEnriched(contact)) {
+                        // displayScore(): no grade until the contact is
+                        // enriched — mirrors the accounts table.
+                        const scoreInfo = displayScore(contact.score, isEnriched(contact));
+                        if (!scoreInfo) {
                           return <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>Not scored</span>;
                         }
                         return (
