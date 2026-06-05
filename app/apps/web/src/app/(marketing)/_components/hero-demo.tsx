@@ -22,7 +22,7 @@ import { motion, AnimatePresence, LayoutGroup, useReducedMotion, useInView, type
 import {
   Building2, Users, CircleDot, Inbox, Phone, Clock, BookOpen, Wand2, Zap,
   Calendar, FileText, CheckSquare, BarChart3, Send, Compass, Bell, Reply,
-  Eye, Check, Search, Sparkles, Target, Plus, Gauge, Radio, Mic,
+  Check, Search, Sparkles, Target, Plus, Gauge, Radio, Mic,
   TrendingUp, RefreshCw, DollarSign, AlertTriangle, type LucideIcon,
 } from "lucide-react";
 import { AppFrame, Avatar, Logo, ScaleToFit, clogo } from "./product-mockups";
@@ -285,7 +285,7 @@ function UpNextPhase({ reduced }: { reduced: boolean }) {
   const julien = { id: "julien", icon: Reply, tint: C.blue, t: "Reply to Julien about pricing", b: { l: "high", c: C.amber, bg: C.amberSoft }, hot: false };
   const seq = { id: "seq", icon: Send, tint: C.green, t: "Send sequence to 18 new ICP-1 accounts", b: { l: "ready", c: C.green, bg: C.greenSoft }, hot: false };
   const linearCold = { id: "linear", icon: Bell, tint: C.red, t: "Re-engage Linear · 12 days silent", b: { l: "stalled", c: C.red, bg: C.redSoft }, hot: false };
-  const linearHot = { id: "linear", icon: Eye, tint: T.accent, t: "Linear just viewed your pricing page", b: { l: "now", c: T.accent, bg: C.blueSoft }, hot: true };
+  const linearHot = { id: "linear", icon: TrendingUp, tint: T.accent, t: "Linear just posted 5 sales roles", b: { l: "now", c: T.accent, bg: C.blueSoft }, hot: true };
   const priorities = fired ? [linearHot, julien, seq] : [julien, seq, linearCold];
   return (
     <div className="flex h-full flex-col">

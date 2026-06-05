@@ -26,19 +26,19 @@ const steps: { label: string; headline: string; body: string; Phase: Phase }[] =
   {
     label: "Find demand",
     headline: "Your target list builds itself",
-    body: "Describe your ICP once. Elevay searches live B2B databases, scores every account against it, and enriches verified decision-makers, no CSV imports and no manual research.",
+    body: "Describe your ICP once. Elevay searches a live B2B database, builds your target account list, and scores every account against it, no CSV imports and no manual research.",
     Phase: AccountsPhase,
   },
   {
     label: "Find demand",
     headline: "Open on who is ready now",
-    body: "Hiring, funding, tech-stack changes, pricing-page visits, and replies reorder your list in real time, so the warmest account is always at the top.",
+    body: "Hiring, funding, tech-stack changes, and replies are detected automatically and surface the warmest accounts at the top, so you open on who is ready.",
     Phase: UpNextPhase,
   },
   {
     label: "Engage",
     headline: "Outreach drafted from real context",
-    body: "Email sequences and a cold-call cockpit, written from each account's signals and your past calls. Nothing leaves your domain until you approve it.",
+    body: "Email sequences and a live cold-call cockpit with objection coaching mid-call, drafted from each account's signals and notes. Nothing leaves your domain until you approve it.",
     Phase: CampaignsPhase,
   },
   {
@@ -50,7 +50,7 @@ const steps: { label: string; headline: string; body: string; Phase: Phase }[] =
   {
     label: "Capture",
     headline: "Your CRM fills itself",
-    body: "Deals advance stages, values update, and fields populate straight from your calls and emails, so the pipeline reflects reality without manual logging.",
+    body: "Values update, fields populate, and the next stage is suggested for you, straight from your calls and emails, so the pipeline reflects reality without manual logging.",
     Phase: OpportunitiesPhase,
   },
   {
