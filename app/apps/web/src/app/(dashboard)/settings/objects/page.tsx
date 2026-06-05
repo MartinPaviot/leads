@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import {
   Plus,
   X,
@@ -218,21 +219,12 @@ export default function CustomObjectsSettingsPage() {
 
   return (
     <>
-      <h1
-        className="text-[24px] font-semibold"
-        style={{ color: "var(--color-text-primary)", letterSpacing: "-0.3px" }}
-      >
-        Custom Objects
-      </h1>
-      <p
-        className="mt-1.5 text-[13px]"
-        style={{ color: "var(--color-text-tertiary)" }}
-      >
-        Create custom entity types beyond contacts, companies, and deals. Define
-        the fields each object type should have.
-      </p>
+      <SettingsHeader
+        title="Custom Objects"
+        subtitle="Create custom entity types beyond contacts, companies, and deals. Define the fields each object type should have."
+      />
 
-      <div className="mt-6 flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <span
           className="text-[11px] font-medium uppercase tracking-wider"
           style={{ color: "var(--color-text-muted)" }}

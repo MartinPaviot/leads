@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Layers, Plus, X, Check, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
@@ -146,12 +147,10 @@ export default function PlaysSettingsPage() {
     <div className="max-w-3xl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="flex items-center gap-2 text-[18px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
-            <Layers size={18} /> Sales Plays
-          </h1>
-          <p className="mt-1 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-            Codify your sales process into repeatable plays. The agent uses active plays as context when drafting proposals, handling objections, or coaching deals.
-          </p>
+          <SettingsHeader
+            title="Sales Plays"
+            subtitle="Codify your sales process into repeatable plays. The agent uses active plays as context when drafting proposals, handling objections, or coaching deals."
+          />
         </div>
         <Button variant="gradient" size="sm" icon={<Plus size={12} />} onClick={openCreate}>
           Add play

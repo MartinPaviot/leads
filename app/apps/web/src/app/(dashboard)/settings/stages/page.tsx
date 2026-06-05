@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { Card, CardBody } from "@/components/ui/card";
 
 interface Stage {
@@ -79,11 +80,10 @@ export default function StagesSettingsPage() {
 
   return (
     <>
-      <h1 className="text-xl font-semibold">Opportunity stages</h1>
-      <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-        Each stage represents a milestone in a deal. Describing each stage enables
-        Elevay to track stages automatically based on activity.
-      </p>
+      <SettingsHeader
+        title="Opportunity stages"
+        subtitle="Each stage represents a milestone in a deal. Describing each stage enables Elevay to track stages automatically based on activity."
+      />
 
       {loading ? (
         <div className="mt-6 space-y-3">

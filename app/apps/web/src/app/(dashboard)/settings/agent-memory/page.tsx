@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Brain, Download, Loader2, Sparkles } from "lucide-react";
-import { PageHeader } from "@/components/ui/page-header";
+import { Download, Loader2, Sparkles } from "lucide-react";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -115,13 +115,12 @@ export default function AgentMemoryPage() {
 
   return (
     <>
-      <PageHeader
-        icon={<Brain size={18} />}
+      <SettingsHeader
         title="Agent memory"
         subtitle="Everything the agent knows about you — source, confidence, editable where applicable."
       />
 
-      <div className="space-y-4 p-4">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
           <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
             Generated {snapshot ? new Date(snapshot.generatedAt).toLocaleString() : "…"}

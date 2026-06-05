@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
@@ -59,17 +60,12 @@ export default function ProfileSettingsPage() {
 
   return (
     <>
-      <h1
-        className="text-[24px] font-bold"
-        style={{ color: "var(--color-text-primary)", letterSpacing: "-0.3px" }}
-      >
-        Profile
-      </h1>
-      <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-        Manage settings for your personal profile.
-      </p>
+      <SettingsHeader
+        title="Profile"
+        subtitle="Manage settings for your personal profile."
+      />
 
-      <div className="mt-8 space-y-5">
+      <div className="space-y-5">
         <div className="flex gap-4">
           <div className="flex-1">
             <Input

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Plus, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { Input } from "@/components/ui/input";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -168,12 +169,10 @@ export default function DataModelPage() {
 
   return (
     <>
-      <h1 className="text-[24px] font-semibold" style={{ color: "var(--color-text-primary)", letterSpacing: "-0.3px" }}>
-        Data Model
-      </h1>
-      <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-        Customize fields for each entity type. The AI reads field descriptions to fill data automatically.
-      </p>
+      <SettingsHeader
+        title="Data Model"
+        subtitle="Customize fields for each entity type. The AI reads field descriptions to fill data automatically."
+      />
       {error && <p className="mt-2 text-[12px]" style={{ color: "var(--color-error)" }}>{error}</p>}
 
       {/* Entity type tabs */}

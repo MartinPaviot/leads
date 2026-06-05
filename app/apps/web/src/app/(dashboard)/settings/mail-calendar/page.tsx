@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useSafeFetch } from "@/lib/infra/use-safe-fetch";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import {
   Mail,
   Plus,
@@ -256,9 +257,7 @@ export default function MailCalendarPage() {
   if (loading) {
     return (
       <>
-        <h1 className="text-[24px] font-semibold" style={{ color: "var(--color-text-primary)", letterSpacing: "-0.3px" }}>
-          Mail & Calendar
-        </h1>
+        <SettingsHeader title="Mail & Calendar" />
         <div className="mt-4 space-y-4">
           {[1, 2].map((i) => (
             <div key={i} className="skeleton-row rounded-lg p-5" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}>
@@ -275,12 +274,10 @@ export default function MailCalendarPage() {
 
   return (
     <>
-      <h1 className="text-[24px] font-semibold" style={{ color: "var(--color-text-primary)", letterSpacing: "-0.3px" }}>
-        Mail & Calendar
-      </h1>
-      <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-        Manage your connected email accounts, sync preferences, and sending settings.
-      </p>
+      <SettingsHeader
+        title="Mail & Calendar"
+        subtitle="Manage your connected email accounts, sync preferences, and sending settings."
+      />
 
       {/* ============================================================ */}
       {/*  SECTION 1 — Connected accounts                              */}

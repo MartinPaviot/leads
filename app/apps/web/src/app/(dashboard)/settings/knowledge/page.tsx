@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { Input, Textarea } from "@/components/ui/input";
 import { Card, CardBody } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -107,13 +108,12 @@ export default function KnowledgeSettingsPage() {
 
   return (
     <>
-      <h1 className="text-xl font-semibold">Knowledge</h1>
-      <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-        Give Elevay additional context on your business. This context will be
-        included in AI requests for everyone in your organization.
-      </p>
+      <SettingsHeader
+        title="Knowledge"
+        subtitle="Give Elevay additional context on your business. This context will be included in AI requests for everyone in your organization."
+      />
 
-      <Button variant="outline" size="md" onClick={addTopic} className="mt-4">
+      <Button variant="outline" size="md" onClick={addTopic}>
         + Add knowledge
       </Button>
       {error && <p className="mt-2 text-[12px]" style={{ color: "var(--color-error)" }}>{error}</p>}

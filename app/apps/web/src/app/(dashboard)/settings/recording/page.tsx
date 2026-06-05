@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Video } from "lucide-react";
@@ -104,12 +105,10 @@ export default function RecordingSettingsPage() {
 
   return (
     <>
-      <h1 className="text-[24px] font-bold" style={{ color: "var(--color-text-primary)", letterSpacing: "-0.3px" }}>
-        Recording
-      </h1>
-      <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-        Configure automatic meeting recording, transcription, and branding policy.
-      </p>
+      <SettingsHeader
+        title="Recording"
+        subtitle="Configure automatic meeting recording, transcription, and branding policy."
+      />
 
       <div className="mt-8 space-y-6">
         {/* Toggle */}

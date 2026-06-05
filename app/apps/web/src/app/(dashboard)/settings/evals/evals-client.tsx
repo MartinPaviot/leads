@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { FlaskConical, Plus, Play, ChevronRight, ChevronDown, Check, X, AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SettingsHeader } from "@/components/ui/settings-header";
 
 interface Dataset { id: string; name: string; description: string | null; caseCount: number; createdAt: string }
 interface EvalCase { id: string; input: string; expectedOutput: string | null; tags: string[]; createdAt: string }
@@ -115,12 +116,10 @@ export default function EvalsPage() {
         <div className="flex items-center gap-3">
           <FlaskConical size={18} style={{ color: "var(--color-accent)" }} />
           <div>
-            <h1 className="text-[18px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
-              Agent Evaluations
-            </h1>
-            <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-              Automated quality testing with LLM-as-judge grading
-            </p>
+            <SettingsHeader
+              title="Agent Evaluations"
+              subtitle="Automated quality testing with LLM-as-judge grading"
+            />
           </div>
         </div>
       </div>

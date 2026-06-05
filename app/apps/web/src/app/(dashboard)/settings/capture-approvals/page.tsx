@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { PageHeader } from "@/components/ui/page-header";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import { Check, X, Mail, Calendar, Phone, Inbox } from "lucide-react";
@@ -83,12 +83,12 @@ export default function CaptureApprovalsPage() {
   );
 
   return (
-    <div className="flex h-full flex-col">
-      <PageHeader
+    <div>
+      <SettingsHeader
         title="Capture approvals"
         subtitle="Review interactions captured from email, meetings and calls before they enter the CRM. Enable this by setting the workspace capture mode to review."
       />
-      <div className="flex-1 overflow-y-auto p-6">
+      <div>
         {loading && list.length === 0 && (
           <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>Loading…</p>
         )}

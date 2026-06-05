@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { PageHeader } from "@/components/ui/page-header";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import { Plus, Trash2, Target, Radar } from "lucide-react";
@@ -233,12 +233,12 @@ export default function IcpProfilesPage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <PageHeader
+    <div>
+      <SettingsHeader
         title="ICP profiles"
         subtitle="Define one or more Ideal Customer Profiles. Each scores companies independently — a company can fit one profile and not another."
       />
-      <div className="flex-1 overflow-y-auto p-6">
+      <div>
         {!draft && (
           <>
             <div className="mb-4 flex justify-end">

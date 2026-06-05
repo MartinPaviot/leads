@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Mail, Shield, Loader2, Save, Plug, Phone } from "lucide-react";
-import { PageHeader } from "@/components/ui/page-header";
+import { Shield, Loader2, Save, Plug, Phone } from "lucide-react";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -172,8 +172,7 @@ export default function SendingInfrastructurePage() {
   if (loading && !payload) {
     return (
       <>
-        <PageHeader
-          icon={<Mail size={18} />}
+        <SettingsHeader
           title="Sending infrastructure"
           subtitle="Loading…"
         />
@@ -186,13 +185,12 @@ export default function SendingInfrastructurePage() {
 
   return (
     <>
-      <PageHeader
-        icon={<Mail size={18} />}
+      <SettingsHeader
         title="Sending infrastructure"
         subtitle="Where outbound emails leave from, and the protections around your primary domain."
       />
 
-      <div className="space-y-4 p-4">
+      <div className="space-y-4">
         {/* ── Primary inbox caps ── */}
         <Card>
           <CardBody>

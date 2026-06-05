@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { Input, Toggle } from "@/components/ui/input";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -90,12 +91,10 @@ export default function NotificationsSettingsPage() {
 
   return (
     <>
-      <h1 className="text-[24px] font-semibold" style={{ color: "var(--color-text-primary)", letterSpacing: "-0.3px" }}>
-        Notifications
-      </h1>
-      <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-        Choose your preferred notification settings for in-app, email, and Slack.
-      </p>
+      <SettingsHeader
+        title="Notifications"
+        subtitle="Choose your preferred notification settings for in-app, email, and Slack."
+      />
 
       {/* Slack webhook config */}
       <Card className="mt-4">

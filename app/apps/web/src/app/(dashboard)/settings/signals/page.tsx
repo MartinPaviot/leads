@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Input, Textarea } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { Radio, Plus, Loader2, Check } from "lucide-react";
 
 interface CustomSignal {
@@ -98,17 +99,10 @@ export default function CustomSignalsPage() {
 
   return (
     <>
-      <h1
-        className="text-[24px] font-bold"
-        style={{ color: "var(--color-text-primary)", letterSpacing: "-0.3px" }}
-      >
-        Custom signals
-      </h1>
-      <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-        Define boolean signals — they appear as columns on every
-        account. Describe what you&apos;d like detected; the plan is
-        generated and run against your whole TAM automatically.
-      </p>
+      <SettingsHeader
+        title="Custom signals"
+        subtitle="Define boolean signals — they appear as columns on every account. Describe what you'd like detected; the plan is generated and run against your whole TAM automatically."
+      />
 
       {/* Create form */}
       <section

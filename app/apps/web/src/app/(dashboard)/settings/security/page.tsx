@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useToast } from "@/components/ui/toast";
+import { SettingsHeader } from "@/components/ui/settings-header";
 
 /**
  * `/settings/security` — Password change.
@@ -48,22 +49,11 @@ export default function SecurityPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1
-          className="text-[18px] font-semibold"
-          style={{ color: "var(--color-text-primary)" }}
-        >
-          Security
-        </h1>
-        <p
-          className="mt-0.5 text-[13px]"
-          style={{ color: "var(--color-text-tertiary)" }}
-        >
-          Change your password. For SSO accounts, use the provider&apos;s own
-          security settings.
-        </p>
-      </header>
+    <div>
+      <SettingsHeader
+        title="Security"
+        subtitle="Change your password. For SSO accounts, use the provider's own security settings."
+      />
 
       <form
         onSubmit={handleSubmit}

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { DollarSign, AlertTriangle, CheckCircle2, Loader2, Save } from "lucide-react";
-import { PageHeader } from "@/components/ui/page-header";
+import { AlertTriangle, CheckCircle2, Loader2, Save } from "lucide-react";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,14 +90,13 @@ export default function LlmBudgetPage() {
     : [];
 
   return (
-    <div className="flex h-full flex-col">
-      <PageHeader
-        icon={<DollarSign size={15} />}
+    <div>
+      <SettingsHeader
         title="LLM budget"
         subtitle="Monthly spend cap that blocks AI calls before they fire"
       />
 
-      <div className="flex-1 overflow-auto px-4 py-6">
+      <div>
         {loading || !status ? (
           <Card><CardBody><div className="flex items-center gap-2 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
             <Loader2 size={14} className="animate-spin" /> Loading budget…

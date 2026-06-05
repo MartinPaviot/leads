@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { Input } from "@/components/ui/input";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -110,16 +111,10 @@ export default function McpSettingsPage() {
 
   return (
     <>
-      <h1
-        className="text-[24px] font-bold"
-        style={{ color: "var(--color-text-primary)", letterSpacing: "-0.3px" }}
-      >
-        MCP Integration
-      </h1>
-      <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-        Connect external AI tools (Claude Desktop, Cursor, etc.) to your CRM data via the
-        Model Context Protocol.
-      </p>
+      <SettingsHeader
+        title="MCP Integration"
+        subtitle="Connect external AI tools (Claude Desktop, Cursor, etc.) to your CRM data via the Model Context Protocol."
+      />
 
       {/* Connection info */}
       <section className="mt-8">

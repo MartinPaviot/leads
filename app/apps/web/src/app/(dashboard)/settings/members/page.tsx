@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { Input, Select } from "@/components/ui/input";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -148,18 +149,17 @@ export default function MembersSettingsPage() {
 
   return (
     <>
-      <h1
-        className="text-[24px] font-bold"
-        style={{ color: "var(--color-text-primary)", letterSpacing: "-0.3px" }}
-      >
-        Members
-      </h1>
-      <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-        Manage who has access to your workspace.{" "}
-        {!loading && <span>{members.length} member{members.length !== 1 ? "s" : ""}</span>}
-      </p>
+      <SettingsHeader
+        title="Members"
+        subtitle={
+          <>
+            Manage who has access to your workspace.{" "}
+            {!loading && <span>{members.length} member{members.length !== 1 ? "s" : ""}</span>}
+          </>
+        }
+      />
 
-      <div className="mt-6">
+      <div>
         <div className="flex gap-2">
           <Input
             value={inviteEmail}

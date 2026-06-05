@@ -5,6 +5,7 @@ import { AlertTriangle, RefreshCw, TrendingDown, TrendingUp, Activity, ChevronDo
 import { AIThinking, ConfidenceState } from "@/components/ai-ui";
 import { OnboardingVelocityTile } from "@/components/onboarding-velocity-tile";
 import { EvalRunDrilldown } from "@/components/evals/eval-run-drilldown";
+import { SettingsHeader } from "@/components/ui/settings-header";
 
 /**
  * Sprint-1 audit follow-up — admin dashboard surface for the
@@ -137,12 +138,10 @@ export default function LlmEvalsDashboardPage() {
     <div className="mx-auto max-w-6xl p-6 space-y-6">
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-[20px] font-bold tracking-tight" style={{ color: "var(--color-text-primary)" }}>
-            LLM observability
-          </h1>
-          <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-            Cost, latency, retry, fallback per surface · eval-suite drift over time · recent terminal failures.
-          </p>
+          <SettingsHeader
+            title="LLM observability"
+            subtitle="Cost, latency, retry, fallback per surface · eval-suite drift over time · recent terminal failures."
+          />
         </div>
         <div className="flex items-center gap-2">
           <select

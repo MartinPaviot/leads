@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { Input } from "@/components/ui/input";
 import { Card, CardBody } from "@/components/ui/card";
 import { Tag } from "@/components/ui/badge";
@@ -74,12 +75,12 @@ export default function WorkspaceSettingsPage() {
 
   return (
     <>
-      <h1 className="text-xl font-semibold">Workspace settings</h1>
-      <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-        Manage settings for your entire workspace.
-      </p>
+      <SettingsHeader
+        title="Workspace settings"
+        subtitle="Manage settings for your entire workspace."
+      />
 
-      <div className="mt-6 space-y-6">
+      <div className="space-y-6">
         <div>
           <label className="text-sm text-[var(--color-text-secondary)]">Workspace name</label>
           <div className="mt-1 flex gap-2">

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Shield, ShieldCheck, ShieldAlert, Loader2, Save } from "lucide-react";
-import { PageHeader } from "@/components/ui/page-header";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -128,13 +128,12 @@ export default function GuardrailsSettingsPage() {
 
   return (
     <>
-      <PageHeader
-        icon={<Shield size={18} />}
+      <SettingsHeader
         title="Guardrails"
         subtitle="Explicit trust calibration before any autonomous action."
       />
 
-      <div className="space-y-4 p-4">
+      <div className="space-y-4">
         {/* ── Approval mode ── */}
         <Card>
           <CardBody>
