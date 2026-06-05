@@ -84,6 +84,7 @@ const navSections = [
       { label: "Accounts", href: "/accounts", icon: Building2 },
       { label: "Contacts", href: "/contacts", icon: Users },
       { label: "Opportunities", href: "/opportunities", icon: CircleDot },
+      { label: "Proposals", href: "/proposals", icon: Briefcase },
     ],
   },
   {
