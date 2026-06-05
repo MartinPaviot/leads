@@ -64,7 +64,7 @@ export default async function SignInPage({
         }}
       >
         <div className="flex flex-col items-center text-center">
-          <img src="/logo-Elevay.svg" alt="Elevay" className="mb-3 h-10 w-10" />
+          <img src="/logo-elevay.svg" alt="Elevay" className="mb-3 h-10 w-10" />
           <h1 className="gradient-text text-2xl font-bold tracking-tight">
             Elevay
           </h1>

@@ -299,7 +299,7 @@ export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tena
           <>
             {/* Logo + text */}
             <div className="flex items-center gap-2">
-              <img src="/logo-Elevay.svg" alt="Elevay" className="h-6 w-6" />
+              <img src="/logo-elevay.svg" alt="Elevay" className="h-6 w-6" />
               <span className="gradient-text text-[16px] font-bold tracking-tight">
                 Elevay
               </span>

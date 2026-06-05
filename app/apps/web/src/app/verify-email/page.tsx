@@ -68,7 +68,7 @@ function VerifyError({ reason }: { reason: "missing" | "invalid" }) {
           boxShadow: "var(--shadow-dialog)",
         }}
       >
-        <img src="/logo-Elevay.svg" alt="Elevay" className="mx-auto h-10 w-10" />
+        <img src="/logo-elevay.svg" alt="Elevay" className="mx-auto h-10 w-10" />
         <h1 className="text-lg font-semibold" style={{ color: "var(--color-text-primary)" }}>
           {title}
         </h1>
