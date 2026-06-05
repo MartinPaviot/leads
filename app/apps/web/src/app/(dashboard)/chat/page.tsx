@@ -15,8 +15,23 @@ import { FollowUpPills, extractFollowUps } from "@/components/chat/follow-up-pil
 import { CopyButton } from "@/components/chat/copy-button";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import { Compass, Send, Mail, Check, Paperclip, Mic, MicOff, Loader2 } from "lucide-react";
+import { Compass, Send, Mail, Check, Paperclip, Mic, MicOff, Loader2, Search, Target, AlertTriangle, ListChecks, Lightbulb, Sparkles } from "lucide-react";
 import { trackEvent } from "@/components/posthog-provider";
+
+/** Pick a lucide icon for a starter suggestion by intent, so the empty
+ *  state reads as a set of capabilities rather than a wall of grey text.
+ *  Works for both the static fallbacks and the personalised strings from
+ *  /api/chat/suggestions. */
+function suggestionIcon(text: string): typeof Compass {
+  const t = text.toLowerCase();
+  if (/risk|stall|stuck|slipping|losing|attention|overdue|cold/.test(t)) return AlertTriangle;
+  if (/email|outreach|follow.?up|follow up|followed|draft|reply|message|reach out|nudge/.test(t)) return Mail;
+  if (/focus|today|priorit|plan\b|next|to.?do|agenda/.test(t)) return ListChecks;
+  if (/pipeline|opportunit|deal|forecast|revenue|summar|quota|stage/.test(t)) return Target;
+  if (/research|find|who\b|enrich|\bicp\b|account|compan|prospect|lead|market/.test(t)) return Search;
+  if (/coach|improve|prepare|meeting|advice|practice|objection|pitch/.test(t)) return Lightbulb;
+  return Sparkles;
+}
 
 export default function ChatPage() {
   const searchParams = useSearchParams();
@@ -336,26 +351,26 @@ export default function ChatPage() {
       {/* Messages area */}
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:py-8">
         {chat.messages.length === 0 && threadLoaded && (
-          <div className="mx-auto flex min-h-[60vh] max-w-[740px] flex-col items-center justify-center">
+          <div className="mx-auto flex min-h-[60vh] max-w-[600px] flex-col items-center justify-center px-2">
             <div
-              className="flex h-10 w-10 items-center justify-center rounded-xl"
-              style={{ background: "var(--color-accent-soft)" }}
+              className="flex h-12 w-12 items-center justify-center rounded-2xl"
+              style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
             >
-              <Compass size={20} style={{ color: "var(--color-accent)" }} />
+              <Compass size={24} />
             </div>
             <h2
-              className="mt-4 text-xl font-semibold"
-              style={{ color: "var(--color-text-primary)" }}
+              className="mt-5 text-[26px] font-semibold"
+              style={{ color: "var(--color-text-primary)", letterSpacing: "-0.4px" }}
             >
-              {greeting && (firstName ? `${greeting}, ${firstName}` : greeting)}
+              {greeting ? (firstName ? `${greeting}, ${firstName}` : greeting) : "How can I help?"}
             </h2>
             <p
-              className="mt-1.5 text-[13px]"
+              className="mt-2 text-[13px]"
               style={{ color: "var(--color-text-tertiary)" }}
             >
-              Your GTM copilot is ready. Ask about your pipeline, draft outreach, or get deal coaching.
+              Ask about your pipeline, draft outreach, or research an account.
             </p>
-            <div className="mt-8 grid w-full max-w-lg grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="mt-7 grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
               {(suggestions.length > 0
                 ? suggestions
                 : [
@@ -366,20 +381,41 @@ export default function ChatPage() {
                     "Who haven't I followed up with?",
                     "Research my top accounts to refine my ICP",
                   ]
-              ).map((suggestion) => (
-                <button
-                  key={suggestion}
-                  onClick={() => useSuggestion(suggestion)}
-                  className="rounded-lg px-4 py-3 text-left text-[13px] transition-all hover:brightness-95"
-                  style={{
-                    background: "var(--color-bg-card)",
-                    color: "var(--color-text-secondary)",
-                    border: "1px solid var(--color-border-default)",
-                  }}
-                >
-                  {suggestion}
-                </button>
-              ))}
+              ).map((suggestion) => {
+                const Icon = suggestionIcon(suggestion);
+                return (
+                  <button
+                    key={suggestion}
+                    onClick={() => useSuggestion(suggestion)}
+                    className="group flex items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all duration-150 hover:-translate-y-px"
+                    style={{
+                      background: "var(--color-bg-card)",
+                      borderColor: "var(--color-border-default)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = "var(--color-border-focus)";
+                      e.currentTarget.style.boxShadow = "var(--shadow-card)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = "var(--color-border-default)";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    <span
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                      style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
+                    >
+                      <Icon size={15} />
+                    </span>
+                    <span
+                      className="text-[13px] leading-[1.35]"
+                      style={{ color: "var(--color-text-secondary)" }}
+                    >
+                      {suggestion}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
