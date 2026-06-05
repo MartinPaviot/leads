@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { DetailPageSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { formatScore } from "@/lib/util/ui-utils";
 
 interface Account {
   id: string;
@@ -382,7 +383,22 @@ export default function AccountDetailPage() {
           {account.score != null && (
             <div>
               <p className="text-xs text-[var(--color-text-tertiary)]">Score</p>
-              <p className="text-sm font-medium text-[var(--color-text-primary)]">{Math.round(account.score)}</p>
+              {(() => {
+                const s = formatScore(account.score);
+                return s ? (
+                  <p className="flex items-center gap-1.5 text-sm font-medium">
+                    <span
+                      className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-full text-[10px] font-bold text-white"
+                      style={{ background: s.color }}
+                    >
+                      {s.grade}
+                    </span>
+                    <span style={{ color: s.color }}>{s.heat}</span>
+                  </p>
+                ) : (
+                  <p className="text-sm font-medium text-[var(--color-text-primary)]">{Math.round(account.score)}</p>
+                );
+              })()}
               {account.scoreReasons && account.scoreReasons.length > 0 && (
                 <ul className="mt-1 space-y-0.5">
                   {account.scoreReasons.slice(0, 3).map((r, i) => (
