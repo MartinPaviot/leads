@@ -25,7 +25,7 @@ import {
   Eye, Check, Search, Sparkles, Target, Plus, Gauge, Radio, Mic,
   TrendingUp, RefreshCw, DollarSign, AlertTriangle, type LucideIcon,
 } from "lucide-react";
-import { AppFrame, Avatar, Logo, PHOTO, clogo } from "./product-mockups";
+import { AppFrame, Avatar, Logo, clogo } from "./product-mockups";
 
 const BRAND = "linear-gradient(90deg,#17C3B2,#2C6BED,#FF7A3D)";
 const T = { text: "#1A1A2E", sec: "#64648C", ter: "#9CA3AF", border: "#E8E8F0", soft: "#EFEFF5", page: "#FAFAFA", card: "#FFFFFF", accent: "#2C6BED", accentSoft: "rgba(44,107,237,0.08)" };
@@ -129,7 +129,7 @@ function Sidebar({ active }: { active: string }) {
       {/* Footer height is locked to the chat bar's (BAR_H) so their top
           borders form one continuous line across the shell. */}
       <div className="flex h-[44px] shrink-0 items-center gap-2 border-t px-3" style={{ borderColor: T.soft }}>
-        <Avatar src={PHOTO.martin} size={20} /><span className="text-[11px] font-medium" style={{ color: T.text }}>Martin</span>
+        <Avatar name="Martin Paviot" size={20} /><span className="text-[11px] font-medium" style={{ color: T.text }}>Martin</span>
       </div>
     </aside>
   );
@@ -138,6 +138,8 @@ function Sidebar({ active }: { active: string }) {
 /* ── phase 1 · Accounts (TAM table) ─────────────────────────────── */
 
 function AccountsPhase({ reduced }: { reduced: boolean }) {
+  const [built, setBuilt] = useState(reduced);
+  useEffect(() => { if (reduced) return; const t = setTimeout(() => setBuilt(true), 2600); return () => clearTimeout(t); }, [reduced]);
   const rows = [
     { dom: "linear.app", n: "Linear", ind: "Dev tools", size: "180", s: 94, sig: ["Hiring", "YC"] },
     { dom: "notion.so", n: "Notion", ind: "Productivity", size: "600", s: 89, sig: ["Funding"] },
@@ -159,6 +161,22 @@ function AccountsPhase({ reduced }: { reduced: boolean }) {
         <HBtn icon={Target} act="score">Score</HBtn>
         <HBtn icon={Plus} gradient>Create</HBtn>
       </PageHeaderBar>
+      {/* Live build: the agent scans live databases and scores accounts
+          against the ICP — a progress bar fills, the count climbs, and each
+          row's status dot flips amber -> green as it's scored. */}
+      <div className="flex h-[28px] shrink-0 items-center gap-2 border-b px-4" style={{ borderColor: T.border, background: T.card }}>
+        {built ? (
+          <span className="flex items-center gap-1.5 text-[10.5px] font-medium" style={{ color: C.green }}><Check size={11} /> 544 accounts scored · 320 match ICP-1</span>
+        ) : (
+          <>
+            <motion.span className="inline-flex" animate={reduced ? undefined : { rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}><RefreshCw size={11} style={{ color: T.accent }} /></motion.span>
+            <span className="text-[10.5px] font-medium" style={{ color: T.sec }}>Scanning live B2B databases · scoring against ICP-1…</span>
+            <span className="relative ml-auto h-1 w-20 overflow-hidden rounded-full" style={{ background: T.soft }}>
+              <motion.span className="absolute inset-y-0 left-0 w-full rounded-full" style={{ background: T.accent, transformOrigin: "left" }} initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 2.5, ease: "easeInOut" }} />
+            </span>
+          </>
+        )}
+      </div>
       <FilterBar>
         {["All 544", "ICP-1 320", "ICP-2 188", "Customers 44", "Manual"].map((t) => { const on = t === "ICP-1 320"; return (
           <span key={t} className="shrink-0 rounded-md px-2 py-1 text-[11px] font-medium" style={{ background: on ? T.accentSoft : "transparent", color: on ? T.accent : T.ter }}>{t}</span>
@@ -180,11 +198,11 @@ function AccountsPhase({ reduced }: { reduced: boolean }) {
             </tr>
           </thead>
           <motion.tbody variants={listV} initial={reduced ? false : "hidden"} animate="show">
-            {rows.map((r) => (
+            {rows.map((r, i) => (
               <motion.tr key={r.n} variants={reduced ? undefined : itemV} style={{ borderBottom: `1px solid ${T.soft}` }}>
                 <td className="px-2 py-2">
                   <span className="flex items-center gap-2">
-                    <motion.span className="h-1.5 w-1.5 shrink-0 rounded-full" initial={reduced ? false : { background: C.amber }} animate={{ background: C.green }} transition={{ delay: reduced ? 0 : 0.9, duration: 0.4 }} />
+                    <motion.span className="h-1.5 w-1.5 shrink-0 rounded-full" initial={reduced ? false : { background: C.amber }} animate={{ background: C.green }} transition={{ delay: reduced ? 0 : 0.5 + i * 0.13, duration: 0.4 }} />
                     <Logo src={clogo(r.dom)} size={20} />
                     <span className="text-[11.5px] font-medium" style={{ color: T.text }}>{r.n}</span>
                   </span>
@@ -254,9 +272,9 @@ function UpNextPhase({ reduced }: { reduced: boolean }) {
         </div>
         <div className="mb-1.5 mt-3 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}><Users size={10} /> Hot contacts</div>
         <div className="space-y-1.5">
-          {[{ photo: PHOTO.julien, n: "Julien Meyer", t: "VP Sales · Linear", s: 92 }, { photo: PHOTO.sarah, n: "Sarah Klein", t: "COO · Notion", s: 88 }, { photo: PHOTO.tom, n: "Tom Bauer", t: "Founder · Webflow", s: 81 }].map((p) => (
+          {[{ n: "Julien Meyer", t: "VP Sales · Linear", s: 92 }, { n: "Sarah Klein", t: "COO · Notion", s: 88 }, { n: "Tom Bauer", t: "Founder · Webflow", s: 81 }].map((p) => (
             <div key={p.n} className="flex items-center gap-2 rounded-lg border px-2.5 py-1.5" style={{ borderColor: T.border, background: T.card }}>
-              <Avatar src={p.photo} size={22} /><div className="min-w-0 flex-1"><div className="truncate text-[11px] font-medium" style={{ color: T.text }}>{p.n}</div><div className="truncate text-[10px]" style={{ color: T.ter }}>{p.t}</div></div><ScorePill score={p.s} />
+              <Avatar name={p.n} size={22} /><div className="min-w-0 flex-1"><div className="truncate text-[11px] font-medium" style={{ color: T.text }}>{p.n}</div><div className="truncate text-[10px]" style={{ color: T.ter }}>{p.t}</div></div><ScorePill score={p.s} />
             </div>
           ))}
         </div>
@@ -381,7 +399,7 @@ function MeetingsPhase({ reduced }: { reduced: boolean }) {
 
 /* ── phase 5 · Opportunities (the deal updates itself from the call) ─ */
 
-type Deal = { id: string; dom: string; n: string; val: string; chips: string[]; hot?: boolean };
+type Deal = { id: string; dom: string; n: string; val: string; chips: string[]; hot?: boolean; won?: boolean };
 
 function OpportunitiesPhase({ reduced }: { reduced: boolean }) {
   const [synced, setSynced] = useState(reduced);
@@ -399,54 +417,82 @@ function OpportunitiesPhase({ reduced }: { reduced: boolean }) {
     ? { id: "notion", dom: "notion.so", n: "Notion", val: "$40K", chips: ["Close Q3", "vs Salesforce"], hot: true }
     : { id: "notion", dom: "notion.so", n: "Notion", val: "$24K", chips: [] };
 
-  const columns: { name: string; deals: Deal[] }[] = [
-    { name: "Discovery", deals: [...(synced ? [] : [notion]), { id: "airtable", dom: "airtable.com", n: "Airtable", val: "$18K", chips: [] }, { id: "retool", dom: "retool.com", n: "Retool", val: "$15K", chips: [] }] },
-    { name: "Proposal", deals: [...(synced ? [notion] : []), { id: "figma", dom: "figma.com", n: "Figma", val: "$52K", chips: [] }, { id: "vercel", dom: "vercel.com", n: "Vercel", val: "$44K", chips: [] }] },
-    { name: "Negotiation", deals: [{ id: "webflow", dom: "webflow.com", n: "Webflow", val: "$28K", chips: [] }, { id: "ramp", dom: "ramp.com", n: "Ramp", val: "$61K", chips: [] }] },
+  // A full pipeline: five stages, the same ones the real Opportunities board
+  // uses (Qualified -> Discovery -> Proposal -> Negotiation -> Closed Won).
+  const columns: { name: string; tone: string; deals: Deal[] }[] = [
+    { name: "Qualified", tone: T.ter, deals: [
+      { id: "loom", dom: "loom.com", n: "Loom", val: "$12K", chips: [] },
+      { id: "intercom", dom: "intercom.com", n: "Intercom", val: "$20K", chips: [] },
+      { id: "posthog", dom: "posthog.com", n: "PostHog", val: "$9K", chips: [] },
+    ] },
+    { name: "Discovery", tone: C.blue, deals: [
+      ...(synced ? [] : [notion]),
+      { id: "airtable", dom: "airtable.com", n: "Airtable", val: "$18K", chips: [] },
+      { id: "retool", dom: "retool.com", n: "Retool", val: "$15K", chips: [] },
+    ] },
+    { name: "Proposal", tone: C.amber, deals: [
+      ...(synced ? [notion] : []),
+      { id: "figma", dom: "figma.com", n: "Figma", val: "$52K", chips: [] },
+      { id: "vercel", dom: "vercel.com", n: "Vercel", val: "$44K", chips: [] },
+    ] },
+    { name: "Negotiation", tone: "#C77BB0", deals: [
+      { id: "webflow", dom: "webflow.com", n: "Webflow", val: "$28K", chips: [] },
+      { id: "ramp", dom: "ramp.com", n: "Ramp", val: "$61K", chips: [] },
+    ] },
+    { name: "Closed Won", tone: C.green, deals: [
+      { id: "linear", dom: "linear.app", n: "Linear", val: "$36K", chips: [], won: true },
+      { id: "supabase", dom: "supabase.com", n: "Supabase", val: "$29K", chips: [], won: true },
+    ] },
   ];
+
+  const colSum = (deals: Deal[]) => deals.reduce((a, d) => a + parseInt(d.val.replace(/\D/g, ""), 10), 0);
+  const openTotal = columns.filter((c) => c.name !== "Closed Won").reduce((a, c) => a + colSum(c.deals), 0);
 
   return (
     <div className="flex h-full flex-col">
-      <PageHeaderBar icon={CircleDot} title="Opportunities" count="$258K open" />
+      <PageHeaderBar icon={CircleDot} title="Opportunities" count={`$${openTotal}K open`}>
+        <HBtn icon={Plus} gradient>New deal</HBtn>
+      </PageHeaderBar>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2.5" style={{ background: T.page }}>
         <div className="mb-2.5 flex items-center gap-2 rounded-lg border px-3 py-1.5 text-[11px] font-medium transition-colors"
           style={{ borderColor: synced ? "rgba(78,158,134,0.4)" : "rgba(44,107,237,0.22)", background: synced ? C.greenSoft : C.blueSoft, color: T.text }}>
           {synced
             ? <Check size={13} style={{ color: C.green }} />
             : <motion.span className="inline-flex" animate={reduced ? undefined : { rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}><RefreshCw size={12} style={{ color: T.accent }} /></motion.span>}
-          {synced ? "Notion deal updated from your Discovery call" : "Syncing notes from Notion · Discovery call…"}
+          {synced ? "Notion deal advanced to Proposal from your Discovery call" : "Syncing notes from Notion · Discovery call…"}
         </div>
 
         <LayoutGroup>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-5 gap-1.5">
             {columns.map((col) => (
-              <div key={col.name}>
-                <div className="mb-1.5 flex items-center justify-between px-0.5">
-                  <span className="text-[9.5px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>{col.name}</span>
-                  <span className="text-[9.5px]" style={{ color: T.ter }}>{col.deals.length}</span>
+              <div key={col.name} className="min-w-0">
+                <div className="mb-1.5 flex items-center gap-1 px-0.5">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: col.tone }} />
+                  <span className="truncate text-[8.5px] font-semibold uppercase tracking-wide" style={{ color: T.sec }}>{col.name}</span>
+                  <span className="ml-auto shrink-0 text-[8.5px] tabular-nums" style={{ color: T.ter }}>${colSum(col.deals)}K</span>
                 </div>
                 <div className="space-y-1.5">
                   {col.deals.map((d) => (
                     <motion.div key={d.id} layout={!reduced} layoutId={reduced ? undefined : d.id}
                       transition={{ layout: { duration: 0.55, ease: [0.22, 0.61, 0.36, 1] } }}
-                      className="relative rounded-lg border px-2.5 py-2"
+                      className="relative rounded-lg border px-1.5 py-1.5"
                       style={{ background: T.card, borderColor: d.hot ? "rgba(78,158,134,0.55)" : T.border, boxShadow: d.hot ? "0 0 0 1px rgba(78,158,134,0.25)" : "0 1px 2px rgba(26,26,46,0.04)" }}>
                       {d.hot && !reduced && (
                         <motion.span aria-hidden className="pointer-events-none absolute -inset-px rounded-lg" style={{ border: `1.5px solid ${C.green}` }}
                           initial={{ opacity: 0.85, scale: 1 }} animate={{ opacity: 0, scale: 1.08 }} transition={{ duration: 1, ease: "easeOut" }} />
                       )}
-                      <div className="flex items-center gap-1.5">
-                        <Logo src={clogo(d.dom)} size={15} />
-                        <span className="text-[11px] font-medium" style={{ color: T.text }}>{d.n}</span>
-                        <span className="ml-auto flex items-center gap-1 text-[11px] font-semibold tabular-nums" style={{ color: d.hot ? C.green : T.text }}>
-                          {d.hot && <TrendingUp size={10} />}{d.val}
-                        </span>
+                      <div className="flex items-center gap-1">
+                        <Logo src={clogo(d.dom)} name={d.n} size={13} />
+                        <span className="truncate text-[10px] font-medium" style={{ color: T.text }}>{d.n}</span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-0.5 text-[10px] font-semibold tabular-nums" style={{ color: d.hot || d.won ? C.green : T.text }}>
+                        {(d.hot || d.won) && <TrendingUp size={9} />}{d.val}
                       </div>
                       {d.chips.length > 0 && (
-                        <motion.div className="mt-1.5 flex flex-wrap gap-1"
+                        <motion.div className="mt-1 flex flex-wrap gap-0.5"
                           initial={reduced ? false : { opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: reduced ? 0 : 0.45 }}>
                           {d.chips.map((c) => (
-                            <span key={c} className="rounded px-1.5 py-0.5 text-[9px] font-medium" style={{ background: C.blueSoft, color: T.accent }}>{c}</span>
+                            <span key={c} className="rounded px-1 py-0.5 text-[8px] font-medium" style={{ background: C.blueSoft, color: T.accent }}>{c}</span>
                           ))}
                         </motion.div>
                       )}

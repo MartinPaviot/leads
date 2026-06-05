@@ -10,7 +10,7 @@
 
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { motion, useInView, useReducedMotion } from "framer-motion";
-import { AppFrame, Logo, clogo } from "./product-mockups";
+import { AppFrame } from "./product-mockups";
 import {
   AccountsPhase,
   UpNextPhase,
@@ -59,17 +59,6 @@ const steps: { label: string; headline: string; body: string; Phase: Phase }[] =
     body: "Query in plain language and get an answer in seconds, each one cited to the exact email or call transcript it came from.",
     Phase: ChatPhase,
   },
-];
-
-// The same account carried through every step — the visible proof that
-// Elevay is one connected system with memory, not six separate tools.
-const thread = [
-  "scored into your TAM",
-  "flagged, 12 days silent",
-  "re-engagement drafted",
-  "discovery call captured",
-  "advanced to Proposal",
-  "everything, one answer",
 ];
 
 // Per-phase frame height: tall enough for the dense pages (they auto-pan the
@@ -173,13 +162,6 @@ export function ProcessSteps() {
               </div>
               <h3 className="mt-3 text-[24px] font-bold leading-snug tracking-tight text-gray-900">{s.headline}</h3>
               <p className="mt-3 max-w-md text-[15px] leading-relaxed text-gray-600">{s.body}</p>
-              {/* The thread: the same account, one stage further each step. */}
-              <div className="mt-4 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-[5px] text-[11px]" style={{ borderColor: "rgba(44,107,237,0.22)", background: "rgba(44,107,237,0.05)" }}>
-                <Logo src={clogo("notion.so")} size={14} rounded="rounded-[4px]" bordered={false} />
-                <span className="font-semibold text-gray-700">Notion</span>
-                <span className="text-gray-300">·</span>
-                <span className="text-gray-500">{thread[i]}</span>
-              </div>
             </div>
             <div className={`min-w-0 ${flip ? "lg:order-1" : ""}`}>
               <AnimatedSurface Phase={s.Phase} h={heights[i]} />
