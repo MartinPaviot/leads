@@ -157,6 +157,7 @@ export default function AccountsPage() {
   const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null);
   const [expandedContacts, setExpandedContacts] = useState<Array<{ id: string; firstName: string | null; lastName: string | null; title: string | null; email: string | null; status?: string }>>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
+  const [findingContacts, setFindingContacts] = useState(false);
   const { fields: customFields } = useCustomFields("company");
   // Warm-intro paths from the relationship graph (primitive ②).
   // Keyed by company.id → list of { viaUserId, viaUserName, contactName, strength, ... }.
@@ -599,6 +600,41 @@ export default function AccountsPage() {
       console.warn("accounts: extract contacts failed", e);
     } finally {
       setExtractingContacts(false);
+    }
+  }
+
+  /** Find contacts for a single (expanded) account via Apollo, then refresh
+   *  the inline contacts list. Wired to the empty-state CTA so the user can
+   *  act on "No contacts found" instead of hitting a dead end. */
+  async function findContactsForExpanded(accountId: string) {
+    setFindingContacts(true);
+    try {
+      const res = await fetch("/api/accounts/extract-contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountIds: [accountId] }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast(data?.error || "Failed to find contacts.", "error");
+        return;
+      }
+      // Refresh the inline list regardless of count.
+      setLoadingContacts(true);
+      const cr = await fetch(`/api/accounts/${accountId}/contacts`);
+      const cd = cr.ok ? await cr.json() : { contacts: [] };
+      setExpandedContacts(cd.contacts || []);
+      setLoadingContacts(false);
+      if (data.totalCreated > 0) {
+        toast(`Added ${data.totalCreated} contact${data.totalCreated === 1 ? "" : "s"}.`, "success");
+      } else {
+        toast("No contacts found for this account on Apollo.", "info");
+      }
+    } catch (e) {
+      toast("Failed to find contacts.", "error");
+      console.warn("accounts: find contacts for expanded failed", e);
+    } finally {
+      setFindingContacts(false);
     }
   }
 
@@ -1906,7 +1942,25 @@ export default function AccountsPage() {
                               ))}
                             </div>
                           ) : (
-                            <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>No contacts found at this account.</p>
+                            <div className="flex items-center gap-3">
+                              <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>No contacts found at this account.</p>
+                              {account.domain ? (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); findContactsForExpanded(account.id); }}
+                                  disabled={findingContacts}
+                                  className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-60"
+                                  style={{ background: "var(--color-bg-hover)", color: "var(--color-text-secondary)" }}
+                                >
+                                  {findingContacts ? (
+                                    <><Loader2 size={11} className="animate-spin" /> Finding contacts…</>
+                                  ) : (
+                                    <><UserPlus size={11} /> Find contacts</>
+                                  )}
+                                </button>
+                              ) : (
+                                <span className="text-[11px]" style={{ color: "var(--color-text-muted)" }}>Add a domain to find contacts.</span>
+                              )}
+                            </div>
                           )}
                         </div>
                       </td>
