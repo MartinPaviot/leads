@@ -1,0 +1,22 @@
+# Fly.io config for the Elevay voice transcription bridge.
+# Deploy from app/apps/web:
+#   fly apps create elevay-voice-bridge      (once; or edit `app` below)
+#   fly secrets set -a elevay-voice-bridge DEEPGRAM_API_KEY=... DATABASE_URL=... ANTHROPIC_API_KEY=...
+#   fly deploy -c fly.voice-bridge.toml --dockerfile Dockerfile.voice-bridge
+app = "elevay-voice-bridge"
+primary_region = "cdg"   # Paris — EU, close to elevay.dev + FR/CH prospects
+
+[build]
+  dockerfile = "Dockerfile.voice-bridge"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # WebSocket handshakes die on cold starts — keep one machine always warm.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

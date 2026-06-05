@@ -1,0 +1,28 @@
+# syntax=docker/dockerfile:1
+# Live-transcription bridge: Twilio Media Streams <-> Deepgram Nova-3.
+# A long-running WebSocket server — must NOT run on Vercel (serverless
+# kills long-lived WS). Deploy on Fly.io / Railway. Build context = app/apps/web.
+FROM node:22-slim
+WORKDIR /app
+
+# Same deps Vercel installs for the web app, plus tsx to run the TypeScript
+# bridge directly. tsx is intentionally NOT in package.json (Vercel doesn't
+# need it), so it's added only in this image.
+COPY package.json ./
+RUN npm install --no-audit --no-fund \
+ && npm install --no-audit --no-fund tsx@^4.19.0
+
+# Source the bridge imports: tsconfig paths (@/* -> ./src/*), the voice
+# bridge + AI provider + db layer under src/, and the script itself.
+COPY tsconfig.json ./
+COPY src ./src
+COPY scripts ./scripts
+
+ENV NODE_ENV=production
+# Fly/Railway terminate TLS and proxy external wss:// to this internal port.
+ENV VOICE_STREAM_PORT=8080
+EXPOSE 8080
+
+# Secrets (DEEPGRAM_API_KEY, DATABASE_URL, optional ANTHROPIC_API_KEY for
+# live coaching) come from the host env at runtime — never baked into the image.
+CMD ["node", "--import", "tsx", "scripts/voice-stream-server.ts"]
