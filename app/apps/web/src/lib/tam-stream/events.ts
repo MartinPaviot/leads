@@ -259,6 +259,16 @@ export interface BuildRequest {
    * instead of the LLM planner over the tenant's flat settings. Absent
    * → legacy tenant-wide planner (unchanged). */
   icpId?: string;
+  /** UI-driven Apollo facet overrides from the accounts list's
+   * sector/geography filters. When present, every sourcing strategy is
+   * narrowed to these before hitting Apollo, so "Find more accounts"
+   * with a filter active pulls exactly that slice. `industries` are
+   * merged into each strategy's keyword tags; `geographies` REPLACE the
+   * strategy's own locations. */
+  apolloOverrides?: {
+    industries?: string[];
+    geographies?: string[];
+  };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────

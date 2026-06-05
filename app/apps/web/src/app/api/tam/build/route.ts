@@ -330,6 +330,35 @@ export async function POST(req: Request) {
         if (icpName) {
           console.log(`[tam-stream ${jobId.slice(0, 8)}] ICP mode — sourcing for "${icpName}"`);
         }
+
+        // ── UI facet overrides (accounts-list sector/geography) ──
+        // Narrow every strategy to the picked industries/geographies so
+        // the same filters the user reads in the accounts table can be
+        // "called into Apollo" to source exactly that slice. Geographies
+        // replace the strategy's own locations (the filter is the intent);
+        // industries are unioned into the keyword tags.
+        const ov = body.apolloOverrides;
+        const hasOverrides = !!ov && ((ov.industries?.length ?? 0) > 0 || (ov.geographies?.length ?? 0) > 0);
+        const effectiveStrategies = hasOverrides
+          ? strategies.map((s: { label: string; reasoning: string; filters: OrgSearchParams }) => ({
+              ...s,
+              filters: {
+                ...s.filters,
+                ...(ov!.geographies?.length ? { organization_locations: ov!.geographies } : {}),
+                ...(ov!.industries?.length
+                  ? {
+                      q_organization_keyword_tags: Array.from(
+                        new Set([...(s.filters.q_organization_keyword_tags ?? []), ...ov!.industries]),
+                      ),
+                    }
+                  : {}),
+              },
+            }))
+          : strategies;
+        if (hasOverrides) {
+          console.log(`[tam-stream ${jobId.slice(0, 8)}] apollo overrides — industries=${ov!.industries?.join("|") ?? "-"} geographies=${ov!.geographies?.join("|") ?? "-"}`);
+        }
+
         summary.strategiesRun = strategies.length;
         send({
           type: "strategy.generated",
@@ -343,7 +372,7 @@ export async function POST(req: Request) {
         const allPerCompanyWork: Promise<void>[] = [];
         const limiter = createLimiter(MAX_CONCURRENT_PIPELINES);
 
-        outer: for (const strategy of strategies) {
+        outer: for (const strategy of effectiveStrategies) {
           if (abortController.signal.aborted) break;
 
           let added = 0;
