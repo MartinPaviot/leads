@@ -18,3 +18,6 @@ app/apps/admin/next-env.d.ts
 _inngest-*.log
 .claude/scheduled_tasks.lock
 _research/raw/lightfield-extraction/edge-profile/
+
+# Regenerated dev/build/redeploy server logs
+_*.log
