@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Mail, Target, AlertTriangle, Zap, Search, CheckCircle2,
-  Clock, ArrowRight, XCircle, Loader2, Bot, ChevronRight,
+  Clock, ArrowRight, XCircle, Loader2, Compass, ChevronRight,
 } from "lucide-react";
 
 interface Reaction {
@@ -180,7 +180,7 @@ export function AgentFeed() {
       {/* Empty state */}
       {!hasContent && (
         <div className="py-12 text-center">
-          <Bot className="mx-auto h-10 w-10 mb-3" style={{ color: "var(--color-text-tertiary)" }} />
+          <Compass className="mx-auto h-10 w-10 mb-3" style={{ color: "var(--color-text-tertiary)" }} />
           <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
             I'll start showing activity here as events come in.
           </p>
@@ -287,7 +287,7 @@ function WorkItemCard({ item }: { item: WorkItem }) {
 }
 
 function ReactionCard({ reaction }: { reaction: Reaction }) {
-  const trigger = TRIGGER_LABELS[reaction.trigger] || { label: reaction.trigger, icon: Bot };
+  const trigger = TRIGGER_LABELS[reaction.trigger] || { label: reaction.trigger, icon: Compass };
   const TriggerIcon = trigger.icon;
   const entityLabel = reaction.contextSnapshot?.entityLabel || reaction.entityId;
   const actions = reaction.decision?.actions || [];
