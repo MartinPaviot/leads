@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import Link from "next/link";
 
 interface Note {
   id: string;
@@ -55,6 +56,20 @@ function entityIcon(entityType: string | null) {
       return <User size={11} />;
     case "deal":
       return <Briefcase size={11} />;
+    default:
+      return null;
+  }
+}
+
+function entityHref(entityType: string | null, entityId: string | null): string | null {
+  if (!entityType || !entityId) return null;
+  switch (entityType) {
+    case "company":
+      return `/accounts/${entityId}`;
+    case "contact":
+      return `/contacts/${entityId}`;
+    case "deal":
+      return `/opportunities/${entityId}`;
     default:
       return null;
   }
@@ -236,14 +251,18 @@ export default function NotesPage() {
                       {note.title}
                     </span>
                   )}
-                  {note.entityType && (
-                    <Badge variant="neutral" size="sm">
-                      <span className="flex items-center gap-1">
-                        {entityIcon(note.entityType)}
-                        {note.entityName || note.entityType}
-                      </span>
-                    </Badge>
-                  )}
+                  {note.entityType && (() => {
+                    const href = entityHref(note.entityType, note.entityId);
+                    const badge = (
+                      <Badge variant="neutral" size="sm">
+                        <span className="flex items-center gap-1">
+                          {entityIcon(note.entityType)}
+                          {note.entityName || note.entityType}
+                        </span>
+                      </Badge>
+                    );
+                    return href ? <Link href={href} className="hover:underline">{badge}</Link> : badge;
+                  })()}
                   <span className="ml-auto shrink-0 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
                     {relativeTime(note.createdAt)}
                   </span>

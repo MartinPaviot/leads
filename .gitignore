@@ -2,6 +2,7 @@ _credentials/
 node_modules/
 .env*
 !.env.example
+.vercel-prod.env
 .next/
 dist/
 harness/

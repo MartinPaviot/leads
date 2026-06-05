@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, Trash2, type LucideIcon } from "lucide-react";
 import { SmartImport } from "@/components/smart-import";
 import { CompanyLogo } from "@/components/ui/company-logo";
@@ -603,7 +604,18 @@ export default function ContactsPage() {
                     <td>
                       {contact.companyName ? (
                         <div className="flex items-center gap-1.5">
-                          <span className="truncate text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{contact.companyName}</span>
+                          {contact.companyId ? (
+                            <Link
+                              href={`/accounts/${contact.companyId}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="truncate text-[12px] hover:underline"
+                              style={{ color: "var(--color-text-secondary)" }}
+                            >
+                              {contact.companyName}
+                            </Link>
+                          ) : (
+                            <span className="truncate text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{contact.companyName}</span>
+                          )}
                           {contact.companyDomain && (
                             <a href={`https://${contact.companyDomain}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
                               <ExternalLink size={10} style={{ color: "var(--color-accent)", opacity: 0.5 }} />

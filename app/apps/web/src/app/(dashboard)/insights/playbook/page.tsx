@@ -252,12 +252,12 @@ function EmptyState() {
         color: "var(--color-text-tertiary)",
       }}
     >
-      No entries yet. The capture Inngest fn fans in from calls,
-      meetings, and replies once the LLM extractor is wired — or use{" "}
+      No entries yet. Objections, hooks and questions are captured
+      automatically from your calls, meetings and replies — or use{" "}
       <strong style={{ color: "var(--color-text-secondary)" }}>
         Add entry
       </strong>{" "}
-      to record one directly.
+      to record one yourself.
     </div>
   );
 }

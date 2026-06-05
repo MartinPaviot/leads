@@ -242,17 +242,21 @@ export default function DeliverabilityPage() {
   return (
     <div className="flex h-full flex-col animate-content-in">
       <PageHeader title="Deliverability" subtitle="Email sending health and monitoring">
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Health Score</p>
-            <p className={`text-2xl font-bold ${getHealthColor(data.healthLabel)}`}>
-              {data.healthScore}
-            </p>
+        {data.totalSent === 0 ? (
+          <Badge variant="info" size="md">No sends yet</Badge>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Health Score</p>
+              <p className={`text-2xl font-bold ${getHealthColor(data.healthLabel)}`}>
+                {data.healthScore}
+              </p>
+            </div>
+            <Badge variant={getHealthBadgeVariant(data.healthLabel)} size="md">
+              {data.healthLabel.toUpperCase()}
+            </Badge>
           </div>
-          <Badge variant={getHealthBadgeVariant(data.healthLabel)} size="md">
-            {data.healthLabel.toUpperCase()}
-          </Badge>
-        </div>
+        )}
       </PageHeader>
 
       <div className="flex-1 overflow-auto px-4 py-6">

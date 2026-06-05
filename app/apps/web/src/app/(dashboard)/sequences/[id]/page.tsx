@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -575,7 +576,11 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
                     <tbody>
                       {enrollments.slice(0, 20).map((e) => (
                         <tr key={e.id} style={{ borderBottom: "1px solid var(--color-border-default)" }}>
-                          <td className="px-4 py-2.5" style={{ color: "var(--color-text-primary)" }}>{e.contactName}</td>
+                          <td className="px-4 py-2.5">
+                            <Link href={`/contacts/${e.contactId}`} className="hover:underline" style={{ color: "var(--color-accent)" }}>
+                              {e.contactName}
+                            </Link>
+                          </td>
                           <td className="px-4 py-2.5" style={{ color: "var(--color-text-secondary)" }}>{e.contactEmail || "—"}</td>
                           <td className="px-4 py-2.5" style={{ color: "var(--color-text-secondary)" }}>{e.currentStep}/{steps.length}</td>
                           <td className="px-4 py-2.5">

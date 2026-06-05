@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
+import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
 import { Phone, MousePointerClick, Eye, Globe, Flame } from "lucide-react";
 
@@ -57,6 +58,7 @@ const DEFAULT_HOURS = 168;
 
 export default function HotToCallPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
   const [windowHours, setWindowHours] = useState(DEFAULT_HOURS);
   const [hours, setHours] = useState(DEFAULT_HOURS);
@@ -99,17 +101,15 @@ export default function HotToCallPage() {
           }
           return;
         }
-        toast(
-          `Call initiated — ringing… open Softphone for the live UI.`,
-          "success",
-        );
+        toast(`Call initiated — ringing…`, "success");
+        router.push("/call-mode");
       } catch (err) {
         toast(err instanceof Error ? err.message : "Network error", "error");
       } finally {
         setDialingContactId(null);
       }
     },
-    [toast],
+    [toast, router],
   );
 
   const fetchItems = useCallback(async (windowH: number) => {
@@ -375,10 +375,9 @@ function EmptyState({ hours }: { hours: number }) {
         color: "var(--color-text-tertiary)",
       }}
     >
-      No callable hot leads in the last {hours}h. Either no signals fired, or
-      none of the engaged contacts have a phone on file. Contacts get a phone
-      via Apollo enrichment (the Kaspr / Lusha waterfall is a follow-up — voice
-      Phase 1 ships the dialer; Phase 2 adds the number waterfall).
+      No callable hot leads in the last {hours}h. Either no engagement signals
+      have fired yet, or the engaged contacts don't have a phone number on
+      file. Phone numbers are added automatically when contacts are enriched.
     </div>
   );
 }

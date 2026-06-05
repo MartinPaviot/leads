@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/input";
+import Link from "next/link";
 
 interface Task {
   id: string;
@@ -70,6 +71,20 @@ function entityIcon(entityType: string | null) {
       return <User size={11} />;
     case "deal":
       return <Briefcase size={11} />;
+    default:
+      return null;
+  }
+}
+
+function entityHref(entityType: string | null, entityId: string | null): string | null {
+  if (!entityType || !entityId) return null;
+  switch (entityType) {
+    case "company":
+      return `/accounts/${entityId}`;
+    case "contact":
+      return `/contacts/${entityId}`;
+    case "deal":
+      return `/opportunities/${entityId}`;
     default:
       return null;
   }
@@ -383,11 +398,21 @@ export default function TasksPage() {
             {Array.from(grouped.groups.entries()).map(([key, groupTasks]) => {
               const first = groupTasks[0];
               const entityLabel = first.entityName || first.entityType || "Unknown";
+              const entityLink = entityHref(first.entityType, first.entityId);
               return (
                 <div key={key}>
                   <h2 className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-accent)" }}>
-                    {entityIcon(first.entityType)}
-                    {entityLabel}
+                    {entityLink ? (
+                      <Link href={entityLink} className="flex items-center gap-1.5 hover:underline">
+                        {entityIcon(first.entityType)}
+                        {entityLabel}
+                      </Link>
+                    ) : (
+                      <>
+                        {entityIcon(first.entityType)}
+                        {entityLabel}
+                      </>
+                    )}
                     <span className="font-normal" style={{ color: "var(--color-text-muted)" }}>
                       ({groupTasks.length})
                     </span>
