@@ -1,0 +1,33 @@
+ELEVAY PRODUCT AUDIT — PROGRESS / CRASH RECOVERY
+Started 2026-06-05. Scope: full product, live on PROD (www.elevay.dev), tenant 47dca783.
+
+== PHASES ==
+[x] Scaffolding (_audit/ README, journey-graph, gap-register, progress)
+[x] Static baseline (6/6) → _audit/code-analysis/*.md + baseline-synthesis.md
+        [x] crm.md   [x] engage.md   [x] activity-home.md
+        [x] ai-chat.md   [x] entry-funnel.md   [x] settings.md
+[ ] Prod login (Phase A = fresh signup, no existing creds needed; Phase B = martin@elevay.dev, try Ks7xR4mP2vL8jF3b!q / 1EjU7nGru2Ve, else ask)
+[ ] Live walk (Playwright solo) — Phase A funnel+empty (fresh signup), Phase B seams (tenant 47dca783)
+[ ] Seams graded (seams.md)
+[ ] Gap register consolidated + synthesis
+
+== LIVE WALK CHECKLIST (tick when fiche written to _audit/nodes/) ==
+Funnel:  [ ] F1 landing [ ] F2 sign-up [ ] F3 verify [ ] F4 onboarding [ ] F5 sign-in [ ] F6 accept-invite
+Setup:   [ ] C1 settings/icp [ ] C2 icp-profiles
+CRM:     [ ] N1 accounts [ ] N2 account [ ] N3 brain [ ] N4 contacts [ ] N5 contact [ ] N6 merge [ ] N7 opps [ ] N8 opp [ ] N9 proposals
+Engage:  [ ] N10 inbox [ ] N11 call-mode [ ] N12 sequences [ ] N13 sequence [ ] N15 deliverability
+Activity:[ ] N16 home [ ] N17 cs/today [ ] N18 meetings [ ] N19 meeting [ ] N20 notes [ ] N21 tasks
+Insights:[ ] N22 insights [ ] N23 hot-to-call [ ] N24 playbook [ ] N25 pilae [ ] N26 reports
+AI:      [ ] N27 chat [ ] N28 knowledge [ ] N29 skills [ ] N30 voice-of-customer [ ] N31 graph
+Settings:[ ] sweep (~27 pages; deep on guardrails/agent/autonomy/signals/workflows/capture-approvals)
+
+== RESUME FROM ==
+Baseline done + committed. Next: Playwright → prod landing → Phase A fresh signup (audit-0605@elevay.dev)
+to audit funnel F1-F4 + onboarding reality + empty states + ICP->TAM first run. Then Phase B on tenant 47dca783.
+See baseline-synthesis.md "Hypothèses à vérifier live" (P0..P2) for the ordered check plan.
+Fresh test tenant created in Phase A = note in accounts.json + flag for cleanup.
+
+== NOTES ==
+- One browser at a time: no bg agent may touch Playwright while live walk runs.
+- Read-only on prod: NO mutations (no test campaigns, no deletes, no sends).
+- Known issues pre-listed in README (don't re-flag).
