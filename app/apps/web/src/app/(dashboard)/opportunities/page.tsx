@@ -24,6 +24,7 @@ import { CompanyLogo } from "@/components/ui/company-logo";
 import { KanbanColumnSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { BulkActionsBar } from "@/components/ui/bulk-actions-bar";
 
 /* ── Types ── */
 
@@ -190,9 +191,10 @@ export default function OpportunitiesPage() {
   const displayPanelRef = useRef<HTMLDivElement>(null);
   const filterPanelRef = useRef<HTMLDivElement>(null);
 
-  // Delete confirmation
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  // Delete confirmation — single row or multi-select (table view).
+  const [deleteTarget, setDeleteTarget] = useState<{ type: "single" | "bulk"; id?: string; name?: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
 
   // Drag & drop
   const [draggedDealId, setDraggedDealId] = useState<string | null>(null);
@@ -238,6 +240,9 @@ export default function OpportunitiesPage() {
 
   useEffect(() => { fetchDeals(); fetchAnalytics(); }, [fetchDeals, fetchAnalytics]);
   useEffect(() => { if (showCreate) { fetchAccounts(); fetchContacts(); } }, [showCreate, fetchAccounts, fetchContacts]);
+  // Multi-select only exists in the table view; drop it when switching to
+  // the board so the bulk bar can't linger over a view with no checkboxes.
+  useEffect(() => { if (viewMode !== "table") setSelectedRows(new Set()); }, [viewMode]);
 
   // Close ALL dropdowns/panels on outside click
   const accountDropdownRef = useRef<HTMLDivElement>(null);
@@ -381,26 +386,47 @@ export default function OpportunitiesPage() {
 
   function handleCardClick(id: string) { if (!isDraggingRef.current) router.push(`/opportunities/${id}`); }
 
-  // Soft-delete a single deal (confirmed via <ConfirmDialog>). Optimistic
-  // removal with rollback on failure, then a quick analytics refresh.
+  // Soft-delete one deal or the current multi-selection (confirmed via
+  // <ConfirmDialog>). Optimistic removal with rollback on failure, then a
+  // quick analytics refresh.
   async function performDelete() {
     if (!deleteTarget) return;
-    const { id } = deleteTarget;
+    const ids = deleteTarget.type === "single" && deleteTarget.id
+      ? [deleteTarget.id]
+      : Array.from(selectedRows);
+    if (ids.length === 0) { setDeleteTarget(null); return; }
     setDeleting(true);
     const prev = deals;
-    setDeals((p) => p.filter((d) => d.id !== id));
+    const idSet = new Set(ids);
+    setDeals((p) => p.filter((d) => !idSet.has(d.id)));
     try {
-      const r = await fetch(`/api/opportunities/${id}`, { method: "DELETE" });
-      if (!r.ok) {
+      const results = await Promise.all(
+        ids.map((id) =>
+          fetch(`/api/opportunities/${id}`, { method: "DELETE" })
+            .then((r) => r.ok)
+            .catch(() => false),
+        ),
+      );
+      const ok = results.filter(Boolean).length;
+      const failed = results.length - ok;
+      if (ok === 0) {
         setDeals(prev);
-        toast("Failed to delete opportunity", "error");
+        toast("Failed to delete opportunit" + (ids.length === 1 ? "y" : "ies"), "error");
       } else {
-        toast("Opportunity deleted", "success");
+        if (failed > 0) {
+          // Re-sync from server so the rows that failed to delete reappear.
+          fetchDeals();
+        }
+        toast(
+          `Deleted ${ok} opportunit${ok === 1 ? "y" : "ies"}${failed > 0 ? ` (${failed} failed)` : ""}`,
+          failed > 0 ? "warning" : "success",
+        );
+        setSelectedRows(new Set());
         fetchAnalytics();
       }
     } catch (e) {
       setDeals(prev);
-      toast("Failed to delete opportunity", "error");
+      toast("Failed to delete opportunities", "error");
       console.warn("opportunities: delete failed", e);
     } finally {
       setDeleting(false);
@@ -676,6 +702,19 @@ export default function OpportunitiesPage() {
 
   return (
     <div className="flex h-full flex-col animate-content-in" style={{ background: "var(--color-bg-card)" }}>
+      {/* Multi-select bar (table view) — appears when rows are checked. */}
+      <BulkActionsBar
+        count={selectedRows.size}
+        onClear={() => setSelectedRows(new Set())}
+        actions={[
+          {
+            label: "Delete",
+            icon: <Trash2 size={13} />,
+            variant: "danger",
+            onClick: () => setDeleteTarget({ type: "bulk" }),
+          },
+        ]}
+      />
       {/* Header */}
       <PageHeader
         icon={<CircleDot size={16} />}
@@ -1036,6 +1075,18 @@ export default function OpportunitiesPage() {
             <table className="w-full text-left">
               <thead>
                 <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border-default)" }}>
+                  <th className="px-3 py-2" style={{ width: 36 }}>
+                    <input
+                      type="checkbox"
+                      aria-label="Select all deals"
+                      checked={selectedRows.size > 0 && selectedRows.size === sortedDeals.length}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedRows(new Set(sortedDeals.map((d) => d.id)));
+                        else setSelectedRows(new Set());
+                      }}
+                      className="h-3.5 w-3.5 rounded"
+                    />
+                  </th>
                   {[
                     { key: "name" as SortField, label: "Deal", always: true },
                     { key: "companyName" as SortField, label: "Account", always: false, prop: "companyName" as DisplayPropKey },
@@ -1060,8 +1111,21 @@ export default function OpportunitiesPage() {
               </thead>
               <tbody>
                 {sortedDeals.map((deal) => (
-                  <tr key={deal.id} onClick={() => handleCardClick(deal.id)} className="cursor-pointer transition-colors" style={{ borderBottom: "1px solid var(--color-border-default)" }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                  <tr key={deal.id} data-selected={selectedRows.has(deal.id) ? "true" : undefined} onClick={() => handleCardClick(deal.id)} className="cursor-pointer transition-colors" style={{ borderBottom: "1px solid var(--color-border-default)", background: selectedRows.has(deal.id) ? "var(--color-bg-selected, var(--color-bg-hover))" : undefined }}
+                    onMouseEnter={(e) => { if (!selectedRows.has(deal.id)) e.currentTarget.style.background = "var(--color-bg-hover)"; }} onMouseLeave={(e) => { if (!selectedRows.has(deal.id)) e.currentTarget.style.background = "transparent"; }}>
+                    <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${deal.name}`}
+                        checked={selectedRows.has(deal.id)}
+                        onChange={(e) => {
+                          const next = new Set(selectedRows);
+                          if (e.target.checked) next.add(deal.id); else next.delete(deal.id);
+                          setSelectedRows(next);
+                        }}
+                        className="h-3.5 w-3.5 rounded"
+                      />
+                    </td>
                     <td className="px-3 py-2.5">
                       <span className="text-[13px] font-medium inline-flex items-center gap-1" style={{ color: "var(--color-text-primary)" }}>
                         {hasMomentum(deal) && <Zap size={12} style={{ color: "var(--color-warning)" }} aria-label="Momentum" />}
@@ -1125,7 +1189,7 @@ export default function OpportunitiesPage() {
                         type="button"
                         aria-label={`Delete ${deal.name}`}
                         title="Delete opportunity"
-                        onClick={() => setDeleteTarget({ id: deal.id, name: deal.name })}
+                        onClick={() => setDeleteTarget({ type: "single", id: deal.id, name: deal.name })}
                         className="inline-flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
                         style={{ color: "var(--color-text-muted)" }}
                       >
@@ -1134,7 +1198,7 @@ export default function OpportunitiesPage() {
                     </td>
                   </tr>
                 ))}
-                {sortedDeals.length === 0 && <tr><td colSpan={11} className="px-3 py-8 text-center text-sm" style={{ color: "var(--color-text-tertiary)" }}>No deals match your filters</td></tr>}
+                {sortedDeals.length === 0 && <tr><td colSpan={12} className="px-3 py-8 text-center text-sm" style={{ color: "var(--color-text-tertiary)" }}>No deals match your filters</td></tr>}
               </tbody>
             </table>
             {sortedDeals.length > 0 && (
@@ -1230,7 +1294,7 @@ export default function OpportunitiesPage() {
                           type="button"
                           aria-label={`Delete ${deal.name}`}
                           title="Delete opportunity"
-                          onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: deal.id, name: deal.name }); }}
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "single", id: deal.id, name: deal.name }); }}
                           onMouseDown={(e) => e.stopPropagation()}
                           className="absolute right-1.5 top-1.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
                           style={{ color: "var(--color-text-muted)", background: "var(--color-bg-card)" }}
@@ -1351,12 +1415,22 @@ export default function OpportunitiesPage() {
         onCancel={handleCloseReasonCancel}
       />
 
-      {/* Delete confirmation */}
+      {/* Delete confirmation — single row or multi-selection. */}
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete opportunity?"
-        description={`"${deleteTarget?.name || "This deal"}" will be removed from your pipeline. Its activity history is kept.`}
-        confirmLabel="Delete"
+        title={
+          deleteTarget?.type === "bulk"
+            ? `Delete ${selectedRows.size} opportunit${selectedRows.size === 1 ? "y" : "ies"}?`
+            : "Delete opportunity?"
+        }
+        description={
+          deleteTarget?.type === "bulk"
+            ? `The selected opportunit${selectedRows.size === 1 ? "y" : "ies"} will be removed from your pipeline. Their activity history is kept.`
+            : `"${deleteTarget?.name || "This deal"}" will be removed from your pipeline. Its activity history is kept.`
+        }
+        confirmLabel={
+          deleteTarget?.type === "bulk" ? `Delete ${selectedRows.size}` : "Delete"
+        }
         variant="destructive"
         busy={deleting}
         onConfirm={performDelete}
