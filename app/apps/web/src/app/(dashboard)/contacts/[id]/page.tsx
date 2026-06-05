@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Check, X, Pencil, TrendingUp, TrendingDown, Minus, Gauge, Mail, Send } from "lucide-react";
+import { Check, X, Pencil, TrendingUp, TrendingDown, Minus, Gauge, Mail, Send, Phone } from "lucide-react";
 import { ScopedChat } from "@/components/scoped-chat";
 import { EmailComposerPanel } from "@/components/email-composer-panel";
 import type { EmailComposerDraft } from "@/components/email-composer-panel";
@@ -60,6 +60,8 @@ interface Activity {
 export default function ContactDetailPage() {
   const params = useParams();
   const contactId = params.id as string;
+  const router = useRouter();
+  const [dialing, setDialing] = useState(false);
   const [contact, setContact] = useState<Contact | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [companies, setCompanies] = useState<Map<string, Company>>(new Map());
@@ -104,6 +106,36 @@ export default function ContactDetailPage() {
       toast("Couldn't save that change. Please try again.", "error");
       console.warn("contact-detail: updateField failed", { field, err });
       return false;
+    }
+  }
+
+  // S7 — start a call to this contact, mirroring the hot-to-call flow:
+  // POST /api/calls/start, then land on the live softphone. Voice-config
+  // and DNC/quiet-hours errors surface as toasts; navigation only on success.
+  async function startCall() {
+    if (!contact) return;
+    setDialing(true);
+    try {
+      const res = await fetch("/api/calls/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      if (!res.ok) {
+        if (data.code === "voice_not_configured") toast("Voice not configured — add Twilio creds in Settings.", "error");
+        else if (data.code === "no_phone") toast("Contact has no phone number.", "error");
+        else if (data.code === "dnc") toast("Contact is on the Do Not Call list.", "error");
+        else if (data.code === "quiet_hours") toast("Outside quiet-hours for this contact's timezone.", "error");
+        else toast(data.error ?? `Call failed (${res.status})`, "error");
+        return;
+      }
+      toast("Call initiated — ringing…", "success");
+      router.push("/call-mode");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Network error", "error");
+    } finally {
+      setDialing(false);
     }
   }
 
@@ -208,6 +240,18 @@ export default function ContactDetailPage() {
               })()}
             </p>
           </div>
+          {contact.phone && (
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Phone size={13} />}
+              onClick={startCall}
+              loading={dialing}
+              disabled={dialing}
+            >
+              {dialing ? "Dialing…" : "Call"}
+            </Button>
+          )}
           {contact.email && (
             <Button
               variant="outline"

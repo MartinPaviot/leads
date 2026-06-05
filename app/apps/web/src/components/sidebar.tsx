@@ -43,6 +43,8 @@ import {
   BookOpen,
   Wand2,
   Phone,
+  Gauge,
+  LineChart,
   type LucideIcon,
 } from "lucide-react";
 import { useTheme } from "@/components/ui/theme-provider";
@@ -93,6 +95,7 @@ const navSections = [
       { label: "Inbox", href: "/inbox", icon: Inbox },
       { label: "Call Mode", href: "/call-mode", icon: Phone },
       { label: "Campaigns", href: "/sequences", icon: Zap },
+      { label: "Deliverability", href: "/deliverability", icon: Gauge },
     ],
   },
   {
@@ -102,6 +105,7 @@ const navSections = [
       { label: "Notes", href: "/notes", icon: FileText },
       { label: "Tasks", href: "/tasks", icon: CheckSquare },
       { label: "Insights", href: "/insights", icon: BarChart3 },
+      { label: "Reports", href: "/reports", icon: LineChart },
     ],
   },
 ];
