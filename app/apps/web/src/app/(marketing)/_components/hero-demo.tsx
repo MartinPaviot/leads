@@ -92,7 +92,7 @@ function FilterBar({ children }: { children: React.ReactNode }) {
   return <div className="flex h-[36px] shrink-0 items-center gap-2 border-b px-4" style={{ borderColor: T.border, background: T.card }}>{children}</div>;
 }
 
-const listV = { hidden: {}, show: { transition: { staggerChildren: 0.1, delayChildren: 0.15 } } };
+const listV = { hidden: {}, show: { transition: { staggerChildren: 0.05, delayChildren: 0.12 } } };
 // Items don't just fade — they spring into place, so each one reads as having
 // "landed" rather than appeared. (opacity + y only; safe on table rows.)
 const itemV = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 340, damping: 26, mass: 0.7 } } };
@@ -144,7 +144,32 @@ function Sidebar({ active }: { active: string }) {
 
 function AccountsPhase({ reduced }: { reduced: boolean }) {
   const [built, setBuilt] = useState(reduced);
+  const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (reduced) return; const t = setTimeout(() => setBuilt(true), 2600); return () => clearTimeout(t); }, [reduced]);
+  // Once built, the TAM scrolls itself — the full list glides past so you see
+  // its breadth, not a static top. This is the one auto-scrolling list; every
+  // other phase fits its frame without scroll.
+  useEffect(() => {
+    if (reduced || !built) return;
+    const sc = listRef.current;
+    if (!sc) return;
+    let raf = 0, cancelled = false, dir = 1, last = performance.now();
+    const SPEED = 40; // px/sec — a gentle, continuous crawl
+    const tick = (now: number) => {
+      if (cancelled) return;
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      const max = sc.scrollHeight - sc.clientHeight;
+      if (max > 4) {
+        let next = sc.scrollTop + dir * SPEED * dt;
+        if (next >= max) { next = max; dir = -1; }
+        else if (next <= 0) { next = 0; dir = 1; }
+        sc.scrollTop = next;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => { cancelled = true; cancelAnimationFrame(raf); };
+  }, [reduced, built]);
   const rows = [
     { dom: "linear.app", n: "Linear", ind: "Dev tools", size: "180", s: 94, sig: ["Hiring", "YC"] },
     { dom: "notion.so", n: "Notion", ind: "Productivity", size: "600", s: 89, sig: ["Funding"] },
@@ -158,6 +183,22 @@ function AccountsPhase({ reduced }: { reduced: boolean }) {
     { dom: "posthog.com", n: "PostHog", ind: "Analytics", size: "90", s: 79, sig: ["Open source"] },
     { dom: "loom.com", n: "Loom", ind: "Video", size: "320", s: 76, sig: ["Hiring"] },
     { dom: "intercom.com", n: "Intercom", ind: "Support", size: "950", s: 83, sig: ["Enterprise"] },
+    { dom: "mixpanel.com", n: "Mixpanel", ind: "Analytics", size: "330", s: 80, sig: ["Hiring"] },
+    { dom: "segment.com", n: "Segment", ind: "Data", size: "420", s: 84, sig: ["Expanding"] },
+    { dom: "amplitude.com", n: "Amplitude", ind: "Analytics", size: "680", s: 82, sig: ["Public"] },
+    { dom: "datadoghq.com", n: "Datadog", ind: "Observability", size: "5000", s: 87, sig: ["Enterprise"] },
+    { dom: "snowflake.com", n: "Snowflake", ind: "Data cloud", size: "7000", s: 75, sig: ["Enterprise"] },
+    { dom: "stripe.com", n: "Stripe", ind: "Fintech", size: "8000", s: 91, sig: ["Expanding"] },
+    { dom: "plaid.com", n: "Plaid", ind: "Fintech", size: "1200", s: 85, sig: ["Funding"] },
+    { dom: "brex.com", n: "Brex", ind: "Fintech", size: "1100", s: 83, sig: ["Hiring"] },
+    { dom: "mercury.com", n: "Mercury", ind: "Fintech", size: "700", s: 88, sig: ["Funding", "Hiring"] },
+    { dom: "gusto.com", n: "Gusto", ind: "HR tech", size: "2500", s: 77, sig: ["Expanding"] },
+    { dom: "rippling.com", n: "Rippling", ind: "HR tech", size: "3000", s: 86, sig: ["Funding"] },
+    { dom: "deel.com", n: "Deel", ind: "HR tech", size: "4000", s: 84, sig: ["Expanding"] },
+    { dom: "calendly.com", n: "Calendly", ind: "Productivity", size: "600", s: 79, sig: ["Hiring"] },
+    { dom: "miro.com", n: "Miro", ind: "Collaboration", size: "1800", s: 81, sig: ["Enterprise"] },
+    { dom: "asana.com", n: "Asana", ind: "PM", size: "1700", s: 76, sig: ["Public"] },
+    { dom: "clickup.com", n: "ClickUp", ind: "PM", size: "1000", s: 80, sig: ["Hiring"] },
   ];
   return (
     <div className="flex h-full flex-col">
@@ -191,7 +232,7 @@ function AccountsPhase({ reduced }: { reduced: boolean }) {
       {/* Scrollable list: hover pauses the demo, so the full TAM can be
           scrolled before it advances. */}
       <div className="relative min-h-0 flex-1">
-        <div className="h-full overflow-y-auto px-3 pt-2">
+        <div ref={listRef} className="h-full overflow-y-auto px-3 pt-2">
         <table className="w-full" style={{ borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ color: T.ter }}>
@@ -207,7 +248,7 @@ function AccountsPhase({ reduced }: { reduced: boolean }) {
               <motion.tr key={r.n} variants={reduced ? undefined : itemV} style={{ borderBottom: `1px solid ${T.soft}` }}>
                 <td className="px-2 py-2">
                   <span className="flex items-center gap-2">
-                    <motion.span className="h-1.5 w-1.5 shrink-0 rounded-full" initial={reduced ? false : { background: C.amber }} animate={{ background: C.green }} transition={{ delay: reduced ? 0 : 0.5 + i * 0.13, duration: 0.4 }} />
+                    <motion.span className="h-1.5 w-1.5 shrink-0 rounded-full" initial={reduced ? false : { background: C.amber }} animate={{ background: C.green }} transition={{ delay: reduced ? 0 : 0.4 + i * 0.045, duration: 0.4 }} />
                     <Logo src={clogo(r.dom)} size={20} />
                     <span className="text-[11.5px] font-medium" style={{ color: T.text }}>{r.n}</span>
                   </span>

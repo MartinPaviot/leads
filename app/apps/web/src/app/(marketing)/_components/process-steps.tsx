@@ -64,7 +64,7 @@ const steps: { label: string; headline: string; body: string; Phase: Phase }[] =
 // Per-phase frame height, sized so each scene fits in one view: no inner
 // scroll and no dead band. Accounts (the TAM) is a list, so it stays a touch
 // taller and may scroll. Order matches `steps`.
-const heights = [470, 412, 444, 490, 318, 228];
+const heights = [540, 412, 444, 490, 318, 228];
 
 /**
  * A faithful product page that fades and settles into place as its step
