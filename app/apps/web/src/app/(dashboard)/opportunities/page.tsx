@@ -7,7 +7,7 @@ import {
   Search, X, Building2, User, Calendar, DollarSign, Clock,
   LayoutGrid, List, SlidersHorizontal, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   ClipboardCheck, MonitorPlay, FlaskConical, FileText, Handshake, Trophy, XCircle,
-  AlertTriangle, Zap, TrendingUp,
+  AlertTriangle, Zap, TrendingUp, Trash2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { STAGE_COLORS as STAGE_DOT_COLORS_IMPORTED, RISK_STYLES } from "@/lib/util/ui-utils";
@@ -23,6 +23,7 @@ import { Input, Select } from "@/components/ui/input";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { KanbanColumnSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 /* ── Types ── */
 
@@ -188,6 +189,10 @@ export default function OpportunitiesPage() {
   const [stalledOnly, setStalledOnly] = useState(false);
   const displayPanelRef = useRef<HTMLDivElement>(null);
   const filterPanelRef = useRef<HTMLDivElement>(null);
+
+  // Delete confirmation
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Drag & drop
   const [draggedDealId, setDraggedDealId] = useState<string | null>(null);
@@ -375,6 +380,33 @@ export default function OpportunitiesPage() {
   }
 
   function handleCardClick(id: string) { if (!isDraggingRef.current) router.push(`/opportunities/${id}`); }
+
+  // Soft-delete a single deal (confirmed via <ConfirmDialog>). Optimistic
+  // removal with rollback on failure, then a quick analytics refresh.
+  async function performDelete() {
+    if (!deleteTarget) return;
+    const { id } = deleteTarget;
+    setDeleting(true);
+    const prev = deals;
+    setDeals((p) => p.filter((d) => d.id !== id));
+    try {
+      const r = await fetch(`/api/opportunities/${id}`, { method: "DELETE" });
+      if (!r.ok) {
+        setDeals(prev);
+        toast("Failed to delete opportunity", "error");
+      } else {
+        toast("Opportunity deleted", "success");
+        fetchAnalytics();
+      }
+    } catch (e) {
+      setDeals(prev);
+      toast("Failed to delete opportunity", "error");
+      console.warn("opportunities: delete failed", e);
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  }
 
   /* ── Computed ── */
 
@@ -1023,6 +1055,7 @@ export default function OpportunitiesPage() {
                       )}
                     </th>
                   ))}
+                  <th className="px-3 py-2" style={{ width: 44 }} aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
@@ -1087,9 +1120,21 @@ export default function OpportunitiesPage() {
                         </td>
                       );
                     })()}
+                    <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        aria-label={`Delete ${deal.name}`}
+                        title="Delete opportunity"
+                        onClick={() => setDeleteTarget({ id: deal.id, name: deal.name })}
+                        className="inline-flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
+                        style={{ color: "var(--color-text-muted)" }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
-                {sortedDeals.length === 0 && <tr><td colSpan={10} className="px-3 py-8 text-center text-sm" style={{ color: "var(--color-text-tertiary)" }}>No deals match your filters</td></tr>}
+                {sortedDeals.length === 0 && <tr><td colSpan={11} className="px-3 py-8 text-center text-sm" style={{ color: "var(--color-text-tertiary)" }}>No deals match your filters</td></tr>}
               </tbody>
             </table>
             {sortedDeals.length > 0 && (
@@ -1172,7 +1217,7 @@ export default function OpportunitiesPage() {
                         onDragStart={(e) => handleDragStart(e, deal.id)}
                         onDragEnd={handleDragEnd}
                         onClick={() => handleCardClick(deal.id)}
-                        className={`rounded-lg p-3 transition-all duration-150 ${draggedDealId === deal.id ? "opacity-40" : ""}`}
+                        className={`group relative rounded-lg p-3 transition-all duration-150 ${draggedDealId === deal.id ? "opacity-40" : ""}`}
                         style={{
                           background: "var(--color-bg-card)",
                           border: "1px solid var(--color-border-default)",
@@ -1180,6 +1225,18 @@ export default function OpportunitiesPage() {
                           cursor: draggedDealId === deal.id ? "grabbing" : "grab",
                         }}
                       >
+                        {/* Delete — appears on card hover, top-right. */}
+                        <button
+                          type="button"
+                          aria-label={`Delete ${deal.name}`}
+                          title="Delete opportunity"
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: deal.id, name: deal.name }); }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className="absolute right-1.5 top-1.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
+                          style={{ color: "var(--color-text-muted)", background: "var(--color-bg-card)" }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
                         {/* Account */}
                         {displayProps.has("companyName") && (
                           <div className="flex items-center gap-1.5 mb-1.5">
@@ -1292,6 +1349,18 @@ export default function OpportunitiesPage() {
         }
         onConfirm={handleCloseReasonConfirm}
         onCancel={handleCloseReasonCancel}
+      />
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete opportunity?"
+        description={`"${deleteTarget?.name || "This deal"}" will be removed from your pipeline. Its activity history is kept.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        busy={deleting}
+        onConfirm={performDelete}
+        onCancel={() => { if (!deleting) setDeleteTarget(null); }}
       />
     </div>
   );
