@@ -578,7 +578,7 @@ export default function ChatPage() {
 
                               const endpoint = proposalAction === "createContact" ? "/api/contacts"
                                 : proposalAction === "createAccount" ? "/api/accounts"
-                                : proposalAction === "createDeal" ? "/api/deals"
+                                : proposalAction === "createDeal" ? "/api/opportunities"
                                 : null;
                               if (endpoint) {
                                 const entityType = proposalAction === "createContact" ? "contact"
