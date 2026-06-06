@@ -31,6 +31,7 @@ import { llmCall } from "@/lib/ai/llm-call";
 import { callNotesSchema, type CallNotes } from "@/lib/voice/extraction-schema";
 import { detectDncRequest, addToDnc } from "@/lib/voice/dnc";
 import { recordCapturedActivity, getCaptureApprovalMode } from "@/lib/capture/approval";
+import { recordCallOutcomeForCampaigns } from "@/lib/voice/campaign";
 import { indexTranscript } from "@/lib/coaching/index-transcript";
 import { logger } from "@/lib/observability/logger";
 
@@ -127,6 +128,27 @@ export const postProcessCall = inngest.createFunction(
           durationSec: callRow.durationSec,
         },
       });
+
+      // Feed the no-answer into any active call campaign so the prospect is
+      // re-queued for another attempt (up to maxAttempts over windowDays).
+      await step.run("campaign-cadence-noanswer", async () => {
+        try {
+          const r = await recordCallOutcomeForCampaigns({
+            tenantId: callRow.tenantId,
+            contactId: callRow.contactId,
+            outcome: "no_answer",
+            occurredAt: callRow.endedAt ?? new Date(),
+          });
+          return { updated: !!r, status: r?.status ?? null };
+        } catch (err) {
+          logger.warn?.("calls-post-process: campaign cadence (no-answer) failed", {
+            callId,
+            err: err instanceof Error ? err.message : String(err),
+          });
+          return { updated: false };
+        }
+      });
+
       return { outcome: "no_answer" };
     }
 
@@ -237,6 +259,27 @@ RULES:
           },
         },
       });
+    });
+
+    await step.run("campaign-cadence", async () => {
+      // Feed the disposition back into any active call campaign: connected/
+      // meeting ends the cadence; a no-answer/busy/voicemail reschedules the
+      // next attempt (up to maxAttempts over windowDays). Non-fatal.
+      try {
+        const r = await recordCallOutcomeForCampaigns({
+          tenantId: callRow.tenantId,
+          contactId: callRow.contactId,
+          outcome: notes.outcome,
+          occurredAt: callRow.endedAt ?? new Date(),
+        });
+        return { updated: !!r, status: r?.status ?? null };
+      } catch (err) {
+        logger.warn?.("calls-post-process: campaign cadence failed", {
+          callId,
+          err: err instanceof Error ? err.message : String(err),
+        });
+        return { updated: false };
+      }
     });
 
     await step.run("index-transcript", async () => {

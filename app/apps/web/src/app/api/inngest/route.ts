@@ -9,6 +9,7 @@ import { scheduleRecallBots } from "@/inngest/recall-functions";
 import { onOnboardingCompleted } from "@/inngest/onboarding-functions";
 import { processOutboundEmails, sendSingleEmail, cronDailyMailboxReset } from "@/inngest/email-send-worker";
 import { cronTriggerSequenceSteps } from "@/inngest/sequence-cron";
+import { dailyCallListGeneration } from "@/inngest/call-campaign-cron";
 import { cronFailureToEvalCases, cronFlywheelCycle, runAgentFlywheel, asyncOnlineEval } from "@/inngest/eval-functions";
 import { prepareCampaign } from "@/inngest/campaign-functions";
 import { handleReplyIntelligently } from "@/inngest/reply-handler";
@@ -97,6 +98,7 @@ export const { GET, POST, PUT } = serve({
     sendSingleEmail,
     cronDailyMailboxReset,
     cronTriggerSequenceSteps,
+    dailyCallListGeneration,
     // P0-1 sequence-draft queue : routes events to draft / direct
     routeSequenceStepToDraft,
     cronExpireSequenceDrafts,

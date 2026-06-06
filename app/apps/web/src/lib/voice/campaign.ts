@@ -26,6 +26,10 @@ import {
   doNotCallList,
 } from "@/db/schema";
 import { and, eq, lte, sql, desc, isNull, inArray } from "drizzle-orm";
+import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { anthropic } from "@/lib/ai/ai-provider";
+import { openai } from "@ai-sdk/openai";
+import { z } from "zod";
 
 /** Outcomes that END the cadence for a target (we reached a conclusion). */
 const OUTCOME_CONVERTED = new Set(["meeting_booked"]);
@@ -74,6 +78,49 @@ export function goalDays(goal: GoalSpec): number {
   // month: ~4.3 weeks; respect a custom days/week if given.
   if (goal.daysPerWeek) return Math.max(1, Math.round(goal.daysPerWeek * 4.3));
   return WINDOW_WORKDAYS.month;
+}
+
+/**
+ * Parse a free-text objective into a structured goal via an LLM, so the
+ * onboarding (and chat) can accept "1000 calls this week over 5 days",
+ * "book 10 demos this month", "reach 50 decision makers" — any objective —
+ * not a fixed form. Returns null if no model/key or the phrase is empty.
+ */
+export async function parseGoalPhrase(phrase: string, tenantId: string): Promise<GoalSpec | null> {
+  const model = process.env.ANTHROPIC_API_KEY
+    ? anthropic("claude-haiku-4-5-20251001")
+    : process.env.OPENAI_API_KEY
+      ? openai("gpt-4o-mini")
+      : null;
+  if (!model || !phrase.trim()) return null;
+  try {
+    const { object } = await tracedGenerateObject({
+      model,
+      schema: z.object({
+        type: z.enum(["calls", "connects", "meetings"]),
+        target: z.number().int().positive(),
+        window: z.enum(["day", "week", "month"]),
+        daysPerWeek: z.number().int().min(1).max(7).optional(),
+      }),
+      prompt: `A salesperson describes their cold-calling objective: "${phrase}".
+
+Extract a structured goal:
+- type: "calls" (number of dials to make), "connects" (live conversations reached), or "meetings" (meetings/demos booked). If only a raw number is given, default "calls".
+- target: the integer count.
+- window: "day", "week", or "month" — the period the target spans. Default "week".
+- daysPerWeek: working days to spread across, only if stated (e.g. "over 5 days" -> 5).
+
+Examples:
+"1000 calls this week over 5 days" -> {type:"calls",target:1000,window:"week",daysPerWeek:5}
+"book 10 demos this month" -> {type:"meetings",target:10,window:"month"}
+"reach 50 decision makers" -> {type:"connects",target:50,window:"week"}
+"200 a day" -> {type:"calls",target:200,window:"day"}`,
+      _trace: { agentId: "call-goal-parse", tenantId, inputPreview: phrase.slice(0, 120) },
+    });
+    return object as GoalSpec;
+  } catch {
+    return null;
+  }
 }
 
 /** Translate any goal into a daily call volume. */

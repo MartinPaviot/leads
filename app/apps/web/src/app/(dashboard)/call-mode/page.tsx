@@ -36,6 +36,7 @@ import {
   LiveTranscript,
   type ContactBrainJSON,
 } from "./_panels";
+import { CallModeOnboarding } from "./_onboarding";
 
 interface QueueItem {
   contactId: string;
@@ -105,6 +106,10 @@ export default function CallModePage() {
   // When the queue was pushed from an Accounts selection, how many
   // accounts it was scoped to — drives the filter banner.
   const [accountScope, setAccountScope] = useState<number>(0);
+  // Goal-driven campaign drives the daily list; first visit (no campaign yet)
+  // shows the onboarding.
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [campaign, setCampaign] = useState<{ id: string; name: string; dailyQuota: number; maxAttempts: number; windowDays: number } | null>(null);
   // Phase 3 — live coaching cards. Each card auto-dismisses after 12s
   // unless the user manually closes it. Newest on top, max 5 visible.
   const [coachingCards, setCoachingCards] = useState<CoachingCardData[]>([]);
@@ -130,23 +135,38 @@ export default function CallModePage() {
       ? accountsParam.split(",").map((s) => s.trim()).filter(Boolean)
       : [];
     setAccountScope(scopeIds.length);
-    const queueUrl =
-      scopeIds.length > 0
-        ? `/api/calls/queue?limit=50&accounts=${encodeURIComponent(scopeIds.join(","))}`
-        : "/api/calls/queue?limit=50";
     (async () => {
       try {
-        const [cfgRes, qRes] = await Promise.all([
-          fetch("/api/calls/config"),
-          fetch(queueUrl),
-        ]);
-        if (cancelled) return;
-        if (cfgRes.ok) setConfig(await cfgRes.json());
-        if (qRes.ok) {
-          const data = await qRes.json();
-          setQueue(data.calls ?? []);
-          if ((data.calls ?? []).length > 0) {
-            setSelectedId(data.calls[0].contactId);
+        const cfgP = fetch("/api/calls/config");
+        if (scopeIds.length > 0) {
+          // Manual scoped queue pushed from an Accounts selection — skip the
+          // campaign/onboarding and dial exactly those accounts.
+          const [cfgRes, qRes] = await Promise.all([
+            cfgP,
+            fetch(`/api/calls/queue?limit=50&accounts=${encodeURIComponent(scopeIds.join(","))}`),
+          ]);
+          if (cancelled) return;
+          if (cfgRes.ok) setConfig(await cfgRes.json());
+          if (qRes.ok) {
+            const data = await qRes.json();
+            setQueue(data.calls ?? []);
+            if ((data.calls ?? []).length > 0) setSelectedId(data.calls[0].contactId);
+          }
+        } else {
+          // Default: the goal-driven campaign drives today's list. No campaign
+          // yet -> first-visit onboarding.
+          const [cfgRes, campRes] = await Promise.all([cfgP, fetch("/api/calls/campaign")]);
+          if (cancelled) return;
+          if (cfgRes.ok) setConfig(await cfgRes.json());
+          if (campRes.ok) {
+            const data = await campRes.json();
+            if (data.needsOnboarding) {
+              setNeedsOnboarding(true);
+            } else {
+              setCampaign(data.campaign ?? null);
+              setQueue(data.calls ?? []);
+              if ((data.calls ?? []).length > 0) setSelectedId(data.calls[0].contactId);
+            }
           }
         }
       } catch (err) {
@@ -491,6 +511,26 @@ export default function CallModePage() {
     );
   }
 
+  // First visit (no active campaign): set the goal before anything else, even
+  // if Twilio isn't configured yet — the plan is saved and dialing activates
+  // once a number is connected.
+  if (needsOnboarding) {
+    return (
+      <CallModeShell>
+        <div className="relative flex flex-1 min-h-0">
+          <CallModeOnboarding
+            onCreated={(c, calls) => {
+              setCampaign(c);
+              setNeedsOnboarding(false);
+              setQueue(calls as unknown as QueueItem[]);
+              if (calls.length > 0) setSelectedId(calls[0].contactId);
+            }}
+          />
+        </div>
+      </CallModeShell>
+    );
+  }
+
   if (!config?.configured) {
     return (
       <CallModeShell>
@@ -528,7 +568,9 @@ export default function CallModePage() {
   }
 
   return (
-    <CallModeShell>
+    <CallModeShell
+      subtitle={campaign ? `Goal: ${campaign.name} - ${campaign.dailyQuota} calls/day, retry up to ${campaign.maxAttempts}x over ${campaign.windowDays}d` : undefined}
+    >
       <div className="flex flex-1 min-h-0 w-full relative">
       {/* Phase 3 — live coaching overlay. Bottom-right, peripheral. */}
       {coachingCards.length > 0 && (
@@ -769,13 +811,13 @@ export default function CallModePage() {
  * (flush PageHeader bar above a flex-1 body) so Call Mode lines up with
  * the rest of the app instead of floating its own header inside padding.
  */
-function CallModeShell({ children }: { children: React.ReactNode }) {
+function CallModeShell({ children, subtitle }: { children: React.ReactNode; subtitle?: string }) {
   return (
     <div className="flex h-full flex-col animate-content-in">
       <PageHeader
         icon={<Phone size={15} />}
         title="Call Mode"
-        subtitle="Autonomous cold calling from Elevay"
+        subtitle={subtitle ?? "Autonomous cold calling from Elevay"}
       />
       {children}
     </div>
