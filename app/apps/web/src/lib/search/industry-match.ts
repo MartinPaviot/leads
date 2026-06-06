@@ -52,7 +52,7 @@ If the query is a specific company NAME (not a sector), return an empty array. O
       _trace: { agentId: "industry-match", tenantId, inputPreview: query.slice(0, 120) },
     });
     const allow = new Set(distinct);
-    return (object.industries || []).filter((i) => allow.has(i));
+    return ((object.industries as string[]) || []).filter((i: string) => allow.has(i));
   } catch {
     return [];
   }
