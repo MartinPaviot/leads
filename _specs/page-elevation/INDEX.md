@@ -28,6 +28,27 @@ Global flow map + per-page coverage gaps: `_audit/2026-06-06-prelaunch/page-cove
 - HOME opener correction (commit 5252c7ee): the follow-up helper read the opener OBJECT as the body
   and would emit a "[placeholder]" skeleton when no signals; now reads .opener.opener + guards.
 
+## Unified intelligent search (cross-page) — Martin directive
+Two directives: (1) ONE intelligent search per page, not a smart box + a literal box; (2) it must link
+sectors intelligently (medical -> health care) for ALL queries, via an LLM over the REAL distinct
+labels — NOT a hardcoded synonym map ("sinon ça marchera une fois sur 10").
+- Mechanism: `src/lib/search/industry-match.ts` `matchIndustries(query, industries, tenantId)` — haiku
+  (openai fallback) reasons over the tenant's actual distinct industry labels and returns the verbatim
+  subset matching the query's sector; [] for company-name queries or no-key. Generalises to any query
+  and any dataset; no list to maintain.
+- accounts (de1e0d7e): server-side `?search=` resolves industries + name/domain/description ILIKE;
+  unified the dual box into one SmartSearchBar; removed dead /api/search/tam + % chips; banner shows
+  real matched count. Verified: medical->58, school->68, consulting->60, finance->66.
+- contacts (844e870c): industry-aware via the company join (contact has no industry; its company does)
+  + title/name/email ILIKE. Verified: "medical" filters 3 -> 1 (Sarah Chen @ Spineart, matched purely
+  by company industry).
+- opportunities (e95f738d): server-side `?search=` over deal name / account name / company industry;
+  count query mirrors the data leftJoin(companies). Verified: "medical" surfaces the Spineart pilot
+  (deal name has no "medical"); "finance" empties; clear restores.
+- tsc fix (4d80387e): industry-match filter param implicit-any -> web app back to 0 tsc errors.
+- Only accounts + contacts had the dual-box anti-pattern; both unified. knowledge/notes/home are
+  free-text/command, not sector-style, so out of scope for industry resolution.
+
 ## Test environment
 - The "E2E Test Workspace" resolves to tenant **47dca783** (real Pilae data: 767 CH/FR accounts;
   most contacts soft-deleted). Login martin@elevay.dev. Behavioral testing is now UNBLOCKED (can
