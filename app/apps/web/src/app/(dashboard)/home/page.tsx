@@ -161,6 +161,30 @@ export default function DashboardPage() {
   >(null);
   const [selectedAction, setSelectedAction] = useState<Action | null>(null);
 
+  // Draft a grounded follow-up via the real signal-based opener generator
+  // instead of a hardcoded template. Falls back to a neutral starter (never a
+  // canned line presented as AI) when the opener is unavailable.
+  async function draftFollowUp(
+    contactId: string | null | undefined,
+    to: string,
+    subject: string,
+  ) {
+    let body = "Hi,\n\n";
+    if (contactId) {
+      try {
+        const res = await fetch(`/api/contacts/${contactId}/opener`);
+        if (res.ok) {
+          const d = (await res.json()) as { opener?: string };
+          if (d.opener) body = d.opener;
+        }
+      } catch {
+        /* keep the neutral starter */
+      }
+    }
+    setEmailComposer({ to, subject, body });
+    setSelectedAction(null);
+  }
+
   useEffect(() => {
     // Detect first-time visit after onboarding
     const params = new URLSearchParams(window.location.search);
@@ -597,11 +621,7 @@ export default function DashboardPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setEmailComposer({
-                                to: "",
-                                subject: `Following up`,
-                                body: `Hi,\n\n${action.action}\n\n${action.why}\n\nWould you have time for a quick call this week?\n\nBest regards`,
-                              });
+                              draftFollowUp(action.entityId, "", "Following up");
                             }}
                             className="text-[11px] font-medium hover:underline"
                             style={{ color: "var(--color-accent)" }}
@@ -919,13 +939,10 @@ export default function DashboardPage() {
                 <div className="rounded-lg p-3" style={{ background: "var(--color-accent-soft)", border: "1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)" }}>
                   <div className="flex items-center gap-1.5 mb-2">
                     <TrendingUp size={12} style={{ color: "var(--color-accent)" }} />
-                    <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--color-accent)" }}>Suggested follow-up</span>
+                    <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--color-accent)" }}>Follow-up</span>
                   </div>
-                  <p className="text-[13px] font-medium mb-1" style={{ color: "var(--color-text-primary)" }}>
-                    Re: {selectedAction.lastEmailSubject || "Following up"}
-                  </p>
                   <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-                    Hi — I wanted to follow up on my previous message. {selectedAction.daysSilent && selectedAction.daysSilent > 7 ? "It's been a while and I wanted to make sure this didn't slip through the cracks." : "Do you have a few minutes to connect this week?"} Would love to find a time that works.
+                    Send follow-up drafts a message grounded in {selectedAction.companyName || "this account"}&apos;s signals for you to review before sending.
                   </p>
                 </div>
               )}
@@ -936,12 +953,11 @@ export default function DashboardPage() {
               {selectedAction.contactEmail ? (
                 <button
                   onClick={() => {
-                    setEmailComposer({
-                      to: selectedAction.contactEmail || "",
-                      subject: `Re: ${selectedAction.lastEmailSubject || "Following up"}`,
-                      body: `Hi,\n\nI wanted to follow up on my previous message. ${selectedAction.daysSilent && selectedAction.daysSilent > 7 ? "It's been a while — wanted to make sure this didn't fall through the cracks." : "Do you have a few minutes to connect this week?"}\n\nBest regards`,
-                    });
-                    setSelectedAction(null);
+                    draftFollowUp(
+                      selectedAction.entityType === "contact" ? selectedAction.entityId : null,
+                      selectedAction.contactEmail || "",
+                      `Re: ${selectedAction.lastEmailSubject || "Following up"}`,
+                    );
                   }}
                   className="flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-[13px] font-semibold text-white gradient-brand"
                 >
