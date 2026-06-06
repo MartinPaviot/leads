@@ -21,8 +21,12 @@ import { eq } from "drizzle-orm";
 import { generateDailyCallList } from "@/lib/voice/campaign";
 
 export const dailyCallListGeneration = inngest.createFunction(
-  { id: "daily-call-list-generation", name: "Daily call list generation", retries: 1 },
-  { cron: "0 6 * * 1-5" },
+  {
+    id: "daily-call-list-generation",
+    name: "Daily call list generation",
+    retries: 1,
+    triggers: [{ cron: "0 6 * * 1-5" }],
+  },
   async ({ step }) => {
     const active = await step.run("load-active-campaigns", async () =>
       db

@@ -137,7 +137,7 @@ export const postProcessCall = inngest.createFunction(
             tenantId: callRow.tenantId,
             contactId: callRow.contactId,
             outcome: "no_answer",
-            occurredAt: callRow.endedAt ?? new Date(),
+            occurredAt: callRow.endedAt ? new Date(callRow.endedAt) : new Date(),
           });
           return { updated: !!r, status: r?.status ?? null };
         } catch (err) {
@@ -270,7 +270,7 @@ RULES:
           tenantId: callRow.tenantId,
           contactId: callRow.contactId,
           outcome: notes.outcome,
-          occurredAt: callRow.endedAt ?? new Date(),
+          occurredAt: callRow.endedAt ? new Date(callRow.endedAt) : new Date(),
         });
         return { updated: !!r, status: r?.status ?? null };
       } catch (err) {
