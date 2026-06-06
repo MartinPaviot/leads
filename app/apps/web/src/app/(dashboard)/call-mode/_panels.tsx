@@ -784,6 +784,126 @@ export interface CoachingCard {
   suggestedResponses: string[];
 }
 
+// ── In-call context rail (right column, live) ───────────────────
+//
+// On a live call the rep should not be reading the full account brain — they
+// should be talking. So the right rail strips down to the only three things
+// worth a glance mid-sentence — the line to open with, the angle, why this
+// call is timely — pinned at the top, with the objection-coaching cards
+// stacking underneath in real time as the prospect pushes back (newest first).
+// This is the calm, live-assist counterpart to the dense pre-call brief.
+export function InCallContext({
+  selected,
+  brain,
+  coaching,
+}: {
+  selected: BriefContext;
+  brain: ContactBrainJSON | null | undefined;
+  coaching: CoachingCard[];
+}) {
+  const firstName = selected.contactName.split(" ")[0];
+  const approach = brain?.cachedDossier?.recommendedApproach;
+  const opener =
+    approach?.openingLine?.trim() ||
+    `« Bonjour ${firstName}, Martin de Elevay — j'ai 30 secondes ? »`;
+  const angle = approach?.messagingAngle?.trim() || null;
+  const whyNow = selected.latestSignal?.label ?? null;
+  const champion =
+    brain?.companyBrain?.contacts?.find((c) => c.isChampion && c.id !== selected.contactId) ?? null;
+  const championName = champion
+    ? [champion.firstName, champion.lastName].filter(Boolean).join(" ")
+    : null;
+  const ordered = coaching.slice().reverse(); // newest objection on top
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* Pinned — the line to say, the angle, why now */}
+      <div className="shrink-0 space-y-3 border-b border-zinc-200 p-4 dark:border-zinc-800">
+        <div>
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
+            <MessageSquare className="h-3.5 w-3.5" />
+            À dire maintenant
+          </div>
+          <p className="mt-1.5 rounded-lg border border-indigo-200 bg-indigo-50/60 p-3 text-sm italic leading-snug text-zinc-800 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-zinc-100">
+            {opener}
+          </p>
+        </div>
+        {angle && (
+          <div className="flex items-start gap-2 text-[13px]">
+            <Target className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-400" />
+            <p className="text-zinc-700 dark:text-zinc-300">
+              <span className="text-zinc-400">Angle · </span>
+              {angle}
+            </p>
+          </div>
+        )}
+        {whyNow && (
+          <div className="flex items-start gap-2 text-[13px]">
+            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-400" />
+            <p className="text-zinc-700 dark:text-zinc-300">
+              <span className="text-zinc-400">Pourquoi maintenant · </span>
+              {whyNow}
+            </p>
+          </div>
+        )}
+        {championName && (
+          <div className="flex items-start gap-2 text-[13px]">
+            <Crown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+            <p className="text-zinc-700 dark:text-zinc-300">
+              <span className="text-zinc-400">Allié interne · </span>
+              {championName}
+              {champion?.title ? ` (${champion.title})` : ""}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Live objection coaching — stacks as the prospect pushes back */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+          <Swords className="h-3.5 w-3.5" />
+          Réponses aux objections
+          {ordered.length > 0 && <span className="text-zinc-400">· {ordered.length}</span>}
+        </div>
+        {ordered.length === 0 ? (
+          <p className="text-[13px] leading-relaxed text-zinc-400">
+            Les objections détectées dans la conversation s&apos;afficheront ici, en direct, avec
+            2-3 réponses prêtes à dire.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {ordered.map((card) => (
+              <div
+                key={card.ts}
+                className="rounded-lg border border-zinc-200 p-2.5 dark:border-zinc-800"
+              >
+                <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                  {card.label}
+                </div>
+                <div className="mt-0.5 text-[12px] italic text-zinc-500">
+                  « {card.prospectQuote} »
+                </div>
+                {card.suggestedResponses.length > 0 && (
+                  <ul className="mt-1.5 space-y-1">
+                    {card.suggestedResponses.map((r, i) => (
+                      <li
+                        key={i}
+                        className="rounded bg-zinc-50 px-2 py-1.5 text-[12px] leading-snug text-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-300"
+                      >
+                        {r}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function LiveTranscript({
   chunks,
   ended,

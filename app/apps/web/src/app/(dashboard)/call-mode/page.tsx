@@ -34,6 +34,7 @@ import {
   PreCallBrief,
   AccountBrainPanel,
   LiveTranscript,
+  InCallContext,
   type ContactBrainJSON,
 } from "./_panels";
 import { CallModeOnboarding } from "./_onboarding";
@@ -595,13 +596,30 @@ export default function CallModePage() {
     );
   }
 
+  // Live focus mode: from dial to connected the cockpit collapses the queue and
+  // turns the right rail into call context, so the transcript takes the stage.
+  const inCall = softphone.kind === "dialing" || softphone.kind === "ringing" || softphone.kind === "connected";
+  // Who auto-advance lands on after this call — shown in the collapsed strip so
+  // the rep always knows the queue is alive without it competing for attention.
+  const nextUp = (() => {
+    if (!selectedId) return filteredQueue[0] ?? null;
+    const i = filteredQueue.findIndex((q) => q.contactId === selectedId);
+    return i >= 0 ? filteredQueue[i + 1] ?? null : filteredQueue[0] ?? null;
+  })();
+
   return (
     <CallModeShell
       subtitle={campaign ? `Goal: ${campaign.name} - ${campaign.dailyQuota} calls/day, retry up to ${campaign.maxAttempts}x over ${campaign.windowDays}d` : undefined}
     >
       {campaign && (
-        <div className="px-3 pt-3">
-          <CampaignFunnelBar />
+        <div
+          className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-out ${
+            inCall ? "max-h-0 opacity-0" : "max-h-48 opacity-100"
+          }`}
+        >
+          <div className="px-3 pt-3">
+            <CampaignFunnelBar />
+          </div>
         </div>
       )}
       <div className="flex flex-1 min-h-0 w-full relative">
@@ -615,8 +633,18 @@ export default function CallModePage() {
         />
       )}
 
-      {/* ───── LEFT — Queue (320px) ───── */}
-      <aside className="w-80 shrink-0 border-r border-zinc-200 dark:border-zinc-800 flex flex-col">
+      {/* ───── LEFT — Queue: full in prep, thin strip when live ───── */}
+      <aside
+        className={`relative shrink-0 overflow-hidden border-r border-zinc-200 dark:border-zinc-800 transition-[width] duration-300 ease-out ${
+          inCall ? "w-16" : "w-80"
+        }`}
+      >
+        {/* Full queue (prep) — fixed 320px so it slides out cleanly under the clip */}
+        <div
+          className={`absolute inset-y-0 left-0 flex w-80 flex-col transition-opacity duration-200 ${
+            inCall ? "pointer-events-none opacity-0" : "opacity-100"
+          }`}
+        >
         <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             To call now
@@ -715,6 +743,41 @@ export default function CallModePage() {
                 </button>
               );
             })
+          )}
+        </div>
+        </div>
+        {/* Thin strip (live) — count + who's next, calm and glanceable */}
+        <div
+          className={`absolute inset-0 flex flex-col items-center gap-4 px-2 py-4 transition-opacity duration-200 ${
+            inCall ? "opacity-100 delay-150" : "pointer-events-none opacity-0"
+          }`}
+        >
+          <div className="text-center">
+            <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              {filteredQueue.length}
+            </div>
+            <div className="text-[9px] font-medium uppercase tracking-wide text-zinc-400">
+              en file
+            </div>
+          </div>
+          {nextUp && (
+            <div className="flex flex-col items-center gap-1">
+              <div className="h-px w-6 bg-zinc-200 dark:bg-zinc-800" />
+              <span className="mt-1 text-[9px] font-medium uppercase tracking-wide text-zinc-400">
+                après
+              </span>
+              <CompanyLogo
+                domain={nextUp.companyDomain}
+                name={nextUp.companyName ?? nextUp.contactName}
+                size={32}
+              />
+              <span
+                className="w-12 truncate text-center text-[10px] text-zinc-500"
+                title={nextUp.contactName}
+              >
+                {nextUp.contactName.split(" ")[0]}
+              </span>
+            </div>
           )}
         </div>
       </aside>
@@ -821,14 +884,18 @@ export default function CallModePage() {
         )}
       </main>
 
-      {/* ───── RIGHT — Account brain (380px) ───── */}
+      {/* ───── RIGHT — Account brain (prep) / call context (live) ───── */}
       <aside className="w-96 shrink-0 border-l border-zinc-200 dark:border-zinc-800 overflow-y-auto">
         {selected ? (
-          <AccountBrainPanel
-            brain={brain}
-            brainLoading={brainLoading}
-            focalContactId={selected.contactId}
-          />
+          inCall ? (
+            <InCallContext selected={selected} brain={brain} coaching={coachingHistory} />
+          ) : (
+            <AccountBrainPanel
+              brain={brain}
+              brainLoading={brainLoading}
+              focalContactId={selected.contactId}
+            />
+          )
         ) : (
           <div className="h-full flex items-center justify-center p-6 text-sm text-zinc-500">
             Select a contact to see the account.
