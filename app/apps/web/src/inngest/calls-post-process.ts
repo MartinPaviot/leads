@@ -32,6 +32,7 @@ import { callNotesSchema, type CallNotes } from "@/lib/voice/extraction-schema";
 import { detectDncRequest, addToDnc } from "@/lib/voice/dnc";
 import { recordCapturedActivity, getCaptureApprovalMode } from "@/lib/capture/approval";
 import { recordCallOutcomeForCampaigns } from "@/lib/voice/campaign";
+import { applyCallToCrm } from "@/lib/voice/post-call-crm";
 import { indexTranscript } from "@/lib/coaching/index-transcript";
 import { logger } from "@/lib/observability/logger";
 
@@ -279,6 +280,28 @@ RULES:
           err: err instanceof Error ? err.message : String(err),
         });
         return { updated: false };
+      }
+    });
+
+    await step.run("crm-apply", async () => {
+      // The CRM auto-loop: open/advance a deal, create tasks, route by outcome,
+      // and stamp the contact — so the rep doesn't hand-update the CRM. Non-fatal.
+      try {
+        return await applyCallToCrm({
+          tenantId: callRow.tenantId,
+          callId: callRow.id,
+          contactId: callRow.contactId,
+          companyId: null,
+          ownerId: callRow.userId,
+          notes,
+          occurredAt: callRow.endedAt ? new Date(callRow.endedAt) : new Date(),
+        });
+      } catch (err) {
+        logger.warn?.("calls-post-process: crm-apply failed", {
+          callId,
+          err: err instanceof Error ? err.message : String(err),
+        });
+        return { skipped: true };
       }
     });
 
