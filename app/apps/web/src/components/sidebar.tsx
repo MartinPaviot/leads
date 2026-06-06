@@ -275,6 +275,18 @@ function UserMenu({
 
 export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tenantName, recentChats, onSignOut }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+
+  // Auto-collapse on small screens so the sidebar doesn't eat the viewport
+  // on mobile (pre-launch audit: not responsive — full 240px rail squeezed
+  // content to ~150px at 390px). Desktop users can still toggle manually.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(max-width: 768px)");
+    const apply = () => setCollapsed(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
   const [customObjectTypes, setCustomObjectTypes] = useState<CustomObjectType[]>([]);
   const pathname = usePathname();
   const { theme, toggle: toggleTheme } = useTheme();

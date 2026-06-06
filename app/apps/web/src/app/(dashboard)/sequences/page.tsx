@@ -151,8 +151,8 @@ export default function CampaignsPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-5 text-[12px] ml-4" style={{ color: "var(--color-text-tertiary)" }}>
-                        <span className="flex items-center gap-1"><Mail size={11} /> {seq.stepCount} steps</span>
-                        <span className="flex items-center gap-1"><Users size={11} /> {seq.enrolledCount} contacts</span>
+                        <span className="flex items-center gap-1"><Mail size={11} /> {seq.stepCount} step{seq.stepCount !== 1 ? "s" : ""}</span>
+                        <span className="flex items-center gap-1"><Users size={11} /> {seq.enrolledCount} contact{seq.enrolledCount !== 1 ? "s" : ""}</span>
                         {seq.emailStats && totalEmails(seq.emailStats) > 0 && (
                           <span className="flex items-center gap-1"><Send size={11} /> {seq.emailStats.sent || 0} sent</span>
                         )}

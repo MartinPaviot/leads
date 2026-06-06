@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Sequences",
+  title: "Campaigns",
 };
 
 export default function SequencesLayout({ children }: { children: React.ReactNode }) {

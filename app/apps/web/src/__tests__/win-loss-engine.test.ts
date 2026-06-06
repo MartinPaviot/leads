@@ -76,6 +76,7 @@ vi.mock("drizzle-orm", () => ({
   ),
   or: (...args: unknown[]) => ({ or: args }),
   inArray: (...args: unknown[]) => ({ inArray: args }),
+  isNull: (x: unknown) => ({ isNull: x }),
 }));
 
 vi.mock("@/lib/traced-ai", () => ({

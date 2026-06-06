@@ -347,7 +347,7 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
           {/* ── STEP TIMELINE ── */}
           <section>
             <h2 className="text-[12px] font-semibold uppercase tracking-wider mb-4" style={{ color: "var(--color-text-tertiary)" }}>
-              Sequence ({steps.length} step{steps.length !== 1 ? "s" : ""} · {totalDelay} days)
+              Sequence ({steps.length} step{steps.length !== 1 ? "s" : ""} · {totalDelay} day{totalDelay !== 1 ? "s" : ""})
             </h2>
 
             {steps.length === 0 ? (

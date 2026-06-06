@@ -292,7 +292,10 @@ export default function DashboardPage() {
   const [today, setToday] = useState("");
   useEffect(() => {
     setToday(
-      new Date().toLocaleDateString(navigator.language, {
+      // App chrome is English regardless of browser locale (only
+      // prospect-facing generated content adapts language), so the header
+      // date uses en-US — not navigator.language, which rendered "sam. 6 juin".
+      new Date().toLocaleDateString("en-US", {
         weekday: "short",
         month: "short",
         day: "numeric",

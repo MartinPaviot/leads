@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Pipeline",
+  title: "Opportunities",
 };
 
 export default function PipelineLayout({ children }: { children: React.ReactNode }) {

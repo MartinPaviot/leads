@@ -173,7 +173,7 @@ describe("isAnthropicEuConfigured", () => {
   });
 
   it("returns true when ANTHROPIC_API_BASE is set to EU endpoint", () => {
-    process.env.ANTHROPIC_API_BASE = "https://eu.anthropic.com";
+    process.env.ANTHROPIC_API_BASE = "https://eu.anthropic.com/v1";
     delete process.env.ANTHROPIC_REGION;
     _resetProviderForTesting();
 
@@ -181,7 +181,7 @@ describe("isAnthropicEuConfigured", () => {
   });
 
   it("returns false when ANTHROPIC_API_BASE is the default US endpoint", () => {
-    process.env.ANTHROPIC_API_BASE = "https://api.anthropic.com";
+    process.env.ANTHROPIC_API_BASE = "https://api.anthropic.com/v1";
     delete process.env.ANTHROPIC_REGION;
     _resetProviderForTesting();
 
@@ -195,7 +195,7 @@ describe("getConfiguredAnthropicBaseUrl", () => {
     delete process.env.ANTHROPIC_API_BASE;
     _resetProviderForTesting();
 
-    expect(getConfiguredAnthropicBaseUrl()).toBe("https://api.anthropic.com");
+    expect(getConfiguredAnthropicBaseUrl()).toBe("https://api.anthropic.com/v1");
   });
 
   it("rejects unknown base URLs to prevent SSRF", () => {
