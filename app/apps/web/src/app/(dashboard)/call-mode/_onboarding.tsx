@@ -46,6 +46,10 @@ const WINDOWS: { key: GoalWindow; label: string }[] = [
   { key: "week", label: "this week" },
   { key: "month", label: "this month" },
 ];
+const DAYS: { i: number; l: string }[] = [
+  { i: 1, l: "Mo" }, { i: 2, l: "Tu" }, { i: 3, l: "We" }, { i: 4, l: "Th" },
+  { i: 5, l: "Fr" }, { i: 6, l: "Sa" }, { i: 0, l: "Su" },
+];
 
 export function CallModeOnboarding({
   onCreated,
@@ -56,9 +60,14 @@ export function CallModeOnboarding({
   const [type, setType] = useState<GoalType>("calls");
   const [target, setTarget] = useState<number>(1000);
   const [window, setWindow] = useState<GoalWindow>("week");
-  const [daysPerWeek, setDaysPerWeek] = useState<number>(5);
+  // The user defines their own rhythm — nothing is hardcoded.
+  const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]); // Mon-Fri (0=Sun)
+  const [listFrequency, setListFrequency] = useState<"daily" | "weekly">("daily");
+  const [maxAttempts, setMaxAttempts] = useState<number>(8);
+  const [windowDays, setWindowDays] = useState<number>(15);
   const [phrase, setPhrase] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const daysPerWeek = Math.max(1, workingDays.length);
   // After submit: the honest result — list ready / building / needs ICP — so
   // the user never lands on an empty cockpit or a Twilio dead-end.
   const [result, setResult] = useState<
@@ -130,7 +139,7 @@ export function CallModeOnboarding({
               Set your calling goal
             </h2>
             <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-              Elevay builds a fresh, enriched call list every morning and keeps dialing on a cadence so no lead slips through.
+              Elevay builds your enriched call list on the rhythm you set, and dials on your cadence so no lead slips through.
             </p>
           </div>
         </div>
@@ -169,32 +178,61 @@ export function CallModeOnboarding({
           </div>
         </div>
 
-        {/* Days per week (week/month only) */}
-        {window !== "day" && (
-          <div className="mt-4">
-            <label className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>Working days / week</label>
-            <input
-              type="number"
-              min={1}
-              max={7}
-              value={daysPerWeek}
-              onChange={(e) => setDaysPerWeek(Math.min(7, Math.max(1, parseInt(e.target.value || "5", 10))))}
-              className="mt-1.5 w-24 rounded-lg px-3 py-2 text-[14px]"
-              style={{ background: "var(--color-bg-base)", border: "1px solid var(--color-border-default)", color: "var(--color-text-primary)" }}
-            />
+        {/* Working days — the rep picks the days they actually call. */}
+        <div className="mt-4">
+          <label className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>Working days</label>
+          <div className="mt-1.5 flex gap-1">
+            {DAYS.map((d) => {
+              const on = workingDays.includes(d.i);
+              return (
+                <button
+                  key={d.i}
+                  type="button"
+                  onClick={() => setWorkingDays((w) => (on ? w.filter((x) => x !== d.i) : [...w, d.i]))}
+                  style={{ ...segBtn(on), padding: "6px 0", width: 40, textAlign: "center" }}
+                >
+                  {d.l}
+                </button>
+              );
+            })}
           </div>
-        )}
+        </div>
 
-        {/* Live plan preview */}
-        <div className="mt-5 rounded-lg px-3.5 py-3 text-[13px]" style={{ background: "var(--color-bg-hover)", color: "var(--color-text-secondary)" }}>
-          Plan: <strong style={{ color: "var(--color-text-primary)" }}>{perDay} calls / day</strong>, each prospect retried up to <strong style={{ color: "var(--color-text-primary)" }}>8&times;</strong> over <strong style={{ color: "var(--color-text-primary)" }}>15 days</strong> until reached.
+        {/* List frequency + follow-up cadence — fully user-defined. */}
+        <div className="mt-4 grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>Fresh list</label>
+            <div className="mt-1.5 flex gap-1.5">
+              <button type="button" style={segBtn(listFrequency === "daily")} onClick={() => setListFrequency("daily")}>Every working day</button>
+              <button type="button" style={segBtn(listFrequency === "weekly")} onClick={() => setListFrequency("weekly")}>Weekly</button>
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>Follow-up cadence</label>
+            <div className="mt-1.5 flex items-center gap-1.5 text-[12.5px]" style={{ color: "var(--color-text-secondary)" }}>
+              up to
+              <input type="number" min={1} max={20} value={maxAttempts}
+                onChange={(e) => setMaxAttempts(Math.min(20, Math.max(1, parseInt(e.target.value || "8", 10))))}
+                className="w-12 rounded-md px-2 py-1.5 text-center text-[13px]" style={{ background: "var(--color-bg-base)", border: "1px solid var(--color-border-default)", color: "var(--color-text-primary)" }} />
+              &times;, over
+              <input type="number" min={1} max={60} value={windowDays}
+                onChange={(e) => setWindowDays(Math.min(60, Math.max(1, parseInt(e.target.value || "15", 10))))}
+                className="w-12 rounded-md px-2 py-1.5 text-center text-[13px]" style={{ background: "var(--color-bg-base)", border: "1px solid var(--color-border-default)", color: "var(--color-text-primary)" }} />
+              days
+            </div>
+          </div>
+        </div>
+
+        {/* Live plan preview — entirely from the user's choices. */}
+        <div className="mt-5 rounded-lg px-3.5 py-3 text-[13px] leading-relaxed" style={{ background: "var(--color-bg-hover)", color: "var(--color-text-secondary)" }}>
+          Plan: <strong style={{ color: "var(--color-text-primary)" }}>{perDay} calls / day</strong> across <strong style={{ color: "var(--color-text-primary)" }}>{daysPerWeek} day{daysPerWeek === 1 ? "" : "s"}/week</strong> · fresh list <strong style={{ color: "var(--color-text-primary)" }}>{listFrequency === "weekly" ? "weekly" : "every working day"}</strong> · retry up to <strong style={{ color: "var(--color-text-primary)" }}>{maxAttempts}&times;</strong> over <strong style={{ color: "var(--color-text-primary)" }}>{windowDays} days</strong>.
         </div>
 
         <Button
           variant="gradient"
           className="mt-5 w-full"
           disabled={submitting || target <= 0}
-          onClick={() => submit({ goal: { type, target, window, daysPerWeek: window === "day" ? undefined : daysPerWeek } })}
+          onClick={() => submit({ goal: { type, target, window, daysPerWeek }, maxAttempts, windowDays, listFrequency, workingDays })}
         >
           {submitting ? <Loader2 size={15} className="animate-spin" /> : <Phone size={15} />}
           Start calling
@@ -207,12 +245,12 @@ export function CallModeOnboarding({
             <GrowTextarea
               value={phrase}
               onChange={(e) => setPhrase(e.target.value)}
-              onSubmit={() => { if (phrase.trim()) submit({ phrase: phrase.trim() }); }}
+              onSubmit={() => { if (phrase.trim()) submit({ phrase: phrase.trim(), maxAttempts, windowDays, listFrequency, workingDays }); }}
               placeholder='e.g. "book 10 demos this month" or "200 dials a day"'
               className="flex-1"
               style={{ background: "var(--color-bg-base)", border: "1px solid var(--color-border-default)", color: "var(--color-text-primary)" }}
             />
-            <Button variant="outline" disabled={submitting || !phrase.trim()} onClick={() => submit({ phrase: phrase.trim() })}>
+            <Button variant="outline" disabled={submitting || !phrase.trim()} onClick={() => submit({ phrase: phrase.trim(), maxAttempts, windowDays, listFrequency, workingDays })}>
               Set
             </Button>
           </div>
@@ -240,7 +278,7 @@ export function CallModeOnboarding({
               ) : result.sourcing ? (
                 <span className="inline-flex items-start gap-1.5"><Loader2 size={13} className="mt-0.5 shrink-0 animate-spin" /> Building your list — finding prospects that match your ICP and resolving their numbers. New prospects appear here through the day.</span>
               ) : !result.hasIcp ? (
-                <span>Tell Elevay who to call: set your ideal customer on the Accounts page (&ldquo;Describe ICP&rdquo;), and your morning list builds automatically.</span>
+                <span>Tell Elevay who to call: set your ideal customer on the Accounts page (&ldquo;Describe ICP&rdquo;), and your list builds automatically on the schedule you set.</span>
               ) : (
                 <span>No reachable prospects yet — import contacts or refine your ICP, then your list fills in.</span>
               )}

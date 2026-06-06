@@ -106,6 +106,8 @@ export async function POST(req: Request) {
       name?: string;
       maxAttempts?: number;
       windowDays?: number;
+      listFrequency?: "daily" | "weekly";
+      workingDays?: number[];
     };
 
     // Accept a structured goal, or parse any free-text objective via the LLM.
@@ -135,6 +137,11 @@ export async function POST(req: Request) {
       goal,
       maxAttempts: body.maxAttempts,
       windowDays: body.windowDays,
+      // User-defined cadence rhythm — drives when the list regenerates.
+      targetFilter: {
+        listFrequency: body.listFrequency === "weekly" ? "weekly" : "daily",
+        workingDays: Array.isArray(body.workingDays) && body.workingDays.length > 0 ? body.workingDays : [1, 2, 3, 4, 5],
+      },
     });
     await generateDailyCallList(campaign.id);
     const calls = await todayQueue(authCtx.tenantId);
