@@ -55,6 +55,8 @@ export default function ChatPage() {
   const [localInput, setLocalInput] = useState("");
   const [autoSent, setAutoSent] = useState(false);
   const [lastSavedCount, setLastSavedCount] = useState(0);
+  // Guards saveMessages against double-invocation (see saveMessages).
+  const savingRef = useRef(false);
   const [emailComposer, setEmailComposer] = useState<EmailComposerDraft | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [firstName, setFirstName] = useState<string>("");
@@ -147,6 +149,13 @@ export default function ChatPage() {
   const saveMessages = useCallback(async () => {
     if (chat.status === "streaming") return;
     if (chat.messages.length <= lastSavedCount) return;
+    // Re-entrancy guard — a double-invoked save (React StrictMode in dev, or a
+    // rapid re-render before lastSavedCount commits) was persisting the same
+    // exchange twice (4 rows for a 1-turn thread). Serialize saves so each turn
+    // is written exactly once.
+    if (savingRef.current) return;
+    savingRef.current = true;
+    try {
 
     const newMessages = chat.messages.slice(lastSavedCount);
     if (newMessages.length === 0) return;
@@ -221,6 +230,9 @@ export default function ChatPage() {
     }
 
     setLastSavedCount(chat.messages.length);
+    } finally {
+      savingRef.current = false;
+    }
   }, [chat.messages, chat.status, threadId, lastSavedCount]);
 
   // Trigger save when streaming completes
