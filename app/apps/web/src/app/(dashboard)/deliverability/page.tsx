@@ -156,6 +156,129 @@ function getMailboxStatusBadge(status: string): { variant: "success" | "warning"
   }
 }
 
+/**
+ * Domain authentication checker. Wires the existing /api/deliverability/verify
+ * endpoint (real SPF/DKIM/DMARC/MX DNS lookups) into the page — it was built
+ * but never surfaced, so the founder had no way to see their DNS auth status.
+ */
+function DnsAuthCheck({ defaultDomain }: { defaultDomain?: string }) {
+  const [domain, setDomain] = useState(defaultDomain ?? "");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{
+    domain: string;
+    score: number;
+    checks: Record<string, { status: string; record?: string; details?: string }>;
+    recommendations: string[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (defaultDomain && !domain) setDomain(defaultDomain);
+  }, [defaultDomain]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function run() {
+    if (!domain.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/deliverability/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: domain.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || "Check failed");
+        return;
+      }
+      setResult(data);
+    } catch {
+      setError("Network error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const badge = (s: string): { variant: "success" | "warning" | "error"; label: string } =>
+    s === "pass"
+      ? { variant: "success", label: "Pass" }
+      : s === "fail"
+        ? { variant: "error", label: "Fail" }
+        : { variant: "warning", label: "Missing" };
+
+  const ROWS: Array<[string, string]> = [
+    ["spf", "SPF"],
+    ["dkim", "DKIM"],
+    ["dmarc", "DMARC"],
+    ["mx", "MX"],
+  ];
+
+  return (
+    <Card>
+      <CardBody>
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <p className="text-[13px] font-semibold text-[var(--color-text-primary)]">
+              Domain authentication (SPF / DKIM / DMARC)
+            </p>
+            <p className="text-[11px] text-[var(--color-text-tertiary)]">
+              The DNS records that decide whether your mail reaches the inbox.
+            </p>
+          </div>
+          {result && (
+            <Badge variant={result.score >= 75 ? "success" : result.score >= 50 ? "warning" : "error"} size="md">
+              {result.score}/100
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mb-3">
+          <input
+            value={domain}
+            onChange={(e) => setDomain(e.target.value)}
+            placeholder="yourdomain.com"
+            className="flex-1 rounded-md px-3 py-1.5 text-[13px]"
+            style={{ background: "var(--color-bg-card)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
+            onKeyDown={(e) => { if (e.key === "Enter") run(); }}
+          />
+          <button
+            onClick={run}
+            disabled={loading || !domain.trim()}
+            className="rounded-md px-3 py-1.5 text-[12px] font-medium text-white"
+            style={{ background: "var(--color-accent)", opacity: loading || !domain.trim() ? 0.6 : 1 }}
+          >
+            {loading ? "Checking..." : "Check DNS"}
+          </button>
+        </div>
+        {error && <p className="text-[12px] text-red-400">{error}</p>}
+        {result && (
+          <div className="space-y-1.5">
+            {ROWS.map(([key, label]) => {
+              const c = result.checks[key] || { status: "missing" };
+              const b = badge(c.status);
+              return (
+                <div key={key} className="flex items-center justify-between gap-3 rounded-md px-3 py-1.5" style={{ background: "var(--color-bg-page)" }}>
+                  <span className="text-[12px] font-medium text-[var(--color-text-primary)]">{label}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    {c.details && <span className="text-[11px] truncate text-[var(--color-text-tertiary)]">{c.details}</span>}
+                    <Badge variant={b.variant} size="sm">{b.label}</Badge>
+                  </div>
+                </div>
+              );
+            })}
+            {result.recommendations.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {result.recommendations.map((r, i) => (
+                  <li key={i} className="text-[11px] text-[var(--color-text-secondary)]">• {r}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
 export default function DeliverabilityPage() {
   const [data, setData] = useState<DeliverabilityData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -260,6 +383,11 @@ export default function DeliverabilityPage() {
       </PageHeader>
 
       <div className="flex-1 overflow-auto px-4 py-6">
+        {/* Domain authentication (SPF/DKIM/DMARC) — wires the /verify endpoint */}
+        <div className="mb-4">
+          <DnsAuthCheck defaultDomain={data.mailboxHealth?.[0]?.emailAddress?.split("@")[1]} />
+        </div>
+
         {/* Actionable Recommendations */}
         {criticalRecs.length > 0 && (
           <div className="space-y-2 mb-4">
