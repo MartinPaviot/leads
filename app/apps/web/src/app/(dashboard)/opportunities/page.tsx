@@ -173,6 +173,11 @@ export default function OpportunitiesPage() {
 
   // View, display, filters
   const [searchQuery, setSearchQuery] = useState("");
+  // Debounced search pushed to the server. /api/opportunities resolves it to
+  // the matching industries via an LLM (intelligent, not a hardcoded synonym
+  // list), so "medical" surfaces deals at health-care companies — not just
+  // deals whose name literally contains the word.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("board");
   const [showDisplayPanel, setShowDisplayPanel] = useState(false);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
@@ -210,11 +215,14 @@ export default function OpportunitiesPage() {
 
   const fetchDeals = useCallback(async () => {
     try {
-      const r = await fetch("/api/opportunities");
+      const params = new URLSearchParams();
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      const qs = params.toString();
+      const r = await fetch(`/api/opportunities${qs ? `?${qs}` : ""}`);
       if (r.ok) { const d = await r.json(); setDeals(d.deals || []); }
     } catch (e) { console.warn("opportunities: deals fetch failed", e); }
     finally { setLoading(false); }
-  }, []);
+  }, [debouncedSearch]);
 
   const fetchAccounts = useCallback(async () => {
     try { const r = await fetch("/api/accounts?pageSize=200"); if (r.ok) { const d = await r.json(); setAccounts(d.accounts || []); } }
@@ -238,7 +246,14 @@ export default function OpportunitiesPage() {
     }
   }, []);
 
-  useEffect(() => { fetchDeals(); fetchAnalytics(); }, [fetchDeals, fetchAnalytics]);
+  useEffect(() => { fetchDeals(); }, [fetchDeals]);
+  useEffect(() => { fetchAnalytics(); }, [fetchAnalytics]);
+  // Debounce the search box -> server (industry-aware). 350ms after the user
+  // stops typing; clearing snaps back to the full pipeline.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 350);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
   useEffect(() => { if (showCreate) { fetchAccounts(); fetchContacts(); } }, [showCreate, fetchAccounts, fetchContacts]);
   // Multi-select only exists in the table view; drop it when switching to
   // the board so the bulk bar can't linger over a view with no checkboxes.
@@ -446,10 +461,10 @@ export default function OpportunitiesPage() {
 
   // Filter
   const filteredDeals = deals.filter((d) => {
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      if (!d.name.toLowerCase().includes(q) && !(d.companyName?.toLowerCase().includes(q))) return false;
-    }
+    // Text/sector search is server-side now (industry-aware via the same LLM
+    // resolver), so the loaded `deals` are already the matched set — no
+    // client-side text re-filter here (which would wrongly drop deals matched
+    // only by their company's industry, e.g. "medical" -> a Spineart deal).
     // Y12 — "Stalled" preset: only deals whose age-in-stage falls in
     // the stalled / frozen buckets (>= 14 days). Won/Lost are excluded
     // because ageInStage returns null for closed stages, so the filter
