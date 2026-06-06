@@ -13,9 +13,57 @@ Tier 5: proposals · skills · notes · tasks · deliverability · reports · me
 
 | # | Page | Status | Spec |
 |---|---|---|---|
-| 1 | /chat | SPEC DRAFTED (live test pending) | chat/spec.md |
-| 2 | / (Up next) | queued | — |
-| 3 | /meetings | queued | — |
+| 1 | /chat | DONE pass-1: live-tested + 2 defects fixed & verified (T13 dup, T3 citations), committed 43e67ecb; elevations=pass 2 | chat/spec.md |
+| 2 | / (Up next) | pass-1: approve-route 404 FIXED+verified; fake-AI follow-up templates FIXED (real opener, compile+render verified) — both committed; remaining: rule-based action ranking (pass 2). Behavioral verify blocked by empty test tenant | — |
+| 3 | /meetings | pass-1: list->detail link FIXED (compile+render verified; behavioral needs calendar data). Remaining: Recall webhook doesn't auto-trigger post-call (auto-capture broken); 15-min bot window no cron | — |
 | 4 | /inbox | queued | — |
 
 Global flow map + per-page coverage gaps: `_audit/2026-06-06-prelaunch/page-coverage-audit.md`.
+
+## Cross-cutting fixes (found while testing)
+- BILLING (commit 12adc481): `plan-limits.countContacts` counted soft-deleted contacts -> tenant
+  47dca783 was blocked at "519/100" while 0 contacts were visible; couldn't create contacts. Fixed
+  with isNull(deletedAt). Verified 403 -> 201. Also explains the chat "0 contacts" (correct) vs the
+  billing block (wrong).
+- HOME opener correction (commit 5252c7ee): the follow-up helper read the opener OBJECT as the body
+  and would emit a "[placeholder]" skeleton when no signals; now reads .opener.opener + guards.
+
+## Test environment
+- The "E2E Test Workspace" resolves to tenant **47dca783** (real Pilae data: 767 CH/FR accounts;
+  most contacts soft-deleted). Login martin@elevay.dev. Behavioral testing is now UNBLOCKED (can
+  create contacts after the billing fix). Dev server runs with NODE_EXTRA_CA_CERTS (TLS on, LLM works).
+- A seed contact "Sarah Chen <sarah.chen+seed@spineart.com>" exists for testing (clean up at end).
+
+## Session commits (feat/page-elevation) — 12 fixes
+c4c237d2 docs · 43e67ecb chat T13(dup)+T3(citations) · 6cb251b4 home approve route 404 ·
+5fb314a1 home fake-AI follow-up · 12adc481 billing deleted-contacts block · 5252c7ee home opener
+parse · 96817357 meetings list->detail link · 642216f0 chat createDeal->/api/opportunities ·
+249731d0 opps Email-contact recipient · 6ecabfd2 sequences reject-modal label ·
+d544978c deliverability SPF/DKIM/DMARC UI (verified live on elevay.dev) · 1f3b2717 knowledge search.
+
+Real bugs found by live-testing (not just elevations): billing (deleted contacts blocked creation,
+403->201), home opener (object-not-string + placeholder), chat createDeal (404), opps Email-contact
+(blank To), deliverability /verify unwired (elevay.dev: DKIM missing + DMARC=none). Seed in tenant
+47dca783: contact 6d6bcbbf (Sarah Chen +seed @ Spineart), deal 3770cea8 (Spineart - Pilot $48k).
+Dev server up with NODE_EXTRA_CA_CERTS (TLS on, LLM works).
+
+NEXT — the "deep" remainder (bigger/sensitive/data-blocked; do carefully, not as quick grinds):
+- meetings: DONE.
+  * list->detail link (96817357).
+  * auto-post-call: extracted to lib/meetings/post-call.ts (processPostCall); route = thin wrapper;
+    webhook (processTranscriptFromBot) auto-runs it on call-end (6f989522; idempotency guard
+    ca5b92cc folded in; userId=null -> unassigned tasks; drafts, never sends). Verified live on a
+    seeded meeting (process-transcript -> activity 3aaef096): 4 tasks + a 927-char follow-up draft;
+    re-run returned alreadyProcessed with zero duplicates. Also fixed a pre-existing crash:
+    free-text deadlines ("Friday") -> new Date() -> "RangeError: Invalid time value" on insert.
+  * bot scheduling: NOT a defect (coverage-audit false positive). Already cron-driven:
+    cronCalendarSync (*/15, meeting-functions.ts) + scheduleRecallBots safety-net (*/5,
+    recall-functions.ts). Real dependency = Inngest Cloud must run (prod /api/inngest 500 = no
+    Inngest keys, per product-audit memory) -- infra/config, not code.
+  Seed left in tenant 47dca783: meeting activity 3aaef096 + its 4 generated tasks (clean up at end).
+- inbox: no inbound capture — needs an inbound table + IMAP/webhook ingestion. Big feature.
+- contacts list: column filters run client-side on the current 50-row page (wrong results). Fix =
+  push filters to the server query. Needs >50 contacts seeded to verify.
+- reports: "Schedule weekly" fires reports/schedule.requested with no Inngest handler. Fix = real
+  scheduled-report worker (cron + generate + email) or stop claiming "Scheduled".
+Pass-2 = elevations per each page's spec.
