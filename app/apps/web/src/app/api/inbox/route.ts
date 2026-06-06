@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { outboundEmails, contacts } from "@/db/schema";
-import { eq, and, isNotNull, desc, sql, isNull } from "drizzle-orm";
+import { outboundEmails, contacts, activities } from "@/db/schema";
+import { eq, and, isNotNull, desc, sql, isNull, inArray } from "drizzle-orm";
 
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();
@@ -9,12 +9,111 @@ export async function GET(req: Request) {
 
   try {
     const url = new URL(req.url, "http://localhost");
-    const filter = url.searchParams.get("filter") || "all"; // all, replied, awaiting, bounced
+    const filter = url.searchParams.get("filter") || "all"; // all, replied, awaiting, bounced, inbound
     const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
     const pageSize = 30;
     const offset = (page - 1) * pageSize;
 
-    // Base: all sent outbound emails for this tenant
+    // Inbound count (email_received activities) — the other half of the
+    // conversation. Always computed so the chip shows on every view.
+    const [inboundCountRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(activities)
+      .where(
+        and(
+          eq(activities.tenantId, authCtx.tenantId),
+          eq(activities.activityType, "email_received"),
+          isNull(activities.deletedAt),
+        ),
+      );
+    const inboundCount = Number(inboundCountRow?.count || 0);
+
+    // Outbound summary counts — always shown on the filter chips.
+    const [counts] = await db
+      .select({
+        total: sql<number>`count(*)::int`,
+        replied: sql<number>`count(*) filter (where ${outboundEmails.repliedAt} is not null)`,
+        awaiting: sql<number>`count(*) filter (where ${outboundEmails.repliedAt} is null and ${outboundEmails.status} not in ('bounced', 'failed'))`,
+        bounced: sql<number>`count(*) filter (where ${outboundEmails.status} = 'bounced')`,
+      })
+      .from(outboundEmails)
+      .where(and(eq(outboundEmails.tenantId, authCtx.tenantId), isNotNull(outboundEmails.sentAt)));
+
+    const countsPayload = {
+      total: Number(counts?.total || 0),
+      replied: Number(counts?.replied || 0),
+      awaiting: Number(counts?.awaiting || 0),
+      bounced: Number(counts?.bounced || 0),
+      inbound: inboundCount,
+    };
+
+    // ── Inbound view: captured incoming messages (full body, threaded) ──
+    if (filter === "inbound") {
+      const rows = await db
+        .select({
+          id: activities.id,
+          contactId: activities.entityId,
+          occurredAt: activities.occurredAt,
+          summary: activities.summary,
+          rawContent: activities.rawContent,
+          metadata: activities.metadata,
+          threadId: activities.threadId,
+          sentiment: activities.sentiment,
+        })
+        .from(activities)
+        .where(
+          and(
+            eq(activities.tenantId, authCtx.tenantId),
+            eq(activities.activityType, "email_received"),
+            isNull(activities.deletedAt),
+          ),
+        )
+        .orderBy(desc(activities.occurredAt))
+        .limit(pageSize)
+        .offset(offset);
+
+      // Enrich with contact names. For inbound attributed to a person,
+      // entityId points at the contact; company-linked inbound has none.
+      const cids = [...new Set(rows.map((r) => r.contactId).filter(Boolean))] as string[];
+      const cmap: Record<string, { name: string; email: string | null }> = {};
+      if (cids.length > 0) {
+        const crows = await db
+          .select({ id: contacts.id, firstName: contacts.firstName, lastName: contacts.lastName, email: contacts.email })
+          .from(contacts)
+          .where(and(inArray(contacts.id, cids), isNull(contacts.deletedAt)));
+        for (const c of crows) {
+          cmap[c.id] = {
+            name: [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email || "Unknown",
+            email: c.email,
+          };
+        }
+      }
+
+      const inboundEmails = rows.map((r) => {
+        const meta = (r.metadata || {}) as Record<string, unknown>;
+        return {
+          id: r.id,
+          direction: "inbound" as const,
+          fromAddress: (meta.from as string) || cmap[r.contactId]?.email || "",
+          toAddress: (meta.to as string) || "",
+          subject: r.summary || (meta.subject as string) || "(no subject)",
+          body: r.rawContent || (meta.snippet as string) || "",
+          receivedAt: r.occurredAt,
+          threadId: r.threadId,
+          sentiment: r.sentiment,
+          contactId: r.contactId,
+          contact: cmap[r.contactId] || null,
+        };
+      });
+
+      return Response.json({
+        emails: inboundEmails,
+        counts: countsPayload,
+        pagination: { page, pageSize, total: inboundCount },
+      });
+    }
+
+    // ── Outbound views (all / replied / awaiting / bounced) ──
     let whereClause = and(
       eq(outboundEmails.tenantId, authCtx.tenantId),
       isNotNull(outboundEmails.sentAt),
@@ -70,7 +169,7 @@ export async function GET(req: Request) {
       const contactRows = await db
         .select({ id: contacts.id, firstName: contacts.firstName, lastName: contacts.lastName, email: contacts.email })
         .from(contacts)
-        .where(and(sql`${contacts.id} = ANY(${contactIds})`, isNull(contacts.deletedAt)));
+        .where(and(inArray(contacts.id, contactIds), isNull(contacts.deletedAt)));
       for (const c of contactRows) {
         contactMap[c.id] = {
           name: [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email || "Unknown",
@@ -79,30 +178,15 @@ export async function GET(req: Request) {
       }
     }
 
-    // Summary counts
-    const [counts] = await db
-      .select({
-        total: sql<number>`count(*)::int`,
-        replied: sql<number>`count(*) filter (where ${outboundEmails.repliedAt} is not null)`,
-        awaiting: sql<number>`count(*) filter (where ${outboundEmails.repliedAt} is null and ${outboundEmails.status} not in ('bounced', 'failed'))`,
-        bounced: sql<number>`count(*) filter (where ${outboundEmails.status} = 'bounced')`,
-      })
-      .from(outboundEmails)
-      .where(and(eq(outboundEmails.tenantId, authCtx.tenantId), isNotNull(outboundEmails.sentAt)));
-
     const enrichedEmails = emails.map((e) => ({
       ...e,
+      direction: "outbound" as const,
       contact: e.contactId ? contactMap[e.contactId] || null : null,
     }));
 
     return Response.json({
       emails: enrichedEmails,
-      counts: {
-        total: Number(counts?.total || 0),
-        replied: Number(counts?.replied || 0),
-        awaiting: Number(counts?.awaiting || 0),
-        bounced: Number(counts?.bounced || 0),
-      },
+      counts: countsPayload,
       pagination: {
         page,
         pageSize,

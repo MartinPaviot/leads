@@ -4,6 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { inngest } from "@/inngest/client";
 import type { AgentTrigger } from "@/lib/agent-reactor/types";
+import { captureInboundEmail } from "@/lib/capture/email-capture";
 
 function verifyWebhookSignature(body: string, signature: string | null): boolean {
   const secret = process.env.EMAILENGINE_WEBHOOK_SECRET;
@@ -30,7 +31,21 @@ export async function POST(req: Request) {
     case "messageNew": {
       const { account, from, to, subject, text, messageId, threadId } = event.data || {};
 
-      // Check if this is a reply to an outbound email
+      // Resolve the receiving tenant from the connected mailbox, so inbound
+      // that isn't tied to one of our outbound threads can still be captured.
+      let tenantId: string | null = null;
+      if (account) {
+        const [mb] = await db
+          .select({ tenantId: connectedMailboxes.tenantId })
+          .from(connectedMailboxes)
+          .where(eq(connectedMailboxes.eeAccountId, account))
+          .limit(1);
+        tenantId = mb?.tenantId ?? null;
+      }
+
+      // Reply to a tracked outbound? Flip its reply flag (existing behaviour)
+      // and remember the contact so the captured inbound links to them.
+      let knownContactId: string | null = null;
       if (threadId) {
         const [outbound] = await db
           .select()
@@ -39,11 +54,14 @@ export async function POST(req: Request) {
           .limit(1);
 
         if (outbound) {
-          // Push to reply classification queue via Redis
-          // For now, store the reply data directly
+          tenantId = tenantId ?? outbound.tenantId;
+          knownContactId = outbound.contactId ?? null;
+
+          // Push to reply classification queue via Redis; fall back to a
+          // direct flag update.
           const replyRedisUrl = process.env.REDIS_URL || "redis://localhost:6379";
           try {
-            const res = await fetch(`${replyRedisUrl.replace("redis://", "http://").replace(":6379", ":3100")}/v1/queue/outbound:reply`, {
+            await fetch(`${replyRedisUrl.replace("redis://", "http://").replace(":6379", ":3100")}/v1/queue/outbound:reply`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -65,6 +83,23 @@ export async function POST(req: Request) {
               .where(eq(outboundEmails.id, outbound.id));
           }
         }
+      }
+
+      // Capture the inbound message itself as a first-class activity (full
+      // body, threaded, linked to the contact/company) — not just a reply
+      // flag, and including inbound that never matched an outbound thread.
+      // Idempotent on messageId; non-fatal on failure.
+      if (tenantId) {
+        await captureInboundEmail({
+          tenantId,
+          fromHeader: from || "",
+          toHeader: Array.isArray(to) ? to.join(", ") : (to ?? null),
+          subject: subject ?? null,
+          text: text ?? null,
+          messageId: messageId ?? null,
+          threadId: threadId ?? null,
+          knownContactId,
+        }).catch((e) => console.warn("emailengine: inbound capture failed", e));
       }
 
       break;
