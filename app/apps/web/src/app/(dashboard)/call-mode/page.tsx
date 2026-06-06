@@ -496,6 +496,33 @@ export default function CallModePage() {
     );
   }, []);
 
+  // One-tap disposition at hang-up: log the outcome (cadence + CRM run server-
+  // side), drop the contact from today's list, and auto-advance to the next.
+  const handleDisposition = useCallback(
+    async (outcome: string) => {
+      const callId = "callId" in softphone ? softphone.callId : "";
+      if (callId) {
+        try {
+          await fetch(`/api/calls/${callId}/disposition`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ outcome }),
+          });
+        } catch {
+          /* non-fatal — the async post-call worker still classifies it */
+        }
+      }
+      toast(`Logged: ${outcome.replace(/_/g, " ")}`, "success");
+      const idx = queue.findIndex((q) => q.contactId === selectedId);
+      const remaining = queue.filter((q) => q.contactId !== selectedId);
+      setQueue(remaining);
+      const next = remaining[idx] ?? remaining[idx - 1] ?? remaining[0] ?? null;
+      setSelectedId(next ? next.contactId : null);
+      setSoftphone({ kind: "idle" });
+    },
+    [softphone, queue, selectedId, toast],
+  );
+
   // ── Render ────────────────────────────────────────────────────
   // Every state lives inside the same shell as the other tabs: a flush
   // PageHeader bar (height var(--header-height)) above a flex-1 body.
@@ -720,6 +747,7 @@ export default function CallModePage() {
                   onCall={handleAppeler}
                   onHangup={handleHangup}
                   onDropVoicemail={handleDropVoicemail}
+                  onDisposition={handleDisposition}
                   voicemailDropping={voicemailDropping}
                   voicemailDropped={voicemailDropped}
                 />
@@ -838,10 +866,11 @@ function SoftphoneControls(props: {
   onCall: (contactId: string) => void;
   onHangup: () => void;
   onDropVoicemail: (callId: string) => void;
+  onDisposition: (outcome: string) => void;
   voicemailDropping: boolean;
   voicemailDropped: boolean;
 }) {
-  const { state, selected, onCall, onHangup, onDropVoicemail, voicemailDropping, voicemailDropped } = props;
+  const { state, selected, onCall, onHangup, onDropVoicemail, onDisposition, voicemailDropping, voicemailDropped } = props;
   switch (state.kind) {
     case "idle":
       return (
@@ -919,16 +948,39 @@ function SoftphoneControls(props: {
         </div>
       );
     }
-    case "ended":
+    case "ended": {
+      const suggested = state.outcome;
+      const opts: { key: string; label: string }[] = [
+        { key: "connected", label: "Connected" },
+        { key: "meeting_booked", label: "Meeting booked" },
+        { key: "callback_requested", label: "Callback" },
+        { key: "no_answer", label: "No answer" },
+        { key: "voicemail_left", label: "Voicemail" },
+        { key: "not_interested", label: "Not interested" },
+      ];
       return (
-        <div className="flex items-center gap-3">
-          <Badge>{state.outcome ?? "ended"}</Badge>
-          <Button onClick={() => onCall(selected.contactId)} className="gap-2">
-            <Phone className="h-4 w-4" />
-            Call again
-          </Button>
+        <div className="flex flex-col gap-2">
+          <span className="text-[12px] text-zinc-500">
+            How did it go?{suggested ? ` (suggested: ${suggested.replace(/_/g, " ")})` : ""}
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {opts.map((o) => (
+              <Button
+                key={o.key}
+                variant={suggested === o.key ? "solid" : "outline"}
+                size="sm"
+                onClick={() => onDisposition(o.key)}
+              >
+                {o.label}
+              </Button>
+            ))}
+            <Button variant="ghost" size="sm" onClick={() => onCall(selected.contactId)} className="gap-1">
+              <Phone className="h-3.5 w-3.5" /> Call again
+            </Button>
+          </div>
         </div>
       );
+    }
   }
 }
 
