@@ -1,6 +1,7 @@
 "use client";
 
 import { Calendar, FileText, ExternalLink, Clock, Users, ChevronDown, ChevronRight, Loader2, Mic, CheckCircle2, AlertCircle, Play, Upload, Timer, AlertTriangle, Sun } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -388,6 +389,14 @@ function MeetingCard({
             </div>
           </div>
         </button>
+
+        <Link
+          href={`/meetings/${m.id}`}
+          className="mt-1 ml-5 inline-flex items-center gap-1 text-[11px] font-medium hover:underline"
+          style={{ color: "var(--color-accent)" }}
+        >
+          View details <ChevronRight size={11} />
+        </Link>
 
         {expanded && (
           <div className="mt-3 ml-5 space-y-3" style={{ borderTop: "1px solid var(--color-border-default)", paddingTop: "12px" }}>
