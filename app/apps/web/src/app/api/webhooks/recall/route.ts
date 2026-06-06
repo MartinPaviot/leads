@@ -409,5 +409,18 @@ RULES:
     await ingestEpisode(tenantId, graphContent, "meeting", activityId);
   } catch { /* non-critical */ }
 
+  // 8. Auto-run the post-call pipeline (tasks from action items + follow-up
+  // DRAFT) so a recorded meeting is captured without a manual "Confirm & update
+  // CRM" click. userId=null -> tasks are created unassigned. Idempotent (the
+  // meta.postCallProcessedAt guard), so a later manual confirm is a no-op.
+  // Drafts the follow-up only — never sends.
+  try {
+    const { processPostCall } = await import("@/lib/meetings/post-call");
+    const pc = await processPostCall({ activityId, tenantId, userId: null });
+    console.log(`[Recall] post-call auto-run for activity ${activityId}: ${pc.tasks} task(s), draft=${pc.followUpDraft ? "yes" : "no"}`);
+  } catch (err) {
+    console.error(`[Recall] post-call auto-run failed for activity ${activityId}:`, err);
+  }
+
   console.log(`[Recall] Transcript processed for bot ${botId}, activity ${activityId}: ${notes.summary.slice(0, 100)}`);
 }
