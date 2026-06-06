@@ -334,16 +334,13 @@ export default function ContactsPage() {
     : contacts
   ).filter(passesColumnFilters);
 
-  const textFiltered = searchQuery.trim()
-    ? smartFilteredContacts.filter((c) => {
-        const q = searchQuery.toLowerCase();
-        const name = [c.firstName, c.lastName].filter(Boolean).join(" ").toLowerCase();
-        return name.includes(q) || (c.email?.toLowerCase().includes(q) ?? false) || (c.title?.toLowerCase().includes(q) ?? false) || (c.companyName?.toLowerCase().includes(q) ?? false);
-      })
-    : smartFilteredContacts;
+  // The typed text search now runs server-side (debouncedSearch -> /api/contacts
+  // ?search=) so it spans ALL contacts, not just the loaded page; smart filters
+  // and column filters refine that set client-side. No client text re-filter
+  // (it would also wrongly filter a natural-language query as a literal term).
 
   // Sort
-  const filteredContacts = [...textFiltered].sort((a, b) => {
+  const filteredContacts = [...smartFilteredContacts].sort((a, b) => {
     let av: string | number | null = null;
     let bv: string | number | null = null;
     if (sortField === "firstName") { av = [a.firstName, a.lastName].filter(Boolean).join(" "); bv = [b.firstName, b.lastName].filter(Boolean).join(" "); }
@@ -403,14 +400,29 @@ export default function ContactsPage() {
       </PageHeader>
 
       <FilterBar>
-        <div className="relative flex-1">
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--color-text-tertiary)" }} />
-          <Input type="text" placeholder="Search contacts..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-8 pr-8" style={{ height: 30, fontSize: 12 }} />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2" style={{ color: "var(--color-text-tertiary)" }}>
-              <X size={12} />
-            </button>
-          )}
+        {/* One intelligent search: type a name/email -> instant server search
+            (spans all contacts); press Enter -> natural-language smart filters. */}
+        <div className="flex-1">
+          <SmartSearchBar
+            resourceType="contact"
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search a name or email — or describe and press Enter (e.g. CTOs at fintech in Geneva)"
+            className="w-full"
+            onFilters={(filters, meta) => {
+              setSmartFilters(filters);
+              setSmartMeta(meta);
+              // A natural-language query is not a literal term — drop the server
+              // text search so the smart filters alone define the result set.
+              setDebouncedSearch("");
+              if (filters.length > 0) {
+                toast(`Applied ${filters.length} smart filter${filters.length === 1 ? "" : "s"}`, "success");
+              } else if (meta.unmatched.length > 0) {
+                toast("Nothing matched your query — try rephrasing", "info");
+              }
+            }}
+            onError={(msg) => toast(msg, "error")}
+          />
         </div>
         {(() => {
           const activeKeys = Object.keys(columnFilters).filter((k) => isColumnFilterActive(columnFilters[k]));
@@ -427,21 +439,6 @@ export default function ContactsPage() {
             </button>
           );
         })()}
-        <div className="w-64">
-          <SmartSearchBar
-            resourceType="contact"
-            onFilters={(filters, meta) => {
-              setSmartFilters(filters);
-              setSmartMeta(meta);
-              if (filters.length > 0) {
-                toast(`Applied ${filters.length} smart filter${filters.length === 1 ? "" : "s"}`, "success");
-              } else if (meta.unmatched.length > 0) {
-                toast("Nothing matched your query — try rephrasing", "info");
-              }
-            }}
-            onError={(msg) => toast(msg, "error")}
-          />
-        </div>
       </FilterBar>
       <ActiveFiltersChips
         filters={smartFilters}
