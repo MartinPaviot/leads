@@ -22,7 +22,6 @@ import { ScalingPathPrompt } from "@/components/ScalingPathPrompt";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { HotInboundsWidget } from "@/components/hot-inbounds-widget";
 import { HotVisitorsWidget } from "@/components/hot-visitors-widget";
-import { OnboardingIncompleteBanner } from "@/components/onboarding-7phase/incomplete-banner";
 import { VisitorIdCapBanner } from "@/components/visitor-id-cap-banner";
 
 interface Action {
@@ -191,6 +190,13 @@ export default function DashboardPage() {
     };
     function applyOnboarding(onb: OnboardingPayload | null) {
       if (!onb?.needsOnboarding) return;
+      // Respect a prior "Skip for now" so onboarding isn't force-shown on
+      // every load (it was a non-dismissable trap over already-set-up
+      // tenants — pre-launch audit). Cleared automatically once the server
+      // reports onboarding no longer needed.
+      try {
+        if (localStorage.getItem("elevay_onboarding_dismissed") === "1") return;
+      } catch {}
       setShowOnboarding(true);
       setOnboardingHasGoogle(onb.hasGoogle || false);
       setOnboardingHasMicrosoft(onb.hasMicrosoft || false);
@@ -319,10 +325,9 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* MONACO-PARITY-03: discoverability shim — surfaces the
-            7-phase wizard at /onboarding-v3 if onboarding isn't
-            complete. Hides itself on completion. */}
-        <OnboardingIncompleteBanner />
+        {/* Onboarding is the single confirmation-card modal (rendered below).
+            The legacy 7-phase wizard banner (→ /onboarding-v3) was removed —
+            two parallel onboarding surfaces confused users (pre-launch audit). */}
 
         {/* P0-2 follow-up : visitor-ID cap banner. Hides itself when
             spend is healthy ; surfaces amber warning within $5/10%
@@ -987,7 +992,12 @@ export default function DashboardPage() {
             userName={onboardingName}
             onComplete={() => {
               setShowOnboarding(false);
+              try { localStorage.removeItem("elevay_onboarding_dismissed"); } catch {}
               window.location.href = "/?firstTime=true";
+            }}
+            onDismiss={() => {
+              setShowOnboarding(false);
+              try { localStorage.setItem("elevay_onboarding_dismissed", "1"); } catch {}
             }}
           />
         ) : (

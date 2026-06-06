@@ -162,13 +162,24 @@ function UserMenu({
       style={{ borderTop: "1px solid var(--color-border-default)" }}
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setOpen(false);
+      }}
     >
-      {/* Always visible: avatar + first name */}
-      <div
+      {/* Trigger: avatar + first name. A real <button> (not a div) so the
+          account menu — including Log out — is keyboard-focusable and not
+          hover-only. Hover still opens it; click toggles; Escape closes. */}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        onFocus={handleEnter}
+        onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
+        aria-haspopup="menu"
+        aria-expanded={open}
         className={`flex items-center rounded-md transition-colors ${
-          collapsed ? "h-8 w-8 justify-center mx-auto" : "h-8 gap-2.5 px-2.5"
+          collapsed ? "h-8 w-8 justify-center mx-auto" : "h-8 w-full gap-2.5 px-2.5"
         }`}
-        style={{ cursor: "default" }}
+        style={{ cursor: "pointer", background: "none", border: "none", textAlign: "left" }}
       >
         <Avatar src={avatarUrl} name={avatarName} size="sm" />
         {!collapsed && (
@@ -179,7 +190,7 @@ function UserMenu({
             {firstName}
           </span>
         )}
-      </div>
+      </button>
 
       {/* Hover popover */}
       {open && (

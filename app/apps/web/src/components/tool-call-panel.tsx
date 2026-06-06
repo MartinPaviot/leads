@@ -52,7 +52,29 @@ const toolDisplayNames: Record<string, { label: string; pastLabel: string; icon:
   recallMemories:         { label: "Recalling memories",    pastLabel: "Recalled memories",   icon: Database,    category: "retrieve" },
   exploreGraph:           { label: "Exploring graph",       pastLabel: "Explored graph",      icon: Zap,         category: "retrieve" },
   getMeetingNotes:        { label: "Retrieving notes",      pastLabel: "Retrieved notes",     icon: Calendar,    category: "retrieve" },
+  runBasicReport:         { label: "Running report",        pastLabel: "Ran report",          icon: BarChart3,   category: "analyze" },
+  executeCode:            { label: "Analyzing data",        pastLabel: "Analyzed data",       icon: BarChart3,   category: "analyze" },
+  briefAllDeals:          { label: "Briefing pipeline",     pastLabel: "Briefed pipeline",    icon: TrendingUp,  category: "analyze" },
+  briefDeal:              { label: "Briefing deal",         pastLabel: "Briefed deal",        icon: TrendingUp,  category: "analyze" },
+  getEnrichedContext:     { label: "Loading context",       pastLabel: "Loaded context",      icon: Layers,      category: "retrieve" },
+  getDealsAtRisk:         { label: "Checking deal risk",    pastLabel: "Checked deal risk",   icon: TrendingUp,  category: "analyze" },
+  getWinLossAnalysis:     { label: "Analyzing win/loss",    pastLabel: "Analyzed win/loss",   icon: BarChart3,   category: "analyze" },
+  getBuyerIntentScore:    { label: "Scoring intent",        pastLabel: "Scored intent",       icon: BarChart3,   category: "analyze" },
+  getRevenueForcast:      { label: "Forecasting revenue",   pastLabel: "Forecasted revenue",  icon: TrendingUp,  category: "analyze" },
+  searchMeetings:         { label: "Searching meetings",    pastLabel: "Found meetings",      icon: Calendar,    category: "retrieve" },
+  searchEmailsByMetadata: { label: "Searching emails",      pastLabel: "Found emails",        icon: Mail,        category: "retrieve" },
+  semanticSearchNotes:    { label: "Searching notes",       pastLabel: "Searched notes",      icon: StickyNote,  category: "retrieve" },
+  semanticSearchEmails:   { label: "Searching emails",      pastLabel: "Searched emails",     icon: Mail,        category: "retrieve" },
+  semanticSearchCallRecordings: { label: "Searching calls", pastLabel: "Searched calls",      icon: Calendar,    category: "retrieve" },
+  getRecordsByIds:        { label: "Loading records",       pastLabel: "Loaded records",      icon: Database,    category: "retrieve" },
+  findDuplicateContacts:  { label: "Finding duplicates",    pastLabel: "Found duplicates",    icon: Users,       category: "retrieve" },
 };
+
+/** Fallback: turn an unmapped tool name like "runBasicReport" into "Run basic report" so internal names never leak to users. */
+function humanizeToolName(name: string): string {
+  const words = name.replace(/([A-Z])/g, " $1").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : name;
+}
 
 /** Human-readable description of the query args */
 function describeQuery(toolName: string, args: Record<string, unknown>): string | null {
@@ -138,7 +160,7 @@ function formatCellValue(val: unknown): string {
 
 export function ToolCallPanel({ toolName, args, result, isStreaming }: ToolCallPanelProps) {
   const [expanded, setExpanded] = useState(false);
-  const display = toolDisplayNames[toolName] || { label: toolName, pastLabel: toolName, icon: Search, category: "retrieve" as const };
+  const display = toolDisplayNames[toolName] || { label: humanizeToolName(toolName), pastLabel: humanizeToolName(toolName), icon: Search, category: "retrieve" as const };
   const Icon = display.icon;
 
   const resultSummary = isStreaming ? null : summarizeResult(toolName, result);

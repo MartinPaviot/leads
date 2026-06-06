@@ -252,10 +252,21 @@ export function CompanyDossier({ accountId, accountDomain, accountName }: Compan
       className="rounded-lg"
       style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}
     >
-      {/* Header */}
-      <button
+      {/* Header — a div (not a <button>) so the inner Refresh button isn't an
+          invalid nested <button> (caused a hydration error). Keyboard-accessible
+          via role/tabIndex/onKeyDown. */}
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center justify-between px-4 py-3 transition-colors"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded(!expanded);
+          }
+        }}
+        className="flex w-full cursor-pointer items-center justify-between px-4 py-3 transition-colors"
         style={{ borderBottom: expanded ? "1px solid var(--color-border-default)" : "none" }}
       >
         <div className="flex items-center gap-2">
@@ -279,7 +290,7 @@ export function CompanyDossier({ accountId, accountDomain, accountName }: Compan
           </Button>
           {expanded ? <ChevronUp size={14} style={{ color: "var(--color-text-tertiary)" }} /> : <ChevronDown size={14} style={{ color: "var(--color-text-tertiary)" }} />}
         </div>
-      </button>
+      </div>
 
       {error && (
         <p className="px-4 py-2 text-[11px]" style={{ color: "var(--color-error)" }}>{error}</p>
@@ -330,7 +341,11 @@ export function CompanyDossier({ accountId, accountDomain, accountName }: Compan
               <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
                 ICP Fit
               </span>
-              <IcpScoreBadge score={dossier.icpFit.score} />
+              {/not configured|scoring unavailable|unavailable \(/i.test(dossier.icpFit.reasoning) ? (
+                <span className="text-[11px] font-medium" style={{ color: "var(--color-text-muted)" }}>Not scored</span>
+              ) : (
+                <IcpScoreBadge score={dossier.icpFit.score} />
+              )}
             </div>
             <p className="text-[12px] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
               {dossier.icpFit.reasoning}

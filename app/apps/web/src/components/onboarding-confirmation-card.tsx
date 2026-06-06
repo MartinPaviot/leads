@@ -251,25 +251,33 @@ export function OnboardingConfirmationCard({
 
   const updateIdentity = useCallback(
     (next: Partial<ConfirmationCardInferred>) => {
-      setIdentity((prev) => {
-        const merged = { ...prev, ...next };
-        onEdit({ identity: merged, targeting });
-        return merged;
-      });
+      setIdentity((prev) => ({ ...prev, ...next }));
     },
-    [onEdit, targeting],
+    [],
   );
 
   const updateTargeting = useCallback(
     (next: Partial<ConfirmationCardTargeting>) => {
-      setTargeting((prev) => {
-        const merged = { ...prev, ...next };
-        onEdit({ identity, targeting: merged });
-        return merged;
-      });
+      setTargeting((prev) => ({ ...prev, ...next }));
     },
-    [onEdit, identity],
+    [],
   );
+
+  // Notify the parent of edits in an effect — AFTER render — rather than from
+  // inside the setState updater (which runs during render and caused
+  // "Cannot update a component (OnboardingV2Wrapper) while rendering a
+  // different component (OnboardingConfirmationCard)"). A ref keeps the
+  // latest onEdit without re-firing the effect when its identity changes.
+  const onEditRef = useRef(onEdit);
+  onEditRef.current = onEdit;
+  const skipFirstEdit = useRef(true);
+  useEffect(() => {
+    if (skipFirstEdit.current) {
+      skipFirstEdit.current = false;
+      return;
+    }
+    onEditRef.current({ identity, targeting });
+  }, [identity, targeting]);
 
   async function handleConfirm() {
     setConfirming(true);
