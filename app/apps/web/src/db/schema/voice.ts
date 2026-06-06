@@ -173,6 +173,88 @@ export const phoneNumberPool = pgTable(
   ],
 );
 
+// === GOAL-DRIVEN CALL CAMPAIGNS ===
+//
+// "This week I want 1000 calls over 5 days" -> a campaign with a daily
+// quota. Each morning a cron tops up `call_campaign_targets` to the quota
+// from the tenant's enriched, callable contacts, and reschedules no-answers
+// per the cadence (retry up to maxAttempts over windowDays). The morning
+// call list = targets surfaced today; the call-mode cockpit dials them and
+// the post-call worker feeds the outcome back into the cadence.
+
+export const callCampaignStatusEnum = pgEnum("call_campaign_status", [
+  "active",
+  "paused",
+  "completed",
+  "archived",
+]);
+
+export const callCampaigns = pgTable(
+  "call_campaigns",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    ownerId: text("owner_id").references(() => users.id),
+    name: text("name").notNull(),
+    status: callCampaignStatusEnum("status").notNull().default("active"),
+    // Goal: weeklyTarget calls spread over daysPerWeek -> dailyQuota.
+    weeklyTarget: integer("weekly_target").notNull().default(0),
+    daysPerWeek: integer("days_per_week").notNull().default(5),
+    dailyQuota: integer("daily_quota").notNull().default(0),
+    // Cadence: retry a no-answer up to maxAttempts over windowDays.
+    maxAttempts: integer("max_attempts").notNull().default(8),
+    windowDays: integer("window_days").notNull().default(15),
+    // Targeting snapshot used to top up targets; empty -> tenant ICP at run time.
+    targetFilter: jsonb("target_filter").default({}),
+    startDate: timestamp("start_date", { withTimezone: true }).defaultNow(),
+    endDate: timestamp("end_date", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [
+    index("call_campaigns_tenant_idx").on(t.tenantId),
+    index("call_campaigns_status_idx").on(t.tenantId, t.status),
+  ],
+);
+
+export const callTargetStatusEnum = pgEnum("call_target_status", [
+  "queued", // due / waiting to be called
+  "in_progress", // dialed, awaiting disposition
+  "connected", // reached the human (terminal)
+  "converted", // meeting booked / positive (terminal)
+  "exhausted", // hit maxAttempts or window without an answer (terminal)
+  "dnc", // do-not-call / not interested (terminal)
+]);
+
+// One row per (campaign, contact): the cadence state machine. attemptCount
+// + nextAttemptAt + status drive both the morning list (status 'queued' and
+// nextAttemptAt <= today, capped at dailyQuota) and the retry logic fed by
+// call outcomes.
+export const callCampaignTargets = pgTable(
+  "call_campaign_targets",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    campaignId: text("campaign_id").references(() => callCampaigns.id, { onDelete: "cascade" }).notNull(),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    contactId: text("contact_id").references(() => contacts.id).notNull(),
+    status: callTargetStatusEnum("status").notNull().default("queued"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    lastOutcome: callOutcomeEnum("last_outcome"),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow(),
+    // yyyy-mm-dd this target was last surfaced on a morning list, so the
+    // same prospect isn't listed twice in one day.
+    listedOn: text("listed_on"),
+    addedAt: timestamp("added_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("call_target_campaign_contact_idx").on(t.campaignId, t.contactId),
+    index("call_target_due_idx").on(t.tenantId, t.status, t.nextAttemptAt),
+    index("call_target_campaign_idx").on(t.campaignId, t.status),
+  ],
+);
+
 // Monthly usage counter per tenant — drives the 4000 min/seat cap.
 // Stored as a separate table (rather than computed via SUM over calls)
 // so the cap check at /api/calls/start is O(1).

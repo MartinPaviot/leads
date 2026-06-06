@@ -1,0 +1,388 @@
+/**
+ * Goal-driven call-campaign orchestration.
+ *
+ * The spine that turns "this week I want 1000 calls over 5 days" into a
+ * self-running daily flow:
+ *   - createCallCampaign     : goal -> daily quota + cadence config
+ *   - generateDailyCallList  : each morning, build the day's list = retries
+ *                              due today + fresh callable prospects, capped
+ *                              at the daily quota (the cron calls this)
+ *   - getTodaysCallList      : what the call-mode cockpit dials today
+ *   - recordCallOutcome...   : feed a call's disposition back into the
+ *                              cadence — answered/converted ends it, a
+ *                              no-answer reschedules up to maxAttempts over
+ *                              windowDays so nobody slips through.
+ *
+ * Pure data/logic: no telephony or enrichment keys required to run or test
+ * it. Live dialing (Twilio) and enrichment (Apollo/Kaspr/Lusha) are wired
+ * separately and gated on their own keys.
+ */
+
+import { db } from "@/db";
+import {
+  callCampaigns,
+  callCampaignTargets,
+  contacts,
+  doNotCallList,
+} from "@/db/schema";
+import { and, eq, lte, sql, desc, isNull, inArray } from "drizzle-orm";
+
+/** Outcomes that END the cadence for a target (we reached a conclusion). */
+const OUTCOME_CONVERTED = new Set(["meeting_booked"]);
+const OUTCOME_CONNECTED = new Set(["connected"]);
+const OUTCOME_DNC = new Set(["do_not_call", "not_interested"]);
+const OUTCOME_DEAD = new Set(["wrong_number"]);
+/** Outcomes that schedule another attempt (we didn't reach the human). */
+const OUTCOME_RETRY = new Set(["no_answer", "busy", "voicemail_left", "gatekeeper", "failed"]);
+
+export function computeDailyQuota(weeklyTarget: number, daysPerWeek: number): number {
+  if (weeklyTarget <= 0 || daysPerWeek <= 0) return 0;
+  return Math.ceil(weeklyTarget / Math.min(7, daysPerWeek));
+}
+
+// ── Any-goal intake ──────────────────────────────────────────────────────
+// A salesperson sets ANY objective; we translate it into the one number the
+// dialing engine needs — calls per day — via a simple funnel. The engine
+// itself is goal-agnostic (it just dials `dailyQuota` and runs the cadence),
+// so "1000 calls this week", "book 10 demos this month" and "reach 50
+// decision-makers" all reduce to a daily call volume. Rates default to
+// conservative cold-call benchmarks and are overridable per campaign (and,
+// later, learned from the tenant's real connect/meeting rates).
+
+export type GoalType = "calls" | "connects" | "meetings";
+export type GoalWindow = "day" | "week" | "month";
+
+/** Working days in a window when the user doesn't specify days/week. */
+const WINDOW_WORKDAYS: Record<GoalWindow, number> = { day: 1, week: 5, month: 22 };
+const DEFAULT_CONNECT_RATE = 0.25; // ~1 live connect per 4 dials
+const DEFAULT_MEETING_RATE = 0.05; // ~1 meeting booked per 20 dials
+
+export interface GoalSpec {
+  type: GoalType;
+  target: number;
+  window: GoalWindow;
+  /** Override working days across the window (e.g. 5). */
+  daysPerWeek?: number;
+  connectRate?: number;
+  meetingRate?: number;
+}
+
+/** Effective working days the goal is spread across. */
+export function goalDays(goal: GoalSpec): number {
+  if (goal.window === "day") return 1;
+  if (goal.window === "week") return Math.min(7, Math.max(1, goal.daysPerWeek ?? WINDOW_WORKDAYS.week));
+  // month: ~4.3 weeks; respect a custom days/week if given.
+  if (goal.daysPerWeek) return Math.max(1, Math.round(goal.daysPerWeek * 4.3));
+  return WINDOW_WORKDAYS.month;
+}
+
+/** Translate any goal into a daily call volume. */
+export function dailyCallsForGoal(goal: GoalSpec): number {
+  const target = Math.max(0, Math.floor(goal.target));
+  if (target === 0) return 0;
+  const connectRate = goal.connectRate ?? DEFAULT_CONNECT_RATE;
+  const meetingRate = goal.meetingRate ?? DEFAULT_MEETING_RATE;
+  const callsNeeded =
+    goal.type === "calls" ? target
+    : goal.type === "connects" ? Math.ceil(target / Math.max(0.01, connectRate))
+    : Math.ceil(target / Math.max(0.001, meetingRate)); // meetings
+  return Math.max(1, Math.ceil(callsNeeded / goalDays(goal)));
+}
+
+/** Spacing between retries — spread maxAttempts evenly across windowDays. */
+function retryGapMs(maxAttempts: number, windowDays: number): number {
+  const attempts = Math.max(1, maxAttempts);
+  const days = Math.max(1, windowDays);
+  return Math.max(60_000, Math.floor((days / attempts) * 86_400_000));
+}
+
+function dayStr(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+export interface CreateCampaignArgs {
+  tenantId: string;
+  ownerId?: string | null;
+  name?: string;
+  /** Any objective the salesperson sets. */
+  goal: GoalSpec;
+  maxAttempts?: number;
+  windowDays?: number;
+  /** ICP/targeting snapshot for top-up (defaults to tenant ICP at run time). */
+  targetFilter?: Record<string, unknown>;
+}
+
+function describeGoal(goal: GoalSpec): string {
+  const noun = goal.type === "calls" ? "calls" : goal.type === "connects" ? "connects" : "meetings";
+  const when = goal.window === "day" ? "per day" : goal.window === "week" ? "this week" : "this month";
+  return `${goal.target} ${noun} ${when}`;
+}
+
+/**
+ * Create a goal-driven call campaign (active immediately). Accepts ANY goal
+ * (calls / connects / meetings over a day / week / month); the dialing
+ * engine only consumes the derived `dailyQuota`, and the full goal is kept
+ * in targetFilter.goal for display + progress tracking.
+ */
+export async function createCallCampaign(args: CreateCampaignArgs) {
+  const goal = args.goal;
+  const daysPerWeek = Math.min(7, Math.max(1, goal.daysPerWeek ?? (goal.window === "day" ? 1 : 5)));
+  const dailyQuota = dailyCallsForGoal(goal);
+  const maxAttempts = Math.max(1, args.maxAttempts ?? 8);
+  const windowDays = Math.max(1, args.windowDays ?? 15);
+  // Display-only weekly figure derived from the daily plan.
+  const weeklyTarget =
+    goal.type === "calls" && goal.window === "week"
+      ? Math.max(0, Math.floor(goal.target))
+      : dailyQuota * daysPerWeek;
+
+  const [row] = await db
+    .insert(callCampaigns)
+    .values({
+      tenantId: args.tenantId,
+      ownerId: args.ownerId ?? null,
+      name: args.name?.trim() || describeGoal(goal),
+      status: "active",
+      weeklyTarget,
+      daysPerWeek,
+      dailyQuota,
+      maxAttempts,
+      windowDays,
+      targetFilter: { ...(args.targetFilter ?? {}), goal },
+    })
+    .returning();
+  return row;
+}
+
+export interface DailyListResult {
+  campaignId: string;
+  quota: number;
+  retriesDue: number;
+  newlyAdded: number;
+  listed: number;
+  poolExhausted: boolean;
+}
+
+/**
+ * Build today's call list for one campaign: take the retries due today, then
+ * top up with fresh callable prospects until the daily quota is met, and
+ * stamp them as listed for today. Idempotent per day (re-running keeps the
+ * same list, only filling any shortfall).
+ */
+export async function generateDailyCallList(
+  campaignId: string,
+  now: Date = new Date(),
+): Promise<DailyListResult> {
+  const [campaign] = await db
+    .select()
+    .from(callCampaigns)
+    .where(eq(callCampaigns.id, campaignId))
+    .limit(1);
+  if (!campaign || campaign.status !== "active") {
+    return { campaignId, quota: 0, retriesDue: 0, newlyAdded: 0, listed: 0, poolExhausted: true };
+  }
+  const tenantId = campaign.tenantId;
+  const quota = campaign.dailyQuota || 0;
+  const today = dayStr(now);
+
+  // Already-listed-today targets (idempotency) count toward the quota.
+  const alreadyListed = await db
+    .select({ id: callCampaignTargets.id })
+    .from(callCampaignTargets)
+    .where(
+      and(
+        eq(callCampaignTargets.campaignId, campaignId),
+        eq(callCampaignTargets.listedOn, today),
+        inArray(callCampaignTargets.status, ["queued", "in_progress"]),
+      ),
+    );
+  let listed = alreadyListed.length;
+
+  // 1) Retries / queued targets due now, oldest-due first.
+  const due = await db
+    .select({ id: callCampaignTargets.id })
+    .from(callCampaignTargets)
+    .where(
+      and(
+        eq(callCampaignTargets.campaignId, campaignId),
+        eq(callCampaignTargets.status, "queued"),
+        lte(callCampaignTargets.nextAttemptAt, now),
+        sql`(${callCampaignTargets.listedOn} IS DISTINCT FROM ${today})`,
+      ),
+    )
+    .orderBy(callCampaignTargets.nextAttemptAt)
+    .limit(Math.max(0, quota - listed));
+
+  if (due.length > 0) {
+    await db
+      .update(callCampaignTargets)
+      .set({ listedOn: today, updatedAt: now })
+      .where(inArray(callCampaignTargets.id, due.map((d) => d.id)));
+    listed += due.length;
+  }
+  const retriesDue = due.length;
+
+  // 2) Top up with fresh, callable, not-yet-targeted contacts (highest score
+  //    first). Callable = has a phone and isn't on the DNC list.
+  let newlyAdded = 0;
+  let poolExhausted = false;
+  const topUp = Math.max(0, quota - listed);
+  if (topUp > 0) {
+    const candidates = await db
+      .select({ id: contacts.id })
+      .from(contacts)
+      .where(
+        and(
+          eq(contacts.tenantId, tenantId),
+          isNull(contacts.deletedAt),
+          sql`${contacts.phone} IS NOT NULL AND ${contacts.phone} <> ''`,
+          sql`${contacts.id} NOT IN (SELECT contact_id FROM call_campaign_targets WHERE campaign_id = ${campaignId})`,
+          sql`NOT EXISTS (SELECT 1 FROM do_not_call_list d WHERE d.phone_number = ${contacts.phone} AND (d.tenant_id = ${tenantId} OR d.tenant_id IS NULL))`,
+        ),
+      )
+      .orderBy(desc(contacts.score))
+      .limit(topUp);
+
+    if (candidates.length > 0) {
+      await db.insert(callCampaignTargets).values(
+        candidates.map((c) => ({
+          campaignId,
+          tenantId,
+          contactId: c.id,
+          status: "queued" as const,
+          nextAttemptAt: now,
+          listedOn: today,
+          addedAt: now,
+        })),
+      );
+      newlyAdded = candidates.length;
+      listed += candidates.length;
+    }
+    poolExhausted = candidates.length < topUp;
+  }
+
+  return { campaignId, quota, retriesDue, newlyAdded, listed, poolExhausted };
+}
+
+/** Today's call list for a tenant (across active campaigns) — what to dial. */
+export async function getTodaysCallList(tenantId: string, now: Date = new Date()) {
+  const today = dayStr(now);
+  return db
+    .select({
+      targetId: callCampaignTargets.id,
+      campaignId: callCampaignTargets.campaignId,
+      contactId: callCampaignTargets.contactId,
+      status: callCampaignTargets.status,
+      attemptCount: callCampaignTargets.attemptCount,
+      lastOutcome: callCampaignTargets.lastOutcome,
+      firstName: contacts.firstName,
+      lastName: contacts.lastName,
+      phone: contacts.phone,
+      title: contacts.title,
+      companyId: contacts.companyId,
+      score: contacts.score,
+    })
+    .from(callCampaignTargets)
+    .innerJoin(contacts, eq(contacts.id, callCampaignTargets.contactId))
+    .where(
+      and(
+        eq(callCampaignTargets.tenantId, tenantId),
+        eq(callCampaignTargets.listedOn, today),
+        inArray(callCampaignTargets.status, ["queued", "in_progress"]),
+        isNull(contacts.deletedAt),
+      ),
+    )
+    .orderBy(desc(contacts.score));
+}
+
+export interface RecordOutcomeArgs {
+  tenantId: string;
+  contactId: string;
+  outcome: string;
+  occurredAt?: Date;
+}
+
+/**
+ * Feed a call's disposition back into the cadence. Finds the contact's open
+ * target in an active campaign and advances its state machine: converted /
+ * connected / dnc / dead are terminal; a no-answer reschedules the next
+ * attempt unless we've hit maxAttempts or run past windowDays.
+ */
+export async function recordCallOutcomeForCampaigns(
+  args: RecordOutcomeArgs,
+): Promise<{ targetId: string; status: string; attemptCount: number; nextAttemptAt: Date | null } | null> {
+  const now = args.occurredAt ?? new Date();
+
+  // Open target for this contact, joined to an ACTIVE campaign (most recent).
+  const [target] = await db
+    .select({
+      id: callCampaignTargets.id,
+      attemptCount: callCampaignTargets.attemptCount,
+      addedAt: callCampaignTargets.addedAt,
+      maxAttempts: callCampaigns.maxAttempts,
+      windowDays: callCampaigns.windowDays,
+    })
+    .from(callCampaignTargets)
+    .innerJoin(callCampaigns, eq(callCampaigns.id, callCampaignTargets.campaignId))
+    .where(
+      and(
+        eq(callCampaignTargets.tenantId, args.tenantId),
+        eq(callCampaignTargets.contactId, args.contactId),
+        inArray(callCampaignTargets.status, ["queued", "in_progress"]),
+        eq(callCampaigns.status, "active"),
+      ),
+    )
+    .orderBy(desc(callCampaignTargets.updatedAt))
+    .limit(1);
+
+  if (!target) return null;
+
+  const attemptCount = target.attemptCount + 1;
+  const o = args.outcome;
+
+  let status: "queued" | "connected" | "converted" | "exhausted" | "dnc";
+  let nextAttemptAt: Date | null = null;
+
+  if (OUTCOME_CONVERTED.has(o)) {
+    status = "converted";
+  } else if (OUTCOME_CONNECTED.has(o)) {
+    status = "connected";
+  } else if (OUTCOME_DNC.has(o)) {
+    status = "dnc";
+  } else if (OUTCOME_DEAD.has(o)) {
+    status = "exhausted";
+  } else if (o === "callback_requested") {
+    // They asked us to call back — keep it live, soon.
+    status = "queued";
+    nextAttemptAt = new Date(now.getTime() + 86_400_000);
+  } else if (OUTCOME_RETRY.has(o)) {
+    const addedAt = target.addedAt ? new Date(target.addedAt) : now;
+    const pastWindow = now.getTime() - addedAt.getTime() >= target.windowDays * 86_400_000;
+    if (attemptCount >= target.maxAttempts || pastWindow) {
+      status = "exhausted";
+    } else {
+      status = "queued";
+      nextAttemptAt = new Date(now.getTime() + retryGapMs(target.maxAttempts, target.windowDays));
+    }
+  } else {
+    // Unknown outcome — treat as a retry signal but don't lose the target.
+    status = "queued";
+    nextAttemptAt = new Date(now.getTime() + retryGapMs(target.maxAttempts, target.windowDays));
+  }
+
+  await db
+    .update(callCampaignTargets)
+    .set({
+      status,
+      attemptCount,
+      lastOutcome: o as typeof callCampaignTargets.$inferInsert.lastOutcome,
+      lastAttemptAt: now,
+      nextAttemptAt,
+      // Free it from today's list once handled so it can re-list on its next due day.
+      listedOn: null,
+      updatedAt: now,
+    })
+    .where(eq(callCampaignTargets.id, target.id));
+
+  return { targetId: target.id, status, attemptCount, nextAttemptAt };
+}
