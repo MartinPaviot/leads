@@ -19,6 +19,7 @@ export default function KnowledgePage() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [query, setQuery] = useState("");
 
   const fetchEntries = useCallback(async () => {
     try {
@@ -39,6 +40,15 @@ export default function KnowledgePage() {
   }, [fetchEntries]);
 
   const selectedEntry = entries.find((e) => e.id === selectedId) || null;
+
+  const q = query.trim().toLowerCase();
+  const filteredEntries = q
+    ? entries.filter((e) =>
+        [e.title, e.content, (e as { category?: string }).category].some((f) =>
+          (f ?? "").toLowerCase().includes(q),
+        ),
+      )
+    : entries;
 
   const handleAddEntry = useCallback(
     async (data: {
@@ -134,18 +144,27 @@ export default function KnowledgePage() {
   return (
     <div className="flex h-full flex-col">
       <PageHeader icon={<BookOpen size={16} />} title="Knowledge">
-        <Button
-          variant="solid"
-          size="sm"
-          onClick={() => setAddDialogOpen(true)}
-        >
-          + Add knowledge
-        </Button>
+        <div className="flex items-center gap-2">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search knowledge..."
+            className="rounded-md px-3 py-1.5 text-[13px]"
+            style={{ width: 220, background: "var(--color-bg-card)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
+          />
+          <Button
+            variant="solid"
+            size="sm"
+            onClick={() => setAddDialogOpen(true)}
+          >
+            + Add knowledge
+          </Button>
+        </div>
       </PageHeader>
 
       <div className="flex min-h-0 flex-1">
         <KnowledgeSidebar
-          entries={entries}
+          entries={filteredEntries}
           selectedId={selectedId}
           onSelect={setSelectedId}
           onAddClick={() => setAddDialogOpen(true)}
