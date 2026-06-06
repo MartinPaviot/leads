@@ -1,7 +1,8 @@
 import { db } from "@/db";
 import { companies, activities, users } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth/auth-utils";
-import { and, eq, sql, desc, isNull } from "drizzle-orm";
+import { and, eq, sql, desc, isNull, or, ilike, inArray } from "drizzle-orm";
+import { matchIndustries } from "@/lib/search/industry-match";
 import { inngest } from "@/inngest/client";
 import { apiError } from "@/lib/infra/api-errors";
 import { paginatedResponse } from "@/lib/infra/api-response";
@@ -29,6 +30,32 @@ export async function GET(req: Request) {
     const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
     const pageSize = Math.min(200, Math.max(1, parseInt(url.searchParams.get("pageSize") || "50", 10)));
     const offset = (page - 1) * pageSize;
+    const search = url.searchParams.get("search")?.trim();
+
+    // Intelligent search: resolve the typed query to the matching industries in
+    // THIS tenant's data via an LLM (matchIndustries) -- not a hardcoded synonym
+    // list -- plus a name/domain/description match. Server-side, so a search like
+    // "medical" returns every health-care / medical-device account, paginated,
+    // not just whatever happened to be on the loaded page.
+    let whereClause = and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt))!;
+    if (search) {
+      const indRows = await db
+        .selectDistinct({ industry: companies.industry })
+        .from(companies)
+        .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)));
+      const industries = indRows.map((r) => r.industry).filter((x): x is string => !!x);
+      const matched = await matchIndustries(search, industries, authCtx.tenantId);
+      whereClause = and(
+        eq(companies.tenantId, authCtx.tenantId),
+        isNull(companies.deletedAt),
+        or(
+          ...(matched.length > 0 ? [inArray(companies.industry, matched)] : []),
+          ilike(companies.name, `%${search}%`),
+          ilike(companies.domain, `%${search}%`),
+          sql`${companies.description} ILIKE ${"%" + search + "%"}`,
+        )!,
+      )!;
+    }
 
     const [accounts, countResult] = await Promise.all([
       db
@@ -52,13 +79,13 @@ export async function GET(req: Request) {
         })
         .from(companies)
         .leftJoin(users, eq(companies.ownerId, users.id))
-        .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
+        .where(whereClause)
         .limit(pageSize)
         .offset(offset),
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(companies)
-        .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt))),
+        .where(whereClause),
     ]);
 
     const total = countResult[0]?.count ?? 0;

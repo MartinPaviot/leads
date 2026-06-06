@@ -138,20 +138,21 @@ export default function AccountsPage() {
   const [scoreAllRunning, setScoreAllRunning] = useState(false);
   const [detectingSignals, setDetectingSignals] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  // A4: keep similarity score per result so we can surface "73% match"
-  // chips inline. Map preserves insertion order (== rank order from the
-  // semantic search endpoint), and lookup is O(1) for the row sort.
-  const [searchResults, setSearchResults] = useState<Map<string, number> | null>(null);
-  const [searching, setSearching] = useState(false);
+  // Debounced search term pushed to the server. The accounts endpoint
+  // resolves it to the matching industries via an LLM (intelligent, not a
+  // hardcoded synonym list) plus a name/domain/description match, so the
+  // returned rows are already the matched set across the whole tenant —
+  // and `totalAccounts` is the matched count, not the library size.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeSignalPopover, setActiveSignalPopover] = useState<string | null>(null);
   const [signalPopoverTab, setSignalPopoverTab] = useState<"reasoning" | "sources">("reasoning");
   const [slideOverAccount, setSlideOverAccount] = useState<Account | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   // Smart Search — NL query translated into FilterCondition[] via LLM.
-  // Stacks with the existing tab `filter`, text `searchQuery`, and semantic
-  // `searchResults`. Cleared on tab switch is intentional: tabs partition
-  // the dataset differently and a smart filter extracted for "prospects"
-  // likely doesn't apply to "manual".
+  // Stacks with the existing tab `filter` and the text `searchQuery`.
+  // Cleared on tab switch is intentional: tabs partition the dataset
+  // differently and a smart filter extracted for "prospects" likely
+  // doesn't apply to "manual".
   const [smartFilters, setSmartFilters] = useState<FilterCondition[]>([]);
   const [smartMeta, setSmartMeta] = useState<{ reasoning: string; unmatched: string[] } | null>(null);
   const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null);
@@ -238,7 +239,9 @@ export default function AccountsPage() {
     try {
       if (page === 1 && !append) setLoading(true);
       else setLoadingMore(true);
-      const res = await fetch(`/api/accounts?pageSize=50&page=${page}`);
+      const params = new URLSearchParams({ pageSize: "50", page: String(page) });
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      const res = await fetch(`/api/accounts?${params.toString()}`);
       if (!res.ok) return;
       const data = await res.json();
       const batch: Account[] = data.accounts || data.items || [];
@@ -257,7 +260,7 @@ export default function AccountsPage() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, []);
+  }, [debouncedSearch]);
 
   /** Reload all pages that have been loaded so far. Used after mutations
    *  (enrich, score, create) so the user doesn't snap back to page 1. */
@@ -266,7 +269,9 @@ export default function AccountsPage() {
       const pagesToLoad = Math.max(currentPage, 1);
       let all: Account[] = [];
       for (let p = 1; p <= pagesToLoad; p++) {
-        const res = await fetch(`/api/accounts?pageSize=50&page=${p}`);
+        const params = new URLSearchParams({ pageSize: "50", page: String(p) });
+        if (debouncedSearch) params.set("search", debouncedSearch);
+        const res = await fetch(`/api/accounts?${params.toString()}`);
         if (!res.ok) break;
         const data = await res.json();
         const batch: Account[] = data.accounts || data.items || [];
@@ -281,7 +286,7 @@ export default function AccountsPage() {
     } catch (e) {
       console.warn("accounts: refetch failed", e);
     }
-  }, [currentPage]);
+  }, [currentPage, debouncedSearch]);
 
   const loadMoreAccounts = useCallback(() => {
     if (loadingMore || currentPage >= totalPages) return;
@@ -648,44 +653,15 @@ export default function AccountsPage() {
     }
   }
 
-  async function handleSemanticSearch() {
-    if (!searchQuery.trim()) { setSearchResults(null); return; }
-    setSearching(true);
-    try {
-      const res = await fetch("/api/search/tam", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: searchQuery.trim(), entityType: "company", limit: 20 }) });
-      if (res.ok) {
-        const data = await res.json();
-        // A4: preserve per-result similarity score (0..1) so the badge
-        // and per-row chip can render the actual relevance, not just
-        // the rank.
-        const scored = new Map<string, number>();
-        for (const r of (data.results as { entityId: string; similarity: number }[]) ?? []) {
-          scored.set(r.entityId, r.similarity);
-        }
-        setSearchResults(scored);
-      } else {
-        toast("Search failed", "error");
-      }
-    } catch (e) {
-      toast("Search failed", "error");
-      console.warn("accounts: semantic search failed", e);
-    } finally { setSearching(false); }
-  }
-
-  // A4 — debounce auto-search 500ms after the user stops typing. Empty
-  // query clears results immediately (no debounce delay on the clear
-  // path so the table snaps back instantly).
+  // Debounce the search box and push it to the server. The accounts list
+  // endpoint resolves the query to matching industries via an LLM (not a
+  // hardcoded synonym list), so "medical" returns every health-care / medical
+  // account across the whole tenant, paginated — not just the loaded page.
   useEffect(() => {
-    const q = searchQuery.trim();
-    if (!q) {
-      setSearchResults(null);
-      return;
-    }
     const t = setTimeout(() => {
-      handleSemanticSearch();
-    }, 500);
+      setDebouncedSearch(searchQuery.trim());
+    }, 350);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
   function getLinkedInUrl(account: Account): string | null {
@@ -925,17 +901,13 @@ export default function AccountsPage() {
       if (filter === "tam" && !isTAM(a)) return false;
       if (filter === "manual" && isTAM(a)) return false;
       if (!passesColumnFilters(a)) return false;
-      if (searchQuery.trim() && !searchResults) {
-        const q = searchQuery.toLowerCase();
-        return a.name.toLowerCase().includes(q) || (a.domain?.toLowerCase().includes(q) ?? false) || (a.industry?.toLowerCase().includes(q) ?? false);
-      }
-      if (searchResults) return searchResults.has(a.id);
+      // The search box now queries the server (intelligent, industry-aware), so
+      // the displayed accounts are already the matched set — no client-side text
+      // re-filter (which would wrongly drop e.g. "hospital & health care" rows
+      // for a "medical" query that the LLM mapped to that industry).
       return true;
     })
     .sort((a, b) => {
-      if (searchResults) {
-        return (searchResults.get(b.id) ?? 0) - (searchResults.get(a.id) ?? 0);
-      }
       // Primary: score DESC. Secondary: lit signals DESC — Monaco
       // "rise to top" behaviour for rows whose chips just flipped.
       const ds = (b.score ?? -1) - (a.score ?? -1);
@@ -1109,9 +1081,11 @@ export default function AccountsPage() {
           );
         })()}
 
-        {/* One intelligent search: type -> semantic TAM search (debounced,
-            500ms); press Enter -> natural-language smart filters. Replaces the
-            old pair (separate literal/semantic box + smart-search bar). */}
+        {/* One intelligent search box. Type -> server-side, industry-aware
+            search (debounced 350ms): the query is resolved to the matching
+            industries via an LLM, so "medical" returns every health-care
+            account across the whole tenant. Press Enter -> natural-language
+            smart filters. Replaces the old pair (literal box + semantic bar). */}
         <div className="ml-auto w-80">
           <SmartSearchBar
             resourceType="account"
@@ -1154,10 +1128,12 @@ export default function AccountsPage() {
         }}
       />
 
-      {/* A4 — Semantic-search result banner. Visible whenever the query
-           returned (even 0 hits) so the user always knows whether the
-           current rows are a search slice or the full list. */}
-      {searchResults && searchQuery.trim() && (
+      {/* Search-active banner. The accounts endpoint resolves the query to
+           matching industries via an LLM and filters server-side, so
+           `totalAccounts` is the real matched count across the whole tenant
+           (not just the loaded page). Shown whenever a search is active so
+           the user knows the rows are a filtered slice, and can clear it. */}
+      {debouncedSearch && (
         <div
           role="status"
           aria-live="polite"
@@ -1171,14 +1147,14 @@ export default function AccountsPage() {
           <Search size={12} style={{ color: "var(--color-text-tertiary)" }} />
           <span>
             <strong style={{ color: "var(--color-text-primary)" }}>
-              {searchResults.size}
+              {totalAccounts}
             </strong>{" "}
-            semantic match{searchResults.size === 1 ? "" : "es"} for{" "}
-            <span className="italic">&ldquo;{searchQuery.trim()}&rdquo;</span>
+            account{totalAccounts === 1 ? "" : "s"} match{" "}
+            <span className="italic">&ldquo;{debouncedSearch}&rdquo;</span>
           </span>
           <button
             type="button"
-            onClick={() => { setSearchResults(null); setSearchQuery(""); }}
+            onClick={() => setSearchQuery("")}
             className="ml-auto text-[11px] font-medium hover:underline"
             style={{ color: "var(--color-accent)" }}
           >
@@ -1244,16 +1220,16 @@ export default function AccountsPage() {
             onAction={() => setShowCreate(true)}
             actionVariant="gradient"
           />
-        ) : filteredAccounts.length === 0 && searchResults && searchQuery.trim() ? (
-          /* A4 — dedicated empty state for a semantic search that
-             returned nothing. Distinct from the "no accounts at all"
-             state above so the user knows their library isn't empty. */
+        ) : filteredAccounts.length === 0 && debouncedSearch ? (
+          /* Dedicated empty state for a search that returned nothing.
+             Distinct from the "no accounts at all" state above so the
+             user knows their library isn't empty. */
           <EmptyState
             icon={<Search size={24} />}
-            title={`No accounts match "${searchQuery.trim()}"`}
+            title={`No accounts match "${debouncedSearch}"`}
             description="Try a different phrasing, or clear the search to see your full list."
             actionLabel="Clear search"
-            onAction={() => { setSearchResults(null); setSearchQuery(""); }}
+            onAction={() => setSearchQuery("")}
             actionVariant="outline"
           />
         ) : (
@@ -1415,14 +1391,6 @@ export default function AccountsPage() {
                               style={{ color: "var(--color-text-primary)" }}>
                               {account.name}
                             </button>
-                            {/* A4 — per-row similarity score, only when a
-                                semantic search is active. Helps users
-                                see *why* this row is here vs. the next. */}
-                            {searchResults && searchResults.has(account.id) && (
-                              <Badge variant="neutral" size="sm">
-                                {Math.round((searchResults.get(account.id) ?? 0) * 100)}% match
-                              </Badge>
-                            )}
                           </div>
                           {account.description && (
                             <p className="mt-0.5 max-w-[220px] truncate text-[11px]"
