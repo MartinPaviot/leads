@@ -37,6 +37,7 @@ import {
   type ContactBrainJSON,
 } from "./_panels";
 import { CallModeOnboarding } from "./_onboarding";
+import { CampaignFunnelBar } from "./_funnel-bar";
 
 interface QueueItem {
   contactId: string;
@@ -571,6 +572,11 @@ export default function CallModePage() {
     <CallModeShell
       subtitle={campaign ? `Goal: ${campaign.name} - ${campaign.dailyQuota} calls/day, retry up to ${campaign.maxAttempts}x over ${campaign.windowDays}d` : undefined}
     >
+      {campaign && (
+        <div className="px-3 pt-3">
+          <CampaignFunnelBar />
+        </div>
+      )}
       <div className="flex flex-1 min-h-0 w-full relative">
       {/* Phase 3 — live coaching overlay. Bottom-right, peripheral. */}
       {coachingCards.length > 0 && (
