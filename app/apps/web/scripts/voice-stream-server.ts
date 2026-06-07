@@ -15,8 +15,7 @@
  * docs/voice-bootstrap.md for the full setup.
  */
 
-import { WebSocketServer, type WebSocket } from "ws";
-import { createClient, LiveTranscriptionEvents } from "@deepgram/sdk";
+import { WebSocketServer, WebSocket } from "ws";
 
 // Env: run with `node --env-file=.env.local --import tsx scripts/voice-stream-server.ts`
 // (Node 22+). The `voice:stream` script in package.json wires this up.
@@ -38,8 +37,6 @@ if (!DEEPGRAM_KEY) {
   );
   process.exit(1);
 }
-
-const deepgram = createClient(DEEPGRAM_KEY);
 
 // Coaching tap — disabled when ANTHROPIC_API_KEY is missing so the
 // bridge degrades to "transcript only" instead of crashing. Phase 3
@@ -86,37 +83,50 @@ wss.on("connection", async (socket: WebSocket, req) => {
     bridge = await openBridge(callId, {
       coachingTap,
       openDeepgram: async (opts) => {
-        const dg = deepgram.listen.live({
+        // Raw Deepgram live WebSocket. We deliberately avoid @deepgram/sdk:
+        // its v5 rewrite dropped createClient/LiveTranscriptionEvents, and the
+        // bridge only needs send/on/finish. `ws` is already a dependency.
+        const qs = new URLSearchParams({
           model: "nova-3",
           encoding: "mulaw",
-          sample_rate: 8000,
-          channels: 1,
+          sample_rate: "8000",
+          channels: "1",
           language: opts.language ?? "fr",
-          punctuate: opts.punctuate ?? true,
-          diarize: opts.diarize ?? true,
-          interim_results: opts.interimResults ?? false,
-          smart_format: true,
+          punctuate: String(opts.punctuate ?? true),
+          diarize: String(opts.diarize ?? true),
+          interim_results: String(opts.interimResults ?? false),
+          smart_format: "true",
+        });
+        const dg = new WebSocket(`wss://api.deepgram.com/v1/listen?${qs}`, {
+          headers: { Authorization: `Token ${DEEPGRAM_KEY}` },
         });
         return new Promise<ListenLiveLike>((resolve, reject) => {
           const adapter: ListenLiveLike = {
-            send: (audio) => dg.send(audio as Buffer),
-            finish: () => dg.requestClose?.(),
+            send: (audio) => {
+              if (dg.readyState === WebSocket.OPEN) dg.send(audio as Buffer);
+            },
+            finish: () => {
+              try {
+                if (dg.readyState === WebSocket.OPEN) dg.send(JSON.stringify({ type: "CloseStream" }));
+              } catch { /* ignore */ }
+              try { dg.close(); } catch { /* ignore */ }
+            },
             on: (event, handler) => {
-              // Map our generic event name to the SDK enum.
+              // Deepgram streams JSON transcript frames; map to our generic names.
               if (event === "Results") {
-                dg.on(LiveTranscriptionEvents.Transcript, handler);
+                dg.on("message", (data: unknown) => {
+                  try { handler(JSON.parse(String(data))); } catch { /* keepalive/non-JSON */ }
+                });
               } else if (event === "Error") {
-                dg.on(LiveTranscriptionEvents.Error, handler);
+                dg.on("error", handler);
               } else if (event === "Close") {
-                dg.on(LiveTranscriptionEvents.Close, handler);
+                dg.on("close", handler);
               }
             },
-            removeAllListeners: () => {
-              dg.removeAllListeners();
-            },
+            removeAllListeners: () => dg.removeAllListeners(),
           };
-          dg.on(LiveTranscriptionEvents.Open, () => resolve(adapter));
-          dg.on(LiveTranscriptionEvents.Error, (err) => reject(err));
+          dg.on("open", () => resolve(adapter));
+          dg.on("error", (err) => reject(err));
         });
       },
     });
