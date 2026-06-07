@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Building2, Search, Plus, Zap, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, Trash2, UserPlus, type LucideIcon } from "lucide-react";
+import { Building2, Search, Plus, Zap, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, Trash2, UserPlus, Ban, RotateCcw, type LucideIcon } from "lucide-react";
 import { useTamStream } from "@/hooks/use-tam-stream";
 import { TamBuildProgress } from "@/components/tam-build-progress";
 import { SignalChip } from "@/components/signal-chip";
@@ -151,6 +151,9 @@ export default function AccountsPage() {
   const [signalPopoverTab, setSignalPopoverTab] = useState<"reasoning" | "sources">("reasoning");
   const [slideOverAccount, setSlideOverAccount] = useState<Account | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  // "Not a fit" view toggle. false = active working set (excluded hidden);
+  // true = show only excluded accounts so they can be reviewed / restored.
+  const [viewExcluded, setViewExcluded] = useState(false);
   // Smart Search — NL query translated into FilterCondition[] via LLM.
   // Stacks with the existing tab `filter` and the text `searchQuery`.
   // Cleared on tab switch is intentional: tabs partition the dataset
@@ -244,6 +247,7 @@ export default function AccountsPage() {
       else setLoadingMore(true);
       const params = new URLSearchParams({ pageSize: "50", page: String(page) });
       if (debouncedSearch) params.set("search", debouncedSearch);
+      if (viewExcluded) params.set("excluded", "true");
       const res = await fetch(`/api/accounts?${params.toString()}`);
       if (!res.ok) return;
       const data = await res.json();
@@ -263,7 +267,7 @@ export default function AccountsPage() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, viewExcluded]);
 
   /** Reload all pages that have been loaded so far. Used after mutations
    *  (enrich, score, create) so the user doesn't snap back to page 1. */
@@ -274,6 +278,7 @@ export default function AccountsPage() {
       for (let p = 1; p <= pagesToLoad; p++) {
         const params = new URLSearchParams({ pageSize: "50", page: String(p) });
         if (debouncedSearch) params.set("search", debouncedSearch);
+        if (viewExcluded) params.set("excluded", "true");
         const res = await fetch(`/api/accounts?${params.toString()}`);
         if (!res.ok) break;
         const data = await res.json();
@@ -289,7 +294,7 @@ export default function AccountsPage() {
     } catch (e) {
       console.warn("accounts: refetch failed", e);
     }
-  }, [currentPage, debouncedSearch]);
+  }, [currentPage, debouncedSearch, viewExcluded]);
 
   const loadMoreAccounts = useCallback(() => {
     if (loadingMore || currentPage >= totalPages) return;
@@ -607,6 +612,56 @@ export default function AccountsPage() {
       console.warn("accounts: extract contacts failed", e);
     } finally {
       setExtractingContacts(false);
+    }
+  }
+
+  // Exclude ("not a fit") / restore the current selection. Reversible —
+  // the row stays (still feeds the TAM-build dedup set so it is never
+  // re-sourced) and outbound enrollment is already gated on the flag.
+  async function bulkSetExclusion(action: "exclude" | "include") {
+    const ids = Array.from(selectedRows);
+    if (ids.length === 0) return;
+    try {
+      const res = await fetch("/api/accounts/exclude", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, action }),
+      });
+      if (!res.ok) {
+        toast(action === "exclude" ? "Couldn't exclude." : "Couldn't restore.", "error");
+        return;
+      }
+      const data = await res.json().catch(() => ({ changed: ids.length }));
+      toast(
+        action === "exclude"
+          ? `Marked ${data.changed} account${data.changed === 1 ? "" : "s"} as not a fit.`
+          : `Restored ${data.changed} account${data.changed === 1 ? "" : "s"}.`,
+        "success",
+      );
+      setSelectedRows(new Set());
+      await refetchLoadedAccounts();
+    } catch (e) {
+      console.warn("accounts: bulk exclusion failed", e);
+      toast("Action failed.", "error");
+    }
+  }
+
+  async function rowSetExclusion(id: string, action: "exclude" | "include") {
+    try {
+      const res = await fetch("/api/accounts/exclude", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [id], action }),
+      });
+      if (!res.ok) {
+        toast(action === "exclude" ? "Couldn't exclude." : "Couldn't restore.", "error");
+        return;
+      }
+      toast(action === "exclude" ? "Marked as not a fit." : "Restored to active list.", "success");
+      await refetchLoadedAccounts();
+    } catch (e) {
+      console.warn("accounts: row exclusion failed", e);
+      toast("Action failed.", "error");
     }
   }
 
@@ -957,6 +1012,11 @@ export default function AccountsPage() {
             },
           },
           {
+            label: viewExcluded ? "Restore" : "Not a fit",
+            icon: viewExcluded ? <RotateCcw size={13} /> : <Ban size={13} />,
+            onClick: () => bulkSetExclusion(viewExcluded ? "include" : "exclude"),
+          },
+          {
             label: "Delete",
             icon: <Trash2 size={13} />,
             variant: "danger",
@@ -982,6 +1042,15 @@ export default function AccountsPage() {
           loading={detectingSignals}
         >
           {detectingSignals ? "Detecting..." : "Signals"}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          icon={viewExcluded ? <RotateCcw size={13} /> : <Ban size={13} />}
+          onClick={() => { setSelectedRows(new Set()); setViewExcluded((v) => !v); }}
+          title={viewExcluded ? "Back to the active working set" : "Review accounts marked as not a fit"}
+        >
+          {viewExcluded ? "Back to active" : "Excluded"}
         </Button>
         {accounts.some((a) => a.score == null) && (
           <Button
@@ -1806,6 +1875,19 @@ export default function AccountsPage() {
                             Enrich
                           </Button>
                         )}
+                        <button
+                          type="button"
+                          aria-label={viewExcluded ? `Restore ${account.name}` : `Mark ${account.name} as not a fit`}
+                          title={viewExcluded ? "Restore to active list" : "Not a fit (exclude — keeps the row, drops it from outbound and re-sourcing)"}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            rowSetExclusion(account.id, viewExcluded ? "include" : "exclude");
+                          }}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
+                          style={{ color: "var(--color-text-muted)" }}
+                        >
+                          {viewExcluded ? <RotateCcw size={13} /> : <Ban size={13} />}
+                        </button>
                         <button
                           type="button"
                           aria-label={`Delete ${account.name}`}
