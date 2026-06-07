@@ -14,15 +14,17 @@ beforeEach(() => {
 });
 
 describe("buildTwiml — outbound call composition", () => {
-  it("includes <Stream> and <Dial> + <Number>", async () => {
+  it("includes <Transcription> (Deepgram) and <Dial> + <Number>", async () => {
     const xml = await buildTwiml({
       toNumber: "+33612345678",
       fromNumber: "+33122334455",
-      streamUrl: "wss://example.com/stream?callId=abc",
+      transcriptionCallbackUrl: "https://example.com/api/calls/transcription?callId=abc",
+      languageCode: "fr-FR",
       recordingStatusUrl: "https://example.com/api/calls/recording-status",
     });
-    expect(xml).toContain("<Stream");
-    expect(xml).toContain("wss://example.com/stream?callId=abc");
+    expect(xml).toContain("<Transcription");
+    expect(xml).toContain("api/calls/transcription");
+    expect(xml).toContain("deepgram");
     expect(xml).toContain("<Dial");
     expect(xml).toContain("+33122334455");
     expect(xml).toContain("<Number");
@@ -37,7 +39,7 @@ describe("buildTwiml — outbound call composition", () => {
     const xml = await buildTwiml({
       toNumber: "+33612345678",
       fromNumber: "+33122334455",
-      streamUrl: "wss://example.com/stream",
+      transcriptionCallbackUrl: "https://example.com/api/calls/transcription?callId=abc",
       recordingStatusUrl: "https://example.com/api/calls/recording-status",
     });
     expect(xml).toContain("record-from-answer-dual");
@@ -48,7 +50,7 @@ describe("buildTwiml — outbound call composition", () => {
     const xml = await buildTwiml({
       toNumber: "+33612345678",
       fromNumber: "+33122334455",
-      streamUrl: "wss://example.com/stream",
+      transcriptionCallbackUrl: "https://example.com/api/calls/transcription?callId=abc",
       disclosureUrl: "https://cdn.example.com/disclosure-fr.mp3",
       recordingStatusUrl: "https://example.com/api/calls/recording-status",
     });
@@ -60,7 +62,7 @@ describe("buildTwiml — outbound call composition", () => {
     const xml = await buildTwiml({
       toNumber: "+12125551234",
       fromNumber: "+12128889999",
-      streamUrl: "wss://example.com/stream",
+      transcriptionCallbackUrl: "https://example.com/api/calls/transcription?callId=abc",
       recordingStatusUrl: "https://example.com/api/calls/recording-status",
     });
     expect(xml).not.toContain("<Play>");

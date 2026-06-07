@@ -12,6 +12,7 @@ import { calls } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getVoiceProvider } from "@/lib/voice";
 import { buildTwiml } from "@/lib/voice/twilio";
+import { validateTwilioSignature } from "@/lib/voice/twilio-signature";
 import { logger } from "@/lib/observability/logger";
 
 export async function POST(req: Request) {
@@ -44,10 +45,13 @@ export async function POST(req: Request) {
     `${url.protocol}//${url.host}`;
   const fullUrl = `${publicBase}${url.pathname}${url.search}`;
 
-  const valid = provider.validateWebhookSignature({
-    signature,
+  // Self-contained HMAC validation — independent of whether the Twilio SDK
+  // module happens to be warm on this serverless instance.
+  const valid = validateTwilioSignature({
+    authToken: process.env.TWILIO_AUTH_TOKEN ?? "",
     url: fullUrl,
     params,
+    signature,
   });
   if (!valid) {
     logger.warn?.("calls/twiml: invalid signature", { callId });
@@ -63,16 +67,12 @@ export async function POST(req: Request) {
     return new Response("Call not found", { status: 404 });
   }
 
-  // The streaming bridge runs as a separate Node process (Twilio Media
-  // Streams + Deepgram). VOICE_STREAM_PUBLIC_URL is the wss:// URL of
-  // that bridge (e.g. ngrok tunnel in dev, dedicated host in prod).
-  // Fall back to the main app's wss:// path so a missing env still
-  // returns valid TwiML — Twilio will fail-open without a stream and
-  // the call still places.
-  const streamHost = process.env.VOICE_STREAM_PUBLIC_URL;
-  const streamUrl = streamHost
-    ? `${streamHost.replace(/\/+$/, "")}?callId=${callId}`
-    : `${publicBase.startsWith("https://") ? "wss://" : "ws://"}${publicBase.replace(/^https?:\/\//, "")}/api/calls/stream?callId=${callId}`;
+  // Twilio-native real-time transcription POSTs transcript events to this
+  // webhook (serverless — no Media Streams WS server to host). callId is
+  // carried so the webhook writes to the right calls row.
+  const transcriptionCallbackUrl = `${publicBase}/api/calls/transcription?callId=${callId}`;
+  // Romand wedge: prospects are FR/CH francophone → French transcription.
+  const languageCode = "fr-FR";
 
   const disclosureUrl = url.searchParams.get("disclosureUrl") ?? undefined;
   const recordingStatusUrl = `${publicBase}/api/calls/recording-status`;
@@ -80,7 +80,8 @@ export async function POST(req: Request) {
   const twiml = await buildTwiml({
     toNumber: callRow.toNumber,
     fromNumber: callRow.fromNumber,
-    streamUrl,
+    transcriptionCallbackUrl,
+    languageCode,
     disclosureUrl,
     recordingStatusUrl,
   });
