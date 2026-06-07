@@ -39,6 +39,7 @@ import {
 } from "./_panels";
 import { CallModeOnboarding } from "./_onboarding";
 import { CampaignFunnelBar } from "./_funnel-bar";
+import { CallScriptPanel } from "./_call-script";
 
 interface QueueItem {
   contactId: string;
@@ -905,15 +906,20 @@ export default function CallModePage() {
       {/* ───── RIGHT — Account brain (prep) / call context (live) ───── */}
       <aside className="w-96 shrink-0 border-l border-zinc-200 dark:border-zinc-800 overflow-y-auto">
         {selected ? (
-          inCall ? (
-            <InCallContext selected={selected} brain={brain} coaching={coachingHistory} />
-          ) : (
-            <AccountBrainPanel
-              brain={brain}
-              brainLoading={brainLoading}
-              focalContactId={selected.contactId}
-            />
-          )
+          <>
+            <div className="border-b border-zinc-200 p-3 dark:border-zinc-800">
+              <CallScriptPanel contactName={selected.contactName} />
+            </div>
+            {inCall ? (
+              <InCallContext selected={selected} brain={brain} coaching={coachingHistory} />
+            ) : (
+              <AccountBrainPanel
+                brain={brain}
+                brainLoading={brainLoading}
+                focalContactId={selected.contactId}
+              />
+            )}
+          </>
         ) : (
           <div className="h-full flex items-center justify-center p-6 text-sm text-zinc-500">
             Select a contact to see the account.
