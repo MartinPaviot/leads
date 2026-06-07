@@ -154,6 +154,9 @@ export default function AccountsPage() {
   // "Not a fit" view toggle. false = active working set (excluded hidden);
   // true = show only excluded accounts so they can be reviewed / restored.
   const [viewExcluded, setViewExcluded] = useState(false);
+  // Count of pending TAM proposals — drives the header entry point into
+  // the review surface so the living-TAM loops are never a dead-end.
+  const [proposalCount, setProposalCount] = useState(0);
   // Smart Search — NL query translated into FilterCondition[] via LLM.
   // Stacks with the existing tab `filter` and the text `searchQuery`.
   // Cleared on tab switch is intentional: tabs partition the dataset
@@ -302,6 +305,20 @@ export default function AccountsPage() {
   }, [fetchAccounts, loadingMore, currentPage, totalPages]);
 
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
+
+  // Pending TAM-proposal count for the header entry point.
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/tam/proposals?status=pending&limit=1");
+        if (!res.ok) return;
+        const data = await res.json();
+        setProposalCount(data.counts?.pending ?? 0);
+      } catch {
+        /* non-fatal */
+      }
+    })();
+  }, []);
 
   // Auto-load on scroll: when the bottom sentinel enters the scroll
   // container's viewport, pull the next page. `rootMargin` pre-fetches a
@@ -1043,6 +1060,17 @@ export default function AccountsPage() {
         >
           {detectingSignals ? "Detecting..." : "Signals"}
         </Button>
+        {proposalCount > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<Sparkles size={13} />}
+            onClick={() => { window.location.href = "/tam/review"; }}
+            title="Review proposed TAM changes (add / refresh / exclude)"
+          >
+            Proposals ({proposalCount})
+          </Button>
+        )}
         <Button
           variant="outline"
           size="sm"
