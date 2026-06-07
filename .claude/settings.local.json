@@ -5,7 +5,6 @@
       "Bash(bash \"$CLAUDE_PROJECT_DIR/.claude/commands/review-plan-command.sh\" *)",
       "Bash(bash \"${CLAUDE_PROJECT_DIR:-$PWD}/.claude/commands/review-plan-command.sh\" *)",
       "WebSearch",
-
       "Bash(npx tsc *)",
       "Bash(npx vitest *)",
       "Bash(npx playwright *)",
@@ -17,7 +16,6 @@
       "Bash(npm run db:migrate:apply*)",
       "Bash(npm run dev*)",
       "Bash(npm run build*)",
-
       "Bash(git status*)",
       "Bash(git log*)",
       "Bash(git diff*)",
@@ -25,7 +23,6 @@
       "Bash(git blame*)",
       "Bash(git branch*)",
       "Bash(git ls-files*)",
-
       "Bash(gh pr view*)",
       "Bash(gh pr diff*)",
       "Bash(gh pr list*)",
@@ -36,11 +33,37 @@
       "Bash(gh search*)",
       "Bash(gh api repos/*/contents/*)",
       "Bash(gh repo list*)",
-
       "Bash(ls*)",
       "Bash(cat C:/Users/marti/leads/*)",
       "Bash(find C:/Users/marti/leads/ -name*)",
-      "Bash(wc -l*)"
+      "Bash(wc -l*)",
+      "Bash(rm -rf .vercel)",
+      "Bash(cp -r app/apps/web/.vercel .vercel)",
+      "Bash(NODE_EXTRA_CA_CERTS=\"C:/Users/marti/leads/.cacerts.pem\" vercel --prod --yes)",
+      "Bash(tee /tmp/deploy3.log)",
+      "mcp__playwright__browser_navigate",
+      "Bash(NODE_EXTRA_CA_CERTS=\"C:/Users/marti/leads/.cacerts.pem\" vercel inspect https://web-5bgmk1ten-martins-projects-02d07974.vercel.app)",
+      "Bash(NODE_EXTRA_CA_CERTS=\"C:/Users/marti/leads/.cacerts.pem\" vercel env pull .env.prod --environment=production --yes)",
+      "Bash(NODE_EXTRA_CA_CERTS=\"C:/Users/marti/leads/.cacerts.pem\" vercel env pull .env.prod2 --environment=production --yes)",
+      "Bash(tee /tmp/deploy4.log)",
+      "Bash(export NODE_EXTRA_CA_CERTS=\"C:/Users/marti/leads/.cacerts.pem\")",
+      "Bash(vercel env pull *)",
+      "Bash(vercel env ls*)",
+      "Bash(npx tsx *)",
+      "Bash(tee /tmp/romand.log)",
+      "Bash(tee /tmp/romand2.log)",
+      "Bash(tee /tmp/cp.log)",
+      "Bash(grep *)",
+      "Bash(rg *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(find *)",
+      "PowerShell(Get-Content *)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Test-Path *)",
+      "PowerShell(Select-String *)",
+      "PowerShell(Measure-Object *)",
+      "PowerShell(Get-Item *)"
     ]
   }
 }

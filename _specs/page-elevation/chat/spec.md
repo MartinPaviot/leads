@@ -193,7 +193,30 @@ T13. Fix reload duplication — a saved thread must rehydrate each turn exactly 
      saveMessages/load + threads API] Test: reload a 1-exchange thread -> exactly 1 user + 1
      assistant message. (Raises T2 from "persist rich parts" to "persist rich parts correctly".)
 
-Still UNVERIFIED live (blocked by the local TLS error): tool-step streaming labels during a live
-turn; `[Source N]` dead-vs-linked on the vector path; create-proposal approve card; zero-row
-honesty state. These need a working outbound TLS path (Martin's env) to observe; the spec's claims
-for them stand on code evidence.
+TLS unblocked 2026-06-06 by injecting the Windows root/CA store into Node via
+NODE_EXTRA_CA_CERTS (verification stays ON) — dev `.dev-ca-bundle.pem`. Live LLM turns now work.
+
+Live re-test after TLS fix:
+- Chat answers end-to-end. Tool calls render as a labeled COLLAPSIBLE panel ("Checked deal
+  risk") [04-working-answer-toolstep-honest.png] -> T6 is PRESENT (deepen, not add).
+- Honest no-data answer observed: "No open deals ... 767 accounts and no deals tracked ... want
+  me to create some?" -> T9 baseline is good; the 3-state distinction is the refinement.
+- Test-tenant data state: 767 accounts, 0 contacts, 0 deals (the old "top 5 deals" thread was
+  stale April data).
+
+## Fixes applied (2026-06-06, branch feat/page-elevation, commit 43e67ecb)
+- T13 reload duplication — FIXED + VERIFIED. Re-entrancy guard (savingRef) in page.tsx
+  saveMessages. Root cause: a double-invoked save effect double-POSTed each exchange (4 rows for a
+  1-turn thread, inserts 3 ms apart; duplicated on reload). Verified: fresh thread stores exactly
+  [user, assistant]; a follow-up appends exactly one pair (4 total, not 6); reload renders once.
+  NOTE: pre-existing threads stay doubled (StrictMode is dev-only, so prod may be clean — verify;
+  optional one-off dedup migration if prod is affected).
+- T3 dead [Source N] — FIXED. route.ts formatCitedSources exposes each record path + steers the
+  model to the clickable entity-link format (chat-markdown.tsx only linkifies real entity hrefs).
+  Route verified to recompile + answer post-edit.
+
+Deferred to Pass 2 (elevations, not defects): persist rich transcript parts (tool/cards lost on
+reload); Opus 4.8 + adaptive thinking + remove the stale `<thinking_guidance>` ("extended thinking
+enabled" is false — thinking is dropped in route.ts); Sources rail + hover-preview; deepen
+structured filters; diff cards for updates; record-anchored entry; branching UI (server DAG already
+exists in the threads route).

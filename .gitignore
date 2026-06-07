@@ -24,3 +24,9 @@ _research/raw/lightfield-extraction/edge-profile/
 
 # Regenerated dev/build/redeploy server logs
 _*.log
+
+# Machine-specific / binaries / secrets — never commit
+.cacerts.pem
+.vercel/
+cloudflared.exe
+*.exe
