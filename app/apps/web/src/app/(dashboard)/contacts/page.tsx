@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, Trash2, type LucideIcon } from "lucide-react";
 import { SmartImport } from "@/components/smart-import";
 import { CompanyLogo } from "@/components/ui/company-logo";
-import { formatScore, ENRICHMENT_COLORS } from "@/lib/util/ui-utils";
+import { displayScore, ENRICHMENT_COLORS } from "@/lib/util/ui-utils";
 import { useCustomFields } from "@/hooks/use-custom-fields";
 import { getCustomFieldValue, formatFieldValue } from "@/lib/context/custom-fields";
 import { PageHeader, FilterBar } from "@/components/ui/page-header";
@@ -658,7 +658,7 @@ export default function ContactsPage() {
                     {/* Score */}
                     <td>
                       {(() => {
-                        const scoreInfo = formatScore(contact.score);
+                        const scoreInfo = displayScore(contact.score, isEnriched(contact));
                         if (!scoreInfo) return <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>;
                         return (
                           <span className="flex items-center gap-1.5" title={contact.scoreReasons?.join("; ") || ""}>

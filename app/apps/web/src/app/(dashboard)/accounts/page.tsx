@@ -15,7 +15,7 @@ function LinkedInIcon({ size = 13 }: { size?: number }) {
     </svg>
   );
 }
-import { getLifecycleStyle, formatScore } from "@/lib/util/ui-utils";
+import { getLifecycleStyle, displayScore } from "@/lib/util/ui-utils";
 import { SlideOver, PropertyRow } from "@/components/slide-over";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { IntelligenceBrief } from "@/components/intelligence-brief";
@@ -930,7 +930,7 @@ export default function AccountsPage() {
     size: { label: "Size", kind: "enum", get: (a) => a.size },
     revenue: { label: "Revenue", kind: "enum", get: (a) => a.revenue },
     stage: { label: "Stage", kind: "enum", get: (a) => getLifecycleStage(a) },
-    score: { label: "Score", kind: "enum", get: (a) => formatScore(a.score)?.grade ?? null },
+    score: { label: "Score", kind: "enum", get: (a) => displayScore(a.score, isEnriched(a))?.grade ?? null },
   };
 
   // Distinct values per enum column, computed from the loaded rows, for
@@ -1591,7 +1591,7 @@ export default function AccountsPage() {
                     {/* Score */}
                     <td>
                       {(() => {
-                        const scoreInfo = formatScore(account.score);
+                        const scoreInfo = displayScore(account.score, isEnriched(account));
                         if (!scoreInfo) return <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>;
                         return (
                           <span className="flex items-center gap-1.5" title={account.scoreReasons?.join("; ") || ""}>
@@ -2021,7 +2021,7 @@ export default function AccountsPage() {
       >
         {slideOverAccount && (() => {
           const a = slideOverAccount;
-          const scoreInfo = formatScore(a.score);
+          const scoreInfo = displayScore(a.score, isEnriched(a));
           const lc = ((a.properties as Record<string, unknown>)?.lifecycleStage as string) || "new";
           const lcStyle = getLifecycleStyle(lc);
           return (
