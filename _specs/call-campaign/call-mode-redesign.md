@@ -77,10 +77,17 @@ Persist the chosen frequency/cadence on the campaign (weeklyTarget/daysPerWeek/d
 windowDays already exist; add `listFrequency` to targetFilter). All surfaced copy reads from these —
 never a fixed period.
 
-## 5. Build plan (phased, each verifiable)
-- P1 (now): onboarding = user-defined frequency + cadence (fix the hardcoded copy); persist listFrequency.
-- P2: live layout — transcript-centric focus mode on connect (collapse list/funnel, big transcript,
-  pinned opener + objection rail + controls), smooth transition.
-- P3: pre-call hero (opener + 3 bullets at the top; dossier collapses below).
-- P4: wrap "captured" summary (deal/tasks created) after disposition.
-Each phase: Playwright-verify the visible states; live dialing stays gated on Twilio.
+## 5. Build plan (phased, each verifiable) — DONE
+- P1 DONE (37700dad): onboarding = user-defined frequency + cadence (no hardcoded copy); persists
+  listFrequency + workingDays in targetFilter; cron honours each campaign's rhythm.
+- P2 DONE (5ced68b3): live layout — on dial→connected the queue collapses to a thin strip, the funnel
+  collapses, the right rail becomes InCallContext (opener + angle + why-now + live objection cards),
+  transcript center-stage. transform/opacity only (GPU rule).
+- P2.5 DONE (1556c469): funnel bar made a flush full-width strip (was an inset card floating over
+  full-bleed columns → "ne finit ni à droite ni à gauche"); cockpit now framed edge-to-edge.
+- P3 DONE (4b2c704e): pre-call hero — opener + 3 bullets (why now / what they care about / the ask)
+  lead; enrich stays visible; the dense dossier collapses into a "Dossier complet" toggle.
+- P4 DONE: post-call wrap — the disposition toast surfaces the one-line CRM capture ("Meeting booked ·
+  captured: deal created, 1 task"); auto-advance preserved (no logging form, no pause).
+Verified: P2/P3 via throwaway preview harnesses (mock data; live dialing stays gated on Twilio), P2.5
++ funnel/prep on the live page, P4 by logic + tsc. All states 0 tsc errors.

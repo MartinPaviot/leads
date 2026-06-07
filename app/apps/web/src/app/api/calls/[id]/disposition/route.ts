@@ -74,6 +74,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       occurredAt: now,
     }).catch(() => null);
 
-    return Response.json({ ok: true, outcome, dealId: crm?.dealId ?? null, dealAction: crm?.dealAction ?? null });
+    return Response.json({
+      ok: true,
+      outcome,
+      dealId: crm?.dealId ?? null,
+      dealAction: crm?.dealAction ?? null,
+      tasksCreated: crm?.tasksCreated ?? 0,
+    });
   });
 }

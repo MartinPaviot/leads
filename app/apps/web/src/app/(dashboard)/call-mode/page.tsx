@@ -502,18 +502,38 @@ export default function CallModePage() {
   const handleDisposition = useCallback(
     async (outcome: string) => {
       const callId = "callId" in softphone ? softphone.callId : "";
+      let captured: { dealAction?: string | null; tasksCreated?: number } | null = null;
       if (callId) {
         try {
-          await fetch(`/api/calls/${callId}/disposition`, {
+          const res = await fetch(`/api/calls/${callId}/disposition`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ outcome }),
           });
+          captured = await res.json().catch(() => null);
         } catch {
           /* non-fatal — the async post-call worker still classifies it */
         }
       }
-      toast(`Logged: ${outcome.replace(/_/g, " ")}`, "success");
+      // Post-call wrap: one line on what the autopilot just captured in the
+      // CRM (deal + tasks), so the rep trusts the logging and moves on — no
+      // form, no pause. Auto-advance to the next prospect immediately.
+      const OUTCOME_LABEL: Record<string, string> = {
+        connected: "Connected",
+        meeting_booked: "Meeting booked",
+        callback_requested: "Callback requested",
+        no_answer: "No answer",
+        voicemail_left: "Voicemail",
+        not_interested: "Not interested",
+      };
+      const head = OUTCOME_LABEL[outcome] ?? outcome.replace(/_/g, " ");
+      const parts: string[] = [];
+      if (captured?.dealAction === "created") parts.push("deal created");
+      else if (captured?.dealAction === "updated") parts.push("deal updated");
+      else if (captured?.dealAction === "closed_lost") parts.push("deal closed (lost)");
+      const tasks = captured?.tasksCreated ?? 0;
+      if (tasks > 0) parts.push(`${tasks} task${tasks > 1 ? "s" : ""}`);
+      toast(parts.length ? `${head} · captured: ${parts.join(", ")}` : `${head} · cadence updated`, "success");
       const idx = queue.findIndex((q) => q.contactId === selectedId);
       const remaining = queue.filter((q) => q.contactId !== selectedId);
       setQueue(remaining);
