@@ -2,21 +2,18 @@ import { inngest } from "./client";
 import { db } from "@/db";
 import { icps, icpCriteria, companies } from "@/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
-import { icpToStrategy } from "@/lib/icp/icp-to-tam";
 import type { Criterion } from "@/lib/icp/criteria-engine";
-import {
-  searchOrganizations,
-  isApolloAvailable,
-} from "@/lib/integrations/apollo-client";
+import { listAvailableDiscoverySources } from "@/lib/discovery/registry";
+import { candidateToAddPayload } from "@/lib/discovery/types";
 import { proposeTamChange } from "@/lib/tam/proposals";
-import { orgToAddPayload, normalizeDomain } from "@/lib/tam/candidate";
 
 /**
  * ICP → net-new add-proposals (living-TAM loop). Fired when an ICP is
- * activated (api/icps). Sources a bounded page from the ICP's criteria
- * and QUEUES `add` proposals for the net-new domains — it never inserts
- * or enriches directly. This is how the TAM grows when the founder
- * sharpens their ICP, under the approval-queue posture.
+ * activated (api/icps). Fans out across every AVAILABLE discovery source
+ * (Apollo always; Pappers when keyed + the ICP is French; SIRENE/Zefix as
+ * they land), dedups candidates by domain against the existing TAM, and
+ * QUEUES `add` proposals. Never inserts or enriches directly — approval in
+ * /tam/review authorises the spend (approval-queue posture).
  */
 const MAX_PROPOSALS = 50;
 
@@ -29,9 +26,8 @@ export const sourceIcpToProposals = inngest.createFunction(
   },
   async ({ event, step }: { event: { data: { tenantId: string; icpId: string } }; step: any }) => {
     const { tenantId, icpId } = event.data;
-    if (!isApolloAvailable()) return { proposed: 0, reason: "apollo unavailable" };
 
-    const strategy = await step.run("load-icp-strategy", async () => {
+    const ctx = await step.run("load-icp", async () => {
       const [icp] = await db
         .select({ id: icps.id, name: icps.name })
         .from(icps)
@@ -50,20 +46,18 @@ export const sourceIcpToProposals = inngest.createFunction(
         weight: r.weight,
         isRequired: r.isRequired,
       }));
-      return icpToStrategy(icp.name, criteria);
+      return { name: icp.name, criteria };
     });
+    if (!ctx) return { proposed: 0, reason: "icp not found" };
 
-    if (!strategy) return { proposed: 0, reason: "no apollo-sourceable criteria" };
+    const sources = listAvailableDiscoverySources();
+    if (sources.length === 0) {
+      return { proposed: 0, reason: "no discovery source available" };
+    }
 
-    return await step.run("search-and-propose", async () => {
-      const search = await searchOrganizations({
-        ...strategy.filters,
-        page: 1,
-        per_page: MAX_PROPOSALS,
-      });
-
-      // Dedup against everything already in the TAM (incl. excluded —
-      // they stay as rows so we never re-propose what was rejected).
+    return await step.run("source-and-propose", async () => {
+      // Dedup against the whole TAM, including excluded rows (they stay so
+      // we never re-propose what was rejected).
       const existing = await db
         .select({ domain: companies.domain })
         .from(companies)
@@ -75,23 +69,46 @@ export const sourceIcpToProposals = inngest.createFunction(
       );
 
       let proposed = 0;
-      for (const org of search.organizations ?? []) {
+      const bySource: Record<string, number> = {};
+
+      for (const source of sources) {
         if (proposed >= MAX_PROPOSALS) break;
-        const domain = normalizeDomain(org.primary_domain ?? org.website_url ?? null);
-        if (!domain || known.has(domain)) continue;
-        known.add(domain);
-        const r = await proposeTamChange({
-          tenantId,
-          kind: "add",
-          dedupKey: domain,
-          payload: orgToAddPayload(org, domain),
-          summary: `${org.name ?? domain}${org.industry ? ` — ${org.industry}` : ""}`,
-          reason: strategy.label,
-          source: "icp_source",
-        });
-        if (r.created) proposed++;
+        let candidates;
+        try {
+          candidates = await source.search({
+            tenantId,
+            icpName: ctx.name,
+            criteria: ctx.criteria,
+            limit: MAX_PROPOSALS,
+          });
+        } catch (e) {
+          console.warn(`[icp-source] ${source.name} failed:`, (e as Error)?.message);
+          continue;
+        }
+
+        for (const c of candidates) {
+          if (proposed >= MAX_PROPOSALS) break;
+          // Domain-keyed for now; domainless candidates (SIRENE) wait for
+          // the resolution bridge in the next increment.
+          if (!c.domain || known.has(c.domain)) continue;
+          known.add(c.domain);
+          const r = await proposeTamChange({
+            tenantId,
+            kind: "add",
+            dedupKey: c.domain,
+            payload: candidateToAddPayload(c),
+            summary: `${c.name ?? c.domain}${c.industry ? ` — ${c.industry}` : ""}`,
+            reason: `ICP: ${ctx.name}`,
+            source: `icp_source:${c.sourceName}`,
+          });
+          if (r.created) {
+            proposed++;
+            bySource[c.sourceName] = (bySource[c.sourceName] ?? 0) + 1;
+          }
+        }
       }
-      return { proposed };
+
+      return { proposed, bySource };
     });
   },
 );
