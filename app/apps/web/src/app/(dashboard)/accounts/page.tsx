@@ -1045,7 +1045,7 @@ export default function AccountsPage() {
           during a build, collapses to a completion / error state
           after `done`. */}
       {streamBanner && (
-        <div className="px-4 pt-3">
+        <div>
           <TamBuildProgress
             state={tamStream}
             targetCount={300}

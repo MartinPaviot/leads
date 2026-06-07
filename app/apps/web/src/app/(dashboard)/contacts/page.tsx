@@ -466,7 +466,7 @@ export default function ContactsPage() {
       />
 
       {importResult && (
-        <div className="mx-5 mt-2 flex items-center justify-between rounded-md px-3 py-2 text-xs"
+        <div className="flex w-full items-center justify-between px-6 py-2 text-xs"
           style={{ background: importResult.startsWith("Error") ? "var(--color-error-soft)" : "var(--color-success-soft)", color: importResult.startsWith("Error") ? "var(--color-error)" : "var(--color-success)" }}>
           <span>{importResult}</span>
           <button onClick={() => setImportResult(null)}><X size={12} /></button>

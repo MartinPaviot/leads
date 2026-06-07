@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Users, Banknote, Wrench, Swords } from "lucide-react";
 
 interface LiveExtractionProps {
   meetingId: string;
@@ -58,10 +58,10 @@ export function LiveExtraction({ meetingId, isRecording }: LiveExtractionProps) 
   }, [isLive]);
 
   const fields = [
-    { emoji: "👥", label: "Team Size", value: data?.teamSize },
-    { emoji: "💰", label: "Budget", value: data?.budget },
-    { emoji: "📋", label: "Current Tools", value: data?.currentTools?.length ? data.currentTools.join(", ") : null },
-    { emoji: "🔧", label: "Competitors", value: data?.competitors?.length ? data.competitors.join(", ") : null },
+    { Icon: Users, label: "Team Size", value: data?.teamSize },
+    { Icon: Banknote, label: "Budget", value: data?.budget },
+    { Icon: Wrench, label: "Current Tools", value: data?.currentTools?.length ? data.currentTools.join(", ") : null },
+    { Icon: Swords, label: "Competitors", value: data?.competitors?.length ? data.competitors.join(", ") : null },
   ];
 
   const hasAnyData = fields.some((f) => f.value);
@@ -96,7 +96,7 @@ export function LiveExtraction({ meetingId, isRecording }: LiveExtractionProps) 
         <div className="grid grid-cols-2 gap-3">
           {fields.map((f) => (
             <div key={f.label} className="flex items-start gap-2">
-              <span className="text-[14px]">{f.emoji}</span>
+              <f.Icon size={14} className="mt-0.5 shrink-0" style={{ color: "var(--color-text-tertiary)" }} />
               <div>
                 <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>{f.label}</p>
                 {f.value ? (
