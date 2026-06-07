@@ -52,11 +52,23 @@ export function PersonaSearch({ onClose, onSaved }: { onClose: () => void; onSav
   const [icp, setIcp] = useState<ParsedIcp | null>(null);
   const [summary, setSummary] = useState("");
   const [estimate, setEstimate] = useState<{ total: number | null; capped?: boolean; gated?: boolean } | null>(null);
+  // Evidence-backed preview: real example matches per source so the user
+  // can SEE the target is right (Apollo's fuzzy keyword match vs the
+  // registries' exact NAF match) before sourcing.
+  const [preview, setPreview] = useState<{
+    sources: Array<{
+      source: string;
+      sample: Array<{ name: string | null; domain: string | null; industry: string | null }>;
+      more?: boolean;
+      error?: string;
+    }>;
+  } | null>(null);
 
   async function parse(q: string) {
     if (!q.trim()) return;
     setParsing(true);
     setEstimate(null);
+    setPreview(null);
     try {
       const res = await fetch("/api/icp/parse-nl", {
         method: "POST",
@@ -72,6 +84,7 @@ export function PersonaSearch({ onClose, onSaved }: { onClose: () => void; onSav
       setIcp(parsed);
       setSummary(data.summary || "");
       void runEstimate(parsed);
+      void runPreview(parsed);
     } catch {
       toast("Network error — try again", "error");
     } finally {
@@ -107,11 +120,38 @@ export function PersonaSearch({ onClose, onSaved }: { onClose: () => void; onSav
     }
   }
 
+  async function runPreview(p: ParsedIcp) {
+    try {
+      const res = await fetch("/api/tam/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          industries: p.industries,
+          keywords: p.keywords,
+          companySizes: p.companySizes,
+          geographies: p.geographies,
+          technologies: p.technologies,
+          revenueMin: p.revenueMin,
+          revenueMax: p.revenueMax,
+        }),
+      });
+      if (!res.ok) {
+        setPreview(null);
+        return;
+      }
+      const data = await res.json();
+      setPreview({ sources: data.sources ?? [] });
+    } catch {
+      setPreview(null);
+    }
+  }
+
   function removeChip(field: keyof ParsedIcp, value: string) {
     if (!icp) return;
     const next = { ...icp, [field]: (icp[field] as string[]).filter((v) => v !== value) };
     setIcp(next);
     void runEstimate(next);
+    void runPreview(next);
   }
 
   async function save() {
@@ -224,6 +264,37 @@ export function PersonaSearch({ onClose, onSaved }: { onClose: () => void; onSav
               <span>≈ <strong style={{ color: "var(--color-text-primary)" }}>{estimate.total.toLocaleString()}{estimate.capped ? "+" : ""}</strong> companies match this audience.</span>
             )}
           </div>
+
+          {preview && preview.sources.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <div className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
+                Real matches by source — check the target is right
+              </div>
+              {preview.sources.map((s) => (
+                <div key={s.source} className="rounded-md border px-3 py-2" style={{ borderColor: "var(--color-border-default)" }}>
+                  <div className="text-[12px] font-medium capitalize" style={{ color: "var(--color-text-primary)" }}>
+                    {s.source}
+                    {s.sample.length > 0 ? ` · ${s.sample.length}${s.more ? "+" : ""} examples` : ""}
+                  </div>
+                  {s.sample.length > 0 ? (
+                    <ul className="mt-1 space-y-0.5">
+                      {s.sample.map((c, i) => (
+                        <li key={i} className="truncate text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                          {c.name ?? c.domain ?? "—"}
+                          {c.domain ? ` · ${c.domain}` : ""}
+                          {c.industry ? ` · ${c.industry}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="mt-0.5 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                      {s.error ? "unavailable" : "no exact match for this source"}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           <Button variant="gradient" className="mt-3.5 w-full" disabled={saving} onClick={save}>
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
