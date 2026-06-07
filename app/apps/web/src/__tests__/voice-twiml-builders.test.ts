@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { buildTwiml, buildVoicemailDropTwiml, buildFallbackTwiml } from "@/lib/voice/twilio";
 
 /**
@@ -6,6 +6,12 @@ import { buildTwiml, buildVoicemailDropTwiml, buildFallbackTwiml } from "@/lib/v
  * VoiceResponse — that's the surface Twilio actually validates against
  * at runtime so we don't want a hand-rolled assertion that drifts.
  */
+
+// Recording is opt-in (VOICE_RECORDING_ENABLED). Default every test to OFF so
+// assertions are deterministic regardless of the ambient env.
+beforeEach(() => {
+  delete process.env.VOICE_RECORDING_ENABLED;
+});
 
 describe("buildTwiml — outbound call composition", () => {
   it("includes <Stream> and <Dial> + <Number>", async () => {
@@ -21,6 +27,20 @@ describe("buildTwiml — outbound call composition", () => {
     expect(xml).toContain("+33122334455");
     expect(xml).toContain("<Number");
     expect(xml).toContain("+33612345678");
+    // Recording is opt-in — off by default, so nothing is captured/announced.
+    expect(xml).not.toContain("recordingStatusCallback=");
+    expect(xml).not.toContain("record-from-answer-dual");
+  });
+
+  it("records only when VOICE_RECORDING_ENABLED=true (never silently)", async () => {
+    process.env.VOICE_RECORDING_ENABLED = "true";
+    const xml = await buildTwiml({
+      toNumber: "+33612345678",
+      fromNumber: "+33122334455",
+      streamUrl: "wss://example.com/stream",
+      recordingStatusUrl: "https://example.com/api/calls/recording-status",
+    });
+    expect(xml).toContain("record-from-answer-dual");
     expect(xml).toContain("recordingStatusCallback=");
   });
 

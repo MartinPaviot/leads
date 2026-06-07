@@ -81,6 +81,13 @@ export const twilioProvider: VoiceProvider = {
       }
       const statusUrl = `${input.webhookBaseUrl}/api/calls/recording-status`;
 
+      // Recording is OFF by default. In two-party-consent regions (CH/FR)
+      // recording without an audible disclosure is unlawful (CH art. 179bis is
+      // criminal), so we never record silently. Set VOICE_RECORDING_ENABLED=true
+      // ONLY once a disclosure is wired (VOICE_DISCLOSURE_AUDIO_URL), so the
+      // disclosure plays before any capture.
+      const recordingEnabled = process.env.VOICE_RECORDING_ENABLED === "true";
+
       const call = await client.calls.create({
         from: input.fromNumber,
         to: input.toNumber,
@@ -88,10 +95,13 @@ export const twilioProvider: VoiceProvider = {
         statusCallback: statusUrl,
         statusCallbackEvent: ["initiated", "ringing", "answered", "completed"],
         statusCallbackMethod: "POST",
-        // Async recording — backup capture in case Media Streams drops.
-        record: true,
-        recordingStatusCallback: statusUrl,
-        recordingStatusCallbackMethod: "POST",
+        ...(recordingEnabled
+          ? {
+              record: true,
+              recordingStatusCallback: statusUrl,
+              recordingStatusCallbackMethod: "POST" as const,
+            }
+          : {}),
         // Twilio's machine detection helps the post-call worker route
         // outcomes (machine → voicemail_left, human → connected).
         machineDetection: "DetectMessageEnd",
@@ -294,15 +304,18 @@ export async function buildTwiml(opts: {
   // Start Deepgram bidirectional stream BEFORE dial so we capture the
   // disclosure and any greeting on either side.
   r.start().stream({ url: opts.streamUrl });
-  // Dial the prospect with the tenant's caller-id; record both legs.
-  const dial = r.dial(
-    {
-      callerId: opts.fromNumber,
-      record: "record-from-answer-dual",
-      recordingStatusCallback: opts.recordingStatusUrl,
-    },
-    opts.toNumber,
-  );
+  // Dial the prospect with the tenant's caller-id. Recording is opt-in only
+  // (VOICE_RECORDING_ENABLED) — we never capture silently, since CH/FR require
+  // an audible disclosure and recording without it is unlawful (CH criminal).
+  const recordingEnabled = process.env.VOICE_RECORDING_ENABLED === "true";
+  const dialOpts: { callerId: string; record?: string; recordingStatusCallback?: string } = {
+    callerId: opts.fromNumber,
+  };
+  if (recordingEnabled) {
+    dialOpts.record = "record-from-answer-dual";
+    dialOpts.recordingStatusCallback = opts.recordingStatusUrl;
+  }
+  const dial = r.dial(dialOpts, opts.toNumber);
   dial.number(opts.toNumber);
   return r.toString();
 }
