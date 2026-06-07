@@ -21,7 +21,7 @@
 
 import { inngest } from "./client";
 import { db } from "@/db";
-import { calls, activities, tenants } from "@/db/schema";
+import { calls, activities, tenants, contacts, companies } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -34,6 +34,7 @@ import { recordCapturedActivity, getCaptureApprovalMode } from "@/lib/capture/ap
 import { recordCallOutcomeForCampaigns } from "@/lib/voice/campaign";
 import { applyCallToCrm } from "@/lib/voice/post-call-crm";
 import { indexTranscript } from "@/lib/coaching/index-transcript";
+import { ingestEpisode } from "@/lib/ai/context-graph";
 import { logger } from "@/lib/observability/logger";
 
 interface TranscriptChunk {
@@ -298,6 +299,46 @@ RULES:
         });
       } catch (err) {
         logger.warn?.("calls-post-process: crm-apply failed", {
+          callId,
+          err: err instanceof Error ? err.message : String(err),
+        });
+        return { skipped: true };
+      }
+    });
+
+    await step.run("context-graph-ingest", async () => {
+      // Feed the call into the bi-temporal context graph (customer memory) so
+      // chat + intelligence can reason over call history. Entity resolution is
+      // by name, so the episode names the contact + company. Non-fatal.
+      try {
+        const [c] = await db
+          .select({ firstName: contacts.firstName, lastName: contacts.lastName, companyId: contacts.companyId })
+          .from(contacts)
+          .where(eq(contacts.id, callRow.contactId))
+          .limit(1);
+        const who = [c?.firstName, c?.lastName].filter(Boolean).join(" ") || "the prospect";
+        let companyName = "";
+        if (c?.companyId) {
+          const [co] = await db.select({ name: companies.name }).from(companies).where(eq(companies.id, c.companyId)).limit(1);
+          companyName = co?.name ?? "";
+        }
+        const s = notes.buyingSignals;
+        const when = (callRow.endedAt ? new Date(callRow.endedAt) : new Date()).toISOString().slice(0, 10);
+        const episode = [
+          `Cold call with ${who}${companyName ? ` at ${companyName}` : ""} on ${when}. Outcome: ${notes.outcome}; sentiment: ${notes.sentiment}.`,
+          notes.summary ? `Summary: ${notes.summary}` : "",
+          notes.keyPoints?.length ? `Key points: ${notes.keyPoints.join("; ")}` : "",
+          s?.painPoints?.length ? `Pain points: ${s.painPoints.join("; ")}` : "",
+          s?.objections?.length ? `Objections: ${s.objections.join("; ")}` : "",
+          s?.competitors?.length ? `Competitors mentioned: ${s.competitors.join(", ")}` : "",
+          s?.currentStack?.length ? `Current stack: ${s.currentStack.join(", ")}` : "",
+          [s?.budget ? `Budget: ${s.budget}` : "", s?.timeline ? `Timeline: ${s.timeline}` : "", s?.teamSize ? `Team size: ${s.teamSize}` : ""].filter(Boolean).join(". "),
+          s?.nextSteps?.length ? `Next steps: ${s.nextSteps.join("; ")}` : "",
+          notes.actionItems?.length ? `Action items: ${notes.actionItems.map((a) => `${a.owner}: ${a.task}${a.deadline ? ` (by ${a.deadline})` : ""}`).join("; ")}` : "",
+        ].filter(Boolean).join("\n");
+        return await ingestEpisode(callRow.tenantId, episode, "cold_call", callRow.id);
+      } catch (err) {
+        logger.warn?.("calls-post-process: context-graph ingest failed", {
           callId,
           err: err instanceof Error ? err.message : String(err),
         });
