@@ -62,15 +62,16 @@ export default auth((req) => {
     "/api/health",
     "/api/unsubscribe",
     "/api/webhooks",
-    // Twilio voice webhooks — Twilio POSTs these with no session; `twiml`
-    // and `recording-status` self-authenticate via the Twilio request
-    // signature, and `twiml-fallback` is a constant, side-effect-free
-    // response. Without this the session gate rewrites them to /sign-in
-    // and Twilio never reaches the handler. (startsWith → "/api/calls/twiml"
-    // also covers "/api/calls/twiml-fallback".)
+    // Twilio voice webhooks — Twilio POSTs these with no session; `twiml`,
+    // `recording-status` and `transcription` self-authenticate via the Twilio
+    // request signature (HMAC), and `twiml-fallback` is a constant,
+    // side-effect-free response. Without this the session gate rewrites them
+    // to /sign-in and Twilio never reaches the handler. (startsWith →
+    // "/api/calls/twiml" also covers "/api/calls/twiml-fallback".)
     "/api/calls/twiml",
     "/api/calls/twiml-fallback",
     "/api/calls/recording-status",
+    "/api/calls/transcription",
     "/api/inngest",
     "/api/track",
     // MONACO-PARITY-04: visitor-ID pixel + tracking. Both must be
