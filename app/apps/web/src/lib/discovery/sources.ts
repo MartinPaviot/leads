@@ -13,8 +13,13 @@ import {
   searchCompaniesPappers,
   isPappersAvailable,
 } from "@/lib/integrations/pappers-client";
+import {
+  searchCompaniesSirene,
+  isSireneAvailable,
+} from "@/lib/integrations/recherche-entreprises-client";
 import { icpToStrategy } from "@/lib/icp/icp-to-tam";
 import { criteriaToPappersParams } from "@/lib/icp/to-pappers-params";
+import { criteriaToSireneParams } from "@/lib/icp/to-sirene-params";
 import { normalizeDomain } from "@/lib/tam/candidate";
 
 /** Apollo — broad global firmographics. The current sole source. */
@@ -40,7 +45,7 @@ export const apolloDiscoverySource: DiscoverySource = {
       industry: o.industry ?? null,
       employeeCount: o.estimated_num_employees ?? null,
       country: o.country ?? null,
-      raw: o as Record<string, unknown>,
+      raw: o as unknown as Record<string, unknown>,
     }));
   },
 };
@@ -75,7 +80,35 @@ export const pappersDiscoverySource: DiscoverySource = {
         industry: c.libelleNaf ?? c.codeNaf ?? null,
         employeeCount: null,
         country: "France",
-        raw: c as Record<string, unknown>,
+        raw: c as unknown as Record<string, unknown>,
       }));
+  },
+};
+
+/** SIRENE (recherche-entreprises) — KEYLESS, exhaustive French registry,
+ * sector-driven (NAF). Yields DOMAINLESS candidates (SIRENE has no
+ * website); the domain-resolution bridge fills the domain at apply time
+ * (Pappers fiche-by-SIREN). Self-skips non-French / non-NAF-mappable ICPs. */
+export const sireneDiscoverySource: DiscoverySource = {
+  name: "sirene",
+  priority: 30,
+  costCentsPerCall: 0,
+  geoAffinity: ["FR"],
+  isAvailable: isSireneAvailable, // keyless → always available
+  async search(q): Promise<DiscoveredCandidate[]> {
+    const t = criteriaToSireneParams(q.criteria);
+    if (!t.ok) return [];
+    const res = await searchCompaniesSirene({ ...t.params, perPage: 25 });
+    return res.companies.map((c) => ({
+      sourceName: "sirene",
+      name: c.name,
+      domain: null,
+      nativeId: c.siren,
+      nativeIdType: "siren",
+      industry: c.libelleNaf ?? c.naf ?? null,
+      employeeCount: null,
+      country: "France",
+      raw: c as unknown as Record<string, unknown>,
+    }));
   },
 };

@@ -10,8 +10,9 @@
  */
 import { db } from "@/db";
 import { tamProposals, companies } from "@/db/schema";
-import { and, eq, inArray, desc, sql } from "drizzle-orm";
+import { and, eq, inArray, desc, isNull, sql } from "drizzle-orm";
 import { inngest } from "@/inngest/client";
+import { resolveDomain } from "@/lib/discovery/resolve-domain";
 
 export type TamProposalKind = "add" | "refresh" | "exclude";
 export type TamProposalRow = typeof tamProposals.$inferSelect;
@@ -85,12 +86,34 @@ export async function applyProposal(
       const name =
         (payload.name as string) || (payload.domain as string) || "";
       if (!name) return { ok: false, error: "add proposal missing name/domain" };
+      // Domain-resolution bridge: domainless registry candidates (SIRENE)
+      // get a domain here, at approval time (Pappers fiche-by-SIREN). null
+      // when unresolved — the row is inserted identity-only with its SIREN.
+      let domain: string | null = (payload.domain as string) ?? null;
+      if (!domain) {
+        domain = await resolveDomain({ siren: (payload.siren as string) ?? null });
+      }
+      // Don't double-insert a domain already in the TAM.
+      if (domain) {
+        const [dupe] = await db
+          .select({ id: companies.id })
+          .from(companies)
+          .where(
+            and(
+              eq(companies.tenantId, p.tenantId),
+              eq(companies.domain, domain),
+              isNull(companies.deletedAt),
+            ),
+          )
+          .limit(1);
+        if (dupe) return { ok: true, appliedEntityId: dupe.id };
+      }
       const [row] = await db
         .insert(companies)
         .values({
           tenantId: p.tenantId,
           name,
-          domain: (payload.domain as string) ?? null,
+          domain,
           industry: (payload.industry as string) ?? null,
           size: (payload.size as string) ?? null,
           sourceSystem: (payload.source as string) ?? p.source ?? "discovery",
@@ -101,13 +124,15 @@ export async function applyProposal(
           },
         })
         .returning({ id: companies.id });
-      // Approval authorises the enrichment spend.
-      await inngest
-        .send({
-          name: "company/created",
-          data: { companyId: row.id, tenantId: p.tenantId },
-        })
-        .catch(() => {});
+      // Enrichment is domain-keyed — fire only when we have a domain.
+      if (domain) {
+        await inngest
+          .send({
+            name: "company/created",
+            data: { companyId: row.id, tenantId: p.tenantId },
+          })
+          .catch(() => {});
+      }
       return { ok: true, appliedEntityId: row.id };
     }
 

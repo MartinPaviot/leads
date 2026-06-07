@@ -68,6 +68,7 @@ export const sourceIcpToProposals = inngest.createFunction(
           .filter((d): d is string => Boolean(d)),
       );
 
+      const knownSiren = new Set<string>();
       let proposed = 0;
       const bySource: Record<string, number> = {};
 
@@ -88,16 +89,27 @@ export const sourceIcpToProposals = inngest.createFunction(
 
         for (const c of candidates) {
           if (proposed >= MAX_PROPOSALS) break;
-          // Domain-keyed for now; domainless candidates (SIRENE) wait for
-          // the resolution bridge in the next increment.
-          if (!c.domain || known.has(c.domain)) continue;
-          known.add(c.domain);
+          // Domain candidates dedup by domain; domainless registry
+          // candidates (SIRENE) dedup by SIREN — the domain-resolution
+          // bridge runs at approval time, not here.
+          let dedupKey: string;
+          if (c.domain) {
+            if (known.has(c.domain)) continue;
+            known.add(c.domain);
+            dedupKey = c.domain;
+          } else if (c.nativeIdType === "siren" && c.nativeId) {
+            if (knownSiren.has(c.nativeId)) continue;
+            knownSiren.add(c.nativeId);
+            dedupKey = `siren:${c.nativeId}`;
+          } else {
+            continue;
+          }
           const r = await proposeTamChange({
             tenantId,
             kind: "add",
-            dedupKey: c.domain,
+            dedupKey,
             payload: candidateToAddPayload(c),
-            summary: `${c.name ?? c.domain}${c.industry ? ` — ${c.industry}` : ""}`,
+            summary: `${c.name ?? c.domain ?? dedupKey}${c.industry ? ` — ${c.industry}` : ""}`,
             reason: `ICP: ${ctx.name}`,
             source: `icp_source:${c.sourceName}`,
           });

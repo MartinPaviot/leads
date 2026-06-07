@@ -3,7 +3,11 @@
  * default registration, priority ordering, availability filtering.
  */
 import type { DiscoverySource } from "./types";
-import { apolloDiscoverySource, pappersDiscoverySource } from "./sources";
+import {
+  apolloDiscoverySource,
+  pappersDiscoverySource,
+  sireneDiscoverySource,
+} from "./sources";
 
 const registry = new Map<string, DiscoverySource>();
 let defaultsLoaded = false;
@@ -15,6 +19,7 @@ export function registerDiscoverySource(s: DiscoverySource): void {
 export function registerDiscoveryDefaults(): void {
   registerDiscoverySource(apolloDiscoverySource);
   registerDiscoverySource(pappersDiscoverySource);
+  registerDiscoverySource(sireneDiscoverySource);
 }
 
 function ensureDefaults(): void {

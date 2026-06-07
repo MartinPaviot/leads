@@ -216,7 +216,33 @@ credits without an OK).
 
 Tests: exclude API, list-filter, freshness, proposals, candidate mapping.
 
-### Not yet (the multi-source phase — task #6)
-Full per-field provenance, the `DiscoverySource` registry, the domain-resolution
-bridge, and wiring SIRENE/Pappers/Zefix. They plug into the **same** approval
-queue: each new source becomes another `add`-proposal generator.
+## 9. Shipped — multi-source discovery (2026-06-07)
+
+Stops the TAM being Apollo-only for sourcing, the second half of the brief.
+
+- **`DiscoverySource` registry** (`lib/discovery/`) mirroring the enrichment
+  registry: `DiscoverySource` interface + `DiscoveredCandidate` (domain may be
+  null) + source-agnostic `candidateToAddPayload`; lazy defaults, priority
+  order, availability filter.
+- **Adapters** wrapping the existing clients + ICP→params translators:
+  - apollo (priority 10, global) — wraps `searchOrganizations`.
+  - pappers (20, FR, key-gated) — `criteriaToPappersParams` (industry→NAF,
+    geo→FR regions, effectif→tranches); carries a real domain → no bridge.
+  - sirene (30, FR, **keyless**) — new `criteriaToSireneParams` (NAF + tranche,
+    FR-gated, sector-driven); **domainless** candidates.
+- **Domain-resolution bridge** (`lib/discovery/resolve-domain.ts`): the seam
+  that lets a domainless registry (SIRENE) feed the domain-keyed flow. Resolves
+  at **approval time** (lazy, only for approved adds): existing domain →
+  Pappers fiche-by-SIREN (`companyDomainBySirenPappers`, key-gated) → null
+  (then inserted identity-only with its SIREN). Extensible (name→domain next).
+- **`icp/source-tenant` fans out** across every available source, dedups by
+  domain (or SIREN for domainless), queues `add` proposals tagged by source.
+- Tests: registry ordering/availability, payload mapping, SIRENE/Pappers param
+  translation + non-FR skip, resolve-domain. 37 tests green across the feature.
+
+### Still remaining (next)
+- Wire SIRENE/Pappers into the **streaming** `/api/tam/build` too (today only
+  the ICP-activation loop is multi-source; the live build is still Apollo-only).
+- Zefix (CH) adapter. Full per-field provenance (`fieldProvenance`/`nativeIds`
+  as columns). Unify the two ICP sources of truth (flat settings vs entity).
+- A name→domain resolver so SIRENE candidates resolve without a Pappers key.

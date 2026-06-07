@@ -18,6 +18,7 @@ vi.mock("drizzle-orm", () => ({
   and: vi.fn((...a) => ({ _and: a })),
   eq: vi.fn(),
   inArray: vi.fn(),
+  isNull: vi.fn(),
   desc: vi.fn(),
   sql: Object.assign(
     vi.fn(() => "sql"),
@@ -77,6 +78,7 @@ describe("applyProposal", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("add: inserts a company and fires enrichment", async () => {
+    mockSelectResolves([]); // domain-dedup check finds no existing company
     const { values } = mockInsertReturns([{ id: "co-1" }]);
     const res = await applyProposal({
       id: "p1", tenantId: "t1", kind: "add", status: "pending", dedupKey: "acme.com",

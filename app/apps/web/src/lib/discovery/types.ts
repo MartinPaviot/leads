@@ -61,6 +61,9 @@ export function candidateToAddPayload(
     domain: c.domain,
     industry: c.industry,
     size: c.employeeCount ? employeeCountToRange(c.employeeCount) : null,
+    // Top-level siren so applyProposal can resolve a domain at approval
+    // time for domainless registry candidates (SIRENE).
+    ...(c.nativeIdType === "siren" && c.nativeId ? { siren: c.nativeId } : {}),
     source: c.sourceName,
     properties: {
       [idKey]: c.nativeId,
