@@ -1,10 +1,14 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { connectedMailboxes, outboundEmails, warmupEmails } from "@/db/schema";
+import { connectedMailboxes, outboundEmails, warmupEmails, users } from "@/db/schema";
 import { and, eq, or } from "drizzle-orm";
 import { logger } from "@/lib/observability/logger";
 import { retryWithBackoff } from "@/lib/infra/retry";
 import { checkPlanLimit } from "@/lib/billing/plan-limits";
+import { verifyImap } from "@/lib/integrations/imap";
+import { verifySmtp } from "@/lib/integrations/smtp-send";
+import { encryptSecret } from "@/lib/crypto/settings-encryption";
+import { inngest } from "@/inngest/client";
 
 export async function GET() {
   const authCtx = await getAuthContext();
@@ -51,6 +55,81 @@ export async function POST(req: Request) {
 
   const domain = email.split("@")[1];
   const eeAccountId = `${authCtx.tenantId}_${email.replace(/[^a-zA-Z0-9]/g, "-")}`;
+
+  // ── Direct IMAP/SMTP ("Other provider") — no EmailEngine ──────────────
+  // Verify the connection FOR REAL before saving, encrypt the password, store
+  // the host/port details, and kick off the first sync. This replaces the old
+  // behaviour that, whenever EmailEngine was unreachable, saved a dead mailbox
+  // row while silently dropping the password — so the user believed they were
+  // connected but nothing ever synced or sent.
+  if (provider === "smtp_custom") {
+    if (!imapHost || !smtpHost || !password) {
+      return Response.json(
+        { error: "IMAP server, SMTP server and password are required." },
+        { status: 400 },
+      );
+    }
+    const imapPortN = Number(imapPort) || 993;
+    const smtpPortN = Number(smtpPort) || 465;
+    try {
+      await verifyImap({ imapHost, imapPort: imapPortN, emailAddress: email, password });
+      await verifySmtp({ emailAddress: email, smtpHost, smtpPort: smtpPortN, password, displayName });
+    } catch (err) {
+      return Response.json(
+        { error: err instanceof Error ? err.message : "Could not connect the mailbox." },
+        { status: 400 },
+      );
+    }
+
+    let secretEncrypted: string;
+    try {
+      secretEncrypted = encryptSecret(password);
+    } catch (err) {
+      logger.error("mailboxes POST: secret encryption failed", { err, tenantId: authCtx.tenantId });
+      return Response.json({ error: "Server misconfigured (encryption key missing)." }, { status: 500 });
+    }
+
+    const [mailbox] = await db
+      .insert(connectedMailboxes)
+      .values({
+        tenantId: authCtx.tenantId,
+        emailAddress: email,
+        displayName: displayName || email.split("@")[0],
+        provider: "smtp_custom",
+        eeAccountId,
+        imapHost,
+        imapPort: imapPortN,
+        smtpHost,
+        smtpPort: smtpPortN,
+        secretEncrypted,
+        domain,
+        // The user's existing mailbox is already warm — no cold-start warmup.
+        status: "active",
+      })
+      .returning();
+
+    // Kick off the first inbound sync now (don't wait for the 15-min cron).
+    const [u] = await db
+      .select({ id: users.id, clerkId: users.clerkId })
+      .from(users)
+      .where(eq(users.id, authCtx.appUserId))
+      .limit(1);
+    inngest
+      .send({
+        name: "email/sync-requested",
+        data: {
+          userId: u?.clerkId ?? authCtx.appUserId,
+          tenantId: authCtx.tenantId,
+          appUserId: authCtx.appUserId,
+          daysBack: 30,
+          provider: "smtp_custom",
+          mailboxId: mailbox.id,
+        },
+      })
+      .catch(() => {});
+
+    return Response.json({ mailbox }, { status: 201 });
+  }
 
   // Register with EmailEngine
   const eeBase = process.env.EMAILENGINE_URL || "http://localhost:3100";

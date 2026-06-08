@@ -22,7 +22,6 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.64",
-    "@anthropic-ai/sdk": "^0.81.0",
     "@ai-sdk/openai": "^3.0.49",
     "@ai-sdk/provider": "^3.0.8",
     "@ai-sdk/react": "^3.0.143",
@@ -40,10 +39,13 @@
     "drizzle-orm": "^0.45.2",
     "framer-motion": "^12.38.0",
     "googleapis": "^171.4.0",
+    "imapflow": "^1.0.171",
     "inngest": "^4.1.0",
     "lucide-react": "^1.7.0",
+    "mailparser": "^3.7.2",
     "next": "^15.5.15",
     "next-auth": "5.0.0-beta.30",
+    "nodemailer": "^6.10.0",
     "openai": "^6.33.0",
     "papaparse": "^5.5.3",
     "postgres": "^3.4.8",
@@ -64,7 +66,9 @@
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/bcryptjs": "^3.0.0",
+    "@types/mailparser": "^3.4.5",
     "@types/node": "^22.0.0",
+    "@types/nodemailer": "^6.4.17",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.2.3",
@@ -77,7 +81,7 @@
     "happy-dom": "^20.9.0",
     "postcss": "^8.5.0",
     "tailwindcss": "^4.0.0",
-    "typescript": "^5.8.0",
+    "typescript": "^5.9.3",
     "vitest": "^4.1.2"
   }
 }

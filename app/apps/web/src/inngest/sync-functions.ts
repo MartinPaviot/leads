@@ -1,9 +1,11 @@
 import { inngest } from "./client";
 import { db } from "@/db";
-import { activities, contacts, companies, users, authAccounts, outboundEmails, sequenceEnrollments, tenants } from "@/db/schema";
+import { activities, contacts, companies, users, authAccounts, outboundEmails, sequenceEnrollments, tenants, connectedMailboxes } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { fetchRecentEmails, type SyncedEmail } from "@/lib/integrations/gmail";
 import { fetchOutlookEmails } from "@/lib/integrations/outlook";
+import { fetchRecentEmailsImap } from "@/lib/integrations/imap";
+import { decryptSecret } from "@/lib/crypto/settings-encryption";
 import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/integrations/calendar";
 import { embedEntity, activityToText, contactToText, companyToText } from "@/lib/ai/embeddings";
 import { markNeedsReauth, clearSyncHealth, isNeedsReauth, isOAuthAuthError } from "@/lib/integrations/sync-health";
@@ -101,11 +103,21 @@ export const syncEmails = inngest.createFunction(
     },
     triggers: [{ event: "email/sync-requested" }],
   },
-  async ({ event, step }: { event: { data: { userId: string; tenantId: string; appUserId: string; daysBack?: number; provider?: string } }; step: any }) => {
-    const { userId, tenantId, appUserId, daysBack = 30, provider } = event.data;
+  async ({ event, step }: { event: { data: { userId: string; tenantId: string; appUserId: string; daysBack?: number; provider?: string; mailboxId?: string } }; step: any }) => {
+    const { userId, tenantId, appUserId, daysBack = 30, provider, mailboxId } = event.data;
 
-    // Get user email for direction detection
+    // For a direct IMAP/SMTP mailbox, direction is relative to the mailbox
+    // address (there's no Google/Microsoft user identity). Resolve it from the
+    // connected_mailboxes row; otherwise use the app user's email.
     const userEmail = await step.run("get-user-email", async () => {
+      if (provider === "smtp_custom" && mailboxId) {
+        const [mb] = await db
+          .select({ email: connectedMailboxes.emailAddress })
+          .from(connectedMailboxes)
+          .where(eq(connectedMailboxes.id, mailboxId))
+          .limit(1);
+        return mb?.email || "";
+      }
       const [user] = await db.select({ email: users.email }).from(users).where(eq(users.id, appUserId)).limit(1);
       return user?.email || "";
     });
@@ -118,6 +130,28 @@ export const syncEmails = inngest.createFunction(
     let fetchError: string | null = null;
     const emails = await step.run("fetch-emails", async () => {
       try {
+        if (provider === "smtp_custom") {
+          if (!mailboxId) return [];
+          const [mb] = await db
+            .select()
+            .from(connectedMailboxes)
+            .where(eq(connectedMailboxes.id, mailboxId))
+            .limit(1);
+          if (!mb || !mb.imapHost || !mb.secretEncrypted) return [];
+          const password = decryptSecret(mb.secretEncrypted);
+          const { emails: imapEmails, maxUid } = await fetchRecentEmailsImap(
+            { emailAddress: mb.emailAddress, imapHost: mb.imapHost, imapPort: mb.imapPort, password, imapLastUid: mb.imapLastUid },
+            daysBack,
+          );
+          // Persist the high-water UID so the next poll only fetches new mail.
+          if (maxUid != null && maxUid !== mb.imapLastUid) {
+            await db
+              .update(connectedMailboxes)
+              .set({ imapLastUid: maxUid, updatedAt: new Date() })
+              .where(eq(connectedMailboxes.id, mailboxId));
+          }
+          return imapEmails;
+        }
         if (provider === "microsoft") {
           return await fetchOutlookEmails(userId, userEmail, daysBack);
         }
@@ -813,6 +847,30 @@ export const cronSyncEmails = inngest.createFunction(
       }
     });
 
-    return { usersTriggered: connectedUsers.length };
+    // Direct IMAP/SMTP mailboxes have no authAccounts row — enumerate them
+    // separately and poll each via the same email/sync-requested handler.
+    const imapMailboxes = await step.run("find-imap-mailboxes", async () => {
+      const rows = await db
+        .select({ id: connectedMailboxes.id, tenantId: connectedMailboxes.tenantId })
+        .from(connectedMailboxes)
+        .where(and(eq(connectedMailboxes.provider, "smtp_custom"), eq(connectedMailboxes.status, "active")));
+      const out: { mailboxId: string; tenantId: string; appUserId: string }[] = [];
+      for (const mb of rows) {
+        const [u] = await db.select({ id: users.id }).from(users).where(eq(users.tenantId, mb.tenantId)).limit(1);
+        out.push({ mailboxId: mb.id, tenantId: mb.tenantId, appUserId: u?.id ?? "" });
+      }
+      return out;
+    });
+
+    await step.run("trigger-imap-syncs", async () => {
+      for (const mb of imapMailboxes) {
+        await inngest.send({
+          name: "email/sync-requested",
+          data: { userId: mb.appUserId, tenantId: mb.tenantId, appUserId: mb.appUserId, daysBack: 1, provider: "smtp_custom", mailboxId: mb.mailboxId },
+        });
+      }
+    });
+
+    return { usersTriggered: connectedUsers.length, imapMailboxesTriggered: imapMailboxes.length };
   }
 );
