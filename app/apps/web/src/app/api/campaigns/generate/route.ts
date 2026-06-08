@@ -163,6 +163,7 @@ export async function POST(req: Request) {
           name: generated.sequenceName,
           description: generated.sequenceReasoning,
           tenantId: authCtx.tenantId,
+          createdBy: authCtx.userId,
           status: "draft",
         })
         .returning();

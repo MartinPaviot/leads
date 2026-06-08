@@ -89,6 +89,7 @@ export async function POST(req: Request) {
         name: name.trim(),
         description: description?.trim() || null,
         tenantId: authCtx.tenantId,
+        createdBy: authCtx.userId,
       })
       .returning();
 

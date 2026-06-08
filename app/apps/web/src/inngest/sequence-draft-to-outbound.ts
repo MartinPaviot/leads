@@ -32,6 +32,7 @@ import { db } from "@/db";
 import {
   sequenceDrafts,
   sequenceSteps,
+  sequences,
   outboundEmails,
   contacts,
   connectedMailboxes,
@@ -68,6 +69,7 @@ export const sequenceDraftToOutbound = inngest.createFunction(
       .select({
         id: sequenceDrafts.id,
         tenantId: sequenceDrafts.tenantId,
+        sequenceId: sequenceDrafts.sequenceId,
         enrollmentId: sequenceDrafts.enrollmentId,
         contactId: sequenceDrafts.contactId,
         stepId: sequenceDrafts.stepId,
@@ -220,6 +222,17 @@ export const sequenceDraftToOutbound = inngest.createFunction(
     const recipientEmail: string = contact.email;
     const recipientContactId: string = contact.id;
 
+    // Connected mailboxes are personal (B): an outbound email goes out from a
+    // mailbox owned by the SEQUENCE'S creator, never a colleague's. Resolve the
+    // owner from the sequence; fall back to the tenant pool only when the
+    // sequence has no owner (legacy / agent-created).
+    const [seq] = await db
+      .select({ ownerId: sequences.createdBy })
+      .from(sequences)
+      .where(eq(sequences.id, draft.sequenceId))
+      .limit(1);
+    const ownerId = seq?.ownerId ?? null;
+
     const [mailbox] = await db
       .select({
         id: connectedMailboxes.id,
@@ -227,10 +240,16 @@ export const sequenceDraftToOutbound = inngest.createFunction(
       })
       .from(connectedMailboxes)
       .where(
-        and(
-          eq(connectedMailboxes.tenantId, tenantId),
-          eq(connectedMailboxes.status, "active"),
-        ),
+        ownerId
+          ? and(
+              eq(connectedMailboxes.tenantId, tenantId),
+              eq(connectedMailboxes.status, "active"),
+              eq(connectedMailboxes.userId, ownerId),
+            )
+          : and(
+              eq(connectedMailboxes.tenantId, tenantId),
+              eq(connectedMailboxes.status, "active"),
+            ),
       )
       .limit(1);
 

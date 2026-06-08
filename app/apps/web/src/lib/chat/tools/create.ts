@@ -312,6 +312,7 @@ export function buildCreateTools(ctx: ToolContext) {
           .insert(sequences)
           .values({
             tenantId,
+            createdBy: authCtx.userId,
             name: input.name.trim(),
             description: input.description?.trim() || null,
           })

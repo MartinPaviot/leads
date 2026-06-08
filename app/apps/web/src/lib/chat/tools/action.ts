@@ -859,6 +859,7 @@ RULES:
           .insert(sequences)
           .values({
             tenantId,
+            createdBy: authCtx.userId,
             name: `Campaign: ${input.campaignGoal}`,
             description: `Auto-generated campaign targeting: ${input.targetDescription}`,
             status: "draft",

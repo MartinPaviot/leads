@@ -40,6 +40,10 @@ export const sequences = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     status: sequenceStatusEnum("status").default("draft"),
+    // Owner (B): a sequence is personal — its outbound sends go from the
+    // creator's connected mailbox. Auth-user id (= connected_mailboxes.user_id
+    // / authCtx.userId). Nullable: legacy + agent-created fall back to the pool.
+    createdBy: text("created_by"),
     campaignConfig: jsonb("campaign_config"),
     // Multi-ICP binding (Phase 3, _specs/multi-icp R9). Nullable: a
     // sequence may target a specific ICP (its message/cadence tuned to
@@ -52,6 +56,7 @@ export const sequences = pgTable(
   },
   (table) => [
     index("sequences_tenant_id_idx").on(table.tenantId),
+    index("sequences_created_by_idx").on(table.createdBy),
     index("sequences_status_idx").on(table.status),
     index("sequences_icp_idx").on(table.icpId),
   ]
