@@ -79,6 +79,12 @@ export default function MailCalendarPage() {
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [showSetup, setShowSetup] = useState(false);
 
+  // "Other provider" — connect any IMAP/SMTP mailbox (Zimbra, Infomaniak, OVH…).
+  const [customMode, setCustomMode] = useState(false);
+  const [cust, setCust] = useState({ email: "", imapHost: "", imapPort: "993", smtpHost: "", smtpPort: "465", password: "" });
+  const [connecting, setConnecting] = useState(false);
+  const [connectErr, setConnectErr] = useState("");
+
   // Sync preferences
   const [contactCreationMode, setContactCreationMode] = useState("selective");
   const [backsyncRange, setBacksyncRange] = useState("3m");
@@ -129,6 +135,43 @@ export default function MailCalendarPage() {
 
   function connectMicrosoft() {
     signIn("microsoft-entra-id", { callbackUrl: "/settings/mail-calendar" });
+  }
+
+  async function connectCustom() {
+    setConnectErr("");
+    if (!cust.email.trim() || !cust.imapHost.trim() || !cust.smtpHost.trim() || !cust.password) {
+      setConnectErr("Email, IMAP server, SMTP server and password are all required.");
+      return;
+    }
+    setConnecting(true);
+    try {
+      const res = await fetch("/api/settings/mailboxes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: cust.email.trim(),
+          provider: "smtp_custom",
+          imapHost: cust.imapHost.trim(),
+          imapPort: Number(cust.imapPort) || 993,
+          smtpHost: cust.smtpHost.trim(),
+          smtpPort: Number(cust.smtpPort) || 465,
+          password: cust.password,
+        }),
+      });
+      if (res.ok) {
+        setShowSetup(false);
+        setCustomMode(false);
+        setCust({ email: "", imapHost: "", imapPort: "993", smtpHost: "", smtpPort: "465", password: "" });
+        loadData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setConnectErr(data.error || "Couldn't connect the mailbox — double-check the server, port and password.");
+      }
+    } catch {
+      setConnectErr("Couldn't reach that server. Check the host and try again.");
+    } finally {
+      setConnecting(false);
+    }
   }
 
   // E5 — mailbox removal now routes through ConfirmDialog instead of
@@ -297,7 +340,7 @@ export default function MailCalendarPage() {
               const wp = warmupProgress(acct);
               const isGmail = acct.providerLabel === "gmail" || acct.provider === "google";
               const isOutlook = acct.providerLabel === "outlook" || acct.provider === "microsoft-entra-id";
-              const providerName = isGmail ? "Google" : isOutlook ? "Microsoft" : acct.provider;
+              const providerName = isGmail ? "Google" : isOutlook ? "Microsoft" : acct.provider === "smtp_custom" ? "IMAP / SMTP" : acct.provider;
 
               // Status logic: OAuth-only = "syncing", mailbox active = "active", etc.
               const displayStatus = acct.oauthConnected && !acct.mailboxConnected
@@ -472,41 +515,105 @@ export default function MailCalendarPage() {
         {showSetup && (
           <Card className="mt-3">
             <CardBody className="p-5">
-              <div className="flex items-center gap-2" style={{ borderBottom: "1px solid var(--color-border-default)", paddingBottom: "16px" }}>
-                <Button variant="outline" size="md" onClick={() => setShowSetup(false)}>
-                  Cancel
-                </Button>
-                <button onClick={connectGoogle}
-                  className="flex h-9 items-center gap-2 rounded-md px-4 text-[12px] font-medium text-white transition-colors"
-                  style={{ background: "#4285F4" }}>
-                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                    <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
-                    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
-                    <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
-                    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
-                  </svg>
-                  Continue with Google
-                </button>
-                <button onClick={connectMicrosoft}
-                  className="flex h-9 items-center gap-2 rounded-md px-4 text-[12px] font-medium transition-colors"
-                  style={{ background: "#2F2F2F", color: "white" }}>
-                  <svg width="16" height="16" viewBox="0 0 21 21" fill="none">
-                    <rect width="10" height="10" fill="#F25022"/>
-                    <rect x="11" width="10" height="10" fill="#7FBA00"/>
-                    <rect y="11" width="10" height="10" fill="#00A4EF"/>
-                    <rect x="11" y="11" width="10" height="10" fill="#FFB900"/>
-                  </svg>
-                  Continue with Microsoft
-                </button>
-              </div>
+              {!customMode ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-2" style={{ borderBottom: "1px solid var(--color-border-default)", paddingBottom: "16px" }}>
+                    <Button variant="outline" size="md" onClick={() => setShowSetup(false)}>
+                      Cancel
+                    </Button>
+                    <button onClick={connectGoogle}
+                      className="flex h-9 items-center gap-2 rounded-md px-4 text-[12px] font-medium text-white transition-colors"
+                      style={{ background: "#4285F4" }}>
+                      <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+                        <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+                        <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+                        <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                        <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+                      </svg>
+                      Continue with Google
+                    </button>
+                    <button onClick={connectMicrosoft}
+                      className="flex h-9 items-center gap-2 rounded-md px-4 text-[12px] font-medium transition-colors"
+                      style={{ background: "#2F2F2F", color: "white" }}>
+                      <svg width="16" height="16" viewBox="0 0 21 21" fill="none">
+                        <rect width="10" height="10" fill="#F25022"/>
+                        <rect x="11" width="10" height="10" fill="#7FBA00"/>
+                        <rect y="11" width="10" height="10" fill="#00A4EF"/>
+                        <rect x="11" y="11" width="10" height="10" fill="#FFB900"/>
+                      </svg>
+                      Continue with Microsoft
+                    </button>
+                    <button onClick={() => { setCustomMode(true); setConnectErr(""); }}
+                      className="flex h-9 items-center gap-2 rounded-md px-4 text-[12px] font-medium transition-colors"
+                      style={{ border: "1px solid var(--color-border-default)", color: "var(--color-text-primary)" }}>
+                      <Mail size={14} style={{ color: "var(--color-text-secondary)" }} />
+                      Other provider (IMAP/SMTP)
+                    </button>
+                  </div>
 
-              <div className="mt-4 flex items-start gap-2 rounded-md px-3 py-2"
-                style={{ background: "var(--color-bg-hover)" }}>
-                <Shield size={13} className="mt-0.5 shrink-0" style={{ color: "var(--color-text-muted)" }} />
-                <p className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-                  Elevay uses OAuth to connect securely. We never store your password. You can revoke access at any time from your Google or Microsoft account settings.
-                </p>
-              </div>
+                  <div className="mt-4 flex items-start gap-2 rounded-md px-3 py-2"
+                    style={{ background: "var(--color-bg-hover)" }}>
+                    <Shield size={13} className="mt-0.5 shrink-0" style={{ color: "var(--color-text-muted)" }} />
+                    <p className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                      Google and Microsoft connect with OAuth — we never see your password. For Zimbra, Infomaniak, OVH or any other mailbox, use &quot;Other provider&quot; and enter your IMAP/SMTP details.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between" style={{ borderBottom: "1px solid var(--color-border-default)", paddingBottom: "12px" }}>
+                    <span className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                      Connect via IMAP / SMTP
+                    </span>
+                    <Button variant="ghost" size="sm" onClick={() => setCustomMode(false)}>Back</Button>
+                  </div>
+                  <p className="text-[11px] leading-relaxed" style={{ color: "var(--color-text-tertiary)" }}>
+                    Works with Zimbra, Infomaniak, OVH, Gandi and any mailbox that supports IMAP + SMTP. You&apos;ll find these in your webmail under &quot;IMAP/POP &amp; SMTP&quot; settings, or your mail administrator can give them to you.
+                  </p>
+
+                  <LabeledField label="Email address" hint="The mailbox you're connecting">
+                    <Input type="email" value={cust.email} onChange={(e) => setCust({ ...cust, email: e.target.value })} placeholder="you@yourorg.ch" />
+                  </LabeledField>
+
+                  <div className="grid grid-cols-[1fr_5rem] gap-2">
+                    <LabeledField label="IMAP server (incoming)" hint="Usually mail.yourdomain.com — Zimbra: mail.yourorg.ch · Infomaniak: mail.infomaniak.com · OVH: ssl0.ovh.net">
+                      <Input value={cust.imapHost} onChange={(e) => setCust({ ...cust, imapHost: e.target.value })} placeholder="mail.yourorg.ch" />
+                    </LabeledField>
+                    <LabeledField label="Port" hint="993 (SSL)">
+                      <Input value={cust.imapPort} onChange={(e) => setCust({ ...cust, imapPort: e.target.value })} inputMode="numeric" />
+                    </LabeledField>
+                  </div>
+
+                  <div className="grid grid-cols-[1fr_5rem] gap-2">
+                    <LabeledField label="SMTP server (outgoing)" hint="Often the same host as IMAP">
+                      <Input value={cust.smtpHost} onChange={(e) => setCust({ ...cust, smtpHost: e.target.value })} placeholder="mail.yourorg.ch" />
+                    </LabeledField>
+                    <LabeledField label="Port" hint="465 (SSL) or 587">
+                      <Input value={cust.smtpPort} onChange={(e) => setCust({ ...cust, smtpPort: e.target.value })} inputMode="numeric" />
+                    </LabeledField>
+                  </div>
+
+                  <LabeledField label="Password" hint="Your mailbox password — or an app-specific password if 2FA is on">
+                    <Input type="password" value={cust.password} onChange={(e) => setCust({ ...cust, password: e.target.value })} placeholder="••••••••" />
+                  </LabeledField>
+
+                  {connectErr && <p className="text-[12px]" style={{ color: "var(--color-error)" }}>{connectErr}</p>}
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <Button variant="solid" onClick={connectCustom} disabled={connecting}>
+                      {connecting ? "Connecting…" : "Connect mailbox"}
+                    </Button>
+                    <Button variant="outline" onClick={() => { setShowSetup(false); setCustomMode(false); }}>Cancel</Button>
+                  </div>
+
+                  <div className="flex items-start gap-2 rounded-md px-3 py-2" style={{ background: "var(--color-bg-hover)" }}>
+                    <Shield size={13} className="mt-0.5 shrink-0" style={{ color: "var(--color-text-muted)" }} />
+                    <p className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                      Credentials are stored encrypted and used only to sync and send from this mailbox. Remove it any time to revoke access.
+                    </p>
+                  </div>
+                </div>
+              )}
             </CardBody>
           </Card>
         )}
@@ -667,5 +774,17 @@ export default function MailCalendarPage() {
         busy={disconnectingOauth}
       />
     </>
+  );
+}
+
+/* Label + input + a "where to find this" hint — for the IMAP/SMTP form. The
+   arbitrary variant forces the wrapped Input to fill its column. */
+function LabeledField({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <label className="text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>{label}</label>
+      <div className="mt-1 [&_input]:w-full">{children}</div>
+      {hint && <p className="mt-1 text-[11px] leading-snug" style={{ color: "var(--color-text-tertiary)" }}>{hint}</p>}
+    </div>
   );
 }
