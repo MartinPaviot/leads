@@ -49,11 +49,17 @@ export async function GET() {
         )
       );
 
-    // 2. Get connected mailboxes (for sending)
+    // 2. Get connected mailboxes (for sending) — personal: only the ones
+    // this user owns, same as the OAuth accounts above.
     const mailboxRows = await db
       .select()
       .from(connectedMailboxes)
-      .where(eq(connectedMailboxes.tenantId, authCtx.tenantId))
+      .where(
+        and(
+          eq(connectedMailboxes.tenantId, authCtx.tenantId),
+          eq(connectedMailboxes.userId, authCtx.userId),
+        )
+      )
       .orderBy(connectedMailboxes.createdAt);
 
     // 3. Get tenant settings (sync preferences)

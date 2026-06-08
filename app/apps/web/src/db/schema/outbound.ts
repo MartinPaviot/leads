@@ -215,6 +215,11 @@ export const connectedMailboxes = pgTable(
   {
     id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
     tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    // Per-user owner (B): a connected mailbox is PERSONAL — only its owner
+    // sees, manages and holds the credentials for it. Stores the auth-user id
+    // (same space as auth_account.userId / authCtx.userId). Nullable so legacy
+    // rows survive the migration; backfilled by matching email_address.
+    userId: text("user_id"),
     emailAddress: text("email_address").notNull(),
     displayName: text("display_name"),
     provider: text("provider").notNull(), // gmail, outlook, smtp_custom
@@ -254,6 +259,7 @@ export const connectedMailboxes = pgTable(
   },
   (table) => [
     index("mailbox_tenant_idx").on(table.tenantId),
+    index("mailbox_user_idx").on(table.userId),
     index("mailbox_status_idx").on(table.status),
     index("mailbox_domain_idx").on(table.domain),
     uniqueIndex("mailbox_tenant_email_idx").on(table.tenantId, table.emailAddress),

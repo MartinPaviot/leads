@@ -17,10 +17,16 @@ export async function GET() {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Personal: a user only sees the mailboxes they own.
   const mailboxes = await db
     .select()
     .from(connectedMailboxes)
-    .where(eq(connectedMailboxes.tenantId, authCtx.tenantId))
+    .where(
+      and(
+        eq(connectedMailboxes.tenantId, authCtx.tenantId),
+        eq(connectedMailboxes.userId, authCtx.userId),
+      ),
+    )
     .orderBy(connectedMailboxes.createdAt);
 
   return Response.json({ mailboxes });
@@ -109,6 +115,7 @@ export async function POST(req: Request) {
       .insert(connectedMailboxes)
       .values({
         tenantId: authCtx.tenantId,
+        userId: authCtx.userId,
         emailAddress: email,
         displayName: displayName || email.split("@")[0],
         provider: "smtp_custom",
@@ -209,6 +216,7 @@ export async function POST(req: Request) {
     .insert(connectedMailboxes)
     .values({
       tenantId: authCtx.tenantId,
+      userId: authCtx.userId,
       emailAddress: email,
       displayName: displayName || email.split("@")[0],
       provider,
@@ -238,7 +246,7 @@ export async function DELETE(req: Request) {
   const [mailbox] = await db
     .select()
     .from(connectedMailboxes)
-    .where(and(eq(connectedMailboxes.id, id), eq(connectedMailboxes.tenantId, authCtx.tenantId)))
+    .where(and(eq(connectedMailboxes.id, id), eq(connectedMailboxes.tenantId, authCtx.tenantId), eq(connectedMailboxes.userId, authCtx.userId)))
     .limit(1);
 
   if (!mailbox) {
@@ -301,7 +309,7 @@ export async function DELETE(req: Request) {
   // Delete the mailbox itself
   try {
     await db.delete(connectedMailboxes).where(
-      and(eq(connectedMailboxes.id, id), eq(connectedMailboxes.tenantId, authCtx.tenantId))
+      and(eq(connectedMailboxes.id, id), eq(connectedMailboxes.tenantId, authCtx.tenantId), eq(connectedMailboxes.userId, authCtx.userId))
     );
   } catch (err) {
     logger.error("mailboxes DELETE: failed to delete mailbox row", {
@@ -335,6 +343,7 @@ export async function PATCH(req: Request) {
   const condition = and(
     eq(connectedMailboxes.id, id),
     eq(connectedMailboxes.tenantId, authCtx.tenantId),
+    eq(connectedMailboxes.userId, authCtx.userId),
   );
 
   // Handle skip-warmup action (legacy query-param style)
