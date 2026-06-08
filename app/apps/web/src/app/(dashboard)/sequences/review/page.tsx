@@ -411,7 +411,7 @@ export default function ReviewQueuePage() {
           open={rejectModalOpen}
           onClose={() => setRejectModalOpen(false)}
           onSubmit={submitReject}
-          recipientName={selectedDraft.subject}
+          recipientName="this prospect"
         />
       )}
     </div>

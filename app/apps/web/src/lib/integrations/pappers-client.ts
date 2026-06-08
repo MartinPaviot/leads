@@ -94,3 +94,26 @@ export async function searchCompaniesPappers(params: {
 
   return { total: Number(raw?.total ?? companies.length), companies };
 }
+
+/**
+ * Resolve a single company's bare domain by SIREN via the Pappers fiche
+ * endpoint. This is the resolver behind the domain-resolution bridge for
+ * domainless registry candidates (SIRENE). Returns null when Pappers has
+ * no website on file. Key-gated (throws if PAPPERS_API_KEY is missing —
+ * callers guard with isPappersAvailable()).
+ */
+export async function companyDomainBySirenPappers(
+  siren: string,
+): Promise<string | null> {
+  const token = process.env.PAPPERS_API_KEY;
+  if (!token) throw new Error("PAPPERS_API_KEY not set");
+  const qs = new URLSearchParams({ api_token: token, siren });
+  const res = await fetch(`https://api.pappers.fr/v2/entreprise?${qs}`, {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) throw new Error(`Pappers fiche ${res.status}`);
+  const raw = (await res.json()) as Record<string, unknown>;
+  const siege = (raw?.siege ?? {}) as Record<string, unknown>;
+  return cleanDomain(raw?.site_web ?? siege.site_web);
+}

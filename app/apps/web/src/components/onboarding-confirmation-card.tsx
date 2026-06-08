@@ -127,35 +127,11 @@ const TONE_OPTIONS: Array<"Formal" | "Direct" | "Casual"> = [
   "Casual",
 ];
 
-function InferenceBadge({
-  source,
-  confidence,
-}: {
-  source: string;
-  confidence?: number;
-}) {
-  const low = typeof confidence === "number" && confidence < 0.7;
-  return (
-    <span
-      className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px]"
-      style={{
-        background: low
-          ? "rgba(234,179,8,.12)"
-          : "rgba(44,107,237,.08)",
-        color: low ? "rgb(133,77,14)" : "var(--color-accent)",
-      }}
-      title={
-        low
-          ? "AI inferred this with low confidence — please verify"
-          : `AI inferred this from ${source}`
-      }
-    >
-      <Sparkles size={10} />
-      AI · {source}
-      {low && " · verify"}
-    </span>
-  );
-}
+// InferenceBadge ("AI · <source>") removed for now: in v2 the fields are
+// pre-filled from existing settings + defaults, NOT from a live inference, so
+// the badges were false attributions (e.g. company name = tenant slug shown as
+// "AI · <domain>"). Re-introduce only when analyze-website actually feeds these
+// fields with real source + confidence. See pre-launch audit notes.
 
 /** Debounced Apollo count query — hits /api/tam/estimate with the
  *  current targeting params. Returns loading state + count + whether
@@ -306,8 +282,7 @@ export function OnboardingConfirmationCard({
             </h2>
           </div>
           <p className="mt-1 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-            Edit anything that doesn&apos;t match. Each field shows where the
-            inference came from.
+            Edit anything that doesn&apos;t match.
           </p>
 
           <div className="mt-3 space-y-3">
@@ -320,27 +295,17 @@ export function OnboardingConfirmationCard({
               label="Company"
               value={identity.companyName}
               onChange={(v) => updateIdentity({ companyName: v })}
-              badge={identity.domain ? (
-                <InferenceBadge source={identity.domain} />
-              ) : null}
             />
             <Field
               label="Company website"
               value={identity.domain}
               onChange={(v) => updateIdentity({ domain: v })}
-              badge={<InferenceBadge source="your email" />}
             />
             <div>
               <div className="flex items-center gap-2">
                 <label className="text-[11px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
                   What you sell
                 </label>
-                {identity.productDescription && (
-                  <InferenceBadge
-                    source="your website"
-                    confidence={identity.overallConfidence}
-                  />
-                )}
               </div>
               <textarea
                 value={identity.productDescription}

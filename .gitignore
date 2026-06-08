@@ -8,11 +8,16 @@ dist/
 harness/
 credentials/
 .playwright-mcp/
+# Local dev TLS CA bundle (NODE_EXTRA_CA_CERTS) — machine-specific, never commit
+*.dev-ca-bundle.pem
+.dev-ca-bundle.pem
 .turbo/
 tsconfig.tsbuildinfo
 # Playwright outputs
 playwright-report/
 test-results/
+# Ad-hoc verification screenshots saved to repo root (keep them out of git)
+/police-search-fixed*.png
 # Auto-generated Next.js ambient types
 app/apps/admin/next-env.d.ts
 _inngest-*.log
@@ -21,3 +26,9 @@ _research/raw/lightfield-extraction/edge-profile/
 
 # Regenerated dev/build/redeploy server logs
 _*.log
+
+# Machine-specific / binaries / secrets — never commit
+.cacerts.pem
+.vercel/
+cloudflared.exe
+*.exe

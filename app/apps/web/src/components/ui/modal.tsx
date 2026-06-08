@@ -42,7 +42,7 @@ export function Modal({ open, onClose, title, size = "md", children, footer }: M
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Overlay */}
       <div
         className="absolute inset-0"
@@ -53,9 +53,12 @@ export function Modal({ open, onClose, title, size = "md", children, footer }: M
         onClick={onClose}
       />
 
-      {/* Modal */}
+      {/* Modal — capped to the viewport (minus the p-4 gutter) and a flex
+          column so the BODY scrolls internally while the header + footer stay
+          pinned. This is what keeps tall modals from sticking out past the
+          screen with an unreachable submit button. */}
       <div
-        className={`relative w-full ${sizeWidths[size]} mx-4 rounded-xl`}
+        className={`relative flex max-h-[calc(100vh-2rem)] w-full ${sizeWidths[size]} flex-col overflow-hidden rounded-xl`}
         style={{
           background: "var(--color-bg-card)",
           border: "1px solid var(--color-border-default)",
@@ -66,7 +69,7 @@ export function Modal({ open, onClose, title, size = "md", children, footer }: M
         {/* Header */}
         {title && (
           <div
-            className="flex items-center justify-between px-5 py-3.5"
+            className="flex shrink-0 items-center justify-between px-5 py-3.5"
             style={{ borderBottom: "1px solid var(--color-border-default)" }}
           >
             <h2 className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
@@ -84,13 +87,13 @@ export function Modal({ open, onClose, title, size = "md", children, footer }: M
           </div>
         )}
 
-        {/* Body */}
-        <div className="px-5 py-4">{children}</div>
+        {/* Body — the only scroll region when content is tall */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
 
         {/* Footer */}
         {footer && (
           <div
-            className="flex items-center justify-end gap-2 px-5 py-3"
+            className="flex shrink-0 items-center justify-end gap-2 px-5 py-3"
             style={{ borderTop: "1px solid var(--color-border-default)" }}
           >
             {footer}

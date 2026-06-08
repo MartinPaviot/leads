@@ -1,14 +1,12 @@
 import { Resend } from "resend";
 import { logger } from "@/lib/observability/logger";
+import { EMAIL_FROM, warnIfUnverifiedSender } from "./from";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
-const FROM_ADDRESS =
-  process.env.INVITE_FROM_ADDRESS || "Elevay <no-reply@resend.dev>";
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.elevay.com";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.elevay.dev";
 
 export interface SendVerifyEmailResult {
   sent: boolean;
@@ -28,6 +26,7 @@ export async function sendVerifyEmail(
     return { sent: false, reason: "RESEND_API_KEY not configured" };
   }
 
+  warnIfUnverifiedSender();
   const verifyUrl = `${APP_URL}/verify-email?token=${encodeURIComponent(token)}`;
   const subject = "Confirm your Elevay email";
   const html = `<!doctype html>
@@ -62,7 +61,7 @@ If you didn't sign up for Elevay, you can safely ignore this email.`;
 
   try {
     const { error } = await resend.emails.send({
-      from: FROM_ADDRESS,
+      from: EMAIL_FROM,
       to: [to],
       subject,
       html,

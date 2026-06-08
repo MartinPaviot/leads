@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { enrichContact } from "@/lib/providers/contact-enrichment/waterfall";
 import {
   registerContactProvider,
@@ -6,9 +6,19 @@ import {
 } from "@/lib/providers/contact-enrichment/registry";
 import { deriveContactGeo } from "@/lib/providers/contact-enrichment/types";
 import type {
+  ContactEnrichInput,
   ContactEnrichmentProvider,
   EnrichedContact,
 } from "@/lib/providers/contact-enrichment/types";
+import { enrichPerson } from "@/lib/integrations/apollo-client";
+
+// The waterfall calls enrichPerson directly for the apolloId identity reveal;
+// stub just that export, keep the rest real.
+vi.mock("@/lib/integrations/apollo-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/integrations/apollo-client")>();
+  return { ...actual, enrichPerson: vi.fn() };
+});
+const mockedEnrichPerson = vi.mocked(enrichPerson);
 
 const ctx = { tenantId: "t1" };
 const calls: string[] = [];
@@ -40,6 +50,7 @@ function mock(
 beforeEach(() => {
   resetContactRegistryForTest();
   calls.length = 0;
+  mockedEnrichPerson.mockReset();
 });
 
 describe("deriveContactGeo", () => {
@@ -116,6 +127,38 @@ describe("contact-enrichment waterfall", () => {
     const r = await enrichContact({ companyDomain: "acme.fr", firstName: "A", lastName: "B" }, ctx);
     expect(r.data.email).toBe("a@x.fr");
     expect(r.attempts.find((a) => a.provider === "kaspr")?.ok).toBe(false);
+  });
+
+  it("apolloId pre-resolves identity (reveal) once, skips the Apollo provider, and feeds linkedin to phone vendors", async () => {
+    mockedEnrichPerson.mockResolvedValue({
+      id: "APID", first_name: "Justin", last_name: "Davis", name: "Justin Davis",
+      email: "jd@bank.ch", email_status: "verified", title: "CEO", headline: null,
+      seniority: "c_suite", departments: [], linkedin_url: "http://li/in/x",
+      phone_numbers: [], city: null, state: null, country: null, organization_id: null, organization: null,
+    });
+
+    const captured: { input?: ContactEnrichInput } = {};
+    registerContactProvider({
+      name: "lusha", priority: 30, costCentsPerCall: 0, geoAffinity: ["CH", "FR", "EU"],
+      isAvailable: () => true,
+      async enrich(input) {
+        calls.push("lusha");
+        captured.input = input;
+        return { ok: true, data: { phones: [{ number: "+41 76 675 23 93", type: "mobile" }] }, provider: "lusha", durationMs: 1, costCents: 0 };
+      },
+    });
+    // Apollo provider must be SKIPPED because the reveal already consumed it.
+    registerContactProvider(mock("apollo", 10, { data: { email: "should-not-run@x" } }));
+
+    const r = await enrichContact({ apolloId: "APID", companyDomain: "bank.ch" }, ctx);
+
+    expect(mockedEnrichPerson).toHaveBeenCalledWith({ id: "APID", reveal_personal_emails: true });
+    expect(r.data.lastName).toBe("Davis");
+    expect(r.data.linkedinUrl).toBe("http://li/in/x");
+    expect(r.data.email).toBe("jd@bank.ch");
+    expect(r.data.mobilePhone).toBe("+41 76 675 23 93");
+    expect(calls).not.toContain("apollo"); // provider skipped, no second reveal
+    expect(captured.input?.linkedinUrl).toBe("http://li/in/x"); // reveal fed forward
   });
 
   it("skips unavailable providers (graceful degradation to Apollo-only)", async () => {

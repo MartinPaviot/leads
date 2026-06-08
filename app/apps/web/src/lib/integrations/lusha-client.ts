@@ -67,7 +67,11 @@ export async function enrichPersonLusha(params: {
   }
 
   const raw = await res.json();
-  const d = raw?.data ?? raw;
+  // Lusha v2/person nests the record under `contact.data`; a non-null
+  // `contact.error` means no match. Older shapes used a top-level `data`.
+  const contact = raw?.contact;
+  if (contact && contact.error) return null;
+  const d = contact?.data ?? raw?.data ?? raw;
   if (!d) return null;
 
   const emailObj = Array.isArray(d.emailAddresses) ? d.emailAddresses[0] : null;
@@ -89,6 +93,6 @@ export async function enrichPersonLusha(params: {
     email,
     emailConfident,
     phones,
-    linkedinUrl: d.linkedinUrl ?? params.linkedinUrl ?? null,
+    linkedinUrl: d.socialLinks?.linkedin ?? d.linkedinUrl ?? params.linkedinUrl ?? null,
   };
 }

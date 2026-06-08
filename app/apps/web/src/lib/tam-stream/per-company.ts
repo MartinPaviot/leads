@@ -184,6 +184,9 @@ export async function runPerCompanyPipeline(args: PerCompanyArgs): Promise<void>
         score: scored.score,
         scoreReasons: scored.reasons,
         tenantId,
+        // Freshness + origin: Apollo just enriched this row at insert.
+        lastEnrichedAt: enriched ? ctx.now : null,
+        sourceSystem: "apollo",
         properties: {
           ...props,
           score_grade: grade,
@@ -540,6 +543,8 @@ async function findSuggestedContacts(params: {
         .values({
           tenantId,
           companyId,
+          sourceSystem: "apollo",
+          lastEnrichedAt: new Date(),
           firstName: nameParts[0] ?? null,
           lastName: nameParts.slice(1).join(" ") || null,
           email: person.email,

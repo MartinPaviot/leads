@@ -88,22 +88,18 @@ export function CreateSkillDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: "rgba(0,0,0,0.4)" }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="w-full max-w-xl rounded-xl p-6 shadow-xl"
-        style={{
-          background: "var(--color-bg-card)",
-          maxHeight: "85vh",
-          overflow: "auto",
-        }}
+        className="flex max-h-[calc(100vh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl shadow-xl"
+        style={{ background: "var(--color-bg-card)" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex shrink-0 items-center justify-between px-6 pb-4 pt-6">
           <h3
             className="text-[16px] font-semibold"
             style={{ color: "var(--color-text-primary)" }}
@@ -118,7 +114,7 @@ export function CreateSkillDialog({
           </button>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-2">
           {/* Name */}
           <div>
             <label
@@ -344,7 +340,10 @@ export function CreateSkillDialog({
         </div>
 
         {/* Footer */}
-        <div className="mt-6 flex justify-end gap-2">
+        <div
+          className="flex shrink-0 justify-end gap-2 px-6 pb-6 pt-4"
+          style={{ borderTop: "1px solid var(--color-border-default)" }}
+        >
           <Button variant="ghost" size="sm" onClick={onClose}>
             Cancel
           </Button>

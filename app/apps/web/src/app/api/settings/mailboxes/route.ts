@@ -70,20 +70,25 @@ export async function POST(req: Request) {
         },
       };
     } else {
-      // SMTP/IMAP credentials
+      // SMTP/IMAP credentials (Zimbra, Infomaniak, OVH, any IMAP/SMTP host).
+      // `secure` is implicit-TLS (993/465); STARTTLS ports (143/587) connect
+      // plaintext then upgrade, so secure must be false there or the TLS
+      // handshake fails. Derive it from the port instead of hardcoding true.
+      const imapP = imapPort || 993;
+      const smtpP = smtpPort || 465;
       eeBody = {
         account: eeAccountId,
         name: displayName || email,
         imap: {
           host: imapHost || "imap.gmail.com",
-          port: imapPort || 993,
-          secure: true,
+          port: imapP,
+          secure: imapP === 993,
           auth: { user: email, pass: password },
         },
         smtp: {
           host: smtpHost || "smtp.gmail.com",
-          port: smtpPort || 465,
-          secure: true,
+          port: smtpP,
+          secure: smtpP === 465,
           auth: { user: email, pass: password },
         },
       };

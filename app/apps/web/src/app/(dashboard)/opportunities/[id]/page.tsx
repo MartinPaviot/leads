@@ -154,6 +154,30 @@ export default function DealDetailPage() {
   const [stallRisk, setStallRisk] = useState<StallPrediction | null>(null);
   const [winLoss, setWinLoss] = useState<WinLossAnalysis | null>(null);
   const [emailComposer, setEmailComposer] = useState<EmailComposerDraft | null>(null);
+  // The deal carries a contactId but not the contact's email; fetch it so the
+  // "Email contact" composer opens with a real recipient instead of a blank To.
+  const [contactEmail, setContactEmail] = useState<string>("");
+  useEffect(() => {
+    if (!dealId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        // /api/opportunities/[id] omits contactId; /api/deals/[id] carries it.
+        const dr = await fetch(`/api/deals/${dealId}`);
+        if (!dr.ok) return;
+        const cid = (await dr.json())?.deal?.contactId;
+        if (!cid) return;
+        const cr = await fetch(`/api/contacts/${cid}`);
+        if (cr.ok) {
+          const email = (await cr.json())?.contact?.email ?? "";
+          if (!cancelled) setContactEmail(email);
+        }
+      } catch {
+        /* leave blank — user can still fill the recipient */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [dealId]);
 
   const fetchIntel = useCallback(async () => {
     try {
@@ -333,7 +357,7 @@ export default function DealDetailPage() {
               icon={<Send size={13} />}
               onClick={() =>
                 setEmailComposer({
-                  to: "",
+                  to: contactEmail,
                   subject: `Re: ${deal.name}`,
                   body: `Hi,\n\n`,
                   dealId,
@@ -482,7 +506,7 @@ export default function DealDetailPage() {
                       <button
                         onClick={() =>
                           setEmailComposer({
-                            to: "",
+                            to: contactEmail,
                             subject: `Following up: ${deal.name}`,
                             body: `Hi,\n\n${intervention.action}\n\n${intervention.reasoning}\n\nBest regards`,
                             dealId,

@@ -12,22 +12,27 @@ import { useToast } from "@/components/ui/toast";
 
 interface InboxEmail {
   id: string;
+  direction?: "inbound" | "outbound";
   toAddress: string;
   fromAddress: string;
   subject: string;
-  status: string;
-  sentAt: string | null;
-  openedAt: string | null;
-  clickedAt: string | null;
-  repliedAt: string | null;
-  bouncedAt: string | null;
-  replySnippet: string | null;
-  replyClassification: string | null;
-  bounceType: string | null;
+  status?: string;
+  sentAt?: string | null;
+  openedAt?: string | null;
+  clickedAt?: string | null;
+  repliedAt?: string | null;
+  bouncedAt?: string | null;
+  replySnippet?: string | null;
+  replyClassification?: string | null;
+  bounceType?: string | null;
   contactId: string | null;
-  enrollmentId: string | null;
-  stepNumber: number | null;
+  enrollmentId?: string | null;
+  stepNumber?: number | null;
   contact: { name: string; email: string | null } | null;
+  // Inbound-only (filter === "inbound")
+  body?: string | null;
+  receivedAt?: string | null;
+  sentiment?: "positive" | "neutral" | "negative" | null;
 }
 
 interface InboxCounts {
@@ -35,6 +40,7 @@ interface InboxCounts {
   replied: number;
   awaiting: number;
   bounced: number;
+  inbound: number;
 }
 
 function timeAgo(dateStr: string): string {
@@ -51,9 +57,9 @@ function timeAgo(dateStr: string): string {
 export default function InboxPage() {
   const { toast } = useToast();
   const [emails, setEmails] = useState<InboxEmail[]>([]);
-  const [counts, setCounts] = useState<InboxCounts>({ total: 0, replied: 0, awaiting: 0, bounced: 0 });
+  const [counts, setCounts] = useState<InboxCounts>({ total: 0, replied: 0, awaiting: 0, bounced: 0, inbound: 0 });
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "replied" | "awaiting" | "bounced">("all");
+  const [filter, setFilter] = useState<"all" | "replied" | "awaiting" | "bounced" | "inbound">("all");
   // Inline "Draft AI reply" flow. Monaco surfaces a suggested reply
   // right on the email thread; we mirror that pattern from the inbox
   // list so users don't have to jump to the contact detail page.
@@ -61,14 +67,15 @@ export default function InboxPage() {
   const [composer, setComposer] = useState<EmailComposerDraft | null>(null);
 
   async function draftAiReply(email: InboxEmail) {
-    if (!email.replySnippet) return;
+    const sourceContent = email.body || email.replySnippet;
+    if (!sourceContent) return;
     setDraftingFor(email.id);
     try {
       const res = await fetch("/api/emails/suggest-reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          emailContent: email.replySnippet,
+          emailContent: sourceContent,
           senderName: email.contact?.name ?? null,
           senderEmail: email.fromAddress,
         }),
@@ -101,7 +108,7 @@ export default function InboxPage() {
       .then((r) => r.json())
       .then((data) => {
         setEmails(data.emails || []);
-        setCounts(data.counts || { total: 0, replied: 0, awaiting: 0, bounced: 0 });
+        setCounts(data.counts || { total: 0, replied: 0, awaiting: 0, bounced: 0, inbound: 0 });
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -118,7 +125,8 @@ export default function InboxPage() {
   }
 
   const filters = [
-    { key: "all" as const, label: "All", count: counts.total },
+    { key: "all" as const, label: "Sent", count: counts.total },
+    { key: "inbound" as const, label: "Inbound", count: counts.inbound },
     { key: "replied" as const, label: "Replied", count: counts.replied },
     { key: "awaiting" as const, label: "Awaiting", count: counts.awaiting },
     { key: "bounced" as const, label: "Bounced", count: counts.bounced },
@@ -152,9 +160,95 @@ export default function InboxPage() {
         ) : emails.length === 0 ? (
           <EmptyState
             icon={<Inbox size={28} />}
-            title="No emails"
-            description={filter === "all" ? "Send your first sequence to see emails here." : `No ${filter} emails.`}
+            title={filter === "inbound" ? "No inbound messages" : "No emails"}
+            description={
+              filter === "inbound"
+                ? "Incoming email and replies land here once a mailbox is connected and your contacts write back."
+                : filter === "all"
+                  ? "Send your first sequence to see emails here."
+                  : `No ${filter} emails.`
+            }
           />
+        ) : filter === "inbound" ? (
+          /* ── Inbound view: the actual incoming messages, full body ── */
+          <table className="ls-table">
+            <thead>
+              <tr>
+                <th><span className="flex items-center gap-1.5"><Mail size={12} style={{ opacity: 0.5 }} /> From</span></th>
+                <th><span className="flex items-center gap-1.5">Subject</span></th>
+                <th><span className="flex items-center gap-1.5"><Clock size={12} style={{ opacity: 0.5 }} /> Received</span></th>
+                <th><span className="flex items-center gap-1.5">Message</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {emails.map((email) => (
+                <tr key={email.id}>
+                  {/* From */}
+                  <td>
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+                        {email.contact?.name || email.fromAddress || "Unknown sender"}
+                      </div>
+                      {email.fromAddress && (
+                        <div className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{email.fromAddress}</div>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Subject */}
+                  <td>
+                    <span className="text-[13px]" style={{ color: "var(--color-text-primary)" }}>
+                      {email.subject}
+                    </span>
+                  </td>
+
+                  {/* Received */}
+                  <td className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                    {email.receivedAt ? timeAgo(email.receivedAt) : "—"}
+                  </td>
+
+                  {/* Message */}
+                  <td>
+                    <div>
+                      {email.body && (
+                        <p className="line-clamp-2 max-w-[420px] text-[12px]" style={{ color: "var(--color-text-secondary)" }} title={email.body}>
+                          {email.body}
+                        </p>
+                      )}
+                      <div className="mt-1 flex items-center gap-2">
+                        {email.sentiment && (
+                          <Badge
+                            variant={email.sentiment === "positive" ? "success" : email.sentiment === "negative" ? "error" : "neutral"}
+                            size="sm"
+                          >
+                            {email.sentiment}
+                          </Badge>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); void draftAiReply(email); }}
+                          disabled={draftingFor === email.id}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium transition-opacity hover:underline disabled:opacity-60"
+                          style={{ color: "var(--color-accent)" }}
+                          title="Draft an AI-suggested reply"
+                        >
+                          {draftingFor === email.id ? (
+                            <>
+                              <Loader2 size={10} className="animate-spin" /> Drafting…
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles size={10} /> Draft AI reply
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : (
           <table className="ls-table">
             <thead>

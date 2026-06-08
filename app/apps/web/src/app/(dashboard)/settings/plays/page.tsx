@@ -233,8 +233,8 @@ export default function PlaysSettingsPage() {
 
       {/* Create/Edit Modal */}
       {creating && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.4)" }}>
-          <div className="w-full max-w-xl rounded-xl p-6 shadow-xl" style={{ background: "var(--color-bg-card)", maxHeight: "85vh", overflow: "auto" }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }}>
+          <div className="w-full max-w-xl rounded-xl p-6 shadow-xl" style={{ background: "var(--color-bg-card)", maxHeight: "calc(100vh - 2rem)", overflow: "auto" }}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[16px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
                 {editing ? "Edit Play" : "New Play"}

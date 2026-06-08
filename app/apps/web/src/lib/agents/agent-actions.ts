@@ -131,6 +131,64 @@ export async function reverseAgentAction(params: {
   };
 }
 
+/**
+ * Approve a pending (scheduled) action: bring its scheduled execution
+ * time forward to now so the existing Inngest dispatcher (claimDueActions)
+ * runs it on its next tick via the already-trusted execution path — we
+ * never re-implement send logic here. Records a positive trust event.
+ */
+export async function approveAgentAction(params: {
+  actionId: string;
+  approvedByUserId: string;
+  tenantId: string;
+}): Promise<
+  | { status: "approved"; expeditedAt: string }
+  | { status: "too-late"; reason: string }
+  | { status: "not-found" }
+> {
+  const [row] = await db
+    .select()
+    .from(agentActions)
+    .where(
+      and(
+        eq(agentActions.id, params.actionId),
+        eq(agentActions.tenantId, params.tenantId),
+      ),
+    )
+    .limit(1);
+  if (!row) return { status: "not-found" };
+
+  if (row.reversedAt) return { status: "too-late", reason: "already reversed" };
+  if (row.status === "executed") {
+    return { status: "too-late", reason: "already executed" };
+  }
+  if (row.status === "failed") {
+    return { status: "too-late", reason: "action failed, nothing to approve" };
+  }
+  if (row.status !== "scheduled") {
+    return { status: "too-late", reason: `not approvable (status: ${row.status})` };
+  }
+
+  const now = new Date();
+  await db
+    .update(agentActions)
+    .set({ scheduledExecutionAt: now, updatedAt: now })
+    .where(eq(agentActions.id, params.actionId));
+
+  // Positive trust signal — the user approved the agent's proposal as-is.
+  await recordAutonomyEvent({
+    tenantId: params.tenantId,
+    userId: params.approvedByUserId,
+    eventType: "approved_no_edit",
+    entityRef: `agent_action:${params.actionId}`,
+    reason: `Action ${row.actionType} approved by user`,
+  }).catch((err) =>
+    logger.warn("agent-actions: trust-event write failed", { err }),
+  );
+
+  return { status: "approved", expeditedAt: now.toISOString() };
+}
+
 export async function markAgentActionExecuted(actionId: string): Promise<void> {
   await db
     .update(agentActions)

@@ -51,7 +51,7 @@ interface CompanyProperties {
 export async function buildQueue(
   tenantId: string,
   limit = 100,
-  opts: { companyIds?: string[] } = {},
+  opts: { companyIds?: string[]; ownerId?: string } = {},
 ): Promise<QueueItem[]> {
   // Top candidates by raw contact score, joined to company for tz +
   // latest active deal for value weighting. The 3× over-fetch covers
@@ -83,6 +83,19 @@ export async function buildQueue(
         // companies. Empty array → no contacts (explicit empty filter).
         ...(opts.companyIds
           ? [inArray(contacts.companyId, opts.companyIds)]
+          : []),
+        // Territory exclusivity: never surface a contact that's in ANOTHER
+        // rep's active call list. The rep still sees their own + unowned ones.
+        ...(opts.ownerId
+          ? [
+              sql`${contacts.id} NOT IN (
+                SELECT t.contact_id FROM call_campaign_targets t
+                JOIN call_campaigns cc ON cc.id = t.campaign_id
+                WHERE cc.tenant_id = ${tenantId} AND cc.status = 'active'
+                  AND cc.owner_id <> ${opts.ownerId}
+                  AND t.status IN ('queued', 'in_progress')
+              )`,
+            ]
           : []),
       ),
     )

@@ -169,19 +169,18 @@ export function SmartImport({ onClose, onComplete }: { onClose: () => void; onCo
   const availableFields = CRM_FIELDS[editedEntityType] || CRM_FIELDS.contact;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0, 0, 0, 0.5)" }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0, 0, 0, 0.5)" }}>
       <div
-        className="w-full max-w-3xl rounded-xl"
+        className="flex w-full max-w-3xl flex-col overflow-hidden rounded-xl"
         style={{
           background: "var(--color-bg-card)",
           border: "1px solid var(--color-border-default)",
           boxShadow: "var(--shadow-card)",
-          maxHeight: "85vh",
-          overflow: "auto",
+          maxHeight: "calc(100vh - 2rem)",
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--color-border-default)" }}>
+        <div className="flex shrink-0 items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--color-border-default)" }}>
           <div className="flex items-center gap-2">
             <FileUp size={16} style={{ color: "var(--color-accent)" }} />
             <h2 className="text-[16px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
@@ -201,7 +200,7 @@ export function SmartImport({ onClose, onComplete }: { onClose: () => void; onCo
           </button>
         </div>
 
-        <div className="px-5 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {/* ──────── STEP 1: Upload ──────── */}
           {step === "upload" && (
             <div className="space-y-4">

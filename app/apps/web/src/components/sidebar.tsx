@@ -9,7 +9,6 @@ import {
   Users,
   CheckSquare,
   Calendar,
-  FileText,
   MessageSquare,
   Settings,
   Plus,
@@ -40,16 +39,14 @@ import {
   BarChart3,
   Search,
   Bot,
-  BookOpen,
-  Wand2,
   Phone,
-  Gauge,
-  LineChart,
   type LucideIcon,
 } from "lucide-react";
 import { useTheme } from "@/components/ui/theme-provider";
 import { Avatar } from "@/components/ui/avatar";
 import { NotificationBell } from "@/components/notification-bell";
+import { BetaTag } from "@/components/ui/beta-tag";
+import { isBetaRoute } from "@/lib/beta-routes";
 import { useRef, useCallback } from "react";
 
 const CUSTOM_ICON_MAP: Record<string, LucideIcon> = {
@@ -73,13 +70,9 @@ const navSections = [
       { label: "Up next", href: "/", icon: Clock },
     ],
   },
-  {
-    label: "AI",
-    items: [
-      { label: "Knowledge", href: "/knowledge", icon: BookOpen },
-      { label: "Skills", href: "/skills", icon: Wand2 },
-    ],
-  },
+  // "AI" section (Knowledge + Skills) removed from nav for now — Knowledge is
+  // an indirect grounding base and Skills are power-user agent workflows;
+  // neither earns a top-level slot yet. Pages still exist by URL.
   {
     label: "CRM",
     items: [
@@ -95,17 +88,19 @@ const navSections = [
       { label: "Inbox", href: "/inbox", icon: Inbox },
       { label: "Call Mode", href: "/call-mode", icon: Phone },
       { label: "Campaigns", href: "/sequences", icon: Zap },
-      { label: "Deliverability", href: "/deliverability", icon: Gauge },
+      // Deliverability removed from nav — folds into Campaigns. The page
+      // (/deliverability) still exists by URL until that integration lands.
     ],
   },
   {
     label: "Activity",
     items: [
       { label: "Meetings", href: "/meetings", icon: Calendar },
-      { label: "Notes", href: "/notes", icon: FileText },
       { label: "Tasks", href: "/tasks", icon: CheckSquare },
       { label: "Insights", href: "/insights", icon: BarChart3 },
-      { label: "Reports", href: "/reports", icon: LineChart },
+      // Reports removed from nav — consolidates under Insights (live pipeline
+      // analytics). The generator (/reports) still exists by URL pending the
+      // merge into Insights as a tab.
     ],
   },
 ];
@@ -432,6 +427,7 @@ export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tena
                       }}
                     />
                     {!collapsed && <span className="truncate">{item.label}</span>}
+                    {!collapsed && isBetaRoute(item.href) && <BetaTag className="ml-auto" />}
                   </Link>
                 );
               })}

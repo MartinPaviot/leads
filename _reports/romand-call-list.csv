@@ -1,0 +1,678 @@
+firstName,lastName,title,company,phone,phoneCountry,email,emailStatus,linkedin,industry,domain
+Fabien,Courvoisier,Directeur Général Afiro,Afiro,+41 79 963 96 98,CH,fabien.courvoisier@afiro.ch,verified,http://www.linkedin.com/in/fabien-courvoisier-872a7a33,,afiro.ch
+Ines,Dias,Directrice Générale Bricks Portugal,Bricks.co,+33 7 84 25 53 20,FR,idias@bricks.co,verified,http://www.linkedin.com/in/in%c3%a8s-dias-95ab1918,real estate,bricks.co
+Carole,Haddad,HEAD of Management & Leadership Department- Responsable de Formation- Filière Management/leadership,IFAGE,+41 76 675 23 93,CH,carole.haddad@ifage.ch,verified,http://www.linkedin.com/in/caroleash,higher education,ifage.ch
+Helene,Picco-Berlot,"Directrice de pôle -langues, Commerce et Management",IFAGE,+41 22 807 30 59,CH,helene.picco-berlot@ifage.ch,verified,http://www.linkedin.com/in/h%c3%a9l%c3%a8ne-picco-berlot-12876241,higher education,ifage.ch
+Marie-France,Gauthey,Director Sales Division,20 minutes online,,,marie-france.gauthey@20minutes.ch,verified,http://www.linkedin.com/in/marie-france-gauthey-88a817,,20min.ch
+Julien,Samson,CEO,2PACE,,,julien.samson@2pace.fr,verified,http://www.linkedin.com/in/juliensamson,management consulting,2pace.fr
+Margaux,Queinec,Head of Marketing & Communication,2PACE,,,margaux.denis-queinec@2pace.fr,verified,http://www.linkedin.com/in/margaux-denis-queinec,management consulting,2pace.fr
+Nick,Mitushin,Chief Investment Officer,ABRT VC,,,nick@abrt.vc,verified,http://www.linkedin.com/in/nickmitu,,abrt.vc
+Youssef,Haidar,Chair of Investment Committee,ACE & Company,,,yhaidar@aceandcompany.com,verified,http://www.linkedin.com/in/youssefhaidar,,aceandcompany.com
+Vinzent,Zerner,Vice President,ACE & Company,,,vzerner@aceandcompany.com,verified,http://www.linkedin.com/in/vinzentzerner,,aceandcompany.com
+John,Joseph,Head of Legal & Compliance,ACE & Company,,,jjoseph@aceandcompany.com,verified,http://www.linkedin.com/in/john-joseph-gva,,aceandcompany.com
+Pascal,Brandenberger,Chief Executive Officer,Adent Cliniques Dentaires,,,p.brandenberger@adent.ch,verified,http://www.linkedin.com/in/pbrandenberger,hospital & health care,adent.ch
+Thierry,Desarzens,Head of Human Resources,Adent Cliniques Dentaires,,,t.desarzens@adent.ch,verified,http://www.linkedin.com/in/thierrydesarzens,hospital & health care,adent.ch
+Scott,Herring,Managing Director,Aderco,,,s.herring@aderco.com,verified,http://www.linkedin.com/in/scott-herring-679a2848,,aderco.com
+Philippe,Lecloux,Chief Operating Officer,Aderco,,,p.lecloux@aderco.com,verified,http://www.linkedin.com/in/philippe-lecloux-6b716835,,aderco.com
+Charlotte,Baiwir,Chief Administrative Officer,Aderco,,,c.baiwir@aderco.com,verified,http://www.linkedin.com/in/charlotte-baiwir-43670559,,aderco.com
+Nazmi,Tuefekci,Chief Officer,Advantage Tankers,,,nazmi@advantagetankers.com,verified,http://www.linkedin.com/in/nmelihtufekci94,,advantagetankers.com
+Asilcan,Oztop,Chief Officer,Advantage Tankers,,,aoztop@advantagetankers.com,verified,http://www.linkedin.com/in/asilcan-%c3%b6ztop-13891626b,,advantagetankers.com
+Astrid,Wickert,Head of Digital Marketing,AEVIS VICTORIA SA,,,awickert@aevis.com,verified,http://www.linkedin.com/in/astridwickert,,aevis.com
+Marc,Blaser,Deputy CFO,AEVIS VICTORIA SA,,,mblaser@aevis.com,verified,http://www.linkedin.com/in/marc-blaser-ba707b220,,aevis.com
+Nicolas,Schmid,Head of Finance and Group Controlling,AEVIS VICTORIA SA,,,nschmid@aevis.com,verified,http://www.linkedin.com/in/nicolas-schmid-b39039308,,aevis.com
+Olivier,Potterat,President,Afiro,,,olivier.potterat@afiro.ch,verified,http://www.linkedin.com/in/olivier-potterat-78086857,,afiro.ch
+Olivier,Potterat,President,Afiro,,,olivier.potterat@afiro.ch,verified,http://www.linkedin.com/in/olivier-potterat-78086857,,afiro.ch
+Jean-Laurent,Py,Creative Director,Agence Babel,,,jean-laurent.py@agencebabel.com,verified,http://www.linkedin.com/in/jeanlaurentpy,marketing & advertising,agencebabel.com
+Julien,Dorso,Deputy Managing Director - Marketing + Development,Agence Babel,,,julien.dorso@agencebabel.com,verified,http://www.linkedin.com/in/juliendorso,marketing & advertising,agencebabel.com
+Patricia,Gadotti,Coo/cfo,Aiglon College,,,plb@aiglon.ch,verified,http://www.linkedin.com/in/patricia-bremner-gadotti-5a73721b,primary/secondary education,aiglon.ch
+Nicola,Sparrow,School Director,Aiglon College,,,ns12@aiglon.ch,verified,http://www.linkedin.com/in/nicola-sparrow-09094963,primary/secondary education,aiglon.ch
+Mare,Gordillo,AIIC Vice-President,AIIC - The International Association of Conference Interpreters,,,m.gordillo@aiic.org,verified,http://www.linkedin.com/in/mare-gordillo-2b032139,nonprofit organization management,aiic.org
+Emmanuel,Ayuk,Vice President,AIIC - The International Association of Conference Interpreters,,,e.ayuk@aiic.org,verified,http://www.linkedin.com/in/emmanuel-ayuk-613ab83,nonprofit organization management,aiic.org
+Celine,Weiss,Director,Air Navigation SA,,,celine.weiss@airnavigation.aero,verified,http://www.linkedin.com/in/c%c3%a9line-weiss,aviation & aerospace,airnavigation.aero
+Johann,Huguenin,Owner,Air Navigation SA,,,johann@airnavigation.aero,verified,http://www.linkedin.com/in/johann-huguenin-2510279,aviation & aerospace,airnavigation.aero
+Haldane,Dodd,Executive Director,Air Transport Action Group (ATAG),,,doddh@atag.org,verified,http://www.linkedin.com/in/haldanedodd,,atag.org
+Anna,Patient,Head of Projects and Membership,Air Transport Action Group (ATAG),,,patienta@atag.org,verified,http://www.linkedin.com/in/anna-patient-bb88245,,atag.org
+Marc-Henri,Beausire,Owner,AIRESIS SA,,,mh.beausire@airesis.com,verified,http://www.linkedin.com/in/marc-henri-beausire-2370507,,airesis.com
+Alexandre,Kane,Integrated Marketing Communications (IMC) Director,aivancity School of AI & Data for Business & Society,,,alex@aivancity.ai,verified,http://www.linkedin.com/in/alexandrekane,higher education,aivancity.ai
+Trinh,Huot,Directrice de L'expérience Étudiante,aivancity School of AI & Data for Business & Society,,,huot@aivancity.ai,verified,http://www.linkedin.com/in/trinh-huot,higher education,aivancity.ai
+Gabriel,Carvalho,Head of Physical Trading,Alvean,,,gabriel.carvalho@alvean.com,verified,http://www.linkedin.com/in/gabrielmottacarvalho,,alvean.com
+Marinus,Moolenburgh,Chief Financial Officer,Alvean,,,marinus.moolenburgh@alvean.com,verified,http://www.linkedin.com/in/marinus-moolenburgh-ab33995,,alvean.com
+Fernanda,Tavares,Head of Operations,Alvean,,,fernanda.tavares@alvean.com,verified,http://www.linkedin.com/in/fernanda-tavares-5247b14b,,alvean.com
+Carine,Bougnague,Directrice des Relations Établissements et du Marketing,AMUE,,,carine.bougnague@amue.fr,verified,http://www.linkedin.com/in/carine-bougnague-8449899a,higher education,amue.fr
+Michel,Allemand,Directeur du DSSE (département Solutions et Services Pour les Établissements),AMUE,,,michel.allemand@amue.fr,verified,http://www.linkedin.com/in/michel-allemand-0510b132,higher education,amue.fr
+Rebecca,Kotze,Director,Anglais 4x Plus Vite!,,,clc@anglais4xplusvite.ch,verified,http://www.linkedin.com/in/rebecca-kotze-clc,,anglais4xplusvite.ch
+Evan,Zimmermann,President and CEO,Antiquorum,,,evan@antiquorum.com,verified,http://www.linkedin.com/in/evanz%c3%admmermann,,antiquorum.swiss
+Connie,Siu,Managing Director,Antiquorum,,,connie@antiquorum.swiss,verified,http://www.linkedin.com/in/connie-siu-04298b76,,antiquorum.swiss
+Romain,Rea,CEO,Antiquorum,,,romainrea@antiquorum.swiss,verified,http://www.linkedin.com/in/romain-rea-a05a29141,,antiquorum.swiss
+Romain,Kerleau,"Head of Marketing, Sales & Contracts Space",APCO Technologies SA,,,r.kerleau@apco-technologies.eu,verified,http://www.linkedin.com/in/romain-kerleau-b6aa6913,architecture & planning,apco-technologies.eu
+Yves,Guyot,Head of Human Resources,APCO Technologies SA,,,y.guyot@apco-technologies.eu,verified,http://www.linkedin.com/in/yves-guyot,architecture & planning,apco-technologies.eu
+Loanette,Boshoff,Chief People Officer (CPO),APO Group,,,loanette.boshoff@apo-opa.com,verified,http://www.linkedin.com/in/loanetteboshoff,marketing & advertising,apo-opa.com
+Rania,Rafie,Vice President of Public Relations and Strategic Communications,APO Group,,,rania.elrafie@apo-opa.com,verified,http://www.linkedin.com/in/raniaelrafie,marketing & advertising,apo-opa.com
+Sandra,Millet,Operations Manager,Asceneuron SA,,,sandra.millet@asceneuron.com,verified,http://www.linkedin.com/in/sandraberricmillet,,asceneuron.com
+Rolf,Pokorny,Head Early Clinical Development,Asceneuron SA,,,rolf.pokorny@asceneuron.com,verified,http://www.linkedin.com/in/rolf-pokorny-a482584,,asceneuron.com
+Tony,Arquisch,Head of Corporate Development,Asyril,,,tony.arquisch@asyril.com,verified,http://www.linkedin.com/in/arquisch,,asyril.com
+Aymeric,Simonin,Head of Product Management,Asyril,,,aymeric.simonin@asyril.com,verified,http://www.linkedin.com/in/aymericsimonin,,asyril.com
+Mamoru,Namioka,Representative Director,Asyril,,,mamoru.namioka@asyril.com,verified,http://www.linkedin.com/in/mamoru-namioka-9074a559,,asyril.com
+Manuel,Sauer,Head of PS/TC,Avesco Rent SA,,,manuel.sauer@avescorent.ch,verified,http://www.linkedin.com/in/manuel-sauer-020b594b,,avescorent.ch
+Christoph,Schaffner,"Director Switzerland Machines, Power & Climate – Avesco Rent AG",Avesco Rent SA,,,christoph.schaffner@avescorent.ch,verified,http://www.linkedin.com/in/christoph-schaffner-678503115,,avescorent.ch
+Werner,Streit,Head of Region D-CH,Avesco Rent SA,,,werner.streit@avescorent.ch,verified,http://www.linkedin.com/in/werner-streit-0623ab91,,avescorent.ch
+Alfredo,Quiros,Director de Unidad de Negocio,AZmed,,,alfredo@azmed.co,verified,http://www.linkedin.com/in/aquiroscomunicacion,medical devices,azmed.co
+Liza,Alem,Head of People,AZmed,,,liza@azmed.co,verified,http://www.linkedin.com/in/liza-alem-973b67165,medical devices,azmed.co
+Michael,Welti,Managing Partner / Head Private Banking,Banque Heritage,,,m.welti@heritage.ch,verified,http://www.linkedin.com/in/michaelwelti,banking,heritage.ch
+Carlos,Esteve,Owner,Banque Heritage,,,c.esteve@heritage.ch,verified,http://www.linkedin.com/in/cesteve,banking,heritage.ch
+Cedric,Yerly,"Directeur, Membre de la Direction Générale",BCF - Banque Cantonale de Fribourg,,,cedric.yerly@bcf.ch,verified,http://www.linkedin.com/in/c%c3%a9dric-yerly-1b185412a,banking,bcf.ch
+Julien,Yerly,Head of Investment Office,BCF - Banque Cantonale de Fribourg,,,julien.yerly@bcf.ch,verified,http://www.linkedin.com/in/julien-yerly-16723756,banking,bcf.ch
+Christian,Jaag,Chairman of The Board of Directors,Bcomp Ltd,,,christian@bcomp.ch,verified,http://www.linkedin.com/in/christian-jaag-a8b52929,,bcomp.com
+Per,Martensson,Chief Revenue Officer (CRO),Bcomp Ltd,,,per@bcomp.ch,verified,http://www.linkedin.com/in/per-m%c3%a5rtensson-b5138111,,bcomp.com
+Andreas,Bruelhart,Chief Strategy Officer (CSO),Bcomp Ltd,,,andreas.bruelhart@bcomp.ch,verified,http://www.linkedin.com/in/andreasbruelhart,,bcomp.com
+Hocine,Mohamdi,Sales Director - MEA,BIAR Sampling Systems,,,h.mohamdi@biar.com,verified,http://www.linkedin.com/in/hocine-mohamdi-01912563,,biar.com
+Claude,Masson,CEO,BIAR Sampling Systems,,,c.masson@biar.com,verified,http://www.linkedin.com/in/claude-masson-8a656793,,biar.com
+Thomas,Corthay,Vice President,BIAR Sampling Systems,,,t.corthay@biar.com,verified,http://www.linkedin.com/in/thomas-corthay-7a764b87,,biar.com
+Cedric,Oberto,Directeur Commercial & Associé,Bizon,,,cedric@bizon.solutions,verified,http://www.linkedin.com/in/cedricoberto,online media,bizon.solutions
+Pierre,Lucet,Human Resources Director,Bizon,,,pierre.lucet@bizon.solutions,verified,http://www.linkedin.com/in/pierre-lucet,online media,bizon.solutions
+Joachim,Ziegler,Vice President Sales,Blancpain,,,joachim.ziegler@blancpain.com,verified,http://www.linkedin.com/in/joachim-ziegler-91879327,consumer goods,blancpain.com
+Luigi,Riggio,Director DOS,Blancpain,,,luigi.riggio@blancpain.com,verified,http://www.linkedin.com/in/luigi-riggio-578b5211,consumer goods,blancpain.com
+David,Bellivier,Directeur Régional Sud-ouest,BOTICINAL,,,david.bellivier@boticinal.com,verified,http://www.linkedin.com/in/david-bellivier-%f0%9f%92%8a%f0%9f%8c%bf-800446a5,"health, wellness & fitness",boticinal.com
+Thomas,Nepveux,Managing Director,BOTICINAL,,,thomas.nepveux@boticinal.com,verified,http://www.linkedin.com/in/thomas-nepveux,"health, wellness & fitness",boticinal.com
+Diana,Medina,President,BPW International,,,diana.barragan@bpw-international.org,verified,http://www.linkedin.com/in/dianahbm,civic & social organization,bpw-international.org
+Denis,Mludek,Chief Technology Officer - Hands on,Bricks.co,,,denis@bricks.co,verified,http://www.linkedin.com/in/denismludek,real estate,bricks.co
+Mattia,Ferracchiato,Head of Carbon Markets,BRS Shipbrokers,,,mattia.ferracchiato@brsbrokers.com,verified,http://www.linkedin.com/in/mattia-ferracchiato,logistics & supply chain,brsshipbrokers.com
+Melodie,Noris,LNG Shipbroker - Partner,BRS Shipbrokers,,,melodie.noris@brsbrokers.com,verified,http://www.linkedin.com/in/m%c3%a9lodie-noris-40400a41,logistics & supply chain,brsshipbrokers.com
+Erika,Berg,HR Business Partner,BTG Group,,,erika.berg@btg.com,verified,http://www.linkedin.com/in/erika-berg-005401bb,machinery,btg.com
+Bertram,Schaich,CFO,BTG Group,,,bertram.schaich@btg.com,verified,http://www.linkedin.com/in/bertram-c-schaich-5b8bb4215,machinery,btg.com
+Francois,Oudot,CEO,Bump,,,francois.oudot@bump-charge.com,verified,http://www.linkedin.com/in/francoisoudot,environmental services,bump-charge.com
+Alice,Perdereau,Head of People,Bump,,,alice.perdereau@bump-charge.com,verified,http://www.linkedin.com/in/alice-perdereau-head-hunter,environmental services,bump-charge.com
+Chloe,Noual,"Directrice Stratégie, Marketing et Communication",CertiNergy,,,c.noual@certinergy.com,verified,http://www.linkedin.com/in/chlo%c3%a9-noual-a98246118,environmental services,certinergy.com
+Adelino,Moreira,"Chief Support Functions Officer (Finance, HR, Legal, IT)",CertiNergy,,,a.moreira@certinergy.com,verified,http://www.linkedin.com/in/adelino-moreira-81bb1a5,environmental services,certinergy.com
+Christian,Konrad,Director of Operations,César Ritz Colleges Switzerland,,,christian.konrad@cesarritzcolleges.edu,verified,http://www.linkedin.com/in/christian-konrad-69523691,higher education,cesarritzcolleges.edu
+Sofia,Rodrigues,Master Thesis Supervisor | Head of Leadership,César Ritz Colleges Switzerland,,,sofia.rodrigues@cesarritzcolleges.edu,verified,http://www.linkedin.com/in/sofia-rodrigues-6bb38b17,higher education,cesarritzcolleges.edu
+Benoit,Dormont,Administrative and Financial Director,CFPTS - Centre de Formation Professionnelle aux Techniques du Spectacle,,,bdormont@cfpts.com,verified,http://www.linkedin.com/in/benoit-dormont-1179b5a6,professional training & coaching,cfpts.com
+Aurelie,Clonrozier,Directrice de la Communication et de L'événementiel,CFPTS - Centre de Formation Professionnelle aux Techniques du Spectacle,,,aclonrozier@cfpts.com,verified,http://www.linkedin.com/in/aur%c3%a9lie-clonrozier,professional training & coaching,cfpts.com
+Alexandre,Pol,Chief Operating Officer,CIGP - Compagnie d'Investissements et de Gestion Privée,,,alexandre.pol@cigp.com,verified,http://www.linkedin.com/in/alexandre-pol-3357b027,financial services,cigp.com
+Alberto,Pentimalli,Managing Director of CIGP (Italia),CIGP - Compagnie d'Investissements et de Gestion Privée,,,alberto.pentimalli@cigp.com,verified,http://www.linkedin.com/in/alberto-pentimalli-a8b8a73,financial services,cigp.com
+John,Plassard,Partner Head of Investment Strategy,Cité Gestion SA,,,j.plassard@cite-gestion.com,verified,http://www.linkedin.com/in/john-plassard,banking,cite-gestion.com
+Pascal,Botteron,Head of Investments,Cité Gestion SA,,,p.botteron@cite-gestion.com,verified,http://www.linkedin.com/in/pascal-botteron-763453,banking,cite-gestion.com
+Josef,Spanidis,Managing Director,Clairfield International,,,jspanidis@clairfield.com,verified,http://www.linkedin.com/in/josef-spanidis-16b11728,capital markets,clairfield.com
+Wim,Goossens,Partner SynCap Belgium BV,Clairfield International,,,wgoossens@clairfield.com,verified,http://www.linkedin.com/in/wigoossens,capital markets,clairfield.com
+Eric,Mossoyan,Operational Director,Clinique de Montchoisi,,,emossoyan@montchoisi.ch,verified,http://www.linkedin.com/in/eric-mossoyan-b79b59112,hospital & health care,montchoisi.ch
+Diane,Cotting,Directrice Opérationnelle,Clinique Générale,,,dcotting@cliniquegenerale.ch,verified,http://www.linkedin.com/in/diane-cotting-70754270,hospital & health care,cliniquegenerale.ch
+Benoit,Kuchler,Regional Director,Clinique Générale,,,bkuchler@cliniquegenerale.ch,verified,http://www.linkedin.com/in/beno%c3%aet-kuchler-a990305,hospital & health care,cliniquegenerale.ch
+Agnes,Gabirout,"Human Resources Director │ Equality, Diversity, Inclusion & Belonging and Professional Learning Lead",Collège Champittet,,,agnes.gabirout@champittet.ch,verified,http://www.linkedin.com/in/agnesgabirout,primary/secondary education,champittet.ch
+Maria,Zufferey,Head of Pastoral Care & Student Safeguarding,Collège Champittet,,,maria.zufferey@champittet.ch,verified,http://www.linkedin.com/in/maria-zufferey-b0610151,primary/secondary education,champittet.ch
+Christophe,Kellerhals,Secretary General,Commune de Plan-les-Ouates,,,christophe.kellerhals@plan-les-ouates.ch,verified,http://www.linkedin.com/in/christophe-kellerhals-73384381,medical devices,plan-les-ouates.ch
+Didier,Wuilloud,CFO,CONDIS SA,,,dwuilloud@condis.ch,verified,http://www.linkedin.com/in/didier-wuilloud-83724624,,condis.ch
+Vania,Gomes,HR Director,CONDIS SA,,,vgomes@condis.ch,verified,http://www.linkedin.com/in/vania-gomes-378bb7224,,condis.ch
+Baptiste,Vesy,Global Sales & Marketing Director,CONDIS SA,,,bvesy@condis.ch,verified,http://www.linkedin.com/in/baptiste-vesy-24187031,,condis.ch
+Stephane,Maige,CEO,CORIS Innovation,,,smaige@corisinnovation.com,verified,http://www.linkedin.com/in/st%c3%a9phane-maige-37710613,,corisinnovation.com
+Leo,Sarteur,Directeur des Opérations - Rhône-Alpes,CORIS Innovation,,,lsarteur@corisinnovation.com,verified,http://www.linkedin.com/in/l%c3%a9o-sarteur-734405145,,corisinnovation.com
+Thibault,Peltier,Partner,CORIS Innovation,,,tpeltier@corisinnovation.com,verified,http://www.linkedin.com/in/thibaultpeltier,,corisinnovation.com
+Claire,Carrard,Directrice de la Rédaction,Courrier international,,,claire.carrard@courrierinternational.com,verified,http://www.linkedin.com/in/claire-carrard-a151a074,publishing,courrierinternational.com
+Patricia,Perez,Development and Communications Director,Courrier international,,,patricia.fernandez@courrierinternational.com,verified,http://www.linkedin.com/in/patriciafernandezperez,publishing,courrierinternational.com
+Arnaud,Levery,Directeur Administration et Finances,Croix-Rouge genevoise,,,a.levery@croix-rouge-ge.ch,verified,http://www.linkedin.com/in/arnaud-lev%c3%a9ry-9b5092b,individual & family services,croix-rouge-ge.ch
+Anne,Moratti,"Responsable de Service, Présidente",Croix-Rouge genevoise,,,a.moratti@croix-rouge-ge.ch,verified,http://www.linkedin.com/in/anne-moratti-263431272,individual & family services,croix-rouge-ge.ch
+Alain,Mueller,Academic Dean,Culinary Arts Academy Switzerland,,,alain.mueller@culinaryartsswitzerland.com,verified,http://www.linkedin.com/in/alain-m%c3%bcller-7554b4114,professional training & coaching,culinaryartsswitzerland.com
+Victoria,Dzodziev,Director,D10 Art Space,,,victoria@asd10.ch,verified,http://www.linkedin.com/in/victoria-d-dzodziev-056a0b19,,asd10.ch
+Gianni,Grappolini,Sales Director | Central Europe,Dartfish,,,gianni.grappolini@dartfish.com,verified,http://www.linkedin.com/in/gianni-grappolini,,dartfish.com
+Laurent,Wenker,Chief Executive Officer,Dartfish,,,laurent.wenker@dartfish.com,verified,http://www.linkedin.com/in/laurentwenker,,dartfish.com
+Philippe,Schroeter,Head of Product Development,Dartfish,,,philippe.schroeter@dartfish.com,verified,http://www.linkedin.com/in/philippe-schroeter-9991705,,dartfish.com
+Andrea,Diano,Directeur de la Philatélie Française,David Feldman SA - International Auctioneers,,,andrea.diano@davidfeldman.com,verified,http://www.linkedin.com/in/andrea-diano-0606b1149,,davidfeldman.com
+Alex,Porter,Marketing Director,David Feldman SA - International Auctioneers,,,alex.porter@davidfeldman.com,verified,http://www.linkedin.com/in/alex-porter-175784b1,,davidfeldman.com
+Iscliff,Lebee,COO,Dayuse.com,,,iscliff@dayuse.com,verified,http://www.linkedin.com/in/iscliff-leb%c3%a9e-74b5333b,hospitality,dayuse.com
+Olivier,Ravindranathan,Head of Growth,Dayuse.com,,,olivier.r@dayuse.com,verified,http://www.linkedin.com/in/olivier-ravindranathan-bb0689a3,hospitality,dayuse.com
+Ouldouze,Nadiri,"Head of Marketing, Communication & Public Relations",De Bethune,,,ouldouze.nadiri@debethune.com,verified,http://www.linkedin.com/in/ouldouze-nadiri,,debethune.ch
+Jorg,Hysek,Head of Sales and Business Development,De Bethune,,,jorg.hysek@debethune.com,verified,http://www.linkedin.com/in/jorg-jr-hysek-71a4381a,,debethune.ch
+Sabine,Haarpaintner,DRH,De Bethune,,,sabine.haarpaintner@debethune.com,verified,http://www.linkedin.com/in/sabine-haarpaintner-305b15314,,debethune.ch
+Alex,Armengol Gasull,Filling Solution Technologies Sales Director,Dec Group,,,a.armengol@dec-group.net,verified,http://www.linkedin.com/in/alex-armengol-gasull-b4ab1b30,machinery,dec-group.net
+Christine,Mueller,Global Human Resources Director,Dec Group,,,c.mueller@dec-group.ch,verified,http://www.linkedin.com/in/christineamueller,machinery,dec-group.net
+Eric,Schwaninger,Chief Commercial Officer (CCO),DePoly,,,e.schwaninger@depoly.co,verified,http://www.linkedin.com/in/eric-schwaninger-2a02a09,,depoly.co
+Hale,Bila,Head of Quality,DePoly,,,h.bila@depoly.co,verified,http://www.linkedin.com/in/hale-bila-phd-62717162,,depoly.co
+Olivier,Marq,"Directeur des Activités Neuf, Commerces et Viager",Digit RE group,,,olivier.marq@digitregroup.com,verified,http://www.linkedin.com/in/olivier-marq,real estate,digitregroup.com
+Emmanuel,David,Directeur Marketing Digital Groupe | Digit RE Group | Capifrance.fr | Optimhome.com | CMO Drimki.fr,Digit RE group,,,emmanuel.david@digitregroup.com,verified,http://www.linkedin.com/in/emmanuel-david-11322b45,real estate,digitregroup.com
+Sebastian,Guevara,Vice President Strategic Partnerships,Dolead,,,sebastian.guevara@dolead.com,verified,http://www.linkedin.com/in/sebastianguevaracaballero,marketing & advertising,dolead.com
+Vlad,Zloteanu,Chief Product and Technology Officer,Dolead,,,vlad.zloteanu@dolead.com,verified,http://www.linkedin.com/in/vladzloteanu,marketing & advertising,dolead.com
+Sascha,Hardegger,CEO,Dufour Aerospace,,,sascha@dufour.aero,verified,http://www.linkedin.com/in/sascha-hardegger-b808744,aviation & aerospace,dufour.aero
+Timon,Wehmann,CPO,Dufour Aerospace,,,timon@dufour.aero,verified,http://www.linkedin.com/in/timon-wehmann-83b609132,aviation & aerospace,dufour.aero
+Angelo,Pettazzi,Chairman of the DVB Commercial Module on Targeted Advertising - DVB CM-TA,DVB Project,,,angelo@pettazzi.com,verified,http://www.linkedin.com/in/angelopettazzi,,dvb.org
+Emily,Dubs,Head of Technology,DVB Project,,,dubs@dvb.org,verified,http://www.linkedin.com/in/emily-dubs,,dvb.org
+Alix,Boyer,Product Owner/Cheffe de Projet,e-santé Occitanie,,,alix.boyer@esante-occitanie.fr,verified,http://www.linkedin.com/in/alix-boyer-3b51a871,"health, wellness & fitness",esante-occitanie.fr
+Julie,Durand,Director,e-santé Occitanie,,,julie.durand@esante-occitanie.fr,verified,http://www.linkedin.com/in/julie-durand-030a47135,"health, wellness & fitness",esante-occitanie.fr
+Nataliya,Ecomundo,Head of Cosmetics Sales & Marketing - Cosmetics & Fragrance,EcoMundo,,,nmuller@ecomundo.eu,verified,http://www.linkedin.com/in/nataliya-muller,environmental services,ecomundo.eu
+Pierre,Garcon,CEO,EcoMundo,,,pgarcon@ecomundo.eu,verified,http://www.linkedin.com/in/pierre-garcon-8044b710,environmental services,ecomundo.eu
+Patrice,Barbesier,Part Time CMO,Edflex,,,patrice.barbesier@edflex.com,verified,http://www.linkedin.com/in/patrice-barbesier,e-learning,edflex.com
+Carole,Vende,VP People & Impact,Edflex,,,carole.vende@edflex.com,verified,http://www.linkedin.com/in/carolevendehauray,e-learning,edflex.com
+Fabienne,Stassen,Managing Director,EditOr Proof,,,fstassen@editorproof.net,verified,http://www.linkedin.com/in/fabienne-stassen-77207b9,,editorproof.net
+Sundeep,Vaid,COO,EdQwest,,,sundeep@edqwest.com,verified,http://www.linkedin.com/in/sundeep-vaid-32341997,,edqwest.com
+Vlad,Omer,Chief Technology Officer,EdQwest,,,vlad@edqwest.com,verified,http://www.linkedin.com/in/vladomer,,edqwest.com
+Asdis,Olafsdottir,Head of Communication & Information,EFTA,,,asdis.olafsdottir@efta.int,verified,http://www.linkedin.com/in/asdisolafs,,efta.int
+Hans,Lange,Director of Administration,EFTA,,,hanskristian.lange@efta.int,verified,http://www.linkedin.com/in/hklange,,efta.int
+Zhasmin,Kuneva,Senior Human Resources Partner,EFTA,,,zhasmin.kuneva@efta.int,verified,http://www.linkedin.com/in/zhasminkuneva,,efta.int
+Pascal,Lambert,Owner,EI Groupe,,,pascal.lambert@groupe-ei.fr,verified,http://www.linkedin.com/in/pascal-lambert-a201b313,professional training & coaching,groupe-ei.fr
+Maddy,Retzepter,Directrice Opérationnelle,EI Groupe,,,maddy.retzepter@groupe-ei.fr,verified,http://www.linkedin.com/in/maddy-retzepter-97042285,professional training & coaching,groupe-ei.fr
+Caio,Grynberg,Director of Strategy & Business Development,EKS - a SPORTFIVE Company,,,caio.grynberg@eks.com,verified,http://www.linkedin.com/in/caiogrynberg,,eks.com
+Tony,Holding,Executive Director,EKS - a SPORTFIVE Company,,,tony.holding@eks.com,verified,http://www.linkedin.com/in/tony-holding-5824198,,eks.com
+Craig,McLatchey,CEO,EKS - a SPORTFIVE Company,,,craig.mclatchey@eks.com,verified,http://www.linkedin.com/in/craig-mclatchey-a-o-b4182014,,eks.com
+Axelle,Droniou-Legrand,Head of Distribution & Revenue Management,EMERALD STAY®,,,axelle@emeraldstay.com,verified,http://www.linkedin.com/in/axelle-droniou-legrand-b2586426,real estate,emeraldstay.com
+Gener,Arenas Manzano,"Head of Field Operations, Spain & Switzerland",EMERALD STAY®,,,gener@emeraldstay.com,verified,http://www.linkedin.com/in/worldwidegener,real estate,emeraldstay.com
+Michel,Aebischer,CFO,Emeria Switzerland,,,michel.aebischer@emeria.ch,verified,http://www.linkedin.com/in/michel-aebischer-9085807,real estate,emeria.ch
+Alex,Andrie,Deputy HR Manager / HR Business Partner,Emeria Switzerland,,,alex.andrie@dbs-group.ch,verified,http://www.linkedin.com/in/alex-andri%c3%a9-9a3112143,real estate,emeria.ch
+Julia,Levy,Directrice de la Relation Client et des Opérations,Epsor,,,julia.levy@epsor.fr,verified,http://www.linkedin.com/in/julia-l%c3%a9vy,financial services,epsor.fr
+Elise,Nicoletta,Directrice Commerciale / CSO (Comex),Epsor,,,elise.nicoletta@epsor.fr,verified,http://www.linkedin.com/in/elise-nicoletta,financial services,epsor.fr
+Alan,Goodrich,Sales Director,ERI,,,alan.goodrich@lux-eri.lu,verified,http://www.linkedin.com/in/alangoodrich,banking,olympicbankingsystem.com
+Roger,Furrer,Director,ERI,,,roger.furrer@olympicbankingsystem.com,verified,http://www.linkedin.com/in/roger-furrer-b821622,banking,olympicbankingsystem.com
+Marco,Northland,Chief Executive Officer,Etrion Corporation,,,mnorthland@etrion.com,verified,http://www.linkedin.com/in/marco-antonio-northland-3a59369,,etrion.com
+Marion,Deflon,Partenaire RH,EVAM,,,marion.deflon@evam.ch,verified,http://www.linkedin.com/in/marion-deflon-5100a3a6,individual & family services,evam.ch
+Leonora,Mallias,Head of Department,EVAM,,,leonora.mallias@evam.ch,verified,http://www.linkedin.com/in/leonora-rossi-mallias,individual & family services,evam.ch
+Cyril,Chauvey,Deputy Director,F.P.Journe - Invenit et Fecit,,,cchauvey@fpjourne.com,verified,http://www.linkedin.com/in/cyrilchauvey,,fpjourne.com
+Edward,Shaw,Assistant Boutique Director,F.P.Journe - Invenit et Fecit,,,eshaw@fpjourne.com,verified,http://www.linkedin.com/in/edward-shaw-70959b8a,,fpjourne.com
+Amal,Omar,Financial Director,FACTORHY Avocats,,,a.omar@factorhy.com,verified,http://www.linkedin.com/in/amal-omar-23a89a42,law practice,factorhy.com
+Alexandre,Roumieu,Partner / Associé,FACTORHY Avocats,,,ar@factorhy.com,verified,http://www.linkedin.com/in/alexandre-roumieu-3b292816,law practice,factorhy.com
+Molly,Day,Director of Eventing and Driving,Federation Equestre Internationale (FEI),,,molly.day@fei.org,verified,http://www.linkedin.com/in/molly-day-1b587a31,nonprofit organization management,fei.org
+Stephane,Schwander,Head of Digital,Federation Equestre Internationale (FEI),,,stephane.schwander@fei.org,verified,http://www.linkedin.com/in/stephaneschwander,nonprofit organization management,fei.org
+Andrea,Tang,Legal Director (General Counsel),FIATA International Federation of Freight Forwarders Associations,,,tang@fiata.org,verified,http://www.linkedin.com/in/andreasytang,,fiata.org
+Stephen,Morris,Special Advisor to the Director General,FIATA International Federation of Freight Forwarders Associations,,,morris@fiata.org,verified,http://www.linkedin.com/in/stephen-morris-087779,,fiata.org
+Olivier,Courchamps,Director of Research & Development,FINARTIS,,,olivier.bayle@finartis.com,verified,http://www.linkedin.com/in/olivier-bayle-des-courchamps-721332a,,finartis.com
+Jose,Costa,Chief Operating Officer – Finartis SA (A Valsoft Company),FINARTIS,,,jose.dacosta@finartis.com,verified,http://www.linkedin.com/in/jose-dacosta,,finartis.com
+Yann,Rossier,Business Product Owner,FINARTIS,,,yann.rossier@finartis.com,verified,http://www.linkedin.com/in/yann-rossier-222b8811,,finartis.com
+Eric,Olombel,VP Finance,Finary,,,eric.olombel@finary.com,verified,http://www.linkedin.com/in/eric-olombel,financial services,finary.com
+Corentin,Hue,Head of Finary One,Finary,,,corentin@finary.com,verified,http://www.linkedin.com/in/corentin-hu%c3%a9-8377a3a7,financial services,finary.com
+Denis,O'Kelly,CEO,FinLab Solutions SA,,,ddepokelly@finlab.com,verified,http://www.linkedin.com/in/denis-de-pentheny-o-kelly-b184a053,,finlab.com
+Mireille,Carrupt,Directrice EMS,"Fondation Asile des aveugles, Hôpital ophtalmique Jules-Gonin",,,mireille.carrupt@ophtalmique.ch,verified,http://www.linkedin.com/in/mireille-carrupt-2a96a1120,hospital & health care,asile-aveugles.ch
+Lucien,Panchaud,Directeur Santé Communautaire,"Fondation Asile des aveugles, Hôpital ophtalmique Jules-Gonin",,,lucien.panchaud@cphv.ch,verified,http://www.linkedin.com/in/lucien-panchaud-0b933780,hospital & health care,asile-aveugles.ch
+Gyliane,Bertholet,Maîtresse Socio-Professionnelle,Fondation de Verdeil,,,gyliane.bertholet@verdeil.ch,verified,http://www.linkedin.com/in/gyliane-bertholet-49b312135,higher education,verdeil.ch
+Fanny,Jacob,Chief Product & Technology Officer,FoodChéri,,,fanny.jacob@foodcheri.com,verified,http://www.linkedin.com/in/fannyjacob,food & beverages,foodcheri.com
+Edouard,Borie,Chief Revenue Officer,FoodChéri,,,edouard.borie@foodcheri.com,verified,http://www.linkedin.com/in/edouardborie,food & beverages,foodcheri.com
+Xavier,Jourdain,Chief Operating Officer,Frederique Constant,,,xjourdain@frederique-constant.com,verified,http://www.linkedin.com/in/xavier-jourdain-b644505,consumer goods,frederiqueconstant.com
+Yohan,Bizy,European Subsidiary Director,Frederique Constant,,,bizy@frederique-constant.com,verified,http://www.linkedin.com/in/yohan-bizy-b08b744b,consumer goods,frederiqueconstant.com
+Nelson,Miloti,President,GDV,,,n.miloti@gdv.fr,verified,http://www.linkedin.com/in/nelson-miloti-b6779119b,wholesale,gdv.fr
+Paul,Berenberg-Gossler,Head of Economics and Financial Markets,GDV,,,p.berenberg-gossler@gdv.de,verified,http://www.linkedin.com/in/paul-berenberg-gossler-69631670,wholesale,gdv.fr
+David,Leppert,Chief Medical Officer,GeNeuro SA,,,david.leppert@unibas.ch,verified,http://www.linkedin.com/in/david-leppert-1a311210,,geneuro.com
+Isabel,Campbell Alvargonzalez,External Relations Campus Director,Geneva Business School,,,icampbell@gbsge.com,verified,http://www.linkedin.com/in/isabel-campbell-alvargonz%c3%a1lez-35704151,higher education,gbsge.com
+David,Claivaz,Directeur Switzerland,Geneva Business School,,,dclaivaz@gbsge.com,verified,http://www.linkedin.com/in/davidclaivaz,higher education,gbsge.com
+David,Furet,Head of IT,Geogas Trading SA,,,furet@geogas.com,verified,http://www.linkedin.com/in/david-furet-9b44283b,,geogas.com
+William,Peillon,CFO,Geogas Trading SA,,,peillon@geogas.com,verified,http://www.linkedin.com/in/william-peillon-9b35a046,,geogas.com
+Donatien,Luget,Finance Transformation Head,Geogas Trading SA,,,deluget@geogas.com,verified,http://www.linkedin.com/in/donatien-de-luget,,geogas.com
+Joyce,Akpata,Head of Policy and Advocacy,Global Alliance for Improved Nutrition (GAIN),,,jakpata@gainhealth.org,verified,http://www.linkedin.com/in/joyceakpata,management consulting,gainhealth.org
+Lawrence,Cmg,Executive Director,Global Alliance for Improved Nutrition (GAIN),,,lhaddad@gainhealth.org,verified,http://www.linkedin.com/in/lawrence-haddad-cmg-5809b916b,management consulting,gainhealth.org
+Mark,Grey,SVP E-Commerce,Global Coalition for Efficient Logistics (GCEL),,,m.grey@gcel.net,verified,http://www.linkedin.com/in/mark-grey-114679110,,gcel.net
+Matt,Herbert,Head of Research: North Africa and the Sahel,Global Initiative against Transnational Organized Crime,,,matt.herbert@globalinitiative.net,verified,http://www.linkedin.com/in/matthewmherbert,civic & social organization,globalinitiative.net
+Mark,Micallef,Director of the North Africa and Sahel Observatory,Global Initiative against Transnational Organized Crime,,,mark.micallef@globalinitiative.net,verified,http://www.linkedin.com/in/mark-micallef-2463095b,civic & social organization,globalinitiative.net
+Philippe,Marchand,Vice-President Operations & Accountable Manager,Global Jet,,,philippe.marchand@globaljetlux.com,verified,http://www.linkedin.com/in/philippe-marchand-03905b1,airlines/aviation,globaljet.aero
+Yann,Nado,Business Development Director in Geneva/ Switzerland,Global Jet,,,yann.nado@globaljet.ch,verified,http://www.linkedin.com/in/yann-nado-252669,airlines/aviation,globaljet.aero
+Marc,Guiomar,CMO,GOLD AVENUE,,,marc@goldavenue.com,verified,http://www.linkedin.com/in/marcguiomar,retail,goldavenue.com
+Camille,Martin,Head of Operations,GOLD AVENUE,,,camille@goldavenue.com,verified,http://www.linkedin.com/in/camille-martin-skema,retail,goldavenue.com
+Justin,Davis,Chief Executive Officer,Gold Standard,,,jd@goldstandardassets.com,verified,http://www.linkedin.com/in/goldstandard,civic & social organization,goldstandard.org
+Margaret,Kim,Chief Executive Officer,Gold Standard,,,margaret.kim@goldstandard.org,verified,http://www.linkedin.com/in/margaret-kim-134756ab,civic & social organization,goldstandard.org
+Kevin,Shirley,Global Head of Partnerships,Goodwall,,,kevin@goodwall.org,verified,http://www.linkedin.com/in/kevin-shirley-37518b7,,goodwall.io
+Peter,Dakin,Partnerships Director,Goodwall,,,peter@goodwall.org,verified,http://www.linkedin.com/in/peter-dakin-1b578b42,,goodwall.io
+Guillermo,De Simon Allo,Finance and Internal Operations Director,Goodwall,,,guillermo@goodwall.org,verified,http://www.linkedin.com/in/guillermo-de-sim%c3%b3n-allo-b1751395,,goodwall.io
+Alain,Duchene,Marketing Director,Grand Théâtre de Genève,,,a.duchene@gtg.ch,verified,http://www.linkedin.com/in/alainduchene,entertainment,gtg.ch
+Carole,Trousseau,General Secretary,Grand Théâtre de Genève,,,c.trousseau@gtg.ch,verified,http://www.linkedin.com/in/carole-trousseau-40423525,entertainment,gtg.ch
+Olivier,Petit,Directeur France,Greater Geneva Bern area (GGBa),,,o.petit@ggba.swiss,verified,http://www.linkedin.com/in/olivier-petit-9973062a,,ggba.swiss
+Pauline,Degaudenzi,France Director,Greater Geneva Bern area (GGBa),,,p.degaudenzi@ggba.swiss,verified,http://www.linkedin.com/in/degaudenzipauline,,ggba.swiss
+Sara,Schneider-Hamai,Director Germany & Benelux,Greater Geneva Bern area (GGBa),,,s.schneider-hamai@ggba.swiss,verified,http://www.linkedin.com/in/schneiderhamai,,ggba.swiss
+Nicolas,Sacchetto,Deputy Director General,Groupe Sofibrie - Paris,,,nicolas.sacchetto@sofibrie.fr,verified,http://www.linkedin.com/in/nicolas-sacchetto-698a2384,automotive,sofibrie.fr
+Virginie,Duchan,Human Resources Director,Groupe Sofibrie - Paris,,,virginie.brin@sofibrie.fr,verified,http://www.linkedin.com/in/virginie-brin,automotive,sofibrie.fr
+Sandrine,Coillot,Directrice Régionale Occitanie,Groupe Studyrama,,,sandrine.coillot@studyrama.com,verified,http://www.linkedin.com/in/%c3%a9v%c3%a9nementiel-publicit%c3%a9-communicationsandrine-coillot-commercialbtob-prestationsdeservices-toulouse,higher education,studyrama.com
+Nicolas,Fellus,Directeur des Medias,Groupe Studyrama,,,nicolas.fellus@studyrama.com,verified,http://www.linkedin.com/in/nicolas-fellus-b53b81138,higher education,studyrama.com
+Emmanuelle,Doux,Head of Human Resources,H55,,,emmanuelle.doux@h55.ch,verified,http://www.linkedin.com/in/emmanuelle-doux-93329633,automotive,h55.ch
+Reda,Andaloussi,Head of Production Organisation & Operations ( EASA Part 21 POA Accountable Manager ),H55,,,reda.seffar@h55.ch,verified,http://www.linkedin.com/in/reda-seffar-andaloussi,automotive,h55.ch
+Patricia,Picchiottino,Directrice Adjointe Centre Interprofessionnel de Simulation (CIS),Haute école de santé de Genève,,,patricia.picchiottino@hesge.ch,verified,http://www.linkedin.com/in/patricia-picchiottino,hospital & health care,heds-geneve.ch
+Fabien,Baiata,Deputy CEO,Helvetic Payroll,,,fabien.baiata@helvetic-payroll.ch,verified,http://www.linkedin.com/in/fabien-baiata,human resources,helvetic-payroll.ch
+Cedric,Dyens,Global Director Client Strategy for Switzerland & UK,Helvetic Payroll,,,cedric.dyens@helvetic-payroll.ch,verified,http://www.linkedin.com/in/cedric-dyens,human resources,helvetic-payroll.ch
+Guillaume,Christe,Professeur Associé HES à Hesav,HESAV / Haute Ecole de Santé - Vaud,,,guillaume.christe@hesav.ch,verified,http://www.linkedin.com/in/guillaume-christe-1649897b,higher education,hesav.ch
+Pierre,Zeender,Directeur Administratif,HESAV / Haute Ecole de Santé - Vaud,,,pierre.zeender@hesav.ch,verified,http://www.linkedin.com/in/pierre-zeender-16451870,higher education,hesav.ch
+Stefan,Petzinger,Chief Executive Officer,Hilo by Aktiia,,,stefan.petzinger@aktiia.com,verified,http://www.linkedin.com/in/stefpetz,hospital & health care,hilo.com
+Andy,Wilson,VP Commercial Click to View Match Details,Hilo by Aktiia,,,andy.wilson@aktiia.com,verified,http://www.linkedin.com/in/andywilsonco,hospital & health care,hilo.com
+Julie,Coriol,Directrice Marketing Division Motocycles,Honda France,,,julie.coriol@honda-eu.com,verified,http://www.linkedin.com/in/juliecoriol,automotive,honda.fr
+Jean-Alexis,Bidet,Head of car / Directeur Division Automobile,Honda France,,,jean-alexis.bidet@honda-eu.com,verified,http://www.linkedin.com/in/jeanalexisbidet,automotive,honda.fr
+Isabelle,Dominjon,"Head of Sales, Europe & North America",Horizon Trading Solutions,,,isabelle.dominjon@horizontrading.io,verified,http://www.linkedin.com/in/isabelledominjon,financial services,horizontrading.io
+Emmanuel,Faure,Head of APAC & MENA,Horizon Trading Solutions,,,emmanuel.faure@horizontrading.io,verified,http://www.linkedin.com/in/emmanuel-faure-11197413,financial services,horizontrading.io
+Jonas,Kennes,Managing Director,Horizons Nouveaux SA,,,jonas@horizonsnouveaux.swiss,verified,http://www.linkedin.com/in/jonas-kennes-a3997b42,,horizonsnouveaux.swiss
+Loic,Burtin,Marketing and Communication Director,HYT Watches,,,l.burtin@hytwatches.com,verified,http://www.linkedin.com/in/lo%c3%afc-burtin-10aa7921,,hytwatches.com
+Carla,Rosell,Brand Director EMEA,HYT Watches,,,c.rosell@hytwatches.com,verified,http://www.linkedin.com/in/carla-a-rosell-3147b645,,hytwatches.com
+Frank,Henchoz,Director of Operations,HYT Watches,,,f.henchoz@hytwatches.com,verified,http://www.linkedin.com/in/frank-henchoz-3a156079,,hytwatches.com
+Emmanuel,Rollin,CEO Iberdrola France / Directeur General Iberdrola France,Iberdrola France,,,erollin@iberdrola.fr,verified,http://www.linkedin.com/in/emmanuel-rollin,environmental services,iberdrola.fr
+Marie,Thabard,Directrice des Opérations Offshores,Iberdrola France,,,mthabard@iberdrola.fr,verified,http://www.linkedin.com/in/marie-thabard-phd-34568bb7,environmental services,iberdrola.fr
+Walter,Wartenweiler,VP New Initiatives,icCube,,,walter.wartenweiler@iccube.com,verified,http://www.linkedin.com/in/walterwartenweiler,,iccube.com
+Marc,Nikles,Chief Revenue Officer (CRO),ID Quantique,,,m.nikles@idquantique.com,verified,http://www.linkedin.com/in/marc-nikles,research,idquantique.com
+Julien,Lepetit,Head of Sales Excellence,ID Quantique,,,julien.lepetit@idquantique.com,verified,http://www.linkedin.com/in/julienlepetit,research,idquantique.com
+Susanna,Guizar,Owner,IDEA System Sàrl,,,susie@sarshop.com,verified,http://www.linkedin.com/in/susanna-guizar-4373392b,,idea-system.ch
+Christophe,Ziegler,Director,IDEA System Sàrl,,,christophe.ziegler@idea-system.ch,verified,http://www.linkedin.com/in/christophe-ziegler-88b3b9162,,idea-system.ch
+Sudhir,Dhavan,Chairperson,IELA International Exhibition / Event Logistics Association,,,sudhir.dhavan@iela.org,verified,http://www.linkedin.com/in/sudhir-dhavan-74a68935,,iela.org
+Alexandra,Erdmann,Member of the Board,IELA International Exhibition / Event Logistics Association,,,alexandra.erdmann@iela.org,verified,http://www.linkedin.com/in/alexandra-erdmann-569a4b130,,iela.org
+Christian-Louis,Col,MD and Owner,Ikepod,,,christian-louis@ikepod.com,verified,http://www.linkedin.com/in/christian-louis-col-watch-brands-owner,,ikepod.com
+Katie,Rickard,Deputy Chief Executive Officer,IMPACT Initiatives,,,katie.rickard@reach-initiative.org,verified,http://www.linkedin.com/in/katie-rickard-70b97445,management consulting,impact-initiatives.org
+Luca,Pupulin,Chief Executive Officer,IMPACT Initiatives,,,luca.pupulin@impact-initiatives.org,verified,http://www.linkedin.com/in/lucapupulin-,management consulting,impact-initiatives.org
+Anand,Agrawal,CEO & Director,INDAGRO SA,,,anand@indagro.com,verified,http://www.linkedin.com/in/anand-agrawal-7ba40641,,indagro.com
+Nick,Adamchak,Managing Director,INDAGRO SA,,,nadamchak@indagrousa.com,verified,http://www.linkedin.com/in/nick-adamchak-50448716,,indagro.com
+Kyriakos,Spanopoulos,Director of Accounts,INDAGRO SA,,,kspanopoulos@indagro.net,verified,http://www.linkedin.com/in/kyriakos-spanopoulos-a4134733,,indagro.com
+Eric,Frey,CEO,Infracore SA,,,efrey@infracore.ch,verified,http://www.linkedin.com/in/eric-frey-01ba0634,,infracore.ch
+Evelyn,Ruffin,"Chair, Caux Scholars Program",Initiatives of Change,,,evelyn.ruffin@iofc.org,verified,http://www.linkedin.com/in/evelyn-randy-ruffin-442ab719,nonprofit organization management,iofc.org
+Andrew,Lancaster,Director (Australia),Initiatives of Change,,,andrew.lancaster@iofc.org,verified,http://www.linkedin.com/in/andrew-lancaster-9a81276,nonprofit organization management,iofc.org
+Jean-Marc,Robyr,Head of IT and Data Protection Owner,Institut Florimont - Genève,,,jmrobyr@florimont.ch,verified,http://www.linkedin.com/in/jean-marc-robyr,primary/secondary education,florimont.ch
+Cristina,Bovin,HR Director,Institut Florimont - Genève,,,cbovin@florimont.ch,verified,http://www.linkedin.com/in/cristina-bovin-a4069451,primary/secondary education,florimont.ch
+Marc,Lecoin,Directeur Administratif et Financier / Cfo-coo,Institut International de Lancy - IIL,,,mlecoin@iil.ch,verified,http://www.linkedin.com/in/marclecoin,primary/secondary education,iil.ch
+Bruno,Albert,Directeur Primaire des Sections Francaise et Bilingue,Institut International de Lancy - IIL,,,balbert@iil.ch,verified,http://www.linkedin.com/in/bruno-albert-65490a207,primary/secondary education,iil.ch
+Nunana,Nyomi,Secondary School Principal - Campus des Nations,International School of Geneva,,,nunana.nyomi@ecolint.ch,verified,http://www.linkedin.com/in/nunana-nyomi-7a91447a,primary/secondary education,ecolint.ch
+Lucie,Williams,People & Culture Campus Partner,International School of Geneva,,,lucie.williams@ecolint.ch,verified,http://www.linkedin.com/in/lucie-williams-89785322,primary/secondary education,ecolint.ch
+Alex,Boucher,Head of Admissions and Marketing,International School of Lausanne,,,aboucher@isl.ch,verified,http://www.linkedin.com/in/boucheralex,primary/secondary education,isl.ch
+Simon,Foley,Interim Director,International School of Lausanne,,,sfoley@isl.ch,verified,http://www.linkedin.com/in/simon-foley-3490b053,primary/secondary education,isl.ch
+Gonzalo,Arzua,Vice-President Technical Commission on Information and Communication Technology,International Social Security Association,,,garzua@bps.gub.uy,verified,http://www.linkedin.com/in/gonzaloarzua,,issa.int
+Raul,Ruggia-Frick,"Director, Social Security Development Branch",International Social Security Association,,,ruggia-frick@ilo.org,verified,http://www.linkedin.com/in/raul-ruggia-frick-2192a5,,issa.int
+Marcelo,Caetano,Secretary General,International Social Security Association,,,caetano@ilo.org,verified,http://www.linkedin.com/in/marcelo-caetano-1ba8b01b0,,issa.int
+Daniel,Hyslop,"Director of Policy, Learning and Advisory Services",Interpeace,,,hyslop@interpeace.org,verified,http://www.linkedin.com/in/danielhyslop,civic & social organization,interpeace.org
+Anisha,Chelliah,Head of Human Resources,Interpeace,,,chelliah@interpeace.org,verified,http://www.linkedin.com/in/anisha-chelliah-79721b30,civic & social organization,interpeace.org
+Umberto,Pretto,Secretary General,IRU,,,umberto.depretto@iru.org,verified,http://www.linkedin.com/in/umberto-de-pretto-b6aa13a,logistics & supply chain,iru.org
+Raluca,Marian,Director EU Advocacy and General Delegate of the Permanent Delegation to the EU,IRU,,,raluca.marian@iru.org,verified,http://www.linkedin.com/in/raluca-marian-4455712a,logistics & supply chain,iru.org
+Helen,Roth,Executive Director,ITA-AITES,,,helen.roth@ita-aites.org,verified,http://www.linkedin.com/in/helen-roth170174,,ita-aites.org
+Ruta,Murnikaite,Head of Communications,ITA-AITES,,,ruta.murnikaite@ita-aites.org,verified,http://www.linkedin.com/in/ruta-murnikaite-a0845a107,,ita-aites.org
+Eashwaramoorthy,Selvaraj,Regional Director - Services,ITSS,,,seashwaramoorthy@itssglobal.com,verified,http://www.linkedin.com/in/eashwaramoorthy-selvaraj-93191115,other,itssglobal.com
+Manju,Hc,Director,ITSS,,,manjuc@itssglobal.com,verified,http://www.linkedin.com/in/manjuhc,other,itssglobal.com
+Marie,Charriere,Director of Business Development,Ividata Life Sciences,,,marie.girma-charriere@ividata.com,verified,http://www.linkedin.com/in/marie-girma-charriere-3205b86a,management consulting,ividata.com
+Aurelia,Bonnet,Business Partner Recrutement : Spécialiste du Recrutement de Pharmaciens en Affaires Réglementaires,Ividata Life Sciences,,,aurelia.bonnet@ividata.com,verified,http://www.linkedin.com/in/aur%c3%a9lia-bonnet-63582386,management consulting,ividata.com
+Jean-Manuel,Peycru,Managing Partner,Ivy Partners,,,jmp@ivy.partners,verified,http://www.linkedin.com/in/jean-manuel-peycru-854a2525,management consulting,ivy.partners
+Hugo,Oliveira,Managing Partner,Ivy Partners,,,hugo.goncalo.oliveira@ivy.partners,verified,http://www.linkedin.com/in/hugogoncalvesdeoliveira,management consulting,ivy.partners
+Guillaume,Guastalla,Learning & Development Head,IXM,,,guillaume.guastalla@ixmetals.com,verified,http://www.linkedin.com/in/guillaume-guastalla-1834a617,capital markets,ixmetals.com
+Julien,Chassaing,Group Head of Finance,IXM,,,julien.chassaing@ixmetals.com,verified,http://www.linkedin.com/in/julienchassaing,capital markets,ixmetals.com
+Daniel,Cazes,Directeur de Fondation,Jobtrek,,,daniel.cazes@jobtrek.ch,verified,http://www.linkedin.com/in/danielcazes-directeur,professional training & coaching,jobtrek.ch
+Kate,Yanchuk,Artistic Director,Kainjoo,,,kate.y@kainjoo.com,verified,http://www.linkedin.com/in/kate-yanchuk-86427420a,,kainjoo.com
+Orsen,Okami,Chief Automation Officer,Kainjoo,,,ookami@kainjoo.com,verified,http://www.linkedin.com/in/orsen-okami-67698a2a4,,kainjoo.com
+Shabbir,Haider,AVP RnD Engineering,Kandou AI,,,haider@kandou.com,verified,http://www.linkedin.com/in/shabbir-haider-6713091,electrical/electronic manufacturing,kandou.ai
+Britta,Kamps,HR Business Partner,Kandou AI,,,kamps@kandou.com,verified,http://www.linkedin.com/in/britta-kamps-242952197,electrical/electronic manufacturing,kandou.ai
+Jennifer,Kim,Manaing Director,Kaya,,,jennifer.kim@kayanco.com,verified,http://www.linkedin.com/in/jennifer-kim-098b6a43,consumer goods,kaya.io
+Pascal,Brubacher,Industrial Director,KIF Parechoc,,,pascal.brubacher@kif-parechoc.ch,verified,http://www.linkedin.com/in/pascal-brubacher-b23085112,machinery,kif-parechoc.ch
+Yoann,Canon,Director of Operations,KIF Parechoc,,,yoann.canon@kif-parechoc.ch,verified,http://www.linkedin.com/in/yoann-c-7ba62066,machinery,kif-parechoc.ch
+Stephane,Mabit,Regional Director,KINNARPS FRANCE,,,stephane.mabit@kinnarps.fr,verified,http://www.linkedin.com/in/st%c3%a9phane-mabit,furniture,kinnarps.fr
+Clara,Steffgenn,Directrice Marketing et Communication,KINNARPS FRANCE,,,clara.steffgenn@kinnarps.fr,verified,http://www.linkedin.com/in/clara-steffgenn-2619b1107,furniture,kinnarps.fr
+Michael,Kumar,Deputy Chairman,Klesch Group,,,michael.kumar@klesch.com,verified,http://www.linkedin.com/in/michael-kumar-11922a8,,klesch.com
+Martijn,Jongbloed,Head of Tax,Klesch Group,,,martijn.jongbloed@klesch.com,verified,http://www.linkedin.com/in/martijnjongbloed,,klesch.com
+Amy,Claridge,Director of Marketing and Partnerships,Klesch Group,,,amy.claridge@klesch.com,verified,http://www.linkedin.com/in/amy-claridge-8785904b,,klesch.com
+Sean,Gately,"Sr. Director, Head of IoT Sales",Kudelski IoT,,,sean.gately@nagra.com,verified,http://www.linkedin.com/in/sgately,,kudelski-iot.com
+Amine,Mlaheg,Senior Director Product and Program Management,Kudelski IoT,,,amine.elmlaheg@nagra.com,verified,http://www.linkedin.com/in/mlahegamine,,kudelski-iot.com
+Olivier,Bosshart,Operations Program Director,Kudelski IoT,,,olivier.bosshart@nagra.com,verified,http://www.linkedin.com/in/olivierbosshart,,kudelski-iot.com
+Arnaud,Valton,Directeur De La Création,Laboratoire Les Trois Chênes,,,a.valton@lestroischenes.com,verified,http://www.linkedin.com/in/arnaud-valton-b5858123,"health, wellness & fitness",lestroischenes.com
+Philippe,Berard,Directeur Administratif & Financier,Laboratoire Les Trois Chênes,,,p.berard@lestroischenes.com,verified,http://www.linkedin.com/in/phberard,"health, wellness & fitness",lestroischenes.com
+Mathias,Fleischmann,CEO,Lauchernalp Bergbahnen AG,,,mathias.fleischmann@loetschental.ch,verified,http://www.linkedin.com/in/mathias-fleischmann-311996123,,loetschental.ch
+Quirin,Soehnlein,Head of Performance,Lausanne Hockey Club,,,q.soehnlein@lausannehc.ch,verified,http://www.linkedin.com/in/quirin-s%c3%b6hnlein-714135a6,sports,lausannehc.ch
+Yan,Paschoud,Head of Marketing & Development,Lausanne Hockey Club,,,y.paschoud@lausannehc.ch,verified,http://www.linkedin.com/in/yanpaschoud,sports,lausannehc.ch
+Sebastien,Mouchet,Head of Products,Le Temps,,,sebastien.mouchet@letemps.ch,verified,http://www.linkedin.com/in/smouchet,publishing,letemps.ch
+Stephanie,Jongh,Head of Career Services & Industry Relations,Les Roches,,,stephanie.ruiz@lesroches.edu,verified,http://www.linkedin.com/in/stephanie-ruizydejongh,higher education,lesroches.edu
+Mano,Soler,Director,Les Roches,,,msoler@lesroches.es,verified,http://www.linkedin.com/in/manosoler,higher education,lesroches.edu
+Ruben,Cabanillas,"Medical Director, Early Clinical Development",Light Chain Bioscience | Novimmune SA,,,ruben.cabanillas@lightchainbio.com,verified,http://www.linkedin.com/in/rubencabanillasmdphd,,lightchainbio.com
+Jose,Saro,Chief Medical Officer,Light Chain Bioscience | Novimmune SA,,,jose.saro@lightchainbio.com,verified,http://www.linkedin.com/in/jose-saro-md-9826773,,lightchainbio.com
+Valery,Moine,"Unit Head, Pharmacology",Light Chain Bioscience | Novimmune SA,,,valery.moine@lightchainbio.com,verified,http://www.linkedin.com/in/valery-m-90925082,,lightchainbio.com
+Andreas,Seibold,Head of Asset Trading,LITASCO SA,,,aseibold@litasco.com,verified,http://www.linkedin.com/in/andreas-seibold-4a40a118,oil & energy,litasco.com
+Peter,Hachfeld,Head of Risk Management,LITASCO SA,,,phachfeld@litasco.com,verified,http://www.linkedin.com/in/peter-hachfeld-4b05a0a5,oil & energy,litasco.com
+Isaac,Childs,Senior Managing Director,LUCRIN Geneva,,,isaac.childs@lucrin.com,verified,http://www.linkedin.com/in/isaacgchilds,apparel & fashion,lucrin.com
+Hussein,Jaunmohamud,Director,LUCRIN Geneva,,,hussein.jaunmohamud@lucrin.com,verified,http://www.linkedin.com/in/hussein-jaunmohamud-m2sic-06743a4,apparel & fashion,lucrin.com
+Norwin,Voegeli,President / Partner,Lugaia AG Containment Solutions,,,norwin.voegeli@lugaia.com,verified,http://www.linkedin.com/in/norwin-voegeli,,lugaia.ch
+Thomas,Weingartner,Managing Director,Lugaia AG Containment Solutions,,,thomas.weingartner@lugaia.ch,verified,http://www.linkedin.com/in/thomas-w-919a7827,,lugaia.ch
+Michael,Schweizer,Head of Sales,Lugaia AG Containment Solutions,,,michael.schweizer@lugaia.ch,verified,http://www.linkedin.com/in/michael-schweizer-8b500115b,,lugaia.ch
+Caroline,Cresp,Managing Director,LunaJets,,,caroline.cresp@lunajets.com,verified,http://www.linkedin.com/in/carolinecresp,airlines/aviation,lunajets.com
+Andrea,Tomassini,Director of Business Development,LunaJets,,,andrea.tomassini@lunajets.com,verified,http://www.linkedin.com/in/andrea-tomassini-905aa9ab,airlines/aviation,lunajets.com
+Igor,Krinbarg,Co-CEO,Lunii,,,igor@lunii.com,verified,http://www.linkedin.com/in/igor-krinbarg-7235756b,electrical/electronic manufacturing,lunii.com
+Maelle,Chassard,co-CEO,Lunii,,,maelle@lunii.com,verified,http://www.linkedin.com/in/maellechassard,electrical/electronic manufacturing,lunii.com
+Benjamin,Rappaz,Head of Life Sciences,Lyncée Tec SA,,,benjamin.rappaz@lynceetec.com,verified,http://www.linkedin.com/in/benjaminrappaz,,lynceetec.com
+Etienne,Cuche,CTO,Lyncée Tec SA,,,etienne.cuche@lynceetec.com,verified,http://www.linkedin.com/in/etienne-cuche-ba354579,,lynceetec.com
+Abdallah,Chatila,President,m3 Group,,,abdallah.chatila@m-3.com,verified,http://www.linkedin.com/in/abdallah-chatila,,m-3.group
+Camille,Caron,Directrice Conseil,Magic Garden,,,camille.caron@magicgarden-agency.com,verified,http://www.linkedin.com/in/camille-caron-5a032725,events services,magicgarden-agency.com
+Roman,Gryzewski,Production Director / Directeur de Production,Magic Garden,,,roman.gryzewski@magicgarden-agency.com,verified,http://www.linkedin.com/in/roman-gryzewski-3bb60b22,events services,magicgarden-agency.com
+Jocelyn,Cattin,"CEO, General Manager / Board Member",MAGTROL Group,,,jcat@magtrol.ch,verified,http://www.linkedin.com/in/jocelyn-cattin-65320745,,magtrol.com
+Benjamin,Burns,"Head of Sales, Marketing and Product Management - Member of the Executive Team",MAGTROL Group,,,bbur@magtrol.ch,verified,http://www.linkedin.com/in/benjamin-b-319624305,,magtrol.com
+Numa,Privat,Directeur D’agence - Junot Marais,Maison Junot,,,nprivat@junot.fr,verified,http://www.linkedin.com/in/numa-privat-84673159,real estate,junot.fr
+Sebastien,Kuperfis,President,Maison Junot,,,skuperfis@junot.fr,verified,http://www.linkedin.com/in/s%c3%a9bastien-kuperfis-a9a064a0,real estate,junot.fr
+Benjamin,Huegli,Managing Director and Brand Leader,Manpower Switzerland,,,benjamin.huegli@manpower.ch,verified,http://www.linkedin.com/in/benjamin-h%c3%bcgli-0b06a949,staffing & recruiting,manpower.ch
+Fabrizia,Marzano,Area Manager Ticino & Head of Specialization Svizzera,Manpower Switzerland,,,fabrizia.marzano@manpower.ch,verified,http://www.linkedin.com/in/fabrizia-marzano,staffing & recruiting,manpower.ch
+Anne-Gabrielle,Compagnon,CEO,May,,,anne-gabrielle@may.fr,verified,http://www.linkedin.com/in/anne-gabrielle-compagnon,financial services,may.fr
+Boris,Jottreau,CEO,May,,,boris@may.fr,verified,http://www.linkedin.com/in/boris-jottreau-a8126144,financial services,may.fr
+Farah,Tavukcuoglu,Head of Operations | Clinic Operations & Growth | Healthcare,MAZ Clinic,,,farah@mazclinic.com,verified,http://www.linkedin.com/in/farah-tavukcuoglu-077675143,,mazclinic.com
+Julian,Danvers,European Sales Director,MBP Solutions,,,jda@mbpsolutions.com,verified,http://www.linkedin.com/in/julian-danvers,environmental services,mbpsolutions.com
+Juan,Ortega,Director / Vice-Chairman MBP Italy S.r.l.,MBP Solutions,,,jho@mbpsolutions.com,verified,http://www.linkedin.com/in/juan-holgueras-ortega-55596695,environmental services,mbpsolutions.com
+Sandro,Boemio,Regional Director,Med-Innova,,,sandro.boemio@med-innova.ch,verified,http://www.linkedin.com/in/sandro-boemio-20a14b5a,,med-innova.ch
+Stefano,Ghidoni,Direttore Internazionale - Membro del ComEX,Mediaperformances,,,sghidoni@mediaperf.com,verified,http://www.linkedin.com/in/stefanoghidoni,marketing & advertising,mediaperformances.com
+Jimi,Fontaine,Chief Data Officer - CDO / Comex Member,Mediaperformances,,,jfontaine@mediaperf.com,verified,http://www.linkedin.com/in/jimifontaine,marketing & advertising,mediaperformances.com
+Martin,Fitchet,Chief Executive Officer,Medicines for Malaria Venture,,,fitchetm@mmv.org,verified,http://www.linkedin.com/in/martinfitchet,,mmv.org
+Jeremy,Burrows,"VP, Head of Discovery",Medicines for Malaria Venture,,,burrowsj@mmv.org,verified,http://www.linkedin.com/in/jeremy-burrows-3950a77,,mmv.org
+Cristina,Donini,Head of Research and Development,Medicines for Malaria Venture,,,doninic@mmv.org,verified,http://www.linkedin.com/in/cristina-donini-058b041,,mmv.org
+Jacques,Massoud,Regional Manager Romandie & Head of Strategy,Meditron SA,,,jacques.massoud@meditron.ch,verified,http://www.linkedin.com/in/jacques-massoud-5b5b3334,,meditron.ch
+Kostas,Syrakis,Owner & CEO,Meditron SA,,,kostas.syrakis@meditron.gr,verified,http://www.linkedin.com/in/kostas-syrakis-87334462,,meditron.ch
+Chloe,Nestola,Directrice des Achats,Mellow Yellow,,,cnestola@mellowyellow.com,verified,http://www.linkedin.com/in/chlo%c3%a9-nestola-39000862,apparel & fashion,mellowyellow.com
+Colin,Turner,Head of Sales - Brokerage,MetLife France,,,cturner@metlife.com,verified,http://www.linkedin.com/in/colin-turner-,insurance,metlife.fr
+Souad,Lakhal,Directrice Partenariats Affinitaires - Head of Embedded Insurance,MetLife France,,,souad.lakhal@metlife.fr,verified,http://www.linkedin.com/in/souad-chabrol-lakhal-488ba851,insurance,metlife.fr
+Livio,Ferrari,CEO,Milian SA Dutscher group,,,lferrari@milian.com,verified,http://www.linkedin.com/in/livio-ferrari,,milian.com
+Stefanie,Immler,Head of Sales CHD and Marketing CH,Milian SA Dutscher group,,,simmler@milian.com,verified,http://www.linkedin.com/in/stefanie-immler-65b02a148,,milian.com
+Jasmin,Guelener,"Regional Sales Account Manager,Laboratory Specialist in R&D,Head Labplanning CHD",Milian SA Dutscher group,,,jgulener@milian.com,verified,http://www.linkedin.com/in/jasmin-g%c3%bclener-34725b162,,milian.com
+Gangadhar,Garipelli,VP Corporate Development & Partnerships,MindMaze Therapeutics,,,gangadhar.garipelli@neurodtx.ai,verified,http://www.linkedin.com/in/gangadhar-garipelli-2aa2604,,mindmazetherapeutics.com
+John,Krakauer,Chief Medical Director,MindMaze Therapeutics,,,john.krakauer@mindmaze.ch,verified,http://www.linkedin.com/in/john-krakauer-23045a29,,mindmazetherapeutics.com
+Edwin,Van Wolde,Director Supply Chain,MindMaze Therapeutics,,,edwin.vanwolde@mindmaze.ch,verified,http://www.linkedin.com/in/edwinvanwolde,,mindmazetherapeutics.com
+Sebastien,Broisin,Directeur Agence Genève,mino SA,,,sebastien.broisin@mino.eu,verified,http://www.linkedin.com/in/s%c3%a9bastien-broisin-04266a4b,construction,mino.eu
+Mino,Pascal,Owner,mino SA,,,pascal.mino@mino.eu,verified,http://www.linkedin.com/in/mino-pascal-b695ba25,construction,mino.eu
+Elena,Villalba,"Directora General, Head of Sales, Asset Management Iberia & Latam",Mirabaud Asset Management,,,elena.villalba@mirabaud-am.com,verified,http://www.linkedin.com/in/elena-villalba-325763,,mirabaud-am.com
+Arnaud,Bouteiller,President,Mirabaud Asset Management,,,arnaud.bouteiller@mirabaud-am.com,verified,http://www.linkedin.com/in/a-bouteiller,,mirabaud-am.com
+Luc-Alban,Chermette,Deputy Managing Director,Mirabaud Asset Management,,,luc-alban.chermette@mirabaud-am.com,verified,http://www.linkedin.com/in/luc-alban-chermette-21a43010,,mirabaud-am.com
+Luis,Dejoz,Director Gestión Patrimonial,Mirabaud Group,,,luis.capilla@mirabaud.com,verified,http://www.linkedin.com/in/luis-fernando-capilla-dejoz-595111136,banking,mirabaud.com
+Fanny,Wenger,Group Head of Recruitment,Mirabaud Group,,,fanny.wenger@mirabaud.com,verified,http://www.linkedin.com/in/fanny-wenger-4737619,banking,mirabaud.com
+Jean-Baptiste,Masson,Head of HR,Montres Breguet,,,jean-baptiste.masson@breguet.ch,verified,http://www.linkedin.com/in/jbmassonhrbp,consumer goods,breguet.com
+Elsa,Givernaud,HR Business Partner,Montres Breguet,,,elsa.givernaud@breguet.ch,verified,http://www.linkedin.com/in/elsa-givernaud-8ab78954,consumer goods,breguet.com
+Kevin,Donnet,Chief Communications Officer (CCO),Montreux Jazz Festival,,,k.donnet@mjf.ch,verified,http://www.linkedin.com/in/kevin-donnet-8143802b,entertainment,montreuxjazzfestival.com
+Viviane,Raouf,Secretary General,Montreux Jazz Festival,,,v.rychner@mjf.ch,verified,http://www.linkedin.com/in/viviane-rychner-raouf-12476446,entertainment,montreuxjazzfestival.com
+Kaoruko,Yamazaki,CEO,MYK Capital Management Group SA,,,kaoruko.yamazaki@mykgroup.com,verified,http://www.linkedin.com/in/kaoruko-yamazaki-697aa9123,,mykgroup.com
+Anne,Ridout,Senior Associate Director,MYK Capital Management Group SA,,,a.ridout@mykgroup.com,verified,http://www.linkedin.com/in/anne-marie-ridout-394aa610a,,mykgroup.com
+Jason,Cremins,Chief Product Officer,Navori Labs,,,j.cremins@navori.com,verified,http://www.linkedin.com/in/jasoncremins,,navori.com
+Issa,Makhamreh,VP Sales Imea-apac,Navori Labs,,,i.makhamreh@navori.com,verified,http://www.linkedin.com/in/issamakhamreh,,navori.com
+Carlos,Sayago,VP Latam,Navori Labs,,,c.sayago@navori.com,verified,http://www.linkedin.com/in/carlossayago,,navori.com
+Pal,Jensen,Director of Finance,Neomed Management,,,prjensen@neomed.net,verified,http://www.linkedin.com/in/p%c3%a5l-r-jensen-7b22841a,,neomed.net
+Benoit,Brochet,Network Partner France,Nicholas Hall Group of Companies,,,benoit.brochet@nicholashall.com,verified,http://www.linkedin.com/in/benoit-brochet-1513932a,,nicholashall.com
+Mary,Montero,"Regional VP, Asia-Pacific",Nicholas Hall Group of Companies,,,mary.montero@nicholashall.com,verified,http://www.linkedin.com/in/marymontero,,nicholashall.com
+Claudia,Schramm,Creative Solutions - Associate Director,Nicholas Hall Group of Companies,,,claudia.schramm@nicholashall.com,verified,http://www.linkedin.com/in/claudiaschramm,,nicholashall.com
+Roz,Lee,Head of Mission US,Nonviolent Peaceforce,,,rlee@nonviolentpeaceforce.org,verified,http://www.linkedin.com/in/leeroz,civic & social organization,nonviolentpeaceforce.org
+Roger,Musafiri,Deputy Head of Mission - Operations & Security,Nonviolent Peaceforce,,,rmusafiri@nonviolentpeaceforce.org,verified,http://www.linkedin.com/in/roger-musafiri-msc-cplm-cpsp-aa31b879,civic & social organization,nonviolentpeaceforce.org
+Julien,Tiphaine,Head of Information Technology Department,OCAS Genève - Office Cantonal des Assurances Sociales,,,julien.tiphaine@ocas.ch,verified,http://www.linkedin.com/in/julien-tiphaine-060a177,individual & family services,ocas.ch
+Pascal,Bauer,Deputy Director & Head of Shared Services at OCAS Genève,OCAS Genève - Office Cantonal des Assurances Sociales,,,pascal.bauer@ocas.ch,verified,http://www.linkedin.com/in/bauerpascal,individual & family services,ocas.ch
+Benjamin,Vacca,Directeur Suisse - OK JOB Medical,OK JOB SA,,,benjamin.vacca@okjob.ch,verified,http://www.linkedin.com/in/benjaminvacca,staffing & recruiting,okjob.ch
+Frederic,Chuard,Directeur Suisse Construction & Techniques du Bâtiment,OK JOB SA,,,frederic.chuard@okjob.ch,verified,http://www.linkedin.com/in/fr%c3%a9d%c3%a9ric-chuard-9a49859a,staffing & recruiting,okjob.ch
+Alain,Spieser,Directeur Communications Marketing,Orchestre de la Suisse Romande,,,alain.spieser@osr.ch,verified,http://www.linkedin.com/in/alain-spieser,,osr.ch
+Gregory,Gateau,Regisseur Principal du Personnel,Orchestre de la Suisse Romande,,,cassar@osr.ch,verified,http://www.linkedin.com/in/gregory-cassar-gateau-10933767,,osr.ch
+Kyung,Bannwart,Art Director,ORMOND DESIGN EDITIONS,,,kyung@ormond-editions.com,verified,http://www.linkedin.com/in/kyung-roh-bannwart-981277239,,ormond-editions.com
+Daniel,Chang,"Panerai China Managing Director, Richemont Specialist Watchmakers Division Senior Representative",Panerai,,,daniel.chang@panerai.com,verified,http://www.linkedin.com/in/daniel-chang-1552195,consumer goods,panerai.com
+Alain,Hokayem,Managing Director Meiat,Panerai,,,alain.hokayem@panerai.com,verified,http://www.linkedin.com/in/alainhokayem,consumer goods,panerai.com
+Pierrick,Allorant,Managing Partner,Pareto Solutions,,,p.allorant@pareto-solutions.com,verified,http://www.linkedin.com/in/pierrick-allorant-75697719,,pareto-solutions.com
+Joelle,Cornuz,Director,PARTICULE Z,,,joelle.cornuz@particule-z.ch,verified,http://www.linkedin.com/in/joellecornuz,,particule-z.ch
+Francois,Hutter,Head of Marketing,Patrimonium Asset Management,,,francois.hutter@patrimonium.ch,verified,http://www.linkedin.com/in/fran%c3%a7ois-hutter-8a4b682,,patrimonium.ch
+Hanspeter,Berchtold,Managing Director at Patrimonium Urban Opportunity AG,Patrimonium Asset Management,,,hanspeter.berchtold@patrimonium.ch,verified,http://www.linkedin.com/in/hanspeter-berchtold-cfa-64253718,,patrimonium.ch
+Johannes,Neumann-Cosel,Managing Director Private Credit,Patrimonium Asset Management,,,johannes.neumann-cosel@patrimonium.ch,verified,http://www.linkedin.com/in/jvonneum,,patrimonium.ch
+Chris,Ashton,Director of Strategic Partnerships,PerfectStay,,,chris.ashton@perfectstay.com,verified,http://www.linkedin.com/in/christian-ashton,"leisure, travel & tourism",perfectstay.com
+Lucie,Antoni,CMO,PerfectStay,,,lucie.de-antoni@perfectstay.com,verified,http://www.linkedin.com/in/lucie-de-antoni-9397b689,"leisure, travel & tourism",perfectstay.com
+Nicolas,Eichenberger,Président et CEO,Perrot Duval Holding SA,,,nicolas.eichenberger@perrotduval.com,verified,http://www.linkedin.com/in/nicolas-eichenberger-bb15a2b7,,perrotduval.com
+Nicolas,Eichenberger,Président et CEO,Perrot Duval Holding SA,,,nicolas.eichenberger@perrotduval.com,verified,http://www.linkedin.com/in/nicolas-eichenberger-bb15a2b7,,perrotduval.com
+Jean-Philippe,Toledo,President,Pharmacie Principale S.A.,,,jphdt@ppge.ch,verified,http://www.linkedin.com/in/jean-philippe-de-toledo-98205026,,pharmacie-principale.ch
+David,Conne,CEO,Pharmacie Principale S.A.,,,david.conne@ppge.ch,verified,http://www.linkedin.com/in/david-conne-b2a908b,,pharmacie-principale.ch
+Valerie,Gires,Financial Director,Pharmacie Principale S.A.,,,valerie.gires@ppge.ch,verified,http://www.linkedin.com/in/val%c3%a9rie-gires-368ba675,,pharmacie-principale.ch
+Dieter,Schulz,CEO,PhoneWorld LLC - SwissMountain Beverages International LLC,,,dieter.schulz@phoneworld.com,verified,http://www.linkedin.com/in/dieter-k-schulz-745b6115,,phoneworld.com
+Alain,Wirth,Réalisateur de Films / Prise de vue / Postproduction,PLANFILMS,,,a.wirth@planfilms.ch,verified,http://www.linkedin.com/in/alainwirth,,planfilms.ch
+Didier,Crepey,Director,PLANFILMS,,,d.crepey@planfilms.ch,verified,http://www.linkedin.com/in/didier-crepey-903259185,,planfilms.ch
+Charles,Arquin,Associate Director,Pouget Consultants,,,charles.arquin@pouget-consultants.fr,verified,http://www.linkedin.com/in/charles-arquin-10127349,construction,pouget-consultants.eu
+Florent,Loussouarn,Associate Director,Pouget Consultants,,,florent.loussouarn@pouget-consultants.fr,verified,http://www.linkedin.com/in/florent-loussouarn-7b51b452,construction,pouget-consultants.eu
+Mark,Staudenmann,"Partner, Senior Family Officer",Probus Pleion,,,mstaudenmann@pleion.ch,verified,http://www.linkedin.com/in/mark-staudenmann-740751,,probuspleion.com
+Rashid,Idaiatov,Partner,Probus Pleion,,,ridaiatov@probuspleion.ch,verified,http://www.linkedin.com/in/rashid-idaiatov-84863513,,probuspleion.com
+Derwael,Benoit,Head of Investment Solutions,Probus Pleion,,,bderwael@probuspleion.ch,verified,http://www.linkedin.com/in/derwael-benoit-9833b54,,probuspleion.com
+Daniel,Field,Senior Talent Acquisition Partner,Proton,,,daniel.field@proton.ch,verified,http://www.linkedin.com/in/danielfield1,other,proton.me
+Rebecca,Jennings,Senior Talent Acquisition Partner,Proton,,,rebecca.jennings@proton.ch,verified,http://www.linkedin.com/in/rebeccajennings11,other,proton.me
+Julien,Petit,Directeur Marketing & Communication,Provins,,,julien.petit@provins.ch,verified,http://www.linkedin.com/in/julpetit,,provins.ch
+Jacques,Nicolerat,Directeur Finances et Supply Chain,Provins,,,jacques.nicolerat@provins.ch,verified,http://www.linkedin.com/in/jacques-nicolerat-aa924b33,,provins.ch
+Michel,Charbonnet,CEO,Provins,,,michel.charbonnet@provins.ch,verified,http://www.linkedin.com/in/michel-charbonnet-303b9a144,,provins.ch
+Pascal,Schuermann,CEO,PS CONSULTING Sàrl,,,p.schurmann@psconsulting.net,verified,http://www.linkedin.com/in/pascal-sch%c3%bcrmann-25a8032,,psconsulting.net
+Radka,Perry,"Executive Manager, Partner",PS CONSULTING Sàrl,,,rperry@ps-consulting.fr,verified,http://www.linkedin.com/in/radka-perry-52572940,,psconsulting.net
+Gilbert,Bonvin,Head of SAP Development Group,PubliGroupe,,,gbonvin@publigroupe.com,verified,http://www.linkedin.com/in/gilbert-bonvin-3244819,,publigroupe.com
+Joann,Dobler,Head of Digital,QoQa,,,joann.dobler@qoqa.ch,verified,http://www.linkedin.com/in/joann-dobler-23796117,retail,qoqa.ch
+Jerome,Neuveglise,Product Owner,QoQa,,,jerome.neuveglise@qoqa.com,verified,http://www.linkedin.com/in/neuveglise,retail,qoqa.ch
+Olivier,Lutz,Head of Real Estate,QUAERO CAPITAL,,,o.lutz@quaerocapital.com,verified,http://www.linkedin.com/in/olivier-lutz-43b0b056,,quaerocapital.com
+Dominique,Dubois,Managing Director,QUAERO CAPITAL,,,d.dubois@quaerocapital.com,verified,http://www.linkedin.com/in/dominique-dubois-29b08431,,quaerocapital.com
+Jean,Keller,Chief Executive Officer,QUAERO CAPITAL,,,j.keller@quaerocapital.com,verified,http://www.linkedin.com/in/jean-keller-2a78484,,quaerocapital.com
+Allon,Zeitoun,Chief Executive Officer,Quantis,,,zeitoun.allon@quantis.com,verified,http://www.linkedin.com/in/allonzeitoun,other,quantis.com
+Anne,Deserable,"Managing Director, Quantis France",Quantis,,,deserable.anne@quantis.com,verified,http://www.linkedin.com/in/anne-d%c3%a9s%c3%a9rable-9827bb2a,other,quantis.com
+Vincent,Bordier,Directeur Supply Chain,Quitoque,,,vincent.bordier@quitoque.fr,verified,http://www.linkedin.com/in/vincent-bordier-b92b65136,food production,quitoque.fr
+Lisa,Blanc,Head of Growth,Quitoque,,,lisa.blanc@quitoque.fr,verified,http://www.linkedin.com/in/lisa-blanc-marketing-digital,food production,quitoque.fr
+Emmanuel,Hauptmann,"CIO, Head of Equities.",RAM Active Investments,,,eh@ram-ai.com,verified,http://www.linkedin.com/in/emmanuel-hauptmann-7baaa44,,ram-ai.com
+Peter,Stiefel,Managing Director,RAM Active Investments,,,pst@ram-ai.com,verified,http://www.linkedin.com/in/peterstiefel,,ram-ai.com
+Eleonora,Biella,Head of Institutional & Wholesale Italy,RAM Active Investments,,,ebi@ram-ai.com,verified,http://www.linkedin.com/in/eleonora-biella-8b267b4,,ram-ai.com
+Vincent,Van Laethem,CEO,RealFly Sion,,,vincent@realfly.ch,verified,http://www.linkedin.com/in/vincent-van-laethem-29771715,,realfly.ch
+Raphaelle,Appourchaux,Directeur-adjoint,RealFly Sion,,,raphaelle@realfly.ch,verified,http://www.linkedin.com/in/rapha%c3%ablle-appourchaux-12077a89,,realfly.ch
+Laurent,Decrauzat,"Directeur VD, VS, FR, NE",Régie du Rhône SA,,,laurent.decrauzat@gerofinance.ch,verified,http://www.linkedin.com/in/laurentdecrauzat,real estate,gerofinance.ch
+Alexandra,Mazuay,"Marketing & Communication, Sous-directrice",Régie du Rhône SA,,,alexandra.mazuay@gerofinance.ch,verified,http://www.linkedin.com/in/alexandra-mazuay,real estate,gerofinance.ch
+Martin,Herceg,Investment Director,Renaissance Foundation & Management,,,mh@renaissance.swiss,verified,http://www.linkedin.com/in/martinherceg,,renaissance.swiss
+Pascal,Meyer,Director Resolve Zug,Resolve,,,pascal.meyer@resolve.ch,verified,http://www.linkedin.com/in/pascalmeyer1982,financial services,resolve.ch
+Arthur,Petit,Directeur Succursale de Nyon,Resolve,,,arthur.petit@resolve.ch,verified,http://www.linkedin.com/in/arthur-petit-swiss-insurance,financial services,resolve.ch
+Jason,Howden,Chief Innovation Officer,Revizto,,,j.howden@revizto.com,verified,http://www.linkedin.com/in/jhowden,architecture & planning,revizto.com
+Rhys,Lewis,Director | EMEA,Revizto,,,r.lewis@revizto.com,verified,http://www.linkedin.com/in/rhyslewisrevizto,architecture & planning,revizto.com
+Maxime,Stablo,Regional Director,RHÔNE CHIMIE INDUSTRIE,,,mstablo@rcifrance.com,verified,http://www.linkedin.com/in/maxime-stablo-444a2174,wholesale,rcifrance.com
+Xavier,Hutinet,Directeur Régional Est,RHÔNE CHIMIE INDUSTRIE,,,xhutinet@rcifrance.com,verified,http://www.linkedin.com/in/xavier-hutinet-a596454a,wholesale,rcifrance.com
+Grant,Morgan,Marketing Director,RNX,,,gm@rnx.ch,verified,http://www.linkedin.com/in/grant-morgan-2bbb8240,,rnx.com
+Frank,Riedo,Sales Director,RNX,,,fr@rnx.ch,verified,http://www.linkedin.com/in/frank-riedo-b306503b,,rnx.com
+Ludovic,Douteau,Culinary Director,Royal Savoy Hotel & Spa Lausanne,,,ludovic.douteau@royalsavoylausanne.com,verified,http://www.linkedin.com/in/ludovic-douteau-0b162a38,hospitality,royalsavoylausanne.com
+Dorine,Bot,Head of Events,Royal Savoy Hotel & Spa Lausanne,,,dorine.bot@royalsavoylausanne.com,verified,http://www.linkedin.com/in/dorine-le-bot-05321bab,hospitality,royalsavoylausanne.com
+Adrien,Gainie,Partner Data & IA,Saegus,,,adrien.gainie@saegus.com,verified,http://www.linkedin.com/in/adrien-gainie,management consulting,saegus.com
+Camille,Bosquet,Directeur Shift Acceleration,Saegus,,,camille.bosquet@saegus.com,verified,http://www.linkedin.com/in/camillebosquet,management consulting,saegus.com
+Gilles,Zilliox,Financial Director,SARMATES,,,zilliox.gilles@sarmates.fr,verified,http://www.linkedin.com/in/gilles-zilliox-426986125,construction,sarmates.fr
+Hassan,Khemkham,Directeur Travaux Adjoint,SARMATES,,,khemkham.hassan@sarmates.fr,verified,http://www.linkedin.com/in/hassan-khemkham-10a6a4118,construction,sarmates.fr
+Jac,Luijendijk,President,SAT Swiss Agri Trading  S.A.,,,jac.luijendijk@swissagritrading.com,verified,http://www.linkedin.com/in/jac-luijendijk-1a61b0a,,swissagritrading.com
+Laurent,Perret,Chief Revenue Officer (CRO),SD Worx France,,,laurent.perret@sdworx.com,verified,http://www.linkedin.com/in/laurent-perret92800,human resources,sdworx.fr
+Carole,Jones,Moa/product Owner/ Business Lawyer,SD Worx France,,,carole.jones@sdworx.com,verified,http://www.linkedin.com/in/carolejonesparis,human resources,sdworx.fr
+Jochen,Opp,Associate VP Sales @ Secutix,SECUTIX,,,jochen.opp@secutix.com,verified,http://www.linkedin.com/in/jochen-opp-128a326,music,secutix.com
+Antoine,Rivoire,Directeur Commercial Sport,SECUTIX,,,antoine.derivoire@secutix.com,verified,http://www.linkedin.com/in/antoine-de-rivoire,music,secutix.com
+Daniela,Arimondi,Global Head of UAS Sales,"senseFly, now AgEagle",,,daniela.arimondi@ageagle.com,verified,http://www.linkedin.com/in/daniela-arimondi-4ab160185,,ageagle.com
+Patrick,Schneeberger,Head of Mechanical Engineering,"senseFly, now AgEagle",,,patrick.schneeberger@ageagle.com,verified,http://www.linkedin.com/in/patrick-schneeberger-3bb72a19,,ageagle.com
+Raphael,Fritschi,Head of Engineering,Sensimed SA,,,raphael_fritschi@sensimed.ch,verified,http://www.linkedin.com/in/raphaelfritschi,,sensimed.ch
+Cerboni,Sacha,COO,Sensimed SA,,,sacha_cerboni@sensimed.ch,verified,http://www.linkedin.com/in/cerboni-sacha-b629a03,,sensimed.ch
+Axel,Malka,Head of Hip Hop,Shotgun,,,axel@shotgun.live,verified,http://www.linkedin.com/in/axel-m-a99aa51b6,entertainment,shotgun.live
+Zach,Walker,"VP of Partnerships, US",Shotgun,,,zach@shotgun.live,verified,http://www.linkedin.com/in/zawalker,entertainment,shotgun.live
+Benoit,Daoglio,Head of Finance,SideCare,,,benoit@sidecare.com,verified,http://www.linkedin.com/in/benoitdaoglio,insurance,sidecare.com
+Camille,Bur,Head of Operations,SideCare,,,camille.bur@sidecare.com,verified,http://www.linkedin.com/in/camille-bur,insurance,sidecare.com
+Jean-Luc,Perrier,Technical Director,Sidev,,,jl.perrier@sidev.fr,verified,http://www.linkedin.com/in/jean-luc-perrier-04918490,wholesale,sidev.fr
+Georges,Benatar,V.P.,Sidev,,,gbenatar@sidev.com,verified,http://www.linkedin.com/in/georges-benatar-8381a918,wholesale,sidev.fr
+Sandra,Ceballos,Independent Owner,Silver Roots,,,homes@silverroots.net,verified,http://www.linkedin.com/in/silverrootsllc,,silverroots.net
+Delphine,Grouchko,Head of Sales,Simundia,,,delphine@simundia.com,verified,http://www.linkedin.com/in/delphinegrouchko,professional training & coaching,simundia.com
+Kevin,Ragot,Head of Customer Success & Care,Simundia,,,kevin.ragot@simundia.com,verified,http://www.linkedin.com/in/kevin-ragot,professional training & coaching,simundia.com
+Chloe,Lacroix,Directrice des Soins Sitex Sa - Sitex MAD,SITEX SA,,,clacroix@sitexsa.ch,verified,http://www.linkedin.com/in/chloe-lacroix-aa33ab12a,hospital & health care,sitexsa.ch
+Abdelrani,Lakhlibi,Chief Financial Officer,SITEX SA,,,alakhlibi@sitexsa.ch,verified,http://www.linkedin.com/in/abdelrani-lakhlibi-80502677,hospital & health care,sitexsa.ch
+Stefano,Gonzalez,Head Coach,Ski Zenit,,,stefano@skizenit.ch,verified,http://www.linkedin.com/in/stefano-miguel-carlin-gonz%c3%a1lez-aa7450a8,,skizenit.ch
+Richard,Wright,Ski School Director,Ski Zenit,,,rich@skizenit.ch,verified,http://www.linkedin.com/in/wrjwright,,skizenit.ch
+Giancarlo,Carrera,Managing Director,"SMT-Swiss Motivation Travel, a proud member of Euromic",,,gc@smtravel.com,verified,http://www.linkedin.com/in/giancarlo-carrera-5511171b,,smtravel.com
+Mathieu,Rubenthaler,Technical Director,SNIC TECHNOLOGIES,,,mathieu.rubenthaler@snic.tech,verified,http://www.linkedin.com/in/mathieu-rubenthaler-9a6420a8,transportation/trucking/railroad,snic.tech
+Christian,Laurenborg,Head of Fuel Oil,SOCAR Trading,,,claurenborg@socartrading.com,verified,http://www.linkedin.com/in/christian-laurenborg-96525915,oil & energy,socartrading.com
+Chris,Gribben,Group Head of HR,SOCAR Trading,,,cgribben@socartrading.com,verified,http://www.linkedin.com/in/chris-gribben-494a891,oil & energy,socartrading.com
+Nathalie,Hemeleers,"Director, EU Affairs",Solar Impulse Foundation,,,nathalie.hemeleers@solarimpulse.com,verified,http://www.linkedin.com/in/nathalie-hemeleers-6459b922,,solarimpulse.com
+Robin,Henri,Head of Investment Partnerships,Solar Impulse Foundation,,,robin.henri@solarimpulse.com,verified,http://www.linkedin.com/in/robin-henri,,solarimpulse.com
+Thibault,Bussiere,Director of Digital,Solar Impulse Foundation,,,thibault.bussiere@solarimpulse.com,verified,http://www.linkedin.com/in/thibaultbussiere,,solarimpulse.com
+Romeo,Kitio,Head of Development/Agro.,SOLEVO Group,,,romeo.kitio@solevogroup.com,verified,http://www.linkedin.com/in/rom%c3%a9o-kitio-1b704119,wholesale,solevogroup.com
+Ferdinand,Mouko,Group Managing Director,SOLEVO Group,,,ferdinand.mouko@solevogroup.com,verified,http://www.linkedin.com/in/ferdinand-mouko-28267927,wholesale,solevogroup.com
+Megha,Soni,Associate Director,Solutionec,,,megha.soni@solutionec.com,verified,http://www.linkedin.com/in/megha-soni,management consulting,solutionec.com
+Sriram,Subramani,Chief Strategy and Innovation Officer,Solutionec,,,sriram.subramani@solutionec.com,verified,http://www.linkedin.com/in/sriram-subramani-0821a9a,management consulting,solutionec.com
+Jerome,Trividic,Chief Executive Officer,Spineart,,,jtrividic@spineart.com,verified,http://www.linkedin.com/in/jerometrividic,medical devices,spineart.com
+Aaron,Jennings,Area Sales Director,Spineart,,,ajennings@spineart.com,verified,http://www.linkedin.com/in/aaron-r-jennings-mba-64006542,medical devices,spineart.com
+Kelly,Fairweather,Managing Director,SportAccord,,,kelly.fairweather@sportaccord.sport,verified,http://www.linkedin.com/in/kelly-fairweather-50492916,,sportaccord.sport
+Nathalie,Clerc,Director of Operations,SportAccord,,,nathalie.clerc@sportaccord.sport,verified,http://www.linkedin.com/in/nathalie-clerc-9746455,,sportaccord.sport
+Carlo,Kunkel,"Head of Sales to Sony Mobile, Greater China",ST-Ericsson,,,carlo.kunkel@ericsson.com,verified,http://www.linkedin.com/in/carlokunkel,electrical/electronic manufacturing,stericsson.com
+Nicolas,Keller,Head of Engineering,Stoïk,,,nicolas.keller@stoik.io,verified,http://www.linkedin.com/in/kellernicolas,insurance,stoik.com
+Tristan,Fradet,VP Sales,Stoïk,,,tristan.fradet@stoik.io,verified,http://www.linkedin.com/in/tristan-fradet-51a56577,insurance,stoik.com
+Fabio,Solferini,Chairman of the Board,StoneX CDI,,,fabio.solferini@stonex.com,verified,http://www.linkedin.com/in/fabio-solferini,,cdi-cotton.com
+Ariel,Coelho,Chief Executive Officer,StoneX CDI,,,ariel.coelho@cdi-cotton.com,verified,http://www.linkedin.com/in/ariel-coelho-15323612,,cdi-cotton.com
+Raphael,Morais,Head of Brazil Coffee Trading,StoneX CDI,,,raphael.m@cdi-cotton.com,verified,http://www.linkedin.com/in/raphael-paiva-morais-075514279,,cdi-cotton.com
+Gilles,Wybo,Directeur de la Rédaction à Stratégies,Stratégies,,,gwybo@strategies.fr,verified,http://www.linkedin.com/in/gilleswybo,publishing,strategies.fr
+Louka,Wagon,Directeur de Publicité,Stratégies,,,lwagon@strategies.fr,verified,http://www.linkedin.com/in/louka-wagon-8ba84379,publishing,strategies.fr
+Jonas,Mosse,Program Director,Strategyzer,,,jonas.mosse@strategyzer.com,verified,http://www.linkedin.com/in/jonasmosse,,strategyzer.com
+David,Pires,Head of Growth Marketing,Strategyzer,,,david.pires@strategyzer.com,verified,http://www.linkedin.com/in/growth-marketing-leader,,strategyzer.com
+Marcelo,Costa,Business Partner in Brazil,Strategyzer,,,marcelo.costa@strategyzer.com,verified,http://www.linkedin.com/in/marcelomelgacocosta,,strategyzer.com
+Herve,Coudray,Directeur Technique National Swiss Basketball,Swiss Basketball (Fédération Suisse de Basket),,,herve.coudray@swiss.basketball,verified,http://www.linkedin.com/in/herve-coudray-977762a,civic & social organization,swiss.basketball
+Benjamin,Lavaine,Global Digital Marketing Director,Swiss Education Group,,,blavaine@swisseducation.com,verified,http://www.linkedin.com/in/benjaminlavaine,professional training & coaching,swisseducation.com
+Laurent,Schatzmann,Director of Business Development,Swiss Education Group,,,lschatzmann@swisseducation.com,verified,http://www.linkedin.com/in/schatzmann,professional training & coaching,swisseducation.com
+Ludovic,Cosandey,Lecturer & WOH Director,Swiss Hotel Management School,,,lcosandey@shms.com,verified,http://www.linkedin.com/in/ludovic-cosandey-85986a44,higher education,shms.com
+Sule,Esen,"Academic Administrator, Restaurant Owner",Swiss Hotel Management School,,,sesen@shms.com,verified,http://www.linkedin.com/in/sule-g%c3%bczelce-esen-05701a7b,higher education,shms.com
+Renaud,Divisia,Global CEO at Swiss Perfection,SWISS PERFECTION,,,renaud.divisia@swissperfection.com,verified,http://www.linkedin.com/in/renaud-divisia-88826bb,,swissperfection.com
+Lily,Yang,Chief Financial Officer,SWISS PERFECTION,,,lily.yang@swissperfection.com,verified,http://www.linkedin.com/in/lily-jihyeon-yang-6379702a7,,swissperfection.com
+Dino,Kolak,Chief Operating Officer,Swiss School of Business and Management,,,dino@ssbm.ch,verified,http://www.linkedin.com/in/dinokolak,higher education,ssbm.ch
+Renee,Osmic,Head of Admissions,Swiss School of Business and Management,,,renee@ssbm.ch,verified,http://www.linkedin.com/in/reneegoldsteinosmic1994,higher education,ssbm.ch
+Alexandre,Fazel,Chief Partnership Officer,SwissBorg,,,alexandre.f@swissborg.com,verified,http://www.linkedin.com/in/alexfazel,capital markets,swissborg.com
+Elisha,Camilleri,Tech Talent Partner,SwissBorg,,,elisha.camilleri@swissborg.com,verified,http://www.linkedin.com/in/elishacamilleri1,capital markets,swissborg.com
+Franck,Robinet,Directeur de Région Genève - Responsable Formation Interne,Switzerland Sotheby's International Realty,,,franck.robinet@swsir.ch,verified,http://www.linkedin.com/in/franckrobinetdirecteurregiongvaresponsablep%c3%b4lecarri%c3%a8resformation-90361a54,real estate,switzerland-sothebysrealty.ch
+Edouard,Fragniere,Uhnwi Sales Director,Switzerland Sotheby's International Realty,,,edouard.fragniere@swsir.ch,verified,http://www.linkedin.com/in/edouardfragniere,real estate,switzerland-sothebysrealty.ch
+Imane,Abourabi,Chief Human Resources Officer,Symbiotics,,,imane.abourabi@symbioticsgroup.com,verified,http://www.linkedin.com/in/imane-abourabi-hrexpert,investment management,symbioticsgroup.com
+Roland,Dominice,Group Managing Director,Symbiotics,,,roland.dominice@symbioticsgroup.com,verified,http://www.linkedin.com/in/roland-dominic%c3%a9-24523314,investment management,symbioticsgroup.com
+Bin,Gong,"Managing Director, Synova China",Synova SA,,,bin.gong@synova-asia.com,verified,http://www.linkedin.com/in/bin-gong-871a2126,machinery,synova.ch
+Christian,Bohn,Chief Operating Officer & Group General Counsel,Synova SA,,,christian.bohn@synova.ch,verified,http://www.linkedin.com/in/christian-bohn-a154b28a,machinery,synova.ch
+Celia,Rey,Human Resources Business Partner,TBWA Paris,,,celia.rey@mogul.fr,verified,http://www.linkedin.com/in/c%c3%a9lia-rey-a78b7128,marketing & advertising,mogul.fr
+Jordan,Lemarchand,Senior Art Director,TBWA Paris,,,jordan.lemarchand@tbwa-paris.com,verified,http://www.linkedin.com/in/jordan-lemarchand-45a91189,marketing & advertising,mogul.fr
+Geoffrey,Ibbotson,Executive Director,The Global Surgery Foundation,,,g.ibbotson@globalsurgeryfoundation.org,verified,http://www.linkedin.com/in/geoffrey-ibbotson-89ba89160,philanthropy,globalsurgeryfoundation.org
+Aurelie,Perrichet,Regional Director Europe,The International Fragrance Association (IFRA),,,aperrichet@ifrafragrance.org,verified,http://www.linkedin.com/in/aur%c3%a9lie-perrichet-27496032,,ifrafragrance.org
+Alexander,Mohr,President,The International Fragrance Association (IFRA),,,amohr@ifrafragrance.org,verified,http://www.linkedin.com/in/alexander-mohr-phd-85557823,,ifrafragrance.org
+Charles,Lusignan,Global Communications Director,The International Fragrance Association (IFRA),,,cdelusignan@ifrafragrance.org,verified,http://www.linkedin.com/in/charles-de-lusignan-82864532,,ifrafragrance.org
+Hans,Thoolen,Chair of the Jury of the Award,The Martin Ennals Award,,,thoolen@martinennalsaward.org,verified,http://www.linkedin.com/in/hans-thoolen-b6648b7,,martinennalsaward.org
+Belinda,Mayo,"Director, Marketing and Communications",Tudor Watch,,,belinda.mayo@tudorwatch.com,verified,http://www.linkedin.com/in/belinda-mayo-0981217,consumer goods,tudorwatch.com
+Jerome,Simhon,Head of Digital & Innovation,Tudor Watch,,,jerome.simhon@tudorwatch.com,verified,http://www.linkedin.com/in/jeromesimhon,consumer goods,tudorwatch.com
+Emilie,Ferguson,Art Director,Typology,,,emilie.ferguson@typology.com,verified,http://www.linkedin.com/in/emilie-ferguson-a70656163,cosmetics,typology.com
+Kevin,Nay,Head of Creative,Typology,,,kevin.nay@typology.com,verified,http://www.linkedin.com/in/kevinay,cosmetics,typology.com
+Dario,Liguti,"Director, Energy, Housing & Land Management Division",UNECE - United Nations Economic Commission for Europe,,,dario.liguti@un.org,verified,http://www.linkedin.com/in/dario-liguti,international affairs,unece.org
+Nneka,Henry,Head of UN Road Safety Fund and Office of the UN Secretary-General's Special Envoy for Road Safety,UNECE - United Nations Economic Commission for Europe,,,nneka.henry@un.org,verified,http://www.linkedin.com/in/nnekahenry,international affairs,unece.org
+Alessandra,Nepomuceno,Senior HR Business Partner,United People Global,,,alessandra.nepomuceno@unitedpeople.global,verified,http://www.linkedin.com/in/alessandra-nepomuceno-723421151,philanthropy,unitedpeople.global
+Ramit,Bose,"Director, Head of Initiatives",United People Global,,,ramit.bose@unitedpeople.global,verified,http://www.linkedin.com/in/ramitbose,philanthropy,unitedpeople.global
+Gregoire,Zimmermann,Director,Valimmobilier SA,,,g.zimmermann@valimmobilier.ch,verified,http://www.linkedin.com/in/gr%c3%a9goire-zimmermann-82483545,,valimmobilier.ch
+David,Selakovic,Chief Executive Officer,Vegalab,,,dds@vegalab.com,verified,http://www.linkedin.com/in/davidselakovic,,vegalab.com
+Paul,Hackett,Partner - Director of Growth,Vegalab,,,paul.hackett@vegalab.com,verified,http://www.linkedin.com/in/paul-hackett-b824603,,vegalab.com
+Stephane,Bieri,Director,Vernis Claessens SA,,,stephane.bieri@claessens.com,verified,http://www.linkedin.com/in/st%c3%a9phane-bieri-0556606,chemicals,claessens.com
+Farah,Jawitz,Director of Strategy & Business Development,Vestergaard,,,fa@vestergaard.com,verified,http://www.linkedin.com/in/fjawitz,,vestergaard.com
+Amar,Ali,Chief Executive Officer,Vestergaard,,,aa@vestergaard.com,verified,http://www.linkedin.com/in/amarali,,vestergaard.com
+Patrick,Sieyes,Director of Strategic Partnerships and External Affairs,Vestergaard,,,ps@vestergaard.com,verified,http://www.linkedin.com/in/patrick-sieyes-93646b2,,vestergaard.com
+Olivier,Mivelaz,Head of IT Department,Ville de Gland,,,o.mivelaz@gland.ch,verified,http://www.linkedin.com/in/olivier-m-b893491,nonprofit organization management,gland.ch
+Dorian,Nahoun,Régisseur Lumière,Ville de Gland,,,d.nahoun@gland.ch,verified,http://www.linkedin.com/in/dorian-nahoun-2761aa27,nonprofit organization management,gland.ch
+Laure,Hauswirth,Head of Human Resources,Ville de Morges,,,laure.hauswirth@morges.ch,verified,http://www.linkedin.com/in/laure-hauswirth-a589b814,government administration,morges.ch
+David,Fernandez,Chef de Service,Ville de Morges,,,david.fernandez@morges.ch,verified,http://www.linkedin.com/in/david-fernandez-5b638755,government administration,morges.ch
+Michel,Burgisser,Secretary General,Ville de Vernier,,,michel.burgisser@vernier.ch,verified,http://www.linkedin.com/in/michel-burgisser-06972b17,government administration,vernier.ch
+Dimitra,Karathanasi,HR Business Partner,Vipa Group,,,dimitra.karathanasi@vipagroup.com,verified,http://www.linkedin.com/in/dimitra-karathanasi-43961a183,wholesale,vipagroup.com
+Konstantinos,Kritikopoulos,Director of P&B-Pulp Division,Vipa Group,,,konstantinos.kritikopoulos@vipagroup.com,verified,http://www.linkedin.com/in/konstantinos-kritikopoulos-57797140,wholesale,vipagroup.com
+Val,Gorshkov,President,VIRA DRONES,,,valeriy@viradrones.com,verified,http://www.linkedin.com/in/val-gorshkov,,viradrones.com
+Joelle,Pitton,Co-directrice - Administration et Finance,Visar Sorting,,,j.pitton@visar-sorting.com,verified,http://www.linkedin.com/in/jo%c3%ablle-pitton-a5007061,,visar-sorting.com
+Tim,Weidmann,Chief Commercial Officer (CCO),Voltimum,,,tim.weidmann@voltimum.com,verified,http://www.linkedin.com/in/tim-weidmann,,voltimum.com
+Eddie,Embleton,Managing Director UK & International,Voltimum,,,eddie.embleton@voltimum.com,verified,http://www.linkedin.com/in/eddieembleton,,voltimum.com
+Max,Wood,Head of Marketing,Voltimum,,,max.wood@voltimum.com,verified,http://www.linkedin.com/in/max-wood-46a252169,,voltimum.com
+Diane,Holdorf,Executive Vice President,WBCSD – World Business Council for Sustainable Development,,,holdorf@wbcsd.org,verified,http://www.linkedin.com/in/diane-holdorf,management consulting,wbcsd.org
+Joe,Phelan,"Executive Director, Asia Pacific",WBCSD – World Business Council for Sustainable Development,,,phelan@wbcsd.org,verified,http://www.linkedin.com/in/joepphelan,management consulting,wbcsd.org
+Elsa,Triboul,Head of Customer Experience,Wecasa,,,elsa.triboul@wecasa.fr,verified,http://www.linkedin.com/in/elsatriboul,individual & family services,wecasa.fr
+Lea,Fergui,VP People (DRH),Wecasa,,,lea@wecasa.fr,verified,http://www.linkedin.com/in/l%c3%a9a-fergui-497474b4,individual & family services,wecasa.fr
+Peter,Prove,"Director, Commission of the Churches on International Affairs",World Council of Churches,,,peter.prove@wcc-coe.org,verified,http://www.linkedin.com/in/peter-prove-55973532,,oikoumene.org
+Marianne,Ejdersten,Director of Communication,World Council of Churches,,,marianne.ejdersten@wcc-coe.org,verified,http://www.linkedin.com/in/marianne-ejdersten-1b708a73,,oikoumene.org
+Kuzipa,Nalwamba,Program Director for Unity and Mission & Ecumenical Formation,World Council of Churches,,,kuzipa.nalwamba@wcc-coe.org,verified,http://www.linkedin.com/in/kuzipa-nalwamba-498256a,,oikoumene.org
+Yasemin,Wenzel,Head of Partnerships and Marketing,World Gymnastics,,,ywenzel@fig-gymnastics.org,verified,http://www.linkedin.com/in/yasemin-bay-wenzel-603bb01b6,,gymnastics.sport
+Patrick,Rodrigues,Head of Administration & Licence Manager,World Gymnastics,,,prodrigues@fig-gymnastics.org,verified,http://www.linkedin.com/in/patrick-rodrigues-a4ba90136,,gymnastics.sport
+Joel,Zirmer,Head of IT,World Gymnastics,,,jzirmer@fig-gymnastics.org,verified,http://www.linkedin.com/in/joel-zirmer-53b373a7,,gymnastics.sport
+Roberta,Boscolo,"Head, Climate and Energy Unit",World Meteorological Organization,,,rboscolo@wmo.int,verified,http://www.linkedin.com/in/roberta-boscolo-89247216,research,wmo.int
+Petteri,Taalas,Secretary General,World Meteorological Organization,,,sgomm@wmo.int,verified,http://www.linkedin.com/in/petteri-taalas-8439a61a,research,wmo.int
+Olalla,Cernuda,Head of Media and Communications,World Triathlon,,,olalla.cernuda@triathlon.org,verified,http://www.linkedin.com/in/olalla-cernuda-3335515,international affairs,triathlon.org
+Kris,Gemmell,Head of Marketing & Commercial,World Triathlon,,,kris.gemmell@triathlon.org,verified,http://www.linkedin.com/in/kris-gemmell-2330b768,international affairs,triathlon.org
+Pape,Dieng,Director of Intellectual Property,Wyss Geneva,,,pape.dieng@wysscenter.ch,verified,http://www.linkedin.com/in/pape-s-dieng,,wysscenter.ch
+Erwin,Boettinger,Director,Wyss Geneva,,,erwin.bottinger@wysscenter.ch,verified,http://www.linkedin.com/in/erwin-b%c3%b6ttinger-8b3524138,,wysscenter.ch
+Tracy,Laabs,Head of Innovation and Strategic Partnerships | Chief Development Officer,Wyss Geneva,,,tracy.laabs@wysscenter.ch,verified,http://www.linkedin.com/in/tracylaabs,,wysscenter.ch
+Jacques-Olivier,Schatz,CEO / Président,Xpollens,,,jacques-olivier.schatz@xpollens.com,verified,http://www.linkedin.com/in/jacques-olivier-schatz-b3062720,financial services,xpollens.com
+Olivia,Tamvakis,Chief HR Officer,Xpollens,,,olivia.tamvakis@xpollens.com,verified,http://www.linkedin.com/in/olivia-tamvakis-1b76b732,financial services,xpollens.com
+Habib,Hjiaj,CEO,Yellowrock SA,,,habib.hjiaj@yellowrock.com,verified,http://www.linkedin.com/in/habib-h-6bb43359,,yellowrock.com
+Claudio,Eichenberger,CEO,YourShop,,,cei@yourshop.com,verified,http://www.linkedin.com/in/yourshop,,yourshop.com
+Roman,Zurbriggen,Managing Director,Zurbriggen AG,,,roman.zurbriggen@zurbriggen.net,verified,http://www.linkedin.com/in/roman-zurbriggen-25662695,,zurbriggen.net
+Sukru,Yilmaz,Owner Representative for Suezmax and LR1 Tankers at South Korea and Japan Shipyards.,Advantage Tankers,,,,unavailable,http://www.linkedin.com/in/sukru-yilmaz-b993bb50,,advantagetankers.com
+Fabien,Courvoisier,Directeur Général Afiro,Afiro,,,,unavailable,http://www.linkedin.com/in/fabien-courvoisier-872a7a33,,afiro.ch
+Maurizio,Cappiello,Senior Sales Director,AIRESIS SA,,,,unavailable,http://www.linkedin.com/in/maurizio-cappiello-a73611194,,airesis.com
+Hanjing,Xie,Chief Medical Officer,Amal Therapeutics,,,,unavailable,http://www.linkedin.com/in/hanjing-xie-49a877106,,amaltherapeutics.com
+Marie-Laure,Santiago-Raber,Early Development Head,Amal Therapeutics,,,,unavailable,http://www.linkedin.com/in/marie-laure-santiago-raber-9369186a,,amaltherapeutics.com
+Delphine,Knittel,Head of Operations,Amal Therapeutics,,,,unavailable,http://www.linkedin.com/in/delphine-knittel-4a389389,,amaltherapeutics.com
+Elaine,Thomas,Teacher/Assistant Director,Anglais 4x Plus Vite!,,,,unavailable,http://www.linkedin.com/in/elaine-thomas-10953a36,,anglais4xplusvite.ch
+Abbas,Hussain,Chairman,Asceneuron SA,,,,unavailable,http://www.linkedin.com/in/abbas-hussain-270301219,,asceneuron.com
+Rajvee,Shah,Director,Association Chocolate,,,rajvee.shah@chocolate-festival.ch,extrapolated,http://www.linkedin.com/in/rajvee-shah-49636833,,chocolate-festival.ch
+Maria,Damas,Owner,Association Chocolate,,,,unavailable,http://www.linkedin.com/in/mar%c3%ada-beatriz-damas-51578a80,,chocolate-festival.ch
+Bobby,Frank,Owner,Association Chocolate,,,,unavailable,http://www.linkedin.com/in/bobby-frank-46325bb5,,chocolate-festival.ch
+Ruby,Siah,Managing Director,Beaubelle,,,,unavailable,http://www.linkedin.com/in/rubysiahsk,,beaubelle.com
+Ali-Zinar,Polater,Managing Partner,Boutique Polater,,,,unavailable,http://www.linkedin.com/in/ali-zinar-polater-570b46140,,mariageboutique.ch
+Martina,Novotna,President | BPW Slovakia (affiliated With BPW International),BPW International,,,martina.novotna@bpw-international.org,extrapolated,http://www.linkedin.com/in/novotnamartina,civic & social organization,bpw-international.org
+Amara,Kumajabi,Chief Executive Officer,Careers at UN and NGOs,,,,unavailable,http://www.linkedin.com/in/amara-kumajabi-b70567256,nonprofit organization management,unitednationsjobstoday.com
+Patrick,Favre,Director,CEP Formation,,,,unavailable,http://www.linkedin.com/in/patrick-favre-9394aa69,higher education,cep.swiss
+Isolina,Baladon,Maestra Directora,CEP Formation,,,,unavailable,http://www.linkedin.com/in/isolina-balad%c3%b3n-b01a51104,higher education,cep.swiss
+Taher,Fazeli,Chairman,CES - Creative Electronic Systems,,,,unavailable,http://www.linkedin.com/in/taher-fazeli-25444b44,,ces-swap.com
+Quan,Chu,Vice Director,CITES,,,quan.chu@cites.org,extrapolated,http://www.linkedin.com/in/quan-chu-b176b6115,environmental services,cites.org
+Anne,Heighway,Board Member,CITES,,,,unavailable,http://www.linkedin.com/in/anne-heighway-14589916,environmental services,cites.org
+Murat,Argun,Business Partner & Ambassador Türkiye,COMMODITY TRADING CLUB,,,,unavailable,http://www.linkedin.com/in/murat-s-argun-b14261b4,international trade & development,commoditytrading.club
+Richard,Hattingh,Sales Director,COMMODITY TRADING CLUB,,,,unavailable,http://www.linkedin.com/in/richard-hattingh-2b3613135,international trade & development,commoditytrading.club
+Carine,Delorme,Head of Cultural Department at Commune de Plan-les-Ouates,Commune de Plan-les-Ouates,,,d.carine@plan-les-ouates.ch,extrapolated,http://www.linkedin.com/in/carine-delorme-95b1782,medical devices,plan-les-ouates.ch
+Nelson,Martins,Campus Director,Culinary Arts Academy Switzerland,,,,unavailable,http://www.linkedin.com/in/nelson-martins-404a1862,professional training & coaching,culinaryartsswitzerland.com
+Denise,Luca,Director of PR,de GRISOGONO,,,,unavailable,http://www.linkedin.com/in/denise-de-luca-03bbbb13,,degrisogono.com
+Steve,Shonebarger,Vice President Wholesale USA,de GRISOGONO,,,,unavailable,http://www.linkedin.com/in/steve-shonebarger-40393464,,degrisogono.com
+Lisa,Klein,President,de GRISOGONO,,,,unavailable,http://www.linkedin.com/in/lisa-klein-379ba6149,,degrisogono.com
+David,Hanf,Chief Financial Officer,DePoly,,,,unavailable,http://www.linkedin.com/in/dhanf,,depoly.co
+Francois,Dormoy,Director,DKMA,,,,unavailable,http://www.linkedin.com/in/fran%c3%a7ois-dormoy-06439012,,dkma.com
+Catherine,Harmel,Director,DKMA,,,,unavailable,http://www.linkedin.com/in/catherine-harmel-94a36812,,dkma.com
+Jan,Outters,Commercial Module Chair,DVB Project,,,outters@dvb.org,extrapolated,http://www.linkedin.com/in/jan-outters-3390951,,dvb.org
+Nazanin,Nikanjam,Head of Product,EdQwest,,,,unavailable,http://www.linkedin.com/in/nazanin-nikanjam-125353103,,edqwest.com
+Jeremy,Schmidt,Deputy Director,EGS Sécurité SA,,,,unavailable,http://www.linkedin.com/in/jeremy-schmidt-886204337,security & investigations,egs.ch
+Daniel,Braun,CEO / COO Emeis Suisse,emeis Suisse,,,,unavailable,http://www.linkedin.com/in/daniel-braun-7b92b6132,other,emeis.ch
+Andrea,Censi,Financial Director,emeis Suisse,,,,unavailable,http://www.linkedin.com/in/andrea-di-censi-6498272a,other,emeis.ch
+Massimo,Ceccaroni,Head Youth Academy at FC Lausanne Sport / Switzerland,FC Lausanne-Sport,,,,unavailable,http://www.linkedin.com/in/massimo-ceccaroni-8318a5a1,,lausannne-sport.ch
+Sofian,Saudan,Entraîneur-chef,FC Lausanne-Sport,,,,unavailable,http://www.linkedin.com/in/sofian-saudan-11555b2a2,,lausannne-sport.ch
+Sebastien,Bertrand,U15 Head Coach,FC Lausanne-Sport,,,,unavailable,http://www.linkedin.com/in/s%c3%a9bastien-bertrand-04b1481a5,,lausannne-sport.ch
+Farid,Saffarzadeh,Vice President,FIATA International Federation of Freight Forwarders Associations,,,,unavailable,http://www.linkedin.com/in/farid-saffarzadeh-6518833a,,fiata.org
+Jean,Amsler,Artistic Director,Fogal,,,,unavailable,http://www.linkedin.com/in/jean-luc-amsler-234b5438,,fogal.com
+Anna,Batsilas,Group Chief Financial Officer & Member of the Board Executive,Fogal,,,,unavailable,http://www.linkedin.com/in/anna-batsilas-92573293,,fogal.com
+Yating,Zhu,Chief Executive Officer,Fogal,,,,unavailable,http://www.linkedin.com/in/samuelmamanizuazo,,fogal.com
+Carmine,Cioffi,Directeur des Prestations Secondaires - Ecoles et Centres de Formation TEM et TEM+,Fondation de Verdeil,,,carmine.cioffi@verdeil.ch,extrapolated,http://www.linkedin.com/in/carmine-cioffi-49b4a253,higher education,verdeil.ch
+Pierre-Yves,Hocke,Managing Director,Fool Moon Sportswear Sarl,,,,unavailable,http://www.linkedin.com/in/pierre-yves-hocke-94912a26,,fool-moon.com
+Alain,Dubois,Managing Partner,Fool Moon Sportswear Sarl,,,,unavailable,http://www.linkedin.com/in/alain-dubois-8298b722,,fool-moon.com
+Pamela,Johnson,CEO,Fool Moon Sportswear Sarl,,,,unavailable,http://www.linkedin.com/in/pamela-johnson-a25b7a133,,fool-moon.com
+Chretien,Noumsi,Owner,Formavision,,,,unavailable,http://www.linkedin.com/in/chretien-noumsi-b9161b22,professional training & coaching,organisme-formavision.com
+Steve,Brayshaw,Studio Director,Formavision,,,,unavailable,http://www.linkedin.com/in/steve-brayshaw-07147a17b,professional training & coaching,organisme-formavision.com
+Miguel,Payro,Chief Financial Officer,GeNeuro SA,,,,unavailable,http://www.linkedin.com/in/miguel-payr%c3%b3-2427a2b,,geneuro.com
+Perron,Herve,Chief Scientific Officer and Site Director,GeNeuro SA,,,,unavailable,http://www.linkedin.com/in/perron-herv%c3%a9-9270931b,,geneuro.com
+Yves,Leterme,Co Chair European Division,Global Coalition for Efficient Logistics (GCEL),,,,unavailable,http://www.linkedin.com/in/yves-leterme-4ab6101b8,,gcel.net
+Captain,Salloum,Chairman,Global Coalition for Efficient Logistics (GCEL),,,,unavailable,http://www.linkedin.com/in/captain-samuel-salloum-a9b92423,,gcel.net
+Elio,Pacilio,Board Member,Green Cross International,,,,unavailable,http://www.linkedin.com/in/elio-pacilio-3319b37,,gcint.org
+Thierno,Diallo,Deputy Head of Mission,Green Cross International,,,,unavailable,http://www.linkedin.com/in/thierno-diallo-849225188,,gcint.org
+Maria,Vitagliano,Deputy Director,Green Cross International,,,,unavailable,http://www.linkedin.com/in/maria-vitagliano-91987bb,,gcint.org
+Christian,Schmidt,Head of Sales,Green Motion SA,,,,unavailable,http://www.linkedin.com/in/christian-schmidt-b5450828,,greenmotion.ch
+Nicolas,Schurter,Deputy Director,Gymnase de Burier,,,,unavailable,http://www.linkedin.com/in/nicolas-schurter-03b1b214,education management,gymnasedeburier.ch
+Suzanne,Peters,Director,Gymnase de Burier,,,,unavailable,http://www.linkedin.com/in/suzanne-peters-302bb4154,education management,gymnasedeburier.ch
+Munna,Thakur,Business Owner,HAIR & SKIN,,,,unavailable,http://www.linkedin.com/in/munna-kumar-thakur-913b14260,hospital & health care,hairskin.com
+Henry,Nnamdi,Business Owner,HAIR & SKIN,,,,unavailable,http://www.linkedin.com/in/henry-nnamdi-8b614a309,hospital & health care,hairskin.com
+Fanny,Quiquerez,Head Librarian,Haute école de santé de Genève,,,,unavailable,http://www.linkedin.com/in/fannyquiquerez,hospital & health care,heds-geneve.ch
+Thi,Van Nguyen,Chair of the HbbTV Testing Group,HbbTV Association,,,vannguyen@hbbtv.org,extrapolated,http://www.linkedin.com/in/thi-thanh-van-nguyen-03985188,,hbbtv.org
+Katherine,Hyvaerinen,"CEO of HLT ; English, French, German Business Language Coach",HLT - Hyvarinen Language Training,,,,unavailable,http://www.linkedin.com/in/katherinehyvarinen-59999439,,hltsuisse.com
+Paul,Kennes,President,Horizons Nouveaux SA,,,,unavailable,http://www.linkedin.com/in/paul-kennes-33399423,,horizonsnouveaux.swiss
+Christine,Darve,Chair,International Union of Pure and Applied Physics (IUPAP),,,,unavailable,http://www.linkedin.com/in/christine-darve-8ba24617,,iupap.org
+Niloofar,Jokar,Past-Chair of Affiliated Commission 5 (AC5),International Union of Pure and Applied Physics (IUPAP),,,,unavailable,http://www.linkedin.com/in/niloofar-jokar-449295224,,iupap.org
+Michel,Spiro,Past President International Union of Pure and Applied Physics,International Union of Pure and Applied Physics (IUPAP),,,,unavailable,http://www.linkedin.com/in/michel-spiro-010ab7142,,iupap.org
+Mamadou,Diouf,Founding Director,INVEST,,,,unavailable,http://www.linkedin.com/in/mamadou-diouf-b31150210,investment management,inves7.com
+Yves,Joseph,CIO,INVEST,,,,unavailable,http://www.linkedin.com/in/yves-joseph-0b6a5758,investment management,inves7.com
+Arnold,Dix,President ITA,ITA-AITES,,,,unavailable,http://www.linkedin.com/in/arnold-dix-38143a13,,ita-aites.org
+Anahita,Ali,Associate Program Director of Public Health (Remote),James Lind Institute,,,,unavailable,http://www.linkedin.com/in/dranahitaali,,jliedu.ch
+N,P,Director of Administration,James Lind Institute,,,,unavailable,http://www.linkedin.com/in/nppp,,jliedu.ch
+Kaya,Gaut,Owner of Petcare LLC Which Cares,Kaya,,,kaya@kaya.io,extrapolated,http://www.linkedin.com/in/kaya-gaut-23115b16,consumer goods,kaya.io
+Shane,Brosse,Head of Operations / Project Manager (production and Post-production Manager),L'Objectif,,,,unavailable,http://www.linkedin.com/in/shanedelabrosse,other,filmperegirard.ch
+Theophile,Bodrug,Réalisateur Vidéo / Chef Opérateur / Photographe,L'Objectif,,,,unavailable,http://www.linkedin.com/in/theophilebodrug,other,filmperegirard.ch
+Jan,Freund,Mitglied des Verwaltungsrates,Lauchernalp Bergbahnen AG,,,,unavailable,http://www.linkedin.com/in/jan-michael-freund-ab60a2116,,loetschental.ch
+Caroline,Raffner,Presidente du Conseil d'Administration,Lauener & Cie SA,,,,unavailable,http://www.linkedin.com/in/caroline-raffner-56a64061,,lauener.ch
+Anne,Bayle-Iniguez,Rédactrice en Chef Adjointe,Le Quotidien du Médecin,,,,unavailable,http://www.linkedin.com/in/anne-bayle-iniguez-b67b748,publishing,lequotidiendumedecin.fr
+Alexis,Dewavrin,"Journaliste-Réalisateur - Responsable des Émissions ""Médecine Augmentée"" et ""Au Rayon X""",Le Quotidien du Médecin,,,,unavailable,http://www.linkedin.com/in/alexis-dewavrin-8a880a60,publishing,lequotidiendumedecin.fr
+Vadim,Ostapetz,Head Waiter,Le Richemond,,,,unavailable,http://www.linkedin.com/in/vadim-ostapetz-33641714a,,lerichemond.com
+Clement,Foll,Enseignant Associé (MAST),Le Temps,,,clement.foll@letemps.ch,extrapolated,http://www.linkedin.com/in/clement-le-foll-39b6a0b8,publishing,letemps.ch
+Fabio,Pierro,CEO,Luxury Society,,,,unavailable,http://www.linkedin.com/in/fabio-don%c3%a1-pierro-043384a5,,luxurysociety.com
+William,Mulroy,President,MAGTROL Group,,,,unavailable,http://www.linkedin.com/in/william-mulroy-a75609a,,magtrol.com
+Toni,Puig Juan,Executive Director,Mallorca Horses,,,,unavailable,http://www.linkedin.com/in/toni-puig-juan-aa7940195,,mallorcahorses.com
+Emmanuel,Marendaz,Director,Manuplast SA,,,,unavailable,http://www.linkedin.com/in/emmanuel-marendaz-9abb80372,,manuplast.ch
+Jordan,Bocaert,Head of Physiotherapy,MAZ Clinic,,,,unavailable,http://www.linkedin.com/in/jordan-bocaert,,mazclinic.com
+Jean-Francois,Gailloud,Président de la Fondation MAG,Montreux Art Gallery,,,,unavailable,http://www.linkedin.com/in/jean-fran%c3%a7ois-gailloud-53970020,,mag-swiss.com
+Oisin,Harbitz,Ski Lounge Director,Mountain Air Verbier,,,oisin@mountainairverbier.com,extrapolated,http://www.linkedin.com/in/oisin-harbitz-hennessy,,mountainairverbier.com
+Wolfgang,Dolder,Regisseur de Scène,Orchestre de la Suisse Romande,,,dolder@osr.ch,extrapolated,http://www.linkedin.com/in/wolfgang-dolder,,osr.ch
+Henry,Legarre,Chief Operating Officer,Oryx Petroleum,,,,unavailable,http://www.linkedin.com/in/henry-legarre-b1549311,,forzapetroleum.com
+Zane,Aardvark,Test,Outsight,,,zane.aardvark+seed@example.com,,,information technology & services,outsight.ai
+Yara,Borealis,Test,Outsight,,,yara.borealis+seed@example.com,,,information technology & services,outsight.ai
+Pareto,Solutions,CEO,Pareto Solutions,,,,unavailable,http://www.linkedin.com/in/pareto-solutions-766705135,,pareto-solutions.com
+Laurent,Guillaume,Directeur Général,Peak Partners SA,,,,unavailable,http://www.linkedin.com/in/laurent-guillaume-9192b86a,,peakpartners.com
+Teresa,Malone,Owner,Peak Partners SA,,,,unavailable,http://www.linkedin.com/in/teresa-malone-a366026,,peakpartners.com
+Hans-Peter,Rohner,Chairman of the Board of Directors,PubliGroupe,,,,unavailable,http://www.linkedin.com/in/hans-peter-rohner-6369a9b,,publigroupe.com
+Xavier,Paternot,Managing Partner,Renaissance Foundation & Management,,,,unavailable,http://www.linkedin.com/in/xavier-paternot-31a26719,,renaissance.swiss
+Delphine,Donze,Directrice D’investissement,Renaissance Foundation & Management,,,,unavailable,http://www.linkedin.com/in/delphine-donz%c3%a9-a9810892,,renaissance.swiss
+Isabelle,Crespin,Présidente du Réseau Romand des Soins Durables,Réseau romand pour des soins durables,,,,unavailable,http://www.linkedin.com/in/isabelle-da-ernestho-crespin,,rrsd.ch
+Khim,Khim,Head Cook,Resense Spa S.A.,,,khim.khim@resensespas.com,extrapolated,http://www.linkedin.com/in/khim-karki-khim-5247311b5,,resensespas.com
+Adrian,Riedo,Owner,RNX,,,,unavailable,http://www.linkedin.com/in/adrian-riedo,,rnx.com
+Robert,Daniel,Technical Director,SGX Sensortech,,,,unavailable,http://www.linkedin.com/in/robert-daniel-56793671,electrical/electronic manufacturing,sgxsensortech.com
+JQ,Woo,Business Development Director,Solaronix,,,,unavailable,http://www.linkedin.com/in/jq-woo-664574121,,solaronix.com
+Sarah,Chen,VP Engineering,Spineart,,,sarah.chen+seed@spineart.com,,,medical devices,spineart.com
+Lucia,Molnar,Business Development and Partner Relations Coordinator,SportAccord,,,,unavailable,http://www.linkedin.com/in/lmm23,,sportaccord.sport
+Marc,Maillard,CFO,ST-Ericsson,,,,unavailable,http://www.linkedin.com/in/marc-maillard-9aaa29ab,electrical/electronic manufacturing,stericsson.com
+Valere,Bula,"Adjoint Chef de Service Economie, Culture et Tourisme",Swiss Basketball (Fédération Suisse de Basket),,,,unavailable,http://www.linkedin.com/in/val%c3%a8re-bula-56bb83b9,civic & social organization,swiss.basketball
+Abdel,Muhamat,Vice-président de la Fondation MAE,The Martin Ennals Award,,,,unavailable,http://www.linkedin.com/in/abdel-aziz-muhamat-864936184,,martinennalsaward.org
+Manon,Karatas,Director,The Martin Ennals Award,,,,unavailable,http://www.linkedin.com/in/manon-karatas-7039b4107,,martinennalsaward.org
+Jad,Echehayeb,Business Owner,TutorsPlus,,,,unavailable,http://www.linkedin.com/in/jad-e-chehayeb-md-99a738a5,,tutorsplus.com
+Mary,Gannon,Director of Operations,Vegalab,,,,unavailable,http://www.linkedin.com/in/mary-beth-gannon-69171920,,vegalab.com
+Pedro,Silva,CEO / Pdg,Vernis Claessens SA,,,,unavailable,http://www.linkedin.com/in/pedrojuliosilva,chemicals,claessens.com
+Gian-Reto,Agramunt,Mayor of the City of Vernier and Executive Director,Ville de Vernier,,,a.gian-reto@vernier.ch,extrapolated,http://www.linkedin.com/in/gian-reto-agramunt-a8908052,government administration,vernier.ch
+Garry,Maslov,Chief Technology Officer,VIRA DRONES,,,,unavailable,http://www.linkedin.com/in/igor-maslov,,viradrones.com
+Garry,Mallow,Deputy Chief Technology Officer,VIRA DRONES,,,,unavailable,http://www.linkedin.com/in/garry-mallow-30bbb7264,,viradrones.com
+Vivica,Kouroupi,Owner,Vivid Pilates,,,,unavailable,http://www.linkedin.com/in/vivica-kouroupi-87217367,,vividpilates.com
+Keith,Alverson,"Executive Director, Climate and Cryosphere International Project Office",World Climate Research Programme (WCRP),,,,unavailable,http://www.linkedin.com/in/keithalverson,,wcrp-climate.org
+Chris,Lennard,Co-Chair World Climate Rearch Programme Academy Lighthouse,World Climate Research Programme (WCRP),,,,unavailable,http://www.linkedin.com/in/chris-lennard-786b0147,,wcrp-climate.org
+Naomi,Goldenson,"Director, Regional Information for Society (RIfS) International Project Office",World Climate Research Programme (WCRP),,,,unavailable,http://www.linkedin.com/in/naomig,,wcrp-climate.org
+Kevin,Na,Event Director,World Series of Boxing,,,,unavailable,http://www.linkedin.com/in/kevin-na-2a205027,,worldseriesboxing.com

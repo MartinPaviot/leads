@@ -45,6 +45,7 @@ import {
   UserPlus,
   Swords,
   Target,
+  ChevronDown,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { CompanyLogo } from "@/components/ui/company-logo";
@@ -330,6 +331,19 @@ export function PreCallBrief({
     approach?.openingLine?.trim() ||
     `« Bonjour ${firstName}, Martin de Elevay — j'ai 30 secondes ? »`;
 
+  // Pre-call hero — the three things to know in the 5 seconds before dialing.
+  // The dense dossier (score, facts, history, deals) collapses beneath it.
+  const [showDossier, setShowDossier] = useState(false);
+  const whyNow =
+    selected.latestSignal?.label ||
+    "Intent élevé d'après le profil — pas de signal temps réel identifié.";
+  const whatTheyCare =
+    approach?.messagingAngle?.trim() ||
+    (dossier?.hiringSignals && dossier.hiringSignals.length > 0
+      ? `Recrute ${dossier.hiringSignals[0].role}`
+      : `Priorités d'un(e) ${selected.title ?? "décideur"}`);
+  const theAsk = "Décrocher 15 min de découverte cette semaine.";
+
   // What's still worth pulling before the call — honest gap list.
   const gaps: string[] = [];
   if (!focal?.email && !brainLoading) gaps.push("Email direct introuvable");
@@ -339,67 +353,89 @@ export function PreCallBrief({
   if (selected.accessibilityScore <= 0.5) gaps.push("Numéro non qualifié (standard probable)");
 
   return (
-    <div className="mx-auto max-w-3xl p-6 space-y-6">
-      {/* Score hero */}
-      <div className="flex items-center gap-5 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4">
-        <ScoreRing value={selected.score * 100} />
-        <div className="flex-1 min-w-0 grid grid-cols-3 gap-x-5 gap-y-2">
-          <MiniBar label="Intent" value={selected.intentScore} />
-          <MiniBar label="Joignabilité" value={selected.accessibilityScore} />
-          <MiniBar label="Poids deal" value={Math.min(1, selected.dealValueWeight / 2)} />
+    <div className="mx-auto max-w-3xl space-y-5 p-6">
+      {/* ── Hero: the line to say, then why now / what they care about / the ask ── */}
+      <div className="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
+        <div className="p-4" style={{ background: "rgba(99,102,241,.06)" }}>
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide" style={{ color: "rgb(79,70,229)" }}>
+            <MessageSquare className="h-3.5 w-3.5" />
+            Accroche à dire
+          </div>
+          <p className="mt-1.5 text-[15px] italic leading-snug text-zinc-800 dark:text-zinc-100">{opener}</p>
+        </div>
+        <div
+          className="divide-y divide-zinc-100 dark:divide-zinc-800"
+          style={{ borderTop: "1px solid var(--color-border-default)" }}
+        >
+          <HeroBullet icon={Sparkles} label="Pourquoi maintenant" value={whyNow} trend={focal?.intentTrend ?? null} />
+          <HeroBullet icon={Target} label="Ce qui compte pour eux" value={whatTheyCare} />
+          <HeroBullet icon={Phone} label="L'objectif de l'appel" value={theAsk} />
         </div>
       </div>
 
-      {/* Pourquoi maintenant */}
-      <div
-        className="rounded-xl p-4"
-        style={{ background: "rgba(99,102,241,.06)", border: "1px solid rgba(99,102,241,.20)" }}
-      >
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide" style={{ color: "rgb(79,70,229)" }}>
-          <Sparkles className="h-3.5 w-3.5" />
-          Pourquoi maintenant
-        </div>
-        <div className="mt-1.5 flex items-center justify-between gap-3">
-          <p className="text-sm text-zinc-800 dark:text-zinc-200">
-            {selected.latestSignal
-              ? selected.latestSignal.label
-              : "Score d'intent élevé sur la base du profil — pas de signal temps réel identifié."}
-          </p>
-          {focal?.intentTrend && <IntentTrend trend={focal.intentTrend} />}
-        </div>
-      </div>
-
-      {/* Quick facts */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Fact icon={Clock} label="Heure locale" value={`${selected.localTime}`} sub={selected.localTimezone.split("/")[1] ?? selected.localTimezone} />
-        <Fact icon={Phone} label="Numéro" value={selected.phone} />
-        <Fact icon={Briefcase} label="Poste" value={selected.title ?? "—"} />
-        <Fact icon={Mail} label="Email" value={focal?.email ?? (brainLoading ? "…" : "—")} />
-      </div>
-
-      {focal?.isChampion && (
-        <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium" style={{ background: "rgba(217,119,6,.10)", color: "rgb(180,83,9)" }}>
-          <Crown className="h-3.5 w-3.5" />
-          Champion identifié chez {selected.companyName ?? "le compte"}
-        </div>
+      {/* Gaps to enrich — actionable, stays visible above the collapsed dossier */}
+      {gaps.length > 0 && (
+        <Section icon={Search} title="À enrichir avant l'appel" count={gaps.length}>
+          <div className="flex flex-wrap gap-1.5">
+            {gaps.map((g, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px]"
+                style={{ background: "var(--color-bg-hover)", color: "var(--color-text-tertiary)" }}
+              >
+                <AlertTriangle className="h-3 w-3" />
+                {g}
+              </span>
+            ))}
+          </div>
+          {onEnrich && (
+            <button
+              onClick={onEnrich}
+              disabled={enriching}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-[13px] font-medium text-white transition hover:bg-indigo-700 disabled:opacity-60"
+            >
+              <Zap className="h-3.5 w-3.5" />
+              {enriching ? "Enrichissement…" : "Enrichir email & téléphone"}
+            </button>
+          )}
+        </Section>
       )}
 
-      {/* Playbook opener */}
-      <Section icon={MessageSquare} title="Ouverture suggérée">
-        <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
-          <p className="text-sm italic text-zinc-700 dark:text-zinc-300">{opener}</p>
-          {(approach?.messagingAngle || selected.latestSignal) && (
-            <p className="mt-2 text-[12px] text-zinc-500">
-              {approach?.messagingAngle
-                ? `Angle: ${approach.messagingAngle}`
-                : `Accroche: rebondir sur « ${selected.latestSignal!.label} ».`}
-            </p>
+      {/* ── Collapsible full dossier — the dense reference, one click away ── */}
+      <button
+        onClick={() => setShowDossier((v) => !v)}
+        className="flex w-full items-center justify-between rounded-lg border border-zinc-200 px-3 py-2 text-[12px] font-medium text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
+      >
+        <span>Dossier complet — score, faits, historique, deals</span>
+        <ChevronDown className={`h-4 w-4 transition-transform ${showDossier ? "rotate-180" : ""}`} />
+      </button>
+
+      {showDossier && (
+        <div className="space-y-6">
+          {/* Score hero */}
+          <div className="flex items-center gap-5 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4">
+            <ScoreRing value={selected.score * 100} />
+            <div className="flex-1 min-w-0 grid grid-cols-3 gap-x-5 gap-y-2">
+              <MiniBar label="Intent" value={selected.intentScore} />
+              <MiniBar label="Joignabilité" value={selected.accessibilityScore} />
+              <MiniBar label="Poids deal" value={Math.min(1, selected.dealValueWeight / 2)} />
+            </div>
+          </div>
+
+          {/* Quick facts */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Fact icon={Clock} label="Heure locale" value={`${selected.localTime}`} sub={selected.localTimezone.split("/")[1] ?? selected.localTimezone} />
+            <Fact icon={Phone} label="Numéro" value={selected.phone} />
+            <Fact icon={Briefcase} label="Poste" value={selected.title ?? "—"} />
+            <Fact icon={Mail} label="Email" value={focal?.email ?? (brainLoading ? "…" : "—")} />
+          </div>
+
+          {focal?.isChampion && (
+            <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium" style={{ background: "rgba(217,119,6,.10)", color: "rgb(180,83,9)" }}>
+              <Crown className="h-3.5 w-3.5" />
+              Champion identifié chez {selected.companyName ?? "le compte"}
+            </div>
           )}
-          {approach?.timing && (
-            <p className="mt-1 text-[12px] text-zinc-500">Timing: {approach.timing}</p>
-          )}
-        </div>
-      </Section>
 
       {/* Renseignements société (dossier de recherche en cache) */}
       {dossier && (dossier.funding || (dossier.hiringSignals?.length ?? 0) > 0 || (dossier.techStack?.length ?? 0) > 0 || dossier.competitiveLandscape) && (
@@ -521,33 +557,32 @@ export function PreCallBrief({
         </Section>
       )}
 
-      {/* Gaps to enrich */}
-      {gaps.length > 0 && (
-        <Section icon={Search} title="À enrichir avant l'appel" count={gaps.length}>
-          <div className="flex flex-wrap gap-1.5">
-            {gaps.map((g, i) => (
-              <span
-                key={i}
-                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px]"
-                style={{ background: "var(--color-bg-hover)", color: "var(--color-text-tertiary)" }}
-              >
-                <AlertTriangle className="h-3 w-3" />
-                {g}
-              </span>
-            ))}
-          </div>
-          {onEnrich && (
-            <button
-              onClick={onEnrich}
-              disabled={enriching}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-[13px] font-medium text-white transition hover:bg-indigo-700 disabled:opacity-60"
-            >
-              <Zap className="h-3.5 w-3.5" />
-              {enriching ? "Enrichissement…" : "Enrichir email & téléphone"}
-            </button>
-          )}
-        </Section>
+      {/* end of collapsible dossier */}
+        </div>
       )}
+    </div>
+  );
+}
+
+function HeroBullet({
+  icon: Icon,
+  label,
+  value,
+  trend,
+}: {
+  icon: typeof Phone;
+  label: string;
+  value: string;
+  trend?: BrainContact["intentTrend"] | null;
+}) {
+  return (
+    <div className="flex items-start gap-2.5 px-4 py-2.5">
+      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-400" />
+      <div className="min-w-0 flex-1">
+        <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">{label}</div>
+        <p className="mt-0.5 text-[13px] leading-snug text-zinc-700 dark:text-zinc-300">{value}</p>
+      </div>
+      {trend && <IntentTrend trend={trend} />}
     </div>
   );
 }
@@ -782,6 +817,126 @@ export interface CoachingCard {
   label: string;
   prospectQuote: string;
   suggestedResponses: string[];
+}
+
+// ── In-call context rail (right column, live) ───────────────────
+//
+// On a live call the rep should not be reading the full account brain — they
+// should be talking. So the right rail strips down to the only three things
+// worth a glance mid-sentence — the line to open with, the angle, why this
+// call is timely — pinned at the top, with the objection-coaching cards
+// stacking underneath in real time as the prospect pushes back (newest first).
+// This is the calm, live-assist counterpart to the dense pre-call brief.
+export function InCallContext({
+  selected,
+  brain,
+  coaching,
+}: {
+  selected: BriefContext;
+  brain: ContactBrainJSON | null | undefined;
+  coaching: CoachingCard[];
+}) {
+  const firstName = selected.contactName.split(" ")[0];
+  const approach = brain?.cachedDossier?.recommendedApproach;
+  const opener =
+    approach?.openingLine?.trim() ||
+    `« Bonjour ${firstName}, Martin de Elevay — j'ai 30 secondes ? »`;
+  const angle = approach?.messagingAngle?.trim() || null;
+  const whyNow = selected.latestSignal?.label ?? null;
+  const champion =
+    brain?.companyBrain?.contacts?.find((c) => c.isChampion && c.id !== selected.contactId) ?? null;
+  const championName = champion
+    ? [champion.firstName, champion.lastName].filter(Boolean).join(" ")
+    : null;
+  const ordered = coaching.slice().reverse(); // newest objection on top
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* Pinned — the line to say, the angle, why now */}
+      <div className="shrink-0 space-y-3 border-b border-zinc-200 p-4 dark:border-zinc-800">
+        <div>
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
+            <MessageSquare className="h-3.5 w-3.5" />
+            À dire maintenant
+          </div>
+          <p className="mt-1.5 rounded-lg border border-indigo-200 bg-indigo-50/60 p-3 text-sm italic leading-snug text-zinc-800 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-zinc-100">
+            {opener}
+          </p>
+        </div>
+        {angle && (
+          <div className="flex items-start gap-2 text-[13px]">
+            <Target className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-400" />
+            <p className="text-zinc-700 dark:text-zinc-300">
+              <span className="text-zinc-400">Angle · </span>
+              {angle}
+            </p>
+          </div>
+        )}
+        {whyNow && (
+          <div className="flex items-start gap-2 text-[13px]">
+            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-400" />
+            <p className="text-zinc-700 dark:text-zinc-300">
+              <span className="text-zinc-400">Pourquoi maintenant · </span>
+              {whyNow}
+            </p>
+          </div>
+        )}
+        {championName && (
+          <div className="flex items-start gap-2 text-[13px]">
+            <Crown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+            <p className="text-zinc-700 dark:text-zinc-300">
+              <span className="text-zinc-400">Allié interne · </span>
+              {championName}
+              {champion?.title ? ` (${champion.title})` : ""}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Live objection coaching — stacks as the prospect pushes back */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+          <Swords className="h-3.5 w-3.5" />
+          Réponses aux objections
+          {ordered.length > 0 && <span className="text-zinc-400">· {ordered.length}</span>}
+        </div>
+        {ordered.length === 0 ? (
+          <p className="text-[13px] leading-relaxed text-zinc-400">
+            Les objections détectées dans la conversation s&apos;afficheront ici, en direct, avec
+            2-3 réponses prêtes à dire.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {ordered.map((card) => (
+              <div
+                key={card.ts}
+                className="rounded-lg border border-zinc-200 p-2.5 dark:border-zinc-800"
+              >
+                <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                  {card.label}
+                </div>
+                <div className="mt-0.5 text-[12px] italic text-zinc-500">
+                  « {card.prospectQuote} »
+                </div>
+                {card.suggestedResponses.length > 0 && (
+                  <ul className="mt-1.5 space-y-1">
+                    {card.suggestedResponses.map((r, i) => (
+                      <li
+                        key={i}
+                        className="rounded bg-zinc-50 px-2 py-1.5 text-[12px] leading-snug text-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-300"
+                      >
+                        {r}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function LiveTranscript({

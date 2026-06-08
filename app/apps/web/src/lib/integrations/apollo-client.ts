@@ -113,16 +113,34 @@ export interface ApolloPerson {
 }
 
 export async function enrichPerson(params: {
+  /** Apollo person id from a prior search result — the most precise match key. */
+  id?: string;
   email?: string;
   first_name?: string;
   last_name?: string;
+  name?: string;
   organization_name?: string;
   domain?: string;
+  linkedin_url?: string;
+  /** Unlock the work/personal email synchronously (consumes a credit). */
+  reveal_personal_emails?: boolean;
+  /** Request phone reveal. NOTE: Apollo reveals phones asynchronously via a
+   * webhook, so this rarely returns a number in the same response — phones
+   * are sourced from Lusha downstream. We still pass it to capture any that
+   * Apollo does return inline. */
+  reveal_phone_number?: boolean;
 }): Promise<ApolloPerson | null> {
-  const data = await apolloFetch<{ person: ApolloPerson | null }>(
-    "/v1/people/match",
-    { method: "POST", body: params }
-  );
+  const { reveal_personal_emails, reveal_phone_number, ...matchKeys } = params;
+  // Reveal flags go on the query string (Apollo's documented location);
+  // the match keys stay in the POST body, exactly as before.
+  const qs = new URLSearchParams();
+  if (reveal_personal_emails) qs.set("reveal_personal_emails", "true");
+  if (reveal_phone_number) qs.set("reveal_phone_number", "true");
+  const path = qs.toString() ? `/v1/people/match?${qs}` : "/v1/people/match";
+  const data = await apolloFetch<{ person: ApolloPerson | null }>(path, {
+    method: "POST",
+    body: matchKeys,
+  });
   return data.person;
 }
 

@@ -20,11 +20,11 @@ import { decideRouteMode } from "@/lib/sequence-drafts/router";
 import { tenants } from "@/db/schema";
 import {
   enrichOrganization,
-  enrichPerson,
   employeeCountToRange,
   revenueToRange,
   isApolloAvailable,
 } from "@/lib/integrations/apollo-client";
+import { enrichContact as runContactWaterfall } from "@/lib/providers/contact-enrichment/waterfall";
 
 function getLLMModel() {
   if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-6");
@@ -110,6 +110,7 @@ export const enrichCompany = inngest.createFunction(
                 country: llmResult.country,
                 keywords: llmResult.keywords,
               },
+              lastEnrichedAt: new Date(),
               updatedAt: new Date(),
             })
             .where(eq(companies.id, companyId));
@@ -171,6 +172,7 @@ export const enrichCompany = inngest.createFunction(
               enrichment_source: "unavailable",
               enrichment_attempted_at: new Date().toISOString(),
             },
+            lastEnrichedAt: new Date(),
             updatedAt: new Date(),
           })
           .where(eq(companies.id, companyId));
@@ -206,6 +208,7 @@ export const enrichCompany = inngest.createFunction(
             keywords: org.keywords,
             enriched_at: new Date().toISOString(),
           },
+          lastEnrichedAt: new Date(),
           updatedAt: new Date(),
         })
         .where(eq(companies.id, companyId));
@@ -347,22 +350,47 @@ export const enrichContact = inngest.createFunction(
       return { contactId, enriched: false, reason: "Apollo API key not configured" };
     }
 
-    const person = await step.run("enrich-from-apollo", async () => {
+    // Resolve company domain/name — drives geo-routing (CH → Lusha first) and
+    // gives the phone vendors a company to match on.
+    const company = await step.run("fetch-company", async () => {
+      if (!contact.companyId) return null;
+      const [c] = await db
+        .select({ name: companies.name, domain: companies.domain })
+        .from(companies)
+        .where(eq(companies.id, contact.companyId))
+        .limit(1);
+      return c || null;
+    });
+
+    const apolloId =
+      (props.apolloId as string | undefined) || (props.apollo_id as string | undefined) || undefined;
+    const emailDomain = contact.email?.split("@")[1];
+
+    // Full contact-enrichment waterfall: Apollo people/match (by id) reveals
+    // identity (last_name + linkedin + verified email), then geo-routed phone
+    // vendors (Lusha for CH/FR) fill the mobile. Degrades gracefully — a vendor
+    // 429/miss just leaves that field empty for the next wave.
+    const wf = await step.run("enrich-waterfall", async () => {
       try {
-        const domain = contact.email?.split("@")[1];
-        return await enrichPerson({
-          email: contact.email || undefined,
-          first_name: contact.firstName || undefined,
-          last_name: contact.lastName || undefined,
-          domain: domain || undefined,
-        });
+        return await runContactWaterfall(
+          {
+            firstName: contact.firstName || undefined,
+            lastName: contact.lastName || undefined,
+            email: contact.email || undefined,
+            linkedinUrl: contact.linkedinUrl || undefined,
+            companyName: company?.name || undefined,
+            companyDomain: company?.domain || emailDomain || undefined,
+            apolloId,
+          },
+          { tenantId: event.data.tenantId || contact.tenantId },
+        );
       } catch (err) {
-        console.warn(`Apollo contact enrichment failed for ${contact.email}:`, err);
+        console.warn(`Contact waterfall failed for ${contactId}:`, err);
         return null;
       }
     });
 
-    if (!person) {
+    if (!wf || !wf.enriched) {
       await step.run("mark-unenriched", async () => {
         await db
           .update(contacts)
@@ -372,47 +400,37 @@ export const enrichContact = inngest.createFunction(
               enrichment_source: "unavailable",
               enrichment_attempted_at: new Date().toISOString(),
             },
+            lastEnrichedAt: new Date(),
             updatedAt: new Date(),
           })
           .where(eq(contacts.id, contactId));
       });
-      return { contactId, enriched: false, reason: "Apollo returned no data" };
+      return { contactId, enriched: false, reason: "No enrichment data" };
     }
 
+    const d = wf.data;
+    const phone = d.mobilePhone ?? d.directPhone ?? d.phones[0]?.number ?? contact.phone;
+
     await step.run("update-contact", async () => {
-      let companyId = contact.companyId;
-      if (!companyId && person.organization?.name) {
-        const [existing] = await db
-          .select()
-          .from(companies)
-          .where(eq(companies.name, person.organization.name))
-          .limit(1);
-        if (existing) companyId = existing.id;
-      }
-
-      const phone = person.phone_numbers?.[0]?.raw_number || contact.phone;
-
       await db
         .update(contacts)
         .set({
-          title: person.title || contact.title,
-          linkedinUrl: person.linkedin_url || contact.linkedinUrl,
-          phone: phone,
-          companyId: companyId || contact.companyId,
+          firstName: d.firstName || contact.firstName,
+          lastName: d.lastName || contact.lastName,
+          title: d.title || contact.title,
+          linkedinUrl: d.linkedinUrl || contact.linkedinUrl,
+          email: !contact.email && d.email ? d.email : contact.email,
+          phone,
           properties: {
             ...props,
-            enrichment_source: "apollo",
-            apollo_id: person.id,
-            seniority: person.seniority,
-            departments: person.departments,
-            email_status: person.email_status,
-            headline: person.headline,
-            city: person.city,
-            state: person.state,
-            country: person.country,
-            organization_name: person.organization?.name,
+            enrichment_source: "waterfall",
+            apollo_id: apolloId ?? props.apollo_id ?? props.apolloId,
+            seniority: d.seniority,
+            email_status: d.emailStatus,
+            phones: d.phones,
             enriched_at: new Date().toISOString(),
           },
+          lastEnrichedAt: new Date(),
           updatedAt: new Date(),
         })
         .where(eq(contacts.id, contactId));
@@ -420,19 +438,19 @@ export const enrichContact = inngest.createFunction(
 
     await step.run("re-embed", async () => {
       const text = contactToText({
-        firstName: contact.firstName,
-        lastName: contact.lastName,
-        title: person.title,
-        email: contact.email,
-        phone: person.phone_numbers?.[0]?.raw_number,
-        companyName: person.organization?.name,
+        firstName: d.firstName || contact.firstName,
+        lastName: d.lastName || contact.lastName,
+        title: d.title || contact.title,
+        email: d.email || contact.email,
+        phone: phone || undefined,
+        companyName: company?.name,
       });
       if (text && process.env.OPENAI_API_KEY) {
         await embedEntity(event.data.tenantId || contact.tenantId, "contact", contactId, text);
       }
     });
 
-    return { contactId, enriched: true, source: "apollo" };
+    return { contactId, enriched: true, source: "waterfall" };
   }
 );
 

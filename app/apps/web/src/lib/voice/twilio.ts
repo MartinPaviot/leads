@@ -81,6 +81,13 @@ export const twilioProvider: VoiceProvider = {
       }
       const statusUrl = `${input.webhookBaseUrl}/api/calls/recording-status`;
 
+      // Recording is OFF by default. In two-party-consent regions (CH/FR)
+      // recording without an audible disclosure is unlawful (CH art. 179bis is
+      // criminal), so we never record silently. Set VOICE_RECORDING_ENABLED=true
+      // ONLY once a disclosure is wired (VOICE_DISCLOSURE_AUDIO_URL), so the
+      // disclosure plays before any capture.
+      const recordingEnabled = process.env.VOICE_RECORDING_ENABLED === "true";
+
       const call = await client.calls.create({
         from: input.fromNumber,
         to: input.toNumber,
@@ -88,10 +95,13 @@ export const twilioProvider: VoiceProvider = {
         statusCallback: statusUrl,
         statusCallbackEvent: ["initiated", "ringing", "answered", "completed"],
         statusCallbackMethod: "POST",
-        // Async recording — backup capture in case Media Streams drops.
-        record: true,
-        recordingStatusCallback: statusUrl,
-        recordingStatusCallbackMethod: "POST",
+        ...(recordingEnabled
+          ? {
+              record: true,
+              recordingStatusCallback: statusUrl,
+              recordingStatusCallbackMethod: "POST" as const,
+            }
+          : {}),
         // Twilio's machine detection helps the post-call worker route
         // outcomes (machine → voicemail_left, human → connected).
         machineDetection: "DetectMessageEnd",
@@ -266,7 +276,10 @@ export const twilioProvider: VoiceProvider = {
 export async function buildTwiml(opts: {
   toNumber: string;
   fromNumber: string;
-  streamUrl: string;
+  /** Webhook that Twilio POSTs live transcript events to (serverless). */
+  transcriptionCallbackUrl: string;
+  /** BCP-47 language for transcription (default fr-FR for the romand wedge). */
+  languageCode?: string;
   disclosureUrl?: string;
   recordingStatusUrl: string;
 }): Promise<string> {
@@ -275,7 +288,7 @@ export async function buildTwiml(opts: {
     twiml: {
       VoiceResponse: new () => {
         play: (url: string) => unknown;
-        start: () => { stream: (opts: { url: string }) => unknown };
+        start: () => { transcription: (opts: Record<string, unknown>) => unknown };
         dial: (
           opts: { callerId: string; record?: string; recordingStatusCallback?: string },
           to?: string,
@@ -291,18 +304,33 @@ export async function buildTwiml(opts: {
     // regions (France + several US states). Pre-recorded MP3, ~5s.
     r.play(opts.disclosureUrl);
   }
-  // Start Deepgram bidirectional stream BEFORE dial so we capture the
-  // disclosure and any greeting on either side.
-  r.start().stream({ url: opts.streamUrl });
-  // Dial the prospect with the tenant's caller-id; record both legs.
-  const dial = r.dial(
-    {
-      callerId: opts.fromNumber,
-      record: "record-from-answer-dual",
-      recordingStatusCallback: opts.recordingStatusUrl,
-    },
-    opts.toNumber,
-  );
+  // Twilio-native real-time transcription (Deepgram nova-3 under the hood).
+  // It POSTs transcript events to our webhook → calls.transcript → SSE → UI.
+  // Fully serverless: no Media Streams WS server/tunnel to host. For an
+  // outbound call inbound_track = the called party (prospect), outbound_track
+  // = our caller-id leg (agent). Started BEFORE dial to catch the greeting.
+  r.start().transcription({
+    statusCallbackUrl: opts.transcriptionCallbackUrl,
+    track: "both_tracks",
+    transcriptionEngine: "deepgram",
+    speechModel: "nova-3",
+    languageCode: opts.languageCode ?? "fr-FR",
+    inboundTrackLabel: "prospect",
+    outboundTrackLabel: "agent",
+    partialResults: false,
+  });
+  // Dial the prospect with the tenant's caller-id. Recording is opt-in only
+  // (VOICE_RECORDING_ENABLED) — we never capture silently, since CH/FR require
+  // an audible disclosure and recording without it is unlawful (CH criminal).
+  const recordingEnabled = process.env.VOICE_RECORDING_ENABLED === "true";
+  const dialOpts: { callerId: string; record?: string; recordingStatusCallback?: string } = {
+    callerId: opts.fromNumber,
+  };
+  if (recordingEnabled) {
+    dialOpts.record = "record-from-answer-dual";
+    dialOpts.recordingStatusCallback = opts.recordingStatusUrl;
+  }
+  const dial = r.dial(dialOpts, opts.toNumber);
   dial.number(opts.toNumber);
   return r.toString();
 }

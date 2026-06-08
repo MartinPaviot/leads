@@ -303,8 +303,8 @@ export function CampaignWizard({ onClose, onComplete, sequenceId: existingSequen
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}>
-      <div className="w-full max-w-2xl mx-4 rounded-2xl overflow-hidden" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)", boxShadow: "var(--shadow-dialog)", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+      <div className="w-full max-w-2xl rounded-2xl overflow-hidden" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)", boxShadow: "var(--shadow-dialog)", maxHeight: "calc(100vh - 2rem)", display: "flex", flexDirection: "column" }}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: "1px solid var(--color-border-default)" }}>

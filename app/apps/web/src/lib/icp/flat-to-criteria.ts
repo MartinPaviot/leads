@@ -242,3 +242,36 @@ export function legacySettingsToCriteria(
 export function __resetCriteriaIdCounter(): void {
   counter = 0;
 }
+
+// ── Persona-search bridge ──────────────────────────────────────────
+// The NL persona search (/api/icp/parse-nl, PersonaSearch) produces a
+// flat ICP with short field names (industries/geographies/companySizes/
+// technologies). Map it onto the legacy target* shape and reuse the
+// canonical converter above — so the live preview runs the EXACT criteria
+// the build will source, no divergence.
+
+export interface PersonaIcp {
+  industries?: string[];
+  keywords?: string[];
+  companySizes?: string[];
+  geographies?: string[];
+  technologies?: string[];
+  revenueMin?: number | null;
+  revenueMax?: number | null;
+  hiringTitles?: string[];
+}
+
+export function personaIcpToCriteria(
+  p: PersonaIcp,
+): Array<Omit<Criterion, "id"> & { id: string }> {
+  return legacySettingsToCriteria({
+    targetIndustries: p.industries ?? null,
+    targetKeywords: p.keywords ?? null,
+    targetCompanySizes: p.companySizes ?? null,
+    targetGeographies: p.geographies ?? null,
+    targetTechnologies: p.technologies ?? null,
+    targetRevenueMin: p.revenueMin ?? null,
+    targetRevenueMax: p.revenueMax ?? null,
+    hiringTitles: p.hiringTitles ?? null,
+  });
+}

@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { tenants, contacts, connectedMailboxes } from "@/db/schema";
 import { usageEvents } from "@/db/billing-schema";
-import { eq, and, gte, sql } from "drizzle-orm";
+import { eq, and, gte, isNull, sql } from "drizzle-orm";
 
 // ── Plan tier definitions ──────────────────────────────────────────
 // -1 means unlimited for that resource.
@@ -34,10 +34,13 @@ function resolvePlan(rawPlan: string | null | undefined): PlanTier {
 // ── Count current usage per resource ───────────────────────────────
 
 async function countContacts(tenantId: string): Promise<number> {
+  // Exclude soft-deleted contacts. They are invisible in the list and chat
+  // (both filter on deletedAt) and must not count against the plan limit — a
+  // tenant with 0 visible contacts was blocked at "519/100" by deleted rows.
   const [result] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(contacts)
-    .where(eq(contacts.tenantId, tenantId));
+    .where(and(eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt)));
   return result?.count ?? 0;
 }
 

@@ -1,3 +1,9 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+import { isBetaRoute } from "@/lib/beta-routes";
+import { BetaTag } from "@/components/ui/beta-tag";
+
 interface PageHeaderProps {
   icon?: React.ReactNode;
   title: string;
@@ -6,6 +12,7 @@ interface PageHeaderProps {
 }
 
 export function PageHeader({ icon, title, subtitle, children }: PageHeaderProps) {
+  const pathname = usePathname();
   return (
     <div
       className="flex shrink-0 items-center gap-3 px-6"
@@ -21,6 +28,7 @@ export function PageHeader({ icon, title, subtitle, children }: PageHeaderProps)
       <h1 className="text-[14px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
         {title}
       </h1>
+      {isBetaRoute(pathname) && <BetaTag />}
       {subtitle && (
         <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
           {subtitle}

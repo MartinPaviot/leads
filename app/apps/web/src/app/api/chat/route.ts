@@ -146,16 +146,22 @@ function formatCitedSources(
 ): string {
   if (ragResults.length === 0) return "";
 
-  const sources = ragResults.map((r, i) => {
+  const sources = ragResults.map((r) => {
     const link =
       r.entityType === "contact" ? `/contacts/${r.entityId}`
       : r.entityType === "company" ? `/accounts/${r.entityId}`
       : r.entityType === "deal" ? `/opportunities/${r.entityId}`
       : "";
-    return `[Source ${i + 1}] (${r.entityType}:${r.entityId}) ${link}\n${r.content}`;
+    // Expose the canonical record path so the model cites it inline as a
+    // clickable markdown link. The chat renderer only linkifies real entity
+    // hrefs (see chat-markdown.tsx) — a bare "[Source N]" renders as dead
+    // text, so we steer the model to the entity-link format instead.
+    return link
+      ? `- ${link}\n${r.content}`
+      : `- (${r.entityType}:${r.entityId})\n${r.content}`;
   });
 
-  return `\n\n## Source Documents (cite these using [Source N] format)\n${sources.join("\n\n")}`;
+  return `\n\n## Retrieved records — cite any fact drawn from these by linking inline to its path, e.g. [the account](/accounts/{id}). Never write a bare [Source N].\n${sources.join("\n\n")}`;
 }
 
 /** Build a snapshot of the tenant's CRM data for the system prompt */

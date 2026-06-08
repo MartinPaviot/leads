@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Elevay — Flow complet du cold call</title>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#121826; --panel2:#0e1320; --line:#23304a;
+    --txt:#e7edf7; --muted:#8ea0bd; --accent:#5b9dff;
+    --apollo:#2f6df6; --discovery:#6c5ce7; --enrich:#00b894;
+    --twilio:#e02653; --deepgram:#13b5b1; --llm:#d99a16; --graph:#9b59b6;
+    --inngest:#7a8aff; --db:#475569;
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Inter,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;font-size:14px;line-height:1.45}
+  .wrap{max-width:1180px;margin:0 auto;padding:40px 28px 80px}
+  header h1{font-size:26px;font-weight:680;letter-spacing:-.4px;margin:0 0 6px}
+  header p{color:var(--muted);margin:0 0 28px;max-width:760px}
+
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 34px}
+  .chip{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
+    font-size:12px;font-weight:600;background:var(--panel);border:1px solid var(--line)}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .d-apollo{background:var(--apollo)} .d-discovery{background:var(--discovery)}
+  .d-enrich{background:var(--enrich)} .d-twilio{background:var(--twilio)}
+  .d-deepgram{background:var(--deepgram)} .d-llm{background:var(--llm)}
+  .d-graph{background:var(--graph)} .d-inngest{background:var(--inngest)}
+
+  .stage{position:relative;background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line);border-radius:var(--r);padding:20px 22px;margin:0 0 12px}
+  .stage::before{content:attr(data-step);position:absolute;top:-12px;left:18px;
+    width:26px;height:26px;border-radius:8px;display:grid;place-items:center;
+    font-size:13px;font-weight:700;color:#fff;background:var(--accent);
+    box-shadow:0 2px 8px rgba(0,0,0,.4)}
+  .stage h2{margin:4px 0 3px;font-size:16px;font-weight:660;letter-spacing:-.2px}
+  .stage .sub{color:var(--muted);font-size:12.5px;margin:0 0 14px}
+  .stage h2 .where{color:var(--muted);font-weight:500;font-size:12px;margin-left:8px}
+
+  .cards{display:grid;gap:10px}
+  .row2{grid-template-columns:1fr 1fr}
+  .row3{grid-template-columns:1fr 1fr 1fr}
+  @media(max-width:760px){.row2,.row3{grid-template-columns:1fr}}
+
+  .card{background:#0c1220;border:1px solid var(--line);border-radius:10px;padding:13px 14px}
+  .card .t{font-weight:640;font-size:13.5px;margin:0 0 5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .card p{margin:0;color:var(--muted);font-size:12.5px}
+  .card code{background:#10182a;border:1px solid var(--line);border-radius:5px;
+    padding:1px 6px;font-size:11.5px;color:#bcd0f0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+
+  .prov{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:7px;
+    font-size:11px;font-weight:700;color:#fff;letter-spacing:.2px}
+  .p-apollo{background:var(--apollo)} .p-discovery{background:var(--discovery)}
+  .p-enrich{background:var(--enrich)} .p-twilio{background:var(--twilio)}
+  .p-deepgram{background:var(--deepgram)} .p-llm{background:var(--llm)}
+  .p-graph{background:var(--graph)} .p-db{background:var(--db)}
+
+  .arrow{display:grid;place-items:center;height:30px;color:var(--muted)}
+  .arrow svg{width:20px;height:20px}
+
+  .branch{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px}
+  @media(max-width:760px){.branch{grid-template-columns:1fr}}
+  .outcome{border-left:3px solid var(--line);padding:9px 12px;border-radius:8px;background:#0c1220}
+  .outcome .o{font-weight:660;font-size:12.5px;margin-bottom:3px}
+  .outcome.win{border-left-color:#22c55e}
+  .outcome.warm{border-left-color:#d99a16}
+  .outcome.lost{border-left-color:#ef4444}
+  .outcome p{margin:0;color:var(--muted);font-size:12px}
+
+  .note{font-size:11.5px;color:var(--muted);margin-top:13px;border-top:1px dashed var(--line);padding-top:10px}
+  footer{color:var(--muted);font-size:12px;margin-top:26px;text-align:center}
+  .pill{display:inline-block;background:#10182a;border:1px solid var(--line);border-radius:6px;
+    padding:1px 7px;font-size:11px;color:#9fb3d4;font-family:ui-monospace,monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Flow complet du cold call — Elevay</h1>
+    <p>De la constitution du TAM jusqu'à la mise à jour automatique des deals. Chaque étape indique le provider réel et le fichier qui le porte. Orchestration par <span class="pill">Inngest</span>, stockage <span class="pill">Postgres / Drizzle</span>.</p>
+  </header>
+
+  <div class="legend">
+    <span class="chip"><span class="dot d-apollo"></span>Apollo — sourcing comptes &amp; contacts</span>
+    <span class="chip"><span class="dot d-discovery"></span>SIRENE · Pappers · Zefix — discovery TAM</span>
+    <span class="chip"><span class="dot d-enrich"></span>Kaspr · Lusha · Zeliq — enrichment tél/email</span>
+    <span class="chip"><span class="dot d-twilio"></span>Twilio — voix &amp; media stream</span>
+    <span class="chip"><span class="dot d-deepgram"></span>Deepgram Nova-3 — transcription</span>
+    <span class="chip"><span class="dot d-llm"></span>Claude Sonnet 4.6 (fallback gpt-4o-mini) — analyse</span>
+    <span class="chip"><span class="dot d-graph"></span>Context graph — mémoire client</span>
+  </div>
+
+  <!-- 1 -->
+  <section class="stage" data-step="1">
+    <h2>Capture des comptes (TAM)<span class="where">lib/voice/source-prospects.ts · lib/discovery/*</span></h2>
+    <p class="sub">L'ICP du tenant alimente une recherche d'entreprises. Le TAM "vivant" se remplit par deux voies, dédupliquées par domaine.</p>
+    <div class="cards row2">
+      <div class="card">
+        <div class="t"><span class="prov p-apollo">APOLLO</span> Recherche d'organisations</div>
+        <p><code>searchOrganizations()</code> depuis les filtres ICP (secteur, taille, géo, revenu, tech). Insère les nouvelles <code>companies</code>.</p>
+      </div>
+      <div class="card">
+        <div class="t"><span class="prov p-discovery">SIRENE</span><span class="prov p-discovery">PAPPERS</span><span class="prov p-discovery">ZEFIX</span> Discovery multi-source</div>
+        <p>Sources nationales keyless : SIRENE/Pappers (FR), Zefix (CH). Provenance + bridge de résolution de domaine, passées par la queue d'approbation.</p>
+      </div>
+    </div>
+    <div class="note">Apollo masque les firmographics au search (industry/size/revenue NULL) → <code>enrichOrganization(domain)</code> derrière pour remplir la fiche compte.</div>
+  </section>
+
+  <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+
+  <!-- 2 -->
+  <section class="stage" data-step="2">
+    <h2>Capture des contacts<span class="where">lib/voice/source-prospects.ts</span></h2>
+    <p class="sub">Pour chaque compte, on cherche les personnes qui matchent la persona (séniorité + intitulés de rôle), dédupliquées par email.</p>
+    <div class="cards row2">
+      <div class="card">
+        <div class="t"><span class="prov p-apollo">APOLLO</span> Recherche de personnes</div>
+        <p><code>searchPeople({ domain, seniorities, titles })</code> → insère les <code>contacts</code> (nom, titre, LinkedIn, email/phone bruts).</p>
+      </div>
+      <div class="card">
+        <div class="t"><span class="prov p-db">EVENT</span> Déclenche l'enrichment</div>
+        <p>Chaque contact inséré émet <code>contact/created</code> (Inngest) pour résoudre téléphone + email vérifié — la liste d'appel a besoin d'un numéro.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+
+  <!-- 3 -->
+  <section class="stage" data-step="3">
+    <h2>Enrichment téléphone &amp; email — waterfall geo-routée<span class="where">lib/providers/contact-enrichment/waterfall.ts</span></h2>
+    <p class="sub">Les providers tournent par priorité boostée selon le pays du prospect. On s'arrête dès qu'on a un mobile joignable + un email utilisable.</p>
+    <div class="cards row3">
+      <div class="card">
+        <div class="t"><span class="prov p-apollo">APOLLO</span> prio 10</div>
+        <p>Reveal par id : last_name, LinkedIn, email vérifié, numéros. Sert aussi de LinkedIn-source pour Kaspr.</p>
+      </div>
+      <div class="card">
+        <div class="t"><span class="prov p-enrich">KASPR</span> prio 20 · FR</div>
+        <p>Leader mobile FR. Boosté devant Apollo pour les +33.</p>
+      </div>
+      <div class="card">
+        <div class="t"><span class="prov p-enrich">LUSHA</span> prio 30 · CH/EU</div>
+        <p>Seule source mobile suisse qu'on a. Cap 100/jour, enrichi par vagues.</p>
+      </div>
+    </div>
+    <div class="note">Routage : <strong>FR</strong> → Kaspr → Lusha → Apollo &nbsp;·&nbsp; <strong>CH</strong> → Lusha → Apollo → Kaspr (Kaspr est FR-only) &nbsp;·&nbsp; <strong>US/autre</strong> → Apollo → Kaspr → Lusha. &nbsp;<span class="prov p-enrich">ZELIQ</span> en complément asynchrone (webhook). Chaque provider est gaté par sa clé : sans clé, il est sauté.</div>
+  </section>
+
+  <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+
+  <!-- 4 -->
+  <section class="stage" data-step="4">
+    <h2>Call Mode — déclenchement de l'appel<span class="where">api/calls/start · lib/voice/twilio.ts</span></h2>
+    <p class="sub">Le contact (avec téléphone) entre dans la liste du jour. À l'appel : réservation d'une ligne <code>calls</code>, garde-fous, puis ouverture de la jambe sortante.</p>
+    <div class="cards row2">
+      <div class="card">
+        <div class="t"><span class="prov p-db">GARDE-FOUS</span> avant numérotation</div>
+        <p>Sélection du numéro émetteur (pool tenant), check <code>DNC</code>, <code>quiet hours</code> (fuseau prospect), <code>usage cap</code> (4000 min/siège).</p>
+      </div>
+      <div class="card">
+        <div class="t"><span class="prov p-twilio">TWILIO</span> Outbound + WebRTC</div>
+        <p><code>createCall()</code> place la jambe ; un JWT capability attache le micro du navigateur via le Voice SDK. TwiML connecte et ouvre un Media Stream.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+
+  <!-- 5 -->
+  <section class="stage" data-step="5">
+    <h2>Transcript live + coaching<span class="where">lib/voice/deepgram-bridge.ts · coaching-tap.ts</span></h2>
+    <p class="sub">L'audio de l'appel est transcrit en direct ; chaque réplique du prospect peut déclencher une carte de coaching.</p>
+    <div class="cards row3">
+      <div class="card">
+        <div class="t"><span class="prov p-twilio">TWILIO</span> Media Stream</div>
+        <p>Frames μ-law 8 kHz mono (base64) poussées sur le WebSocket — aucun resampling.</p>
+      </div>
+      <div class="card">
+        <div class="t"><span class="prov p-deepgram">DEEPGRAM</span> Nova-3 live</div>
+        <p><code>encoding=mulaw</code>, diarisation, FR. Les chunks <em>finals</em> sont ajoutés à <code>calls.transcript</code> (jsonb), poussés à l'UI via SSE.</p>
+      </div>
+      <div class="card">
+        <div class="t"><span class="prov p-llm">SONNET 4.6</span> Coaching tap</div>
+        <p>Chunk prospect → classifieur d'objection → carte de réponse suggérée (<code>calls.coachingCards</code>), en direct.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+
+  <!-- 6 -->
+  <section class="stage" data-step="6">
+    <h2>Analyse du transcript (post-appel)<span class="where">inngest/calls-post-process.ts</span></h2>
+    <p class="sub">Le webhook <code>recording-status</code> de Twilio émet <code>calls/post-process</code>. Le worker Inngest transforme la conversation en données structurées.</p>
+    <div class="cards row2">
+      <div class="card">
+        <div class="t"><span class="prov p-deepgram">DEEPGRAM</span> Fallback batch</div>
+        <p>Si le stream live a lâché (transcript vide), transcription batch sur l'enregistrement Twilio.</p>
+      </div>
+      <div class="card">
+        <div class="t"><span class="prov p-llm">SONNET 4.6</span> → fallback gpt-4o-mini · Extraction structurée</div>
+        <p><code>generateObject(callNotesSchema)</code> : <code>outcome</code>, summary, sentiment, <code>buyingSignals</code> (budget/timeline/stack/objections), action items, callback. Persisté sur <code>calls</code>.</p>
+      </div>
+    </div>
+    <div class="note">En parallèle : activité <code>call_completed</code> (via seam d'approbation auto/review), indexation RAG du transcript pour le coaching, détection DNC sur mots-clés.</div>
+  </section>
+
+  <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+
+  <!-- 7 -->
+  <section class="stage" data-step="7">
+    <h2>Mise à jour des deals — CRM auto-loop<span class="where">lib/voice/post-call-crm.ts</span></h2>
+    <p class="sub">L'outcome route l'état du CRM que le rep aurait saisi à la main. Idempotent : un seul deal ouvert par compte, tâches taguées <code>[call:&lt;id&gt;]</code>.</p>
+    <div class="branch">
+      <div class="outcome win">
+        <div class="o">meeting_booked / connected+positif</div>
+        <p>Crée ou fait avancer un deal (stage <code>demo</code>/<code>qualification</code>). Valeur ← budget, close date ← timeline. Patch des signaux d'achat.</p>
+      </div>
+      <div class="outcome warm">
+        <div class="o">callback / action items</div>
+        <p>Crée des <code>tasks</code> : rappel daté à la demande, items d'action (owner + échéance), priorité high/medium.</p>
+      </div>
+      <div class="outcome lost">
+        <div class="o">not_interested</div>
+        <p>Ferme le deal ouvert en <code>lost</code> avec <code>lostReason</code> + <code>lostCallId</code>.</p>
+      </div>
+    </div>
+    <div class="cards row3" style="margin-top:10px">
+      <div class="card">
+        <div class="t"><span class="prov p-graph">CONTEXT GRAPH</span> Mémoire client</div>
+        <p><code>ingestEpisode()</code> : épisode bi-temporel (qui, quand, signaux) interrogeable par le chat + l'intelligence.</p>
+      </div>
+      <div class="card">
+        <div class="t"><span class="prov p-db">CADENCE</span> Campagne</div>
+        <p><code>recordCallOutcomeForCampaigns()</code> : no-answer/busy → re-queue (8x/15j) ; connecté/meeting → fin de cadence.</p>
+      </div>
+      <div class="card">
+        <div class="t"><span class="prov p-db">CONTACT</span> Disposition</div>
+        <p>Stamp <code>lastCall</code> (outcome, sentiment, date, callId) sur le contact.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>Schéma généré le 2026-06-08 — branche <span class="pill">feat/tam-lifecycle</span>. Providers et chemins de fichiers vérifiés dans le code source.</footer>
+</div>
+</body>
+</html>

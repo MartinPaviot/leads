@@ -99,6 +99,7 @@ async function persistEnrichment(params: {
       size,
       revenue,
       properties: merged,
+      lastEnrichedAt: new Date(),
       updatedAt: new Date(),
     })
     .where(and(eq(companies.id, companyId), eq(companies.tenantId, tenantId), isNull(companies.deletedAt)));

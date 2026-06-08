@@ -26,6 +26,10 @@ export interface EnrichedPhone {
 }
 
 export interface EnrichedContact {
+  /** Filled by the Apollo people/match identity reveal (by id). Lets callers
+   * persist the real name the masked search result didn't have. */
+  firstName: string | null;
+  lastName: string | null;
   email: string | null;
   emailStatus: EmailStatus | null;
   /** Best mobile/cell — what the dialer prefers (accessibility 1.0). */
@@ -43,6 +47,8 @@ export interface EnrichedContact {
 
 export function emptyContact(): EnrichedContact {
   return {
+    firstName: null,
+    lastName: null,
     email: null,
     emailStatus: null,
     mobilePhone: null,
@@ -63,6 +69,11 @@ export interface ContactEnrichInput {
   linkedinUrl?: string;
   companyDomain?: string;
   companyName?: string;
+  /** Apollo person id from a prior search. When present, the Apollo adapter
+   * does a precise people/match by id (+reveal_personal_emails), which unlocks
+   * last_name + linkedin_url + verified email — the weak name+domain match
+   * returns those masked. Search results carry this in properties.apolloId. */
+  apolloId?: string;
   /** Pre-resolved geo. When absent the waterfall derives it from
    * knownPhoneE164 then companyDomain TLD. Drives provider ordering. */
   geo?: ContactGeo;

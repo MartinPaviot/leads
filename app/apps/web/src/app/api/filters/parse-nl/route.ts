@@ -26,39 +26,14 @@ import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { z } from "zod";
-import type { FilterCondition, FilterFieldDef } from "@/lib/search/filters";
+import type { FilterCondition } from "@/lib/search/filters";
 import { validateFilters, operatorsForType } from "@/lib/search/filters";
+import { FILTER_FIELD_CATALOGS, scopeSmartFilters } from "@/lib/search/smart-filter-scope";
 
-// ─────────────────────────────────────────────────────────────
-// Field catalogs per resource type
-// ─────────────────────────────────────────────────────────────
-// The LLM sees these catalogs in its system prompt. Keeping them in
-// code (rather than auto-deriving from drizzle schema) means we can:
-//   - pre-compute example values so the model produces realistic enums
-//   - describe intent ("industry is free text in our DB, so use
-//     'contains' not 'eq'") without polluting the schema file.
-
-const ACCOUNT_FIELDS: readonly FilterFieldDef[] = [
-  { key: "name", label: "Account name", type: "text" },
-  { key: "domain", label: "Website / domain", type: "text" },
-  { key: "industry", label: "Industry", type: "text" },
-  { key: "size", label: "Employee count range", type: "text" },
-  { key: "revenue", label: "Annual revenue", type: "text" },
-  { key: "score", label: "Fit score (0–100)", type: "number" },
-] as const;
-
-const CONTACT_FIELDS: readonly FilterFieldDef[] = [
-  { key: "firstName", label: "First name", type: "text" },
-  { key: "lastName", label: "Last name", type: "text" },
-  { key: "title", label: "Job title", type: "text" },
-  { key: "email", label: "Email", type: "text" },
-  { key: "companyName", label: "Company name", type: "text" },
-] as const;
-
-const FIELD_CATALOGS = {
-  account: ACCOUNT_FIELDS,
-  contact: CONTACT_FIELDS,
-} as const;
+// Field catalogs (per resource type) + the broad-search scoping rule live in
+// lib/search/smart-filter-scope.ts — the single, unit-tested source of truth
+// shared with the list pages. The LLM sees the catalog in its prompt; the
+// scoping rule strips any text condition the broad search box already covers.
 
 // ─────────────────────────────────────────────────────────────
 // LLM output schema — deliberately permissive, validated after
@@ -123,7 +98,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const fieldCatalog = FIELD_CATALOGS[resourceType];
+  const fieldCatalog = FILTER_FIELD_CATALOGS[resourceType];
 
   const model = process.env.ANTHROPIC_API_KEY
     ? anthropic("claude-sonnet-4-6")
@@ -139,6 +114,10 @@ export async function POST(req: Request) {
     .map((f) => `  - ${f.key} (${f.type}): ${f.label}`)
     .join("\n");
 
+  const searchedCategories = resourceType === "account"
+    ? "account name, website/domain, industry and description"
+    : "first/last name, email, job title, and each person's company plus its industry";
+
   const prompt = `You convert a natural-language search query into structured filter conditions for a CRM list.
 
 Resource type: ${resourceType}
@@ -152,14 +131,18 @@ Operators available by field type:
   - date-range: before, after, between, last-n-days
   - boolean: is-true, is-false
 
+HOW THIS LIST ALREADY SEARCHES — read this first:
+The list has a single broad search box that ALREADY matches the user's words, server-side, across every text category (${searchedCategories}) and resolves sectors by MEANING, not spelling (e.g. "police" → law-enforcement companies, "medical" → health-care, "banks" → financial services). Industry/sector also has its own dedicated column filter.
+
+So your job is NOT to re-type the keywords into text conditions — that is already done, and a redundant literal text condition would only WRONGLY narrow the broad search (it can't see the semantic matches). Extract ONLY the few refinements the broad search cannot express:
+  1. Fit score thresholds on \`score\` (0–100): "high"/"good fit" → gte 70, "top"/"best" → gte 80, "low"/"weak" → lte 30, or an explicit number.
+  2. Explicit EXCLUSIONS the user states ("not …", "exclude …", "except …") → not-contains / excludes / neq.
+
 Rules:
-1. Only emit conditions for fields in the catalog above. If the query mentions something not in the catalog (e.g. location when there's no location field), put that fragment in \`unmatched\` and do NOT invent a field.
-2. For free-text fields like "industry" stored as free text in our DB, prefer \`contains\` over \`eq\` (e.g. "SaaS" → industry contains "SaaS", not industry eq "SaaS") — our data is not normalized to a fixed taxonomy.
-3. For title/job-role queries, use \`title\` with \`contains\` and the core noun ("CTO", "Head of Sales", "Product Manager"). Do NOT add seniority modifiers to the value unless explicitly asked (e.g. "senior CTOs" → title contains "CTO", not "Senior CTO").
-4. For numeric ranges on score (0-100), translate "high" → gte 70, "top" → gte 80, "low" → lte 30. Only if explicitly numeric in the query.
-5. Output one filter per distinct criterion. Combine multiple keywords for the same field into a SINGLE condition (the UI applies implicit AND between filters, and contains is already a substring match).
-6. Keep reasoning under 200 characters.
-7. If the query is unparseable or completely vague, return empty filters and explain in reasoning.
+1. A plain keyword, sector, company name, person name, job title, email or domain is ALREADY handled by the search box → return an empty filters array for it and do NOT list it in \`unmatched\`. (Example: "police", "SaaS", "CTOs", "Acme" → filters: [].)
+2. Only emit a condition for an actual score threshold or an explicit exclusion as defined above. Use only keys from the catalog; never invent a field.
+3. Put a fragment in \`unmatched\` ONLY when it is a real constraint with no home at all (e.g. a geography/location when there is no location field) — never for words the search box already covers.
+4. Keep reasoning under 200 characters.
 
 Query: "${query.trim()}"`;
 
@@ -215,8 +198,18 @@ Query: "${query.trim()}"`;
           return operatorsForType(catalogEntry.type).includes(c.operator);
         });
 
+    // Strip any condition the broad full-text search box already covers (a
+    // positive text match on a text field). Keeping it would re-filter the
+    // server's semantic matches literally — e.g. drop every "Law Enforcement"
+    // row for a "police" query the search box matched by meaning — and make
+    // the count banner and the table contradict each other. These deferred
+    // conditions are handled by the search box, so they are NOT surfaced as
+    // "unmatched". Defense-in-depth: the prompt already asks the model not to
+    // emit them, this guarantees it regardless of the model.
+    const { kept: scoped } = scopeSmartFilters(final, resourceType);
+
     return Response.json({
-      filters: final,
+      filters: scoped,
       reasoning: raw.reasoning ?? "",
       unmatched: [...(raw.unmatched ?? []), ...dropped],
     });

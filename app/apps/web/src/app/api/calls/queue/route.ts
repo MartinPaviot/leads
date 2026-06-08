@@ -21,6 +21,7 @@ export async function GET(req: Request) {
       : [];
     const items = await buildQueue(authCtx.tenantId, limit, {
       companyIds: companyIds.length > 0 ? companyIds : undefined,
+      ownerId: authCtx.appUserId, // territory exclusivity: hide other reps' active accounts
     });
     return Response.json({ calls: items });
   });

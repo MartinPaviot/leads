@@ -123,6 +123,7 @@ export async function POST(req: Request) {
                   enrichment_cost_cents: wf.totalCostCents,
                   enriched_at: new Date().toISOString(),
                 },
+                lastEnrichedAt: new Date(),
                 updatedAt: new Date(),
               })
               .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));
@@ -159,6 +160,7 @@ export async function POST(req: Request) {
                 ? "Apollo API key not configured"
                 : "Apollo returned no data for this contact",
             },
+            lastEnrichedAt: new Date(),
             updatedAt: new Date(),
           })
           .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));

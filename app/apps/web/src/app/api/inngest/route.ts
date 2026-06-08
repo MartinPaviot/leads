@@ -9,6 +9,8 @@ import { scheduleRecallBots } from "@/inngest/recall-functions";
 import { onOnboardingCompleted } from "@/inngest/onboarding-functions";
 import { processOutboundEmails, sendSingleEmail, cronDailyMailboxReset } from "@/inngest/email-send-worker";
 import { cronTriggerSequenceSteps } from "@/inngest/sequence-cron";
+import { dailyCallListGeneration } from "@/inngest/call-campaign-cron";
+import { sourceProspectsFromIcp } from "@/inngest/call-campaign-source";
 import { cronFailureToEvalCases, cronFlywheelCycle, runAgentFlywheel, asyncOnlineEval } from "@/inngest/eval-functions";
 import { prepareCampaign } from "@/inngest/campaign-functions";
 import { handleReplyIntelligently } from "@/inngest/reply-handler";
@@ -70,6 +72,9 @@ import { deliverabilityHealthCron } from "@/inngest/deliverability-monitor";
 import { campaignWeeklyReport } from "@/inngest/campaign-weekly-report";
 // voice-cold-call Phase 1 — post-call LLM extraction + CRM sync
 import { postProcessCall } from "@/inngest/calls-post-process";
+// tam-lifecycle — living-TAM loops (propose into the approval queue)
+import { tamRefreshDaily } from "@/inngest/tam-refresh-cron";
+import { sourceIcpToProposals } from "@/inngest/icp-source";
 
 // Register task executors so Inngest runner can dispatch by type
 import("@/lib/import/agentic-executor").then((m) => m.registerImportExecutor()).catch(() => {});
@@ -97,6 +102,8 @@ export const { GET, POST, PUT } = serve({
     sendSingleEmail,
     cronDailyMailboxReset,
     cronTriggerSequenceSteps,
+    dailyCallListGeneration,
+    sourceProspectsFromIcp,
     // P0-1 sequence-draft queue : routes events to draft / direct
     routeSequenceStepToDraft,
     cronExpireSequenceDrafts,
@@ -252,5 +259,9 @@ export const { GET, POST, PUT } = serve({
     campaignWeeklyReport,
     // voice-cold-call Phase 1 — post-call LLM extraction + CRM sync
     postProcessCall,
+    // tam-lifecycle — living-TAM loops: refresh stale rows + source
+    // net-new from active ICPs, both into the approval queue.
+    tamRefreshDaily,
+    sourceIcpToProposals,
   ],
 });

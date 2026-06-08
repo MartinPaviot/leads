@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Building2, Search, Plus, Zap, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, Trash2, UserPlus, type LucideIcon } from "lucide-react";
+import { Building2, Search, Filter, Plus, Zap, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, Trash2, UserPlus, Ban, RotateCcw, Archive, type LucideIcon } from "lucide-react";
 import { useTamStream } from "@/hooks/use-tam-stream";
 import { TamBuildProgress } from "@/components/tam-build-progress";
 import { SignalChip } from "@/components/signal-chip";
@@ -15,7 +15,7 @@ function LinkedInIcon({ size = 13 }: { size?: number }) {
     </svg>
   );
 }
-import { getLifecycleStyle, formatScore } from "@/lib/util/ui-utils";
+import { getLifecycleStyle, displayScore } from "@/lib/util/ui-utils";
 import { SlideOver, PropertyRow } from "@/components/slide-over";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { IntelligenceBrief } from "@/components/intelligence-brief";
@@ -23,6 +23,7 @@ import { useCustomFields } from "@/hooks/use-custom-fields";
 import { getCustomFieldValue, formatFieldValue } from "@/lib/context/custom-fields";
 import type { CustomFieldDef } from "@/lib/context/custom-fields";
 import { PageHeader, FilterBar } from "@/components/ui/page-header";
+import { PersonaSearch } from "./_persona-search";
 import { Button } from "@/components/ui/button";
 import { Badge, PropertyBadge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -138,20 +139,32 @@ export default function AccountsPage() {
   const [scoreAllRunning, setScoreAllRunning] = useState(false);
   const [detectingSignals, setDetectingSignals] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  // A4: keep similarity score per result so we can surface "73% match"
-  // chips inline. Map preserves insertion order (== rank order from the
-  // semantic search endpoint), and lookup is O(1) for the row sort.
-  const [searchResults, setSearchResults] = useState<Map<string, number> | null>(null);
-  const [searching, setSearching] = useState(false);
+  // Debounced search term pushed to the server. The accounts endpoint
+  // resolves it to the matching industries via an LLM (intelligent, not a
+  // hardcoded synonym list) plus a name/domain/description match, so the
+  // returned rows are already the matched set across the whole tenant —
+  // and `totalAccounts` is the matched count, not the library size.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  // NL persona search — "describe who you want to reach" -> ICP.
+  const [showPersona, setShowPersona] = useState(false);
   const [activeSignalPopover, setActiveSignalPopover] = useState<string | null>(null);
   const [signalPopoverTab, setSignalPopoverTab] = useState<"reasoning" | "sources">("reasoning");
   const [slideOverAccount, setSlideOverAccount] = useState<Account | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  // "Not a fit" view toggle. false = active working set (excluded hidden);
+  // true = show only excluded accounts so they can be reviewed / restored.
+  const [viewExcluded, setViewExcluded] = useState(false);
+  // Archive view toggle. true = show only soft-deleted (removed) accounts so
+  // they can be reviewed and restored. Mutually exclusive with viewExcluded.
+  const [viewDeleted, setViewDeleted] = useState(false);
+  // Count of pending TAM proposals — drives the header entry point into
+  // the review surface so the living-TAM loops are never a dead-end.
+  const [proposalCount, setProposalCount] = useState(0);
   // Smart Search — NL query translated into FilterCondition[] via LLM.
-  // Stacks with the existing tab `filter`, text `searchQuery`, and semantic
-  // `searchResults`. Cleared on tab switch is intentional: tabs partition
-  // the dataset differently and a smart filter extracted for "prospects"
-  // likely doesn't apply to "manual".
+  // Stacks with the existing tab `filter` and the text `searchQuery`.
+  // Cleared on tab switch is intentional: tabs partition the dataset
+  // differently and a smart filter extracted for "prospects" likely
+  // doesn't apply to "manual".
   const [smartFilters, setSmartFilters] = useState<FilterCondition[]>([]);
   const [smartMeta, setSmartMeta] = useState<{ reasoning: string; unmatched: string[] } | null>(null);
   const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null);
@@ -238,7 +251,11 @@ export default function AccountsPage() {
     try {
       if (page === 1 && !append) setLoading(true);
       else setLoadingMore(true);
-      const res = await fetch(`/api/accounts?pageSize=50&page=${page}`);
+      const params = new URLSearchParams({ pageSize: "50", page: String(page) });
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      if (viewExcluded) params.set("excluded", "true");
+      if (viewDeleted) params.set("deleted", "true");
+      const res = await fetch(`/api/accounts?${params.toString()}`);
       if (!res.ok) return;
       const data = await res.json();
       const batch: Account[] = data.accounts || data.items || [];
@@ -257,7 +274,7 @@ export default function AccountsPage() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, []);
+  }, [debouncedSearch, viewExcluded, viewDeleted]);
 
   /** Reload all pages that have been loaded so far. Used after mutations
    *  (enrich, score, create) so the user doesn't snap back to page 1. */
@@ -266,7 +283,11 @@ export default function AccountsPage() {
       const pagesToLoad = Math.max(currentPage, 1);
       let all: Account[] = [];
       for (let p = 1; p <= pagesToLoad; p++) {
-        const res = await fetch(`/api/accounts?pageSize=50&page=${p}`);
+        const params = new URLSearchParams({ pageSize: "50", page: String(p) });
+        if (debouncedSearch) params.set("search", debouncedSearch);
+        if (viewExcluded) params.set("excluded", "true");
+        if (viewDeleted) params.set("deleted", "true");
+        const res = await fetch(`/api/accounts?${params.toString()}`);
         if (!res.ok) break;
         const data = await res.json();
         const batch: Account[] = data.accounts || data.items || [];
@@ -281,7 +302,7 @@ export default function AccountsPage() {
     } catch (e) {
       console.warn("accounts: refetch failed", e);
     }
-  }, [currentPage]);
+  }, [currentPage, debouncedSearch, viewExcluded, viewDeleted]);
 
   const loadMoreAccounts = useCallback(() => {
     if (loadingMore || currentPage >= totalPages) return;
@@ -289,6 +310,20 @@ export default function AccountsPage() {
   }, [fetchAccounts, loadingMore, currentPage, totalPages]);
 
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
+
+  // Pending TAM-proposal count for the header entry point.
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/tam/proposals?status=pending&limit=1");
+        if (!res.ok) return;
+        const data = await res.json();
+        setProposalCount(data.counts?.pending ?? 0);
+      } catch {
+        /* non-fatal */
+      }
+    })();
+  }, []);
 
   // Auto-load on scroll: when the bottom sentinel enters the scroll
   // container's viewport, pull the next page. `rootMargin` pre-fetches a
@@ -602,6 +637,80 @@ export default function AccountsPage() {
     }
   }
 
+  // Exclude ("not a fit") / restore the current selection. Reversible —
+  // the row stays (still feeds the TAM-build dedup set so it is never
+  // re-sourced) and outbound enrollment is already gated on the flag.
+  async function bulkSetExclusion(action: "exclude" | "include") {
+    const ids = Array.from(selectedRows);
+    if (ids.length === 0) return;
+    try {
+      const res = await fetch("/api/accounts/exclude", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, action }),
+      });
+      if (!res.ok) {
+        toast(action === "exclude" ? "Couldn't exclude." : "Couldn't restore.", "error");
+        return;
+      }
+      const data = await res.json().catch(() => ({ changed: ids.length }));
+      toast(
+        action === "exclude"
+          ? `Marked ${data.changed} account${data.changed === 1 ? "" : "s"} as not a fit.`
+          : `Restored ${data.changed} account${data.changed === 1 ? "" : "s"}.`,
+        "success",
+      );
+      setSelectedRows(new Set());
+      await refetchLoadedAccounts();
+    } catch (e) {
+      console.warn("accounts: bulk exclusion failed", e);
+      toast("Action failed.", "error");
+    }
+  }
+
+  async function rowSetExclusion(id: string, action: "exclude" | "include") {
+    try {
+      const res = await fetch("/api/accounts/exclude", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [id], action }),
+      });
+      if (!res.ok) {
+        toast(action === "exclude" ? "Couldn't exclude." : "Couldn't restore.", "error");
+        return;
+      }
+      toast(action === "exclude" ? "Marked as not a fit." : "Restored to active list.", "success");
+      await refetchLoadedAccounts();
+    } catch (e) {
+      console.warn("accounts: row exclusion failed", e);
+      toast("Action failed.", "error");
+    }
+  }
+
+  // Restore soft-deleted accounts from the Archive view — clears deleted_at and
+  // lifts the suppression so they're eligible for sourcing again.
+  async function restoreAccounts(ids: string[]) {
+    if (ids.length === 0) return;
+    try {
+      const res = await fetch("/api/accounts/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) {
+        toast("Couldn't restore.", "error");
+        return;
+      }
+      const data = await res.json().catch(() => ({ restored: ids.length }));
+      toast(`Restored ${data.restored} account${data.restored === 1 ? "" : "s"}.`, "success");
+      setSelectedRows(new Set());
+      await refetchLoadedAccounts();
+    } catch (e) {
+      console.warn("accounts: restore failed", e);
+      toast("Restore failed.", "error");
+    }
+  }
+
   // Soft-delete: single row, the current selection, or every account in
   // the tenant. Driven by `deleteTarget` + confirmed via <ConfirmDialog>.
   async function performDelete() {
@@ -648,44 +757,15 @@ export default function AccountsPage() {
     }
   }
 
-  async function handleSemanticSearch() {
-    if (!searchQuery.trim()) { setSearchResults(null); return; }
-    setSearching(true);
-    try {
-      const res = await fetch("/api/search/tam", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: searchQuery.trim(), entityType: "company", limit: 20 }) });
-      if (res.ok) {
-        const data = await res.json();
-        // A4: preserve per-result similarity score (0..1) so the badge
-        // and per-row chip can render the actual relevance, not just
-        // the rank.
-        const scored = new Map<string, number>();
-        for (const r of (data.results as { entityId: string; similarity: number }[]) ?? []) {
-          scored.set(r.entityId, r.similarity);
-        }
-        setSearchResults(scored);
-      } else {
-        toast("Search failed", "error");
-      }
-    } catch (e) {
-      toast("Search failed", "error");
-      console.warn("accounts: semantic search failed", e);
-    } finally { setSearching(false); }
-  }
-
-  // A4 — debounce auto-search 500ms after the user stops typing. Empty
-  // query clears results immediately (no debounce delay on the clear
-  // path so the table snaps back instantly).
+  // Debounce the search box and push it to the server. The accounts list
+  // endpoint resolves the query to matching industries via an LLM (not a
+  // hardcoded synonym list), so "medical" returns every health-care / medical
+  // account across the whole tenant, paginated — not just the loaded page.
   useEffect(() => {
-    const q = searchQuery.trim();
-    if (!q) {
-      setSearchResults(null);
-      return;
-    }
     const t = setTimeout(() => {
-      handleSemanticSearch();
-    }, 500);
+      setDebouncedSearch(searchQuery.trim());
+    }, 350);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
   function getLinkedInUrl(account: Account): string | null {
@@ -879,7 +959,7 @@ export default function AccountsPage() {
     size: { label: "Size", kind: "enum", get: (a) => a.size },
     revenue: { label: "Revenue", kind: "enum", get: (a) => a.revenue },
     stage: { label: "Stage", kind: "enum", get: (a) => getLifecycleStage(a) },
-    score: { label: "Score", kind: "enum", get: (a) => formatScore(a.score)?.grade ?? null },
+    score: { label: "Score", kind: "enum", get: (a) => displayScore(a.score, isEnriched(a))?.grade ?? null },
   };
 
   // Distinct values per enum column, computed from the loaded rows, for
@@ -925,17 +1005,13 @@ export default function AccountsPage() {
       if (filter === "tam" && !isTAM(a)) return false;
       if (filter === "manual" && isTAM(a)) return false;
       if (!passesColumnFilters(a)) return false;
-      if (searchQuery.trim() && !searchResults) {
-        const q = searchQuery.toLowerCase();
-        return a.name.toLowerCase().includes(q) || (a.domain?.toLowerCase().includes(q) ?? false) || (a.industry?.toLowerCase().includes(q) ?? false);
-      }
-      if (searchResults) return searchResults.has(a.id);
+      // The search box now queries the server (intelligent, industry-aware), so
+      // the displayed accounts are already the matched set — no client-side text
+      // re-filter (which would wrongly drop e.g. "hospital & health care" rows
+      // for a "medical" query that the LLM mapped to that industry).
       return true;
     })
     .sort((a, b) => {
-      if (searchResults) {
-        return (searchResults.get(b.id) ?? 0) - (searchResults.get(a.id) ?? 0);
-      }
       // Primary: score DESC. Secondary: lit signals DESC — Monaco
       // "rise to top" behaviour for rows whose chips just flipped.
       const ds = (b.score ?? -1) - (a.score ?? -1);
@@ -981,12 +1057,27 @@ export default function AccountsPage() {
               window.location.href = `/call-mode?accounts=${encodeURIComponent(ids.join(","))}`;
             },
           },
-          {
-            label: "Delete",
-            icon: <Trash2 size={13} />,
-            variant: "danger",
-            onClick: () => setDeleteTarget({ type: "bulk" }),
-          },
+          ...(viewDeleted
+            ? [
+                {
+                  label: "Restore",
+                  icon: <RotateCcw size={13} />,
+                  onClick: () => restoreAccounts(Array.from(selectedRows)),
+                },
+              ]
+            : [
+                {
+                  label: viewExcluded ? "Restore" : "Not a fit",
+                  icon: viewExcluded ? <RotateCcw size={13} /> : <Ban size={13} />,
+                  onClick: () => bulkSetExclusion(viewExcluded ? "include" : "exclude"),
+                },
+                {
+                  label: "Delete",
+                  icon: <Trash2 size={13} />,
+                  variant: "danger" as const,
+                  onClick: () => setDeleteTarget({ type: "bulk" }),
+                },
+              ]),
         ]}
       />
       {/* Page header */}
@@ -1007,6 +1098,35 @@ export default function AccountsPage() {
           loading={detectingSignals}
         >
           {detectingSignals ? "Detecting..." : "Signals"}
+        </Button>
+        {proposalCount > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<Sparkles size={13} />}
+            onClick={() => { window.location.href = "/tam/review"; }}
+            title="Review proposed TAM changes (add / refresh / exclude)"
+          >
+            Proposals ({proposalCount})
+          </Button>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          icon={viewExcluded ? <RotateCcw size={13} /> : <Ban size={13} />}
+          onClick={() => { setSelectedRows(new Set()); setViewDeleted(false); setViewExcluded((v) => !v); }}
+          title={viewExcluded ? "Back to the active working set" : "Review accounts marked as not a fit"}
+        >
+          {viewExcluded ? "Back to active" : "Excluded"}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          icon={viewDeleted ? <RotateCcw size={13} /> : <Archive size={13} />}
+          onClick={() => { setSelectedRows(new Set()); setViewExcluded(false); setViewDeleted((v) => !v); }}
+          title={viewDeleted ? "Back to the active working set" : "Review removed accounts and restore them"}
+        >
+          {viewDeleted ? "Back to active" : "Archive"}
         </Button>
         {accounts.some((a) => a.score == null) && (
           <Button
@@ -1035,6 +1155,14 @@ export default function AccountsPage() {
         <Button
           variant="outline"
           size="sm"
+          icon={<Target size={13} />}
+          onClick={() => setShowPersona(true)}
+        >
+          Describe ICP
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           icon={<Sparkles size={13} />}
           onClick={startTamBuild}
           disabled={tamStream.isRunning}
@@ -1056,11 +1184,13 @@ export default function AccountsPage() {
         </Button>
       </PageHeader>
 
+      {showPersona && <PersonaSearch onClose={() => setShowPersona(false)} />}
+
       {/* TAM stream progress banner — sticky above the filter bar
           during a build, collapses to a completion / error state
           after `done`. */}
       {streamBanner && (
-        <div className="px-4 pt-3">
+        <div>
           <TamBuildProgress
             state={tamStream}
             targetCount={300}
@@ -1109,55 +1239,29 @@ export default function AccountsPage() {
           );
         })()}
 
-        <div className="ml-auto flex items-center gap-2">
-          {/* Smart Search — NL → structured filters. Independent of the
-              text / semantic search to the right; results are extracted
-              filters displayed as chips below the filter bar. */}
-          <div className="w-64">
-            <SmartSearchBar
-              resourceType="account"
-              onFilters={(filters, meta) => {
-                setSmartFilters(filters);
-                setSmartMeta(meta);
-                if (filters.length > 0) {
-                  toast(`Applied ${filters.length} smart filter${filters.length === 1 ? "" : "s"}`, "success");
-                } else if (meta.unmatched.length > 0) {
-                  toast("Nothing matched your query — try rephrasing", "info");
-                }
-              }}
-              onError={(msg) => toast(msg, "error")}
-            />
-          </div>
-          <div className="relative flex items-center">
-            <Search size={13} className="absolute left-2.5" style={{ color: "var(--color-text-muted)" }} />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleSemanticSearch(); }}
-              placeholder="Search accounts..."
-              className="!h-7 w-52 !pl-8 !pr-7 !text-[12px]"
-              aria-label="Semantic search"
-              aria-busy={searching}
-            />
-            {searching && (
-              <Loader2
-                size={12}
-                className="absolute right-2 animate-spin"
-                style={{ color: "var(--color-text-muted)" }}
-                aria-hidden="true"
-              />
-            )}
-          </div>
-          {searchResults && (
-            <Button
-              variant="icon"
-              size="sm"
-              onClick={() => { setSearchResults(null); setSearchQuery(""); }}
-              aria-label="Clear search"
-            >
-              <X size={14} />
-            </Button>
-          )}
+        {/* One intelligent search box. Type -> server-side, industry-aware
+            search (debounced 350ms): the query is resolved to the matching
+            industries via an LLM, so "medical" returns every health-care
+            account across the whole tenant. Press Enter -> natural-language
+            smart filters. Replaces the old pair (literal box + semantic bar). */}
+        <div className="ml-auto w-80">
+          <SmartSearchBar
+            resourceType="account"
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search accounts — or describe and press Enter (e.g. SaaS in France, high fit)"
+            className="w-full"
+            onFilters={(filters, meta) => {
+              setSmartFilters(filters);
+              setSmartMeta(meta);
+              if (filters.length > 0) {
+                toast(`Applied ${filters.length} smart filter${filters.length === 1 ? "" : "s"}`, "success");
+              } else if (meta.unmatched.length > 0) {
+                toast(`Searched all fields. Couldn't add a filter for: ${meta.unmatched.join(", ")}`, "info");
+              }
+            }}
+            onError={(msg) => toast(msg, "error")}
+          />
         </div>
       </FilterBar>
 
@@ -1182,10 +1286,12 @@ export default function AccountsPage() {
         }}
       />
 
-      {/* A4 — Semantic-search result banner. Visible whenever the query
-           returned (even 0 hits) so the user always knows whether the
-           current rows are a search slice or the full list. */}
-      {searchResults && searchQuery.trim() && (
+      {/* Search-active banner. The accounts endpoint resolves the query to
+           matching industries via an LLM and filters server-side, so
+           `totalAccounts` is the real matched count across the whole tenant
+           (not just the loaded page). Shown whenever a search is active so
+           the user knows the rows are a filtered slice, and can clear it. */}
+      {debouncedSearch && (
         <div
           role="status"
           aria-live="polite"
@@ -1199,14 +1305,14 @@ export default function AccountsPage() {
           <Search size={12} style={{ color: "var(--color-text-tertiary)" }} />
           <span>
             <strong style={{ color: "var(--color-text-primary)" }}>
-              {searchResults.size}
+              {totalAccounts}
             </strong>{" "}
-            semantic match{searchResults.size === 1 ? "" : "es"} for{" "}
-            <span className="italic">&ldquo;{searchQuery.trim()}&rdquo;</span>
+            account{totalAccounts === 1 ? "" : "s"} match{" "}
+            <span className="italic">&ldquo;{debouncedSearch}&rdquo;</span>
           </span>
           <button
             type="button"
-            onClick={() => { setSearchResults(null); setSearchQuery(""); }}
+            onClick={() => setSearchQuery("")}
             className="ml-auto text-[11px] font-medium hover:underline"
             style={{ color: "var(--color-accent)" }}
           >
@@ -1264,24 +1370,44 @@ export default function AccountsPage() {
             cols={9 + 4 + customSignals.length + signalTypeColumns.length + customBoolColumns.length + customFields.length}
           />
         ) : mergedAccounts.length === 0 ? (
+          debouncedSearch ? (
+            /* The broad search ran server-side across every category and
+               matched nothing — distinct from an empty library, so the user
+               knows the search (not their data) is the reason. */
+            <EmptyState
+              icon={<Search size={24} />}
+              title={`No accounts match "${debouncedSearch}"`}
+              description="Nothing matched across name, website, industry or description. Try different words, or clear the search."
+              actionLabel="Clear search"
+              onAction={() => setSearchQuery("")}
+              actionVariant="outline"
+            />
+          ) : (
+            <EmptyState
+              icon={<Building2 size={24} />}
+              title="No accounts"
+              description="Create accounts or import contacts to get started."
+              actionLabel="Create account"
+              onAction={() => setShowCreate(true)}
+              actionVariant="gradient"
+            />
+          )
+        ) : filteredAccounts.length === 0 ? (
+          /* The search DID return rows (mergedAccounts > 0) but the active
+             smart / column filters narrowed them to none. Name that cause
+             precisely — never "no match for <search>", which is what made the
+             count banner ("41 match") and this state contradict each other.
+             Clearing here drops the filters, not the underlying search. */
           <EmptyState
-            icon={<Building2 size={24} />}
-            title="No accounts"
-            description="Create accounts or import contacts to get started."
-            actionLabel="Create account"
-            onAction={() => setShowCreate(true)}
-            actionVariant="gradient"
-          />
-        ) : filteredAccounts.length === 0 && searchResults && searchQuery.trim() ? (
-          /* A4 — dedicated empty state for a semantic search that
-             returned nothing. Distinct from the "no accounts at all"
-             state above so the user knows their library isn't empty. */
-          <EmptyState
-            icon={<Search size={24} />}
-            title={`No accounts match "${searchQuery.trim()}"`}
-            description="Try a different phrasing, or clear the search to see your full list."
-            actionLabel="Clear search"
-            onAction={() => { setSearchResults(null); setSearchQuery(""); }}
+            icon={<Filter size={24} />}
+            title="No accounts match the active filters"
+            description="Your search returned results, but the active filters narrowed them to none. Clear the filters to see them."
+            actionLabel="Clear filters"
+            onAction={() => {
+              setSmartFilters([]);
+              setSmartMeta(null);
+              setColumnFilters({});
+            }}
             actionVariant="outline"
           />
         ) : (
@@ -1443,14 +1569,6 @@ export default function AccountsPage() {
                               style={{ color: "var(--color-text-primary)" }}>
                               {account.name}
                             </button>
-                            {/* A4 — per-row similarity score, only when a
-                                semantic search is active. Helps users
-                                see *why* this row is here vs. the next. */}
-                            {searchResults && searchResults.has(account.id) && (
-                              <Badge variant="neutral" size="sm">
-                                {Math.round((searchResults.get(account.id) ?? 0) * 100)}% match
-                              </Badge>
-                            )}
                           </div>
                           {account.description && (
                             <p className="mt-0.5 max-w-[220px] truncate text-[11px]"
@@ -1541,7 +1659,7 @@ export default function AccountsPage() {
                     {/* Score */}
                     <td>
                       {(() => {
-                        const scoreInfo = formatScore(account.score);
+                        const scoreInfo = displayScore(account.score, isEnriched(account));
                         if (!scoreInfo) return <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>;
                         return (
                           <span className="flex items-center gap-1.5" title={account.scoreReasons?.join("; ") || ""}>
@@ -1855,6 +1973,21 @@ export default function AccountsPage() {
                         )}
                         <button
                           type="button"
+                          aria-label={viewDeleted ? `Restore ${account.name}` : viewExcluded ? `Restore ${account.name}` : `Mark ${account.name} as not a fit`}
+                          title={viewDeleted ? "Restore removed account" : viewExcluded ? "Restore to active list" : "Not a fit (exclude — keeps the row, drops it from outbound and re-sourcing)"}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (viewDeleted) restoreAccounts([account.id]);
+                            else rowSetExclusion(account.id, viewExcluded ? "include" : "exclude");
+                          }}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
+                          style={{ color: "var(--color-text-muted)" }}
+                        >
+                          {viewDeleted || viewExcluded ? <RotateCcw size={13} /> : <Ban size={13} />}
+                        </button>
+                        {!viewDeleted && (
+                        <button
+                          type="button"
                           aria-label={`Delete ${account.name}`}
                           title="Delete account"
                           onClick={(e) => {
@@ -1866,6 +1999,7 @@ export default function AccountsPage() {
                         >
                           <Trash2 size={13} />
                         </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1958,7 +2092,7 @@ export default function AccountsPage() {
       >
         {slideOverAccount && (() => {
           const a = slideOverAccount;
-          const scoreInfo = formatScore(a.score);
+          const scoreInfo = displayScore(a.score, isEnriched(a));
           const lc = ((a.properties as Record<string, unknown>)?.lifecycleStage as string) || "new";
           const lcStyle = getLifecycleStyle(lc);
           return (

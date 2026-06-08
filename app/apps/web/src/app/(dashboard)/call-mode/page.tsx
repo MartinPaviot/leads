@@ -23,6 +23,7 @@ import {
   Loader2,
   Sparkles,
   Clock,
+  SlidersHorizontal,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -34,8 +35,13 @@ import {
   PreCallBrief,
   AccountBrainPanel,
   LiveTranscript,
+  InCallContext,
   type ContactBrainJSON,
 } from "./_panels";
+import { CallModeOnboarding } from "./_onboarding";
+import { EditCampaignModal } from "./_edit-campaign-modal";
+import { CampaignFunnelBar } from "./_funnel-bar";
+import { CallScriptPanel } from "./_call-script";
 
 interface QueueItem {
   contactId: string;
@@ -105,6 +111,14 @@ export default function CallModePage() {
   // When the queue was pushed from an Accounts selection, how many
   // accounts it was scoped to — drives the filter banner.
   const [accountScope, setAccountScope] = useState<number>(0);
+  // Goal-driven campaign drives the daily list; first visit (no campaign yet)
+  // shows the onboarding.
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [campaign, setCampaign] = useState<{ id: string; name: string; dailyQuota: number; maxAttempts: number; windowDays: number; targetFilter?: unknown } | null>(null);
+  // Editing the plan (goal + cadence) after onboarding. planVersion remounts the
+  // funnel bar so its stats reload once the plan changes.
+  const [editingPlan, setEditingPlan] = useState(false);
+  const [planVersion, setPlanVersion] = useState(0);
   // Phase 3 — live coaching cards. Each card auto-dismisses after 12s
   // unless the user manually closes it. Newest on top, max 5 visible.
   const [coachingCards, setCoachingCards] = useState<CoachingCardData[]>([]);
@@ -130,23 +144,38 @@ export default function CallModePage() {
       ? accountsParam.split(",").map((s) => s.trim()).filter(Boolean)
       : [];
     setAccountScope(scopeIds.length);
-    const queueUrl =
-      scopeIds.length > 0
-        ? `/api/calls/queue?limit=50&accounts=${encodeURIComponent(scopeIds.join(","))}`
-        : "/api/calls/queue?limit=50";
     (async () => {
       try {
-        const [cfgRes, qRes] = await Promise.all([
-          fetch("/api/calls/config"),
-          fetch(queueUrl),
-        ]);
-        if (cancelled) return;
-        if (cfgRes.ok) setConfig(await cfgRes.json());
-        if (qRes.ok) {
-          const data = await qRes.json();
-          setQueue(data.calls ?? []);
-          if ((data.calls ?? []).length > 0) {
-            setSelectedId(data.calls[0].contactId);
+        const cfgP = fetch("/api/calls/config");
+        if (scopeIds.length > 0) {
+          // Manual scoped queue pushed from an Accounts selection — skip the
+          // campaign/onboarding and dial exactly those accounts.
+          const [cfgRes, qRes] = await Promise.all([
+            cfgP,
+            fetch(`/api/calls/queue?limit=50&accounts=${encodeURIComponent(scopeIds.join(","))}`),
+          ]);
+          if (cancelled) return;
+          if (cfgRes.ok) setConfig(await cfgRes.json());
+          if (qRes.ok) {
+            const data = await qRes.json();
+            setQueue(data.calls ?? []);
+            if ((data.calls ?? []).length > 0) setSelectedId(data.calls[0].contactId);
+          }
+        } else {
+          // Default: the goal-driven campaign drives today's list. No campaign
+          // yet -> first-visit onboarding.
+          const [cfgRes, campRes] = await Promise.all([cfgP, fetch("/api/calls/campaign")]);
+          if (cancelled) return;
+          if (cfgRes.ok) setConfig(await cfgRes.json());
+          if (campRes.ok) {
+            const data = await campRes.json();
+            if (data.needsOnboarding) {
+              setNeedsOnboarding(true);
+            } else {
+              setCampaign(data.campaign ?? null);
+              setQueue(data.calls ?? []);
+              if ((data.calls ?? []).length > 0) setSelectedId(data.calls[0].contactId);
+            }
           }
         }
       } catch (err) {
@@ -475,6 +504,53 @@ export default function CallModePage() {
     );
   }, []);
 
+  // One-tap disposition at hang-up: log the outcome (cadence + CRM run server-
+  // side), drop the contact from today's list, and auto-advance to the next.
+  const handleDisposition = useCallback(
+    async (outcome: string) => {
+      const callId = "callId" in softphone ? softphone.callId : "";
+      let captured: { dealAction?: string | null; tasksCreated?: number } | null = null;
+      if (callId) {
+        try {
+          const res = await fetch(`/api/calls/${callId}/disposition`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ outcome }),
+          });
+          captured = await res.json().catch(() => null);
+        } catch {
+          /* non-fatal — the async post-call worker still classifies it */
+        }
+      }
+      // Post-call wrap: one line on what the autopilot just captured in the
+      // CRM (deal + tasks), so the rep trusts the logging and moves on — no
+      // form, no pause. Auto-advance to the next prospect immediately.
+      const OUTCOME_LABEL: Record<string, string> = {
+        connected: "Connected",
+        meeting_booked: "Meeting booked",
+        callback_requested: "Callback requested",
+        no_answer: "No answer",
+        voicemail_left: "Voicemail",
+        not_interested: "Not interested",
+      };
+      const head = OUTCOME_LABEL[outcome] ?? outcome.replace(/_/g, " ");
+      const parts: string[] = [];
+      if (captured?.dealAction === "created") parts.push("deal created");
+      else if (captured?.dealAction === "updated") parts.push("deal updated");
+      else if (captured?.dealAction === "closed_lost") parts.push("deal closed (lost)");
+      const tasks = captured?.tasksCreated ?? 0;
+      if (tasks > 0) parts.push(`${tasks} task${tasks > 1 ? "s" : ""}`);
+      toast(parts.length ? `${head} · captured: ${parts.join(", ")}` : `${head} · cadence updated`, "success");
+      const idx = queue.findIndex((q) => q.contactId === selectedId);
+      const remaining = queue.filter((q) => q.contactId !== selectedId);
+      setQueue(remaining);
+      const next = remaining[idx] ?? remaining[idx - 1] ?? remaining[0] ?? null;
+      setSelectedId(next ? next.contactId : null);
+      setSoftphone({ kind: "idle" });
+    },
+    [softphone, queue, selectedId, toast],
+  );
+
   // ── Render ────────────────────────────────────────────────────
   // Every state lives inside the same shell as the other tabs: a flush
   // PageHeader bar (height var(--header-height)) above a flex-1 body.
@@ -486,6 +562,26 @@ export default function CallModePage() {
       <CallModeShell>
         <div className="flex flex-1 items-center justify-center">
           <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
+        </div>
+      </CallModeShell>
+    );
+  }
+
+  // First visit (no active campaign): set the goal before anything else, even
+  // if Twilio isn't configured yet — the plan is saved and dialing activates
+  // once a number is connected.
+  if (needsOnboarding) {
+    return (
+      <CallModeShell>
+        <div className="relative flex flex-1 min-h-0">
+          <CallModeOnboarding
+            onCreated={(c, calls) => {
+              setCampaign(c);
+              setNeedsOnboarding(false);
+              setQueue(calls as unknown as QueueItem[]);
+              if (calls.length > 0) setSelectedId(calls[0].contactId);
+            }}
+          />
         </div>
       </CallModeShell>
     );
@@ -527,8 +623,49 @@ export default function CallModePage() {
     );
   }
 
+  // Live focus mode: from dial to connected the cockpit collapses the queue and
+  // turns the right rail into call context, so the transcript takes the stage.
+  const inCall = softphone.kind === "dialing" || softphone.kind === "ringing" || softphone.kind === "connected";
+  // Who auto-advance lands on after this call — shown in the collapsed strip so
+  // the rep always knows the queue is alive without it competing for attention.
+  const nextUp = (() => {
+    if (!selectedId) return filteredQueue[0] ?? null;
+    const i = filteredQueue.findIndex((q) => q.contactId === selectedId);
+    return i >= 0 ? filteredQueue[i + 1] ?? null : filteredQueue[0] ?? null;
+  })();
+
   return (
-    <CallModeShell>
+    <CallModeShell
+      subtitle={campaign ? `Goal: ${campaign.name} - ${campaign.dailyQuota} calls/day, retry up to ${campaign.maxAttempts}x over ${campaign.windowDays}d` : undefined}
+      headerAction={
+        campaign && !inCall ? (
+          <Button variant="outline" size="sm" onClick={() => setEditingPlan(true)}>
+            <SlidersHorizontal size={14} /> Edit plan
+          </Button>
+        ) : undefined
+      }
+    >
+      {campaign && editingPlan && (
+        <EditCampaignModal
+          campaign={campaign}
+          onClose={() => setEditingPlan(false)}
+          onUpdated={({ campaign: updated, calls }) => {
+            setCampaign(updated);
+            setQueue(calls as unknown as QueueItem[]);
+            if (calls.length > 0) setSelectedId(calls[0].contactId);
+            setPlanVersion((v) => v + 1);
+          }}
+        />
+      )}
+      {campaign && (
+        <div
+          className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-out ${
+            inCall ? "max-h-0 opacity-0" : "max-h-48 opacity-100"
+          }`}
+        >
+          <CampaignFunnelBar key={planVersion} />
+        </div>
+      )}
       <div className="flex flex-1 min-h-0 w-full relative">
       {/* Phase 3 — live coaching overlay. Bottom-right, peripheral. */}
       {coachingCards.length > 0 && (
@@ -540,8 +677,18 @@ export default function CallModePage() {
         />
       )}
 
-      {/* ───── LEFT — Queue (320px) ───── */}
-      <aside className="w-80 shrink-0 border-r border-zinc-200 dark:border-zinc-800 flex flex-col">
+      {/* ───── LEFT — Queue: full in prep, thin strip when live ───── */}
+      <aside
+        className={`relative shrink-0 overflow-hidden border-r border-zinc-200 dark:border-zinc-800 transition-[width] duration-300 ease-out ${
+          inCall ? "w-16" : "w-80"
+        }`}
+      >
+        {/* Full queue (prep) — fixed 320px so it slides out cleanly under the clip */}
+        <div
+          className={`absolute inset-y-0 left-0 flex w-80 flex-col transition-opacity duration-200 ${
+            inCall ? "pointer-events-none opacity-0" : "opacity-100"
+          }`}
+        >
         <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             To call now
@@ -642,6 +789,41 @@ export default function CallModePage() {
             })
           )}
         </div>
+        </div>
+        {/* Thin strip (live) — count + who's next, calm and glanceable */}
+        <div
+          className={`absolute inset-0 flex flex-col items-center gap-4 px-2 py-4 transition-opacity duration-200 ${
+            inCall ? "opacity-100 delay-150" : "pointer-events-none opacity-0"
+          }`}
+        >
+          <div className="text-center">
+            <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              {filteredQueue.length}
+            </div>
+            <div className="text-[9px] font-medium uppercase tracking-wide text-zinc-400">
+              en file
+            </div>
+          </div>
+          {nextUp && (
+            <div className="flex flex-col items-center gap-1">
+              <div className="h-px w-6 bg-zinc-200 dark:bg-zinc-800" />
+              <span className="mt-1 text-[9px] font-medium uppercase tracking-wide text-zinc-400">
+                après
+              </span>
+              <CompanyLogo
+                domain={nextUp.companyDomain}
+                name={nextUp.companyName ?? nextUp.contactName}
+                size={32}
+              />
+              <span
+                className="w-12 truncate text-center text-[10px] text-zinc-500"
+                title={nextUp.contactName}
+              >
+                {nextUp.contactName.split(" ")[0]}
+              </span>
+            </div>
+          )}
+        </div>
       </aside>
 
       {/* ───── CENTER — Brief + softphone (flex-1) ───── */}
@@ -672,6 +854,7 @@ export default function CallModePage() {
                   onCall={handleAppeler}
                   onHangup={handleHangup}
                   onDropVoicemail={handleDropVoicemail}
+                  onDisposition={handleDisposition}
                   voicemailDropping={voicemailDropping}
                   voicemailDropped={voicemailDropped}
                 />
@@ -745,14 +928,23 @@ export default function CallModePage() {
         )}
       </main>
 
-      {/* ───── RIGHT — Account brain (380px) ───── */}
+      {/* ───── RIGHT — Account brain (prep) / call context (live) ───── */}
       <aside className="w-96 shrink-0 border-l border-zinc-200 dark:border-zinc-800 overflow-y-auto">
         {selected ? (
-          <AccountBrainPanel
-            brain={brain}
-            brainLoading={brainLoading}
-            focalContactId={selected.contactId}
-          />
+          <>
+            <div className="border-b border-zinc-200 p-3 dark:border-zinc-800">
+              <CallScriptPanel contactName={selected.contactName} />
+            </div>
+            {inCall ? (
+              <InCallContext selected={selected} brain={brain} coaching={coachingHistory} />
+            ) : (
+              <AccountBrainPanel
+                brain={brain}
+                brainLoading={brainLoading}
+                focalContactId={selected.contactId}
+              />
+            )}
+          </>
         ) : (
           <div className="h-full flex items-center justify-center p-6 text-sm text-zinc-500">
             Select a contact to see the account.
@@ -769,14 +961,16 @@ export default function CallModePage() {
  * (flush PageHeader bar above a flex-1 body) so Call Mode lines up with
  * the rest of the app instead of floating its own header inside padding.
  */
-function CallModeShell({ children }: { children: React.ReactNode }) {
+function CallModeShell({ children, subtitle, headerAction }: { children: React.ReactNode; subtitle?: string; headerAction?: React.ReactNode }) {
   return (
     <div className="flex h-full flex-col animate-content-in">
       <PageHeader
         icon={<Phone size={15} />}
         title="Call Mode"
-        subtitle="Autonomous cold calling from Elevay"
-      />
+        subtitle={subtitle ?? "Autonomous cold calling from Elevay"}
+      >
+        {headerAction}
+      </PageHeader>
       {children}
     </div>
   );
@@ -790,10 +984,11 @@ function SoftphoneControls(props: {
   onCall: (contactId: string) => void;
   onHangup: () => void;
   onDropVoicemail: (callId: string) => void;
+  onDisposition: (outcome: string) => void;
   voicemailDropping: boolean;
   voicemailDropped: boolean;
 }) {
-  const { state, selected, onCall, onHangup, onDropVoicemail, voicemailDropping, voicemailDropped } = props;
+  const { state, selected, onCall, onHangup, onDropVoicemail, onDisposition, voicemailDropping, voicemailDropped } = props;
   switch (state.kind) {
     case "idle":
       return (
@@ -871,16 +1066,39 @@ function SoftphoneControls(props: {
         </div>
       );
     }
-    case "ended":
+    case "ended": {
+      const suggested = state.outcome;
+      const opts: { key: string; label: string }[] = [
+        { key: "connected", label: "Connected" },
+        { key: "meeting_booked", label: "Meeting booked" },
+        { key: "callback_requested", label: "Callback" },
+        { key: "no_answer", label: "No answer" },
+        { key: "voicemail_left", label: "Voicemail" },
+        { key: "not_interested", label: "Not interested" },
+      ];
       return (
-        <div className="flex items-center gap-3">
-          <Badge>{state.outcome ?? "ended"}</Badge>
-          <Button onClick={() => onCall(selected.contactId)} className="gap-2">
-            <Phone className="h-4 w-4" />
-            Call again
-          </Button>
+        <div className="flex flex-col gap-2">
+          <span className="text-[12px] text-zinc-500">
+            How did it go?{suggested ? ` (suggested: ${suggested.replace(/_/g, " ")})` : ""}
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {opts.map((o) => (
+              <Button
+                key={o.key}
+                variant={suggested === o.key ? "solid" : "outline"}
+                size="sm"
+                onClick={() => onDisposition(o.key)}
+              >
+                {o.label}
+              </Button>
+            ))}
+            <Button variant="ghost" size="sm" onClick={() => onCall(selected.contactId)} className="gap-1">
+              <Phone className="h-3.5 w-3.5" /> Call again
+            </Button>
+          </div>
         </div>
       );
+    }
   }
 }
 

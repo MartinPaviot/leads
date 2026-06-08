@@ -1,12 +1,10 @@
 import { Resend } from "resend";
 import { logger } from "@/lib/observability/logger";
+import { EMAIL_FROM } from "./from";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
-
-const FROM_ADDRESS =
-  process.env.INVITE_FROM_ADDRESS || "Elevay <no-reply@resend.dev>";
 
 export interface SendPasswordChangedEmailResult {
   sent: boolean;
@@ -50,7 +48,7 @@ If this wasn't you, reply to this email immediately so we can lock the account.`
 
   try {
     const { error } = await resend.emails.send({
-      from: FROM_ADDRESS,
+      from: EMAIL_FROM,
       to: [to],
       subject,
       html,

@@ -4,6 +4,7 @@ import { withAuthRLS } from "@/lib/auth/auth-utils";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/permissions";
 import { logAudit } from "@/lib/infra/audit-log";
+import { suppressAccounts } from "@/lib/accounts/suppression";
 
 /**
  * Batch fetch accounts by IDs — replaces N+1 individual fetches.
@@ -88,11 +89,28 @@ export async function DELETE(req: Request) {
         deleteAll ? undefined : inArray(companies.id, ids),
       );
 
+      // Capture the stable identity of what we're about to remove so the
+      // suppression ledger can keep it out of future sourcing for good.
+      const removed = await db
+        .select({ id: companies.id, name: companies.name, domain: companies.domain, properties: companies.properties })
+        .from(companies)
+        .where(tenantScope);
+
       const result = await db
         .update(companies)
         .set({ deletedAt: sql`now()`, updatedAt: sql`now()` })
         .where(tenantScope)
         .returning({ id: companies.id });
+
+      if (removed.length > 0) {
+        await suppressAccounts({
+          tenantId: authCtx.tenantId,
+          kind: "deleted",
+          reason: "user_deleted",
+          createdBy: authCtx.appUserId,
+          companies: removed,
+        }).catch((e) => console.error("suppressAccounts (delete) failed:", e));
+      }
 
       await logAudit({
         tenantId: authCtx.tenantId,

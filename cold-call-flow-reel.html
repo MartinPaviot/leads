@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Elevay — Cold call : ce qui fonctionne réellement</title>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#121826; --panel2:#0e1320; --line:#23304a;
+    --txt:#e7edf7; --muted:#8ea0bd;
+    --live:#22c55e; --part:#e0a416; --dark:#64748b; --off:#ef4444;
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Inter,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;font-size:14px;line-height:1.45}
+  .wrap{max-width:1180px;margin:0 auto;padding:40px 28px 80px}
+  header h1{font-size:26px;font-weight:680;letter-spacing:-.4px;margin:0 0 6px}
+  header p{color:var(--muted);margin:0 0 22px;max-width:820px}
+
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
+  .chip{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
+    font-size:12px;font-weight:600;background:var(--panel);border:1px solid var(--line)}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .d-live{background:var(--live)} .d-part{background:var(--part)} .d-dark{background:var(--dark)}
+
+  .banner{background:#1a1206;border:1px solid #5a3d0a;border-radius:12px;padding:13px 16px;margin:0 0 26px;
+    color:#f0d9a8;font-size:12.5px}
+  .banner b{color:#ffd98a}
+
+  .stage{position:relative;background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line);border-radius:var(--r);padding:18px 20px 18px 20px;margin:0 0 10px;
+    border-left:4px solid var(--line)}
+  .stage.s-live{border-left-color:var(--live)}
+  .stage.s-part{border-left-color:var(--part)}
+  .stage.s-dark{border-left-color:var(--dark)}
+  .stage::before{content:attr(data-step);position:absolute;top:-12px;left:16px;
+    width:26px;height:26px;border-radius:8px;display:grid;place-items:center;
+    font-size:13px;font-weight:700;color:#0b0f17;background:#cdd9ef}
+  .head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 0 3px;flex-wrap:wrap}
+  .head h2{margin:0;font-size:16px;font-weight:660;letter-spacing:-.2px}
+  .where{color:var(--muted);font-weight:500;font-size:11.5px;font-family:ui-monospace,monospace}
+  .status{font-size:11px;font-weight:800;letter-spacing:.4px;padding:3px 9px;border-radius:6px;white-space:nowrap}
+  .st-live{background:rgba(34,197,94,.14);color:#5ee08a;border:1px solid rgba(34,197,94,.4)}
+  .st-part{background:rgba(224,164,22,.14);color:#f3c969;border:1px solid rgba(224,164,22,.4)}
+  .st-dark{background:rgba(100,116,139,.16);color:#9fb0c9;border:1px solid rgba(100,116,139,.4)}
+  .sub{color:var(--muted);font-size:12.5px;margin:0 0 12px}
+
+  .provs{display:flex;flex-wrap:wrap;gap:7px}
+  .prov{display:inline-flex;align-items:center;gap:7px;padding:4px 10px;border-radius:8px;
+    font-size:12px;font-weight:600;background:#0c1220;border:1px solid var(--line)}
+  .prov .pdot{width:8px;height:8px;border-radius:50%}
+  .prov.on{border-color:rgba(34,197,94,.45)}
+  .prov.on .pdot{background:var(--live)}
+  .prov.cap{border-color:rgba(224,164,22,.45)}
+  .prov.cap .pdot{background:var(--part)}
+  .prov.off{border-color:rgba(100,116,139,.4);color:#94a3b8}
+  .prov.off .pdot{background:var(--dark)}
+  .prov small{color:var(--muted);font-weight:500;font-size:11px}
+  code{background:#10182a;border:1px solid var(--line);border-radius:5px;padding:1px 6px;
+    font-size:11.5px;color:#bcd0f0;font-family:ui-monospace,monospace}
+  .gap{margin-top:11px;font-size:11.5px;color:#f0b8b8;border-top:1px dashed #4a2a2a;padding-top:9px}
+  .gap b{color:#ff9c9c}
+  .ok{margin-top:11px;font-size:11.5px;color:#a7e0bd;border-top:1px dashed #244a32;padding-top:9px}
+
+  .arrow{display:grid;place-items:center;height:26px;color:var(--muted)}
+  .arrow svg{width:18px;height:18px}
+
+  .branch{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-top:6px}
+  @media(max-width:760px){.branch{grid-template-columns:1fr}}
+  .outcome{border-left:3px solid var(--line);padding:8px 11px;border-radius:8px;background:#0c1220}
+  .outcome .o{font-weight:660;font-size:12px;margin-bottom:2px}
+  .outcome.win{border-left-color:#22c55e}.outcome.warm{border-left-color:#e0a416}.outcome.lost{border-left-color:#ef4444}
+  .outcome p{margin:0;color:var(--muted);font-size:11.5px}
+
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:12.5px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px}
+  td .s{font-weight:700}
+  .s-on{color:#5ee08a}.s-cap{color:#f3c969}.s-off{color:#9fb0c9}
+  h3.sec{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:34px 0 6px}
+  footer{color:var(--muted);font-size:12px;margin-top:30px;text-align:center}
+  .pill{display:inline-block;background:#10182a;border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-size:11px;color:#9fb3d4;font-family:ui-monospace,monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Cold call Elevay — ce qui fonctionne réellement</h1>
+    <p>État réel du pipeline d'après le code branché <b>et l'audit des env de production Vercel</b> (projet <span class="pill">web</span>, 2026-06-08), pas l'architecture cible. Chaque étape porte un statut : ce qui tourne, ce qui tourne en partie, ce qui est codé mais éteint.</p>
+  </header>
+
+  <div class="legend">
+    <span class="chip"><span class="dot d-live"></span>Live — branché + clé présente</span>
+    <span class="chip"><span class="dot d-part"></span>Partiel — marche avec une limite ou un provider manquant</span>
+    <span class="chip"><span class="dot d-dark"></span>Éteint — codé mais non câblé / sans clé</span>
+  </div>
+
+  <div class="banner" style="background:#06160d;border-color:#1f5a36;color:#bdebcb">
+    <b style="color:#8fe3a8">Vérifié en prod.</b> Les clés <code>INNGEST_SIGNING_KEY</code> + <code>INNGEST_EVENT_KEY</code> sont posées en production (Vercel, il y a 3j) : l'asynchrone (enrichment au <code>contact/created</code>, post-appel, mise à jour des deals) <b>s'exécute en prod</b>, plus seulement en local. <code>ANTHROPIC_API_KEY</code>, <code>DEEPGRAM_API_KEY</code>, <code>LUSHA</code>, <code>PAPPERS</code> également présentes. Manquent en prod : <b>KASPR</b> (mobile FR), FullEnrich, Zeliq.
+  </div>
+
+  <!-- 1 -->
+  <section class="stage s-live" data-step="1">
+    <div class="head"><h2>Capture des comptes</h2><span class="status st-live">LIVE</span></div>
+    <div class="where">lib/voice/source-prospects.ts · lib/discovery/*</div>
+    <p class="sub" style="margin-top:8px">ICP → recherche d'entreprises, dédupliquées par domaine, vers la queue d'approbation TAM.</p>
+    <div class="provs">
+      <span class="prov on"><span class="pdot"></span>Apollo <small>clé présente · searchOrganizations</small></span>
+      <span class="prov on"><span class="pdot"></span>Pappers <small>clé présente · FR</small></span>
+      <span class="prov on"><span class="pdot"></span>SIRENE <small>keyless · FR</small></span>
+      <span class="prov on"><span class="pdot"></span>Zefix <small>keyless · CH</small></span>
+    </div>
+    <div class="ok">Apollo renvoie les firmographics masqués au search → <code>enrichOrganization(domain)</code> derrière remplit la fiche. Effectivement branché.</div>
+  </section>
+  <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+
+  <!-- 2 -->
+  <section class="stage s-live" data-step="2">
+    <div class="head"><h2>Capture des contacts</h2><span class="status st-live">LIVE</span></div>
+    <div class="where">lib/voice/source-prospects.ts</div>
+    <p class="sub" style="margin-top:8px">Personnes matchant la persona par compte → insert <code>contacts</code> → émet <code>contact/created</code>.</p>
+    <div class="provs">
+      <span class="prov on"><span class="pdot"></span>Apollo <small>clé présente · searchPeople</small></span>
+    </div>
+  </section>
+  <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+
+  <!-- 3 -->
+  <section class="stage s-part" data-step="3">
+    <div class="head"><h2>Enrichment téléphone &amp; email</h2><span class="status st-part">PARTIEL</span></div>
+    <div class="where">lib/providers/contact-enrichment/waterfall.ts</div>
+    <p class="sub" style="margin-top:8px">Waterfall geo-routée. En réalité seuls deux providers sont actifs.</p>
+    <div class="provs">
+      <span class="prov on"><span class="pdot"></span>Apollo <small>clé présente · email + LinkedIn + numéros</small></span>
+      <span class="prov cap"><span class="pdot"></span>Lusha <small>clé présente · mobile CH/EU · cap 100/jour</small></span>
+      <span class="prov off"><span class="pdot"></span>Kaspr <small>CLÉ ABSENTE · mobile FR éteint</small></span>
+      <span class="prov off"><span class="pdot"></span>Zeliq <small>non câblé</small></span>
+      <span class="prov off"><span class="pdot"></span>FullEnrich <small>clé présente mais non enregistrée dans le waterfall</small></span>
+    </div>
+    <div class="gap"><b>Trou réel :</b> Kaspr est le leader mobile FR et il est éteint (pas de clé) → un prospect <code>+33</code> tombe sur Apollo/Lusha, qui couvrent mal le mobile FR. Le mobile suisse passe par Lusha (cap 100/jour, enrichi par vagues).</div>
+  </section>
+  <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+
+  <!-- 4 -->
+  <section class="stage s-part" data-step="4">
+    <div class="head"><h2>Call Mode — déclenchement</h2><span class="status st-part">LIVE (FR) · CH en attente</span></div>
+    <div class="where">api/calls/start · lib/voice/twilio.ts</div>
+    <p class="sub" style="margin-top:8px">Réservation ligne <code>calls</code>, garde-fous DNC/quiet-hours/usage-cap, puis jambe sortante + micro navigateur.</p>
+    <div class="provs">
+      <span class="prov on"><span class="pdot"></span>Twilio <small>creds complètes en prod · createCall + WebRTC SDK</small></span>
+    </div>
+    <div class="gap"><b>Limites réelles :</b> caller-id <code>+33</code> vérifié → <b>numérotation FR live</b>. <b>Numéro suisse <code>+41</code> en attente d'approbation Twilio</b> → numérotation CH pas encore ouverte. Enregistrement <b>opt-in</b> via <code>VOICE_RECORDING_ENABLED</code> (posé en prod il y a 12h).</div>
+  </section>
+  <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+
+  <!-- 5 -->
+  <section class="stage s-live" data-step="5">
+    <div class="head"><h2>Transcript live</h2><span class="status st-live">LIVE</span></div>
+    <div class="where">api/calls/twiml + api/calls/transcription</div>
+    <p class="sub" style="margin-top:8px">Transcription <b>native Twilio avec moteur Deepgram Nova-3</b> : Twilio héberge le stream et POST les chunks finals vers notre webhook. Pas de serveur WebSocket à tenir.</p>
+    <div class="provs">
+      <span class="prov on"><span class="pdot"></span>Deepgram Nova-3 <small>moteur, via Twilio · fr-FR · both_tracks</small></span>
+      <span class="prov on"><span class="pdot"></span>Twilio Transcription <small>&lt;Start&gt;&lt;Transcription&gt; · finals → calls.transcript → SSE</small></span>
+      <span class="prov off"><span class="pdot"></span>Bridge auto-hébergé <small>deepgram-bridge.ts · codé mais non utilisé</small></span>
+    </div>
+    <div class="ok"><b>Nuance utile :</b> Deepgram Nova-3 <b>est</b> le moteur de transcription (paramétré dans le TwiML), mais c'est l'intégration Twilio qui l'embarque. Notre <code>DEEPGRAM_API_KEY</code> en prod n'est donc pas consommée par ce chemin. Le seul mort ici est notre bridge WS maison.</div>
+  </section>
+  <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+
+  <!-- 6 -->
+  <section class="stage s-live" data-step="6">
+    <div class="head"><h2>Coaching live</h2><span class="status st-live">LIVE</span></div>
+    <div class="where">api/calls/transcription · coaching-classifier.ts</div>
+    <p class="sub" style="margin-top:8px">Sur chaque réplique prospect : préfiltre d'objection + debounce DB, puis classification → carte de réponse.</p>
+    <div class="provs">
+      <span class="prov on"><span class="pdot"></span>Claude Haiku 4.5 <small>clé présente · classifyObjection → calls.coachingCards</small></span>
+    </div>
+    <div class="ok">Modèle réel = <code>claude-haiku-4-5</code> (pas Sonnet). Gaté par <code>VOICE_COACHING_LIVE</code> + clé Anthropic. Debounce 5 s, anti-répétition de classe 60 s.</div>
+  </section>
+  <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+
+  <!-- 7 -->
+  <section class="stage s-live" data-step="7">
+    <div class="head"><h2>Analyse du transcript (post-appel)</h2><span class="status st-live">LIVE (prod)</span></div>
+    <div class="where">inngest/calls-post-process.ts</div>
+    <p class="sub" style="margin-top:8px">Webhook <code>recording-status</code> → event <code>calls/post-process</code> → extraction structurée. Inngest configuré en prod → s'exécute réellement.</p>
+    <div class="provs">
+      <span class="prov on"><span class="pdot"></span>Claude Sonnet 4.6 <small>clé en prod · generateObject(callNotesSchema)</small></span>
+      <span class="prov on"><span class="pdot"></span>OpenAI gpt-4o-mini <small>clé en prod · fallback</small></span>
+      <span class="prov off"><span class="pdot"></span>Deepgram batch <small>fallback transcript vide NON implémenté</small></span>
+    </div>
+    <div class="gap"><b>Seul trou :</b> si le transcript est vide (stream raté), le code ne lance <b>pas</b> de transcription batch sur l'enregistrement — il classe en <code>no_answer</code>. Le reste de l'extraction est branché et tourne en prod.</div>
+  </section>
+  <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+
+  <!-- 8 -->
+  <section class="stage s-live" data-step="8">
+    <div class="head"><h2>Mise à jour des deals + mémoire</h2><span class="status st-live">LIVE (prod)</span></div>
+    <div class="where">lib/voice/post-call-crm.ts · context-graph · campaign.ts</div>
+    <p class="sub" style="margin-top:8px">Logique CRM complète et branchée — s'exécute dans le worker post-appel.</p>
+    <div class="branch">
+      <div class="outcome win"><div class="o">meeting / connecté+positif</div><p>Crée/avance un deal, valeur ← budget, close ← timeline.</p></div>
+      <div class="outcome warm"><div class="o">callback / actions</div><p>Crée des tasks datées, taguées <code>[call:id]</code>.</p></div>
+      <div class="outcome lost"><div class="o">not_interested</div><p>Ferme le deal en <code>lost</code>.</p></div>
+    </div>
+    <div class="provs" style="margin-top:9px">
+      <span class="prov on"><span class="pdot"></span>Context graph <small>ingestEpisode · mémoire client</small></span>
+      <span class="prov on"><span class="pdot"></span>Cadence campagne <small>re-queue 8x/15j</small></span>
+      <span class="prov on"><span class="pdot"></span>Contact disposition <small>stamp lastCall</small></span>
+    </div>
+    <div class="ok"><b>Réel :</b> Inngest étant posé en prod, l'event post-appel est traité et les deals/tasks/mémoire s'actualisent automatiquement. Logique testée.</div>
+  </section>
+
+  <h3 class="sec">Synthèse provider — réel</h3>
+  <table>
+    <thead><tr><th>Provider</th><th>Rôle</th><th>État réel</th></tr></thead>
+    <tbody>
+      <tr><td>Apollo</td><td>Sourcing comptes + contacts + enrichment</td><td class="s s-on">Live (clé prod)</td></tr>
+      <tr><td>SIRENE · Pappers · Zefix</td><td>Discovery TAM (FR/CH)</td><td class="s s-on">Live (Pappers clé prod)</td></tr>
+      <tr><td>Lusha</td><td>Mobile CH/EU</td><td class="s s-cap">Live · cap 100/jour</td></tr>
+      <tr><td>Twilio</td><td>Voix + transcription + recording</td><td class="s s-cap">Live FR · +41 en attente approb. · recording opt-in</td></tr>
+      <tr><td>Deepgram Nova-3</td><td>Moteur de transcription (via Twilio)</td><td class="s s-on">Live — embarqué par Twilio</td></tr>
+      <tr><td>Claude Haiku 4.5</td><td>Coaching live (objections)</td><td class="s s-on">Live</td></tr>
+      <tr><td>Claude Sonnet 4.6 / gpt-4o-mini</td><td>Analyse post-appel</td><td class="s s-on">Live (Inngest posé en prod)</td></tr>
+      <tr><td>Inngest</td><td>Orchestration asynchrone</td><td class="s s-on">Live prod (keys 3j) + dev local</td></tr>
+      <tr><td>Kaspr</td><td>Mobile FR</td><td class="s s-off">Éteint — clé absente (prod + local)</td></tr>
+      <tr><td>Bridge Deepgram maison</td><td>WS auto-hébergé live/batch</td><td class="s s-off">Éteint — non câblé</td></tr>
+      <tr><td>Zeliq · FullEnrich</td><td>Enrichment complément</td><td class="s s-off">Éteint — non câblé (FullEnrich a une clé en local seulement, pas en prod)</td></tr>
+    </tbody>
+  </table>
+
+  <footer>2026-06-08 · branche <span class="pill">feat/tam-lifecycle</span> · statuts dérivés du code branché + audit réel des env de production Vercel (projet <span class="pill">web</span>).</footer>
+</div>
+</body>
+</html>

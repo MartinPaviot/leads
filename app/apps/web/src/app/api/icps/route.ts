@@ -93,5 +93,13 @@ export async function POST(req: Request) {
     .send({ name: "icp/recompute-tenant", data: { tenantId: authCtx.tenantId } })
     .catch(() => {});
 
+  // When the ICP is active, also propose net-new accounts that match it
+  // (queued for approval — nothing is inserted or enriched without an OK).
+  if (status === "active") {
+    inngest
+      .send({ name: "icp/source-tenant", data: { tenantId: authCtx.tenantId, icpId } })
+      .catch(() => {});
+  }
+
   return Response.json({ id: icpId, name, status, priority }, { status: 201 });
 }

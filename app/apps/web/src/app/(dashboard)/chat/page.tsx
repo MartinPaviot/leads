@@ -48,13 +48,15 @@ export default function ChatPage() {
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachedFile, setAttachedFile] = useState<{ name: string; content: string } | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [localInput, setLocalInput] = useState("");
   const [autoSent, setAutoSent] = useState(false);
   const [lastSavedCount, setLastSavedCount] = useState(0);
+  // Guards saveMessages against double-invocation (see saveMessages).
+  const savingRef = useRef(false);
   const [emailComposer, setEmailComposer] = useState<EmailComposerDraft | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [firstName, setFirstName] = useState<string>("");
@@ -147,6 +149,13 @@ export default function ChatPage() {
   const saveMessages = useCallback(async () => {
     if (chat.status === "streaming") return;
     if (chat.messages.length <= lastSavedCount) return;
+    // Re-entrancy guard — a double-invoked save (React StrictMode in dev, or a
+    // rapid re-render before lastSavedCount commits) was persisting the same
+    // exchange twice (4 rows for a 1-turn thread). Serialize saves so each turn
+    // is written exactly once.
+    if (savingRef.current) return;
+    savingRef.current = true;
+    try {
 
     const newMessages = chat.messages.slice(lastSavedCount);
     if (newMessages.length === 0) return;
@@ -221,6 +230,9 @@ export default function ChatPage() {
     }
 
     setLastSavedCount(chat.messages.length);
+    } finally {
+      savingRef.current = false;
+    }
   }, [chat.messages, chat.status, threadId, lastSavedCount]);
 
   // Trigger save when streaming completes
@@ -229,6 +241,16 @@ export default function ChatPage() {
       saveMessages();
     }
   }, [chat.status, chat.messages.length, lastSavedCount, saveMessages]);
+
+  // Auto-grow the composer so the full message stays visible as it's typed
+  // (and snap back to one line after sending / clearing). Capped at 200px,
+  // then it scrolls.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, [localInput]);
 
   function handleLocalSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -327,24 +349,35 @@ export default function ChatPage() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="absolute left-3 top-1/2 -translate-y-1/2 rounded p-0.5 transition-colors hover:bg-[var(--color-bg-hover)]"
+            className="absolute left-3 bottom-2 rounded p-0.5 transition-colors hover:bg-[var(--color-bg-hover)]"
             style={{ color: "var(--color-text-tertiary)" }}
             title="Attach file"
           >
             <Paperclip size={14} />
           </button>
-          <input
+          <textarea
             ref={inputRef}
             value={localInput}
             onChange={(e) => setLocalInput(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter sends; Shift+Enter inserts a newline (composer convention).
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                e.currentTarget.form?.requestSubmit();
+              }
+            }}
             placeholder="Ask Elevay..."
             autoFocus
-            className={`w-full rounded-xl pl-10 pr-20 outline-none transition-all ${big ? "py-3.5 text-[15px]" : "py-2.5 text-[14px]"}`}
+            rows={1}
+            className={`w-full resize-none rounded-xl pl-10 pr-20 outline-none transition-all ${big ? "py-3.5 text-[15px]" : "py-2.5 text-[14px]"}`}
             style={{
               background: "var(--color-bg-card)",
               color: "var(--color-text-primary)",
               border: "1px solid var(--color-border-default)",
               boxShadow: "var(--shadow-card)",
+              maxHeight: 200,
+              overflowY: "auto",
+              lineHeight: 1.5,
             }}
             onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-border-focus)"; }}
             onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-border-default)"; }}
@@ -353,7 +386,7 @@ export default function ChatPage() {
           <button
             type="button"
             onClick={toggleVoiceInput}
-            className="absolute top-1/2 -translate-y-1/2 rounded p-1 transition-colors hover:bg-[var(--color-bg-hover)]"
+            className="absolute bottom-2 rounded p-1 transition-colors hover:bg-[var(--color-bg-hover)]"
             style={{ right: localInput.trim() ? 42 : 12, color: isListening ? "var(--color-error)" : "var(--color-text-tertiary)" }}
             title={isListening ? "Stop listening" : "Voice input"}
           >
@@ -365,7 +398,7 @@ export default function ChatPage() {
               variant="solid"
               size="sm"
               disabled={chat.status === "streaming"}
-              className="absolute right-2 top-1/2 -translate-y-1/2"
+              className="absolute right-2 bottom-2"
               icon={<Send size={13} />}
               style={{ borderRadius: "8px" }}
             />
@@ -566,7 +599,7 @@ export default function ChatPage() {
 
                               const endpoint = proposalAction === "createContact" ? "/api/contacts"
                                 : proposalAction === "createAccount" ? "/api/accounts"
-                                : proposalAction === "createDeal" ? "/api/deals"
+                                : proposalAction === "createDeal" ? "/api/opportunities"
                                 : null;
                               if (endpoint) {
                                 const entityType = proposalAction === "createContact" ? "contact"

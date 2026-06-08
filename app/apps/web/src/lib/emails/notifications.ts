@@ -2,16 +2,11 @@ import { db } from "@/db";
 import { notifications, notificationPreferences, users } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { Resend } from "resend";
+import { EMAIL_FROM } from "./from";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
-
-// From address — honor INVITE_FROM_ADDRESS (a verified-domain sender) like the
-// other transactional emails do; fall back to Resend's test domain, which only
-// delivers to the account owner until a custom domain is verified.
-const FROM_ADDRESS =
-  process.env.INVITE_FROM_ADDRESS || "Elevay <notifications@resend.dev>";
 
 export type NotificationType =
   | "deal_risk"
@@ -76,7 +71,7 @@ export async function sendNotification(params: SendNotificationParams) {
 
       if (user?.email) {
         const { error } = await resend.emails.send({
-          from: FROM_ADDRESS,
+          from: EMAIL_FROM,
           to: [user.email],
           subject: title,
           html: buildEmailHtml(title, body || "", type, entityType, entityId),
@@ -150,7 +145,7 @@ function buildEmailHtml(
   entityType?: string,
   entityId?: string
 ): string {
-  const appUrl = process.env.NEXTAUTH_URL || "https://app.elevay.com";
+  const appUrl = process.env.NEXTAUTH_URL || "https://www.elevay.dev";
   let ctaUrl = appUrl;
   if (entityType && entityId) {
     const typeMap: Record<string, string> = {

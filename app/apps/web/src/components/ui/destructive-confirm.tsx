@@ -80,7 +80,7 @@ export function DestructiveConfirm({
     >
       <div
         ref={ref}
-        className="w-full max-w-md rounded-xl p-5"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-xl p-5"
         style={{
           background: "var(--color-bg-card)",
           border: "1px solid var(--color-border-default)",

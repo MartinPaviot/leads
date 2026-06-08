@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { buildTwiml, buildVoicemailDropTwiml, buildFallbackTwiml } from "@/lib/voice/twilio";
 
 /**
@@ -7,20 +7,42 @@ import { buildTwiml, buildVoicemailDropTwiml, buildFallbackTwiml } from "@/lib/v
  * at runtime so we don't want a hand-rolled assertion that drifts.
  */
 
+// Recording is opt-in (VOICE_RECORDING_ENABLED). Default every test to OFF so
+// assertions are deterministic regardless of the ambient env.
+beforeEach(() => {
+  delete process.env.VOICE_RECORDING_ENABLED;
+});
+
 describe("buildTwiml — outbound call composition", () => {
-  it("includes <Stream> and <Dial> + <Number>", async () => {
+  it("includes <Transcription> (Deepgram) and <Dial> + <Number>", async () => {
     const xml = await buildTwiml({
       toNumber: "+33612345678",
       fromNumber: "+33122334455",
-      streamUrl: "wss://example.com/stream?callId=abc",
+      transcriptionCallbackUrl: "https://example.com/api/calls/transcription?callId=abc",
+      languageCode: "fr-FR",
       recordingStatusUrl: "https://example.com/api/calls/recording-status",
     });
-    expect(xml).toContain("<Stream");
-    expect(xml).toContain("wss://example.com/stream?callId=abc");
+    expect(xml).toContain("<Transcription");
+    expect(xml).toContain("api/calls/transcription");
+    expect(xml).toContain("deepgram");
     expect(xml).toContain("<Dial");
     expect(xml).toContain("+33122334455");
     expect(xml).toContain("<Number");
     expect(xml).toContain("+33612345678");
+    // Recording is opt-in — off by default, so nothing is captured/announced.
+    expect(xml).not.toContain("recordingStatusCallback=");
+    expect(xml).not.toContain("record-from-answer-dual");
+  });
+
+  it("records only when VOICE_RECORDING_ENABLED=true (never silently)", async () => {
+    process.env.VOICE_RECORDING_ENABLED = "true";
+    const xml = await buildTwiml({
+      toNumber: "+33612345678",
+      fromNumber: "+33122334455",
+      transcriptionCallbackUrl: "https://example.com/api/calls/transcription?callId=abc",
+      recordingStatusUrl: "https://example.com/api/calls/recording-status",
+    });
+    expect(xml).toContain("record-from-answer-dual");
     expect(xml).toContain("recordingStatusCallback=");
   });
 
@@ -28,7 +50,7 @@ describe("buildTwiml — outbound call composition", () => {
     const xml = await buildTwiml({
       toNumber: "+33612345678",
       fromNumber: "+33122334455",
-      streamUrl: "wss://example.com/stream",
+      transcriptionCallbackUrl: "https://example.com/api/calls/transcription?callId=abc",
       disclosureUrl: "https://cdn.example.com/disclosure-fr.mp3",
       recordingStatusUrl: "https://example.com/api/calls/recording-status",
     });
@@ -40,7 +62,7 @@ describe("buildTwiml — outbound call composition", () => {
     const xml = await buildTwiml({
       toNumber: "+12125551234",
       fromNumber: "+12128889999",
-      streamUrl: "wss://example.com/stream",
+      transcriptionCallbackUrl: "https://example.com/api/calls/transcription?callId=abc",
       recordingStatusUrl: "https://example.com/api/calls/recording-status",
     });
     expect(xml).not.toContain("<Play>");

@@ -45,7 +45,7 @@ export function TamBuildProgress({
 
     return (
       <div
-        className="w-full rounded-lg border px-3 py-2 mb-3"
+        className="w-full border-b px-6 py-2.5"
         style={{
           background: "var(--color-bg-card)",
           borderColor: "var(--color-border-default)",

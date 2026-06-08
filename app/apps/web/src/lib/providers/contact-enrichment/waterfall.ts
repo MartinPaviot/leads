@@ -27,6 +27,7 @@ import {
   ensureContactDefaultsLoaded,
   listAvailableContactProviders,
 } from "./registry";
+import { enrichPerson } from "@/lib/integrations/apollo-client";
 
 const EMAIL_RANK: Record<EmailStatus, number> = {
   verified: 3,
@@ -87,6 +88,8 @@ function mergeInto(
     acc.phones.find((p) => p.type === "direct" || p.type === "work")?.number ?? acc.directPhone;
 
   // First non-null wins for these.
+  acc.firstName ??= data.firstName ?? null;
+  acc.lastName ??= data.lastName ?? null;
   acc.linkedinUrl ??= data.linkedinUrl ?? null;
   acc.title ??= data.title ?? null;
   acc.seniority ??= data.seniority ?? null;
@@ -116,10 +119,59 @@ export async function enrichContact(
 ): Promise<ContactWaterfallResult> {
   await ensureContactDefaultsLoaded();
 
-  const geo = deriveContactGeo(input);
-  const providers = orderProviders(listAvailableContactProviders(), geo);
-
   const acc = emptyContact();
+  let resolved = input;
+
+  // Identity pre-resolution: with an Apollo person id we reveal last_name +
+  // linkedin_url + verified email ONCE up front (Apollo *search* returns those
+  // masked). Phone vendors key on linkedin/name, and for CH Lusha runs before
+  // Apollo — so an in-loop Apollo reveal would arrive too late. We resolve here,
+  // then skip the Apollo provider in the loop to avoid paying for a 2nd reveal.
+  if (input.apolloId) {
+    try {
+      const person = await enrichPerson({ id: input.apolloId, reveal_personal_emails: true });
+      if (person) {
+        const status: EmailStatus | null =
+          person.email_status === "verified" ? "verified"
+          : person.email_status === "likely" ? "likely"
+          : person.email ? "unverified" : null;
+        const phones: EnrichedPhone[] = (person.phone_numbers ?? [])
+          .filter((p) => p.raw_number)
+          .map((p): EnrichedPhone => ({
+            number: p.raw_number,
+            type: /mobile|cell/i.test(p.type) ? "mobile" : /work|direct|corporate/i.test(p.type) ? "direct" : "other",
+            source: "apollo",
+          }));
+        mergeInto(acc, {
+          firstName: person.first_name ?? null,
+          lastName: person.last_name ?? null,
+          email: person.email ?? null,
+          emailStatus: status,
+          linkedinUrl: person.linkedin_url ?? null,
+          title: person.title ?? null,
+          seniority: person.seniority ?? null,
+          phones,
+          raw: person as unknown as Record<string, unknown>,
+        }, "apollo");
+        resolved = {
+          ...input,
+          firstName: input.firstName ?? person.first_name ?? undefined,
+          lastName: input.lastName ?? person.last_name ?? undefined,
+          linkedinUrl: input.linkedinUrl ?? person.linkedin_url ?? undefined,
+          email: input.email ?? person.email ?? undefined,
+        };
+      }
+    } catch {
+      // reveal failed — fall through to the normal provider loop
+    }
+  }
+
+  const geo = deriveContactGeo(resolved);
+  // When we already revealed via Apollo by id, drop the Apollo provider so we
+  // don't pay for a second (weaker) name+domain match.
+  const providers = orderProviders(listAvailableContactProviders(), geo)
+    .filter((p) => !(input.apolloId && p.name === "apollo"));
+
   const attempts: ContactEnrichResult[] = [];
   let totalCostCents = 0;
 
@@ -127,7 +179,7 @@ export async function enrichContact(
     if (saturated(acc)) break;
     let result: ContactEnrichResult;
     try {
-      result = await provider.enrich({ ...input, geo }, ctx);
+      result = await provider.enrich({ ...resolved, geo }, ctx);
     } catch (err) {
       result = {
         ok: false,
