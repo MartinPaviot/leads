@@ -296,7 +296,7 @@ export default function AccountsPage() {
     try {
       if (page === 1 && !append) setLoading(true);
       else setLoadingMore(true);
-      const params = new URLSearchParams({ pageSize: "50", page: String(page) });
+      const params = new URLSearchParams({ pageSize: "200", page: String(page) });
       if (debouncedSearch) params.set("search", debouncedSearch);
       if (viewExcluded) params.set("excluded", "true");
       if (viewDeleted) params.set("deleted", "true");
@@ -331,7 +331,7 @@ export default function AccountsPage() {
       const pagesToLoad = Math.max(currentPage, 1);
       let all: Account[] = [];
       for (let p = 1; p <= pagesToLoad; p++) {
-        const params = new URLSearchParams({ pageSize: "50", page: String(p) });
+        const params = new URLSearchParams({ pageSize: "200", page: String(p) });
         if (debouncedSearch) params.set("search", debouncedSearch);
         if (viewExcluded) params.set("excluded", "true");
         if (viewDeleted) params.set("deleted", "true");

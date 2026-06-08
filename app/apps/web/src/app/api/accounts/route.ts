@@ -194,6 +194,11 @@ export async function GET(req: Request) {
         .from(companies)
         .leftJoin(users, eq(companies.ownerId, users.id))
         .where(whereClause)
+        // Stable order is REQUIRED for offset pagination — without it Postgres
+        // returns rows in an arbitrary order and successive pages overlap, so
+        // the list "shows the same accounts again" while scrolling/paging.
+        // Best-fit first (score DESC, unscored last), id as the unique tiebreak.
+        .orderBy(sql`${companies.score} DESC NULLS LAST`, companies.id)
         .limit(pageSize)
         .offset(offset),
       db
