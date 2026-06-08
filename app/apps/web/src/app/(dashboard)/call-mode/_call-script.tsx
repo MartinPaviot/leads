@@ -58,6 +58,12 @@ export function CallScriptPanel({
     return () => { cancelled = true; clearTimeout(t); };
   }, [sector]);
 
+  // Auto-fill the sector from the selected account's industry once the brain
+  // loads (it arrives async, per contact). The rep can still type to override.
+  useEffect(() => {
+    if (defaultSector) setSector(defaultSector);
+  }, [defaultSector]);
+
   const opener = useMemo(
     () => interpolateOpener(fields.opener, { name: contactName, sector, geo }),
     [fields.opener, contactName, sector, geo],

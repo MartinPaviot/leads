@@ -952,7 +952,7 @@ export default function CallModePage() {
         {selected ? (
           <>
             <div className="border-b border-zinc-200 p-3 dark:border-zinc-800">
-              <CallScriptPanel contactName={selected.contactName} />
+              <CallScriptPanel contactName={selected.contactName} defaultSector={brain?.companyBrain?.company?.industry} />
             </div>
             {inCall ? (
               <InCallContext selected={selected} brain={brain} coaching={coachingHistory} />
