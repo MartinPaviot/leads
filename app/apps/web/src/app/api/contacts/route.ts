@@ -142,6 +142,15 @@ export async function GET(req: Request) {
     if (fPhone === "has") conds.push(sql`(${contacts.phone} IS NOT NULL AND ${contacts.phone} <> '')`);
     if (fPhone === "empty") conds.push(sql`(${contacts.phone} IS NULL OR ${contacts.phone} = '')`);
 
+    // Smart-filter score threshold (e.g. "high fit" -> score >= 70), applied
+    // server-side so the count reflects it — parity with /api/accounts.
+    const fScoreMin = url.searchParams.get("fScoreMin");
+    const fScoreMax = url.searchParams.get("fScoreMax");
+    if (fScoreMin != null && fScoreMin.trim() !== "" && Number.isFinite(Number(fScoreMin)))
+      conds.push(sql`${contacts.score} >= ${Number(fScoreMin)}`);
+    if (fScoreMax != null && fScoreMax.trim() !== "" && Number.isFinite(Number(fScoreMax)))
+      conds.push(sql`${contacts.score} <= ${Number(fScoreMax)}`);
+
     const finalWhere: SQL = conds.length > 0
       ? sql`${whereClause} AND ${sql.join(conds, sql` AND `)}`
       : whereClause;

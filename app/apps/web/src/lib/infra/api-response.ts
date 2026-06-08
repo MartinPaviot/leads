@@ -21,6 +21,9 @@ export function paginatedResponse<T>(
   items: T[],
   pagination: PaginationInput,
   legacyKey?: string,
+  /** Extra top-level fields merged into the body (e.g. `facets` for filter
+   *  dropdown options). Kept optional so existing callers are unaffected. */
+  extra?: Record<string, unknown>,
 ): Response {
   const { page, pageSize, total } = pagination;
   const totalPages = Math.ceil(total / pageSize);
@@ -41,6 +44,10 @@ export function paginatedResponse<T>(
   // or `response.contacts` continue to work until they migrate to `items`.
   if (legacyKey) {
     body[legacyKey] = items;
+  }
+
+  if (extra) {
+    Object.assign(body, extra);
   }
 
   return Response.json(body);

@@ -131,6 +131,13 @@ export default function AccountsPage() {
   // column's filterKey → its filter state. An entry only exists while
   // the column constrains the list; clearing it deletes the key.
   const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilterState>>({});
+  // Debounced copy pushed to the server — column/tab/smart filters run
+  // server-side now, so the header total and the paginated list both reflect
+  // them. 350ms so typing in a text column filter doesn't refetch per keystroke.
+  const [debouncedColumnFilters, setDebouncedColumnFilters] = useState<Record<string, ColumnFilterState>>({});
+  // Filter dropdown options (distinct enum values) from the server, so the
+  // menus stay complete even though only the filtered rows are loaded.
+  const [serverFacets, setServerFacets] = useState<{ industries: string[]; geographies: string[]; sizes: string[]; revenues: string[]; stages: string[] } | null>(null);
   const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null);
   // Bulk contact extraction (Apollo) + delete flows.
   const [extractingContacts, setExtractingContacts] = useState(false);
@@ -241,6 +248,35 @@ export default function AccountsPage() {
       });
   }, []);
 
+  /** Serialize the active tab + column + smart filters into the query params
+   *  the /api/accounts route understands. Server-side filtering is what makes
+   *  the header total + paginated list reflect the filters. */
+  const serializeAccountFilters = useCallback((): URLSearchParams => {
+    const p = new URLSearchParams();
+    if (filter !== "all") p.set("tab", filter);
+    const ENUM_PARAM: Record<string, string> = {
+      industry: "fIndustry", geography: "fGeography", size: "fSize",
+      revenue: "fRevenue", stage: "fStage", score: "fGrade",
+    };
+    const TEXT_PARAM: Record<string, string> = { name: "fName", domain: "fDomain" };
+    for (const [key, fst] of Object.entries(debouncedColumnFilters)) {
+      if (!isColumnFilterActive(fst)) continue;
+      if (TEXT_PARAM[key] && fst.text && fst.text.trim()) p.set(TEXT_PARAM[key], fst.text.trim());
+      else if (ENUM_PARAM[key] && fst.values && fst.values.length > 0) p.set(ENUM_PARAM[key], fst.values.join(","));
+      else if (key === "linkedin" && fst.presence) p.set("fLinkedin", fst.presence);
+    }
+    // Smart-filter score threshold (e.g. "high fit" -> score >= 70).
+    for (const c of smartFilters) {
+      if (c.field !== "score") continue;
+      const n = typeof c.value === "number" ? c.value : Number(c.value);
+      if (!Number.isFinite(n)) continue;
+      if (c.operator === "gte" || c.operator === "gt") p.set("fScoreMin", String(n));
+      else if (c.operator === "lte" || c.operator === "lt") p.set("fScoreMax", String(n));
+      else if (c.operator === "eq") { p.set("fScoreMin", String(n)); p.set("fScoreMax", String(n)); }
+    }
+    return p;
+  }, [filter, debouncedColumnFilters, smartFilters]);
+
   /** Fetch a single page of accounts.
    *  - page=1, append=false → initial load (replaces list)
    *  - page>1, append=true  → "Load more" click
@@ -255,9 +291,11 @@ export default function AccountsPage() {
       if (debouncedSearch) params.set("search", debouncedSearch);
       if (viewExcluded) params.set("excluded", "true");
       if (viewDeleted) params.set("deleted", "true");
+      for (const [k, v] of serializeAccountFilters()) params.set(k, v);
       const res = await fetch(`/api/accounts?${params.toString()}`);
       if (!res.ok) return;
       const data = await res.json();
+      if (data.facets) setServerFacets(data.facets);
       const batch: Account[] = data.accounts || data.items || [];
       const pagination = data.pagination as { page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | undefined;
       if (append) {
@@ -274,7 +312,7 @@ export default function AccountsPage() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [debouncedSearch, viewExcluded, viewDeleted]);
+  }, [debouncedSearch, viewExcluded, viewDeleted, serializeAccountFilters]);
 
   /** Reload all pages that have been loaded so far. Used after mutations
    *  (enrich, score, create) so the user doesn't snap back to page 1. */
@@ -287,6 +325,7 @@ export default function AccountsPage() {
         if (debouncedSearch) params.set("search", debouncedSearch);
         if (viewExcluded) params.set("excluded", "true");
         if (viewDeleted) params.set("deleted", "true");
+        for (const [k, v] of serializeAccountFilters()) params.set(k, v);
         const res = await fetch(`/api/accounts?${params.toString()}`);
         if (!res.ok) break;
         const data = await res.json();
@@ -302,7 +341,7 @@ export default function AccountsPage() {
     } catch (e) {
       console.warn("accounts: refetch failed", e);
     }
-  }, [currentPage, debouncedSearch, viewExcluded, viewDeleted]);
+  }, [currentPage, debouncedSearch, viewExcluded, viewDeleted, serializeAccountFilters]);
 
   const loadMoreAccounts = useCallback(() => {
     if (loadingMore || currentPage >= totalPages) return;
@@ -768,6 +807,13 @@ export default function AccountsPage() {
     return () => clearTimeout(t);
   }, [searchQuery]);
 
+  // Debounce column-filter changes before they hit the server (same 350ms as
+  // search) so toggling checkboxes / typing doesn't fire a request per change.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedColumnFilters(columnFilters), 350);
+    return () => clearTimeout(t);
+  }, [columnFilters]);
+
   function getLinkedInUrl(account: Account): string | null {
     const props = account.properties as Record<string, unknown> | null;
     return (props?.linkedinUrl as string) || (props?.linkedin_url as string) || null;
@@ -962,9 +1008,21 @@ export default function AccountsPage() {
     score: { label: "Score", kind: "enum", get: (a) => displayScore(a.score, isEnriched(a))?.grade ?? null },
   };
 
-  // Distinct values per enum column, computed from the loaded rows, for
-  // the column-filter checkboxes. Sorted alphabetically; empties dropped.
+  // Distinct values per enum column for the column-filter checkboxes. Prefer
+  // the server facets (tenant-wide, so the menus stay complete even though
+  // only filtered rows are loaded); fall back to the loaded rows until the
+  // first response lands. Score is the fixed grade ladder.
   const columnOptions = useMemo(() => {
+    if (serverFacets) {
+      return {
+        industry: serverFacets.industries,
+        geography: serverFacets.geographies,
+        size: serverFacets.sizes,
+        revenue: serverFacets.revenues,
+        stage: serverFacets.stages,
+        score: ["A+", "A", "B", "C", "D", "F"],
+      } as Record<string, string[]>;
+    }
     const out: Record<string, string[]> = {};
     for (const [key, cfg] of Object.entries(FILTER_COLUMNS)) {
       if (cfg.kind !== "enum") continue;
@@ -977,40 +1035,16 @@ export default function AccountsPage() {
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mergedAccounts]);
+  }, [serverFacets, mergedAccounts]);
 
-  /** Apply every active per-column header filter to one row. */
-  function passesColumnFilters(a: Account): boolean {
-    for (const [key, f] of Object.entries(columnFilters)) {
-      const cfg = FILTER_COLUMNS[key];
-      if (!cfg || !isColumnFilterActive(f)) continue;
-      const v = cfg.get(a);
-      if (cfg.kind === "text") {
-        if (!String(v ?? "").toLowerCase().includes((f.text ?? "").toLowerCase())) return false;
-      } else if (cfg.kind === "enum") {
-        if (f.values && f.values.length > 0 && (v == null || !f.values.includes(String(v)))) return false;
-      } else if (cfg.kind === "presence") {
-        const has = !!(v && String(v).trim());
-        if (f.presence === "has" && !has) return false;
-        if (f.presence === "empty" && has) return false;
-      }
-    }
-    return true;
-  }
-
+  // Tab, per-column, search, and score filters all run server-side now, so
+  // `mergedAccounts` is already the matched + paginated set (and the header
+  // total reflects the filters). We only apply any residual NL smart-filter
+  // conditions the server can't express (e.g. explicit exclusions) — the score
+  // threshold is idempotent here since it's already applied server-side.
   const filteredAccounts = (smartFilters.length > 0
     ? applyFilters(mergedAccounts, smartFilters)
     : mergedAccounts)
-    .filter((a) => {
-      if (filter === "tam" && !isTAM(a)) return false;
-      if (filter === "manual" && isTAM(a)) return false;
-      if (!passesColumnFilters(a)) return false;
-      // The search box now queries the server (intelligent, industry-aware), so
-      // the displayed accounts are already the matched set — no client-side text
-      // re-filter (which would wrongly drop e.g. "hospital & health care" rows
-      // for a "medical" query that the LLM mapped to that industry).
-      return true;
-    })
     .sort((a, b) => {
       // Primary: score DESC. Secondary: lit signals DESC — Monaco
       // "rise to top" behaviour for rows whose chips just flipped.

@@ -1,9 +1,9 @@
 import { db } from "@/db";
 import { companies, activities, users } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth/auth-utils";
-import { and, eq, sql, desc, isNull, isNotNull, or, ilike, inArray } from "drizzle-orm";
+import { and, eq, sql, desc, isNull, isNotNull, or, ilike, inArray, gte, lte, type SQL } from "drizzle-orm";
 import { matchIndustries } from "@/lib/search/industry-match";
-import { parseExcludedMode } from "@/lib/accounts/list-filters";
+import { parseExcludedMode, parseAccountListFilters, GRADE_RANGES } from "@/lib/accounts/list-filters";
 import { inngest } from "@/inngest/client";
 import { apiError } from "@/lib/infra/api-errors";
 import { paginatedResponse } from "@/lib/infra/api-response";
@@ -81,6 +81,79 @@ export async function GET(req: Request) {
       )!;
     }
 
+    // ── Per-column / smart-filter narrowing, applied server-side so the
+    //    count(*) below (same whereClause) and the paginated list both reflect
+    //    the active filters — the header then shows the *filtered* total, not
+    //    the library size. Mirrors the Accounts table column filters, the
+    //    tab (all/tam/manual), and the NL smart-filter score threshold. ──
+    const f = parseAccountListFilters(url.searchParams);
+    const filterConds: SQL[] = [];
+    const anyArr = (vals: string[]) =>
+      sql`ARRAY[${sql.join(vals.map((v) => sql`${v}`), sql`, `)}]::text[]`;
+    if (f.industries.length) filterConds.push(sql`${companies.industry} = ANY(${anyArr(f.industries)})`);
+    if (f.sizes.length) filterConds.push(sql`${companies.size} = ANY(${anyArr(f.sizes)})`);
+    if (f.revenues.length) filterConds.push(sql`${companies.revenue} = ANY(${anyArr(f.revenues)})`);
+    if (f.geographies.length) filterConds.push(sql`btrim(${companies.properties}->>'country') = ANY(${anyArr(f.geographies)})`);
+    if (f.stages.length) filterConds.push(sql`COALESCE(${companies.properties}->>'lifecycleStage', 'new') = ANY(${anyArr(f.stages)})`);
+    if (f.grades.length) {
+      // A grade only applies once the row is enriched (matches displayScore,
+      // which returns "Not scored" otherwise), then it's a score band.
+      const enriched = sql`(${companies.industry} IS NOT NULL AND ${companies.industry} <> '' AND ${companies.description} IS NOT NULL AND ${companies.description} <> '')`;
+      const gradeConds = f.grades.map((g) => {
+        const [lo, hi] = GRADE_RANGES[g];
+        return hi == null
+          ? sql`(${enriched} AND round(${companies.score}) >= ${lo})`
+          : sql`(${enriched} AND round(${companies.score}) >= ${lo} AND round(${companies.score}) < ${hi})`;
+      });
+      filterConds.push(sql`(${sql.join(gradeConds, sql` OR `)})`);
+    }
+    if (f.linkedin === "has")
+      filterConds.push(sql`(COALESCE(${companies.properties}->>'linkedinUrl','') <> '' OR COALESCE(${companies.properties}->>'linkedin_url','') <> '')`);
+    if (f.linkedin === "empty")
+      filterConds.push(sql`(COALESCE(${companies.properties}->>'linkedinUrl','') = '' AND COALESCE(${companies.properties}->>'linkedin_url','') = '')`);
+    if (f.name) filterConds.push(ilike(companies.name, `%${f.name}%`));
+    if (f.domain) filterConds.push(ilike(companies.domain, `%${f.domain}%`));
+    if (f.tab === "tam") filterConds.push(sql`${companies.properties}->>'source' = 'tam'`);
+    if (f.tab === "manual") filterConds.push(sql`(${companies.properties}->>'source' IS DISTINCT FROM 'tam')`);
+    if (f.scoreMin != null) filterConds.push(gte(companies.score, f.scoreMin));
+    if (f.scoreMax != null) filterConds.push(lte(companies.score, f.scoreMax));
+    if (filterConds.length > 0) {
+      whereClause = and(whereClause, ...filterConds)!;
+    }
+
+    // Filter dropdown options (facets) — distinct values across the active
+    // working set (tenant, not deleted, not excluded), independent of the
+    // current filters so the menus stay complete even when only filtered rows
+    // are loaded. Computed once on the first page; the client caches them.
+    let facets:
+      | { industries: string[]; geographies: string[]; sizes: string[]; revenues: string[]; stages: string[] }
+      | undefined;
+    if (page === 1) {
+      try {
+        const fr = await db.execute(sql`
+          SELECT
+            COALESCE(array_agg(DISTINCT industry) FILTER (WHERE industry IS NOT NULL AND industry <> ''), '{}') AS industries,
+            COALESCE(array_agg(DISTINCT btrim(properties->>'country')) FILTER (WHERE btrim(properties->>'country') IS NOT NULL AND btrim(properties->>'country') <> ''), '{}') AS geographies,
+            COALESCE(array_agg(DISTINCT size) FILTER (WHERE size IS NOT NULL AND size <> ''), '{}') AS sizes,
+            COALESCE(array_agg(DISTINCT revenue) FILTER (WHERE revenue IS NOT NULL AND revenue <> ''), '{}') AS revenues,
+            COALESCE(array_agg(DISTINCT COALESCE(properties->>'lifecycleStage','new')), '{}') AS stages
+          FROM companies
+          WHERE tenant_id = ${authCtx.tenantId} AND deleted_at IS NULL AND excluded_reason IS NULL
+        `);
+        const row = (fr as unknown as Array<Record<string, string[]>>)[0];
+        const srt = (xs: string[] | null | undefined) => [...(xs ?? [])].sort((a, b) => a.localeCompare(b));
+        facets = {
+          industries: srt(row?.industries),
+          geographies: srt(row?.geographies),
+          sizes: srt(row?.sizes),
+          revenues: srt(row?.revenues),
+          stages: srt(row?.stages),
+        };
+      } catch (e) {
+        console.warn("accounts: facets query failed", e);
+      }
+    }
+
     const [accounts, countResult] = await Promise.all([
       db
         .select({
@@ -147,7 +220,12 @@ export async function GET(req: Request) {
 
     // A1 — canonical paginated response via shared helper.
     // Legacy key `accounts` preserved for existing consumers.
-    return paginatedResponse(enrichedAccounts, { page, pageSize, total }, "accounts");
+    return paginatedResponse(
+      enrichedAccounts,
+      { page, pageSize, total },
+      "accounts",
+      facets ? { facets } : undefined,
+    );
   } catch (error) {
     console.error("Failed to fetch accounts:", error);
     return Response.json({ error: "Failed to fetch accounts" }, { status: 500 });

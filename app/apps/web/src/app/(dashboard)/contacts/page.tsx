@@ -121,6 +121,16 @@ export default function ContactsPage() {
       if (vals("score").length) params.set("fGrade", vals("score").join(","));
       if (pres("linkedin")) params.set("fLinkedin", pres("linkedin")!);
       if (pres("phone")) params.set("fPhone", pres("phone")!);
+      // Smart-filter score threshold -> server (parity with accounts) so the
+      // count reflects it; any residual non-score conditions stay client-side.
+      for (const c of smartFilters) {
+        if (c.field !== "score") continue;
+        const n = typeof c.value === "number" ? c.value : Number(c.value);
+        if (!Number.isFinite(n)) continue;
+        if (c.operator === "gte" || c.operator === "gt") params.set("fScoreMin", String(n));
+        else if (c.operator === "lte" || c.operator === "lt") params.set("fScoreMax", String(n));
+        else if (c.operator === "eq") { params.set("fScoreMin", String(n)); params.set("fScoreMax", String(n)); }
+      }
 
       const res = await fetch(`/api/contacts?${params.toString()}`);
       if (res.ok) {
@@ -132,7 +142,7 @@ export default function ContactsPage() {
     } catch (e) {
       console.warn("contacts: list fetch failed", e);
     } finally { setLoading(false); }
-  }, [page, debouncedSearch, debouncedColumnFilters]);
+  }, [page, debouncedSearch, debouncedColumnFilters, smartFilters]);
 
   // Debounce the search box and push it to the server, so the search spans ALL
   // contacts (not just the loaded 50-row page). Reset to page 1 on a new query.
@@ -417,6 +427,7 @@ export default function ContactsPage() {
             onFilters={(filters, meta) => {
               setSmartFilters(filters);
               setSmartMeta(meta);
+              setPage(1); // smart-score now filters server-side — start at page 1
               // Keep the broad server text search (debouncedSearch) running and
               // let the extracted refinements (score / exclusions) compose on
               // top. The search box already matches the words across every
