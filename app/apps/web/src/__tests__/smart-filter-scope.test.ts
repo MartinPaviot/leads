@@ -87,4 +87,14 @@ describe("isCoveredByFullTextSearch", () => {
   it("ignores unknown fields", () => {
     expect(isCoveredByFullTextSearch(f("bogus", "contains", "x"), CONTACT_FILTER_FIELDS)).toBe(false);
   });
+
+  it("treats contact company name as broad-search territory (the contacts API searches it server-side)", () => {
+    // Contract lock: /api/contacts ?search= matches the query against the
+    // company NAME (added alongside the existing company-industry match), so a
+    // companyName smart filter is redundant and must be deferred to the search
+    // box. If the companyName clause is ever dropped from the route, the broad
+    // search and this contract diverge — keep them in sync.
+    expect(CONTACT_FILTER_FIELDS.some((field) => field.key === "companyName")).toBe(true);
+    expect(isCoveredByFullTextSearch(f("companyName", "contains", "acme"), CONTACT_FILTER_FIELDS)).toBe(true);
+  });
 });

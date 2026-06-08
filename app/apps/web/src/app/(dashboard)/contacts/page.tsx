@@ -21,6 +21,7 @@ import { applyFilters } from "@/lib/search/filters";
 import type { FilterCondition } from "@/lib/search/filters";
 import { ColumnFilter, isColumnFilterActive, type ColumnFilterKind, type ColumnFilterState } from "@/components/ui/column-filter";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-delete-modal";
 
 function LinkedInIcon({ size = 13 }: { size?: number }) {
   return (
@@ -102,6 +103,11 @@ export default function ContactsPage() {
   const [serverCompanyOptions, setServerCompanyOptions] = useState<string[]>([]);
   // Delete confirmation (single row or current selection).
   const [deleteTarget, setDeleteTarget] = useState<{ type: "single" | "bulk"; id?: string; name?: string } | null>(null);
+  // Single-contact delete goes through the cascade modal (lets the user also
+  // delete the contact's activities/notes/tasks in one step).
+  const [cascadeTarget, setCascadeTarget] = useState<{ id: string; name: string } | null>(null);
+  const [cascadeCounts, setCascadeCounts] = useState<CascadeOption[] | null>(null);
+  const [cascadeBusy, setCascadeBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const { fields: customFields } = useCustomFields("contact");
 
@@ -121,6 +127,16 @@ export default function ContactsPage() {
       if (vals("score").length) params.set("fGrade", vals("score").join(","));
       if (pres("linkedin")) params.set("fLinkedin", pres("linkedin")!);
       if (pres("phone")) params.set("fPhone", pres("phone")!);
+      // Smart-filter score threshold -> server (parity with accounts) so the
+      // count reflects it; any residual non-score conditions stay client-side.
+      for (const c of smartFilters) {
+        if (c.field !== "score") continue;
+        const n = typeof c.value === "number" ? c.value : Number(c.value);
+        if (!Number.isFinite(n)) continue;
+        if (c.operator === "gte" || c.operator === "gt") params.set("fScoreMin", String(n));
+        else if (c.operator === "lte" || c.operator === "lt") params.set("fScoreMax", String(n));
+        else if (c.operator === "eq") { params.set("fScoreMin", String(n)); params.set("fScoreMax", String(n)); }
+      }
 
       const res = await fetch(`/api/contacts?${params.toString()}`);
       if (res.ok) {
@@ -132,7 +148,7 @@ export default function ContactsPage() {
     } catch (e) {
       console.warn("contacts: list fetch failed", e);
     } finally { setLoading(false); }
-  }, [page, debouncedSearch, debouncedColumnFilters]);
+  }, [page, debouncedSearch, debouncedColumnFilters, smartFilters]);
 
   // Debounce the search box and push it to the server, so the search spans ALL
   // contacts (not just the loaded 50-row page). Reset to page 1 on a new query.
@@ -270,6 +286,58 @@ export default function ContactsPage() {
       fetchContacts();
     } else {
       toast(`Delete failed for ${errors} contact${errors > 1 ? "s" : ""}`, "error");
+    }
+  }
+
+  // Open the single-contact cascade modal and load live related-data counts.
+  async function openCascadeDelete(id: string, name: string) {
+    setCascadeTarget({ id, name });
+    setCascadeCounts(null);
+    const labels: Array<[string, string]> = [
+      ["activities", "Activities"],
+      ["notes", "Notes"],
+      ["tasks", "Tasks"],
+    ];
+    try {
+      const res = await fetch(`/api/contacts/${id}/related-counts`);
+      const data = (await res.json().catch(() => ({}))) as { counts?: Record<string, number> };
+      const counts = data.counts ?? {};
+      setCascadeCounts(labels.map(([key, label]) => ({ key, label, count: counts[key] ?? 0 })));
+    } catch {
+      setCascadeCounts(labels.map(([key, label]) => ({ key, label, count: 0 })));
+    }
+  }
+
+  // Soft-delete one contact plus any related sets the user ticked. The contact
+  // route may 409 if the contact has active sequence enrollments.
+  async function performCascadeDelete(selectedKeys: string[]) {
+    if (!cascadeTarget) return;
+    setCascadeBusy(true);
+    try {
+      const res = await fetch(`/api/contacts/${cascadeTarget.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cascade: selectedKeys }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        toast(data.error || "Delete failed.", "error");
+        return;
+      }
+      const data = (await res.json().catch(() => ({}))) as { cascaded?: Record<string, number> };
+      const extra = Object.values(data.cascaded ?? {}).reduce<number>((a, b) => a + (b ?? 0), 0);
+      toast(
+        extra > 0 ? `Deleted contact + ${extra} related record${extra === 1 ? "" : "s"}.` : "Deleted contact.",
+        "success",
+      );
+      setSelectedRows(new Set());
+      fetchContacts();
+    } catch (e) {
+      toast("Delete failed.", "error");
+      console.warn("contacts: cascade delete failed", e);
+    } finally {
+      setCascadeBusy(false);
+      setCascadeTarget(null);
     }
   }
 
@@ -417,6 +485,7 @@ export default function ContactsPage() {
             onFilters={(filters, meta) => {
               setSmartFilters(filters);
               setSmartMeta(meta);
+              setPage(1); // smart-score now filters server-side — start at page 1
               // Keep the broad server text search (debouncedSearch) running and
               // let the extracted refinements (score / exclusions) compose on
               // top. The search box already matches the words across every
@@ -714,7 +783,7 @@ export default function ContactsPage() {
                           type="button"
                           aria-label={`Delete ${name}`}
                           title="Delete contact"
-                          onClick={() => setDeleteTarget({ type: "single", id: contact.id, name })}
+                          onClick={() => openCascadeDelete(contact.id, name)}
                           className="inline-flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
                           style={{ color: "var(--color-text-muted)" }}
                         >
@@ -828,6 +897,17 @@ export default function ContactsPage() {
         busy={deleting}
         onConfirm={performDelete}
         onCancel={() => { if (!deleting) setDeleteTarget(null); }}
+      />
+
+      {/* Single-contact delete with optional cascade to related data. */}
+      <CascadeDeleteModal
+        open={!!cascadeTarget}
+        entityKind="contact"
+        entityLabel={cascadeTarget?.name ?? "This contact"}
+        options={cascadeCounts}
+        busy={cascadeBusy}
+        onConfirm={performCascadeDelete}
+        onCancel={() => { if (!cascadeBusy) setCascadeTarget(null); }}
       />
     </div>
   );

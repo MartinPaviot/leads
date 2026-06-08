@@ -6,6 +6,7 @@ import { eq, and, sql, isNull } from "drizzle-orm";
 import { logAudit } from "@/lib/infra/audit-log";
 import { softDelete } from "@/lib/infra/soft-delete";
 import { suppressContacts } from "@/lib/accounts/suppression";
+import { cascadeSoftDeleteContact, CONTACT_CASCADE_TYPES, type ContactCascadeType } from "@/lib/contacts/cascade-delete";
 
 export async function GET(
   req: Request,
@@ -133,6 +134,15 @@ export async function DELETE(
 
   const { id } = await params;
 
+  // Optional cascade: also soft-delete selected related sets (the delete modal
+  // sends the checked types). Body is absent for a plain contact delete.
+  const body = (await req.json().catch(() => ({}))) as { cascade?: unknown };
+  const cascade: ContactCascadeType[] = Array.isArray(body.cascade)
+    ? body.cascade.filter(
+        (t): t is ContactCascadeType => typeof t === "string" && (CONTACT_CASCADE_TYPES as readonly string[]).includes(t),
+      )
+    : [];
+
   try {
     // Verify the contact exists, belongs to this tenant, and is not already deleted
     const [existing] = await db
@@ -164,6 +174,12 @@ export async function DELETE(
       );
     }
 
+    // Cascade the selected related sets first (soft-delete, recoverable), then
+    // the contact itself.
+    const cascaded = cascade.length
+      ? await cascadeSoftDeleteContact(authCtx.tenantId, id, cascade)
+      : {};
+
     // Soft-delete the contact (sets deleted_at = now() instead of hard delete)
     await softDelete("contacts", id, authCtx.tenantId);
 
@@ -186,10 +202,11 @@ export async function DELETE(
         email: existing.email,
         name: [existing.firstName, existing.lastName].filter(Boolean).join(" "),
         softDeleted: true,
+        cascaded,
       },
     });
 
-    return Response.json({ success: true, id });
+    return Response.json({ success: true, id, cascaded });
   } catch (error) {
     console.error("Failed to delete contact:", error);
     return Response.json({ error: "Failed to delete contact" }, { status: 500 });

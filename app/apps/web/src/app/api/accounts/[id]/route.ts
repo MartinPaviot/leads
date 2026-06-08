@@ -5,6 +5,7 @@ import { and, eq, desc, sql, isNull } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/permissions";
 import { softDelete } from "@/lib/infra/soft-delete";
 import { logAudit } from "@/lib/infra/audit-log";
+import { cascadeSoftDeleteCompany, CASCADE_TYPES, type CascadeType } from "@/lib/accounts/cascade-delete";
 
 export async function GET(
   req: Request,
@@ -221,6 +222,15 @@ export async function DELETE(
 
   const { id } = await params;
 
+  // Optional cascade: also soft-delete selected related sets (the delete
+  // modal sends the checked types). Body is absent for a plain account delete.
+  const body = (await req.json().catch(() => ({}))) as { cascade?: unknown };
+  const cascade: CascadeType[] = Array.isArray(body.cascade)
+    ? (body.cascade.filter(
+        (t): t is CascadeType => typeof t === "string" && (CASCADE_TYPES as readonly string[]).includes(t),
+      ))
+    : [];
+
   // Verify the account exists and belongs to this tenant before deleting.
   const [existing] = await db
     .select({ id: companies.id, name: companies.name })
@@ -238,9 +248,13 @@ export async function DELETE(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Soft-delete the account itself. Its contacts/deals keep their own
-  // rows (they may be re-pointed to another account) — we only remove
-  // the company from the Accounts list.
+  // Cascade the selected related sets first (soft-delete, recoverable), then
+  // the account itself. Without a cascade, only the company row is removed —
+  // its contacts/deals keep their rows (may be re-pointed to another account).
+  const cascaded = cascade.length
+    ? await cascadeSoftDeleteCompany(authCtx.tenantId, id, cascade)
+    : {};
+
   await softDelete("companies", id, authCtx.tenantId);
 
   await logAudit({
@@ -249,8 +263,8 @@ export async function DELETE(
     action: "delete",
     entityType: "company",
     entityId: id,
-    metadata: { name: existing.name, softDeleted: true },
+    metadata: { name: existing.name, softDeleted: true, cascaded },
   });
 
-  return Response.json({ success: true, id });
+  return Response.json({ success: true, id, cascaded });
 }

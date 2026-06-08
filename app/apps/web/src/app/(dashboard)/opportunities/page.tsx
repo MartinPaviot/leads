@@ -24,6 +24,7 @@ import { CompanyLogo } from "@/components/ui/company-logo";
 import { KanbanColumnSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-delete-modal";
 import { BulkActionsBar } from "@/components/ui/bulk-actions-bar";
 
 /* ── Types ── */
@@ -198,6 +199,11 @@ export default function OpportunitiesPage() {
 
   // Delete confirmation — single row or multi-select (table view).
   const [deleteTarget, setDeleteTarget] = useState<{ type: "single" | "bulk"; id?: string; name?: string } | null>(null);
+  // Single-deal delete goes through the cascade modal (lets the user also
+  // delete the deal's activities/notes/tasks in one step).
+  const [cascadeTarget, setCascadeTarget] = useState<{ id: string; name: string } | null>(null);
+  const [cascadeCounts, setCascadeCounts] = useState<CascadeOption[] | null>(null);
+  const [cascadeBusy, setCascadeBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
 
@@ -446,6 +452,62 @@ export default function OpportunitiesPage() {
     } finally {
       setDeleting(false);
       setDeleteTarget(null);
+    }
+  }
+
+  // Open the single-deal cascade modal and load live related-data counts.
+  async function openCascadeDelete(id: string, name: string) {
+    setCascadeTarget({ id, name });
+    setCascadeCounts(null);
+    const labels: Array<[string, string]> = [
+      ["activities", "Activities"],
+      ["notes", "Notes"],
+      ["tasks", "Tasks"],
+    ];
+    try {
+      const res = await fetch(`/api/opportunities/${id}/related-counts`);
+      const data = (await res.json().catch(() => ({}))) as { counts?: Record<string, number> };
+      const counts = data.counts ?? {};
+      setCascadeCounts(labels.map(([key, label]) => ({ key, label, count: counts[key] ?? 0 })));
+    } catch {
+      setCascadeCounts(labels.map(([key, label]) => ({ key, label, count: 0 })));
+    }
+  }
+
+  // Soft-delete one deal plus any related sets the user ticked. Optimistic
+  // removal with rollback on failure, mirroring performDelete.
+  async function performCascadeDelete(selectedKeys: string[]) {
+    if (!cascadeTarget) return;
+    const id = cascadeTarget.id;
+    setCascadeBusy(true);
+    const prev = deals;
+    setDeals((p) => p.filter((d) => d.id !== id));
+    try {
+      const res = await fetch(`/api/opportunities/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cascade: selectedKeys }),
+      });
+      if (!res.ok) {
+        setDeals(prev);
+        toast("Failed to delete opportunity", "error");
+        return;
+      }
+      const data = (await res.json().catch(() => ({}))) as { cascaded?: Record<string, number> };
+      const extra = Object.values(data.cascaded ?? {}).reduce<number>((a, b) => a + (b ?? 0), 0);
+      toast(
+        extra > 0 ? `Deleted opportunity + ${extra} related record${extra === 1 ? "" : "s"}.` : "Deleted opportunity.",
+        "success",
+      );
+      setSelectedRows(new Set());
+      fetchAnalytics();
+    } catch (e) {
+      setDeals(prev);
+      toast("Failed to delete opportunity", "error");
+      console.warn("opportunities: cascade delete failed", e);
+    } finally {
+      setCascadeBusy(false);
+      setCascadeTarget(null);
     }
   }
 
@@ -1204,7 +1266,7 @@ export default function OpportunitiesPage() {
                         type="button"
                         aria-label={`Delete ${deal.name}`}
                         title="Delete opportunity"
-                        onClick={() => setDeleteTarget({ type: "single", id: deal.id, name: deal.name })}
+                        onClick={() => openCascadeDelete(deal.id, deal.name ?? "This opportunity")}
                         className="inline-flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
                         style={{ color: "var(--color-text-muted)" }}
                       >
@@ -1309,7 +1371,7 @@ export default function OpportunitiesPage() {
                           type="button"
                           aria-label={`Delete ${deal.name}`}
                           title="Delete opportunity"
-                          onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "single", id: deal.id, name: deal.name }); }}
+                          onClick={(e) => { e.stopPropagation(); openCascadeDelete(deal.id, deal.name ?? "This opportunity"); }}
                           onMouseDown={(e) => e.stopPropagation()}
                           className="absolute right-1.5 top-1.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
                           style={{ color: "var(--color-text-muted)", background: "var(--color-bg-card)" }}
@@ -1450,6 +1512,17 @@ export default function OpportunitiesPage() {
         busy={deleting}
         onConfirm={performDelete}
         onCancel={() => { if (!deleting) setDeleteTarget(null); }}
+      />
+
+      {/* Single-deal delete with optional cascade to related data. */}
+      <CascadeDeleteModal
+        open={!!cascadeTarget}
+        entityKind="opportunity"
+        entityLabel={cascadeTarget?.name ?? "This opportunity"}
+        options={cascadeCounts}
+        busy={cascadeBusy}
+        onConfirm={performCascadeDelete}
+        onCancel={() => { if (!cascadeBusy) setCascadeTarget(null); }}
       />
     </div>
   );

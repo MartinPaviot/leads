@@ -1,95 +1,154 @@
 /**
- * Permission-based call scripts, keyed by {sector × geography} (later
- * industry × persona). Martin's methodology: the cold call is short
- * (7-8 min) and its only job is to earn a YES to a 45-min deep-dive. The
- * opener names 1-3 sector/geo problems the prospect can validate ("ça
- * résonne ?") — a reason to call, not a pitch — then asks for the meeting.
- * Talk to decision-makers first; being redirected to the métier teams is
- * a win, not a failure.
+ * Permission-based call scripts, keyed by sector. Martin's methodology
+ * (locked 2026-06-08): the cold call is short (2-3 min) and its only job is
+ * to earn a YES to a ~45-min deep-dive. Flow:
+ *   1. Opener = a real permission gate: "Bonjour {name}, [rep], co-fondateur
+ *      de Pilae. Vous avez 2 min ?" — no pitch, no listed problems.
+ *   2. On "oui", present ONE sector enjeu at a time as a hypothesis and let
+ *      the prospect validate it ("est-ce un sujet chez vous ?"). Iterate up
+ *      to 3 until one lands; stop at the first that lands and react to it.
+ *   3. Validate 2-3 qualifying points (light, in `guidance`).
+ *   4. Propose the meeting with day/time options.
+ * Talk to decision-makers first; being redirected to the métier/IT teams is
+ * a win (ask for the intro), not a failure.
  *
- * Content is prospect-facing → French (Suisse romande). These are
- * EDITABLE defaults; the real per-sector×persona wording is the founder's
- * to refine, and a later version pulls problems from the tenant's product
- * / knowledge base + LLM. Kept pure so it unit-tests + renders without I/O.
+ * Content is prospect-facing → French (Suisse romande; English for the
+ * international Geneva federations). These are EDITABLE defaults — the rep
+ * name in the opener and the per-sector wording are the founder's to refine,
+ * and the tenant layer (`tenant-script.ts`) regenerates them from the
+ * tenant's product + ICP via LLM. Kept pure so it unit-tests + renders
+ * without I/O.
  */
 
 export interface CallScript {
   /** Catalog key this script matched (or "generic"). */
   key: string;
-  /** 1-3 sector/geo problems the prospect validates. */
+  /** 1-3 sector enjeux the prospect validates ONE AT A TIME. */
   problems: string[];
-  /** The 45-min deep-dive ask, fired once the prospect validates. */
+  /** 2-3 quick points to validate (light qualification, not discovery). */
+  qualifiers: string[];
+  /** Optional sector-specific reminder appended to in-call guidance. */
+  note?: string;
+  /** The ~45-min deep-dive ask, fired once an enjeu lands. */
   bookingAsk: string;
 }
 
 export interface ResolvedScript extends CallScript {
   sectorLabel: string;
   geoLabel: string;
-  /** The permission-based opener, geo/sector/contact interpolated. */
+  /** The permission-based opener, {name} interpolated. */
   opener: string;
-  /** The validation question after the problems. */
+  /** The validation question asked after each enjeu. */
   permissionCheck: string;
-  /** In-call guidance (not read aloud). */
+  /** In-call guidance (not read aloud): principles + qualifiers + "non" branch. */
   guidance: string[];
 }
 
-const BOOKING_ASK =
-  "Parfait. Dans ce cas, je propose qu'on bloque 45 min ensemble pour creuser ça concrètement — je vous montrerai même ce qu'on peut mettre en place. Vous préférez début ou fin de semaine prochaine ?";
+/**
+ * Editable default opener template. Permission gate only — no listed problems.
+ * {name} is interpolated at render; the rep name ("Martin Paviot") is editable.
+ */
+export const DEFAULT_OPENER =
+  "Bonjour {name}, Martin Paviot, co-fondateur de Pilae. Est-ce que vous avez deux minutes ?";
 
-const GUIDANCE = [
-  "Appel court (7-8 min) : le seul objectif est un OUI pour les 45 min.",
-  "Permission-based : on a une raison d'appeler, on ne pitche pas.",
-  "Décideur d'abord — s'il redirige vers une équipe métier, c'est gagné (demander l'intro).",
-  "Cocher les problématiques qui résonnent au fil de l'échange.",
+/** Asked after EACH enjeu hypothesis (one at a time), not after a list. */
+export const PERMISSION_CHECK =
+  "Est-ce que c'est un sujet chez vous en ce moment ?";
+
+export const BOOKING_ASK =
+  "Très bien. Honnêtement, dans ce cas je pense qu'on a intérêt à se rencontrer : je viendrais avec une première lecture de ce que vous pourriez remplacer et l'écart de coût, et on aurait le temps d'approfondir — comptez 45 minutes. Vous seriez disponible plutôt en début ou en fin de semaine prochaine ? Rien à préparer de votre côté.";
+
+/** Global, permission-based in-call principles (per-sector qualifiers + the
+ * "non" branch are composed in on top — see composeGuidance). */
+export const GUIDANCE = [
+  "Appel court (2-3 min) : le seul objectif est un OUI pour un rendez-vous d'approfondissement (~45 min).",
+  "Permission-based : « vous avez 2 min ? », puis un enjeu à la fois — on ne pitche pas, on ne liste pas les problèmes.",
+  "Présenter les enjeux UN PAR UN comme une hypothèse à valider ; s'arrêter au premier qui fait mouche et y rester (réagir, pas cocher une case).",
+  "Décideur d'abord — s'il redirige vers l'IT ou le métier, c'est gagné (demander l'intro).",
+  "Ne jamais revendiquer une certification que Pilae n'a pas ; dire le vrai : hébergement Suisse/UE, réversibilité, hors Cloud Act.",
 ];
 
-// Sector problem-sets. Keys are matched against the company's
-// sector/industry string (accent/case-insensitive substring). Defaults
-// for the Pilae ICP (romand mid-orgs, low-tech / fondations / santé /
-// parapublic, trigger = SaaS remplaçable / digitalisation).
-const SECTOR_SCRIPTS: Array<{ key: string; match: string[]; problems: string[] }> = [
+// Sector enjeux + qualifiers. Keys are matched against the company's
+// sector/industry string (accent/case-insensitive substring). Defaults for
+// the Pilae ICP (romand mid-orgs: fondations / santé / parapublic / low-tech,
+// trigger = SaaS remplaçable ; offre = open-source opéré, souverain, moins cher).
+const SECTOR_SCRIPTS: Array<{
+  key: string;
+  match: string[];
+  problems: string[];
+  qualifiers: string[];
+  note?: string;
+}> = [
   {
     key: "fondations",
-    match: ["fondation", "foundation", "association", "ong", "non-profit", "nonprofit"],
+    match: ["fondation", "foundation", "association", "ong", "non-profit", "nonprofit", "philanthrop", "federation", "fédération"],
     problems: [
-      "des outils de gestion (dons, membres, projets) éclatés et souvent encore sur Excel",
-      "un reporting aux donateurs / au conseil qui prend un temps fou à consolider",
-      "des solutions en place vieillissantes que personne n'ose remplacer faute de temps IT",
+      "le budget logiciels rogne sur des moyens qui devraient aller à la mission",
+      "vos données donateurs ou bénéficiaires vivent sur des outils américains dont vous ne maîtrisez pas l'hébergement",
+      "des abonnements accumulés au fil du temps qu'on pourrait remplacer à l'identique pour bien moins cher",
     ],
+    qualifiers: [
+      "combien d'outils en abonnement aujourd'hui ?",
+      "qui gère l'IT (interne, prestataire, ou personne) ?",
+      "une échéance de contrat bientôt ?",
+    ],
+    note: "Fédération internationale / Genève : faire l'appel en anglais si l'interlocuteur est anglophone. Fondation donatrice : insister sur la confidentialité des données donateurs.",
   },
   {
     key: "sante",
     match: ["sant", "health", "medical", "médic", "clinique", "hopital", "hôpital", "ems", "soin"],
     problems: [
-      "des logiciels métier anciens, mal interconnectés, qui forcent de la double saisie",
-      "des contraintes de conformité / protection des données difficiles à tenir avec l'existant",
-      "peu de ressources internes pour piloter un remplacement d'outil sans tout casser",
+      "vos données résidents ou patients transitent par des outils du quotidien hébergés aux États-Unis, au moment où la nLPD se durcit",
+      "vous payez plusieurs logiciels métier et bureautiques dont la facture grimpe à chaque renouvellement",
+      "peu de ressources internes pour remplacer un outil vieillissant sans risquer de tout casser",
     ],
+    qualifiers: [
+      "géré en interne ou par un prestataire IT ?",
+      "un budget logiciels annuel qui compte ?",
+      "des données sensibles (résidents/patients) dessus ?",
+    ],
+    note: "Honnêteté : « conforme » ≠ « souverain » (Cloud Act), ne pas dramatiser. S'ils sont déjà hébergés en Suisse en propre, le reconnaître et lâcher.",
   },
   {
     key: "parapublic",
     match: ["parapublic", "public", "administration", "commune", "canton", "collectivit", "état", "etat"],
     problems: [
       "des systèmes hérités coûteux à maintenir et difficiles à faire évoluer",
-      "des processus encore très manuels entre services qui ralentissent les délais",
+      "des données publiques ou citoyens hébergées hors de Suisse, alors que la pression à la souveraineté monte",
       "une pression à digitaliser sans équipe projet dédiée en interne",
+    ],
+    qualifiers: [
+      "géré en interne ou par un prestataire ?",
+      "un budget logiciels / licences annuel qui compte ?",
+      "des contraintes de souveraineté ou de marchés publics ?",
     ],
   },
   {
     key: "low-tech",
     match: ["industrie", "manufact", "construction", "btp", "logistique", "négoce", "negoce", "retail", "commerce"],
     problems: [
-      "un SaaS / ERP en place qui ne suit plus vos besoins mais que c'est lourd de remplacer",
+      "un SaaS ou un ERP en place qui ne suit plus vos besoins mais que c'est lourd de remplacer",
       "des données dispersées entre plusieurs outils qui ne se parlent pas",
-      "des tâches répétitives qui mobilisent vos équipes au lieu de la valeur ajoutée",
+      "une facture logicielle qui grimpe à chaque renouvellement sans que personne ne pilote",
+    ],
+    qualifiers: [
+      "combien d'outils en abonnement ?",
+      "qui gère l'IT en interne ?",
+      "une échéance de contrat proche ?",
     ],
   },
 ];
 
-const GENERIC_PROBLEMS = [
+export const GENERIC_PROBLEMS = [
   "des outils logiciels en place qui ne suivent plus vos besoins, mais qu'il est lourd de remplacer",
   "des données et processus éclatés entre plusieurs systèmes qui ne communiquent pas",
-  "peu de ressources internes pour mener un changement d'outil sans perturber l'activité",
+  "une facture logicielle qui grimpe à chaque renouvellement",
+];
+
+const GENERIC_QUALIFIERS = [
+  "combien d'outils en abonnement ?",
+  "qui gère l'IT ?",
+  "un budget logiciels annuel qui compte ?",
 ];
 
 function norm(s: string): string {
@@ -99,6 +158,17 @@ function norm(s: string): string {
     .replace(/\p{Diacritic}/gu, "");
 }
 
+/** Compose the in-call guidance: global principles + this sector's qualifiers
+ * + the "non" branch for the 2-min ask + any sector note. */
+function composeGuidance(base: CallScript): string[] {
+  return [
+    ...GUIDANCE,
+    `À qualifier (2-3 points) : ${base.qualifiers.join(" · ")}.`,
+    "Si « non » au « vous avez 2 min ? » : ne pas pousser ; donner une phrase de raison (le 1er enjeu) et proposer de rappeler à un meilleur moment.",
+    ...(base.note ? [base.note] : []),
+  ];
+}
+
 /** Pick the best script for a company's sector. Substring match on the
  * sector/industry label; falls back to a generic permission script. */
 export function pickCallScript(sector: string | null | undefined): CallScript {
@@ -106,15 +176,21 @@ export function pickCallScript(sector: string | null | undefined): CallScript {
   if (s) {
     for (const entry of SECTOR_SCRIPTS) {
       if (entry.match.some((m) => s.includes(norm(m)))) {
-        return { key: entry.key, problems: entry.problems, bookingAsk: BOOKING_ASK };
+        return {
+          key: entry.key,
+          problems: entry.problems,
+          qualifiers: entry.qualifiers,
+          note: entry.note,
+          bookingAsk: BOOKING_ASK,
+        };
       }
     }
   }
-  return { key: "generic", problems: GENERIC_PROBLEMS, bookingAsk: BOOKING_ASK };
+  return { key: "generic", problems: GENERIC_PROBLEMS, qualifiers: GENERIC_QUALIFIERS, bookingAsk: BOOKING_ASK };
 }
 
-/** Resolve a script for a live call: interpolate geo/sector/contact and
- * build the opener + validation question. */
+/** Resolve a script for a live call: build the permission-based opener (name
+ * interpolated) + the per-enjeu validation question + composed guidance. */
 export function resolveCallScript(input: {
   sector?: string | null;
   geo?: string | null;
@@ -123,19 +199,54 @@ export function resolveCallScript(input: {
   const base = pickCallScript(input.sector);
   const sectorLabel = (input.sector ?? "votre secteur").trim() || "votre secteur";
   const geoLabel = (input.geo ?? "votre région").trim() || "votre région";
-  const hi = input.contactName ? `Bonjour ${input.contactName}, ` : "Bonjour, ";
-  const opener =
-    `${hi}je me permets de vous appeler car en travaillant avec des organisations ` +
-    `de ${sectorLabel} en ${geoLabel}, on a identifié trois points qui reviennent souvent : ` +
-    base.problems.map((p, i) => `(${i + 1}) ${p}`).join(" ; ") +
-    ".";
+  const opener = interpolateOpener(DEFAULT_OPENER, {
+    name: input.contactName,
+    sector: input.sector,
+    geo: input.geo,
+  });
   return {
     ...base,
     sectorLabel,
     geoLabel,
     opener,
-    permissionCheck:
-      "Est-ce que l'un de ces points résonne avec votre situation aujourd'hui ?",
-    guidance: GUIDANCE,
+    permissionCheck: PERMISSION_CHECK,
+    guidance: composeGuidance(base),
   };
+}
+
+/** The editable fields of a script (what's persisted + edited by the rep). */
+export interface ScriptFields {
+  opener: string;
+  problems: string[];
+  permissionCheck: string;
+  bookingAsk: string;
+  guidance: string[];
+}
+
+/** Default editable script fields, seeded with the best sector match. */
+export function defaultScriptFields(sector?: string | null): ScriptFields {
+  const base = pickCallScript(sector);
+  return {
+    opener: DEFAULT_OPENER,
+    problems: base.problems,
+    permissionCheck: PERMISSION_CHECK,
+    bookingAsk: base.bookingAsk,
+    guidance: composeGuidance(base),
+  };
+}
+
+/** Interpolate {name}/{sector}/{geo} into an opener template (collapsing the
+ * gaps left by empty values), so an edited template renders cleanly per call. */
+export function interpolateOpener(
+  template: string,
+  vars: { name?: string | null; sector?: string | null; geo?: string | null },
+): string {
+  return template
+    .replace(/\{name\}/g, (vars.name ?? "").trim())
+    .replace(/\{sector\}/g, (vars.sector ?? "").trim() || "votre secteur")
+    .replace(/\{geo\}/g, (vars.geo ?? "").trim() || "votre région")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.;:])/g, "$1")
+    .replace(/^Bonjour\s*,/, "Bonjour,")
+    .trim();
 }

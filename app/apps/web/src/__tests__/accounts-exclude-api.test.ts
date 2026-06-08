@@ -12,12 +12,17 @@ vi.mock("@/lib/auth/auth-utils", () => ({
 vi.mock("@/db", () => ({
   db: {
     update: vi.fn(),
+    // The exclude path now re-selects the changed rows to feed the
+    // suppression ledger (db.select(...).from(companies).where(...)).
+    select: vi.fn(),
   },
 }));
 
 vi.mock("@/db/schema", () => ({
   companies: {
     id: "id",
+    name: "name",
+    domain: "domain",
     tenantId: "tenantId",
     deletedAt: "deletedAt",
     excludedReason: "excludedReason",
@@ -40,6 +45,16 @@ vi.mock("@/lib/infra/audit-log", () => ({
   logAudit: vi.fn(),
 }));
 
+// The exclude/include path mirrors changes into the durable suppression
+// ledger (lib/accounts/suppression). Its DB internals are covered by
+// account-suppression.test.ts; here we stub it so this route test stays
+// focused on the route's own behavior (and isn't a 500 when the ledger
+// write isn't wired into the mock db).
+vi.mock("@/lib/accounts/suppression", () => ({
+  suppressAccounts: vi.fn().mockResolvedValue(undefined),
+  liftSuppression: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { logAudit } from "@/lib/infra/audit-log";
@@ -57,12 +72,21 @@ function makeReq(body?: unknown) {
   });
 }
 
-/** Wire db.update(...).set(...).where(...).returning() to resolve `rows`. */
+/** Wire db.update(...).set(...).where(...).returning() to resolve `rows`, plus
+ *  the follow-up db.select(...).from(companies).where(...) the exclude path
+ *  runs to feed the suppression ledger (resolves to the same changed rows). */
 function mockUpdateReturns(rows: Array<{ id: string }>) {
   const returningFn = vi.fn().mockResolvedValue(rows);
   const whereFn = vi.fn().mockReturnValue({ returning: returningFn });
   const setFn = vi.fn().mockReturnValue({ where: whereFn });
   vi.mocked(db.update).mockReturnValue({ set: setFn } as never);
+
+  const selectWhereFn = vi
+    .fn()
+    .mockResolvedValue(rows.map((r) => ({ id: r.id, name: null, domain: null, properties: null })));
+  const selectFromFn = vi.fn().mockReturnValue({ where: selectWhereFn });
+  vi.mocked(db.select).mockReturnValue({ from: selectFromFn } as never);
+
   return { setFn, whereFn, returningFn };
 }
 

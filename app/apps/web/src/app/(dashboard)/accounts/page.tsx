@@ -38,6 +38,7 @@ import { applyFilters } from "@/lib/search/filters";
 import type { FilterCondition } from "@/lib/search/filters";
 import { ColumnFilter, isColumnFilterActive, type ColumnFilterKind, type ColumnFilterState } from "@/components/ui/column-filter";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-delete-modal";
 
 interface Account {
   id: string;
@@ -131,10 +132,25 @@ export default function AccountsPage() {
   // column's filterKey → its filter state. An entry only exists while
   // the column constrains the list; clearing it deletes the key.
   const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilterState>>({});
+  // Debounced copy pushed to the server — column/tab/smart filters run
+  // server-side now, so the header total and the paginated list both reflect
+  // them. 350ms so typing in a text column filter doesn't refetch per keystroke.
+  const [debouncedColumnFilters, setDebouncedColumnFilters] = useState<Record<string, ColumnFilterState>>({});
+  // Filter dropdown options (distinct enum values) from the server, so the
+  // menus stay complete even though only the filtered rows are loaded.
+  const [serverFacets, setServerFacets] = useState<{ industries: string[]; geographies: string[]; sizes: string[]; revenues: string[]; stages: string[] } | null>(null);
+  // Tenant-wide working-set counts (independent of the active filters) for the
+  // tab + enrich badges, so they show true totals rather than the loaded subset.
+  const [serverCounts, setServerCounts] = useState<{ total: number; tam: number; manual: number; unenriched: number } | null>(null);
   const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null);
   // Bulk contact extraction (Apollo) + delete flows.
   const [extractingContacts, setExtractingContacts] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ type: "single" | "bulk" | "all"; id?: string; name?: string } | null>(null);
+  // Single-account delete now goes through the cascade modal (lets the user
+  // also delete related contacts/deals/activities/notes/tasks in one step).
+  const [cascadeTarget, setCascadeTarget] = useState<{ id: string; name: string } | null>(null);
+  const [cascadeCounts, setCascadeCounts] = useState<CascadeOption[] | null>(null);
+  const [cascadeBusy, setCascadeBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [scoreAllRunning, setScoreAllRunning] = useState(false);
   const [detectingSignals, setDetectingSignals] = useState(false);
@@ -241,6 +257,35 @@ export default function AccountsPage() {
       });
   }, []);
 
+  /** Serialize the active tab + column + smart filters into the query params
+   *  the /api/accounts route understands. Server-side filtering is what makes
+   *  the header total + paginated list reflect the filters. */
+  const serializeAccountFilters = useCallback((): URLSearchParams => {
+    const p = new URLSearchParams();
+    if (filter !== "all") p.set("tab", filter);
+    const ENUM_PARAM: Record<string, string> = {
+      industry: "fIndustry", geography: "fGeography", size: "fSize",
+      revenue: "fRevenue", stage: "fStage", score: "fGrade",
+    };
+    const TEXT_PARAM: Record<string, string> = { name: "fName", domain: "fDomain" };
+    for (const [key, fst] of Object.entries(debouncedColumnFilters)) {
+      if (!isColumnFilterActive(fst)) continue;
+      if (TEXT_PARAM[key] && fst.text && fst.text.trim()) p.set(TEXT_PARAM[key], fst.text.trim());
+      else if (ENUM_PARAM[key] && fst.values && fst.values.length > 0) p.set(ENUM_PARAM[key], fst.values.join(","));
+      else if (key === "linkedin" && fst.presence) p.set("fLinkedin", fst.presence);
+    }
+    // Smart-filter score threshold (e.g. "high fit" -> score >= 70).
+    for (const c of smartFilters) {
+      if (c.field !== "score") continue;
+      const n = typeof c.value === "number" ? c.value : Number(c.value);
+      if (!Number.isFinite(n)) continue;
+      if (c.operator === "gte" || c.operator === "gt") p.set("fScoreMin", String(n));
+      else if (c.operator === "lte" || c.operator === "lt") p.set("fScoreMax", String(n));
+      else if (c.operator === "eq") { p.set("fScoreMin", String(n)); p.set("fScoreMax", String(n)); }
+    }
+    return p;
+  }, [filter, debouncedColumnFilters, smartFilters]);
+
   /** Fetch a single page of accounts.
    *  - page=1, append=false → initial load (replaces list)
    *  - page>1, append=true  → "Load more" click
@@ -255,9 +300,12 @@ export default function AccountsPage() {
       if (debouncedSearch) params.set("search", debouncedSearch);
       if (viewExcluded) params.set("excluded", "true");
       if (viewDeleted) params.set("deleted", "true");
+      for (const [k, v] of serializeAccountFilters()) params.set(k, v);
       const res = await fetch(`/api/accounts?${params.toString()}`);
       if (!res.ok) return;
       const data = await res.json();
+      if (data.facets) setServerFacets(data.facets);
+      if (data.counts) setServerCounts(data.counts);
       const batch: Account[] = data.accounts || data.items || [];
       const pagination = data.pagination as { page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | undefined;
       if (append) {
@@ -274,7 +322,7 @@ export default function AccountsPage() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [debouncedSearch, viewExcluded, viewDeleted]);
+  }, [debouncedSearch, viewExcluded, viewDeleted, serializeAccountFilters]);
 
   /** Reload all pages that have been loaded so far. Used after mutations
    *  (enrich, score, create) so the user doesn't snap back to page 1. */
@@ -287,6 +335,7 @@ export default function AccountsPage() {
         if (debouncedSearch) params.set("search", debouncedSearch);
         if (viewExcluded) params.set("excluded", "true");
         if (viewDeleted) params.set("deleted", "true");
+        for (const [k, v] of serializeAccountFilters()) params.set(k, v);
         const res = await fetch(`/api/accounts?${params.toString()}`);
         if (!res.ok) break;
         const data = await res.json();
@@ -302,7 +351,7 @@ export default function AccountsPage() {
     } catch (e) {
       console.warn("accounts: refetch failed", e);
     }
-  }, [currentPage, debouncedSearch, viewExcluded, viewDeleted]);
+  }, [currentPage, debouncedSearch, viewExcluded, viewDeleted, serializeAccountFilters]);
 
   const loadMoreAccounts = useCallback(() => {
     if (loadingMore || currentPage >= totalPages) return;
@@ -757,6 +806,61 @@ export default function AccountsPage() {
     }
   }
 
+  // Open the single-account cascade modal and load live related-data counts so
+  // the checkboxes can show "Contacts 4 / Deals 1 / …". Counts start null
+  // (modal shows "Loading…") and resolve from /related-counts.
+  async function openCascadeDelete(id: string, name: string) {
+    setCascadeTarget({ id, name });
+    setCascadeCounts(null);
+    const labels: Array<[string, string]> = [
+      ["contacts", "Contacts"],
+      ["deals", "Deals"],
+      ["activities", "Activities"],
+      ["notes", "Notes"],
+      ["tasks", "Tasks"],
+    ];
+    try {
+      const res = await fetch(`/api/accounts/${id}/related-counts`);
+      const data = (await res.json().catch(() => ({}))) as { counts?: Record<string, number> };
+      const counts = data.counts ?? {};
+      setCascadeCounts(labels.map(([key, label]) => ({ key, label, count: counts[key] ?? 0 })));
+    } catch {
+      setCascadeCounts(labels.map(([key, label]) => ({ key, label, count: 0 })));
+    }
+  }
+
+  // Soft-delete one account plus any related sets the user ticked. Everything
+  // is recoverable from the Archive view.
+  async function performCascadeDelete(selectedKeys: string[]) {
+    if (!cascadeTarget) return;
+    setCascadeBusy(true);
+    try {
+      const res = await fetch(`/api/accounts/${cascadeTarget.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cascade: selectedKeys }),
+      });
+      if (!res.ok) {
+        toast("Delete failed.", "error");
+        return;
+      }
+      const data = (await res.json().catch(() => ({}))) as { cascaded?: Record<string, number> };
+      const extra = Object.values(data.cascaded ?? {}).reduce<number>((a, b) => a + (b ?? 0), 0);
+      toast(
+        extra > 0 ? `Deleted account + ${extra} related record${extra === 1 ? "" : "s"}.` : "Deleted account.",
+        "success",
+      );
+      setSelectedRows(new Set());
+      await refetchLoadedAccounts();
+    } catch (e) {
+      toast("Delete failed.", "error");
+      console.warn("accounts: cascade delete failed", e);
+    } finally {
+      setCascadeBusy(false);
+      setCascadeTarget(null);
+    }
+  }
+
   // Debounce the search box and push it to the server. The accounts list
   // endpoint resolves the query to matching industries via an LLM (not a
   // hardcoded synonym list), so "medical" returns every health-care / medical
@@ -767,6 +871,13 @@ export default function AccountsPage() {
     }, 350);
     return () => clearTimeout(t);
   }, [searchQuery]);
+
+  // Debounce column-filter changes before they hit the server (same 350ms as
+  // search) so toggling checkboxes / typing doesn't fire a request per change.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedColumnFilters(columnFilters), 350);
+    return () => clearTimeout(t);
+  }, [columnFilters]);
 
   function getLinkedInUrl(account: Account): string | null {
     const props = account.properties as Record<string, unknown> | null;
@@ -861,7 +972,16 @@ export default function AccountsPage() {
   // build is still running) are projected into the Account shape so
   // the same table code renders both.
   const mergedAccounts = useMemo<Account[]>(() => {
-    if (tamStream.rows.size === 0) return accounts;
+    // Streamed-but-not-yet-persisted TAM rows bypass the server-side filters,
+    // so don't splice them in while a filter/search/tab is active — they'd show
+    // regardless of the filter. They appear (filtered) once the build persists
+    // and the list refetches.
+    const anyFilterActive =
+      !!debouncedSearch ||
+      smartFilters.length > 0 ||
+      filter !== "all" ||
+      Object.values(columnFilters).some((s) => isColumnFilterActive(s));
+    if (tamStream.rows.size === 0 || anyFilterActive) return accounts;
     const byId = new Map(accounts.map((a) => [a.id, a]));
     for (const id of tamStream.rowOrder) {
       const row = tamStream.rows.get(id);
@@ -879,7 +999,7 @@ export default function AccountsPage() {
       }
     }
     return merged;
-  }, [accounts, tamStream.rows, tamStream.rowOrder]);
+  }, [accounts, tamStream.rows, tamStream.rowOrder, debouncedSearch, smartFilters, filter, columnFilters]);
 
   /** Reads a signal value for a company, preferring the live stream
    * state (which may be mid-flight) over the persisted
@@ -962,9 +1082,21 @@ export default function AccountsPage() {
     score: { label: "Score", kind: "enum", get: (a) => displayScore(a.score, isEnriched(a))?.grade ?? null },
   };
 
-  // Distinct values per enum column, computed from the loaded rows, for
-  // the column-filter checkboxes. Sorted alphabetically; empties dropped.
+  // Distinct values per enum column for the column-filter checkboxes. Prefer
+  // the server facets (tenant-wide, so the menus stay complete even though
+  // only filtered rows are loaded); fall back to the loaded rows until the
+  // first response lands. Score is the fixed grade ladder.
   const columnOptions = useMemo(() => {
+    if (serverFacets) {
+      return {
+        industry: serverFacets.industries,
+        geography: serverFacets.geographies,
+        size: serverFacets.sizes,
+        revenue: serverFacets.revenues,
+        stage: serverFacets.stages,
+        score: ["A+", "A", "B", "C", "D", "F"],
+      } as Record<string, string[]>;
+    }
     const out: Record<string, string[]> = {};
     for (const [key, cfg] of Object.entries(FILTER_COLUMNS)) {
       if (cfg.kind !== "enum") continue;
@@ -977,40 +1109,16 @@ export default function AccountsPage() {
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mergedAccounts]);
+  }, [serverFacets, mergedAccounts]);
 
-  /** Apply every active per-column header filter to one row. */
-  function passesColumnFilters(a: Account): boolean {
-    for (const [key, f] of Object.entries(columnFilters)) {
-      const cfg = FILTER_COLUMNS[key];
-      if (!cfg || !isColumnFilterActive(f)) continue;
-      const v = cfg.get(a);
-      if (cfg.kind === "text") {
-        if (!String(v ?? "").toLowerCase().includes((f.text ?? "").toLowerCase())) return false;
-      } else if (cfg.kind === "enum") {
-        if (f.values && f.values.length > 0 && (v == null || !f.values.includes(String(v)))) return false;
-      } else if (cfg.kind === "presence") {
-        const has = !!(v && String(v).trim());
-        if (f.presence === "has" && !has) return false;
-        if (f.presence === "empty" && has) return false;
-      }
-    }
-    return true;
-  }
-
+  // Tab, per-column, search, and score filters all run server-side now, so
+  // `mergedAccounts` is already the matched + paginated set (and the header
+  // total reflects the filters). We only apply any residual NL smart-filter
+  // conditions the server can't express (e.g. explicit exclusions) — the score
+  // threshold is idempotent here since it's already applied server-side.
   const filteredAccounts = (smartFilters.length > 0
     ? applyFilters(mergedAccounts, smartFilters)
     : mergedAccounts)
-    .filter((a) => {
-      if (filter === "tam" && !isTAM(a)) return false;
-      if (filter === "manual" && isTAM(a)) return false;
-      if (!passesColumnFilters(a)) return false;
-      // The search box now queries the server (intelligent, industry-aware), so
-      // the displayed accounts are already the matched set — no client-side text
-      // re-filter (which would wrongly drop e.g. "hospital & health care" rows
-      // for a "medical" query that the LLM mapped to that industry).
-      return true;
-    })
     .sort((a, b) => {
       // Primary: score DESC. Secondary: lit signals DESC — Monaco
       // "rise to top" behaviour for rows whose chips just flipped.
@@ -1019,8 +1127,11 @@ export default function AccountsPage() {
       return litSignalCount(b) - litSignalCount(a);
     });
 
-  const unenrichedCount = accounts.filter((a) => !isEnriched(a)).length;
-  const tamCount = accounts.filter(isTAM).length;
+  // Prefer the server's tenant-wide working-set counts (true totals,
+  // independent of the active filters); fall back to the loaded rows until the
+  // first response lands.
+  const unenrichedCount = serverCounts ? serverCounts.unenriched : accounts.filter((a) => !isEnriched(a)).length;
+  const tamCount = serverCounts ? serverCounts.tam : accounts.filter(isTAM).length;
 
   // G27: Collect unique signal types across all accounts for individual columns
   const signalTypeColumns = Array.from(
@@ -1992,7 +2103,7 @@ export default function AccountsPage() {
                           title="Delete account"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setDeleteTarget({ type: "single", id: account.id, name: account.name });
+                            openCascadeDelete(account.id, account.name);
                           }}
                           className="inline-flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
                           style={{ color: "var(--color-text-muted)" }}
@@ -2281,6 +2392,17 @@ export default function AccountsPage() {
         busy={deleting}
         onConfirm={performDelete}
         onCancel={() => { if (!deleting) setDeleteTarget(null); }}
+      />
+
+      {/* Single-account delete with optional cascade to related data. */}
+      <CascadeDeleteModal
+        open={!!cascadeTarget}
+        entityKind="account"
+        entityLabel={cascadeTarget?.name ?? "This account"}
+        options={cascadeCounts}
+        busy={cascadeBusy}
+        onConfirm={performCascadeDelete}
+        onCancel={() => { if (!cascadeBusy) setCascadeTarget(null); }}
       />
     </div>
   );

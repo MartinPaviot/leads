@@ -6,6 +6,7 @@ import { eq, desc, and, isNull } from "drizzle-orm";
 import { logAudit } from "@/lib/infra/audit-log";
 import { softDelete } from "@/lib/infra/soft-delete";
 import { apiError } from "@/lib/infra/api-errors";
+import { cascadeSoftDeleteDeal, DEAL_CASCADE_TYPES, type DealCascadeType } from "@/lib/deals/cascade-delete";
 import { inngest } from "@/inngest/client";
 import { z } from "zod";
 
@@ -173,6 +174,15 @@ export async function DELETE(
 
   const { id } = await params;
 
+  // Optional cascade: also soft-delete selected related sets (the delete modal
+  // sends the checked types). Body is absent for a plain deal delete.
+  const body = (await req.json().catch(() => ({}))) as { cascade?: unknown };
+  const cascade: DealCascadeType[] = Array.isArray(body.cascade)
+    ? body.cascade.filter(
+        (t): t is DealCascadeType => typeof t === "string" && (DEAL_CASCADE_TYPES as readonly string[]).includes(t),
+      )
+    : [];
+
   const [existing] = await db
     .select({ id: deals.id, name: deals.name })
     .from(deals)
@@ -183,6 +193,12 @@ export async function DELETE(
     return apiError("NOT_FOUND", "Deal not found");
   }
 
+  // Cascade the selected related sets first (soft-delete, recoverable), then
+  // the deal itself.
+  const cascaded = cascade.length
+    ? await cascadeSoftDeleteDeal(authCtx.tenantId, id, cascade)
+    : {};
+
   await softDelete("deals", id, authCtx.tenantId);
 
   await logAudit({
@@ -191,8 +207,8 @@ export async function DELETE(
     action: "delete",
     entityType: "deal",
     entityId: id,
-    metadata: { name: existing.name, softDeleted: true },
+    metadata: { name: existing.name, softDeleted: true, cascaded },
   });
 
-  return Response.json({ success: true, id });
+  return Response.json({ success: true, id, cascaded });
 }
