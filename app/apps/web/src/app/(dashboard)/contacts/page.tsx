@@ -70,7 +70,6 @@ export default function ContactsPage() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
   const [enrichStatus, setEnrichStatus] = useState<Record<string, EnrichStatus>>({});
-  const [enrichAllRunning, setEnrichAllRunning] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   // Pagination
@@ -210,19 +209,6 @@ export default function ContactsPage() {
     } catch { setEnrichStatus((prev) => ({ ...prev, [id]: "failed" })); }
   }
 
-  async function enrichAll() {
-    const unenriched = contacts.filter((c) => !isEnriched(c));
-    if (unenriched.length === 0) return;
-    setEnrichAllRunning(true);
-    const ids = unenriched.map((c) => c.id);
-    for (const id of ids) setEnrichStatus((prev) => ({ ...prev, [id]: "enriching" }));
-    try {
-      const res = await fetch("/api/enrich-contacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactIds: ids }) });
-      for (const id of ids) setEnrichStatus((prev) => ({ ...prev, [id]: res.ok ? "done" : "failed" }));
-      if (res.ok) await fetchContacts();
-    } catch { for (const id of ids) setEnrichStatus((prev) => ({ ...prev, [id]: "failed" })); }
-    finally { setEnrichAllRunning(false); }
-  }
 
   // Sort contacts client-side
   function handleSort(field: string) {
@@ -377,7 +363,6 @@ export default function ContactsPage() {
     router.push(`/contacts/merge?ids=${ids.join(",")}`);
   }
 
-  const unenrichedCount = contacts.filter((c) => !isEnriched(c)).length;
 
   // Header column-filter config — label + kind drive the <ColumnFilter>
   // dropdowns. The filtering itself runs server-side (see fetchContacts ->
@@ -452,11 +437,8 @@ export default function ContactsPage() {
         ]}
       />
       <PageHeader icon={<Users size={16} />} title="Contacts" subtitle={`${contacts.length}`}>
-        {unenrichedCount > 0 && (
-          <Button variant="outline" size="sm" icon={<Zap size={12} />} onClick={enrichAll} disabled={enrichAllRunning} loading={enrichAllRunning}>
-            {enrichAllRunning ? "Enriching..." : `Enrich All (${unenrichedCount})`}
-          </Button>
-        )}
+        {/* Enrich lives in the selection bar — it only makes sense once
+            contacts are checked. The toolbar keeps workspace-level actions. */}
         <Button variant="outline" size="sm" icon={<GitMerge size={12} />} onClick={() => router.push("/contacts/merge")}>
           Find duplicates
         </Button>

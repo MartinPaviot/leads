@@ -158,7 +158,6 @@ export default function AccountsPage() {
   const [cascadeCounts, setCascadeCounts] = useState<CascadeOption[] | null>(null);
   const [cascadeBusy, setCascadeBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [scoreAllRunning, setScoreAllRunning] = useState(false);
   const [detectingSignals, setDetectingSignals] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   // Debounced search term pushed to the server. The accounts endpoint
@@ -637,35 +636,6 @@ export default function AccountsPage() {
       toast("Failed to create account", "error");
       console.warn("accounts: create failed", e);
     } finally { setCreating(false); }
-  }
-
-  async function scoreAll() {
-    const ids = accounts.filter((a) => a.score == null).map((a) => a.id);
-    if (ids.length === 0) return;
-    setScoreAllRunning(true);
-    try {
-      const result = await chunkedBulkCall({
-        ids,
-        endpoint: "/api/score",
-        buildPayload: (chunk) => ({ companyIds: chunk }),
-        onProgress: (done, total) => {
-          if (total > 20) toast(`Scoring ${done} / ${total} accounts…`, "info");
-        },
-      });
-      if (result.succeeded > 0) await refetchLoadedAccounts();
-      if (result.failed === 0) {
-        toast(`Scored ${result.succeeded} accounts.`, "success");
-      } else if (result.succeeded > 0) {
-        toast(`Scored ${result.succeeded} of ${result.total}. ${result.failed} failed.`, "warning");
-        console.warn("accounts: score-all partial failure", result.errors);
-      } else {
-        toast("Failed to score accounts.", "error");
-        console.warn("accounts: score-all all chunks failed", result.errors);
-      }
-    } catch (e) {
-      toast("Failed to score accounts.", "error");
-      console.warn("accounts: score-all crashed", e);
-    } finally { setScoreAllRunning(false); }
   }
 
   // Bulk score the current selection (or all unscored when nothing is
@@ -1278,7 +1248,6 @@ export default function AccountsPage() {
   // Prefer the server's tenant-wide working-set counts (true totals,
   // independent of the active filters); fall back to the loaded rows until the
   // first response lands.
-  const unenrichedCount = serverCounts ? serverCounts.unenriched : accounts.filter((a) => !isEnriched(a)).length;
   const tamCount = serverCounts ? serverCounts.tam : accounts.filter(isTAM).length;
 
   // G27: Collect unique signal types across all accounts for individual columns
@@ -1308,7 +1277,7 @@ export default function AccountsPage() {
         }
         actions={[
           { label: "Score", icon: <Target size={13} />, onClick: bulkScoreSelected },
-          { label: "Detect signals", icon: <Radio size={13} />, onClick: detectSignals },
+          { label: detectingSignals ? "Detecting…" : "Detect signals", icon: <Radio size={13} />, onClick: detectSignals, disabled: detectingSignals },
           {
             label: extractingContacts ? "Extracting…" : "Extract contacts",
             icon: <UserPlus size={13} />,
@@ -1353,19 +1322,9 @@ export default function AccountsPage() {
         title="Accounts"
         subtitle={`${totalAccounts}`}
       >
-        {/* "Delete all accounts" removed from the toolbar — a one-click,
-            always-visible workspace wipe is a footgun. Bulk/single delete
-            (incl. #61 row CRUD) + Settings → Privacy & data remain. */}
-        <Button
-          variant="outline"
-          size="sm"
-          icon={<Radio size={13} />}
-          onClick={detectSignals}
-          disabled={detectingSignals}
-          loading={detectingSignals}
-        >
-          {detectingSignals ? "Detecting..." : "Signals"}
-        </Button>
+        {/* Per-account actions (Enrich, Score, Detect signals) live in the
+            selection bar — they only make sense once accounts are checked.
+            The toolbar keeps only workspace-level actions. */}
         {proposalCount > 0 && (
           <Button
             variant="outline"
@@ -1395,30 +1354,6 @@ export default function AccountsPage() {
         >
           {viewDeleted ? "Back to active" : "Archive"}
         </Button>
-        {accounts.some((a) => a.score == null) && (
-          <Button
-            variant="outline"
-            size="sm"
-            icon={<Target size={13} />}
-            onClick={scoreAll}
-            disabled={scoreAllRunning}
-            loading={scoreAllRunning}
-          >
-            {scoreAllRunning ? "Scoring..." : "Score"}
-          </Button>
-        )}
-        {/* Criteria enrichment — base by default, à la carte via the caret.
-            When rows are selected the menu moves into the bulk-actions bar
-            (top), so it's hidden here to avoid two enrich entry points. */}
-        {selectedRows.size === 0 && unenrichedCount > 0 && (
-          <EnrichMenu
-            targetCount={unenrichedCount}
-            running={enrichStream.isRunning}
-            processed={enrichStream.processed}
-            total={enrichStream.total}
-            onEnrich={(criteria) => runEnrich(criteria)}
-          />
-        )}
         <ColumnPicker
           categories={pickerCategories}
           visible={visibleCategories}
