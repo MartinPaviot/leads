@@ -660,7 +660,7 @@ export default function CallModePage() {
       {campaign && (
         <div
           className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-out ${
-            inCall ? "max-h-0 opacity-0" : "max-h-48 opacity-100"
+            inCall ? "max-h-0 opacity-0" : "max-h-20 opacity-100"
           }`}
         >
           <CampaignFunnelBar key={planVersion} />
@@ -680,12 +680,12 @@ export default function CallModePage() {
       {/* ───── LEFT — Queue: full in prep, thin strip when live ───── */}
       <aside
         className={`relative shrink-0 overflow-hidden border-r border-zinc-200 dark:border-zinc-800 transition-[width] duration-300 ease-out ${
-          inCall ? "w-16" : "w-80"
+          inCall ? "w-16" : "w-56"
         }`}
       >
         {/* Full queue (prep) — fixed 320px so it slides out cleanly under the clip */}
         <div
-          className={`absolute inset-y-0 left-0 flex w-80 flex-col transition-opacity duration-200 ${
+          className={`absolute inset-y-0 left-0 flex w-56 flex-col transition-opacity duration-200 ${
             inCall ? "pointer-events-none opacity-0" : "opacity-100"
           }`}
         >
@@ -936,6 +936,15 @@ export default function CallModePage() {
                     onEnrich={() => handleEnrich(selected.contactId)}
                     enriching={enriching}
                   />
+                  {/* Company + buying committee live WITH the prospect (linked),
+                      not under the independent script panel on the right. */}
+                  <div className="border-t border-zinc-200 dark:border-zinc-800">
+                    <AccountBrainPanel
+                      brain={brain}
+                      brainLoading={brainLoading}
+                      focalContactId={selected.contactId}
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -948,20 +957,14 @@ export default function CallModePage() {
       </main>
 
       {/* ───── RIGHT — Account brain (prep) / call context (live) ───── */}
-      <aside className="w-96 shrink-0 border-l border-zinc-200 dark:border-zinc-800 overflow-y-auto">
+      <aside className="w-[30rem] shrink-0 border-l border-zinc-200 dark:border-zinc-800 overflow-y-auto">
         {selected ? (
           <>
-            <div className="border-b border-zinc-200 p-3 dark:border-zinc-800">
+            <div className="p-3">
               <CallScriptPanel contactName={selected.contactName} defaultSector={brain?.companyBrain?.company?.industry} />
             </div>
-            {inCall ? (
+            {inCall && (
               <InCallContext selected={selected} brain={brain} coaching={coachingHistory} />
-            ) : (
-              <AccountBrainPanel
-                brain={brain}
-                brainLoading={brainLoading}
-                focalContactId={selected.contactId}
-              />
             )}
           </>
         ) : (

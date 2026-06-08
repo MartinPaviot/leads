@@ -387,14 +387,14 @@ export function PreCallBrief({
               </span>
             ))}
           </div>
-          {onEnrich && (
+          {onEnrich && !focal?.email && (
             <button
               onClick={onEnrich}
               disabled={enriching}
               className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-[13px] font-medium text-white transition hover:bg-indigo-700 disabled:opacity-60"
             >
               <Zap className="h-3.5 w-3.5" />
-              {enriching ? "Enrichissement…" : "Enrichir email & téléphone"}
+              {enriching ? "Enrichissement…" : "Enrichir l'email"}
             </button>
           )}
         </Section>
@@ -652,7 +652,19 @@ export function AccountBrainPanel({
   }
 
   const { company, contacts, deals, knowledgeEntries } = brain.companyBrain;
-  const committee = contacts.filter((c) => c.id !== focalContactId);
+  // Dedupe the buying committee: drop the focal contact, and never list the
+  // same person twice (by id AND by name) — a duplicated member reads as amateur.
+  const seenIds = new Set<string>();
+  const seenNames = new Set<string>();
+  const committee = contacts.filter((c) => {
+    if (c.id === focalContactId) return false;
+    const nameKey = `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim().toLowerCase();
+    if (c.id && seenIds.has(c.id)) return false;
+    if (nameKey && seenNames.has(nameKey)) return false;
+    if (c.id) seenIds.add(c.id);
+    if (nameKey) seenNames.add(nameKey);
+    return true;
+  });
   const dossier = brain.cachedDossier ?? null;
   const leadership = dossier?.leadership ?? [];
 

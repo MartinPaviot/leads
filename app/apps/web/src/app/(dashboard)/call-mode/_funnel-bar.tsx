@@ -5,6 +5,9 @@
  * goal progress (today vs quota, week vs target), cadence state (due / in
  * cadence / reached / exhausted), and enrichment coverage (callable pool).
  * Reads /api/calls/campaign/stats. Renders nothing when there's no campaign.
+ *
+ * Kept to a single low-height strip — label and value sit on one line so the
+ * KPIs don't steal vertical space from the cockpit content.
  */
 
 import { useEffect, useState } from "react";
@@ -20,11 +23,41 @@ interface Stats {
 
 const GOAL_NOUN: Record<string, string> = { calls: "calls", connects: "connects", meetings: "meetings" };
 
+const muted = { color: "var(--color-text-tertiary)", fontWeight: 400 } as React.CSSProperties;
+
 function Bar({ done, total }: { done: number; total: number }) {
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   return (
-    <div className="mt-1 h-1 w-full overflow-hidden rounded-full" style={{ background: "var(--color-bg-emphasis, var(--color-border-default))" }}>
+    <div className="mt-0.5 h-0.5 w-full overflow-hidden rounded-full" style={{ background: "var(--color-border-default)" }}>
       <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--color-accent)" }} />
+    </div>
+  );
+}
+
+/** One compact KPI cell: label and value on a single baseline-aligned line,
+ * with an optional thin progress bar underneath. */
+function Cell({
+  label,
+  children,
+  bar,
+  style,
+}: {
+  label: string;
+  children: React.ReactNode;
+  bar?: { done: number; total: number };
+  style?: React.CSSProperties;
+}) {
+  return (
+    <div className="px-3.5 py-1.5" style={style}>
+      <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+        <span className="text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
+          {label}
+        </span>
+        <span className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+          {children}
+        </span>
+      </div>
+      {bar && <Bar done={bar.done} total={bar.total} />}
     </div>
   );
 }
@@ -48,24 +81,19 @@ export function CampaignFunnelBar() {
   const noun = s.goal ? GOAL_NOUN[s.goal.type] : "calls";
   const reached = s.cadence.connected + s.cadence.converted;
   const cov = s.coverage.targets;
-
-  const cell = "px-4 py-2.5";
-  const labelCls = "text-[10px] font-medium uppercase tracking-wide";
-  const labelStyle = { color: "var(--color-text-tertiary)" } as React.CSSProperties;
-  const valueCls = "text-[13px] font-semibold";
-  const valueStyle = { color: "var(--color-text-primary)" } as React.CSSProperties;
   const divider = { borderLeft: "1px solid var(--color-border-default)" } as React.CSSProperties;
+  const weekTarget = s.goal?.target ?? s.campaign.weeklyTarget;
 
   return (
     // Flush full-width strip (matches the app's FilterBar / BulkActionsBar
     // convention) so the cockpit is framed edge-to-edge instead of floating an
     // inset card above full-bleed columns.
     <div
-      className="flex w-full flex-wrap items-stretch"
+      className="flex w-full flex-wrap items-center"
       style={{ background: "var(--color-bg-card)", borderBottom: "1px solid var(--color-border-default)" }}
     >
       {/* Me / Team scope — per-user Call Mode, shareable team totals */}
-      <div className={cell} style={{ display: "flex", alignItems: "center" }}>
+      <div className="px-3.5 py-1.5" style={{ display: "flex", alignItems: "center" }}>
         <div className="flex gap-0.5 rounded-md p-0.5" style={{ background: "var(--color-bg-base)", border: "1px solid var(--color-border-default)" }}>
           {(["me", "team"] as const).map((k) => {
             const active = scope === k;
@@ -74,7 +102,7 @@ export function CampaignFunnelBar() {
                 key={k}
                 type="button"
                 onClick={() => setScope(k)}
-                className="rounded px-2.5 py-1 text-[11px] font-medium transition-colors"
+                className="rounded px-2 py-0.5 text-[11px] font-medium transition-colors"
                 style={{
                   background: active ? "var(--color-accent-soft)" : "transparent",
                   color: active ? "var(--color-accent)" : "var(--color-text-tertiary)",
@@ -88,46 +116,28 @@ export function CampaignFunnelBar() {
         </div>
       </div>
 
-      {/* Today vs daily quota */}
-      <div className={cell} style={{ minWidth: 150, flex: "1 1 150px" }}>
-        <div className={labelCls} style={labelStyle}>Today</div>
-        <div className={valueCls} style={valueStyle}>
-          {s.progress.callsToday}<span style={{ color: "var(--color-text-tertiary)", fontWeight: 400 }}> / {s.progress.dailyQuota} calls</span>
-        </div>
-        <Bar done={s.progress.callsToday} total={s.progress.dailyQuota} />
-      </div>
+      <Cell label="Today" bar={{ done: s.progress.callsToday, total: s.progress.dailyQuota }} style={{ minWidth: 140, flex: "1 1 140px" }}>
+        {s.progress.callsToday}<span style={muted}> / {s.progress.dailyQuota} calls</span>
+      </Cell>
 
-      {/* This week vs goal */}
-      <div className={cell} style={{ ...divider, minWidth: 160, flex: "1 1 160px" }}>
-        <div className={labelCls} style={labelStyle}>This week</div>
-        <div className={valueCls} style={valueStyle}>
-          {s.goalDone}<span style={{ color: "var(--color-text-tertiary)", fontWeight: 400 }}> / {s.goal?.target ?? s.campaign.weeklyTarget} {noun}</span>
-        </div>
-        <Bar done={s.goalDone} total={s.goal?.target ?? s.campaign.weeklyTarget} />
-      </div>
+      <Cell label="Week" bar={{ done: s.goalDone, total: weekTarget }} style={{ ...divider, minWidth: 150, flex: "1 1 150px" }}>
+        {s.goalDone}<span style={muted}> / {weekTarget} {noun}</span>
+      </Cell>
 
-      {/* Meetings booked */}
-      <div className={cell} style={{ ...divider, minWidth: 110 }}>
-        <div className={labelCls} style={labelStyle}>Meetings</div>
-        <div className={valueCls} style={valueStyle}>{s.progress.meetingsWeek}<span style={{ color: "var(--color-text-tertiary)", fontWeight: 400 }}> this week</span></div>
-      </div>
+      <Cell label="Meetings" style={{ ...divider, minWidth: 100 }}>
+        {s.progress.meetingsWeek}<span style={muted}> this week</span>
+      </Cell>
 
-      {/* Cadence state */}
-      <div className={cell} style={{ ...divider, minWidth: 220, flex: "1 1 220px" }}>
-        <div className={labelCls} style={labelStyle}>Cadence</div>
-        <div className="text-[12.5px]" style={{ color: "var(--color-text-secondary)" }}>
-          <strong style={valueStyle}>{s.cadence.dueToday}</strong> due · {s.cadence.queued} in cadence · {reached} reached · {s.cadence.exhausted} exhausted
-        </div>
-      </div>
+      <Cell label="Cadence" style={{ ...divider, minWidth: 200, flex: "1 1 200px" }}>
+        <span style={{ fontWeight: 400, fontSize: "12px", color: "var(--color-text-secondary)" }}>
+          {s.cadence.dueToday} due · {s.cadence.queued} in cadence · {reached} reached · {s.cadence.exhausted} exhausted
+        </span>
+      </Cell>
 
-      {/* Coverage */}
       {cov > 0 && (
-        <div className={cell} style={{ ...divider, minWidth: 130 }}>
-          <div className={labelCls} style={labelStyle}>Callable</div>
-          <div className={valueCls} style={valueStyle}>
-            {s.coverage.withPhone}<span style={{ color: "var(--color-text-tertiary)", fontWeight: 400 }}> / {cov} have a phone</span>
-          </div>
-        </div>
+        <Cell label="Callable" style={{ ...divider, minWidth: 120 }}>
+          {s.coverage.withPhone}<span style={muted}> / {cov} have a phone</span>
+        </Cell>
       )}
     </div>
   );
