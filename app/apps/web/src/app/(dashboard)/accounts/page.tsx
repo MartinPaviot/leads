@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Building2, Search, Plus, Zap, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, Trash2, UserPlus, Ban, RotateCcw, type LucideIcon } from "lucide-react";
+import { Building2, Search, Filter, Plus, Zap, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, Trash2, UserPlus, Ban, RotateCcw, type LucideIcon } from "lucide-react";
 import { useTamStream } from "@/hooks/use-tam-stream";
 import { TamBuildProgress } from "@/components/tam-build-progress";
 import { SignalChip } from "@/components/signal-chip";
@@ -1209,7 +1209,7 @@ export default function AccountsPage() {
               if (filters.length > 0) {
                 toast(`Applied ${filters.length} smart filter${filters.length === 1 ? "" : "s"}`, "success");
               } else if (meta.unmatched.length > 0) {
-                toast("Nothing matched your query — try rephrasing", "info");
+                toast(`Searched all fields. Couldn't add a filter for: ${meta.unmatched.join(", ")}`, "info");
               }
             }}
             onError={(msg) => toast(msg, "error")}
@@ -1322,24 +1322,44 @@ export default function AccountsPage() {
             cols={9 + 4 + customSignals.length + signalTypeColumns.length + customBoolColumns.length + customFields.length}
           />
         ) : mergedAccounts.length === 0 ? (
+          debouncedSearch ? (
+            /* The broad search ran server-side across every category and
+               matched nothing — distinct from an empty library, so the user
+               knows the search (not their data) is the reason. */
+            <EmptyState
+              icon={<Search size={24} />}
+              title={`No accounts match "${debouncedSearch}"`}
+              description="Nothing matched across name, website, industry or description. Try different words, or clear the search."
+              actionLabel="Clear search"
+              onAction={() => setSearchQuery("")}
+              actionVariant="outline"
+            />
+          ) : (
+            <EmptyState
+              icon={<Building2 size={24} />}
+              title="No accounts"
+              description="Create accounts or import contacts to get started."
+              actionLabel="Create account"
+              onAction={() => setShowCreate(true)}
+              actionVariant="gradient"
+            />
+          )
+        ) : filteredAccounts.length === 0 ? (
+          /* The search DID return rows (mergedAccounts > 0) but the active
+             smart / column filters narrowed them to none. Name that cause
+             precisely — never "no match for <search>", which is what made the
+             count banner ("41 match") and this state contradict each other.
+             Clearing here drops the filters, not the underlying search. */
           <EmptyState
-            icon={<Building2 size={24} />}
-            title="No accounts"
-            description="Create accounts or import contacts to get started."
-            actionLabel="Create account"
-            onAction={() => setShowCreate(true)}
-            actionVariant="gradient"
-          />
-        ) : filteredAccounts.length === 0 && debouncedSearch ? (
-          /* Dedicated empty state for a search that returned nothing.
-             Distinct from the "no accounts at all" state above so the
-             user knows their library isn't empty. */
-          <EmptyState
-            icon={<Search size={24} />}
-            title={`No accounts match "${debouncedSearch}"`}
-            description="Try a different phrasing, or clear the search to see your full list."
-            actionLabel="Clear search"
-            onAction={() => setSearchQuery("")}
+            icon={<Filter size={24} />}
+            title="No accounts match the active filters"
+            description="Your search returned results, but the active filters narrowed them to none. Clear the filters to see them."
+            actionLabel="Clear filters"
+            onAction={() => {
+              setSmartFilters([]);
+              setSmartMeta(null);
+              setColumnFilters({});
+            }}
             actionVariant="outline"
           />
         ) : (

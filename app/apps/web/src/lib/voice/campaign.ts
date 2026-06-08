@@ -337,6 +337,10 @@ export async function generateDailyCallList(
 
   // 2) Top up with fresh, callable, not-yet-targeted contacts (highest score
   //    first). Callable = has a phone and isn't on the DNC list.
+  //    Territory exclusivity: exclude any contact already assigned to ANY
+  //    ACTIVE campaign in the tenant (not just this one), so two reps never
+  //    get the same account in their call lists. A contact frees up once its
+  //    owning campaign is no longer active.
   let newlyAdded = 0;
   let poolExhausted = false;
   const topUp = Math.max(0, quota - listed);
@@ -349,7 +353,11 @@ export async function generateDailyCallList(
           eq(contacts.tenantId, tenantId),
           isNull(contacts.deletedAt),
           sql`${contacts.phone} IS NOT NULL AND ${contacts.phone} <> ''`,
-          sql`${contacts.id} NOT IN (SELECT contact_id FROM call_campaign_targets WHERE campaign_id = ${campaignId})`,
+          sql`${contacts.id} NOT IN (
+            SELECT t.contact_id FROM call_campaign_targets t
+            JOIN call_campaigns cc ON cc.id = t.campaign_id
+            WHERE cc.tenant_id = ${tenantId} AND cc.status = 'active'
+          )`,
           sql`NOT EXISTS (SELECT 1 FROM do_not_call_list d WHERE d.phone_number = ${contacts.phone} AND (d.tenant_id = ${tenantId} OR d.tenant_id IS NULL))`,
         ),
       )
@@ -357,19 +365,26 @@ export async function generateDailyCallList(
       .limit(topUp);
 
     if (candidates.length > 0) {
-      await db.insert(callCampaignTargets).values(
-        candidates.map((c) => ({
-          campaignId,
-          tenantId,
-          contactId: c.id,
-          status: "queued" as const,
-          nextAttemptAt: now,
-          listedOn: today,
-          addedAt: now,
-        })),
-      );
-      newlyAdded = candidates.length;
-      listed += candidates.length;
+      // onConflictDoNothing backstops the select->insert race between two reps'
+      // concurrent list builds (paired with the partial unique index on
+      // call_campaign_targets(tenant_id, contact_id) for non-terminal targets).
+      const inserted = await db
+        .insert(callCampaignTargets)
+        .values(
+          candidates.map((c) => ({
+            campaignId,
+            tenantId,
+            contactId: c.id,
+            status: "queued" as const,
+            nextAttemptAt: now,
+            listedOn: today,
+            addedAt: now,
+          })),
+        )
+        .onConflictDoNothing()
+        .returning({ id: callCampaignTargets.id });
+      newlyAdded = inserted.length;
+      listed += inserted.length;
     }
     poolExhausted = candidates.length < topUp;
   }

@@ -417,13 +417,15 @@ export default function ContactsPage() {
             onFilters={(filters, meta) => {
               setSmartFilters(filters);
               setSmartMeta(meta);
-              // A natural-language query is not a literal term — drop the server
-              // text search so the smart filters alone define the result set.
-              setDebouncedSearch("");
+              // Keep the broad server text search (debouncedSearch) running and
+              // let the extracted refinements (score / exclusions) compose on
+              // top. The search box already matches the words across every
+              // category — clearing it here would throw that away and leave a
+              // literal client filter that contradicts the result.
               if (filters.length > 0) {
                 toast(`Applied ${filters.length} smart filter${filters.length === 1 ? "" : "s"}`, "success");
               } else if (meta.unmatched.length > 0) {
-                toast("Nothing matched your query — try rephrasing", "info");
+                toast(`Searched all fields. Couldn't add a filter for: ${meta.unmatched.join(", ")}`, "info");
               }
             }}
             onError={(msg) => toast(msg, "error")}
@@ -480,8 +482,13 @@ export default function ContactsPage() {
           /* K15 — fresh-tenant empty state offers two clear paths to
              value: import what the user already has, or have us go
              enrich the TAM accounts they just built. The "search returned
-             nothing" case keeps the simpler search-clear CTA. */
-          contacts.length === 0 ? (
+             nothing" case keeps the simpler search-clear CTA. Key off whether
+             a search/filter is actually active (not `contacts.length === 0`,
+             which is also true on a search miss — that wrongly showed the
+             import CTA for a query that simply matched nothing). */
+          !debouncedSearch &&
+          smartFilters.length === 0 &&
+          !Object.values(columnFilters).some((s) => isColumnFilterActive(s)) ? (
             <EmptyState
               icon={<Users size={28} />}
               title="No contacts yet"

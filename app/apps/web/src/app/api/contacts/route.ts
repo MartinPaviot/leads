@@ -69,11 +69,22 @@ export async function GET(req: Request) {
           )`
         : sql``;
 
+      // Also match on the company NAME literally, so the broad search truly
+      // spans every category (a contact has no company name of its own — it
+      // lives on the joined company). Same self-contained, tenant-scoped
+      // subquery shape as the industry clause.
+      const companyNameClause = sql` OR ${contacts.companyId} IN (
+        SELECT id FROM companies
+        WHERE tenant_id = ${authCtx.tenantId}
+          AND deleted_at IS NULL
+          AND name ILIKE ${"%" + search + "%"}
+      )`;
+
       searchWhere = sql`${baseWhere} AND (
         ${contacts.firstName} ILIKE ${"%" + search + "%"}
         OR ${contacts.lastName} ILIKE ${"%" + search + "%"}
         OR ${contacts.email} ILIKE ${"%" + search + "%"}
-        OR ${contacts.title} ILIKE ${"%" + search + "%"}${industryClause}
+        OR ${contacts.title} ILIKE ${"%" + search + "%"}${industryClause}${companyNameClause}
       )`;
     }
     const whereClause = emailSearch

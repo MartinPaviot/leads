@@ -219,6 +219,16 @@ export const connectedMailboxes = pgTable(
     displayName: text("display_name"),
     provider: text("provider").notNull(), // gmail, outlook, smtp_custom
     eeAccountId: text("ee_account_id").notNull().unique(),
+    // Direct IMAP/SMTP (provider "smtp_custom", no EmailEngine): connection
+    // details + the AES-256-GCM-encrypted password (via lib/crypto/
+    // settings-encryption), plus the last IMAP UID captured so the poll cron
+    // only fetches new mail.
+    imapHost: text("imap_host"),
+    imapPort: integer("imap_port"),
+    smtpHost: text("smtp_host"),
+    smtpPort: integer("smtp_port"),
+    secretEncrypted: text("secret_encrypted"),
+    imapLastUid: integer("imap_last_uid"),
     domain: text("domain").notNull(),
     status: mailboxStatusEnum("status").default("warming_up"),
     dailyLimit: integer("daily_limit").notNull().default(50),

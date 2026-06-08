@@ -31,15 +31,17 @@ function Bar({ done, total }: { done: number; total: number }) {
 
 export function CampaignFunnelBar() {
   const [s, setS] = useState<Stats | null>(null);
+  // Call Mode is per-user, but the numbers can be shared at the team level.
+  const [scope, setScope] = useState<"me" | "team">("me");
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/calls/campaign/stats")
+    fetch(`/api/calls/campaign/stats?scope=${scope}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (!cancelled && d?.campaign) setS(d); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [scope]);
 
   if (!s || !s.campaign) return null;
 
@@ -62,6 +64,30 @@ export function CampaignFunnelBar() {
       className="flex w-full flex-wrap items-stretch"
       style={{ background: "var(--color-bg-card)", borderBottom: "1px solid var(--color-border-default)" }}
     >
+      {/* Me / Team scope — per-user Call Mode, shareable team totals */}
+      <div className={cell} style={{ display: "flex", alignItems: "center" }}>
+        <div className="flex gap-0.5 rounded-md p-0.5" style={{ background: "var(--color-bg-base)", border: "1px solid var(--color-border-default)" }}>
+          {(["me", "team"] as const).map((k) => {
+            const active = scope === k;
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setScope(k)}
+                className="rounded px-2.5 py-1 text-[11px] font-medium transition-colors"
+                style={{
+                  background: active ? "var(--color-accent-soft)" : "transparent",
+                  color: active ? "var(--color-accent)" : "var(--color-text-tertiary)",
+                  cursor: "pointer",
+                }}
+              >
+                {k === "me" ? "Me" : "Team"}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Today vs daily quota */}
       <div className={cell} style={{ minWidth: 150, flex: "1 1 150px" }}>
         <div className={labelCls} style={labelStyle}>Today</div>
