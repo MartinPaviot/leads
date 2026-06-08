@@ -323,8 +323,6 @@ export function PreCallBrief({
   const focal = brain?.focalContact;
   const deals = brain?.ownedDeals ?? [];
   const activities = brain?.directActivities ?? [];
-  const edges = brain?.companyBrain?.contextGraphEdges ?? [];
-  const memories = brain?.companyBrain?.memories ?? [];
   const dossier = brain?.cachedDossier ?? null;
   const approach = dossier?.recommendedApproach;
   const opener =
@@ -538,25 +536,12 @@ export function PreCallBrief({
         </Section>
       )}
 
-      {/* Faits & mémoire */}
-      {(edges.length > 0 || memories.length > 0) && (
-        <Section icon={Brain} title="Ce qu'on sait déjà" count={edges.length + memories.length}>
-          <div className="space-y-2">
-            {edges.slice(0, 5).map((e, i) => (
-              <div key={`e${i}`} className="flex items-start gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-zinc-400" />
-                <span>{e.fact}</span>
-              </div>
-            ))}
-            {memories.slice(0, 4).map((m) => (
-              <div key={m.id} className="flex items-start gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-indigo-400" />
-                <span>{m.content}</span>
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
+      {/* The pre-call brief deliberately stops at grounded data — activities,
+          deals and the research dossier all trace to a real source. We do NOT
+          surface free-text "facts" inferred from the context graph / memory
+          here: during a live cold call an ungrounded claim (a budget, a
+          timeline) the rep then repeats is worse than silence. Re-add only once
+          each memory carries a citation the rep can trust. */}
 
       {/* end of collapsible dossier */}
         </div>
@@ -666,8 +651,7 @@ export function AccountBrainPanel({
     );
   }
 
-  const { company, contacts, deals, memories, contextGraphEdges, knowledgeEntries } =
-    brain.companyBrain;
+  const { company, contacts, deals, knowledgeEntries } = brain.companyBrain;
   const committee = contacts.filter((c) => c.id !== focalContactId);
   const dossier = brain.cachedDossier ?? null;
   const leadership = dossier?.leadership ?? [];
@@ -775,17 +759,14 @@ export function AccountBrainPanel({
         </Section>
       )}
 
-      {/* Memory & facts */}
-      {(memories.length > 0 || contextGraphEdges.length > 0 || knowledgeEntries.length > 0) && (
-        <Section icon={Brain} title="Mémoire & faits">
+      {/* Knowledge base — authored entries only. We intentionally don't render
+          context-graph edges or memory items here: they are inferred, unsourced
+          claims, and a cold-call brief must show only facts the rep can stand
+          behind. */}
+      {knowledgeEntries.length > 0 && (
+        <Section icon={Brain} title="Base de connaissances">
           <div className="space-y-2">
-            {contextGraphEdges.slice(0, 4).map((e, i) => (
-              <FactLine key={`ce${i}`} dot="bg-zinc-400" text={e.fact} />
-            ))}
-            {memories.slice(0, 4).map((m) => (
-              <FactLine key={m.id} dot="bg-indigo-400" text={m.content} />
-            ))}
-            {knowledgeEntries.slice(0, 3).map((k) => (
+            {knowledgeEntries.slice(0, 4).map((k) => (
               <FactLine key={k.id} dot="bg-emerald-400" text={k.title} />
             ))}
           </div>

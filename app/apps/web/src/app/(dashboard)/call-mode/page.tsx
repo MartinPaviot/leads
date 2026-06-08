@@ -740,16 +740,27 @@ export default function CallModePage() {
           ) : (
             filteredQueue.map((item) => {
               const active = item.contactId === selectedId;
+              // Only the fields we actually hold are worth a line — an empty
+              // local time or an uncomputed (0) score render as noise that make
+              // the row look broken, so each is gated on real data.
+              const scorePct = Math.round(item.score * 100);
+              const hasMeta = Boolean(item.localTime) || Boolean(item.latestSignal);
               return (
                 <button
                   key={item.contactId}
                   onClick={() => setSelectedId(item.contactId)}
-                  className={`w-full text-left px-4 py-3 border-b border-zinc-100 dark:border-zinc-900 transition ${
+                  className={`relative w-full text-left px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/60 transition ${
                     active
-                      ? "bg-zinc-50 dark:bg-zinc-900/50"
-                      : "hover:bg-zinc-50/60 dark:hover:bg-zinc-900/30"
+                      ? "bg-[var(--color-bg-selected)]"
+                      : "hover:bg-zinc-50/60 dark:hover:bg-zinc-900/40"
                   }`}
                 >
+                  {active && (
+                    <span
+                      className="absolute inset-y-0 left-0 w-[2px] rounded-r"
+                      style={{ background: "var(--color-accent)" }}
+                    />
+                  )}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 items-start gap-2.5">
                       <CompanyLogo
@@ -759,31 +770,33 @@ export default function CallModePage() {
                         className="mt-0.5"
                       />
                       <div className="min-w-0">
-                        <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                        <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                           {item.contactName}
                         </div>
-                        <div className="text-xs text-zinc-500 truncate">
+                        <div className="truncate text-xs text-zinc-500 dark:text-zinc-400">
                           {item.title ?? "—"} · {item.companyName ?? "—"}
                         </div>
                       </div>
                     </div>
-                    <Badge className="shrink-0">
-                      {Math.round(item.score * 100)}
-                    </Badge>
+                    {scorePct > 0 && <Badge className="shrink-0">{scorePct}</Badge>}
                   </div>
-                  <div className="flex items-center gap-2 mt-1.5 text-[11px] text-zinc-500">
-                    <Clock className="h-3 w-3" />
-                    <span>
-                      {item.localTime} {item.localTimezone.split("/")[1] ?? ""}
-                    </span>
-                    {item.latestSignal && (
-                      <>
-                        <span>·</span>
-                        <Sparkles className="h-3 w-3" />
-                        <span className="truncate">{item.latestSignal.label}</span>
-                      </>
-                    )}
-                  </div>
+                  {hasMeta && (
+                    <div className="mt-1.5 flex items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
+                      {item.localTime && (
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {item.localTime} {item.localTimezone.split("/")[1] ?? ""}
+                        </span>
+                      )}
+                      {item.localTime && item.latestSignal && <span>·</span>}
+                      {item.latestSignal && (
+                        <span className="flex min-w-0 items-center gap-1">
+                          <Sparkles className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{item.latestSignal.label}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </button>
               );
             })
@@ -839,13 +852,19 @@ export default function CallModePage() {
                     size={40}
                   />
                   <div className="min-w-0">
-                    <h1 className="truncate text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+                    <h1 className="truncate text-xl font-semibold text-zinc-900 dark:text-zinc-50">
                       {selected.contactName}
                     </h1>
-                    <p className="text-sm text-zinc-500 mt-0.5 truncate">
-                      {selected.title ?? "—"} · {selected.companyName ?? "—"} ·{" "}
-                      {selected.phone}
+                    <p className="mt-0.5 truncate text-sm text-zinc-500 dark:text-zinc-400">
+                      {selected.title ?? "—"}
+                      {selected.companyName ? ` · ${selected.companyName}` : ""}
                     </p>
+                    {selected.phone && (
+                      <p className="mt-1 flex items-center gap-1.5 text-[13px] font-medium text-zinc-600 dark:text-zinc-300">
+                        <Phone className="h-3.5 w-3.5 text-zinc-400" />
+                        <span className="tabular-nums tracking-tight">{selected.phone}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
                 <SoftphoneControls

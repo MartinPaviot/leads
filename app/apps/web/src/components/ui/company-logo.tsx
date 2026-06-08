@@ -144,17 +144,26 @@ function CompanyLogoV2({
     // `isolate` keeps the logo img's z-10 inside this component's own stacking
     // context — otherwise it leaks into the page and renders ON TOP of the
     // sticky table header when the list scrolls.
+    //
+    // The generated avatar and the real logo are mutually exclusive — never
+    // stacked. Stacking them let a transparent or non-square logo (object-contain
+    // letterboxing) reveal the initials behind it, so a company showed its logo
+    // AND its initials at once. We render the avatar only until the image is
+    // ready, then swap to the image on an opaque tile so any letterbox margin is
+    // a clean surface, not the old initials. On image error we fall back to the
+    // avatar again.
     <div className={`relative isolate shrink-0 ${className}`} style={{ width: size, height: size }}>
-      {showImg && (
+      {showImg ? (
         <img
           src={resolvedUrl}
           alt=""
           className="absolute inset-0 rounded object-contain z-10"
-          style={{ width: size, height: size }}
+          style={{ width: size, height: size, background: "var(--color-bg-card)" }}
           onError={() => setImgError(true)}
         />
+      ) : (
+        <GeneratedCompanyAvatar companyName={name} size={size} />
       )}
-      <GeneratedCompanyAvatar companyName={name} size={size} />
     </div>
   );
 }
