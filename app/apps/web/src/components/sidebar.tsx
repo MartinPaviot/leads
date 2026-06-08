@@ -7,7 +7,6 @@ import {
   Building2,
   CircleDot,
   Users,
-  CheckSquare,
   Calendar,
   MessageSquare,
   Settings,
@@ -36,7 +35,6 @@ import {
   Flag,
   Mail,
   Inbox,
-  BarChart3,
   Search,
   Bot,
   Phone,
@@ -96,11 +94,9 @@ const navSections = [
     label: "Activity",
     items: [
       { label: "Meetings", href: "/meetings", icon: Calendar },
-      { label: "Tasks", href: "/tasks", icon: CheckSquare },
-      { label: "Insights", href: "/insights", icon: BarChart3 },
-      // Reports removed from nav — consolidates under Insights (live pipeline
-      // analytics). The generator (/reports) still exists by URL pending the
-      // merge into Insights as a tab.
+      // Tasks (/tasks) and Insights (/insights) removed from nav 2026-06-08 —
+      // not earning a top-level production slot yet. Both pages still exist by
+      // URL. Reports likewise folds under Insights by URL.
     ],
   },
 ];
