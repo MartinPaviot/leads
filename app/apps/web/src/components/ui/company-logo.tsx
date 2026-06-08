@@ -141,7 +141,10 @@ function CompanyLogoV2({
   const showImg = resolvedUrl && !imgError && resolved.tier <= 5;
 
   return (
-    <div className={`relative shrink-0 ${className}`} style={{ width: size, height: size }}>
+    // `isolate` keeps the logo img's z-10 inside this component's own stacking
+    // context — otherwise it leaks into the page and renders ON TOP of the
+    // sticky table header when the list scrolls.
+    <div className={`relative isolate shrink-0 ${className}`} style={{ width: size, height: size }}>
       {showImg && (
         <img
           src={resolvedUrl}

@@ -388,7 +388,9 @@
   position: sticky;
   top: 0;
   background: var(--color-bg-card);
-  z-index: 1;
+  /* Above in-cell content (logos, signal chips) so nothing renders on top of
+     the sticky header while the list scrolls. */
+  z-index: 20;
   cursor: pointer;
 }
 .ls-table th:last-child {
