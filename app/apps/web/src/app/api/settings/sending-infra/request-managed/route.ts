@@ -6,6 +6,7 @@ import { sendingInfraRequests } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
 import logger from "@/lib/observability/logger";
 import { Resend } from "resend";
+import { OPS_FROM } from "@/lib/emails/from";
 
 /**
  * POST /api/settings/sending-infra/request-managed
@@ -121,7 +122,7 @@ async function notifyOps(params: {
 
   const resend = new Resend(resendKey);
   await resend.emails.send({
-    from: "Elevay Ops <ops@elevay.com>",
+    from: OPS_FROM,
     to: opsEmail,
     subject: `[Elevay Ops] Managed sending request — ${params.tenantId}`,
     text: message,

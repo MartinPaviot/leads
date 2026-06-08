@@ -1,7 +1,7 @@
 import { Resend } from "resend";
+import { EMAIL_FROM, warnIfUnverifiedSender } from "./from";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const FROM_ADDRESS = process.env.INVITE_FROM_ADDRESS || "Elevay <invites@resend.dev>";
 
 export interface InviteEmailParams {
   to: string;
@@ -20,6 +20,7 @@ export interface InviteEmailParams {
  */
 export async function sendInviteEmail(p: InviteEmailParams): Promise<{ sent: boolean; reason?: string }> {
   if (!resend) return { sent: false, reason: "RESEND_API_KEY not configured" };
+  warnIfUnverifiedSender();
 
   const subject = `${p.inviterName} invited you to join ${p.workspaceName} on Elevay`;
   const expiresStr = p.expiresAt.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
@@ -53,7 +54,7 @@ This invitation expires on ${expiresStr}.`;
 
   try {
     const { error } = await resend.emails.send({
-      from: FROM_ADDRESS,
+      from: EMAIL_FROM,
       to: [p.to],
       subject,
       html,

@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { logger } from "@/lib/observability/logger";
+import { WELCOME_FROM } from "./from";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -12,12 +13,7 @@ const resend = process.env.RESEND_API_KEY
  * the founder inbox (higher open + reply rate than `no-reply@`). In dev
  * we fall back to the invite domain so the env doesn't need to be set.
  */
-const FROM_ADDRESS =
-  process.env.WELCOME_FROM_ADDRESS ||
-  process.env.INVITE_FROM_ADDRESS ||
-  "Martin Paviot <martin@elevay.com>";
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.elevay.com";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.elevay.dev";
 
 export interface SendWelcomeEmailResult {
   sent: boolean;
@@ -108,7 +104,7 @@ Reply to this email if anything's confusing — it goes straight to me, and I re
 
   try {
     const { error } = await resend.emails.send({
-      from: FROM_ADDRESS,
+      from: WELCOME_FROM,
       to: [p.to],
       subject,
       html,
