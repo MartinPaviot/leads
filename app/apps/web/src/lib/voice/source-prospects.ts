@@ -23,6 +23,7 @@ import {
 import { flatFiltersToHardApollo } from "@/lib/icp/flat-filters-to-apollo";
 import { sizesToApolloRanges, senioritiesToApollo } from "@/lib/config/icp-constants";
 import { getTenantSettings, parseRoleKeywords } from "@/lib/config/tenant-settings";
+import { filterAllowed, filterAllowedContacts } from "@/lib/accounts/suppression";
 import { inngest } from "@/inngest/client";
 
 export interface SourceResult {
@@ -112,6 +113,14 @@ export async function sourceProspectsForTenant(args: {
     : [];
   const existingDomains = new Set(existing.map((c) => c.domain?.toLowerCase()).filter(Boolean));
 
+  // Suppression ledger: never re-source an account the user removed or excluded
+  // (durable across hard-deletes + domain-less identities). Keep only allowed.
+  const allowedOrgs = await filterAllowed(
+    tenantId,
+    orgs.map((o) => ({ domain: o.primary_domain, name: o.name, nativeId: o.id, nativeIdType: "apollo", _d: o.primary_domain?.toLowerCase() ?? null })),
+  );
+  const allowedDomains = new Set(allowedOrgs.map((o) => o._d).filter((x): x is string => !!x));
+
   const seniorities = senioritiesToApollo(settings.targetSeniorities ?? []);
   const titles = parseRoleKeywords(settings); // lowercase role nouns from targetRoles
   const effectiveSeniorities = seniorities.length ? seniorities : ["c_suite", "vp", "director", "head"];
@@ -122,6 +131,7 @@ export async function sourceProspectsForTenant(args: {
   for (const org of orgs) {
     const domain = org.primary_domain?.toLowerCase();
     if (!domain || existingDomains.has(domain)) continue;
+    if (!allowedDomains.has(domain)) continue; // suppressed (removed/excluded)
     existingDomains.add(domain);
 
     // Insert the company.
@@ -193,8 +203,17 @@ export async function sourceProspectsForTenant(args: {
     }
     if (toInsert.length === 0) continue;
 
+    // Suppression ledger: drop any contact the user removed (by email/LinkedIn),
+    // so deleted contacts are never re-sourced.
+    const allowedContacts = await filterAllowedContacts(
+      tenantId,
+      toInsert.map((r) => ({ email: r.email ?? null, linkedin: r.linkedinUrl ?? null, _row: r })),
+    );
+    const finalInsert = allowedContacts.map((c) => c._row);
+    if (finalInsert.length === 0) continue;
+
     try {
-      const inserted = await db.insert(contacts).values(toInsert).returning({ id: contacts.id });
+      const inserted = await db.insert(contacts).values(finalInsert).returning({ id: contacts.id });
       contactsAdded += inserted.length;
       // Fire enrichment so phones/emails get resolved (the daily list needs a phone).
       for (const row of inserted) {

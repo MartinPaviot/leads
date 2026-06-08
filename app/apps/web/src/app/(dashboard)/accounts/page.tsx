@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Building2, Search, Filter, Plus, Zap, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, Trash2, UserPlus, Ban, RotateCcw, type LucideIcon } from "lucide-react";
+import { Building2, Search, Filter, Plus, Zap, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, Trash2, UserPlus, Ban, RotateCcw, Archive, type LucideIcon } from "lucide-react";
 import { useTamStream } from "@/hooks/use-tam-stream";
 import { TamBuildProgress } from "@/components/tam-build-progress";
 import { SignalChip } from "@/components/signal-chip";
@@ -154,6 +154,9 @@ export default function AccountsPage() {
   // "Not a fit" view toggle. false = active working set (excluded hidden);
   // true = show only excluded accounts so they can be reviewed / restored.
   const [viewExcluded, setViewExcluded] = useState(false);
+  // Archive view toggle. true = show only soft-deleted (removed) accounts so
+  // they can be reviewed and restored. Mutually exclusive with viewExcluded.
+  const [viewDeleted, setViewDeleted] = useState(false);
   // Count of pending TAM proposals — drives the header entry point into
   // the review surface so the living-TAM loops are never a dead-end.
   const [proposalCount, setProposalCount] = useState(0);
@@ -251,6 +254,7 @@ export default function AccountsPage() {
       const params = new URLSearchParams({ pageSize: "50", page: String(page) });
       if (debouncedSearch) params.set("search", debouncedSearch);
       if (viewExcluded) params.set("excluded", "true");
+      if (viewDeleted) params.set("deleted", "true");
       const res = await fetch(`/api/accounts?${params.toString()}`);
       if (!res.ok) return;
       const data = await res.json();
@@ -270,7 +274,7 @@ export default function AccountsPage() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [debouncedSearch, viewExcluded]);
+  }, [debouncedSearch, viewExcluded, viewDeleted]);
 
   /** Reload all pages that have been loaded so far. Used after mutations
    *  (enrich, score, create) so the user doesn't snap back to page 1. */
@@ -282,6 +286,7 @@ export default function AccountsPage() {
         const params = new URLSearchParams({ pageSize: "50", page: String(p) });
         if (debouncedSearch) params.set("search", debouncedSearch);
         if (viewExcluded) params.set("excluded", "true");
+        if (viewDeleted) params.set("deleted", "true");
         const res = await fetch(`/api/accounts?${params.toString()}`);
         if (!res.ok) break;
         const data = await res.json();
@@ -297,7 +302,7 @@ export default function AccountsPage() {
     } catch (e) {
       console.warn("accounts: refetch failed", e);
     }
-  }, [currentPage, debouncedSearch, viewExcluded]);
+  }, [currentPage, debouncedSearch, viewExcluded, viewDeleted]);
 
   const loadMoreAccounts = useCallback(() => {
     if (loadingMore || currentPage >= totalPages) return;
@@ -682,6 +687,30 @@ export default function AccountsPage() {
     }
   }
 
+  // Restore soft-deleted accounts from the Archive view — clears deleted_at and
+  // lifts the suppression so they're eligible for sourcing again.
+  async function restoreAccounts(ids: string[]) {
+    if (ids.length === 0) return;
+    try {
+      const res = await fetch("/api/accounts/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) {
+        toast("Couldn't restore.", "error");
+        return;
+      }
+      const data = await res.json().catch(() => ({ restored: ids.length }));
+      toast(`Restored ${data.restored} account${data.restored === 1 ? "" : "s"}.`, "success");
+      setSelectedRows(new Set());
+      await refetchLoadedAccounts();
+    } catch (e) {
+      console.warn("accounts: restore failed", e);
+      toast("Restore failed.", "error");
+    }
+  }
+
   // Soft-delete: single row, the current selection, or every account in
   // the tenant. Driven by `deleteTarget` + confirmed via <ConfirmDialog>.
   async function performDelete() {
@@ -1028,17 +1057,27 @@ export default function AccountsPage() {
               window.location.href = `/call-mode?accounts=${encodeURIComponent(ids.join(","))}`;
             },
           },
-          {
-            label: viewExcluded ? "Restore" : "Not a fit",
-            icon: viewExcluded ? <RotateCcw size={13} /> : <Ban size={13} />,
-            onClick: () => bulkSetExclusion(viewExcluded ? "include" : "exclude"),
-          },
-          {
-            label: "Delete",
-            icon: <Trash2 size={13} />,
-            variant: "danger",
-            onClick: () => setDeleteTarget({ type: "bulk" }),
-          },
+          ...(viewDeleted
+            ? [
+                {
+                  label: "Restore",
+                  icon: <RotateCcw size={13} />,
+                  onClick: () => restoreAccounts(Array.from(selectedRows)),
+                },
+              ]
+            : [
+                {
+                  label: viewExcluded ? "Restore" : "Not a fit",
+                  icon: viewExcluded ? <RotateCcw size={13} /> : <Ban size={13} />,
+                  onClick: () => bulkSetExclusion(viewExcluded ? "include" : "exclude"),
+                },
+                {
+                  label: "Delete",
+                  icon: <Trash2 size={13} />,
+                  variant: "danger" as const,
+                  onClick: () => setDeleteTarget({ type: "bulk" }),
+                },
+              ]),
         ]}
       />
       {/* Page header */}
@@ -1075,10 +1114,19 @@ export default function AccountsPage() {
           variant="outline"
           size="sm"
           icon={viewExcluded ? <RotateCcw size={13} /> : <Ban size={13} />}
-          onClick={() => { setSelectedRows(new Set()); setViewExcluded((v) => !v); }}
+          onClick={() => { setSelectedRows(new Set()); setViewDeleted(false); setViewExcluded((v) => !v); }}
           title={viewExcluded ? "Back to the active working set" : "Review accounts marked as not a fit"}
         >
           {viewExcluded ? "Back to active" : "Excluded"}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          icon={viewDeleted ? <RotateCcw size={13} /> : <Archive size={13} />}
+          onClick={() => { setSelectedRows(new Set()); setViewExcluded(false); setViewDeleted((v) => !v); }}
+          title={viewDeleted ? "Back to the active working set" : "Review removed accounts and restore them"}
+        >
+          {viewDeleted ? "Back to active" : "Archive"}
         </Button>
         {accounts.some((a) => a.score == null) && (
           <Button
@@ -1925,17 +1973,19 @@ export default function AccountsPage() {
                         )}
                         <button
                           type="button"
-                          aria-label={viewExcluded ? `Restore ${account.name}` : `Mark ${account.name} as not a fit`}
-                          title={viewExcluded ? "Restore to active list" : "Not a fit (exclude — keeps the row, drops it from outbound and re-sourcing)"}
+                          aria-label={viewDeleted ? `Restore ${account.name}` : viewExcluded ? `Restore ${account.name}` : `Mark ${account.name} as not a fit`}
+                          title={viewDeleted ? "Restore removed account" : viewExcluded ? "Restore to active list" : "Not a fit (exclude — keeps the row, drops it from outbound and re-sourcing)"}
                           onClick={(e) => {
                             e.stopPropagation();
-                            rowSetExclusion(account.id, viewExcluded ? "include" : "exclude");
+                            if (viewDeleted) restoreAccounts([account.id]);
+                            else rowSetExclusion(account.id, viewExcluded ? "include" : "exclude");
                           }}
                           className="inline-flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
                           style={{ color: "var(--color-text-muted)" }}
                         >
-                          {viewExcluded ? <RotateCcw size={13} /> : <Ban size={13} />}
+                          {viewDeleted || viewExcluded ? <RotateCcw size={13} /> : <Ban size={13} />}
                         </button>
+                        {!viewDeleted && (
                         <button
                           type="button"
                           aria-label={`Delete ${account.name}`}
@@ -1949,6 +1999,7 @@ export default function AccountsPage() {
                         >
                           <Trash2 size={13} />
                         </button>
+                        )}
                       </div>
                     </td>
                   </tr>

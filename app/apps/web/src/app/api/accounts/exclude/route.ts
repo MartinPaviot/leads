@@ -4,6 +4,7 @@ import { withAuthRLS } from "@/lib/auth/auth-utils";
 import { and, eq, inArray, isNull, isNotNull, sql } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/permissions";
 import { logAudit } from "@/lib/infra/audit-log";
+import { suppressAccounts, liftSuppression } from "@/lib/accounts/suppression";
 import { z } from "zod";
 
 /**
@@ -105,6 +106,30 @@ export async function POST(req: Request) {
         .set(setClause)
         .where(scope)
         .returning({ id: companies.id });
+
+      // Mirror the change into the durable suppression ledger so excluded
+      // accounts stay out of sourcing even if their row is later removed, and
+      // re-including lifts that block.
+      const changedIds = result.map((r) => r.id);
+      if (changedIds.length > 0) {
+        if (action === "include") {
+          await liftSuppression(authCtx.tenantId, changedIds, "excluded").catch((e) =>
+            console.error("liftSuppression (include) failed:", e),
+          );
+        } else {
+          const rows = await db
+            .select({ id: companies.id, name: companies.name, domain: companies.domain, properties: companies.properties })
+            .from(companies)
+            .where(and(eq(companies.tenantId, authCtx.tenantId), inArray(companies.id, changedIds)));
+          await suppressAccounts({
+            tenantId: authCtx.tenantId,
+            kind: "excluded",
+            reason,
+            createdBy: authCtx.appUserId,
+            companies: rows,
+          }).catch((e) => console.error("suppressAccounts (exclude) failed:", e));
+        }
+      }
 
       await logAudit({
         tenantId: authCtx.tenantId,

@@ -108,6 +108,51 @@ export const companies = pgTable(
   ]
 );
 
+// Durable suppression ledger — the persistent "memory" of accounts the user
+// removed (deleted) or marked not-a-fit (excluded). Unlike the flags ON the
+// companies row (deletedAt / excludedReason), this survives even if the row is
+// later hard-deleted, and is keyed by STABLE IDENTITY (domain + normalized
+// name + native registry id such as SIREN / Zefix UID) so every discovery
+// source — Apollo, SIRENE, Zefix, Pappers — can skip a suppressed account
+// even when it has no domain. Reversible: restoring an account (or re-including
+// an excluded one) removes its ledger row. See lib/accounts/suppression.ts.
+export const accountSuppressions = pgTable(
+  "account_suppressions",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    // Which entity this suppresses: 'company' or 'contact'. The same ledger
+    // covers both so neither is ever re-sourced after removal.
+    entityType: text("entity_type").notNull().default("company"),
+    // The row this came from (nullable — kept for restore + audit, but the
+    // suppression stands even if the row is later removed). For contacts this
+    // holds the contact id.
+    companyId: text("company_id"),
+    kind: text("kind").notNull(), // 'deleted' | 'excluded'
+    reason: text("reason"),
+    // Company identity (any may be null).
+    domain: text("domain"),
+    nameNormalized: text("name_normalized"),
+    nativeId: text("native_id"), // SIREN / Zefix UID / Apollo id
+    nativeIdType: text("native_id_type"),
+    // Contact identity (any may be null).
+    email: text("email"),
+    linkedin: text("linkedin"),
+    createdBy: text("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("account_suppressions_tenant_idx").on(table.tenantId),
+    index("account_suppressions_tenant_domain_idx").on(table.tenantId, table.domain),
+    index("account_suppressions_tenant_native_idx").on(table.tenantId, table.nativeId),
+    index("account_suppressions_tenant_name_idx").on(table.tenantId, table.nameNormalized),
+    index("account_suppressions_tenant_email_idx").on(table.tenantId, table.email),
+    index("account_suppressions_tenant_linkedin_idx").on(table.tenantId, table.linkedin),
+    index("account_suppressions_company_idx").on(table.companyId),
+  ]
+);
+
 export const contacts = pgTable(
   "contacts",
   {

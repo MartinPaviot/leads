@@ -37,9 +37,15 @@ export async function GET(req: Request) {
     // row survives (it still feeds the TAM-build dedup set so it is never
     // re-sourced) but it is out of the active working set. `?excluded=true`
     // shows only the excluded ones; `?excluded=all` shows both.
+    // Archive view: ?deleted=true lists soft-deleted (removed) accounts so they
+    // can be reviewed and restored. Default shows the live working set.
+    const showDeleted = url.searchParams.get("deleted") === "true";
+    const deletedPredicate = showDeleted ? isNotNull(companies.deletedAt) : isNull(companies.deletedAt);
+
     const excludedMode = parseExcludedMode(url.searchParams.get("excluded"));
-    const excludedPredicate =
-      excludedMode === "all"
+    const excludedPredicate = showDeleted
+      ? undefined // in the archive, show every removed account regardless of exclusion
+      : excludedMode === "all"
         ? undefined
         : excludedMode === "only"
           ? isNotNull(companies.excludedReason)
@@ -52,19 +58,19 @@ export async function GET(req: Request) {
     // not just whatever happened to be on the loaded page.
     let whereClause = and(
       eq(companies.tenantId, authCtx.tenantId),
-      isNull(companies.deletedAt),
+      deletedPredicate,
       excludedPredicate,
     )!;
     if (search) {
       const indRows = await db
         .selectDistinct({ industry: companies.industry })
         .from(companies)
-        .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)));
+        .where(and(eq(companies.tenantId, authCtx.tenantId), deletedPredicate));
       const industries = indRows.map((r) => r.industry).filter((x): x is string => !!x);
       const matched = await matchIndustries(search, industries, authCtx.tenantId);
       whereClause = and(
         eq(companies.tenantId, authCtx.tenantId),
-        isNull(companies.deletedAt),
+        deletedPredicate,
         excludedPredicate,
         or(
           ...(matched.length > 0 ? [inArray(companies.industry, matched)] : []),

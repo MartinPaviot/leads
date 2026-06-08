@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/auth/permissions";
 import { eq, and, sql, isNull } from "drizzle-orm";
 import { logAudit } from "@/lib/infra/audit-log";
 import { softDelete } from "@/lib/infra/soft-delete";
+import { suppressContacts } from "@/lib/accounts/suppression";
 
 export async function GET(
   req: Request,
@@ -135,7 +136,7 @@ export async function DELETE(
   try {
     // Verify the contact exists, belongs to this tenant, and is not already deleted
     const [existing] = await db
-      .select({ id: contacts.id, email: contacts.email, firstName: contacts.firstName, lastName: contacts.lastName })
+      .select({ id: contacts.id, email: contacts.email, firstName: contacts.firstName, lastName: contacts.lastName, linkedinUrl: contacts.linkedinUrl })
       .from(contacts)
       .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
       .limit(1);
@@ -165,6 +166,15 @@ export async function DELETE(
 
     // Soft-delete the contact (sets deleted_at = now() instead of hard delete)
     await softDelete("contacts", id, authCtx.tenantId);
+
+    // Durable suppression so the contact is never re-sourced (by email/LinkedIn).
+    await suppressContacts({
+      tenantId: authCtx.tenantId,
+      kind: "deleted",
+      reason: "user_deleted",
+      createdBy: authCtx.appUserId,
+      contacts: [{ id: existing.id, email: existing.email, linkedinUrl: existing.linkedinUrl, firstName: existing.firstName, lastName: existing.lastName }],
+    }).catch((e) => console.error("suppressContacts (delete) failed:", e));
 
     await logAudit({
       tenantId: authCtx.tenantId,

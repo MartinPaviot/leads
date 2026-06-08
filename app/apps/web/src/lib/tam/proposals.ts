@@ -13,6 +13,7 @@ import { tamProposals, companies } from "@/db/schema";
 import { and, eq, inArray, desc, isNull, sql } from "drizzle-orm";
 import { inngest } from "@/inngest/client";
 import { resolveDomain } from "@/lib/discovery/resolve-domain";
+import { filterAllowed } from "@/lib/accounts/suppression";
 
 export type TamProposalKind = "add" | "refresh" | "exclude";
 export type TamProposalRow = typeof tamProposals.$inferSelect;
@@ -93,6 +94,13 @@ export async function applyProposal(
       if (!domain) {
         domain = await resolveDomain({ siren: (payload.siren as string) ?? null });
       }
+      // Suppression ledger: never re-add an account the user removed/excluded.
+      // Durable across hard-deletes and works for domain-less SIRENE identities
+      // (matches on domain, SIREN, or — as a last resort — normalized name).
+      const [allowed] = await filterAllowed(p.tenantId, [
+        { domain, name, nativeId: (payload.siren as string) ?? null, nativeIdType: "siren" },
+      ]);
+      if (!allowed) return { ok: true }; // suppressed — consume the proposal, add nothing
       // Don't double-insert a domain already in the TAM.
       if (domain) {
         const [dupe] = await db
