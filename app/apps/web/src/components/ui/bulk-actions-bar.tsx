@@ -21,11 +21,14 @@ export function BulkActionsBar({
   count,
   actions,
   onClear,
+  primary,
   className = "",
 }: {
   count: number;
   actions: BulkAction[];
   onClear: () => void;
+  /** Optional rich action rendered first (e.g. a split-button menu). */
+  primary?: ReactNode;
   className?: string;
 }) {
   if (count <= 0) return null;
@@ -43,6 +46,7 @@ export function BulkActionsBar({
         {count} selected
       </span>
       <div className="ml-auto flex items-center gap-1.5">
+        {primary}
         {actions.map((a, i) => (
           <button
             key={`${a.label}-${i}`}
