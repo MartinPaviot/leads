@@ -29,6 +29,14 @@ vi.mock("drizzle-orm", () => ({
 const sendMock = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/inngest/client", () => ({ inngest: { send: (...a: unknown[]) => sendMock(...a) } }));
 
+// applyProposal("add") now consults the suppression ledger via filterAllowed
+// before inserting (never re-add a removed/excluded account). Stub it as a
+// pass-through (nothing suppressed); the ledger itself is covered by
+// account-suppression.test.ts.
+vi.mock("@/lib/accounts/suppression", () => ({
+  filterAllowed: vi.fn(async (_tenantId: string, candidates: unknown[]) => candidates),
+}));
+
 import { db } from "@/db";
 import { proposeTamChange, applyProposal, decideProposals } from "@/lib/tam/proposals";
 
