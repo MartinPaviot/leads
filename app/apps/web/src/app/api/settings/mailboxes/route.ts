@@ -7,6 +7,7 @@ import { retryWithBackoff } from "@/lib/infra/retry";
 import { checkPlanLimit } from "@/lib/billing/plan-limits";
 import { verifyImap } from "@/lib/integrations/imap";
 import { verifySmtp } from "@/lib/integrations/smtp-send";
+import { discoverCalDavUrl } from "@/lib/integrations/caldav";
 import { encryptSecret } from "@/lib/crypto/settings-encryption";
 import { inngest } from "@/inngest/client";
 
@@ -16,10 +17,16 @@ export async function GET() {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Personal: a user only sees the mailboxes they own.
   const mailboxes = await db
     .select()
     .from(connectedMailboxes)
-    .where(eq(connectedMailboxes.tenantId, authCtx.tenantId))
+    .where(
+      and(
+        eq(connectedMailboxes.tenantId, authCtx.tenantId),
+        eq(connectedMailboxes.userId, authCtx.userId),
+      ),
+    )
     .orderBy(connectedMailboxes.createdAt);
 
   return Response.json({ mailboxes });
@@ -47,7 +54,7 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const { email, displayName, provider, imapHost, imapPort, smtpHost, smtpPort, password, accessToken, refreshToken } = body;
+  const { email, displayName, provider, imapHost, imapPort, smtpHost, smtpPort, password, accessToken, refreshToken, caldavUrl } = body;
 
   if (!email || !provider) {
     return Response.json({ error: "email and provider required" }, { status: 400 });
@@ -89,10 +96,26 @@ export async function POST(req: Request) {
       return Response.json({ error: "Server misconfigured (encryption key missing)." }, { status: 500 });
     }
 
+    // Calendar via CalDAV — the IMAP/SMTP path has no OAuth calendar, so we
+    // discover the user's calendar with the SAME credentials. Non-fatal and
+    // time-bounded: a provider without CalDAV (or a slow probe) must never
+    // block connecting the mailbox for email. An explicit URL, if supplied,
+    // is tried first.
+    let resolvedCaldavUrl: string | null = null;
+    try {
+      resolvedCaldavUrl = await Promise.race([
+        discoverCalDavUrl({ email, password, imapHost, explicitUrl: caldavUrl }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 10_000)),
+      ]);
+    } catch {
+      resolvedCaldavUrl = null; // calendar simply stays unavailable
+    }
+
     const [mailbox] = await db
       .insert(connectedMailboxes)
       .values({
         tenantId: authCtx.tenantId,
+        userId: authCtx.userId,
         emailAddress: email,
         displayName: displayName || email.split("@")[0],
         provider: "smtp_custom",
@@ -102,6 +125,7 @@ export async function POST(req: Request) {
         smtpHost,
         smtpPort: smtpPortN,
         secretEncrypted,
+        caldavUrl: resolvedCaldavUrl,
         domain,
         // The user's existing mailbox is already warm — no cold-start warmup.
         status: "active",
@@ -192,6 +216,7 @@ export async function POST(req: Request) {
     .insert(connectedMailboxes)
     .values({
       tenantId: authCtx.tenantId,
+      userId: authCtx.userId,
       emailAddress: email,
       displayName: displayName || email.split("@")[0],
       provider,
@@ -221,7 +246,7 @@ export async function DELETE(req: Request) {
   const [mailbox] = await db
     .select()
     .from(connectedMailboxes)
-    .where(and(eq(connectedMailboxes.id, id), eq(connectedMailboxes.tenantId, authCtx.tenantId)))
+    .where(and(eq(connectedMailboxes.id, id), eq(connectedMailboxes.tenantId, authCtx.tenantId), eq(connectedMailboxes.userId, authCtx.userId)))
     .limit(1);
 
   if (!mailbox) {
@@ -284,7 +309,7 @@ export async function DELETE(req: Request) {
   // Delete the mailbox itself
   try {
     await db.delete(connectedMailboxes).where(
-      and(eq(connectedMailboxes.id, id), eq(connectedMailboxes.tenantId, authCtx.tenantId))
+      and(eq(connectedMailboxes.id, id), eq(connectedMailboxes.tenantId, authCtx.tenantId), eq(connectedMailboxes.userId, authCtx.userId))
     );
   } catch (err) {
     logger.error("mailboxes DELETE: failed to delete mailbox row", {
@@ -318,6 +343,7 @@ export async function PATCH(req: Request) {
   const condition = and(
     eq(connectedMailboxes.id, id),
     eq(connectedMailboxes.tenantId, authCtx.tenantId),
+    eq(connectedMailboxes.userId, authCtx.userId),
   );
 
   // Handle skip-warmup action (legacy query-param style)

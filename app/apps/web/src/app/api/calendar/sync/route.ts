@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { activities, contacts } from "@/db/schema";
 import { eq, and, sql, isNull } from "drizzle-orm";
 import { fetchRecentMeetings } from "@/lib/integrations/calendar";
+import { fetchCalDavMeetingsForTenant } from "@/lib/integrations/caldav-sync";
 
 export async function POST() {
   const authCtx = await getAuthContext();
@@ -13,7 +14,14 @@ export async function POST() {
   }
 
   try {
-    const meetings = await fetchRecentMeetings(session.user.id, 30, 14);
+    // OAuth (Google) calendar + CalDAV (custom IMAP/SMTP mailboxes) are
+    // independent sources — fetch both so "Force sync" works regardless of how
+    // the user connected. Each is non-fatal so one failing never blocks the other.
+    const [oauthMeetings, caldavMeetings] = await Promise.all([
+      fetchRecentMeetings(session.user.id, 30, 14).catch(() => []),
+      fetchCalDavMeetingsForTenant(authCtx.tenantId, 30, 14).catch(() => []),
+    ]);
+    const meetings = [...oauthMeetings, ...caldavMeetings];
 
     // Get all contacts for attendee matching
     const allContacts = await db.select().from(contacts).where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));

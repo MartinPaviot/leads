@@ -32,6 +32,7 @@ interface ConnectedAccount {
   // Connection
   oauthConnected: boolean;
   mailboxConnected: boolean;
+  calendarConnected: boolean;
   status: string;
   // Sync
   lastEmailSyncAt: string | null;
@@ -81,7 +82,7 @@ export default function MailCalendarPage() {
 
   // "Other provider" — connect any IMAP/SMTP mailbox (Zimbra, Infomaniak, OVH…).
   const [customMode, setCustomMode] = useState(false);
-  const [cust, setCust] = useState({ email: "", imapHost: "", imapPort: "993", smtpHost: "", smtpPort: "465", password: "" });
+  const [cust, setCust] = useState({ email: "", imapHost: "", imapPort: "993", smtpHost: "", smtpPort: "465", password: "", caldavUrl: "" });
   const [connecting, setConnecting] = useState(false);
   const [connectErr, setConnectErr] = useState("");
 
@@ -156,12 +157,13 @@ export default function MailCalendarPage() {
           smtpHost: cust.smtpHost.trim(),
           smtpPort: Number(cust.smtpPort) || 465,
           password: cust.password,
+          caldavUrl: cust.caldavUrl.trim() || undefined,
         }),
       });
       if (res.ok) {
         setShowSetup(false);
         setCustomMode(false);
-        setCust({ email: "", imapHost: "", imapPort: "993", smtpHost: "", smtpPort: "465", password: "" });
+        setCust({ email: "", imapHost: "", imapPort: "993", smtpHost: "", smtpPort: "465", password: "", caldavUrl: "" });
         loadData();
       } else {
         const data = await res.json().catch(() => ({}));
@@ -406,7 +408,7 @@ export default function MailCalendarPage() {
                                 Email sync {acct.lastEmailSyncAt ? timeAgo(acct.lastEmailSyncAt) : "active"}
                               </span>
                             )}
-                            {acct.oauthConnected && (
+                            {acct.calendarConnected && (
                               <span className="flex items-center gap-1">
                                 <Calendar size={10} />
                                 Calendar connected
@@ -582,7 +584,7 @@ export default function MailCalendarPage() {
                     <Button variant="ghost" size="sm" onClick={() => setCustomMode(false)}>Back</Button>
                   </div>
                   <p className="text-[11px] leading-relaxed" style={{ color: "var(--color-text-tertiary)" }}>
-                    Works with Zimbra, Infomaniak, OVH, Gandi and any mailbox that supports IMAP + SMTP. You&apos;ll find these in your webmail under &quot;IMAP/POP &amp; SMTP&quot; settings, or your mail administrator can give them to you.
+                    Works with Zimbra, Infomaniak, OVH, Gandi and any mailbox that supports IMAP + SMTP. You&apos;ll find these in your webmail under &quot;IMAP/POP &amp; SMTP&quot; settings, or your mail administrator can give them to you. We also auto-detect your calendar over CalDAV with the same login.
                   </p>
 
                   <LabeledField label="Email address" hint="The mailbox you're connecting">
@@ -609,6 +611,10 @@ export default function MailCalendarPage() {
 
                   <LabeledField label="Password" hint="Your mailbox password — or an app-specific password if 2FA is on">
                     <Input type="password" value={cust.password} onChange={(e) => setCust({ ...cust, password: e.target.value })} placeholder="••••••••" />
+                  </LabeledField>
+
+                  <LabeledField label="Calendar (CalDAV) URL — optional" hint="Leave blank to auto-detect. Set it if your calendar lives elsewhere — Infomaniak: https://sync.infomaniak.com · Zimbra: https://mail.yourorg.ch/dav">
+                    <Input value={cust.caldavUrl} onChange={(e) => setCust({ ...cust, caldavUrl: e.target.value })} placeholder="(auto-detected)" />
                   </LabeledField>
 
                   {connectErr && <p className="text-[12px]" style={{ color: "var(--color-error)" }}>{connectErr}</p>}

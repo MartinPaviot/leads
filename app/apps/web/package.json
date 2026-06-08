@@ -39,6 +39,7 @@
     "drizzle-orm": "^0.45.2",
     "framer-motion": "^12.38.0",
     "googleapis": "^171.4.0",
+    "ical.js": "^2.0.0",
     "imapflow": "^1.0.171",
     "inngest": "^4.1.0",
     "lucide-react": "^1.7.0",
@@ -56,6 +57,7 @@
     "remark-gfm": "^4.0.1",
     "resend": "^6.10.0",
     "stripe": "^21.0.1",
+    "tsdav": "^2.0.0",
     "twilio": "^5.4.0",
     "ws": "^8.20.1",
     "zod": "^4.3.6"

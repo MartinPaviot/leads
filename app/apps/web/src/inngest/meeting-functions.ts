@@ -4,13 +4,100 @@ import { activities, authAccounts, authUsers, users, tenants } from "@/db/schema
 import { eq, and, sql, gte, lte } from "drizzle-orm";
 import { fetchMicrosoftMeetings } from "@/lib/integrations/calendar-microsoft";
 import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/integrations/calendar";
+import { fetchCalDavMeetingsForTenant, tenantsWithCalDav } from "@/lib/integrations/caldav-sync";
 import { isNeedsReauth, markNeedsReauth, isOAuthAuthError } from "@/lib/integrations/sync-health";
 import { tracedGenerateText } from "@/lib/ai/traced-ai";
 import { createBot } from "@/lib/integrations/recall";
 
 /**
+ * Import one synced meeting as an `activities` row, idempotent by
+ * calendarEventId. Shared by the OAuth (Google/Microsoft) and CalDAV sweeps so
+ * every calendar source gets identical treatment: insert, a real-time signal
+ * for completed meetings, and a Recall.ai bot for imminent ones with a link.
+ * Returns whether a new row was inserted (for the synced counter).
+ */
+async function importCronMeeting(opts: {
+  tenantId: string;
+  actorId: string;
+  meeting: SyncedMeeting;
+  calendarSource: "google" | "microsoft" | "caldav";
+}): Promise<boolean> {
+  const { tenantId, actorId, meeting, calendarSource } = opts;
+
+  const [existing] = await db
+    .select({ id: activities.id })
+    .from(activities)
+    .where(
+      and(
+        eq(activities.tenantId, tenantId),
+        sql`metadata->>'calendarEventId' = ${meeting.calendarEventId}`,
+      ),
+    )
+    .limit(1);
+  if (existing) return false;
+
+  const isPast = meeting.startTime < new Date();
+
+  const [insertedMeeting] = await db
+    .insert(activities)
+    .values({
+      tenantId,
+      actorType: "user",
+      actorId,
+      entityType: "contact",
+      entityId: "unknown",
+      activityType: isPast ? "meeting_completed" : "meeting_scheduled",
+      channel: "meeting",
+      direction: "outbound",
+      occurredAt: meeting.startTime,
+      summary: meeting.title,
+      metadata: {
+        calendarEventId: meeting.calendarEventId,
+        calendarSource,
+        startTime: meeting.startTime.toISOString(),
+        endTime: meeting.endTime.toISOString(),
+        attendees: meeting.attendees.map((a) => ({
+          email: a.email,
+          displayName: a.displayName,
+          responseStatus: a.responseStatus,
+        })),
+        location: meeting.location,
+        meetingLink: meeting.meetingLink,
+        status: meeting.status,
+      },
+    })
+    .returning();
+
+  if (isPast && insertedMeeting) {
+    await inngest
+      .send({
+        name: "signals/evaluate-realtime",
+        data: { type: "meeting_completed" as const, tenantId, activityId: insertedMeeting.id },
+      })
+      .catch((e) => console.warn("meeting-sync: realtime-signal trigger failed (non-blocking)", e));
+  }
+
+  if (
+    process.env.RECALL_API_KEY &&
+    meeting.meetingLink &&
+    !isPast &&
+    insertedMeeting &&
+    meeting.startTime.getTime() - Date.now() < 30 * 60 * 1000
+  ) {
+    try {
+      const { createBotForActivity } = await import("@/lib/recording/bot-deployment");
+      await createBotForActivity(insertedMeeting.id);
+    } catch (recallErr) {
+      console.warn(`[Recall] Failed to schedule bot for meeting ${meeting.calendarEventId}:`, recallErr);
+    }
+  }
+
+  return true;
+}
+
+/**
  * Background calendar sync — runs every 15 minutes.
- * Syncs both Google and Microsoft calendars for all connected users.
+ * Syncs Google, Microsoft (OAuth) and CalDAV (custom IMAP/SMTP) calendars.
  */
 export const cronCalendarSync = inngest.createFunction(
   {
@@ -83,100 +170,24 @@ export const cronCalendarSync = inngest.createFunction(
             meetings = await fetchMicrosoftMeetings(userId, 7, 14);
           }
 
-          // Import meetings that don't exist yet
+          // Import meetings that don't exist yet. The tenant is the same for
+          // every meeting in this user's batch, so resolve it once.
+          const [userRow] = await db
+            .select({ tenantId: users.tenantId })
+            .from(users)
+            .where(eq(users.clerkId, userId))
+            .limit(1);
+          const tenantId = userRow?.tenantId;
+          if (!tenantId) continue;
+
           for (const meeting of meetings) {
-            // Find tenant for user
-            const [userRow] = await db
-              .select({ tenantId: users.tenantId })
-              .from(users)
-              .where(eq(users.clerkId, userId))
-              .limit(1);
-            const tenantId = userRow?.tenantId;
-            if (!tenantId) continue;
-
-            const [existing] = await db
-              .select({ id: activities.id })
-              .from(activities)
-              .where(
-                and(
-                  eq(activities.tenantId, tenantId),
-                  sql`metadata->>'calendarEventId' = ${meeting.calendarEventId}`
-                )
-              )
-              .limit(1);
-
-            if (!existing) {
-
-              const isPast = meeting.startTime < new Date();
-
-              const [insertedMeeting] = await db.insert(activities).values({
-                tenantId,
-                actorType: "user",
-                actorId: userId,
-                entityType: "contact",
-                entityId: "unknown",
-                activityType: isPast ? "meeting_completed" : "meeting_scheduled",
-                channel: "meeting",
-                direction: "outbound",
-                occurredAt: meeting.startTime,
-                summary: meeting.title,
-                metadata: {
-                  calendarEventId: meeting.calendarEventId,
-                  calendarSource: provider === "google" ? "google" : "microsoft",
-                  startTime: meeting.startTime.toISOString(),
-                  endTime: meeting.endTime.toISOString(),
-                  attendees: meeting.attendees.map((a) => ({
-                    email: a.email,
-                    displayName: a.displayName,
-                    responseStatus: a.responseStatus,
-                  })),
-                  location: meeting.location,
-                  meetingLink: meeting.meetingLink,
-                  status: meeting.status,
-                },
-              }).returning();
-              totalSynced++;
-
-              // Real-time signal detection for completed meetings
-              if (isPast && insertedMeeting) {
-                await inngest.send({
-                  name: "signals/evaluate-realtime",
-                  data: {
-                    type: "meeting_completed" as const,
-                    tenantId,
-                    activityId: insertedMeeting.id,
-                  },
-                }).catch((e) => console.warn("meeting-sync: realtime-signal trigger failed (non-blocking)", e));
-              }
-
-              // Auto-schedule Recall.ai bot for upcoming meetings with a meeting link
-              if (
-                process.env.RECALL_API_KEY &&
-                meeting.meetingLink &&
-                !isPast &&
-                meeting.startTime.getTime() - Date.now() < 30 * 60 * 1000 // within 30 min
-              ) {
-                try {
-                  const [created] = await db
-                    .select({ id: activities.id })
-                    .from(activities)
-                    .where(
-                      and(
-                        eq(activities.tenantId, tenantId),
-                        sql`metadata->>'calendarEventId' = ${meeting.calendarEventId}`
-                      )
-                    )
-                    .limit(1);
-                  if (created) {
-                    const { createBotForActivity } = await import("@/lib/recording/bot-deployment");
-                    await createBotForActivity(created.id);
-                  }
-                } catch (recallErr) {
-                  console.warn(`[Recall] Failed to schedule bot for meeting ${meeting.calendarEventId}:`, recallErr);
-                  // Never break calendar sync because of Recall.ai failure
-                }
-              }
-            }
+            const inserted = await importCronMeeting({
+              tenantId,
+              actorId: userId,
+              meeting,
+              calendarSource: provider === "google" ? "google" : "microsoft",
+            });
+            if (inserted) totalSynced++;
           }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -190,7 +201,36 @@ export const cronCalendarSync = inngest.createFunction(
       }
     }
 
-    return { synced: totalSynced, users: userProviders.size, errors };
+    // ── CalDAV sweep — custom IMAP/SMTP mailboxes have no OAuth calendar, so
+    // they're keyed by tenant (connected_mailboxes), not by auth account. ──
+    const caldavTenants = await step.run("find-caldav-tenants", () => tenantsWithCalDav());
+    for (const tenantId of caldavTenants) {
+      try {
+        const meetings = await fetchCalDavMeetingsForTenant(tenantId, 7, 14);
+        for (const meeting of meetings) {
+          const inserted = await importCronMeeting({
+            tenantId,
+            actorId: "caldav-sync",
+            meeting,
+            calendarSource: "caldav",
+          });
+          if (inserted) totalSynced++;
+        }
+      } catch (err) {
+        console.error(
+          `CalDAV sync failed for tenant ${tenantId}:`,
+          err instanceof Error ? err.message : String(err),
+        );
+        errors++;
+      }
+    }
+
+    return {
+      synced: totalSynced,
+      users: userProviders.size,
+      caldavTenants: caldavTenants.length,
+      errors,
+    };
   }
 );
 
