@@ -329,20 +329,21 @@ export function PreCallBrief({
   const approach = dossier?.recommendedApproach;
   const opener =
     approach?.openingLine?.trim() ||
-    `« Bonjour ${firstName}, Martin de Elevay — j'ai 30 secondes ? »`;
+    `« Bonjour ${firstName}, j'ai 30 secondes ? »`;
 
   // Pre-call hero — the three things to know in the 5 seconds before dialing.
   // The dense dossier (score, facts, history, deals) collapses beneath it.
   const [showDossier, setShowDossier] = useState(false);
   const whyNow =
     selected.latestSignal?.label ||
-    "Intent élevé d'après le profil — pas de signal temps réel identifié.";
+    "Pas de signal temps réel — appel à froid sur le profil ICP.";
   const whatTheyCare =
     approach?.messagingAngle?.trim() ||
     (dossier?.hiringSignals && dossier.hiringSignals.length > 0
       ? `Recrute ${dossier.hiringSignals[0].role}`
       : `Priorités d'un(e) ${selected.title ?? "décideur"}`);
-  const theAsk = "Décrocher 15 min de découverte cette semaine.";
+  // Aligned with the script's deep-dive ask (45 min), not a contradicting 15.
+  const theAsk = "Décrocher un échange de 45 min cette semaine.";
 
   // What's still worth pulling before the call — honest gap list.
   const gaps: string[] = [];
@@ -840,7 +841,7 @@ export function InCallContext({
   const approach = brain?.cachedDossier?.recommendedApproach;
   const opener =
     approach?.openingLine?.trim() ||
-    `« Bonjour ${firstName}, Martin de Elevay — j'ai 30 secondes ? »`;
+    `« Bonjour ${firstName}, j'ai 30 secondes ? »`;
   const angle = approach?.messagingAngle?.trim() || null;
   const whyNow = selected.latestSignal?.label ?? null;
   const champion =

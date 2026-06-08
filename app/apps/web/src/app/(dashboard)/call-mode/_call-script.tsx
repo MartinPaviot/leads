@@ -1,18 +1,20 @@
 "use client";
 
 /**
- * In-call script panel — permission-based, driven by {sector × geography}.
- * Renders the resolved CallScript (opener naming 1-3 sector/geo problems →
- * validation → 45-min booking ask), with the problems checkable as the
- * prospect validates. Sector/geo are editable (pre-filled from the
- * prospect when known) so the rep can retarget per call.
+ * In-call script panel — EDITABLE + per-tenant (no hardcoded content). Loads
+ * the tenant's saved script for the typed sector from /api/calls/script,
+ * renders it (opener interpolated with the prospect name / sector / geo, with
+ * the problems checkable as the prospect validates), and lets the rep edit it
+ * inline or regenerate it from their product + ICP. Customizable, kept simple:
+ * read view + one "Éditer" toggle + a "Régénérer" button.
  *
- * No emoji per the brand rule — Lucide icons only.
+ * No emoji per the brand rule — Lucide icons only. Design-system tokens only.
  */
 
-import { useMemo, useState } from "react";
-import { Check, CalendarClock, Phone } from "lucide-react";
-import { resolveCallScript } from "@/lib/call-mode/call-scripts";
+import { useEffect, useMemo, useState } from "react";
+import { Check, CalendarClock, Phone, Pencil, Sparkles, Loader2, X, Plus, Trash2 } from "lucide-react";
+import { interpolateOpener, defaultScriptFields, type ScriptFields } from "@/lib/call-mode/call-scripts";
+import { useToast } from "@/components/ui/toast";
 
 export function CallScriptPanel({
   contactName,
@@ -23,21 +25,48 @@ export function CallScriptPanel({
   defaultSector?: string | null;
   defaultGeo?: string | null;
 }) {
+  const { toast } = useToast();
   const [sector, setSector] = useState(defaultSector ?? "");
   const [geo, setGeo] = useState(defaultGeo ?? "");
   const [checked, setChecked] = useState<Set<number>>(new Set());
+  const [fields, setFields] = useState<ScriptFields>(() => defaultScriptFields(defaultSector));
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<ScriptFields | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
-  const script = useMemo(
-    () => resolveCallScript({ sector, geo, contactName }),
-    [sector, geo, contactName],
+  // Load the tenant's saved script for this sector (debounced on sector).
+  useEffect(() => {
+    let cancelled = false;
+    const t = setTimeout(() => {
+      fetch(`/api/calls/script?sector=${encodeURIComponent(sector)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (cancelled || !d?.script) return;
+          setFields({
+            opener: d.script.opener,
+            problems: d.script.problems ?? [],
+            permissionCheck: d.script.permissionCheck,
+            bookingAsk: d.script.bookingAsk,
+            guidance: d.script.guidance ?? [],
+          });
+        })
+        .catch(() => {})
+        .finally(() => !cancelled && setLoading(false));
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [sector]);
+
+  const opener = useMemo(
+    () => interpolateOpener(fields.opener, { name: contactName, sector, geo }),
+    [fields.opener, contactName, sector, geo],
   );
   const anyChecked = checked.size > 0;
-
   const toggle = (i: number) =>
     setChecked((prev) => {
       const next = new Set(prev);
-      if (next.has(i)) next.delete(i);
-      else next.add(i);
+      if (next.has(i)) next.delete(i); else next.add(i);
       return next;
     });
 
@@ -47,6 +76,45 @@ export function CallScriptPanel({
     color: "var(--color-text-primary)",
   } as const;
 
+  async function save() {
+    if (!draft) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/calls/script", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sector, fields: { ...draft, problems: draft.problems.filter((p) => p.trim()) } }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast(data.error || "Enregistrement impossible", "error"); return; }
+      setFields({ opener: data.script.opener, problems: data.script.problems ?? [], permissionCheck: data.script.permissionCheck, bookingAsk: data.script.bookingAsk, guidance: data.script.guidance ?? [] });
+      setEditing(false);
+      setDraft(null);
+      toast("Script enregistré", "success");
+    } catch { toast("Erreur réseau", "error"); }
+    finally { setSaving(false); }
+  }
+
+  async function regenerate() {
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/calls/script/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sector }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast(data.error || "Génération impossible", "error"); return; }
+      const d: ScriptFields = { ...data.draft, guidance: data.draft.guidance ?? fields.guidance };
+      setDraft(d);
+      setEditing(true);
+      toast("Brouillon généré — relisez puis enregistrez", "success");
+    } catch { toast("Erreur réseau", "error"); }
+    finally { setGenerating(false); }
+  }
+
+  const view = editing && draft ? draft : fields;
+
   return (
     <div
       className="flex flex-col gap-3 rounded-lg border p-3.5"
@@ -54,83 +122,132 @@ export function CallScriptPanel({
     >
       <div className="flex items-center gap-2">
         <Phone size={14} style={{ color: "var(--color-accent)" }} />
-        <span className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
-          Script d'appel
-        </span>
-        <span className="ml-auto text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-          Permission-based · 7-8 min · décideur d'abord
+        <span className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>Script d&apos;appel</span>
+        <span className="ml-auto inline-flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={regenerate}
+            disabled={generating}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
+            style={{ color: "var(--color-text-secondary)" }}
+            title="Régénérer depuis votre produit + ICP"
+          >
+            {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} Régénérer
+          </button>
+          {!editing ? (
+            <button
+              type="button"
+              onClick={() => { setDraft({ ...fields }); setEditing(true); }}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
+              style={{ color: "var(--color-text-secondary)" }}
+            >
+              <Pencil size={12} /> Éditer
+            </button>
+          ) : (
+            <>
+              <button type="button" onClick={save} disabled={saving}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium"
+                style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
+                {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Enregistrer
+              </button>
+              <button type="button" onClick={() => { setEditing(false); setDraft(null); }}
+                className="inline-flex items-center justify-center rounded-md p-1 transition-colors hover:bg-[var(--color-bg-hover)]"
+                style={{ color: "var(--color-text-tertiary)" }} title="Annuler">
+                <X size={13} />
+              </button>
+            </>
+          )}
         </span>
       </div>
 
       <div className="flex gap-2">
-        <input
-          value={sector}
-          onChange={(e) => setSector(e.target.value)}
-          placeholder="Secteur (ex. Santé, Fondation)"
-          className="flex-1 rounded-md px-2 py-1 text-[12px]"
-          style={inputStyle}
-        />
-        <input
-          value={geo}
-          onChange={(e) => setGeo(e.target.value)}
-          placeholder="Géographie (ex. Genève)"
-          className="flex-1 rounded-md px-2 py-1 text-[12px]"
-          style={inputStyle}
-        />
+        <input value={sector} onChange={(e) => setSector(e.target.value)} placeholder="Secteur (ex. Santé, Fondation)"
+          className="flex-1 rounded-md px-2 py-1 text-[12px]" style={inputStyle} />
+        <input value={geo} onChange={(e) => setGeo(e.target.value)} placeholder="Géographie (ex. Genève)"
+          className="flex-1 rounded-md px-2 py-1 text-[12px]" style={inputStyle} />
       </div>
 
-      {/* Opener — read aloud */}
-      <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-text-primary)" }}>
-        {script.opener}
-      </p>
+      {loading ? (
+        <div className="flex items-center gap-2 py-3 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+          <Loader2 size={13} className="animate-spin" /> Chargement du script…
+        </div>
+      ) : editing && draft ? (
+        // ── Edit mode — simple inline fields ──
+        <div className="flex flex-col gap-2.5">
+          <Field label="Accroche — permission-based, « vous avez 2 min ? » ({name} interpolé)">
+            <textarea value={draft.opener} onChange={(e) => setDraft({ ...draft, opener: e.target.value })}
+              rows={2} className="w-full resize-y rounded-md px-2 py-1.5 text-[12.5px]" style={inputStyle} />
+          </Field>
+          <Field label="Enjeux (validés un par un en appel)">
+            <div className="flex flex-col gap-1.5">
+              {draft.problems.map((p, i) => (
+                <div key={i} className="flex items-start gap-1.5">
+                  <input value={p} onChange={(e) => { const next = [...draft.problems]; next[i] = e.target.value; setDraft({ ...draft, problems: next }); }}
+                    className="flex-1 rounded-md px-2 py-1 text-[12.5px]" style={inputStyle} />
+                  <button type="button" onClick={() => setDraft({ ...draft, problems: draft.problems.filter((_, j) => j !== i) })}
+                    className="mt-0.5 rounded p-1 transition-colors hover:bg-[var(--color-bg-hover)]" style={{ color: "var(--color-text-tertiary)" }}>
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))}
+              {draft.problems.length < 5 && (
+                <button type="button" onClick={() => setDraft({ ...draft, problems: [...draft.problems, ""] })}
+                  className="inline-flex w-fit items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors hover:bg-[var(--color-bg-hover)]" style={{ color: "var(--color-accent)" }}>
+                  <Plus size={12} /> Ajouter un enjeu
+                </button>
+              )}
+            </div>
+          </Field>
+          <Field label="Question de validation">
+            <input value={draft.permissionCheck} onChange={(e) => setDraft({ ...draft, permissionCheck: e.target.value })}
+              className="w-full rounded-md px-2 py-1 text-[12.5px]" style={inputStyle} />
+          </Field>
+          <Field label="Demande de rendez-vous">
+            <textarea value={draft.bookingAsk} onChange={(e) => setDraft({ ...draft, bookingAsk: e.target.value })}
+              rows={2} className="w-full resize-y rounded-md px-2 py-1.5 text-[12.5px]" style={inputStyle} />
+          </Field>
+        </div>
+      ) : (
+        // ── Read mode — what to say ──
+        <>
+          <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-text-primary)" }}>{opener}</p>
+          <div className="flex flex-col gap-1.5">
+            {view.problems.map((p, i) => (
+              <button key={i} type="button" onClick={() => toggle(i)}
+                className="flex items-start gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] transition-colors hover:bg-[var(--color-bg-hover)]"
+                style={{ color: "var(--color-text-secondary)" }}>
+                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border"
+                  style={{ borderColor: checked.has(i) ? "var(--color-accent)" : "var(--color-border-default)", background: checked.has(i) ? "var(--color-accent)" : "transparent" }}>
+                  {checked.has(i) && <Check size={11} color="#fff" />}
+                </span>
+                <span>{p}</span>
+              </button>
+            ))}
+          </div>
+          <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{view.permissionCheck}</p>
+          <div className="flex items-start gap-2 rounded-md px-3 py-2 text-[12.5px]"
+            style={{ background: anyChecked ? "var(--color-accent-soft)" : "var(--color-bg-hover)", color: anyChecked ? "var(--color-accent)" : "var(--color-text-tertiary)" }}>
+            <CalendarClock size={14} className="mt-0.5 shrink-0" />
+            <span>{view.bookingAsk}</span>
+          </div>
+          {view.guidance.length > 0 && (
+            <ul className="flex flex-col gap-0.5">
+              {view.guidance.map((g, i) => (
+                <li key={i} className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{g}</li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
-      {/* Problems — check what resonates */}
-      <div className="flex flex-col gap-1.5">
-        {script.problems.map((p, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => toggle(i)}
-            className="flex items-start gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] transition-colors hover:bg-[var(--color-bg-hover)]"
-            style={{ color: "var(--color-text-secondary)" }}
-          >
-            <span
-              className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border"
-              style={{
-                borderColor: checked.has(i) ? "var(--color-accent)" : "var(--color-border-default)",
-                background: checked.has(i) ? "var(--color-accent)" : "transparent",
-              }}
-            >
-              {checked.has(i) && <Check size={11} color="#fff" />}
-            </span>
-            <span>{p}</span>
-          </button>
-        ))}
-      </div>
-
-      <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-        {script.permissionCheck}
-      </p>
-
-      {/* Booking ask — lights up once a problem resonates */}
-      <div
-        className="flex items-start gap-2 rounded-md px-3 py-2 text-[12.5px]"
-        style={{
-          background: anyChecked ? "var(--color-accent-soft)" : "var(--color-bg-hover)",
-          color: anyChecked ? "var(--color-accent)" : "var(--color-text-tertiary)",
-        }}
-      >
-        <CalendarClock size={14} className="mt-0.5 shrink-0" />
-        <span>{script.bookingAsk}</span>
-      </div>
-
-      <ul className="flex flex-col gap-0.5">
-        {script.guidance.map((g, i) => (
-          <li key={i} className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-            {g}
-          </li>
-        ))}
-      </ul>
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>{label}</label>
+      <div className="mt-1">{children}</div>
     </div>
   );
 }
