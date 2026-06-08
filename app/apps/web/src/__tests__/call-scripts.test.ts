@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pickCallScript, resolveCallScript } from "@/lib/call-mode/call-scripts";
+import { pickCallScript, resolveCallScript, splitGuidance, withNoResponse } from "@/lib/call-mode/call-scripts";
 
 describe("pickCallScript", () => {
   it("matches a sector by keyword (accent/case-insensitive)", () => {
@@ -47,5 +47,29 @@ describe("resolveCallScript", () => {
     expect(r.opener.startsWith("Bonjour,")).toBe(true);
     expect(r.opener).not.toMatch(/\s{2,}/); // no double spaces left by the empty name
     expect(r.guidance.length).toBeGreaterThan(0);
+  });
+});
+
+describe("no response (guidance-encoded)", () => {
+  it("every sector ships a read-aloud 'no' response, split cleanly from tips", () => {
+    for (const s of ["Santé", "Fondation", "Public", "Industrie", "xyz"]) {
+      const r = resolveCallScript({ sector: s });
+      const { noResponse, tips } = splitGuidance(r.guidance);
+      expect(noResponse.length).toBeGreaterThan(0);
+      expect(noResponse).not.toContain("[NON]"); // tag stripped on read
+      expect(tips.every((t) => !t.startsWith("[NON]"))).toBe(true);
+      expect(tips.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("round-trips an edited 'no' response through the guidance array", () => {
+    const r = resolveCallScript({ sector: "Fondation" });
+    const { tips } = splitGuidance(r.guidance);
+    const edited = withNoResponse(tips, "Pas de souci, je vous laisse, bonne journée.");
+    const back = splitGuidance(edited);
+    expect(back.noResponse).toBe("Pas de souci, je vous laisse, bonne journée.");
+    expect(back.tips).toEqual(tips);
+    // empty input drops the tagged entry entirely
+    expect(splitGuidance(withNoResponse(tips, "  ")).noResponse).toBe("");
   });
 });

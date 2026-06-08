@@ -58,6 +58,15 @@ export const PERMISSION_CHECK =
 export const BOOKING_ASK =
   "Très bien. Honnêtement, dans ce cas je pense qu'on a intérêt à se rencontrer : je viendrais avec une première lecture de ce que vous pourriez remplacer et l'écart de coût, et on aurait le temps d'approfondir — comptez 45 minutes. Vous seriez disponible plutôt en début ou en fin de semaine prochaine ? Rien à préparer de votre côté.";
 
+/** Read-aloud response when the prospect says no — natural, autonomy-first
+ * (acknowledge, one calibrated question, graceful exit), never a pushy rebuttal.
+ * Persisted inside `guidance` (tagged) so it survives without a schema change. */
+export const DEFAULT_NO_RESPONSE =
+  "Aucun souci, c'est vous qui voyez. Juste pour comprendre — c'est le timing, ou le sujet ne vous parle pas du tout ? Si c'est le timing, je vous recontacte dans quelques mois ; sinon je ne vous embête pas, et merci d'avoir pris l'appel.";
+
+/** Marker prefixing the "no" response inside the guidance array. */
+export const NO_RESPONSE_TAG = "[NON]";
+
 /** Global, permission-based in-call principles (per-sector qualifiers + the
  * "non" branch are composed in on top — see composeGuidance). */
 export const GUIDANCE = [
@@ -162,11 +171,30 @@ function norm(s: string): string {
  * + the "non" branch for the 2-min ask + any sector note. */
 function composeGuidance(base: CallScript): string[] {
   return [
+    `${NO_RESPONSE_TAG} ${DEFAULT_NO_RESPONSE}`,
     ...GUIDANCE,
     `À qualifier (2-3 points) : ${base.qualifiers.join(" · ")}.`,
-    "Si « non » au « vous avez 2 min ? » : ne pas pousser ; donner une phrase de raison (le 1er enjeu) et proposer de rappeler à un meilleur moment.",
     ...(base.note ? [base.note] : []),
   ];
+}
+
+/** Split persisted guidance into the read-aloud "no" response (the tagged
+ * entry) and the rest (in-call tips), so the cockpit can surface a dedicated
+ * "Si le prospect dit non" block without a dedicated DB column. */
+export function splitGuidance(guidance: string[]): { noResponse: string; tips: string[] } {
+  const idx = guidance.findIndex((g) => g.startsWith(NO_RESPONSE_TAG));
+  if (idx === -1) return { noResponse: "", tips: guidance };
+  return {
+    noResponse: guidance[idx].slice(NO_RESPONSE_TAG.length).trim(),
+    tips: guidance.filter((_, i) => i !== idx),
+  };
+}
+
+/** Re-encode an edited "no" response into the guidance array (tagged, first),
+ * preserving the other tips. Empty input drops the tagged entry. */
+export function withNoResponse(tips: string[], noResponse: string): string[] {
+  const clean = tips.filter((g) => !g.startsWith(NO_RESPONSE_TAG));
+  return noResponse.trim() ? [`${NO_RESPONSE_TAG} ${noResponse.trim()}`, ...clean] : clean;
 }
 
 /** Pick the best script for a company's sector. Substring match on the

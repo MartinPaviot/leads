@@ -13,7 +13,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Check, CalendarClock, Phone, Pencil, Sparkles, Loader2, X, Plus, Trash2 } from "lucide-react";
-import { interpolateOpener, defaultScriptFields, type ScriptFields } from "@/lib/call-mode/call-scripts";
+import { interpolateOpener, defaultScriptFields, splitGuidance, withNoResponse, type ScriptFields } from "@/lib/call-mode/call-scripts";
 import { useToast } from "@/components/ui/toast";
 
 export function CallScriptPanel({
@@ -114,6 +114,7 @@ export function CallScriptPanel({
   }
 
   const view = editing && draft ? draft : fields;
+  const { noResponse: viewNoResp, tips: viewTips } = splitGuidance(view.guidance);
 
   return (
     <div
@@ -206,6 +207,11 @@ export function CallScriptPanel({
             <textarea value={draft.bookingAsk} onChange={(e) => setDraft({ ...draft, bookingAsk: e.target.value })}
               rows={2} className="w-full resize-y rounded-md px-2 py-1.5 text-[12.5px]" style={inputStyle} />
           </Field>
+          <Field label="Réponse si « non »">
+            <textarea value={splitGuidance(draft.guidance).noResponse}
+              onChange={(e) => setDraft({ ...draft, guidance: withNoResponse(splitGuidance(draft.guidance).tips, e.target.value) })}
+              rows={3} className="w-full resize-y rounded-md px-2 py-1.5 text-[12.5px]" style={inputStyle} />
+          </Field>
         </div>
       ) : (
         // ── Read mode — what to say ──
@@ -230,9 +236,15 @@ export function CallScriptPanel({
             <CalendarClock size={14} className="mt-0.5 shrink-0" />
             <span>{view.bookingAsk}</span>
           </div>
-          {view.guidance.length > 0 && (
+          {viewNoResp && (
+            <div className="rounded-md px-3 py-2 text-[12.5px]" style={{ background: "var(--color-bg-hover)" }}>
+              <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>Si le prospect dit non</div>
+              <span style={{ color: "var(--color-text-primary)" }}>{viewNoResp}</span>
+            </div>
+          )}
+          {viewTips.length > 0 && (
             <ul className="flex flex-col gap-0.5">
-              {view.guidance.map((g, i) => (
+              {viewTips.map((g, i) => (
                 <li key={i} className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{g}</li>
               ))}
             </ul>
