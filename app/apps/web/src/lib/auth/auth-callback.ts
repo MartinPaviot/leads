@@ -117,6 +117,7 @@ export const SIGN_IN_REASON_COPY: Record<string, string> = {
   "password-reset-success":
     "Password updated. Sign in with your new password.",
   "session-expired": "Your session timed out. Please sign in again.",
+  idle: "You were signed out after a period of inactivity. Sign in to continue.",
   "email-verified":
     "Email confirmed. Sign in to continue.",
 };

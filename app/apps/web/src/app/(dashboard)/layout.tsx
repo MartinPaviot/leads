@@ -12,6 +12,7 @@ import { CommandPalette } from "@/components/ui/command-palette";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts-provider";
 import { FlagsProvider } from "@/components/flags-provider";
 import { NavigationProgress } from "@/components/ui/navigation-progress";
+import { IdleLogout } from "@/components/idle-logout";
 import { getFlagsForTenant } from "@/lib/experiments";
 
 export default async function DashboardLayout({
@@ -95,6 +96,7 @@ export default async function DashboardLayout({
 
             <CommandPalette />
             <KeyboardShortcutsProvider />
+            <IdleLogout />
           </div>
         </FlagsProvider>
       </ToastProvider>
