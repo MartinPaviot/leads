@@ -13,8 +13,9 @@
 
 import { inngest } from "./client";
 import { db } from "@/db";
-import { outboundEmails, contacts, connectedMailboxes } from "@/db/schema";
+import { outboundEmails, contacts, deals } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { getOwnerMailbox } from "@/lib/integrations/owner-mailbox";
 
 export const handleAutoPipelineDraft = inngest.createFunction(
   {
@@ -52,17 +53,15 @@ export const handleAutoPipelineDraft = inngest.createFunction(
       return { error: "Contact has no email address" };
     }
 
-    // Find an active mailbox for this tenant (or use fallback)
-    const [mailbox] = await db
-      .select({ id: connectedMailboxes.id, emailAddress: connectedMailboxes.emailAddress })
-      .from(connectedMailboxes)
-      .where(
-        and(
-          eq(connectedMailboxes.tenantId, tenantId),
-          eq(connectedMailboxes.status, "active"),
-        ),
-      )
+    // Personal mailboxes: send from the DEAL OWNER's mailbox, never a
+    // colleague's. Falls back to the neutral system sender (below) when the
+    // owner is unknown or has no active connected mailbox.
+    const [deal] = await db
+      .select({ ownerId: deals.ownerId })
+      .from(deals)
+      .where(and(eq(deals.id, dealId), eq(deals.tenantId, tenantId)))
       .limit(1);
+    const mailbox = await getOwnerMailbox(tenantId, deal?.ownerId);
 
     // Idempotency: check if we already queued an email for this deal+contact today
     const today = new Date();

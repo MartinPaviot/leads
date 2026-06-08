@@ -1,6 +1,7 @@
 import { db } from "@/db";
-import { activities, deals, notifications, tenants, contacts, companies, users, outboundEmails, connectedMailboxes } from "@/db/schema";
+import { activities, deals, notifications, tenants, contacts, companies, users, outboundEmails } from "@/db/schema";
 import { eq, and, desc, sql, or, ne, isNull } from "drizzle-orm";
+import { getOwnerMailbox } from "@/lib/integrations/owner-mailbox";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -187,13 +188,9 @@ async function detectStaleDealsByTenant(tenantId: string) {
         .where(and(eq(contacts.id, deal.contactId), eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt))).limit(1);
       if (!contact?.email) continue;
 
-      // Find a connected mailbox for this tenant to send from
-      const [mailbox] = await db.select().from(connectedMailboxes)
-        .where(and(
-          eq(connectedMailboxes.tenantId, tenantId),
-          eq(connectedMailboxes.status, "active"),
-        ))
-        .limit(1);
+      // Personal mailboxes: send the revival from the DEAL OWNER's mailbox,
+      // never a colleague's. Skip when the owner has no active mailbox.
+      const mailbox = await getOwnerMailbox(tenantId, deal.ownerId);
       if (!mailbox) continue;
 
       try {
