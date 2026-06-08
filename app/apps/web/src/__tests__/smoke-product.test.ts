@@ -8,7 +8,7 @@
  * are wired correctly, auth is enforced, and modules load without errors.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ─── Module loading tests ────────────────────────────────────────────
 // These catch broken imports, circular dependencies, and missing exports.
@@ -278,19 +278,37 @@ describe("deriveTargetRoles (BUG-WS0-008 fix)", () => {
 
 // ─── AI provider configuration ───────────────────────────────────────
 
-describe("AI provider EU routing", () => {
-  // Sovereignty pack 2026-05-19: EU endpoint is the configured default
-  // (ANTHROPIC_REGION=eu in .env.local). These tests now guard the EU
-  // pinning instead of the old US default.
-  it("routes to the EU endpoint by default", async () => {
-    const { getConfiguredAnthropicBaseUrl } = await import("@/lib/ai/ai-provider");
-    const url = getConfiguredAnthropicBaseUrl();
-    expect(url).toBe("https://eu.anthropic.com");
+describe("AI provider Anthropic endpoint routing", () => {
+  // ANTHROPIC_REGION=eu is OPT-IN and currently disabled in .env.local
+  // (it had routed every LLM call to the EU endpoint and broke chat — see the
+  // note there). So we test the resolution LOGIC deterministically via stubbed
+  // env, not whatever the ambient config happens to be. resolveAnthropicBaseUrl
+  // reads process.env at call time, so a stub is enough (no module reset).
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
-  it("reports EU configured", async () => {
-    const { isAnthropicEuConfigured } = await import("@/lib/ai/ai-provider");
+  it("routes to the EU endpoint when ANTHROPIC_REGION=eu", async () => {
+    vi.stubEnv("ANTHROPIC_API_BASE", "");
+    vi.stubEnv("ANTHROPIC_REGION", "eu");
+    const { getConfiguredAnthropicBaseUrl, isAnthropicEuConfigured } = await import("@/lib/ai/ai-provider");
+    expect(getConfiguredAnthropicBaseUrl()).toBe("https://eu.anthropic.com/v1");
     expect(isAnthropicEuConfigured()).toBe(true);
+  });
+
+  it("defaults to the standard endpoint when no region is set", async () => {
+    vi.stubEnv("ANTHROPIC_API_BASE", "");
+    vi.stubEnv("ANTHROPIC_REGION", "");
+    const { getConfiguredAnthropicBaseUrl, isAnthropicEuConfigured } = await import("@/lib/ai/ai-provider");
+    expect(getConfiguredAnthropicBaseUrl()).toBe("https://api.anthropic.com/v1");
+    expect(isAnthropicEuConfigured()).toBe(false);
+  });
+
+  it("honors an explicit allowlisted ANTHROPIC_API_BASE override", async () => {
+    vi.stubEnv("ANTHROPIC_REGION", "");
+    vi.stubEnv("ANTHROPIC_API_BASE", "https://eu.anthropic.com/v1");
+    const { getConfiguredAnthropicBaseUrl } = await import("@/lib/ai/ai-provider");
+    expect(getConfiguredAnthropicBaseUrl()).toBe("https://eu.anthropic.com/v1");
   });
 });
 
