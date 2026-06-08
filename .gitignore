@@ -16,6 +16,8 @@ tsconfig.tsbuildinfo
 # Playwright outputs
 playwright-report/
 test-results/
+# Ad-hoc verification screenshots saved to repo root (keep them out of git)
+/police-search-fixed*.png
 # Auto-generated Next.js ambient types
 app/apps/admin/next-env.d.ts
 _inngest-*.log
