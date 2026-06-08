@@ -25,7 +25,7 @@ import type { CustomFieldDef } from "@/lib/context/custom-fields";
 import { PageHeader, FilterBar } from "@/components/ui/page-header";
 import { PersonaSearch } from "./_persona-search";
 import { Button } from "@/components/ui/button";
-import { Badge, PropertyBadge } from "@/components/ui/badge";
+import { PropertyBadge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -41,6 +41,14 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-delete-modal";
 import { EnrichMenu } from "@/components/ui/enrich-menu";
 import { useEnrichStream, type EnrichCellState } from "@/hooks/use-enrich-stream";
+import { ColumnPicker, type PickerCategory } from "@/components/ui/column-picker";
+import { COLUMN_CATEGORIES, DEFAULT_VISIBLE_CATEGORY_KEYS } from "@/lib/accounts/column-categories";
+
+/** Firmographic-extra category columns (founded year, tech, funding,
+ * keywords) — addable via the Categories picker, filled by the same
+ * enrichment criteria they map to. */
+const EXTRA_COLUMNS = COLUMN_CATEGORIES.filter((c) => c.group === "firmographic");
+const CATEGORIES_STORAGE_KEY = "accounts:visibleCategories:v1";
 
 interface Account {
   id: string;
@@ -270,6 +278,80 @@ export default function AccountsPage() {
       }
     }
     return node;
+  };
+
+  // ── Category columns (show/hide via the Categories picker) ──
+  // Built-in signals + firmographic extras are opt-in columns; custom
+  // signals/fields stay always-visible. Choice persists per browser.
+  const [visibleCategories, setVisibleCategories] = useState<Set<string>>(
+    () => new Set(DEFAULT_VISIBLE_CATEGORY_KEYS),
+  );
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CATEGORIES_STORAGE_KEY);
+      if (raw) setVisibleCategories(new Set(JSON.parse(raw) as string[]));
+    } catch {
+      /* localStorage unavailable — keep defaults */
+    }
+  }, []);
+  const toggleCategory = useCallback((key: string) => {
+    setVisibleCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify([...next]));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+  const resetCategories = useCallback(() => {
+    setVisibleCategories(new Set(DEFAULT_VISIBLE_CATEGORY_KEYS));
+    try {
+      localStorage.removeItem(CATEGORIES_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const pickerCategories = useMemo<PickerCategory[]>(
+    () => COLUMN_CATEGORIES.map((c) => ({ key: c.key, label: c.label, group: c.group, source: c.source })),
+    [],
+  );
+
+  /** Render a firmographic-extra cell (founded year / tech / funding /
+   * keywords) from `properties`, wrapped in the live enrichment overlay
+   * so it shimmers while its criterion is being fetched. */
+  const renderExtraCell = (account: Account, refKey: string): React.ReactNode => {
+    const p = (account.properties ?? {}) as Record<string, unknown>;
+    const muted = <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>;
+    let hasValue = false;
+    let node: React.ReactNode = muted;
+    if (refKey === "foundedYear") {
+      const y = p.founded_year;
+      hasValue = typeof y === "number";
+      node = hasValue ? <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{y as number}</span> : muted;
+    } else if (refKey === "technologies") {
+      const t = Array.isArray(p.technologies) ? (p.technologies as string[]) : [];
+      hasValue = t.length > 0;
+      node = hasValue ? (
+        <div className="flex flex-wrap gap-0.5">{t.slice(0, 3).map((v, i) => <PropertyBadge key={i} value={String(v)} />)}</div>
+      ) : muted;
+    } else if (refKey === "funding") {
+      const stage = typeof p.latest_funding_stage === "string" ? p.latest_funding_stage : null;
+      const total = typeof p.total_funding === "number" ? (p.total_funding as number) : null;
+      hasValue = !!stage || total != null;
+      const txt = [stage, total != null ? `$${(total / 1_000_000).toFixed(total >= 1_000_000 ? 0 : 1)}M` : null].filter(Boolean).join(" · ");
+      node = hasValue ? <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{txt}</span> : muted;
+    } else if (refKey === "keywords") {
+      const k = Array.isArray(p.keywords) ? (p.keywords as string[]) : [];
+      hasValue = k.length > 0;
+      node = hasValue ? (
+        <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }} title={k.join(", ")}>{k.slice(0, 3).join(", ")}</span>
+      ) : muted;
+    }
+    return renderEnrichable(account.id, refKey, hasValue, node);
   };
 
   const startTamBuild = useCallback(async () => {
@@ -1002,13 +1084,6 @@ export default function AccountsPage() {
   interface Signal { type: string; title: string; description: string; relevance: string; reasoning?: string; sources?: Array<{ url: string; title: string }>; }
   function getSignals(account: Account): Signal[] { return ((account.properties as Record<string, unknown>)?.signals as Signal[]) || []; }
 
-  // Legacy custom bool columns (kept for backward compatibility with existing signal data)
-  const [customBoolColumns] = useState<string[]>(["Common Investor?", "Sales-led?"]);
-  function getCustomBool(account: Account, column: string): boolean | null {
-    const customs = (account.properties as Record<string, unknown>)?.customBools as Record<string, boolean> | undefined;
-    return customs?.[column] ?? null;
-  }
-
   /** Render a custom field cell value */
   function renderCustomFieldCell(account: Account, field: CustomFieldDef) {
     const value = getCustomFieldValue(account.properties, field.id);
@@ -1344,6 +1419,12 @@ export default function AccountsPage() {
             onEnrich={(criteria) => runEnrich(criteria)}
           />
         )}
+        <ColumnPicker
+          categories={pickerCategories}
+          visible={visibleCategories}
+          onToggle={toggleCategory}
+          onReset={resetCategories}
+        />
         <Button
           variant="outline"
           size="sm"
@@ -1559,7 +1640,7 @@ export default function AccountsPage() {
           <TableSkeleton
             rows={8}
             // +4 for built-in TAM signals + N for custom signals.
-            cols={9 + 4 + customSignals.length + signalTypeColumns.length + customBoolColumns.length + customFields.length}
+            cols={9 + DEFAULT_SIGNALS.filter((s) => visibleCategories.has(`signal:${s.key}`)).length + EXTRA_COLUMNS.filter((c) => visibleCategories.has(c.key)).length + customSignals.length + signalTypeColumns.length + customFields.length}
           />
         ) : mergedAccounts.length === 0 ? (
           debouncedSearch ? (
@@ -1634,15 +1715,16 @@ export default function AccountsPage() {
                   { label: "Score", icon: Gauge, filterKey: "score" },
                   { label: "Last Interaction", icon: Clock },
                   { label: "Connected to", icon: Users },
-                  // TAM streaming signal columns — one per default
-                  // signal. Rendered as chips in the body via
-                  // <SignalChip>. Positioned right after Connected-to
-                  // so the trust-cluster (warm intro + signals) lives
-                  // together, before legacy/custom columns.
-                  { label: "Investor", icon: Sparkles as LucideIcon },
-                  { label: "Funding", icon: Sparkles as LucideIcon },
-                  { label: "Hiring", icon: Sparkles as LucideIcon },
-                  { label: "YC", icon: Sparkles as LucideIcon },
+                  // Optional category columns — built-in signals + firmographic
+                  // extras the user adds via the Categories picker. Header and
+                  // body iterate the SAME visibility-filtered lists so they stay
+                  // aligned (this also fixes the old 4-header / 5-body signal skew).
+                  ...DEFAULT_SIGNALS
+                    .filter((s) => visibleCategories.has(`signal:${s.key}`))
+                    .map((s) => ({ label: signalLabelForHeader(s.key), icon: Sparkles as LucideIcon })),
+                  ...EXTRA_COLUMNS
+                    .filter((c) => visibleCategories.has(c.key))
+                    .map((c) => ({ label: c.label, icon: null as LucideIcon | null })),
                   // User-defined custom signals. Each appears as its
                   // own column; names truncated to 16 chars in the
                   // header to keep row widths predictable.
@@ -1651,7 +1733,6 @@ export default function AccountsPage() {
                     icon: Radio as LucideIcon,
                   })),
                   ...signalTypeColumns.map((t) => ({ label: t.replace(/_/g, " "), icon: Radio as LucideIcon })),
-                  ...customBoolColumns.map((c) => ({ label: c, icon: Target as LucideIcon })),
                   ...customFields.map((f) => ({ label: f.name, icon: null as LucideIcon | null })),
                   { label: "", icon: null },
                 ] as Array<{ label: string; icon: LucideIcon | null; filterKey?: string }>).map((col, i) => {
@@ -2008,7 +2089,7 @@ export default function AccountsPage() {
                         One shared `openSignalChipId` selector means
                         only one popover is open across the whole
                         table at any time. */}
-                    {DEFAULT_SIGNALS.map(({ key }) => {
+                    {DEFAULT_SIGNALS.filter((s) => visibleCategories.has(`signal:${s.key}`)).map(({ key }) => {
                       const { payload } = getTamSignal(account, key);
                       const chipId = `${account.id}::${key}`;
                       return (
@@ -2024,6 +2105,12 @@ export default function AccountsPage() {
                         </td>
                       );
                     })}
+
+                    {/* Firmographic extra columns (Categories picker) — founded
+                        year / tech / funding / keywords, filled by enrichment. */}
+                    {EXTRA_COLUMNS.filter((c) => visibleCategories.has(c.key)).map((c) => (
+                      <td key={c.key}>{renderExtraCell(account, c.refKey)}</td>
+                    ))}
 
                     {/* User-defined custom signals — one chip per
                         active signal, reads from
@@ -2130,22 +2217,6 @@ export default function AccountsPage() {
                             </span>
                           ) : (
                             <span className="text-[10px]" style={{ color: "var(--color-text-muted)", opacity: 0.5 }}>No</span>
-                          )}
-                        </td>
-                      );
-                    })}
-
-                    {/* Custom bool columns */}
-                    {customBoolColumns.map((col) => {
-                      const val = getCustomBool(account, col);
-                      return (
-                        <td key={col} className="text-[11px] font-medium">
-                          {val === null ? (
-                            <span style={{ color: "var(--color-text-muted)" }}>—</span>
-                          ) : val ? (
-                            <Badge variant="success" size="sm">Yes</Badge>
-                          ) : (
-                            <span style={{ color: "var(--color-text-muted)" }}>No</span>
                           )}
                         </td>
                       );
