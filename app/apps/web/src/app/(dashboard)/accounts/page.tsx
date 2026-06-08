@@ -139,6 +139,9 @@ export default function AccountsPage() {
   // Filter dropdown options (distinct enum values) from the server, so the
   // menus stay complete even though only the filtered rows are loaded.
   const [serverFacets, setServerFacets] = useState<{ industries: string[]; geographies: string[]; sizes: string[]; revenues: string[]; stages: string[] } | null>(null);
+  // Tenant-wide working-set counts (independent of the active filters) for the
+  // tab + enrich badges, so they show true totals rather than the loaded subset.
+  const [serverCounts, setServerCounts] = useState<{ total: number; tam: number; manual: number; unenriched: number } | null>(null);
   const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null);
   // Bulk contact extraction (Apollo) + delete flows.
   const [extractingContacts, setExtractingContacts] = useState(false);
@@ -302,6 +305,7 @@ export default function AccountsPage() {
       if (!res.ok) return;
       const data = await res.json();
       if (data.facets) setServerFacets(data.facets);
+      if (data.counts) setServerCounts(data.counts);
       const batch: Account[] = data.accounts || data.items || [];
       const pagination = data.pagination as { page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | undefined;
       if (append) {
@@ -968,7 +972,16 @@ export default function AccountsPage() {
   // build is still running) are projected into the Account shape so
   // the same table code renders both.
   const mergedAccounts = useMemo<Account[]>(() => {
-    if (tamStream.rows.size === 0) return accounts;
+    // Streamed-but-not-yet-persisted TAM rows bypass the server-side filters,
+    // so don't splice them in while a filter/search/tab is active — they'd show
+    // regardless of the filter. They appear (filtered) once the build persists
+    // and the list refetches.
+    const anyFilterActive =
+      !!debouncedSearch ||
+      smartFilters.length > 0 ||
+      filter !== "all" ||
+      Object.values(columnFilters).some((s) => isColumnFilterActive(s));
+    if (tamStream.rows.size === 0 || anyFilterActive) return accounts;
     const byId = new Map(accounts.map((a) => [a.id, a]));
     for (const id of tamStream.rowOrder) {
       const row = tamStream.rows.get(id);
@@ -986,7 +999,7 @@ export default function AccountsPage() {
       }
     }
     return merged;
-  }, [accounts, tamStream.rows, tamStream.rowOrder]);
+  }, [accounts, tamStream.rows, tamStream.rowOrder, debouncedSearch, smartFilters, filter, columnFilters]);
 
   /** Reads a signal value for a company, preferring the live stream
    * state (which may be mid-flight) over the persisted
@@ -1114,8 +1127,11 @@ export default function AccountsPage() {
       return litSignalCount(b) - litSignalCount(a);
     });
 
-  const unenrichedCount = accounts.filter((a) => !isEnriched(a)).length;
-  const tamCount = accounts.filter(isTAM).length;
+  // Prefer the server's tenant-wide working-set counts (true totals,
+  // independent of the active filters); fall back to the loaded rows until the
+  // first response lands.
+  const unenrichedCount = serverCounts ? serverCounts.unenriched : accounts.filter((a) => !isEnriched(a)).length;
+  const tamCount = serverCounts ? serverCounts.tam : accounts.filter(isTAM).length;
 
   // G27: Collect unique signal types across all accounts for individual columns
   const signalTypeColumns = Array.from(

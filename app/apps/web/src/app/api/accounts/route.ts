@@ -121,27 +121,41 @@ export async function GET(req: Request) {
       whereClause = and(whereClause, ...filterConds)!;
     }
 
-    // Filter dropdown options (facets) — distinct values across the active
-    // working set (tenant, not deleted, not excluded), independent of the
-    // current filters so the menus stay complete even when only filtered rows
-    // are loaded. Computed once on the first page; the client caches them.
+    // Filter dropdown options (facets) + working-set counts — both computed
+    // over the current VIEW's base scope (tenant + the same deleted/excluded
+    // mode as the list), but INDEPENDENT of the active column/tab/score filters.
+    // That keeps the filter menus complete even when only filtered rows are
+    // loaded, and lets the tab/enrich badges show true totals (not the loaded
+    // subset). Computed once on the first page; the client caches them.
     let facets:
       | { industries: string[]; geographies: string[]; sizes: string[]; revenues: string[]; stages: string[] }
       | undefined;
+    let counts: { total: number; tam: number; manual: number; unenriched: number } | undefined;
     if (page === 1) {
       try {
+        const deletedSql = showDeleted ? sql`deleted_at IS NOT NULL` : sql`deleted_at IS NULL`;
+        const excludedSql =
+          excludedMode === "all"
+            ? sql`TRUE`
+            : excludedMode === "only"
+              ? sql`excluded_reason IS NOT NULL`
+              : sql`excluded_reason IS NULL`;
+        const enrichedSql = sql`(industry IS NOT NULL AND industry <> '' AND description IS NOT NULL AND description <> '')`;
         const fr = await db.execute(sql`
           SELECT
             COALESCE(array_agg(DISTINCT industry) FILTER (WHERE industry IS NOT NULL AND industry <> ''), '{}') AS industries,
             COALESCE(array_agg(DISTINCT btrim(properties->>'country')) FILTER (WHERE btrim(properties->>'country') IS NOT NULL AND btrim(properties->>'country') <> ''), '{}') AS geographies,
             COALESCE(array_agg(DISTINCT size) FILTER (WHERE size IS NOT NULL AND size <> ''), '{}') AS sizes,
             COALESCE(array_agg(DISTINCT revenue) FILTER (WHERE revenue IS NOT NULL AND revenue <> ''), '{}') AS revenues,
-            COALESCE(array_agg(DISTINCT COALESCE(properties->>'lifecycleStage','new')), '{}') AS stages
+            COALESCE(array_agg(DISTINCT COALESCE(properties->>'lifecycleStage','new')), '{}') AS stages,
+            count(*)::int AS total,
+            (count(*) FILTER (WHERE properties->>'source' = 'tam'))::int AS tam,
+            (count(*) FILTER (WHERE NOT ${enrichedSql}))::int AS unenriched
           FROM companies
-          WHERE tenant_id = ${authCtx.tenantId} AND deleted_at IS NULL AND excluded_reason IS NULL
+          WHERE tenant_id = ${authCtx.tenantId} AND ${deletedSql} AND ${excludedSql}
         `);
-        const row = (fr as unknown as Array<Record<string, string[]>>)[0];
-        const srt = (xs: string[] | null | undefined) => [...(xs ?? [])].sort((a, b) => a.localeCompare(b));
+        const row = (fr as unknown as Array<Record<string, unknown>>)[0];
+        const srt = (xs: unknown) => [...(((xs as string[]) ?? []))].sort((a, b) => a.localeCompare(b));
         facets = {
           industries: srt(row?.industries),
           geographies: srt(row?.geographies),
@@ -149,6 +163,9 @@ export async function GET(req: Request) {
           revenues: srt(row?.revenues),
           stages: srt(row?.stages),
         };
+        const totalActive = Number(row?.total ?? 0);
+        const tam = Number(row?.tam ?? 0);
+        counts = { total: totalActive, tam, manual: totalActive - tam, unenriched: Number(row?.unenriched ?? 0) };
       } catch (e) {
         console.warn("accounts: facets query failed", e);
       }
@@ -224,7 +241,7 @@ export async function GET(req: Request) {
       enrichedAccounts,
       { page, pageSize, total },
       "accounts",
-      facets ? { facets } : undefined,
+      facets || counts ? { ...(facets ? { facets } : {}), ...(counts ? { counts } : {}) } : undefined,
     );
   } catch (error) {
     console.error("Failed to fetch accounts:", error);
