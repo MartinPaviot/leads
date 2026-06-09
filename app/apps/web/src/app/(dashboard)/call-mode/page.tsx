@@ -42,6 +42,7 @@ import { CallModeOnboarding } from "./_onboarding";
 import { EditCampaignModal } from "./_edit-campaign-modal";
 import { CampaignFunnelBar } from "./_funnel-bar";
 import { CallScriptPanel } from "./_call-script";
+import { CallActions } from "./_call-actions";
 
 interface QueueItem {
   contactId: string;
@@ -935,6 +936,12 @@ export default function CallModePage() {
                     brainLoading={brainLoading}
                     onEnrich={() => handleEnrich(selected.contactId)}
                     enriching={enriching}
+                  />
+                  {/* Act on the prospect without leaving the cockpit: AI email + book the meeting. */}
+                  <CallActions
+                    contactId={selected.contactId}
+                    contactName={selected.contactName}
+                    email={brain?.focalContact?.email ?? null}
                   />
                   {/* Company + buying committee live WITH the prospect (linked),
                       not under the independent script panel on the right. */}
