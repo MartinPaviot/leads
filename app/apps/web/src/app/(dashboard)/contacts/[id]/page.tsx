@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { DetailPageSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { ContactCallProfile } from "@/components/call-intel";
 
 interface BuyerIntentSignal {
   type: string;
@@ -343,7 +344,10 @@ export default function ContactDetailPage() {
         {/* Buyer Intent Score */}
         {buyerIntent && <BuyerIntentCard data={buyerIntent} />}
 
-        <h3 className={`text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]${buyerIntent ? " mt-6" : ""}`}>
+        {/* What the last call revealed about this person (role / disposition) */}
+        <ContactCallProfile properties={contact.properties} className={buyerIntent ? "mt-6" : undefined} />
+
+        <h3 className="mt-6 text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
           Contact details
         </h3>
         <div className="mt-4 space-y-3">

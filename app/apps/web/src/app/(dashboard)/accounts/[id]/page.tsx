@@ -7,6 +7,7 @@ import { Users, DollarSign, ClipboardList, Swords, Sparkles, RefreshCw } from "l
 import { ScopedChat } from "@/components/scoped-chat";
 import { IntelligenceBrief } from "@/components/intelligence-brief";
 import { CompanyDossier } from "@/components/company-dossier";
+import { AccountCallIntel } from "@/components/call-intel";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -244,6 +245,9 @@ export default function AccountDetailPage() {
             </div>
           );
         })()}
+
+        {/* What the call revealed about the org (stack / triggers — the Pilae lever) */}
+        <AccountCallIntel properties={account.properties} />
 
         {/* Research Dossier */}
         <div className="mt-4">

@@ -20,6 +20,7 @@ import { EmailComposerPanel } from "@/components/email-composer-panel";
 import type { EmailComposerDraft } from "@/components/email-composer-panel";
 import { DealPropertyCell } from "@/components/deal-property-cell";
 import { getDealAmountDisplay, formatDealAmount } from "@/lib/deals/amount";
+import { MeddpiccScorecard } from "@/components/call-intel";
 
 interface Deal {
   id: string;
@@ -581,6 +582,9 @@ export default function DealDetailPage() {
             </Card>
           );
         })()}
+
+        {/* Qualification spine captured from calls — MEDDPICC + grounded sources */}
+        <MeddpiccScorecard properties={deal.properties} />
 
         {/* (c) Stakeholder Map — from deal properties */}
         <StakeholderMap deal={deal} />
