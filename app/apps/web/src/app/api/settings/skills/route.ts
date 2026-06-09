@@ -13,7 +13,7 @@ export async function GET(req: Request) {
 
   try {
     // Custom skills from DB
-    const custom = await listAvailableSkills(authCtx.tenantId, authCtx.userId);
+    const custom = await listAvailableSkills(authCtx.tenantId, authCtx.appUserId);
 
     // System skills from registry (hardcoded)
     const system = listSkills().map((s) => ({
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       const id = await forkSkill(
         forkFromId,
         authCtx.tenantId,
-        authCtx.userId,
+        authCtx.appUserId,
         { name, scope }
       );
       return Response.json({ id }, { status: 201 });

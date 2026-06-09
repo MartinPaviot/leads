@@ -33,7 +33,7 @@ function detectDelimiter(firstLine: string): string {
 }
 
 export function buildImportTools(ctx: ToolContext) {
-  const { tenantId, userId } = ctx;
+  const { tenantId, authCtx } = ctx;
 
   return {
     analyzeCSVForImport: makeTool({
@@ -121,7 +121,8 @@ export function buildImportTools(ctx: ToolContext) {
           type: "import",
           title: `Import ${csvRows.length} ${input.entityType}s`,
           tenantId,
-          userId,
+          // agentTasks.userId FK -> auth_user.id (AUTH id).
+          userId: authCtx.userId,
           progressTotal: csvRows.length,
           metadata: {
             csvRows,

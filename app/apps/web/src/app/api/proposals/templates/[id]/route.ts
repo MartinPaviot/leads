@@ -75,7 +75,7 @@ export async function PATCH(req: Request, { params }: Params) {
           componentMap: body.componentMap,
           mapConfirmed: true,
           status: "mapped",
-          mappedByUserId: authCtx.userId,
+          mappedByUserId: authCtx.appUserId,
           mappedAt: new Date(),
           updatedAt: new Date(),
         })

@@ -66,7 +66,7 @@ export async function GET(req: Request) {
         .from(chatThreads)
         .where(
           and(
-            eq(chatThreads.userId, authCtx.userId),
+            eq(chatThreads.userId, authCtx.appUserId),
             chatThreads.title
               ? ilike(chatThreads.title, pattern)
               : sql`false`

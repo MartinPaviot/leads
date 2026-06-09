@@ -59,7 +59,7 @@ export async function PUT(
   }
 
   if (
-    existing.createdByUserId !== authCtx.userId &&
+    existing.createdByUserId !== authCtx.appUserId &&
     authCtx.role !== "admin"
   ) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
@@ -114,7 +114,7 @@ export async function DELETE(
   }
 
   if (
-    existing.createdByUserId !== authCtx.userId &&
+    existing.createdByUserId !== authCtx.appUserId &&
     authCtx.role !== "admin"
   ) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
