@@ -1,9 +1,10 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/integrations/calendar";
 import { fetchMicrosoftMeetings } from "@/lib/integrations/calendar-microsoft";
+import { fetchCalDavMeetingsForTenant } from "@/lib/integrations/caldav-sync";
 import { db } from "@/db";
-import { activities, authAccounts } from "@/db/schema";
-import { eq, and, sql, isNull } from "drizzle-orm";
+import { activities, authAccounts, companies, contacts, connectedMailboxes } from "@/db/schema";
+import { eq, and, sql, isNull, isNotNull } from "drizzle-orm";
 import { logger } from "@/lib/observability/logger";
 
 /**
@@ -40,15 +41,35 @@ export async function GET(req: Request) {
       (a) => a.provider === "microsoft-entra-id"
     );
 
-    // Fan out. `allSettled` so a transient outage on one provider
-    // (rate limit, expired refresh token, brief 5xx) doesn't blank the
-    // whole list — the user still sees the other side's meetings.
-    const [googleResult, microsoftResult] = await Promise.allSettled([
+    // CalDAV (custom IMAP/SMTP mailboxes — e.g. Zimbra) is tenant-scoped, not
+    // tied to the user's OAuth accounts. Detect whether any mailbox has a
+    // calendar collection wired so we know to fan out to it + to count the
+    // calendar as connected.
+    const caldavMailbox = await db
+      .select({ id: connectedMailboxes.id })
+      .from(connectedMailboxes)
+      .where(
+        and(
+          eq(connectedMailboxes.tenantId, authCtx.tenantId),
+          eq(connectedMailboxes.provider, "smtp_custom"),
+          isNotNull(connectedMailboxes.caldavUrl),
+        ),
+      )
+      .limit(1);
+    const hasCalDav = caldavMailbox.length > 0;
+
+    // Fan out across every connected source in parallel. `allSettled` so a
+    // transient outage on one (rate limit, expired token, brief 5xx) doesn't
+    // blank the whole list — the user still sees the others.
+    const [googleResult, microsoftResult, caldavResult] = await Promise.allSettled([
       hasGoogle
         ? fetchRecentMeetings(authCtx.userId, daysBack, daysForward)
         : Promise.resolve([] as SyncedMeeting[]),
       hasMicrosoft
         ? fetchMicrosoftMeetings(authCtx.userId, daysBack, daysForward)
+        : Promise.resolve([] as SyncedMeeting[]),
+      hasCalDav
+        ? fetchCalDavMeetingsForTenant(authCtx.tenantId, daysBack, daysForward)
         : Promise.resolve([] as SyncedMeeting[]),
     ]);
 
@@ -56,6 +77,8 @@ export async function GET(req: Request) {
       googleResult.status === "fulfilled" ? googleResult.value : [];
     const microsoftMeetings =
       microsoftResult.status === "fulfilled" ? microsoftResult.value : [];
+    const caldavMeetings =
+      caldavResult.status === "fulfilled" ? caldavResult.value : [];
     if (googleResult.status === "rejected") {
       logger.warn("meetings: google calendar fetch failed", {
         userId: authCtx.userId,
@@ -68,6 +91,12 @@ export async function GET(req: Request) {
         err: microsoftResult.reason,
       });
     }
+    if (caldavResult.status === "rejected") {
+      logger.warn("meetings: caldav calendar fetch failed", {
+        tenantId: authCtx.tenantId,
+        err: caldavResult.reason,
+      });
+    }
 
     // Dedupe by `calendarEventId`. Cross-provider collisions are
     // theoretically possible (a user invited to the same event from
@@ -77,7 +106,7 @@ export async function GET(req: Request) {
     // integration and the historical activity rows reference its ids.
     const seen = new Set<string>();
     const calendarMeetings: SyncedMeeting[] = [];
-    for (const m of [...googleMeetings, ...microsoftMeetings]) {
+    for (const m of [...googleMeetings, ...microsoftMeetings, ...caldavMeetings]) {
       if (seen.has(m.calendarEventId)) continue;
       seen.add(m.calendarEventId);
       calendarMeetings.push(m);
@@ -186,7 +215,69 @@ export async function GET(req: Request) {
         recordingUrl: meta.recordingUrl || null,
         recallStatus: meta.recordingStatus || null,
         activityId: activity?.id || null,
+        // Filled by the CRM-matching pass below — the account this meeting is
+        // with and which attendees are known contacts.
+        account: null as { id: string; name: string; domain: string | null } | null,
+        matchedContacts: [] as Array<{ id: string; name: string; email: string | null; title: string | null }>,
       });
+    }
+
+    // ── Link each meeting to the CRM. Matching external attendees to contacts
+    // (and through them to an account) is what makes this a sales surface and
+    // not just a calendar: every meeting points at the company + the people we
+    // already track, so the rep can jump straight to the pipeline.
+    const attendeeEmails = [
+      ...new Set(
+        enriched
+          .flatMap((m) => m.attendees.map((a) => a.email?.toLowerCase()))
+          .filter((e): e is string => !!e),
+      ),
+    ];
+    if (attendeeEmails.length > 0) {
+      const contactRows = await db
+        .select({
+          id: contacts.id,
+          email: contacts.email,
+          firstName: contacts.firstName,
+          lastName: contacts.lastName,
+          title: contacts.title,
+          companyId: contacts.companyId,
+        })
+        .from(contacts)
+        .where(
+          and(
+            eq(contacts.tenantId, authCtx.tenantId),
+            isNull(contacts.deletedAt),
+            sql`lower(${contacts.email}) = ANY(${attendeeEmails})`,
+          ),
+        );
+      const contactByEmail = new Map(
+        contactRows.filter((c) => c.email).map((c) => [c.email!.toLowerCase(), c]),
+      );
+      const companyIds = [
+        ...new Set(contactRows.map((c) => c.companyId).filter((x): x is string => !!x)),
+      ];
+      const companyById = new Map<string, { id: string; name: string; domain: string | null }>();
+      if (companyIds.length > 0) {
+        const comps = await db
+          .select({ id: companies.id, name: companies.name, domain: companies.domain })
+          .from(companies)
+          .where(and(eq(companies.tenantId, authCtx.tenantId), sql`${companies.id} = ANY(${companyIds})`));
+        for (const c of comps) companyById.set(c.id, c);
+      }
+      for (const m of enriched) {
+        const matched = m.attendees
+          .map((a) => contactByEmail.get(a.email?.toLowerCase() ?? ""))
+          .filter((c): c is NonNullable<typeof c> => !!c);
+        m.matchedContacts = matched.map((c) => ({
+          id: c.id,
+          name: [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email || "",
+          email: c.email,
+          title: c.title,
+        }));
+        const primaryCompanyId = matched.find((c) => c.companyId)?.companyId;
+        m.account = primaryCompanyId ? companyById.get(primaryCompanyId) ?? null : null;
+      }
     }
 
     // Compute next meeting countdown and conflict detection
@@ -223,10 +314,10 @@ export async function GET(req: Request) {
       meetings: enriched,
       upcoming: upcomingMeetings.length,
       past: enriched.filter((m) => m.isPast).length,
-      calendarConnected: hasGoogle || hasMicrosoft,
+      calendarConnected: hasGoogle || hasMicrosoft || hasCalDav,
       // M3 — so the UI can render a "Microsoft Calendar feed coming
       // soon" affordance for MS-only users instead of an empty state.
-      provider: hasGoogle ? "google" : hasMicrosoft ? "microsoft" : null,
+      provider: hasGoogle ? "google" : hasMicrosoft ? "microsoft" : hasCalDav ? "caldav" : null,
       microsoftFeedPending: !hasGoogle && hasMicrosoft,
       nextMeeting: nextMeeting ? {
         id: nextMeeting.id,

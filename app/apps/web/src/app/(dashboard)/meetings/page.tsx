@@ -1,37 +1,20 @@
 "use client";
 
-import { Calendar, FileText, ExternalLink, Clock, Users, ChevronDown, ChevronRight, Loader2, Mic, CheckCircle2, AlertCircle, Play, Upload, Timer, AlertTriangle, Sun } from "lucide-react";
-import Link from "next/link";
+import { Calendar, Users, Timer, AlertTriangle, Sun, List as ListIcon, LayoutGrid, ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody } from "@/components/ui/card";
-import { ChatMarkdown } from "@/components/chat-markdown";
 import { useEffect, useState, useCallback } from "react";
-
-interface Meeting {
-  id: string;
-  calendarEventId: string;
-  title: string;
-  description: string | null;
-  startTime: string;
-  endTime: string;
-  attendees: Array<{ email: string; displayName: string | null; responseStatus: string }>;
-  location: string | null;
-  meetingLink: string | null;
-  status: string;
-  isPast: boolean;
-  isAllDay?: boolean;
-  organizer?: { email: string; displayName: string | null } | null;
-  isRecurring?: boolean;
-  hasTranscript: boolean;
-  hasNotes: boolean;
-  notes: { summary: string } | null;
-  recordingUrl: string | null;
-  activityId: string | null;
-}
+import {
+  MeetingCard,
+  CalendarView,
+  weekStartOf,
+  weekLabel,
+  type Meeting,
+} from "./_meeting-views";
 
 interface NextMeetingInfo {
   id: string;
@@ -60,6 +43,8 @@ function formatCountdown(minutesUntil: number): string {
   return remainHours > 0 ? `in ${days}d ${remainHours}h` : `in ${days}d`;
 }
 
+const WEEK_MS = 7 * 86_400_000;
+
 export default function MeetingsPage() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,12 +55,14 @@ export default function MeetingsPage() {
   const [nextMeeting, setNextMeeting] = useState<NextMeetingInfo | null>(null);
   const [conflicts, setConflicts] = useState<ConflictInfo[]>([]);
   const [countdownStr, setCountdownStr] = useState<string>("");
+  const [view, setView] = useState<"calendar" | "list">("calendar");
+  const [weekStart, setWeekStart] = useState<Date>(() => weekStartOf(new Date()));
   const router = useRouter();
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/meetings?daysBack=30&daysForward=14");
+        const res = await fetch("/api/meetings?daysBack=30&daysForward=21");
         if (res.ok) {
           const data = await res.json();
           setMeetings(data.meetings || []);
@@ -90,7 +77,6 @@ export default function MeetingsPage() {
     })();
   }, []);
 
-  // Live countdown ticker for next meeting
   useEffect(() => {
     if (!nextMeeting) {
       setCountdownStr("");
@@ -102,7 +88,7 @@ export default function MeetingsPage() {
       setCountdownStr(formatCountdown(minutesUntil));
     }
     tick();
-    const interval = setInterval(tick, 30000); // Update every 30 seconds
+    const interval = setInterval(tick, 30000);
     return () => clearInterval(interval);
   }, [nextMeeting]);
 
@@ -161,9 +147,7 @@ export default function MeetingsPage() {
   return (
     <div className="flex h-full flex-col animate-content-in">
       <PageHeader icon={<Calendar size={15} />} title="Meetings" subtitle={`${meetings.length}`}>
-        <Button variant="outline" size="sm" onClick={() => router.push("/meetings/upload")}>
-          <Upload size={13} /> Upload transcript
-        </Button>
+        {meetings.length > 0 && <ViewToggle view={view} onChange={setView} />}
       </PageHeader>
 
       <div className="flex-1 overflow-auto px-4 py-6">
@@ -171,7 +155,7 @@ export default function MeetingsPage() {
           <EmptyState
             icon={<Calendar size={24} />}
             title="Connect your calendar"
-            description="Connect Google or Microsoft Calendar so Elevay can see your meetings here and auto-join with a recording bot."
+            description="Connect Google, Microsoft, or any IMAP/CalDAV calendar (Zimbra, Infomaniak, OVH…). Elevay then shows your meetings here, links each to the right account, and its notetaker auto-joins any call with a link — so the transcript and notes land here on their own."
             actionLabel="Go to settings"
             onAction={() => router.push("/settings/mail-calendar")}
             actionVariant="outline"
@@ -179,12 +163,28 @@ export default function MeetingsPage() {
         ) : meetings.length === 0 ? (
           <EmptyState
             icon={<Calendar size={24} />}
-            title="Waiting for your next meeting"
-            description="Your calendar is connected — meetings appear here automatically. Got a past call to analyse? Upload its transcript."
-            actionLabel="Upload transcript"
-            onAction={() => router.push("/meetings/upload")}
+            title="No meetings in view"
+            description="Your calendar is connected — meetings show up here automatically. Elevay's notetaker joins any call with a link and captures the transcript and notes for you, so there's nothing to upload."
+            actionLabel="Manage calendars"
+            onAction={() => router.push("/settings/mail-calendar")}
             actionVariant="outline"
           />
+        ) : view === "calendar" ? (
+          <div className="mx-auto max-w-5xl space-y-4">
+            {/* Week navigation */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-[14px] font-semibold" style={{ color: "var(--color-text-primary)" }}>{weekLabel(weekStart)}</h2>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" onClick={() => setWeekStart(weekStartOf(new Date()))}>Today</Button>
+                <Button variant="outline" size="sm" onClick={() => setWeekStart((w) => new Date(w.getTime() - WEEK_MS))} aria-label="Previous week"><ChevronLeft size={14} /></Button>
+                <Button variant="outline" size="sm" onClick={() => setWeekStart((w) => new Date(w.getTime() + WEEK_MS))} aria-label="Next week"><ChevronRight size={14} /></Button>
+              </div>
+            </div>
+
+            {conflicts.length > 0 && <ConflictBanner conflicts={conflicts} />}
+
+            <CalendarView meetings={meetings} weekStart={weekStart} />
+          </div>
         ) : (
           <div className="mx-auto max-w-3xl space-y-8">
             {/* Next meeting countdown */}
@@ -193,7 +193,7 @@ export default function MeetingsPage() {
                 <CardBody>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg" style={{ background: "rgba(var(--color-accent-rgb, 99,102,241), 0.1)" }}>
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg" style={{ background: "var(--color-accent-soft)" }}>
                         <Timer size={18} style={{ color: "var(--color-accent)" }} />
                       </div>
                       <div>
@@ -213,17 +213,9 @@ export default function MeetingsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <p className="text-[20px] font-bold" style={{ color: "var(--color-accent)" }}>{countdownStr}</p>
-                      </div>
+                      <p className="text-[20px] font-bold" style={{ color: "var(--color-accent)" }}>{countdownStr}</p>
                       {nextMeeting.meetingLink && (
-                        <a
-                          href={nextMeeting.meetingLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="rounded-lg px-3 py-2 text-[12px] font-medium"
-                          style={{ background: "var(--color-accent)", color: "white" }}
-                        >
+                        <a href={nextMeeting.meetingLink} target="_blank" rel="noopener noreferrer" className="rounded-lg px-3 py-2 text-[12px] font-medium" style={{ background: "var(--color-accent)", color: "white" }}>
                           Join
                         </a>
                       )}
@@ -233,26 +225,12 @@ export default function MeetingsPage() {
               </Card>
             )}
 
-            {/* Scheduling conflicts */}
-            {conflicts.length > 0 && (
-              <div className="space-y-2">
-                {conflicts.map((c, i) => (
-                  <div key={i} className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
-                    <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-400" />
-                    <p className="text-[12px] text-amber-300">
-                      Scheduling conflict: <strong>{c.meetingA}</strong> and <strong>{c.meetingB}</strong> overlap by {c.overlapMinutes} minute{c.overlapMinutes !== 1 ? "s" : ""}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
+            {conflicts.length > 0 && <ConflictBanner conflicts={conflicts} />}
 
             {/* All-day events */}
             {allDayUpcoming.length > 0 && (
               <section>
-                <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
-                  All-day ({allDayUpcoming.length})
-                </h2>
+                <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>All-day ({allDayUpcoming.length})</h2>
                 <div className="space-y-1.5">
                   {allDayUpcoming.map((m) => (
                     <Card key={m.id}>
@@ -262,12 +240,7 @@ export default function MeetingsPage() {
                           <p className="text-[13px] font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{m.title}</p>
                           <p className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
                             {new Date(m.startTime).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}
-                            {m.attendees.length > 0 && (
-                              <span className="ml-2">
-                                <Users size={10} className="inline mr-0.5" />
-                                {m.attendees.length}
-                              </span>
-                            )}
+                            {m.attendees.length > 0 && (<span className="ml-2"><Users size={10} className="inline mr-0.5" />{m.attendees.length}</span>)}
                           </p>
                         </div>
                         <Badge variant="info" size="sm">All day</Badge>
@@ -278,45 +251,23 @@ export default function MeetingsPage() {
               </section>
             )}
 
-            {/* Upcoming */}
             {upcoming.length > 0 && (
               <section>
-                <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
-                  Upcoming ({upcoming.length})
-                </h2>
+                <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>Upcoming ({upcoming.length})</h2>
                 <div className="space-y-2">
                   {upcoming.map((m) => (
-                    <MeetingCard
-                      key={m.id}
-                      meeting={m}
-                      expanded={expandedMeeting === m.id}
-                      onToggle={() => setExpandedMeeting(expandedMeeting === m.id ? null : m.id)}
-                      onPrep={() => generatePrep(m.id)}
-                      prepDoc={prepDocs[m.id]}
-                      prepLoading={prepLoading[m.id]}
-                    />
+                    <MeetingCard key={m.id} meeting={m} expanded={expandedMeeting === m.id} onToggle={() => setExpandedMeeting(expandedMeeting === m.id ? null : m.id)} onPrep={() => generatePrep(m.id)} prepDoc={prepDocs[m.id]} prepLoading={prepLoading[m.id]} />
                   ))}
                 </div>
               </section>
             )}
 
-            {/* Past */}
             {past.length > 0 && (
               <section>
-                <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
-                  Past ({past.length})
-                </h2>
+                <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>Past ({past.length})</h2>
                 <div className="space-y-2">
                   {past.map((m) => (
-                    <MeetingCard
-                      key={m.id}
-                      meeting={m}
-                      expanded={expandedMeeting === m.id}
-                      onToggle={() => setExpandedMeeting(expandedMeeting === m.id ? null : m.id)}
-                      onPrep={() => generatePrep(m.id)}
-                      prepDoc={prepDocs[m.id]}
-                      prepLoading={prepLoading[m.id]}
-                    />
+                    <MeetingCard key={m.id} meeting={m} expanded={expandedMeeting === m.id} onToggle={() => setExpandedMeeting(expandedMeeting === m.id ? null : m.id)} onPrep={() => generatePrep(m.id)} prepDoc={prepDocs[m.id]} prepLoading={prepLoading[m.id]} />
                   ))}
                 </div>
               </section>
@@ -328,127 +279,38 @@ export default function MeetingsPage() {
   );
 }
 
-function MeetingCard({
-  meeting: m,
-  expanded,
-  onToggle,
-  onPrep,
-  prepDoc,
-  prepLoading,
-}: {
-  meeting: Meeting;
-  expanded: boolean;
-  onToggle: () => void;
-  onPrep: () => void;
-  prepDoc?: string;
-  prepLoading?: boolean;
-}) {
-  const date = new Date(m.startTime);
-  const endDate = new Date(m.endTime);
-  const timeStr = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const endTimeStr = endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const dateStr = date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
-  const durationMin = Math.round((endDate.getTime() - date.getTime()) / 60000);
-
+function ViewToggle({ view, onChange }: { view: "calendar" | "list"; onChange: (v: "calendar" | "list") => void }) {
+  const opts = [
+    ["calendar", LayoutGrid, "Calendar"],
+    ["list", ListIcon, "List"],
+  ] as const;
   return (
-    <Card>
-      <CardBody>
-        <button className="w-full text-left" onClick={onToggle}>
-          <div className="flex items-start justify-between">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                {expanded ? <ChevronDown size={13} style={{ color: "var(--color-text-muted)" }} /> : <ChevronRight size={13} style={{ color: "var(--color-text-muted)" }} />}
-                <p className="text-[13px] font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{m.title}</p>
-                {m.hasNotes && <Badge variant="success" size="sm">Notes</Badge>}
-                {m.hasTranscript && <Badge variant="info" size="sm">Transcript</Badge>}
-              </div>
-              <div className="flex items-center gap-3 mt-1 ml-5">
-                <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-                  {dateStr} · {timeStr}–{endTimeStr} ({durationMin}min)
-                </span>
-                {m.attendees.length > 0 && (
-                  <span className="text-[11px]" style={{ color: "var(--color-text-muted)" }}>
-                    <Users size={10} className="inline mr-0.5" />
-                    {m.attendees.length}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 ml-2 shrink-0">
-              {m.meetingLink && (
-                <a href={m.meetingLink} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
-                  className="rounded-md px-2 py-1 text-[11px] font-medium" style={{ background: "rgba(var(--color-accent-rgb, 99,102,241), 0.1)", color: "var(--color-accent)" }}>
-                  Join
-                </a>
-              )}
-              {!m.isPast && (
-                <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); onPrep(); }} loading={prepLoading}>
-                  <FileText size={11} /> Prep
-                </Button>
-              )}
-            </div>
-          </div>
-        </button>
-
-        <Link
-          href={`/meetings/${m.id}`}
-          className="mt-1 ml-5 inline-flex items-center gap-1 text-[11px] font-medium hover:underline"
-          style={{ color: "var(--color-accent)" }}
+    <div className="inline-flex rounded-lg p-0.5" style={{ border: "1px solid var(--color-border-default)", background: "var(--color-bg-card)" }}>
+      {opts.map(([v, Icon, label]) => (
+        <button
+          key={v}
+          onClick={() => onChange(v)}
+          className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition"
+          style={view === v ? { background: "var(--color-accent)", color: "white" } : { color: "var(--color-text-secondary)" }}
         >
-          View details <ChevronRight size={11} />
-        </Link>
+          <Icon size={13} /> {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
-        {expanded && (
-          <div className="mt-3 ml-5 space-y-3" style={{ borderTop: "1px solid var(--color-border-default)", paddingTop: "12px" }}>
-            {/* Attendees */}
-            {m.attendees.length > 0 && (
-              <div>
-                <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>Attendees</span>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {m.attendees.map((a) => (
-                    <span key={a.email} className="text-[11px] rounded-full px-2 py-0.5"
-                      style={{ background: "var(--color-bg-page)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border-default)" }}>
-                      {a.displayName || a.email}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* AI Notes */}
-            {m.notes?.summary && (
-              <div>
-                <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>AI Notes</span>
-                <div className="mt-1 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-                  <ChatMarkdown>{m.notes.summary}</ChatMarkdown>
-                </div>
-              </div>
-            )}
-
-            {/* Prep doc */}
-            {prepDoc && (
-              <div>
-                <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>Meeting Prep</span>
-                <div className="mt-1 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-                  <ChatMarkdown>{prepDoc}</ChatMarkdown>
-                </div>
-              </div>
-            )}
-
-            {/* Location / Link */}
-            {(m.location || m.meetingLink) && (
-              <div className="flex items-center gap-3 text-[11px]" style={{ color: "var(--color-text-muted)" }}>
-                {m.location && <span>{m.location}</span>}
-                {m.meetingLink && (
-                  <a href={m.meetingLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline" style={{ color: "var(--color-accent)" }}>
-                    <ExternalLink size={10} /> Meeting link
-                  </a>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </CardBody>
-    </Card>
+function ConflictBanner({ conflicts }: { conflicts: ConflictInfo[] }) {
+  return (
+    <div className="space-y-2">
+      {conflicts.map((c, i) => (
+        <div key={i} className="flex items-start gap-2 rounded-lg px-4 py-3" style={{ background: "var(--color-warning-soft)", border: "1px solid var(--color-warning-soft)" }}>
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" style={{ color: "var(--color-warning)" }} />
+          <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+            Scheduling conflict: <strong style={{ color: "var(--color-text-primary)" }}>{c.meetingA}</strong> and <strong style={{ color: "var(--color-text-primary)" }}>{c.meetingB}</strong> overlap by {c.overlapMinutes} minute{c.overlapMinutes !== 1 ? "s" : ""}
+          </p>
+        </div>
+      ))}
+    </div>
   );
 }
