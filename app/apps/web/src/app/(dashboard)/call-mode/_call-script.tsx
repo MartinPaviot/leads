@@ -14,16 +14,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, CalendarClock, Phone, Pencil, Sparkles, Loader2, X, Plus, Trash2 } from "lucide-react";
 import { interpolateOpener, defaultScriptFields, splitGuidance, withNoResponse, type ScriptFields } from "@/lib/call-mode/call-scripts";
+import { deriveOpeningReason, REASON_BRIDGE, type OpeningReasonInput } from "@/lib/call-mode/live-script";
 import { useToast } from "@/components/ui/toast";
 
 export function CallScriptPanel({
   contactName,
   defaultSector,
   defaultGeo,
+  reasonInput,
 }: {
   contactName?: string | null;
   defaultSector?: string | null;
   defaultGeo?: string | null;
+  /** Grounded prospect context (live signal + dossier) — drives the per-call
+   *  "reason to call" said right after the permission opener. */
+  reasonInput?: OpeningReasonInput;
 }) {
   const { toast } = useToast();
   const [sector, setSector] = useState(defaultSector ?? "");
@@ -68,6 +73,10 @@ export function CallScriptPanel({
     () => interpolateOpener(fields.opener, { name: contactName, sector, geo }),
     [fields.opener, contactName, sector, geo],
   );
+  // Per-prospect, grounded "reason to call" (Bloc 2) — recomputed per selection,
+  // never persisted (it's a live fact, not an editable template). Null when
+  // nothing is grounded, so we never put an invented reason in the rep's mouth.
+  const reason = deriveOpeningReason(reasonInput ?? {});
   const anyChecked = checked.size > 0;
   const toggle = (i: number) =>
     setChecked((prev) => {
@@ -223,6 +232,21 @@ export function CallScriptPanel({
         // ── Read mode — what to say ──
         <>
           <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-text-primary)" }}>{opener}</p>
+          {reason && (
+            <div className="rounded-md px-3 py-2" style={{ background: "var(--color-bg-hover)" }}>
+              <div className="mb-0.5 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
+                <Sparkles size={11} />
+                Raison de l&apos;appel
+                <span className="ml-auto rounded-sm px-1.5 py-px text-[9px] font-semibold normal-case tracking-normal" style={{ background: "var(--color-bg-muted)", color: "var(--color-text-tertiary)" }}>
+                  {reason.sourceLabel}
+                </span>
+              </div>
+              <p className="text-[12.5px] leading-snug" style={{ color: "var(--color-text-primary)" }}>
+                <span style={{ color: "var(--color-text-tertiary)" }}>{REASON_BRIDGE} </span>
+                {reason.fact}
+              </p>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             {view.problems.map((p, i) => (
               <button key={i} type="button" onClick={() => toggle(i)}

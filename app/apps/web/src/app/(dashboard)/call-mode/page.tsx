@@ -26,6 +26,7 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Check,
+  Plus,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -100,6 +101,18 @@ interface TranscriptChunk {
 type PoolNumber = VoiceConfig["pool"][number];
 
 const FROM_NUMBER_STORAGE_KEY = "elevay.callmode.fromNumber";
+
+// Countries we let a rep buy a local number in straight from Call Mode. Kept to
+// the francophone wedge + common targets; Twilio inventory is checked at buy.
+const BUY_COUNTRIES: Array<[code: string, label: string]> = [
+  ["FR", "France"],
+  ["CH", "Switzerland"],
+  ["BE", "Belgium"],
+  ["US", "United States"],
+  ["CA", "Canada"],
+  ["GB", "United Kingdom"],
+  ["DE", "Germany"],
+];
 
 // Map the E.164 dialing prefix to an ISO country tag for the small label
 // beside each number. Mirrors the prefixes the server-side parser knows.
@@ -555,6 +568,61 @@ export default function CallModePage() {
     [toast, fromNumberOverride],
   );
 
+  // Provision a new outbound number straight from the header picker: buy it
+  // via Twilio (POST /api/calls/numbers searches inventory + purchases), then
+  // append it to the live pool and pin it as the active caller ID — no detour
+  // through Settings or the Twilio Console. Returns ok so the picker can close.
+  const handleBuyNumber = useCallback(
+    async (countryCode: string, areaCode?: string): Promise<boolean> => {
+      try {
+        const res = await fetch("/api/calls/numbers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ countryCode, areaCode: areaCode || undefined }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const code = body?.code ?? "unknown";
+          toast(
+            code === "no_inventory"
+              ? `No Twilio number available for ${countryCode}${areaCode ? ` area ${areaCode}` : ""}. Try another area code.`
+              : code === "voice_not_configured"
+                ? "Configure Twilio in Settings → Voice first."
+                : `Couldn't buy a number (${code}).`,
+            "error",
+          );
+          return false;
+        }
+        const num = body.number as {
+          e164: string;
+          countryCode: string;
+          areaCode: string | null;
+        };
+        // Splice into the live config pool so the picker updates instantly,
+        // and flip `ready` true in case this was the first number.
+        setConfig((c) =>
+          c
+            ? {
+                ...c,
+                ready: true,
+                pool: [
+                  ...c.pool,
+                  { e164: num.e164, countryCode: num.countryCode, areaCode: num.areaCode },
+                ],
+              }
+            : c,
+        );
+        setFromNumberOverride(num.e164);
+        toast(`Number ${formatE164(num.e164)} added and selected.`, "success");
+        return true;
+      } catch {
+        toast("Failed to buy a number.", "error");
+        return false;
+      }
+    },
+    [toast],
+  );
+
   const handleDropVoicemail = useCallback(
     async (callId: string) => {
       if (voicemailDropping || voicemailDropped) return;
@@ -752,6 +820,7 @@ export default function CallModePage() {
                 value={fromNumberOverride}
                 onChange={setFromNumberOverride}
                 prospectE164={selected?.phone}
+                onBuyNumber={handleBuyNumber}
               />
             )}
             {campaign && (
@@ -1079,7 +1148,16 @@ export default function CallModePage() {
         {selected ? (
           <>
             <div className="p-3">
-              <CallScriptPanel contactName={selected.contactName} defaultSector={brain?.companyBrain?.company?.industry} />
+              <CallScriptPanel
+                contactName={selected.contactName}
+                defaultSector={brain?.companyBrain?.company?.industry}
+                reasonInput={{
+                  signalLabel: selected.latestSignal?.label,
+                  messagingAngle: brain?.cachedDossier?.recommendedApproach?.messagingAngle,
+                  hiringRole: brain?.cachedDossier?.hiringSignals?.[0]?.role,
+                  fundingLastRound: brain?.cachedDossier?.funding?.lastRound,
+                }}
+              />
             </div>
             {inCall && (
               <InCallContext selected={selected} brain={brain} coaching={coachingHistory} />

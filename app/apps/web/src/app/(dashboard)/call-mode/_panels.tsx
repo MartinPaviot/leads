@@ -319,15 +319,11 @@ export function PreCallBrief({
   onEnrich?: () => void;
   enriching?: boolean;
 }) {
-  const firstName = selected.contactName.split(" ")[0];
   const focal = brain?.focalContact;
   const deals = brain?.ownedDeals ?? [];
   const activities = brain?.directActivities ?? [];
   const dossier = brain?.cachedDossier ?? null;
   const approach = dossier?.recommendedApproach;
-  const opener =
-    approach?.openingLine?.trim() ||
-    `« Bonjour ${firstName}, j'ai 30 secondes ? »`;
 
   // Pre-call hero — the three things to know in the 5 seconds before dialing.
   // The dense dossier (score, facts, history, deals) collapses beneath it.
@@ -353,19 +349,11 @@ export function PreCallBrief({
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 p-6">
-      {/* ── Hero: the line to say, then why now / what they care about / the ask ── */}
+      {/* ── Context band: why now / what they care about / the ask. The words to
+          say (opener + grounded reason) live in the script panel on the right —
+          one source of truth, no competing accroche here. ── */}
       <div className="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
-        <div className="p-4" style={{ background: "rgba(99,102,241,.06)" }}>
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide" style={{ color: "rgb(79,70,229)" }}>
-            <MessageSquare className="h-3.5 w-3.5" />
-            Accroche à dire
-          </div>
-          <p className="mt-1.5 text-[15px] italic leading-snug text-zinc-800 dark:text-zinc-100">{opener}</p>
-        </div>
-        <div
-          className="divide-y divide-zinc-100 dark:divide-zinc-800"
-          style={{ borderTop: "1px solid var(--color-border-default)" }}
-        >
+        <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
           <HeroBullet icon={Sparkles} label="Pourquoi maintenant" value={whyNow} trend={focal?.intentTrend ?? null} />
           <HeroBullet icon={Target} label="Ce qui compte pour eux" value={whatTheyCare} />
           <HeroBullet icon={Phone} label="L'objectif de l'appel" value={theAsk} />
@@ -830,11 +818,7 @@ export function InCallContext({
   brain: ContactBrainJSON | null | undefined;
   coaching: CoachingCard[];
 }) {
-  const firstName = selected.contactName.split(" ")[0];
   const approach = brain?.cachedDossier?.recommendedApproach;
-  const opener =
-    approach?.openingLine?.trim() ||
-    `« Bonjour ${firstName}, j'ai 30 secondes ? »`;
   const angle = approach?.messagingAngle?.trim() || null;
   const whyNow = selected.latestSignal?.label ?? null;
   const champion =
@@ -846,17 +830,11 @@ export function InCallContext({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Pinned — the line to say, the angle, why now */}
+      {/* Pinned context — angle, why now, internal ally. The opener + grounded
+          reason live in the script panel above this rail (one source of truth);
+          on a live call this stays a calm context strip, not a second script. */}
+      {(angle || whyNow || championName) && (
       <div className="shrink-0 space-y-3 border-b border-zinc-200 p-4 dark:border-zinc-800">
-        <div>
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
-            <MessageSquare className="h-3.5 w-3.5" />
-            À dire maintenant
-          </div>
-          <p className="mt-1.5 rounded-lg border border-indigo-200 bg-indigo-50/60 p-3 text-sm italic leading-snug text-zinc-800 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-zinc-100">
-            {opener}
-          </p>
-        </div>
         {angle && (
           <div className="flex items-start gap-2 text-[13px]">
             <Target className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-400" />
@@ -886,6 +864,7 @@ export function InCallContext({
           </div>
         )}
       </div>
+      )}
 
       {/* Live objection coaching — stacks as the prospect pushes back */}
       <div className="flex-1 overflow-y-auto p-4">
