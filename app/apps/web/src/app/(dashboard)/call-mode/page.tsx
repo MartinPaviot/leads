@@ -920,14 +920,29 @@ export default function CallModePage() {
 
             <div className="flex-1 min-h-0">
               {softphone.kind === "connected" || softphone.kind === "ended" ? (
-                <LiveTranscript
-                  chunks={transcript}
-                  ended={softphone.kind === "ended"}
-                  connectedAtMs={
-                    softphone.kind === "connected" ? softphone.connectedAtMs : null
-                  }
-                  coaching={coachingHistory}
-                />
+                <div className="flex h-full flex-col">
+                  <div className="min-h-0 flex-1">
+                    <LiveTranscript
+                      chunks={transcript}
+                      ended={softphone.kind === "ended"}
+                      connectedAtMs={
+                        softphone.kind === "connected" ? softphone.connectedAtMs : null
+                      }
+                      coaching={coachingHistory}
+                    />
+                  </div>
+                  {/* After the call: write the follow-up + book the meeting the
+                      prospect just agreed to, without leaving the cockpit. */}
+                  {softphone.kind === "ended" && (
+                    <div className="shrink-0 border-t border-zinc-200 dark:border-zinc-800">
+                      <CallActions
+                        contactId={selected.contactId}
+                        contactName={selected.contactName}
+                        email={brain?.focalContact?.email ?? null}
+                      />
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="h-full overflow-y-auto">
                   <PreCallBrief
