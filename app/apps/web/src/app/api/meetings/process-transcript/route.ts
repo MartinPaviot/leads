@@ -13,6 +13,7 @@ import { indexTranscript } from "@/lib/coaching/index-transcript";
 import { logger } from "@/lib/observability/logger";
 import { llmCall } from "@/lib/ai/llm-call";
 import { recordCapturedActivity, getCaptureApprovalMode } from "@/lib/capture/approval";
+import { inngest } from "@/inngest/client";
 
 const meetingNotesSchema = z.object({
   summary: z.string().describe("2-3 sentence meeting summary"),
@@ -318,6 +319,25 @@ RULES:
       const graphContent = `Meeting: ${meetingTitle || "Untitled"}\nDate: ${meetingDate || new Date().toISOString()}\nParticipants: ${notes.participants.map((p: any) => p.name).join(", ")}\n\nSummary: ${notes.summary}\n\nKey Points:\n${notes.keyPoints.join("\n")}\n\nDecisions:\n${notes.decisions.join("\n")}\n\nAction Items:\n${notes.actionItems.map((a: any) => `- ${a.owner}: ${a.task}`).join("\n")}`;
       ingestEpisode(authCtx.tenantId, graphContent, "meeting", activityId || `meeting-${Date.now()}`)
         .catch((e) => console.warn("meetings/process-transcript: ingestEpisode failed (non-blocking)", e));
+    }
+
+    // POST-MEETING ONLY — the transcript only exists once the meeting is over,
+    // so this is always "ensuite", never live. Feed it into the playbook
+    // extractor + post-interaction coaching (both fan in from
+    // coaching/post-interaction; the consumers self-gate on an LLM key and
+    // load the activity by id, so a review-mode parked activity is simply a
+    // no-op until approved).
+    if (resolvedMeetingId) {
+      await inngest
+        .send({
+          name: "coaching/post-interaction",
+          data: {
+            tenantId: authCtx.tenantId,
+            activityId: resolvedMeetingId,
+            userId: authCtx.userId,
+          },
+        })
+        .catch((e) => console.warn("meetings/process-transcript: post-interaction emit failed (non-blocking)", e));
     }
 
     return Response.json({
