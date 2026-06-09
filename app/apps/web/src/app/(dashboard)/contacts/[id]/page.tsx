@@ -8,6 +8,7 @@ import { EmailComposerPanel } from "@/components/email-composer-panel";
 import type { EmailComposerDraft } from "@/components/email-composer-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
+import { ContactCalls } from "./_calls";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { DetailPageSkeleton } from "@/components/ui/skeleton";
@@ -327,6 +328,9 @@ export default function ContactDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Past calls + durable transcript viewer */}
+        <ContactCalls contactId={contactId} />
 
       </div>
 
