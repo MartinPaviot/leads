@@ -101,6 +101,48 @@ export async function selectFromNumber(
   return null;
 }
 
+/**
+ * Resolve the outbound caller ID for a call.
+ *
+ * An explicit `override` — the number the rep picked in the Call Mode header —
+ * is honoured only when it's an *active* number in this tenant's pool, so a
+ * released or cross-tenant number can never be spoofed. With no override we
+ * fall back to local-presence auto-selection.
+ *
+ * The discriminated result lets the route map the failure precisely: an
+ * `invalid_override` is the rep's stale choice (409, pick another), while
+ * `no_pool_number` means the workspace has nothing provisioned (503).
+ */
+export type ResolveFromNumber =
+  | { ok: true; e164: string }
+  | { ok: false; reason: "invalid_override" | "no_pool_number" };
+
+export async function resolveFromNumber(
+  tenantId: string,
+  prospectE164: string,
+  override?: string | null,
+): Promise<ResolveFromNumber> {
+  if (override) {
+    const [picked] = await db
+      .select({ e164: phoneNumberPool.e164 })
+      .from(phoneNumberPool)
+      .where(
+        and(
+          eq(phoneNumberPool.tenantId, tenantId),
+          eq(phoneNumberPool.e164, override),
+          eq(phoneNumberPool.active, true),
+        ),
+      )
+      .limit(1);
+    if (!picked) return { ok: false, reason: "invalid_override" };
+    return { ok: true, e164: picked.e164 };
+  }
+
+  const auto = await selectFromNumber(tenantId, prospectE164);
+  if (!auto) return { ok: false, reason: "no_pool_number" };
+  return { ok: true, e164: auto.e164 };
+}
+
 // Two-party consent regions where recording disclosure must be played
 // before any content is captured.
 //   - CH: Swiss Penal Code art. 179bis/179ter — recording a non-public

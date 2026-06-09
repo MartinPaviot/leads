@@ -24,6 +24,8 @@ import {
   Sparkles,
   Clock,
   SlidersHorizontal,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -96,9 +98,92 @@ interface TranscriptChunk {
   tsMs?: number;
 }
 
+type PoolNumber = VoiceConfig["pool"][number];
+
+const FROM_NUMBER_STORAGE_KEY = "elevay.callmode.fromNumber";
+
+// Map the E.164 dialing prefix to an ISO country tag for the small label
+// beside each number. Mirrors the prefixes the server-side parser knows.
+function countryOf(n: PoolNumber): string {
+  if (n.countryCode) return n.countryCode;
+  const d = n.e164.replace(/[^\d]/g, "");
+  if (d.startsWith("1")) return "US";
+  if (d.startsWith("33")) return "FR";
+  if (d.startsWith("44")) return "GB";
+  if (d.startsWith("41")) return "CH";
+  if (d.startsWith("32")) return "BE";
+  if (d.startsWith("49")) return "DE";
+  return "";
+}
+
+// Client-side mirror of the server's parseE164 (lib/voice/number-selector)
+// — just enough to predict which pool number local-presence would pick, so
+// the header always shows the *actual* caller ID even in Automatic mode.
+function parseProspect(e164: string): { country: string | null; area: string | null } {
+  if (!e164.startsWith("+")) return { country: null, area: null };
+  const d = e164.slice(1);
+  if (d.startsWith("1") && d.length === 11) return { country: "US", area: d.slice(1, 4) };
+  if (d.startsWith("33") && d.length === 11) return { country: "FR", area: d.slice(2, 3) };
+  if (d.startsWith("44")) return { country: "GB", area: null };
+  if (d.startsWith("32")) return { country: "BE", area: null };
+  if (d.startsWith("41")) return { country: "CH", area: null };
+  if (d.startsWith("49")) return { country: "DE", area: null };
+  return { country: null, area: null };
+}
+
+// Predict the local-presence pick for a prospect, mirroring selectFromNumber's
+// preference order: exact country+area, then same country, then any number.
+function autoPick(pool: PoolNumber[], prospectE164: string | null | undefined): PoolNumber | null {
+  if (pool.length === 0) return null;
+  if (!prospectE164) return pool[0];
+  const { country, area } = parseProspect(prospectE164);
+  if (country && area) {
+    const exact = pool.find((p) => p.countryCode === country && p.areaCode === area);
+    if (exact) return exact;
+  }
+  if (country) {
+    const same = pool.find((p) => p.countryCode === country);
+    if (same) return same;
+  }
+  return pool[0];
+}
+
+// Light, country-aware grouping purely for readability — never alters the
+// E.164 value we send to the API.
+function formatE164(e164: string): string {
+  const m = e164.match(/^\+(\d+)$/);
+  if (!m) return e164;
+  const d = m[1];
+  // FR: +33 6 38 34 52 31
+  if (d.startsWith("33") && d.length === 11) {
+    const r = d.slice(2);
+    return `+33 ${r[0]} ${r.slice(1, 3)} ${r.slice(3, 5)} ${r.slice(5, 7)} ${r.slice(7, 9)}`;
+  }
+  // US/CA: +1 (415) 555-0123
+  if (d.startsWith("1") && d.length === 11) {
+    const r = d.slice(1);
+    return `+1 (${r.slice(0, 3)}) ${r.slice(3, 6)}-${r.slice(6)}`;
+  }
+  // CH: +41 22 555 55 55
+  if (d.startsWith("41") && d.length === 11) {
+    const r = d.slice(2);
+    return `+41 ${r.slice(0, 2)} ${r.slice(2, 5)} ${r.slice(5, 7)} ${r.slice(7)}`;
+  }
+  return e164;
+}
+
 export default function CallModePage() {
   const { toast } = useToast();
   const [config, setConfig] = useState<VoiceConfig | null>(null);
+  // Outbound number the rep chose in the header. `null` = automatic
+  // local-presence selection (the default). Persisted so a rep who always
+  // dials from one number doesn't re-pick every session.
+  const [fromNumberOverride, setFromNumberOverride] = useState<string | null>(
+    () => {
+      if (typeof window === "undefined") return null;
+      return window.localStorage.getItem(FROM_NUMBER_STORAGE_KEY) || null;
+    },
+  );
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [filter, setFilter] = useState<"all" | "high_intent" | "trial_expiring" | "reply_received">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -219,6 +304,22 @@ export default function CallModePage() {
     };
   }, [selectedId]);
 
+  // Persist the rep's number choice and self-heal a stale one: if the
+  // saved number is no longer in the active pool (released in Settings),
+  // fall back to automatic selection rather than 409 on the next dial.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (fromNumberOverride === null) {
+      window.localStorage.removeItem(FROM_NUMBER_STORAGE_KEY);
+      return;
+    }
+    if (config && !config.pool.some((p) => p.e164 === fromNumberOverride)) {
+      setFromNumberOverride(null);
+      return;
+    }
+    window.localStorage.setItem(FROM_NUMBER_STORAGE_KEY, fromNumberOverride);
+  }, [fromNumberOverride, config]);
+
   const selected = useMemo(
     () => queue.find((q) => q.contactId === selectedId) ?? null,
     [queue, selectedId],
@@ -286,7 +387,10 @@ export default function CallModePage() {
         const res = await fetch("/api/calls/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contactId }),
+          body: JSON.stringify({
+            contactId,
+            fromNumber: fromNumberOverride ?? undefined,
+          }),
         });
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
@@ -302,7 +406,9 @@ export default function CallModePage() {
                     ? "Monthly cap reached. See Settings → Voice."
                     : code === "no_pool_number"
                       ? "No outbound number provisioned. Buy one in Settings → Voice."
-                      : `Failed to start call (${code}).`,
+                      : code === "invalid_from_number"
+                        ? "That outbound number is no longer active. Pick another in the header."
+                        : `Failed to start call (${code}).`,
             "error",
           );
           setSoftphone({ kind: "idle" });
@@ -447,7 +553,7 @@ export default function CallModePage() {
         setSoftphone({ kind: "idle" });
       }
     },
-    [toast],
+    [toast, fromNumberOverride],
   );
 
   const handleDropVoicemail = useCallback(
@@ -639,10 +745,22 @@ export default function CallModePage() {
     <CallModeShell
       subtitle={campaign ? `Goal: ${campaign.name} - ${campaign.dailyQuota} calls/day, retry up to ${campaign.maxAttempts}x over ${campaign.windowDays}d` : undefined}
       headerAction={
-        campaign && !inCall ? (
-          <Button variant="outline" size="sm" onClick={() => setEditingPlan(true)}>
-            <SlidersHorizontal size={14} /> Edit plan
-          </Button>
+        !inCall ? (
+          <div className="flex items-center gap-2">
+            {config && config.pool.length > 0 && (
+              <FromNumberPicker
+                pool={config.pool}
+                value={fromNumberOverride}
+                onChange={setFromNumberOverride}
+                prospectE164={selected?.phone}
+              />
+            )}
+            {campaign && (
+              <Button variant="outline" size="sm" onClick={() => setEditingPlan(true)}>
+                <SlidersHorizontal size={14} /> Edit plan
+              </Button>
+            )}
+          </div>
         ) : undefined
       }
     >
@@ -1146,6 +1264,159 @@ function SoftphoneControls(props: {
       );
     }
   }
+}
+
+/**
+ * Header control to choose the outbound caller ID. `null` means automatic
+ * local-presence selection (the server matches the prospect's country / area
+ * code); any other value pins every dial to that specific pool number.
+ *
+ * Self-contained dropdown — click-outside + Escape to dismiss, a check on the
+ * active row — styled with the app's CSS variables so it reads as part of the
+ * header, not a bolt-on.
+ */
+function FromNumberPicker(props: {
+  pool: PoolNumber[];
+  value: string | null;
+  onChange: (value: string | null) => void;
+  prospectE164?: string | null;
+}) {
+  const { pool, value, onChange, prospectE164 } = props;
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const active = value ? pool.find((p) => p.e164 === value) ?? null : null;
+  // The number actually dialed-from: the pinned choice, or the local-presence
+  // pick for this prospect. Always a real number so the caller ID is visible.
+  const effective = active ?? autoPick(pool, prospectE164);
+  const isAuto = value === null;
+
+  function pick(next: string | null) {
+    onChange(next);
+    setOpen(false);
+  }
+
+  return (
+    <div ref={ref} className="relative inline-flex">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        title="Choose the number you call from"
+        className="flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-[13px] font-medium transition-colors"
+        style={{
+          borderColor: "var(--color-border-default)",
+          color: "var(--color-text-secondary)",
+          background: "var(--color-bg-card)",
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "var(--color-bg-card)"; }}
+      >
+        <span className="text-[11px] font-normal" style={{ color: "var(--color-text-tertiary)" }}>
+          From
+        </span>
+        <Phone size={13} style={{ color: "var(--color-text-tertiary)" }} />
+        <span className="tabular-nums tracking-tight" style={{ color: "var(--color-text-primary)" }}>
+          {effective ? formatE164(effective.e164) : "No number"}
+        </span>
+        <span
+          className="rounded-sm px-1 text-[10px] font-semibold"
+          style={{ background: "var(--color-bg-muted)", color: "var(--color-text-tertiary)" }}
+        >
+          {isAuto ? "AUTO" : effective ? countryOf(effective) : ""}
+        </span>
+        <ChevronDown size={13} style={{ color: "var(--color-text-tertiary)" }} />
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 top-full z-50 mt-1 min-w-[240px] rounded-lg py-1"
+          style={{
+            background: "var(--color-bg-card)",
+            border: "1px solid var(--color-border-default)",
+            boxShadow: "var(--shadow-floating)",
+          }}
+        >
+          <FromNumberRow
+            checked={value === null}
+            primary="Automatic"
+            secondary={
+              effective && isAuto
+                ? `Local presence — ${formatE164(effective.e164)} for this prospect`
+                : "Local presence — match the prospect"
+            }
+            onClick={() => pick(null)}
+          />
+          <div className="my-1" style={{ borderTop: "1px solid var(--color-border-default)" }} />
+          {pool.map((p) => (
+            <FromNumberRow
+              key={p.e164}
+              checked={value === p.e164}
+              primary={formatE164(p.e164)}
+              secondary={[countryOf(p), p.areaCode ? `area ${p.areaCode}` : null]
+                .filter(Boolean)
+                .join(" · ")}
+              tabular
+              onClick={() => pick(p.e164)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FromNumberRow(props: {
+  checked: boolean;
+  primary: string;
+  secondary: string;
+  tabular?: boolean;
+  onClick: () => void;
+}) {
+  const { checked, primary, secondary, tabular, onClick } = props;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition-colors"
+      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+    >
+      <Check
+        size={14}
+        className={checked ? "opacity-100" : "opacity-0"}
+        style={{ color: "var(--color-accent)" }}
+      />
+      <span className="min-w-0">
+        <span
+          className={`block text-[13px] leading-tight ${tabular ? "tabular-nums tracking-tight" : ""}`}
+          style={{ color: "var(--color-text-primary)" }}
+        >
+          {primary}
+        </span>
+        {secondary && (
+          <span className="block text-[11px] leading-tight" style={{ color: "var(--color-text-tertiary)" }}>
+            {secondary}
+          </span>
+        )}
+      </span>
+    </button>
+  );
 }
 
 function CoachingCardsOverlay(props: {

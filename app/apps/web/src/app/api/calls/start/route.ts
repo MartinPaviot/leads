@@ -17,7 +17,7 @@ import { isOnDnc } from "@/lib/voice/dnc";
 import {
   parseE164,
   requiresTwoPartyConsent,
-  selectFromNumber,
+  resolveFromNumber,
 } from "@/lib/voice/number-selector";
 import { checkQuietHours, resolveTimezone } from "@/lib/voice/quiet-hours";
 import { getTenantUsage } from "@/lib/voice/usage-cap";
@@ -28,6 +28,9 @@ const startSchema = z.object({
   dealId: z.string().optional(),
   enrollmentId: z.string().optional(),
   overrideQuietHours: z.boolean().optional(),
+  // Explicit outbound number chosen by the rep in Call Mode. When absent,
+  // we fall back to local-presence auto-selection.
+  fromNumber: z.string().optional(),
 });
 
 export async function POST(req: Request) {
@@ -121,17 +124,33 @@ export async function POST(req: Request) {
       );
     }
 
-    // 5. Pick a from number from the tenant pool
-    const fromNumber = await selectFromNumber(authCtx.tenantId, contact.phone);
-    if (!fromNumber) {
-      return Response.json(
-        {
-          error: "No outbound number provisioned. Buy one in Settings → Voice.",
-          code: "no_pool_number",
-        },
-        { status: 503 },
-      );
+    // 5. Pick a from number from the tenant pool. An explicit choice from
+    // Call Mode wins as long as it's an active pool number for this tenant;
+    // otherwise fall back to local-presence auto-selection.
+    const resolved = await resolveFromNumber(
+      authCtx.tenantId,
+      contact.phone,
+      input.fromNumber,
+    );
+    if (!resolved.ok) {
+      return resolved.reason === "invalid_override"
+        ? Response.json(
+            {
+              error: "The chosen number isn't in your active pool.",
+              code: "invalid_from_number",
+            },
+            { status: 409 },
+          )
+        : Response.json(
+            {
+              error:
+                "No outbound number provisioned. Buy one in Settings → Voice.",
+              code: "no_pool_number",
+            },
+            { status: 503 },
+          );
     }
+    const fromNumber = { e164: resolved.e164 };
 
     // 6. Two-party-consent region?
     const requiresConsent = requiresTwoPartyConsent(contact.phone);
