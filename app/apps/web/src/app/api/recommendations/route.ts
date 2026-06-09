@@ -223,7 +223,7 @@ export async function GET(req: Request) {
             eq(activities.entityType, "company"),
             eq(activities.entityId, acc.id),
             sql`${activities.activityType} IN ('email_sent', 'email_received')`,
-            sql`${activities.occurredAt} >= ${fourteenDaysAgo}`,
+            sql`${activities.occurredAt} >= now() - interval '14 days'`,
             isNull(activities.deletedAt),
           ));
         if (Number(recent?.count || 0) === 0) untouched.push(acc);

@@ -74,7 +74,7 @@ export const handleAutoPipelineDraft = inngest.createFunction(
           eq(outboundEmails.tenantId, tenantId),
           eq(outboundEmails.contactId, contactId),
           eq(outboundEmails.campaignId, dealId),
-          sql`${outboundEmails.queuedAt} >= ${today}`,
+          sql`${outboundEmails.queuedAt} >= ${today.toISOString()}::timestamptz`,
         ),
       )
       .limit(1);

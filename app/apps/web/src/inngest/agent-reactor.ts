@@ -305,10 +305,12 @@ export const agentDailySweep = inngest.createFunction(
   },
   async ({ step }: { step: any }) => {
     const staleDealRows = await step.run("find-stale-deals", async () => {
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-      // Single query: open deals with no activity in 7d AND no reactor eval in 24h
+      // Single query: open deals with no activity in 7d AND no reactor eval in 24h.
+      // Window bounds use SQL interval arithmetic, NOT JS `Date` params: a bare
+      // `${dateObj}` interpolated into a sql`` template is passed to postgres-js
+      // unencoded and throws `ERR_INVALID_ARG_TYPE: Received an instance of Date`
+      // at Bind time. That made this query throw on every run, so the sweep never
+      // emitted `agent/react` events — the Up-Next feed stayed permanently empty.
       const rows = await db
         .select({ dealId: deals.id, tenantId: deals.tenantId, name: deals.name })
         .from(deals)
@@ -319,14 +321,14 @@ export const agentDailySweep = inngest.createFunction(
               SELECT 1 FROM ${activities}
               WHERE ${activities.entityType} = 'deal'
                 AND ${activities.entityId} = ${deals.id}
-                AND ${activities.occurredAt} > ${sevenDaysAgo}
+                AND ${activities.occurredAt} > now() - interval '7 days'
             )`,
             sql`NOT EXISTS (
               SELECT 1 FROM ${agentReactions}
               WHERE ${agentReactions.tenantId} = ${deals.tenantId}
                 AND ${agentReactions.entityType} = 'deal'
                 AND ${agentReactions.entityId} = ${deals.id}
-                AND ${agentReactions.createdAt} > ${oneDayAgo}
+                AND ${agentReactions.createdAt} > now() - interval '24 hours'
             )`,
           ),
         )

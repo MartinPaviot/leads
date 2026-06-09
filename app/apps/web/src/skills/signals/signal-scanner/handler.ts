@@ -76,7 +76,7 @@ export async function signalScannerHandler(
           eq(activities.entityId, company.id),
           eq(activities.entityType, "company"),
           gte(activities.occurredAt, lookbackDate),
-          sql`${activities.occurredAt} < ${midpoint}`,
+          sql`${activities.occurredAt} < ${midpoint.toISOString()}::timestamptz`,
         ));
 
       const recent = Number(recentCount?.count || 0);

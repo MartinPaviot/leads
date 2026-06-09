@@ -127,7 +127,7 @@ export async function expansionSignalSpotterHandler(
         eq(activities.entityId, company.id),
         eq(activities.entityType, "company"),
         gte(activities.occurredAt, lookbackDate),
-        sql`${activities.occurredAt} < ${midpoint}`,
+        sql`${activities.occurredAt} < ${midpoint.toISOString()}::timestamptz`,
       ));
 
     const recent = Number(recentAct?.count || 0);

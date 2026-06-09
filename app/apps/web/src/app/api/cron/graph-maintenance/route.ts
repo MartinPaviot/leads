@@ -114,10 +114,9 @@ export async function GET(req: Request) {
         totalInvalidated++;
       }
 
-      // 3. Remove orphan nodes with no edges (older than 7 days to avoid removing just-created ones)
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
+      // 3. Remove orphan nodes with no edges (older than 7 days to avoid removing just-created ones).
+      // Bound via SQL interval, not a JS Date param: a bare `${dateObj}` in a sql``
+      // template throws `ERR_INVALID_ARG_TYPE` at postgres-js Bind time.
       const orphanNodes: Array<{ id: string }> = await db.execute(sql`
         SELECT n.id FROM context_graph_nodes n
         LEFT JOIN context_graph_edges e1 ON n.id = e1.source_node_id
@@ -125,7 +124,7 @@ export async function GET(req: Request) {
         WHERE n.tenant_id = ${tenantId}
           AND e1.id IS NULL
           AND e2.id IS NULL
-          AND n.created_at < ${sevenDaysAgo}
+          AND n.created_at < now() - interval '7 days'
       `);
 
       for (const orphan of orphanNodes) {
