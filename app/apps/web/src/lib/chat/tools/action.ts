@@ -365,23 +365,10 @@ RULES:
         meetingId: z.string().describe("The meeting/activity ID"),
       }),
       execute: async (input) => {
-        const { Resend } = await import("resend");
-        if (!process.env.RESEND_API_KEY) {
-          return { error: "Email sending not configured (RESEND_API_KEY missing)" };
-        }
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        // Send AS the meeting owner (the current user) when they have a
-        // connected mailbox, so the follow-up comes from their real
-        // address rather than a generic no-reply. Falls back to the
-        // system sender. (Routing through the owner's own SMTP/Gmail
-        // transport — not Resend — is a larger change; see
-        // lib/integrations/owner-mailbox.ts.)
-        const { getOwnerMailbox } = await import("@/lib/integrations/owner-mailbox");
-        const ownerMailbox = await getOwnerMailbox(tenantId, userId);
-        const FROM_ADDRESS =
-          ownerMailbox?.emailAddress ||
-          process.env.INVITE_FROM_ADDRESS ||
-          "Elevay <no-reply@resend.dev>";
+        // Send AS the current user via their own mailbox — real SMTP for
+        // smtp_custom, else Resend with their address — with opt-out +
+        // CAN-SPAM unsubscribe handled centrally.
+        const { deliverInteractiveEmail } = await import("@/lib/emails/deliver-interactive");
 
         const [activity] = await db
           .select()
@@ -422,29 +409,46 @@ RULES:
 
         const known = (
           await db
-            .select({ email: contacts.email })
+            .select({ id: contacts.id, email: contacts.email })
             .from(contacts)
             .where(eq(contacts.tenantId, tenantId))
-        )
-          .map((r) => r.email?.toLowerCase())
-          .filter((e): e is string => !!e && attendeeEmails.has(e));
-        const toEmails = known.length > 0 ? known : Array.from(attendeeEmails);
+        ).filter(
+          (r): r is { id: string; email: string } =>
+            !!r.email && attendeeEmails.has(r.email.toLowerCase()),
+        );
+        const contactIdByEmail = new Map(known.map((r) => [r.email.toLowerCase(), r.id]));
+        const toEmails = known.length > 0 ? known.map((r) => r.email.toLowerCase()) : Array.from(attendeeEmails);
 
-        const { data, error: sendError } = await resend.emails.send({
-          from: FROM_ADDRESS,
-          to: toEmails,
-          subject: draft.subject,
-          text: draft.body,
-        });
-        if (sendError) {
-          return { error: `Send failed: ${sendError.message}` };
+        // One owner-aware send per recipient (own SMTP / Resend, opt-out + footer).
+        const sentTo: string[] = [];
+        const failures: string[] = [];
+        let lastMessageId: string | null = null;
+        for (const to of toEmails) {
+          const r = await deliverInteractiveEmail({
+            tenantId,
+            ownerAppUserId: userId,
+            to,
+            subject: draft.subject,
+            body: draft.body,
+            contactId: contactIdByEmail.get(to) ?? null,
+            source: "meeting_follow_up",
+          });
+          if (r.ok) {
+            sentTo.push(to);
+            lastMessageId = r.messageId;
+          } else {
+            failures.push(`${to}: ${r.error}`);
+          }
+        }
+        if (sentTo.length === 0) {
+          return { error: `Follow-up not sent. ${failures.join("; ")}` };
         }
 
         const nextMeta: Record<string, unknown> = {
           ...meta,
           followUpSentAt: new Date().toISOString(),
-          followUpMessageId: data?.id ?? null,
-          followUpRecipients: toEmails,
+          followUpMessageId: lastMessageId,
+          followUpRecipients: sentTo,
         };
         await db
           .update(activities)
@@ -454,8 +458,9 @@ RULES:
         return {
           sent: {
             meetingId: input.meetingId,
-            recipients: toEmails,
-            messageId: data?.id,
+            recipients: sentTo,
+            messageId: lastMessageId,
+            ...(failures.length > 0 ? { skipped: failures } : {}),
           },
         };
       },

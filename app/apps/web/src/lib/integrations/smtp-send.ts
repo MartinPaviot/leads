@@ -19,6 +19,8 @@ export interface SmtpCreds {
 
 export interface OutgoingMessage {
   to: string;
+  /** Optional CC recipients, comma-separated. */
+  cc?: string;
   subject: string;
   html?: string;
   text?: string;
@@ -64,6 +66,7 @@ export async function sendViaSmtp(
     const info = await t.sendMail({
       from,
       to: msg.to,
+      cc: msg.cc || undefined,
       subject: msg.subject,
       html: msg.html,
       text: msg.text || stripHtml(msg.html || ""),
