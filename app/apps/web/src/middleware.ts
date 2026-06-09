@@ -70,6 +70,8 @@ export default auth((req) => {
     // "/api/calls/twiml" also covers "/api/calls/twiml-fallback".)
     "/api/calls/twiml",
     "/api/calls/twiml-fallback",
+    "/api/calls/agent-twiml",
+    "/api/calls/dial-status",
     "/api/calls/recording-status",
     "/api/calls/transcription",
     "/api/inngest",
