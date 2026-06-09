@@ -367,7 +367,7 @@ export default function ChatPage() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="absolute left-2 bottom-2 flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
+            className={`absolute left-2 flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)] ${big ? "bottom-3" : "bottom-2"}`}
             style={{ color: "var(--color-text-tertiary)" }}
             title="Attach file"
           >
@@ -404,7 +404,7 @@ export default function ChatPage() {
           <button
             type="button"
             onClick={toggleVoiceInput}
-            className="absolute bottom-2 flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
+            className={`absolute flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)] ${big ? "bottom-3" : "bottom-2"}`}
             style={{ right: localInput.trim() ? 40 : 8, color: isListening ? "var(--color-error)" : "var(--color-text-tertiary)" }}
             title={isListening ? "Stop listening" : "Voice input"}
           >
@@ -416,7 +416,7 @@ export default function ChatPage() {
               variant="solid"
               size="sm"
               disabled={chat.status === "streaming"}
-              className="absolute right-2 bottom-2"
+              className={`absolute right-2 ${big ? "bottom-3" : "bottom-2"}`}
               icon={<Send size={13} />}
               style={{ borderRadius: "8px" }}
             />
