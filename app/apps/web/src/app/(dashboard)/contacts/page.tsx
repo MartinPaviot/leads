@@ -363,6 +363,35 @@ export default function ContactsPage() {
     router.push(`/contacts/merge?ids=${ids.join(",")}`);
   }
 
+  // Deep async mobile/email enrichment via FullEnrich (EU-strong, finds
+  // what the synchronous waterfall missed). Fires one bulk request;
+  // contacts update as FullEnrich posts results to /api/webhooks/fullenrich.
+  async function bulkFindMobile() {
+    const ids = Array.from(selectedRows);
+    if (ids.length === 0) return;
+    toast(`Searching mobiles for ${ids.length} contact${ids.length === 1 ? "" : "s"}…`, "info");
+    try {
+      const res = await fetch("/api/contacts/fullenrich-enrich", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactIds: ids }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast(data?.error || "FullEnrich isn't available.", "error");
+        return;
+      }
+      toast(
+        `FullEnrich is searching ${data.requested ?? ids.length} contact${(data.requested ?? ids.length) === 1 ? "" : "s"} — phones and emails appear as they're found.`,
+        "success",
+      );
+      setSelectedRows(new Set());
+    } catch (e) {
+      toast("FullEnrich request failed.", "error");
+      console.warn("contacts: fullenrich find-mobile failed", e);
+    }
+  }
+
 
   // Header column-filter config — label + kind drive the <ColumnFilter>
   // dropdowns. The filtering itself runs server-side (see fetchContacts ->
@@ -422,6 +451,7 @@ export default function ContactsPage() {
         onClear={() => setSelectedRows(new Set())}
         actions={[
           { label: "Enrich", icon: <Zap size={13} />, onClick: bulkEnrichSelected },
+          { label: "Find mobile", icon: <Phone size={13} />, onClick: bulkFindMobile },
           {
             label: "Merge",
             icon: <GitMerge size={13} />,
