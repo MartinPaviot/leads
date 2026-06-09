@@ -29,6 +29,7 @@ import {
   type CriterionOutcome,
   type EnrichmentCriterion,
 } from "@/lib/providers/company-enrichment/criteria";
+import { techdetectCompanyEnrichmentProvider } from "@/lib/providers/company-enrichment/techdetect-adapter";
 
 /** Company row shape the orchestrator reads (subset of the table). */
 export type CompanyRow = {
@@ -254,6 +255,24 @@ export async function enrichOneCompany(params: {
     { domain: company.domain ?? undefined, name: company.name },
     { tenantId },
   );
+
+  // Opt-in "Tech stack" criterion: when it was requested but the waterfall came
+  // back with no technologies (Apollo masks them), fall back to keyless website
+  // tech-detection from the real homepage. Runs ONLY on explicit opt-in AND only
+  // when the field is still empty — never scans a prospect's site unsolicited,
+  // and never when Apollo already returned a stack.
+  const wantsTech = requestedCriteria.some((c) => c.key === "technologies");
+  if (wantsTech && company.domain && waterfall.data.technologies.length === 0) {
+    const td = await techdetectCompanyEnrichmentProvider.enrich(
+      { domain: company.domain },
+      { tenantId },
+    );
+    if (td.ok && Array.isArray(td.data?.technologies) && td.data.technologies.length > 0) {
+      waterfall.data.technologies = td.data.technologies.slice(0, 20);
+      waterfall.provenance.push({ provider: "techdetect", field: "technologies", atIso: new Date().toISOString() });
+      waterfall.enriched = true;
+    }
+  }
 
   await persistEnrichment({
     tenantId,
