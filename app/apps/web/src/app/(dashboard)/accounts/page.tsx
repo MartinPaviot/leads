@@ -42,13 +42,26 @@ import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-
 import { EnrichMenu } from "@/components/ui/enrich-menu";
 import { useEnrichStream, type EnrichCellState } from "@/hooks/use-enrich-stream";
 import { ColumnPicker, type PickerCategory } from "@/components/ui/column-picker";
-import { COLUMN_CATEGORIES, DEFAULT_VISIBLE_CATEGORY_KEYS } from "@/lib/accounts/column-categories";
+import { COLUMN_CATEGORIES, DEFAULT_VISIBLE_CATEGORY_KEYS, getColumnCategory } from "@/lib/accounts/column-categories";
 
 /** Firmographic-extra category columns (founded year, tech, funding,
  * keywords) — addable via the Categories picker, filled by the same
  * enrichment criteria they map to. */
 const EXTRA_COLUMNS = COLUMN_CATEGORIES.filter((c) => c.group === "firmographic");
 const CATEGORIES_STORAGE_KEY = "accounts:visibleCategories:v1";
+
+/** Whether an account already holds a firmographic-extra criterion's
+ * value — used both to render the cell and to scope auto-fetch on add. */
+function extraHasValue(account: Account, refKey: string): boolean {
+  const p = (account.properties ?? {}) as Record<string, unknown>;
+  switch (refKey) {
+    case "foundedYear": return typeof p.founded_year === "number";
+    case "technologies": return Array.isArray(p.technologies) && p.technologies.length > 0;
+    case "funding": return typeof p.latest_funding_stage === "string" || typeof p.total_funding === "number";
+    case "keywords": return Array.isArray(p.keywords) && p.keywords.length > 0;
+    default: return false;
+  }
+}
 
 interface Account {
   id: string;
@@ -294,6 +307,7 @@ export default function AccountsPage() {
     }
   }, []);
   const toggleCategory = useCallback((key: string) => {
+    const isAdding = !visibleCategories.has(key);
     setVisibleCategories((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
@@ -305,7 +319,24 @@ export default function AccountsPage() {
       }
       return next;
     });
-  }, []);
+    // Auto-fetch on ADD: a freshly-shown column shouldn't just sit empty —
+    // pull its data via the category's known method. (Done outside the
+    // state updater so it never double-fires under StrictMode.)
+    if (!isAdding) return;
+    const cat = getColumnCategory(key);
+    if (!cat) return;
+    if (cat.kind === "enrich") {
+      const ids = accounts.filter((a) => !extraHasValue(a, cat.refKey)).map((a) => a.id);
+      if (ids.length === 0) {
+        toast(`Every loaded account already has ${cat.label}.`, "info");
+        return;
+      }
+      toast(`Fetching ${cat.label} for ${ids.length} account${ids.length === 1 ? "" : "s"}…`, "info");
+      runEnrich([cat.refKey], ids);
+    } else if (cat.kind === "signal") {
+      detectSignals();
+    }
+  }, [visibleCategories, accounts, runEnrich, detectSignals, toast]);
   const resetCategories = useCallback(() => {
     setVisibleCategories(new Set(DEFAULT_VISIBLE_CATEGORY_KEYS));
     try {
@@ -325,30 +356,21 @@ export default function AccountsPage() {
   const renderExtraCell = (account: Account, refKey: string): React.ReactNode => {
     const p = (account.properties ?? {}) as Record<string, unknown>;
     const muted = <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>;
-    let hasValue = false;
+    const hasValue = extraHasValue(account, refKey);
     let node: React.ReactNode = muted;
-    if (refKey === "foundedYear") {
-      const y = p.founded_year;
-      hasValue = typeof y === "number";
-      node = hasValue ? <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{y as number}</span> : muted;
-    } else if (refKey === "technologies") {
-      const t = Array.isArray(p.technologies) ? (p.technologies as string[]) : [];
-      hasValue = t.length > 0;
-      node = hasValue ? (
-        <div className="flex flex-wrap gap-0.5">{t.slice(0, 3).map((v, i) => <PropertyBadge key={i} value={String(v)} />)}</div>
-      ) : muted;
-    } else if (refKey === "funding") {
+    if (hasValue && refKey === "foundedYear") {
+      node = <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{p.founded_year as number}</span>;
+    } else if (hasValue && refKey === "technologies") {
+      const t = p.technologies as string[];
+      node = <div className="flex flex-wrap gap-0.5">{t.slice(0, 3).map((v, i) => <PropertyBadge key={i} value={String(v)} />)}</div>;
+    } else if (hasValue && refKey === "funding") {
       const stage = typeof p.latest_funding_stage === "string" ? p.latest_funding_stage : null;
       const total = typeof p.total_funding === "number" ? (p.total_funding as number) : null;
-      hasValue = !!stage || total != null;
       const txt = [stage, total != null ? `$${(total / 1_000_000).toFixed(total >= 1_000_000 ? 0 : 1)}M` : null].filter(Boolean).join(" · ");
-      node = hasValue ? <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{txt}</span> : muted;
-    } else if (refKey === "keywords") {
-      const k = Array.isArray(p.keywords) ? (p.keywords as string[]) : [];
-      hasValue = k.length > 0;
-      node = hasValue ? (
-        <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }} title={k.join(", ")}>{k.slice(0, 3).join(", ")}</span>
-      ) : muted;
+      node = <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{txt}</span>;
+    } else if (hasValue && refKey === "keywords") {
+      const k = p.keywords as string[];
+      node = <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }} title={k.join(", ")}>{k.slice(0, 3).join(", ")}</span>;
     }
     return renderEnrichable(account.id, refKey, hasValue, node);
   };
