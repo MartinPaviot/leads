@@ -7,7 +7,7 @@ import {
   Search, X, Building2, User, Calendar, DollarSign, Clock,
   LayoutGrid, List, SlidersHorizontal, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   ClipboardCheck, MonitorPlay, FlaskConical, FileText, Handshake, Trophy, XCircle,
-  AlertTriangle, Zap, TrendingUp, Trash2,
+  AlertTriangle, Zap, TrendingUp, Trash2, Archive, RotateCcw,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { STAGE_COLORS as STAGE_DOT_COLORS_IMPORTED, RISK_STYLES } from "@/lib/util/ui-utils";
@@ -180,6 +180,9 @@ export default function OpportunitiesPage() {
   // deals whose name literally contains the word.
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("board");
+  // Archive view: true = show only soft-deleted opportunities (table only) so
+  // they can be reviewed and restored (parity with the Accounts archive).
+  const [viewDeleted, setViewDeleted] = useState(false);
   const [showDisplayPanel, setShowDisplayPanel] = useState(false);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [displayProps, setDisplayProps] = useState<Set<DisplayPropKey>>(
@@ -222,13 +225,14 @@ export default function OpportunitiesPage() {
   const fetchDeals = useCallback(async () => {
     try {
       const params = new URLSearchParams();
+      if (viewDeleted) params.set("deleted", "true");
       if (debouncedSearch) params.set("search", debouncedSearch);
       const qs = params.toString();
       const r = await fetch(`/api/opportunities${qs ? `?${qs}` : ""}`);
       if (r.ok) { const d = await r.json(); setDeals(d.deals || []); }
     } catch (e) { console.warn("opportunities: deals fetch failed", e); }
     finally { setLoading(false); }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, viewDeleted]);
 
   const fetchAccounts = useCallback(async () => {
     try { const r = await fetch("/api/accounts?pageSize=200"); if (r.ok) { const d = await r.json(); setAccounts(d.accounts || []); } }
@@ -251,6 +255,28 @@ export default function OpportunitiesPage() {
       setForecastLoading(false);
     }
   }, []);
+
+  // Restore soft-deleted opportunities from the Archive view — clears
+  // deleted_at and brings back the activities/notes/tasks cascade-deleted with
+  // each deal (matched by the shared delete timestamp).
+  async function restoreDeals(ids: string[]) {
+    if (ids.length === 0) return;
+    try {
+      const res = await fetch("/api/opportunities/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) { toast("Couldn't restore.", "error"); return; }
+      const data = await res.json().catch(() => ({ restored: ids.length }));
+      toast(`Restored ${data.restored} opportunit${data.restored === 1 ? "y" : "ies"}.`, "success");
+      setSelectedRows(new Set());
+      await fetchDeals();
+    } catch (e) {
+      console.warn("opportunities: restore failed", e);
+      toast("Couldn't restore.", "error");
+    }
+  }
 
   useEffect(() => { fetchDeals(); }, [fetchDeals]);
   useEffect(() => { fetchAnalytics(); }, [fetchAnalytics]);
@@ -783,14 +809,18 @@ export default function OpportunitiesPage() {
       <BulkActionsBar
         count={selectedRows.size}
         onClear={() => setSelectedRows(new Set())}
-        actions={[
-          {
-            label: "Delete",
-            icon: <Trash2 size={13} />,
-            variant: "danger",
-            onClick: () => setDeleteTarget({ type: "bulk" }),
-          },
-        ]}
+        actions={viewDeleted
+          ? [
+              { label: "Restore", icon: <RotateCcw size={13} />, onClick: () => restoreDeals(Array.from(selectedRows)) },
+            ]
+          : [
+              {
+                label: "Delete",
+                icon: <Trash2 size={13} />,
+                variant: "danger",
+                onClick: () => setDeleteTarget({ type: "bulk" }),
+              },
+            ]}
       />
       {/* Header */}
       <PageHeader
@@ -798,28 +828,44 @@ export default function OpportunitiesPage() {
         title="Opportunities"
         subtitle={`${deals.length} deal${deals.length !== 1 ? "s" : ""}${totalValue > 0 ? ` \u00b7 $${totalValue.toLocaleString()} pipeline` : ""}`}
       >
-        <Button
-          variant={showForecast ? "gradient" : "outline"}
-          size="sm"
-          icon={<TrendingUp size={12} />}
-          onClick={() => {
-            const next = !showForecast;
-            setShowForecast(next);
-            if (next && !forecast) fetchForecast();
-          }}
-        >
-          Forecast {showForecast ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-        </Button>
-        {analytics && (
-          <Button variant="outline" size="sm" icon={<BarChart3 size={12} />} onClick={() => setShowAnalytics(!showAnalytics)}>
-            Analytics {showAnalytics ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-          </Button>
+        {!viewDeleted && (
+          <>
+            <Button
+              variant={showForecast ? "gradient" : "outline"}
+              size="sm"
+              icon={<TrendingUp size={12} />}
+              onClick={() => {
+                const next = !showForecast;
+                setShowForecast(next);
+                if (next && !forecast) fetchForecast();
+              }}
+            >
+              Forecast {showForecast ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+            </Button>
+            {analytics && (
+              <Button variant="outline" size="sm" icon={<BarChart3 size={12} />} onClick={() => setShowAnalytics(!showAnalytics)}>
+                Analytics {showAnalytics ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={analyzeDeals} disabled={analyzing || deals.length === 0} loading={analyzing}>
+              {analyzing ? "Analyzing..." : "Analyze Pipeline"}
+            </Button>
+            <Button variant="gradient" size="sm" icon={<Plus size={12} />} onClick={() => openCreateForStage("lead")}>
+              Create Opportunity
+            </Button>
+          </>
         )}
-        <Button variant="outline" size="sm" onClick={analyzeDeals} disabled={analyzing || deals.length === 0} loading={analyzing}>
-          {analyzing ? "Analyzing..." : "Analyze Pipeline"}
-        </Button>
-        <Button variant="gradient" size="sm" icon={<Plus size={12} />} onClick={() => openCreateForStage("lead")}>
-          Create Opportunity
+        <Button
+          variant="outline"
+          size="sm"
+          icon={viewDeleted ? <RotateCcw size={12} /> : <Archive size={12} />}
+          onClick={() => {
+            if (viewDeleted) { setViewDeleted(false); setSelectedRows(new Set()); }
+            else { setViewDeleted(true); setViewMode("table"); setSelectedRows(new Set()); setShowAnalytics(false); setShowForecast(false); }
+          }}
+          title={viewDeleted ? "Back to the active pipeline" : "Review removed opportunities and restore them"}
+        >
+          {viewDeleted ? "Back to active" : "Archive"}
         </Button>
       </PageHeader>
 
@@ -869,15 +915,17 @@ export default function OpportunitiesPage() {
           </Button>
           {showDisplayPanel && <DisplayPanel />}
         </div>
-        <div className="flex rounded-md overflow-hidden" style={{ border: "1px solid var(--color-border-default)" }}>
-          {(["board", "table"] as const).map((m) => (
-            <button key={m} onClick={() => setViewMode(m)}
-              className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium transition-colors"
-              style={{ background: viewMode === m ? "var(--color-accent)" : "transparent", color: viewMode === m ? "white" : "var(--color-text-secondary)", borderLeft: m === "table" ? "1px solid var(--color-border-default)" : "none" }}>
-              {m === "board" ? <LayoutGrid size={12} /> : <List size={12} />} {m === "board" ? "Board" : "Table"}
-            </button>
-          ))}
-        </div>
+        {!viewDeleted && (
+          <div className="flex rounded-md overflow-hidden" style={{ border: "1px solid var(--color-border-default)" }}>
+            {(["board", "table"] as const).map((m) => (
+              <button key={m} onClick={() => setViewMode(m)}
+                className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium transition-colors"
+                style={{ background: viewMode === m ? "var(--color-accent)" : "transparent", color: viewMode === m ? "white" : "var(--color-text-secondary)", borderLeft: m === "table" ? "1px solid var(--color-border-default)" : "none" }}>
+                {m === "board" ? <LayoutGrid size={12} /> : <List size={12} />} {m === "board" ? "Board" : "Table"}
+              </button>
+            ))}
+          </div>
+        )}
         {activeFilters.length > 0 && (
           <div className="flex items-center gap-1.5 ml-1">
             {activeFilters.map((f, i) => (

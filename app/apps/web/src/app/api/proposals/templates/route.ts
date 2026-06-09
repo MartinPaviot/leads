@@ -76,7 +76,7 @@ export async function POST(req: Request) {
       await db.insert(proposalTemplates).values({
         id,
         tenantId: authCtx.tenantId,
-        createdByUserId: authCtx.userId,
+        createdByUserId: authCtx.appUserId,
         name,
         sourceFormat,
         originalFileName: file.name,

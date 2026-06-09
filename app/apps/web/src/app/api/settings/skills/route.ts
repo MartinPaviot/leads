@@ -113,7 +113,7 @@ export async function POST(req: Request) {
       .insert(customSkillTemplates)
       .values({
         tenantId: authCtx.tenantId,
-        createdByUserId: authCtx.userId,
+        createdByUserId: authCtx.appUserId,
         slug: finalSlug,
         name: name.trim(),
         description: description.trim(),

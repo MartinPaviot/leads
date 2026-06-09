@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { deals, companies, users } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth/auth-utils";
-import { and, eq, gte, lte, sql, desc, asc, inArray, isNull, or, ilike } from "drizzle-orm";
+import { and, eq, gte, lte, sql, desc, asc, inArray, isNull, isNotNull, or, ilike } from "drizzle-orm";
 import { matchIndustries } from "@/lib/search/industry-match";
 import { logAudit } from "@/lib/infra/audit-log";
 import { apiError } from "@/lib/infra/api-errors";
@@ -41,7 +41,13 @@ export async function GET(req: Request) {
     const sortBy = url.searchParams.get("sortBy") || "updatedAt"; // updatedAt, value, name, createdAt
     const sortDirection = url.searchParams.get("sortDir") === "asc" ? "asc" : "desc";
 
-    const conditions = [eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)];
+    // Excludes soft-deleted deals by default; `?deleted=true` flips to the
+    // Archive view (only soft-deleted, for review + restore).
+    const showDeleted = url.searchParams.get("deleted") === "true";
+    const conditions = [
+      eq(deals.tenantId, authCtx.tenantId),
+      showDeleted ? isNotNull(deals.deletedAt) : isNull(deals.deletedAt),
+    ];
 
     // Intelligent, industry-aware search. A deal has no industry of its own,
     // but its (joined) company does — so resolve the query to the matching
