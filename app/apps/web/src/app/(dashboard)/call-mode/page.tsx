@@ -844,28 +844,30 @@ export default function CallModePage() {
       <main className="flex-1 min-w-0 flex flex-col">
         {selected ? (
           <>
-            <div className="border-b border-zinc-200 dark:border-zinc-800 px-6 py-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex min-w-0 items-center gap-3">
+            <div className="border-b border-zinc-200 dark:border-zinc-800 px-6 py-2.5">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-2.5">
                   <CompanyLogo
                     domain={selected.companyDomain}
                     name={selected.companyName ?? selected.contactName}
-                    size={40}
+                    size={36}
                   />
                   <div className="min-w-0">
-                    <h1 className="truncate text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+                    <h1 className="truncate text-[17px] font-semibold leading-tight text-zinc-900 dark:text-zinc-50">
                       {selected.contactName}
                     </h1>
-                    <p className="mt-0.5 truncate text-sm text-zinc-500 dark:text-zinc-400">
-                      {selected.title ?? "—"}
-                      {selected.companyName ? ` · ${selected.companyName}` : ""}
-                    </p>
-                    {selected.phone && (
-                      <p className="mt-1 flex items-center gap-1.5 text-[13px] font-medium text-zinc-600 dark:text-zinc-300">
-                        <Phone className="h-3.5 w-3.5 text-zinc-400" />
-                        <span className="tabular-nums tracking-tight">{selected.phone}</span>
-                      </p>
-                    )}
+                    <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[12.5px] text-zinc-500 dark:text-zinc-400">
+                      <span className="truncate">
+                        {selected.title ?? "—"}
+                        {selected.companyName ? ` · ${selected.companyName}` : ""}
+                      </span>
+                      {selected.phone && (
+                        <span className="flex shrink-0 items-center gap-1 font-medium text-zinc-600 dark:text-zinc-300">
+                          <Phone className="h-3 w-3 text-zinc-400" />
+                          <span className="tabular-nums tracking-tight">{selected.phone}</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <SoftphoneControls
