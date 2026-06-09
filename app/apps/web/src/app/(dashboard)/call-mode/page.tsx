@@ -263,13 +263,9 @@ export default function CallModePage() {
   );
 
   const filteredQueue = useMemo(() => {
-    if (filter === "all") return queue;
     if (filter === "high_intent") {
       return queue.filter((q) => q.intentScore >= 0.7);
     }
-    // Other filters are placeholders for Phase 2 chips — return the
-    // full list rather than empty so the UX is never broken when a
-    // tenant has no qualifying signal yet.
     return queue;
   }, [queue, filter]);
 
@@ -702,8 +698,6 @@ export default function CallModePage() {
               [
                 ["all", "All"],
                 ["high_intent", "High intent"],
-                ["trial_expiring", "Trial expiring"],
-                ["reply_received", "Reply received"],
               ] as const
             ).map(([k, label]) => (
               <button
