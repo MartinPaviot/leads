@@ -1334,10 +1334,18 @@ function FromNumberPicker(props: {
   value: string | null;
   onChange: (value: string | null) => void;
   prospectE164?: string | null;
+  onBuyNumber: (countryCode: string, areaCode?: string) => Promise<boolean>;
 }) {
-  const { pool, value, onChange, prospectE164 } = props;
+  const { pool, value, onChange, prospectE164, onBuyNumber } = props;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // Inline "buy a number" mini-form, revealed under the list.
+  const [adding, setAdding] = useState(false);
+  const [buyCountry, setBuyCountry] = useState<string>(
+    () => parseProspect(prospectE164 ?? "").country ?? "FR",
+  );
+  const [buyArea, setBuyArea] = useState("");
+  const [buying, setBuying] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -1364,6 +1372,22 @@ function FromNumberPicker(props: {
   function pick(next: string | null) {
     onChange(next);
     setOpen(false);
+  }
+
+  // Collapse the buy form whenever the menu closes so it reopens clean.
+  useEffect(() => {
+    if (!open) {
+      setAdding(false);
+      setBuyArea("");
+    }
+  }, [open]);
+
+  async function submitBuy() {
+    if (buying) return;
+    setBuying(true);
+    const ok = await onBuyNumber(buyCountry, buyArea.trim() || undefined);
+    setBuying(false);
+    if (ok) setOpen(false);
   }
 
   return (
@@ -1429,6 +1453,61 @@ function FromNumberPicker(props: {
               onClick={() => pick(p.e164)}
             />
           ))}
+
+          <div className="my-1" style={{ borderTop: "1px solid var(--color-border-default)" }} />
+          {!adding ? (
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[13px] transition-colors"
+              style={{ color: "var(--color-text-secondary)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              <Plus size={14} style={{ color: "var(--color-text-tertiary)" }} />
+              Add a number…
+            </button>
+          ) : (
+            <div className="px-3 py-2">
+              <div className="text-[11px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>
+                Buy a new outbound number
+              </div>
+              <div className="mt-2 flex items-center gap-1.5">
+                <select
+                  value={buyCountry}
+                  onChange={(e) => setBuyCountry(e.target.value)}
+                  disabled={buying}
+                  className="h-7 rounded-md border bg-transparent px-1.5 text-[12px]"
+                  style={{ borderColor: "var(--color-border-default)", color: "var(--color-text-primary)" }}
+                >
+                  {BUY_COUNTRIES.map(([code, label]) => (
+                    <option key={code} value={code}>{code} · {label}</option>
+                  ))}
+                </select>
+                <input
+                  value={buyArea}
+                  onChange={(e) => setBuyArea(e.target.value.replace(/[^\d]/g, ""))}
+                  placeholder="Area (opt.)"
+                  inputMode="numeric"
+                  disabled={buying}
+                  className="h-7 w-[5.5rem] rounded-md border bg-transparent px-2 text-[12px] tabular-nums"
+                  style={{ borderColor: "var(--color-border-default)", color: "var(--color-text-primary)" }}
+                />
+              </div>
+              <div className="mt-2 flex items-center justify-end gap-1.5">
+                <Button variant="ghost" size="sm" onClick={() => setAdding(false)} disabled={buying}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={() => void submitBuy()} disabled={buying} className="gap-1.5">
+                  {buying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
+                  {buying ? "Buying…" : "Buy"}
+                </Button>
+              </div>
+              <p className="mt-1.5 text-[10px] leading-snug" style={{ color: "var(--color-text-tertiary)" }}>
+                Buys a real Twilio number and adds it here automatically.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
