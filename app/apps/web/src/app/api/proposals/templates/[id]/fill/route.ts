@@ -17,7 +17,7 @@ export async function POST(req: Request, { params }: Params) {
     try {
       const result = await buildProposalFill(id, body.dealId, {
         tenantId: authCtx.tenantId,
-        userId: authCtx.userId,
+        userId: authCtx.appUserId,
       });
       return Response.json(result, { status: 201 });
     } catch (e) {

@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { setTenantId, clearTenantId } from "@/db/rls";
+import { authToAppUserId } from "@/lib/auth/user-id";
 
 export interface AuthContext {
   userId: string;
@@ -17,11 +18,22 @@ export async function getAuthContext(): Promise<AuthContext | null> {
   if (!session?.user?.id) return null;
 
   const tenantId = (session as any).tenantId as string | undefined;
-  const appUserId = (session as any).appUserId as string | undefined;
+  let appUserId = (session as any).appUserId as string | undefined;
   const role = (session as any).role as string | undefined;
 
   // Require tenant context for all data operations
   if (!tenantId) return null;
+
+  // `appUserId` is the APP `users.id` (NOT the auth-user id). New sessions
+  // always carry it (set in the jwt callback from resolveUserTenant). For a
+  // STALE token issued before that field existed, resolve it from the DB via
+  // the bridge rather than silently substituting the auth id — which would put
+  // the wrong id space into every `users.id` FK (ownerId, createdByUserId, …).
+  // The DB lookup only runs on this rare fallback path, never the common one.
+  // See lib/auth/user-id.ts for the two-id-space convention.
+  if (!appUserId) {
+    appUserId = (await authToAppUserId(session.user.id)) ?? undefined;
+  }
 
   return {
     userId: session.user.id,

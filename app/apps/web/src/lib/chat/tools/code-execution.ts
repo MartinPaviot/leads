@@ -2,7 +2,7 @@ import { z } from "zod";
 import { makeTool, type ToolContext } from "./context";
 
 export function buildCodeExecutionTools(ctx: ToolContext) {
-  const { tenantId, userId } = ctx;
+  const { tenantId, authCtx } = ctx;
 
   return {
     executeCode: makeTool({
@@ -29,7 +29,8 @@ export function buildCodeExecutionTools(ctx: ToolContext) {
 
         const result = await executeInSandbox({
           tenantId,
-          userId,
+          // codeExecutions.userId FK -> auth_user.id (AUTH id).
+          userId: authCtx.userId,
           code: input.code,
           dataQuery: input.dataQuery,
         });

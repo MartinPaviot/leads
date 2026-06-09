@@ -466,7 +466,8 @@ export function buildCreateTools(ctx: ToolContext) {
           .insert(keTable)
           .values({
             tenantId,
-            createdBy: userId,
+            // knowledgeEntries.createdBy FK -> auth_user.id (AUTH id), not the app users.id.
+            createdBy: authCtx.userId,
             scope: "workspace",
             title: input.topic.trim(),
             category: input.category ?? "custom",
