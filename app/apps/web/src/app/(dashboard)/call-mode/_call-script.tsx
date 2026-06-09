@@ -14,16 +14,52 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, CalendarClock, Phone, Pencil, Sparkles, Loader2, X, Plus, Trash2 } from "lucide-react";
 import { interpolateOpener, defaultScriptFields, splitGuidance, withNoResponse, type ScriptFields } from "@/lib/call-mode/call-scripts";
+import { deriveOpeningReason, REASON_BRIDGE, type OpeningReasonInput } from "@/lib/call-mode/live-script";
 import { useToast } from "@/components/ui/toast";
+
+// Token overlap between the prospect's trigger (detected stack + live signal)
+// and each sector enjeu — surfaces the ONE problem most relevant to THIS
+// prospect. Pure; returns -1 when nothing overlaps (keep the normal order).
+function tokenize(s: string): Set<string> {
+  return new Set(
+    s.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").split(/[^a-z0-9]+/).filter((w) => w.length > 3),
+  );
+}
+function matchProblem(problems: string[], triggerText?: string | null): number {
+  const t = (triggerText ?? "").trim();
+  if (!t || problems.length === 0) return -1;
+  const tw = tokenize(t);
+  if (tw.size === 0) return -1;
+  let best = -1;
+  let bestScore = 0;
+  problems.forEach((p, i) => {
+    const pw = tokenize(p);
+    let n = 0;
+    for (const w of pw) if (tw.has(w)) n++;
+    if (n > bestScore) {
+      bestScore = n;
+      best = i;
+    }
+  });
+  return best;
+}
 
 export function CallScriptPanel({
   contactName,
   defaultSector,
   defaultGeo,
+  reasonInput,
+  triggerText,
 }: {
   contactName?: string | null;
   defaultSector?: string | null;
   defaultGeo?: string | null;
+  /** Grounded prospect context (live signal + dossier) — drives the sayable
+   *  reason said right after the opener (voiceable triggers only). */
+  reasonInput?: OpeningReasonInput;
+  /** The prospect's trigger text (detected stack + signal) — floats the most
+   *  relevant enjeu to the top of the problem list. */
+  triggerText?: string | null;
 }) {
   const { toast } = useToast();
   const [sector, setSector] = useState(defaultSector ?? "");
@@ -68,6 +104,9 @@ export function CallScriptPanel({
     () => interpolateOpener(fields.opener, { name: contactName, sector, geo }),
     [fields.opener, contactName, sector, geo],
   );
+  // The sayable reason to call THIS prospect — said right after the permission
+  // opener (Bloc 2). Voiceable triggers only; null ⇒ absent (open on the gate).
+  const reason = deriveOpeningReason(reasonInput ?? {});
   const anyChecked = checked.size > 0;
   const toggle = (i: number) =>
     setChecked((prev) => {
@@ -121,6 +160,12 @@ export function CallScriptPanel({
 
   const view = editing && draft ? draft : fields;
   const { noResponse: viewNoResp, tips: viewTips } = splitGuidance(view.guidance);
+  // Float the enjeu most relevant to this prospect's trigger to the top.
+  const matchedIdx = useMemo(() => matchProblem(view.problems, triggerText), [view.problems, triggerText]);
+  const problemOrder = useMemo(() => {
+    const idx = view.problems.map((_, i) => i);
+    return matchedIdx < 0 ? idx : [matchedIdx, ...idx.filter((i) => i !== matchedIdx)];
+  }, [view.problems, matchedIdx]);
 
   return (
     <div
@@ -223,18 +268,42 @@ export function CallScriptPanel({
         // ── Read mode — what to say ──
         <>
           <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-text-primary)" }}>{opener}</p>
+          {reason && (
+            <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-text-primary)" }}>
+              <span style={{ color: "var(--color-text-tertiary)" }}>{REASON_BRIDGE} </span>
+              {reason.fact}
+              <span
+                className="ml-1.5 rounded-sm px-1.5 py-px align-middle text-[9px] font-semibold uppercase tracking-wide"
+                style={{ background: "var(--color-bg-hover)", color: "var(--color-text-tertiary)" }}
+                title="Source de la raison"
+              >
+                {reason.sourceLabel}
+              </span>
+            </p>
+          )}
           <div className="flex flex-col gap-1.5">
-            {view.problems.map((p, i) => (
-              <button key={i} type="button" onClick={() => toggle(i)}
-                className="flex items-start gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] transition-colors hover:bg-[var(--color-bg-hover)]"
-                style={{ color: "var(--color-text-secondary)" }}>
-                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border"
-                  style={{ borderColor: checked.has(i) ? "var(--color-accent)" : "var(--color-border-default)", background: checked.has(i) ? "var(--color-accent)" : "transparent" }}>
-                  {checked.has(i) && <Check size={11} color="#fff" />}
-                </span>
-                <span>{p}</span>
-              </button>
-            ))}
+            {problemOrder.map((i) => {
+              const p = view.problems[i];
+              const isMatch = i === matchedIdx;
+              return (
+                <button key={i} type="button" onClick={() => toggle(i)}
+                  className="flex items-start gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] transition-colors hover:bg-[var(--color-bg-hover)]"
+                  style={{ color: "var(--color-text-secondary)" }}>
+                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border"
+                    style={{ borderColor: checked.has(i) ? "var(--color-accent)" : "var(--color-border-default)", background: checked.has(i) ? "var(--color-accent)" : "transparent" }}>
+                    {checked.has(i) && <Check size={11} color="#fff" />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    {p}
+                    {isMatch && (
+                      <span className="ml-1.5 rounded-sm px-1.5 py-px align-middle text-[9px] font-semibold uppercase tracking-wide" style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
+                        Le plus pertinent
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
           </div>
           <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{view.permissionCheck}</p>
           <div className="flex items-start gap-2 rounded-md px-3 py-2 text-[12.5px]"

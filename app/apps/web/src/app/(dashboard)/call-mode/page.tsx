@@ -28,6 +28,7 @@ import {
   Check,
   Plus,
   ClipboardList,
+  MoveHorizontal,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -95,6 +96,11 @@ interface TranscriptChunk {
 type PoolNumber = VoiceConfig["pool"][number];
 
 const FROM_NUMBER_STORAGE_KEY = "elevay.callmode.fromNumber";
+// Rep-adjustable widths (px) for the cockpit columns, persisted so the layout
+// sticks across sessions. The centre brief flexes; only the left queue + right
+// script/account rails carry an explicit width.
+const COCKPIT_W_KEY = "elevay.callmode.colWidths";
+const clampPx = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 // Countries we let a rep buy a local number in straight from Call Mode. Kept to
 // the francophone wedge + common targets; Twilio inventory is checked at buy.
@@ -178,6 +184,54 @@ function formatE164(e164: string): string {
   return e164;
 }
 
+/**
+ * Draggable divider between two cockpit columns. Drag horizontally to resize the
+ * adjacent rail; a double-arrow handle appears on hover. Pointer listeners are
+ * bound once and read the latest onDelta through a ref.
+ */
+function ResizeHandle({ onDelta }: { onDelta: (dx: number) => void }) {
+  const onDeltaRef = useRef(onDelta);
+  onDeltaRef.current = onDelta;
+  const startX = useRef<number | null>(null);
+  useEffect(() => {
+    function move(e: PointerEvent) {
+      if (startX.current === null) return;
+      const dx = e.clientX - startX.current;
+      startX.current = e.clientX;
+      onDeltaRef.current(dx);
+    }
+    function up() {
+      if (startX.current === null) return;
+      startX.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+  }, []);
+  return (
+    <div
+      onPointerDown={(e) => {
+        startX.current = e.clientX;
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        e.preventDefault();
+      }}
+      className="group relative z-10 flex w-1.5 shrink-0 cursor-col-resize select-none items-center justify-center"
+      title="Glisser pour redimensionner"
+    >
+      <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-zinc-200 transition-colors group-hover:bg-indigo-400 dark:bg-zinc-800" />
+      <div className="relative flex h-7 w-4 items-center justify-center rounded border border-zinc-200 bg-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 dark:border-zinc-700 dark:bg-zinc-900">
+        <MoveHorizontal size={12} className="text-zinc-400" />
+      </div>
+    </div>
+  );
+}
+
 export default function CallModePage() {
   const { toast } = useToast();
   const [config, setConfig] = useState<VoiceConfig | null>(null);
@@ -200,6 +254,21 @@ export default function CallModePage() {
   const [voicemailDropping, setVoicemailDropping] = useState(false);
   const [voicemailDropped, setVoicemailDropped] = useState(false);
   const [enriching, setEnriching] = useState(false);
+  // Rep-adjustable column widths — drag the dividers between the queue, the
+  // brief and the script rail. The centre flexes; these two carry the width.
+  const [colW, setColW] = useState<{ left: number; right: number }>(() => {
+    if (typeof window === "undefined") return { left: 224, right: 480 };
+    try {
+      const s = JSON.parse(window.localStorage.getItem(COCKPIT_W_KEY) || "null");
+      if (s && typeof s.left === "number" && typeof s.right === "number") {
+        return { left: clampPx(s.left, 180, 420), right: clampPx(s.right, 300, 680) };
+      }
+    } catch { /* ignore malformed */ }
+    return { left: 224, right: 480 };
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") window.localStorage.setItem(COCKPIT_W_KEY, JSON.stringify(colW));
+  }, [colW]);
   // When the queue was pushed from an Accounts selection, how many
   // accounts it was scoped to — drives the filter banner.
   const [accountScope, setAccountScope] = useState<number>(0);
@@ -837,15 +906,15 @@ export default function CallModePage() {
 
       {/* ───── LEFT — Queue: full in prep, thin strip when live ───── */}
       <aside
-        className={`relative shrink-0 overflow-hidden border-r border-zinc-200 dark:border-zinc-800 transition-[width] duration-300 ease-out ${
-          inCall ? "w-16" : "w-56"
-        }`}
+        className={`relative shrink-0 overflow-hidden border-r border-zinc-200 dark:border-zinc-800 ${inCall ? "transition-[width] duration-300 ease-out" : ""}`}
+        style={{ width: inCall ? 64 : colW.left }}
       >
         {/* Full queue (prep) — fixed 320px so it slides out cleanly under the clip */}
         <div
-          className={`absolute inset-y-0 left-0 flex w-56 flex-col transition-opacity duration-200 ${
+          className={`absolute inset-y-0 left-0 flex flex-col transition-opacity duration-200 ${
             inCall ? "pointer-events-none opacity-0" : "opacity-100"
           }`}
+          style={{ width: colW.left }}
         >
         <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
@@ -995,6 +1064,10 @@ export default function CallModePage() {
         </div>
       </aside>
 
+      {!inCall && (
+        <ResizeHandle onDelta={(dx) => setColW((w) => ({ ...w, left: clampPx(w.left + dx, 180, 420) }))} />
+      )}
+
       {/* ───── CENTER — Brief + softphone (flex-1) ───── */}
       <main className="flex-1 min-w-0 flex flex-col">
         {selected ? (
@@ -1137,12 +1210,31 @@ export default function CallModePage() {
         )}
       </main>
 
+      {!inCall && (
+        <ResizeHandle onDelta={(dx) => setColW((w) => ({ ...w, right: clampPx(w.right - dx, 300, 680) }))} />
+      )}
+
       {/* ───── RIGHT — Account brain (prep) / call context (live) ───── */}
-      <aside className="w-[30rem] shrink-0 border-l border-zinc-200 dark:border-zinc-800 overflow-y-auto">
+      <aside
+        className="shrink-0 border-l border-zinc-200 dark:border-zinc-800 overflow-y-auto"
+        style={{ width: colW.right }}
+      >
         {selected ? (
           <>
             <div className="p-3">
-              <CallScriptPanel contactName={selected.contactName} defaultSector={brain?.companyBrain?.company?.industry} />
+              <CallScriptPanel
+                contactName={selected.contactName}
+                defaultSector={brain?.companyBrain?.company?.industry}
+                reasonInput={{
+                  signal: selected.latestSignal,
+                  hiringRole: brain?.cachedDossier?.hiringSignals?.[0]?.role,
+                  fundingLastRound: brain?.cachedDossier?.funding?.lastRound,
+                }}
+                triggerText={[
+                  ...(brain?.cachedDossier?.techStack ?? []),
+                  selected.latestSignal?.label,
+                ].filter(Boolean).join(" ")}
+              />
             </div>
             {inCall && (
               <InCallContext selected={selected} brain={brain} coaching={[]} />
