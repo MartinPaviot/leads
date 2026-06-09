@@ -127,7 +127,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             authorization: {
               params: {
                 scope:
-                  "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly",
+                  "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events",
                 access_type: "offline",
                 prompt: "consent",
               },
@@ -145,7 +145,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             allowDangerousEmailAccountLinking: false,
             authorization: {
               params: {
-                scope: "openid email profile offline_access Mail.Read Calendars.Read",
+                scope: "openid email profile offline_access Mail.Read Mail.Send Calendars.Read",
               },
             },
           }),
