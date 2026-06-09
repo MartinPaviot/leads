@@ -513,24 +513,30 @@ export default function CallModePage() {
           const device: any = new Device(data.capabilityToken);
           deviceRef.current = device;
           await device.register?.();
-          // The `params` carry the Elevay call id back into the TwiML
-          // webhook, which already knows about it via the query string,
-          // but we duplicate here for the conference path Phase 2 needs.
+          // The browser leg IS the agent: these params reach the App-SID
+          // voiceUrl (/api/calls/agent-twiml), which dials the prospect with
+          // our caller-id and bridges the two — the rep's mic ↔ the prospect.
           await device.connect?.({
-            params: { callId: data.callId, toNumber: data.toNumber },
+            params: {
+              callId: data.callId,
+              To: data.toNumber,
+              From: data.fromNumber,
+            },
           });
         } catch (err) {
           console.warn(
-            "call-mode: @twilio/voice-sdk load/connect failed (browser RTC unavailable). Bridge will still proceed server-side.",
+            "call-mode: @twilio/voice-sdk load/connect failed (browser mic/RTC unavailable).",
             err,
           );
-          // Server-side bridge keeps running even if the browser leg
-          // failed to attach — the prospect just hears silence. We
-          // surface a non-fatal warning toast and the user can hang up.
+          // The browser leg IS the call now — if it can't attach (no mic /
+          // permission denied), there is no call. Surface it and reset.
           toast(
-            "Browser audio unavailable — the call started server-side, hang up if needed.",
-            "info",
+            "Microphone unavailable — allow mic access to place the call.",
+            "error",
           );
+          eventSourceRef.current?.close();
+          eventSourceRef.current = null;
+          setSoftphone({ kind: "idle" });
         }
       } catch (err) {
         console.warn("call-mode: start error", err);
