@@ -35,6 +35,7 @@ import { shouldUseOwnerSmtp } from "@/lib/emails/owner-smtp-decision";
 import { checkPlanLimit } from "@/lib/billing/plan-limits";
 import { trackUsage } from "@/lib/billing/billing";
 import { logger } from "@/lib/observability/logger";
+import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FALLBACK_FROM = process.env.INVITE_FROM_ADDRESS || "Elevay <outbound@resend.dev>";
@@ -59,7 +60,7 @@ export type DeliverInteractiveResult =
   | { ok: true; messageId: string; via: "smtp" | "resend"; fromAddress: string }
   | {
       ok: false;
-      code: "opted_out" | "plan_limit" | "not_configured" | "send_failed";
+      code: "opted_out" | "plan_limit" | "not_configured" | "send_failed" | "test_mode";
       error: string;
     };
 
@@ -115,6 +116,14 @@ export async function deliverInteractiveEmail(
 ): Promise<DeliverInteractiveResult> {
   const { tenantId, to, subject, body } = input;
   const toLower = to.toLowerCase().trim();
+
+  // 0. Test-mode guardrail (defense in depth at the chokepoint). Every caller
+  // also pre-checks, but enforcing it here guarantees NO interactive send path
+  // — present or future — can reach a real prospect while OUTBOUND_TEST_MODE is
+  // on. See lib/emails/recipient-guardrail.ts.
+  if (!isRecipientAllowed(to)) {
+    return { ok: false, code: "test_mode", error: recipientBlockReason(to) };
+  }
 
   // 1. Opt-out suppression — never send to a recipient who unsubscribed.
   const [optout] = await db
