@@ -6,21 +6,27 @@
  * Why this exists: the interactive paths used to call `resend.emails.send`
  * inline, which (a) picked the tenant's FIRST mailbox, not the sender's,
  * (b) skipped the opt-out suppression list, (c) skipped the CAN-SPAM
- * unsubscribe footer, and (d) for an `smtp_custom` owner, sent via Resend
- * (spoofing their domain) instead of their own SMTP. This converges them
- * onto the owner's real mailbox:
- *   - provider "smtp_custom"  → send via the owner's own SMTP (real transport)
- *   - otherwise (OAuth read-only mailbox, or none) → Resend with the owner's
- *     address as From, falling back to the neutral system sender.
+ * unsubscribe footer, and (d) for any connected mailbox, sent via Resend
+ * (spoofing the user's domain) instead of their own account.
  *
- * Gmail/Microsoft API send is intentionally NOT here: those OAuth grants are
- * read-only (gmail.readonly / Mail.Read), so real API send needs added send
- * scopes + user re-consent — a separate product decision.
+ * Transport, in order — the owner's REAL account first, Resend as the floor:
+ *   - provider "smtp_custom"           → the owner's own SMTP
+ *   - Google grant w/ gmail.send scope → the owner's Gmail (API)
+ *   - Microsoft grant w/ Mail.Send     → the owner's Outlook (Graph)
+ *   - otherwise                        → Resend, From the owner's address
+ *
+ * The OAuth paths are SCOPE-GATED on the stored grant (auth_account.scope),
+ * so users who connected before send scopes were requested keep sending via
+ * Resend — no failed sends — until they reconnect. An OAuth send that fails
+ * on a stale/insufficient token flags needs_reauth (surfacing the existing
+ * "Reconnect" CTA) and falls back to Resend so the message still goes out.
  */
 
 import { db } from "@/db";
 import {
   activities,
+  authAccounts,
+  authUsers,
   connectedMailboxes,
   emailOptouts,
   outboundEmails,
@@ -30,8 +36,12 @@ import { Resend } from "resend";
 import { appToAuthUserId } from "@/lib/auth/user-id";
 import { decryptSecret } from "@/lib/crypto/settings-encryption";
 import { sendViaSmtp } from "@/lib/integrations/smtp-send";
+import { sendViaGmail } from "@/lib/integrations/gmail";
+import { sendViaGraph } from "@/lib/integrations/outlook";
 import { buildUnsubscribeUrl } from "@/lib/emails/unsubscribe-token";
 import { shouldUseOwnerSmtp } from "@/lib/emails/owner-smtp-decision";
+import { scopeAllowsGoogleSend, scopeAllowsMicrosoftSend } from "@/lib/emails/oauth-send-scope";
+import { markNeedsReauth } from "@/lib/integrations/sync-health";
 import { checkPlanLimit } from "@/lib/billing/plan-limits";
 import { trackUsage } from "@/lib/billing/billing";
 import { logger } from "@/lib/observability/logger";
@@ -39,10 +49,12 @@ import { logger } from "@/lib/observability/logger";
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FALLBACK_FROM = process.env.INVITE_FROM_ADDRESS || "Elevay <outbound@resend.dev>";
 
+export type SendTransport = "smtp" | "gmail" | "graph" | "resend";
+
 export interface DeliverInteractiveInput {
   tenantId: string;
   /** The sending user (APP users.id, i.e. authCtx.appUserId). Their connected
-   *  mailbox is used as the sender when present. */
+   *  mailbox / OAuth grant is used as the sender when present. */
   ownerAppUserId: string | null | undefined;
   to: string;
   cc?: string[];
@@ -56,7 +68,7 @@ export interface DeliverInteractiveInput {
 }
 
 export type DeliverInteractiveResult =
-  | { ok: true; messageId: string; via: "smtp" | "resend"; fromAddress: string }
+  | { ok: true; messageId: string; via: SendTransport; fromAddress: string }
   | {
       ok: false;
       code: "opted_out" | "plan_limit" | "not_configured" | "send_failed";
@@ -64,21 +76,17 @@ export type DeliverInteractiveResult =
     };
 
 interface OwnerMailbox {
-  id: string;
   emailAddress: string;
   displayName: string | null;
   provider: string;
   smtpHost: string | null;
   smtpPort: number | null;
   secretEncrypted: string | null;
+  id: string;
 }
 
-async function resolveOwnerMailbox(
-  tenantId: string,
-  ownerAppUserId: string | null | undefined,
-): Promise<OwnerMailbox | null> {
-  const authUserId = await appToAuthUserId(ownerAppUserId);
-  if (!authUserId) return null;
+/** The owner's active connected mailbox (smtp creds + from-address), if any. */
+async function loadOwnerMailbox(tenantId: string, authUserId: string): Promise<OwnerMailbox | null> {
   const [mb] = await db
     .select({
       id: connectedMailboxes.id,
@@ -99,6 +107,22 @@ async function resolveOwnerMailbox(
     )
     .limit(1);
   return mb ?? null;
+}
+
+/** The owner's OAuth grant that's allowed to SEND, if any (scope-gated). */
+async function loadOwnerOAuthSend(
+  authUserId: string,
+): Promise<{ provider: "google" | "microsoft-entra-id" } | null> {
+  const accounts = await db
+    .select({ provider: authAccounts.provider, scope: authAccounts.scope })
+    .from(authAccounts)
+    .where(eq(authAccounts.userId, authUserId));
+  for (const a of accounts) {
+    if (a.provider === "google" && scopeAllowsGoogleSend(a.scope)) return { provider: "google" };
+    if (a.provider === "microsoft-entra-id" && scopeAllowsMicrosoftSend(a.scope))
+      return { provider: "microsoft-entra-id" };
+  }
+  return null;
 }
 
 /** Append the CAN-SPAM unsubscribe footer (plain text) to a body. */
@@ -136,26 +160,52 @@ export async function deliverInteractiveEmail(
     };
   }
 
-  // 3. Resolve the sender's own mailbox.
-  const mailbox = await resolveOwnerMailbox(tenantId, input.ownerAppUserId);
+  // 3. Resolve the sender identity: their auth-user id (bridges the
+  //    connected-mailbox + OAuth-account owner space), connected mailbox,
+  //    and OAuth send grant.
+  const authUserId = await appToAuthUserId(input.ownerAppUserId);
+  const mailbox = authUserId ? await loadOwnerMailbox(tenantId, authUserId) : null;
+  const oauth = authUserId ? await loadOwnerOAuthSend(authUserId) : null;
+
+  // From-address (for Resend + the outbound record). For Gmail/Graph the API
+  // sends AS the authenticated user, so this is only the recorded sender.
+  let ownerEmail: string | null = mailbox?.emailAddress ?? null;
+  if (!ownerEmail && oauth && authUserId) {
+    const [u] = await db.select({ email: authUsers.email }).from(authUsers).where(eq(authUsers.id, authUserId)).limit(1);
+    ownerEmail = u?.email ?? null;
+  }
+  const fromAddress = mailbox?.emailAddress
+    ? mailbox.displayName
+      ? `${mailbox.displayName} <${mailbox.emailAddress}>`
+      : mailbox.emailAddress
+    : ownerEmail || FALLBACK_FROM;
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.elevay.dev";
   const unsubUrl = buildUnsubscribeUrl(appUrl, tenantId, to);
   const text = withFooter(body, unsubUrl);
 
-  const useSmtp = shouldUseOwnerSmtp(mailbox);
-  const fromAddress =
-    mailbox && mailbox.emailAddress
-      ? mailbox.displayName
-        ? `${mailbox.displayName} <${mailbox.emailAddress}>`
-        : mailbox.emailAddress
-      : FALLBACK_FROM;
+  // Resend send — the floor, used directly and as the OAuth fallback.
+  async function sendViaResendNow(): Promise<
+    { ok: true; messageId: string } | { ok: false; code: "not_configured" | "send_failed"; error: string }
+  > {
+    if (!resend) return { ok: false, code: "not_configured", error: "Email sending is not configured." };
+    const { data, error } = await resend.emails.send({
+      from: fromAddress,
+      to: [to],
+      cc: input.cc && input.cc.length > 0 ? input.cc : undefined,
+      subject,
+      text,
+      headers: { "List-Unsubscribe": `<${unsubUrl}>` },
+    });
+    if (error) return { ok: false, code: "send_failed", error: error.message };
+    return { ok: true, messageId: data?.id || crypto.randomUUID() };
+  }
 
-  // 4. Send via the right transport.
+  // 4. Send via the right transport (owner's real account first).
   let messageId: string;
-  let via: "smtp" | "resend";
+  let via: SendTransport;
   try {
-    if (useSmtp && mailbox) {
+    if (shouldUseOwnerSmtp(mailbox) && mailbox) {
       const password = decryptSecret(mailbox.secretEncrypted!);
       const res = await sendViaSmtp(
         {
@@ -169,20 +219,32 @@ export async function deliverInteractiveEmail(
       );
       messageId = res.messageId;
       via = "smtp";
-    } else {
-      if (!resend) {
-        return { ok: false, code: "not_configured", error: "Email sending is not configured." };
+    } else if (oauth && authUserId) {
+      try {
+        const r =
+          oauth.provider === "google"
+            ? await sendViaGmail(authUserId, { to, cc: input.cc, subject, text })
+            : await sendViaGraph(authUserId, { to, cc: input.cc, subject, text });
+        messageId = r.messageId;
+        via = oauth.provider === "google" ? "gmail" : "graph";
+      } catch (err) {
+        // Stale/insufficient token — flag for reconnect, then fall back to
+        // Resend so the message still goes out.
+        const msg = err instanceof Error ? err.message : String(err);
+        await markNeedsReauth(tenantId, authUserId, oauth.provider, msg).catch(() => {});
+        logger.warn?.("deliver-interactive: OAuth send failed, falling back to Resend", {
+          provider: oauth.provider,
+          err: msg,
+        });
+        const fb = await sendViaResendNow();
+        if (!fb.ok) return fb;
+        messageId = fb.messageId;
+        via = "resend";
       }
-      const { data, error } = await resend.emails.send({
-        from: fromAddress,
-        to: [to],
-        cc: input.cc && input.cc.length > 0 ? input.cc : undefined,
-        subject,
-        text,
-        headers: { "List-Unsubscribe": `<${unsubUrl}>` },
-      });
-      if (error) return { ok: false, code: "send_failed", error: error.message };
-      messageId = data?.id || crypto.randomUUID();
+    } else {
+      const r = await sendViaResendNow();
+      if (!r.ok) return r;
+      messageId = r.messageId;
       via = "resend";
     }
   } catch (err) {
