@@ -57,6 +57,13 @@ const STATUS_LABEL: Record<string, string> = {
   failed: "Unreadable",
 };
 
+interface DealOption {
+  id: string;
+  name: string;
+  companyName: string | null;
+  stage: string | null;
+}
+
 export default function ProposalsPage() {
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [selected, setSelected] = useState<TemplateDetail | null>(null);
@@ -65,6 +72,13 @@ export default function ProposalsPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [dealId, setDealId] = useState("");
+  // Deal picker — replaces the raw "type a UUID" dead-end. Searches the
+  // deals list API; selecting a deal sets dealId for the fill call.
+  const [dealQuery, setDealQuery] = useState("");
+  const [dealResults, setDealResults] = useState<DealOption[]>([]);
+  const [dealSearching, setDealSearching] = useState(false);
+  const [dealMenuOpen, setDealMenuOpen] = useState(false);
+  const [selectedDealLabel, setSelectedDealLabel] = useState("");
   const [filling, setFilling] = useState(false);
   const [filled, setFilled] = useState<{
     proposalId: string;
@@ -99,7 +113,38 @@ export default function ProposalsPage() {
     setFilled(null);
     setEdits({});
     setDealId("");
+    setSelectedDealLabel("");
+    setDealQuery("");
+    setDealMenuOpen(false);
   }, []);
+
+  // Search deals as the user types in the picker (debounced). Empty query
+  // returns the most recent deals so the menu is never blank on open.
+  useEffect(() => {
+    if (!dealMenuOpen) return;
+    const q = dealQuery.trim();
+    let cancelled = false;
+    setDealSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/opportunities?pageSize=20${q ? `&search=${encodeURIComponent(q)}` : ""}`,
+        );
+        if (res.ok) {
+          const d = (await res.json()) as { items?: DealOption[]; deals?: DealOption[] };
+          if (!cancelled) setDealResults(d.items ?? d.deals ?? []);
+        }
+      } catch {
+        /* transient — leave prior results */
+      } finally {
+        if (!cancelled) setDealSearching(false);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [dealQuery, dealMenuOpen]);
 
   async function onUpload(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -469,13 +514,59 @@ export default function ProposalsPage() {
                     Draft from a deal
                   </div>
                   <div className="flex items-center gap-2">
-                    <input
-                      value={dealId}
-                      onChange={(e) => setDealId(e.target.value)}
-                      placeholder="Deal id"
-                      className="rounded border px-2 py-1 text-[13px]"
-                      style={{ borderColor: "var(--color-border-default)", background: "transparent", color: "var(--color-text-primary)" }}
-                    />
+                    <div className="relative">
+                      <input
+                        value={selectedDealLabel || dealQuery}
+                        onChange={(e) => {
+                          setDealQuery(e.target.value);
+                          setSelectedDealLabel("");
+                          setDealId("");
+                          setDealMenuOpen(true);
+                        }}
+                        onFocus={() => setDealMenuOpen(true)}
+                        placeholder="Search a deal by name or company"
+                        className="w-64 rounded border px-2 py-1 text-[13px]"
+                        style={{ borderColor: "var(--color-border-default)", background: "transparent", color: "var(--color-text-primary)" }}
+                      />
+                      {dealMenuOpen && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setDealMenuOpen(false)} />
+                          <div
+                            className="absolute left-0 top-full z-20 mt-1 max-h-64 w-80 overflow-y-auto rounded-md border py-1 shadow-lg"
+                            style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
+                          >
+                            {dealSearching && (
+                              <div className="px-3 py-2 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                                Searching…
+                              </div>
+                            )}
+                            {!dealSearching && dealResults.length === 0 && (
+                              <div className="px-3 py-2 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                                {dealQuery.trim() ? "No matching deals." : "No deals yet."}
+                              </div>
+                            )}
+                            {dealResults.map((d) => (
+                              <button
+                                key={d.id}
+                                onClick={() => {
+                                  setDealId(d.id);
+                                  setSelectedDealLabel(d.companyName ? `${d.name} · ${d.companyName}` : d.name);
+                                  setDealMenuOpen(false);
+                                }}
+                                className="block w-full px-3 py-1.5 text-left text-[13px]"
+                                style={{ color: "var(--color-text-primary)" }}
+                              >
+                                <span className="font-medium">{d.name}</span>
+                                <span className="ml-1 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                                  {d.companyName ? `· ${d.companyName} ` : ""}
+                                  {d.stage ? `· ${d.stage}` : ""}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
                     <button
                       onClick={() => void runFill()}
                       disabled={filling || !dealId.trim()}

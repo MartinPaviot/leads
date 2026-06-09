@@ -1,4 +1,4 @@
-import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -48,8 +48,10 @@ export async function PUT(req: Request) {
   const authCtx = await getAuthContext();
   if (!authCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const adminCheck = requireAdmin(authCtx);
-  if (adminCheck) return adminCheck;
+  // ICP is a workspace-level setting any team member configures (it drives
+  // scoring / targeting / coaching) — not an admin-only surface. The
+  // previous requireAdmin gate made non-admins fill the whole form then hit
+  // a silent 403 "Failed to save". Removed.
 
   try {
     const body = await req.json();

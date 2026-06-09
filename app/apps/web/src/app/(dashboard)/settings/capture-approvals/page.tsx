@@ -35,13 +35,18 @@ export default function CaptureApprovalsPage() {
   const [list, setList] = useState<Approval[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const [mode, setMode] = useState<"auto" | "review">("auto");
+  const [modeSaving, setModeSaving] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/capture-approvals");
-      if (res.ok) setList((await res.json()).approvals ?? []);
-      else toast("Failed to load approvals", "error");
+      if (res.ok) {
+        const data = await res.json();
+        setList(data.approvals ?? []);
+        if (data.mode === "review" || data.mode === "auto") setMode(data.mode);
+      } else toast("Failed to load approvals", "error");
     } catch {
       toast("Failed to load approvals", "error");
     } finally {
@@ -52,6 +57,39 @@ export default function CaptureApprovalsPage() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  const changeMode = useCallback(
+    async (next: "auto" | "review") => {
+      if (next === mode || modeSaving) return;
+      setModeSaving(true);
+      const prev = mode;
+      setMode(next); // optimistic
+      try {
+        const res = await fetch("/api/capture-approvals", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: next }),
+        });
+        if (!res.ok) {
+          setMode(prev);
+          toast("Couldn't change capture mode", "error");
+        } else {
+          toast(
+            next === "review"
+              ? "Review mode on — new captures wait here for approval."
+              : "Auto mode on — captures enter the CRM directly.",
+            "success",
+          );
+        }
+      } catch {
+        setMode(prev);
+        toast("Couldn't change capture mode", "error");
+      } finally {
+        setModeSaving(false);
+      }
+    },
+    [mode, modeSaving, toast],
+  );
 
   const act = useCallback(
     async (id: string, action: "approve" | "reject") => {
@@ -86,8 +124,51 @@ export default function CaptureApprovalsPage() {
     <div>
       <SettingsHeader
         title="Capture approvals"
-        subtitle="Review interactions captured from email, meetings and calls before they enter the CRM. Enable this by setting the workspace capture mode to review."
+        subtitle="Review interactions captured from email, meetings and calls before they enter the CRM."
       />
+
+      {/* Capture-mode control — the toggle that was missing. In review mode
+          every new auto-capture parks here for approval; in auto mode they
+          enter the CRM directly. */}
+      <div
+        className="mb-5 flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
+        style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
+      >
+        <div className="min-w-0">
+          <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+            Capture mode
+          </p>
+          <p className="mt-0.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+            {mode === "review"
+              ? "New captures wait here for your approval before entering the CRM."
+              : "New captures enter the CRM automatically."}
+          </p>
+        </div>
+        <div
+          className="inline-flex shrink-0 rounded-md p-0.5"
+          style={{ background: "var(--color-bg-hover)", border: "1px solid var(--color-border-default)" }}
+        >
+          {(["auto", "review"] as const).map((m) => {
+            const active = mode === m;
+            return (
+              <button
+                key={m}
+                onClick={() => changeMode(m)}
+                disabled={modeSaving}
+                className="rounded px-3 py-1 text-[12px] font-medium capitalize transition-colors"
+                style={{
+                  background: active ? "var(--color-accent)" : "transparent",
+                  color: active ? "#fff" : "var(--color-text-secondary)",
+                  opacity: modeSaving ? 0.6 : 1,
+                }}
+              >
+                {m}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div>
         {loading && list.length === 0 && (
           <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>Loading…</p>
@@ -96,7 +177,9 @@ export default function CaptureApprovalsPage() {
           <div className="flex flex-col items-center gap-2 rounded border p-8 text-center" style={{ borderColor: "var(--color-border-default)" }}>
             <Inbox size={20} style={{ color: "var(--color-text-tertiary)" }} />
             <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-              Nothing waiting for review. Captured interactions appear here only when the workspace capture mode is set to review.
+              {mode === "review"
+                ? "Nothing waiting for review. New captures from email, meetings and calls will appear here."
+                : "Capture mode is Auto, so captures go straight to the CRM. Switch to Review above to queue them here first."}
             </p>
           </div>
         )}

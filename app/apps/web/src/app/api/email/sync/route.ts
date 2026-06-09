@@ -1,18 +1,28 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { activities, contacts, companies, users, tenants } from "@/db/schema";
+import { activities, contacts, companies, users, tenants, connectedMailboxes, authAccounts } from "@/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { fetchRecentEmails } from "@/lib/integrations/gmail";
 import { ingestEpisode } from "@/lib/ai/context-graph";
 import { embedEntity } from "@/lib/ai/embeddings";
 import { getTenantSettings, backsyncRangeToDays, buildIgnoredDomains, shouldAutoCreateContact } from "@/lib/config/tenant-settings";
 import { recordCapturedActivity, getCaptureApprovalMode } from "@/lib/capture/approval";
+import { inngest } from "@/inngest/client";
 
 export async function POST() {
   const authCtx = await getAuthContext();
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // "Force sync now" used to run ONLY the inline Gmail path below, so an
+  // IMAP/SMTP ("Other provider") or Microsoft mailbox — the page's headline
+  // feature for self-hosted mail — silently did nothing and the user got a
+  // misleading "not connected". Dispatch the real sync worker (the same
+  // `email/sync-requested` handler the 15-min cron uses) for every non-Gmail
+  // mailbox the user owns; the inline Gmail block still runs synchronously so
+  // the common Google case can report real counts in the toast.
+  let dispatched = 0;
 
   try {
     // Look up user email for direction detection
@@ -25,6 +35,62 @@ export async function POST() {
     const ignoredDomains = buildIgnoredDomains(settings, ownDomain);
     const creationMode = settings.contactCreationMode || "selective";
     const daysBack = backsyncRangeToDays(settings.backsyncRange);
+
+    // ── Non-Gmail mailboxes → dispatch the Inngest sync worker ──────────
+    // IMAP/SMTP mailboxes (provider "smtp_custom") are polled by mailboxId;
+    // Microsoft mailboxes by the OAuth identity. Both run through the exact
+    // same handler the cron uses, so force-sync is now provider-complete.
+    const customMailboxes = await db
+      .select({ id: connectedMailboxes.id })
+      .from(connectedMailboxes)
+      .where(
+        and(
+          eq(connectedMailboxes.tenantId, authCtx.tenantId),
+          eq(connectedMailboxes.userId, authCtx.userId),
+          eq(connectedMailboxes.provider, "smtp_custom"),
+        ),
+      );
+    for (const mb of customMailboxes) {
+      await inngest
+        .send({
+          name: "email/sync-requested",
+          data: {
+            userId: authCtx.userId,
+            tenantId: authCtx.tenantId,
+            appUserId: authCtx.appUserId,
+            daysBack,
+            provider: "smtp_custom",
+            mailboxId: mb.id,
+          },
+        })
+        .then(() => { dispatched++; })
+        .catch((e) => console.warn("force-sync: IMAP dispatch failed (non-blocking)", e));
+    }
+
+    const msAccounts = await db
+      .select({ providerAccountId: authAccounts.providerAccountId })
+      .from(authAccounts)
+      .where(
+        and(
+          eq(authAccounts.userId, authCtx.userId),
+          eq(authAccounts.provider, "microsoft-entra-id"),
+        ),
+      );
+    for (const _ms of msAccounts) {
+      await inngest
+        .send({
+          name: "email/sync-requested",
+          data: {
+            userId: authCtx.userId,
+            tenantId: authCtx.tenantId,
+            appUserId: authCtx.appUserId,
+            daysBack,
+            provider: "microsoft",
+          },
+        })
+        .then(() => { dispatched++; })
+        .catch((e) => console.warn("force-sync: Microsoft dispatch failed (non-blocking)", e));
+    }
     // Capture-approval mode (gap E) — read once from the raw tenant
     // settings; 'auto' inserts directly (default), 'review' queues.
     const [tenantRow] = await db
@@ -193,16 +259,25 @@ export async function POST() {
       contactsCreated,
       companiesCreated,
       total: emails.length,
+      dispatched,
     });
   } catch (error) {
     console.error("Email sync failed:", error);
     const message =
       error instanceof Error ? error.message : "Unknown error";
 
-    // Gmail not connected is not a server error — return a structured response
+    // Gmail not connected is not a server error. If we already dispatched a
+    // sync for an IMAP/SMTP or Microsoft mailbox, the force-sync DID start —
+    // report that instead of the misleading "connect Google" message.
     if (message === "Gmail not connected") {
+      if (dispatched > 0) {
+        return Response.json(
+          { status: "started", dispatched, message: `Syncing ${dispatched} mailbox${dispatched > 1 ? "es" : ""}…` },
+          { status: 200 }
+        );
+      }
       return Response.json(
-        { status: "not_connected", message: "Gmail is not connected. Please connect your Google account first." },
+        { status: "not_connected", message: "No mailbox is connected. Connect an account in Settings → Mail & Calendar first." },
         { status: 200 }
       );
     }

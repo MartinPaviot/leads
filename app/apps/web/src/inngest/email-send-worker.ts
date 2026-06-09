@@ -259,7 +259,28 @@ export const processOutboundEmails = inngest.createFunction(
           : `${email.tenantId}:default`;
         const mailbox = mailboxMap[mailboxKey];
 
-        if (mailbox) {
+        // No connected mailbox → do NOT fall back to the unverified
+        // resend.dev test sender. That address lands every message in spam
+        // and burns domain reputation, with no signal to the user. Fail the
+        // send with an actionable reason so they connect a real mailbox
+        // first. This is the universal backstop for every outbound path
+        // (sequence launch, auto-pipeline, manual) that funnels here.
+        if (!mailbox) {
+          await db
+            .update(outboundEmails)
+            .set({
+              status: "failed",
+              failedAt: new Date(),
+              errorMessage:
+                "No connected mailbox — connect one in Settings → Mail & Calendar before sending outbound email.",
+              updatedAt: new Date(),
+            })
+            .where(eq(outboundEmails.id, email.id));
+          failed++;
+          return;
+        }
+
+        {
           // Check send window (day of week + time range)
           const now = new Date();
           const dayNames = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
@@ -544,6 +565,46 @@ export const sendSingleEmail = inngest.createFunction(
       return { emailId, sent: false, reason: "Plan email limit reached" };
     }
 
+    // Resolve a REAL sender. "pending@rotation" means "pick a mailbox at send
+    // time"; an empty/resend.dev value means none was ever resolved. Never
+    // send real outbound from the unverified resend.dev test sender — fail
+    // with an actionable reason so the user connects a mailbox first.
+    const senderResolution = await step.run("resolve-sender", async () => {
+      let from = email.fromAddress;
+      if (!from || from === "pending@rotation" || from.includes("resend.dev")) {
+        const [mb] = await db
+          .select({
+            emailAddress: connectedMailboxes.emailAddress,
+            displayName: connectedMailboxes.displayName,
+          })
+          .from(connectedMailboxes)
+          .where(
+            and(
+              eq(connectedMailboxes.tenantId, email.tenantId),
+              eq(connectedMailboxes.status, "active"),
+            ),
+          )
+          .limit(1);
+        if (!mb) return { ok: false as const };
+        from = mb.displayName ? `${mb.displayName} <${mb.emailAddress}>` : mb.emailAddress;
+      }
+      return { ok: true as const, from };
+    });
+
+    if (!senderResolution.ok) {
+      await db
+        .update(outboundEmails)
+        .set({
+          status: "failed",
+          failedAt: new Date(),
+          errorMessage:
+            "No connected mailbox — connect one in Settings → Mail & Calendar before sending outbound email.",
+          updatedAt: new Date(),
+        })
+        .where(eq(outboundEmails.id, emailId));
+      return { emailId, sent: false, reason: "No connected mailbox" };
+    }
+
     const result = await step.run("send", async () => {
       const appUrl =
         process.env.NEXT_PUBLIC_APP_URL || "https://app.elevay.com";
@@ -565,7 +626,7 @@ export const sendSingleEmail = inngest.createFunction(
         `\n\n---\nSent via Elevay\nUnsubscribe: ${unsubUrl}`;
 
       const { data, error } = await resend.emails.send({
-        from: email.fromAddress === "pending@rotation" ? FALLBACK_FROM : email.fromAddress,
+        from: senderResolution.from,
         to: [email.toAddress],
         subject: email.subject,
         html: processedHtml,
