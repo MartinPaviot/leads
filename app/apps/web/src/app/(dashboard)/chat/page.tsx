@@ -258,13 +258,16 @@ export default function ChatPage() {
   }, [chat.status, chat.messages.length, lastSavedCount, saveMessages]);
 
   // Auto-grow the composer so the full message stays visible as it's typed
-  // (and snap back to one line after sending / clearing). Capped at 200px,
-  // then it scrolls.
+  // (and snap back to one line after sending / clearing). Standard chat
+  // behaviour: grow in height first, and only show a scrollbar once we hit
+  // the cap (200px) — never a scrollbar on a one-liner.
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
+    const MAX = 200;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, MAX)}px`;
+    el.style.overflowY = el.scrollHeight > MAX ? "auto" : "hidden";
   }, [localInput]);
 
   function handleLocalSubmit(e: React.FormEvent) {
@@ -364,7 +367,7 @@ export default function ChatPage() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="absolute left-3 bottom-2 rounded p-0.5 transition-colors hover:bg-[var(--color-bg-hover)]"
+            className="absolute left-2 bottom-2 flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
             style={{ color: "var(--color-text-tertiary)" }}
             title="Attach file"
           >
@@ -391,7 +394,7 @@ export default function ChatPage() {
               border: "1px solid var(--color-border-default)",
               boxShadow: "var(--shadow-card)",
               maxHeight: 200,
-              overflowY: "auto",
+              overflowY: "hidden",
               lineHeight: 1.5,
             }}
             onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-border-focus)"; }}
@@ -401,8 +404,8 @@ export default function ChatPage() {
           <button
             type="button"
             onClick={toggleVoiceInput}
-            className="absolute bottom-2 rounded p-1 transition-colors hover:bg-[var(--color-bg-hover)]"
-            style={{ right: localInput.trim() ? 42 : 12, color: isListening ? "var(--color-error)" : "var(--color-text-tertiary)" }}
+            className="absolute bottom-2 flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
+            style={{ right: localInput.trim() ? 40 : 8, color: isListening ? "var(--color-error)" : "var(--color-text-tertiary)" }}
             title={isListening ? "Stop listening" : "Voice input"}
           >
             {isListening ? <MicOff size={14} /> : <Mic size={14} />}

@@ -150,12 +150,15 @@ export function ChatDock() {
     if (open) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat.messages, open]);
 
-  // Auto-grow the composer.
+  // Auto-grow the composer — grow in height first, only show a scrollbar once
+  // we hit the cap (140px). Never a scrollbar on a one-liner.
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
+    const MAX = 140;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, MAX)}px`;
+    el.style.overflowY = el.scrollHeight > MAX ? "auto" : "hidden";
   }, [localInput]);
 
   function send(text: string) {
@@ -433,6 +436,7 @@ export function ChatDock() {
               color: "var(--color-text-primary)",
               border: "1px solid var(--color-border-default)",
               maxHeight: 140,
+              overflowY: "hidden",
               lineHeight: 1.5,
             }}
             onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-border-focus)"; }}
