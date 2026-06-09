@@ -62,7 +62,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       sentiment: outcome === "meeting_booked" || outcome === "connected" ? "positive" : outcome === "not_interested" ? "negative" : "neutral",
       keyPoints: [],
       actionItems: [],
-      buyingSignals: { budget: null, timeline: null, currentStack: [], painPoints: [], objections: [], nextSteps: [], competitors: [], teamSize: null },
+      buyingSignals: { budget: null, timeline: null, currentStack: [], painPoints: [], objections: [], nextSteps: [], competitors: [], teamSize: null, initiatives: [] },
+      meddic: null,
+      contactProfile: null,
+      evidence: [],
       callbackRequest: outcome === "callback_requested" ? { requested: true, whenIso: null, note: null } : null,
     };
     const crm = await applyCallToCrm({

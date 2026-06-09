@@ -183,11 +183,14 @@ TRANSCRIPT:
 ${transcriptText.slice(0, 15000)}
 
 RULES:
-- Extract ONLY information explicitly stated in the transcript
+- Extract ONLY information explicitly stated in the transcript. Never infer or invent. Leave a field null / empty when the call did not cover it — an empty field is the agenda for the next call, not something to fill.
 - Classify the outcome based on what actually happened (connected with the target person, voicemail, gatekeeper, etc.)
-- For buying signals, only include if explicitly mentioned
 - If the prospect asked to be removed from any contact list, set outcome to "do_not_call"
-- Be specific with action items — include who and what`,
+- Be specific with action items — include who and what.
+- buyingSignals: only what is explicitly mentioned. currentStack = the tools/vendors they use today (the replaceable stack). initiatives = concrete projects/triggers driving change (a migration, a mandate, a reorg, a renewal).
+- meddic: fill the deal's qualification spine ONLY from what was said — metrics (quantified pain/ROI in their words), economicBuyer (who controls budget or signs), decisionCriteria, decisionProcess (how they buy: steps/approvals/timeline), identifiedPain (the core pain driving change), champion (who could sell this internally for us). Null any cell the transcript did not reveal.
+- contactProfile: the person actually on the call — their role/function, whether they decide, and their disposition toward us (champion/supporter/neutral/detractor), based strictly on what they said.
+- evidence: for each notable claim you record (a pain, a budget, a competitor, a role, an initiative), pair it with the verbatim transcript line that grounds it. A fact with no supporting quote should not be asserted.`,
             providerOptions: {
               anthropic: { cacheControl: { type: "ephemeral" } },
             },
@@ -203,7 +206,7 @@ RULES:
         trace: {
           tenantId: callRow.tenantId,
           surfaceId: "calls-post-process",
-          promptId: "call-notes-extraction.v1",
+          promptId: "call-notes-extraction.v2",
           metadata: { callId: callRow.id },
         },
       })) as { object: z.infer<typeof callNotesSchema> };

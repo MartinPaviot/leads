@@ -87,7 +87,14 @@ export async function applyCallToCrm(args: ApplyCallArgs): Promise<ApplyCallResu
     competitors: bs.competitors ?? [],
     teamSize: bs.teamSize ?? null,
     currentStack: bs.currentStack ?? [],
+    initiatives: bs.initiatives ?? [],
   };
+  // MEDDPICC qualification spine + provenance, carried on the deal so the
+  // scorecard fills in across calls (the empty cells are the next call's agenda).
+  const meddicProps = notes.meddic
+    ? { ...notes.meddic, competition: bs.competitors ?? [], updatedFromCallId: callId, updatedAt: occurredAt.toISOString() }
+    : null;
+  const evidence = (notes.evidence ?? []).slice(0, 12);
 
   // Existing open deal for this account (most recent).
   let openDeal: { id: string; stage: string | null; value: number | null; expectedCloseDate: Date | null; properties: unknown } | null = null;
@@ -131,7 +138,7 @@ export async function applyCallToCrm(args: ApplyCallArgs): Promise<ApplyCallResu
             value: dealValue,
             expectedCloseDate: closeDate,
             summary: notes.summary,
-            properties: { source: "call", callId, buyingSignals: signalProps },
+            properties: { source: "call", callId, buyingSignals: signalProps, ...(meddicProps ? { meddic: meddicProps } : {}), ...(evidence.length ? { evidence } : {}) },
           })
           .returning({ id: deals.id });
         result.dealId = created.id;
@@ -140,7 +147,7 @@ export async function applyCallToCrm(args: ApplyCallArgs): Promise<ApplyCallResu
     } else {
       // Patch the existing deal with anything newly learned.
       const patch: Record<string, unknown> = {
-        properties: { ...((openDeal.properties as Record<string, unknown>) || {}), buyingSignals: signalProps, lastCallId: callId },
+        properties: { ...((openDeal.properties as Record<string, unknown>) || {}), buyingSignals: signalProps, ...(meddicProps ? { meddic: meddicProps } : {}), ...(evidence.length ? { evidence } : {}), lastCallId: callId },
         updatedAt: occurredAt,
       };
       if (openDeal.value == null && dealValue != null) patch.value = dealValue;
@@ -150,6 +157,38 @@ export async function applyCallToCrm(args: ApplyCallArgs): Promise<ApplyCallResu
       await db.update(deals).set(patch).where(eq(deals.id, openDeal.id));
       result.dealId = openDeal.id;
       result.dealAction = "updated";
+    }
+  }
+
+  // ── Account update ───────────────────────────────────────────────────────
+  // Stamp what the call revealed about the ORG onto the company (the replaceable
+  // stack is the Pilae lever) so the account fiche reflects it. Namespaced under
+  // properties.callIntel; provenance = this call. Non-fatal.
+  if (companyId && (bs.currentStack.length || bs.competitors.length || bs.teamSize || bs.initiatives.length)) {
+    try {
+      const [co] = await db.select({ properties: companies.properties }).from(companies).where(eq(companies.id, companyId)).limit(1);
+      const cprops = (co?.properties as Record<string, unknown>) || {};
+      const prevIntel = (cprops.callIntel as Record<string, unknown>) || {};
+      await db
+        .update(companies)
+        .set({
+          properties: {
+            ...cprops,
+            callIntel: {
+              ...prevIntel,
+              stack: bs.currentStack.length ? bs.currentStack : prevIntel.stack ?? [],
+              competitors: bs.competitors.length ? bs.competitors : prevIntel.competitors ?? [],
+              teamSize: bs.teamSize ?? prevIntel.teamSize ?? null,
+              initiatives: bs.initiatives.length ? bs.initiatives : prevIntel.initiatives ?? [],
+              updatedFromCallId: callId,
+              updatedAt: occurredAt.toISOString(),
+            },
+          },
+          updatedAt: occurredAt,
+        })
+        .where(eq(companies.id, companyId));
+    } catch {
+      // Non-fatal — account intel never blocks the call loop.
     }
   }
 
@@ -205,7 +244,7 @@ export async function applyCallToCrm(args: ApplyCallArgs): Promise<ApplyCallResu
     await db
       .update(contacts)
       .set({
-        properties: { ...props, lastCall: { outcome, sentiment: notes.sentiment, at: occurredAt.toISOString(), callId } },
+        properties: { ...props, lastCall: { outcome, sentiment: notes.sentiment, at: occurredAt.toISOString(), callId }, ...(notes.contactProfile ? { callProfile: { ...notes.contactProfile, updatedFromCallId: callId, updatedAt: occurredAt.toISOString() } } : {}) },
         updatedAt: occurredAt,
       })
       .where(eq(contacts.id, contactId));
