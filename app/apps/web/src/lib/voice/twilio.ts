@@ -413,6 +413,86 @@ export async function buildTwiml(opts: {
 }
 
 /**
+ * Build the TwiML for the AGENT leg of a Call Mode call.
+ *
+ * This is the App-SID voiceUrl target: the rep's browser (Twilio Voice SDK
+ * `device.connect`) becomes the agent leg, and THIS TwiML dials the prospect
+ * and bridges the two — so the rep's mic reaches the prospect (the missing
+ * two-way path). Live transcription runs on both tracks; the prospect leg
+ * carries a status callback so we can stamp connectedAt / endedAt.
+ *
+ * `answerOnBridge` makes the agent hear real ringback and the call only counts
+ * as connected when the prospect actually answers.
+ */
+export async function buildAgentTwiml(opts: {
+  toNumber: string;
+  fromNumber: string;
+  transcriptionCallbackUrl: string;
+  /** Status callback for the prospect (child) leg → connectedAt/endedAt. */
+  dialStatusCallbackUrl: string;
+  languageCode?: string;
+  disclosureUrl?: string;
+  recordingStatusUrl: string;
+}): Promise<string> {
+  const twilio = await loadTwilio();
+  const VoiceResponse = (twilio as unknown as {
+    twiml: {
+      VoiceResponse: new () => {
+        play: (url: string) => unknown;
+        say: (opts: Record<string, unknown>, msg: string) => unknown;
+        start: () => { transcription: (opts: Record<string, unknown>) => unknown };
+        dial: (
+          opts: {
+            callerId: string;
+            answerOnBridge?: boolean;
+            record?: string;
+            recordingStatusCallback?: string;
+          },
+          to?: string,
+        ) => { number: (opts: Record<string, unknown>, n: string) => unknown };
+        toString: () => string;
+      };
+    };
+  }).twiml.VoiceResponse;
+
+  const r = new VoiceResponse();
+  if (opts.disclosureUrl) {
+    r.play(opts.disclosureUrl);
+  }
+  r.start().transcription({
+    statusCallbackUrl: opts.transcriptionCallbackUrl,
+    track: "both_tracks",
+    transcriptionEngine: "deepgram",
+    speechModel: "nova-3",
+    languageCode: opts.languageCode ?? "fr-FR",
+    inboundTrackLabel: "prospect",
+    outboundTrackLabel: "agent",
+    partialResults: false,
+  });
+  const recordingEnabled = process.env.VOICE_RECORDING_ENABLED === "true";
+  const dialOpts: {
+    callerId: string;
+    answerOnBridge?: boolean;
+    record?: string;
+    recordingStatusCallback?: string;
+  } = { callerId: opts.fromNumber, answerOnBridge: true };
+  if (recordingEnabled) {
+    dialOpts.record = "record-from-answer-dual";
+    dialOpts.recordingStatusCallback = opts.recordingStatusUrl;
+  }
+  const dial = r.dial(dialOpts);
+  dial.number(
+    {
+      statusCallback: opts.dialStatusCallbackUrl,
+      statusCallbackEvent: "initiated ringing answered completed",
+      statusCallbackMethod: "POST",
+    },
+    opts.toNumber,
+  );
+  return r.toString();
+}
+
+/**
  * Build the TwiML used to drop a voicemail mid-call. Plays the
  * supplied MP3 once, then hangs up cleanly. Twilio updates the live
  * leg's instructions in-flight so the prospect hears the message

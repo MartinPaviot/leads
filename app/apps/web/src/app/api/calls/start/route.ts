@@ -174,27 +174,13 @@ export async function POST(req: Request) {
       })
       .returning({ id: calls.id });
 
-    // 8. Provider — create the call leg and issue a capability token
-    const webhookBaseUrl =
-      process.env.VOICE_PUBLIC_BASE_URL ??
-      process.env.AUTH_URL ??
-      "http://localhost:3000";
-
+    // 8. Issue the capability token. We do NOT place the prospect call here:
+    // the rep's browser (Twilio Voice SDK) connects as the AGENT leg, and the
+    // App-SID voiceUrl (/api/calls/agent-twiml) dials the prospect and bridges
+    // the two — so the rep's mic reaches the prospect. `disclosureUrl` is
+    // resolved there from the live params; nothing to place server-side.
+    void disclosureUrl;
     try {
-      const created = await provider.createCall({
-        tenantId: authCtx.tenantId,
-        callId: callRow.id,
-        fromNumber: fromNumber.e164,
-        toNumber: contact.phone,
-        webhookBaseUrl,
-        recordingDisclosureUrl: disclosureUrl,
-      });
-
-      await db
-        .update(calls)
-        .set({ twilioCallSid: created.providerCallSid })
-        .where(eq(calls.id, callRow.id));
-
       const token = await provider.signWebRtcToken({
         userId: authCtx.appUserId,
         tenantId: authCtx.tenantId,
@@ -212,7 +198,7 @@ export async function POST(req: Request) {
     } catch (err) {
       const code =
         err instanceof VoiceProviderError ? err.code : "provider_error";
-      logger.warn?.("calls/start provider failure", {
+      logger.warn?.("calls/start token failure", {
         callId: callRow.id,
         code,
         message: err instanceof Error ? err.message : String(err),
@@ -222,7 +208,7 @@ export async function POST(req: Request) {
         .set({ outcome: "failed", processingState: "failed" })
         .where(eq(calls.id, callRow.id));
       return Response.json(
-        { error: "Provider call failed", code },
+        { error: "Could not start the call", code },
         { status: 502 },
       );
     }
