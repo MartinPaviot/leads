@@ -412,6 +412,17 @@ export async function buildTwiml(opts: {
   return r.toString();
 }
 
+// Domain vocabulary fed to Deepgram as recognition hints. Phone audio (8 kHz
+// μ-law) is the accuracy ceiling, so we bias toward the proper nouns + jargon
+// the model otherwise transcribes phonetically. Comma-separated per Twilio.
+const TRANSCRIPTION_HINTS = [
+  "Pilae", "Elevay",
+  "souveraineté", "hébergement", "réversibilité", "Cloud Act",
+  "renouvellement", "abonnement", "logiciel", "logiciels", "licence",
+  "Genève", "Lausanne", "Vaud", "Suisse romande", "fondation",
+  "rendez-vous", "directeur", "directrice", "responsable",
+].join(",");
+
 /**
  * Build the TwiML for the AGENT leg of a Call Mode call.
  *
@@ -468,6 +479,11 @@ export async function buildAgentTwiml(opts: {
     inboundTrackLabel: "prospect",
     outboundTrackLabel: "agent",
     partialResults: false,
+    // Quality: don't censor French speech, and bias the model toward the
+    // domain vocabulary + proper nouns it otherwise mangles on 8 kHz phone
+    // audio (brand names, the romand sovereignty pitch, cantons/cities).
+    profanityFilter: false,
+    hints: TRANSCRIPTION_HINTS,
   });
   const recordingEnabled = process.env.VOICE_RECORDING_ENABLED === "true";
   const dialOpts: {

@@ -32,6 +32,7 @@ import {
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { useToast } from "@/components/ui/toast";
@@ -823,6 +824,16 @@ export default function CallModePage() {
           }}
         />
       )}
+      <DispositionModal
+        open={softphone.kind === "ended"}
+        suggested={softphone.kind === "ended" ? softphone.outcome : null}
+        contactName={selected?.contactName ?? null}
+        onDispose={handleDisposition}
+        onCallAgain={() => {
+          if (selected) handleAppeler(selected.contactId);
+        }}
+        onClose={() => setSoftphone({ kind: "idle" })}
+      />
       {campaign && (
         <div
           className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-out ${
@@ -1270,39 +1281,81 @@ function SoftphoneControls(props: {
       );
     }
     case "ended": {
-      const suggested = state.outcome;
-      const opts: { key: string; label: string }[] = [
-        { key: "connected", label: "Connected" },
-        { key: "meeting_booked", label: "Meeting booked" },
-        { key: "callback_requested", label: "Callback" },
-        { key: "no_answer", label: "No answer" },
-        { key: "voicemail_left", label: "Voicemail" },
-        { key: "not_interested", label: "Not interested" },
-      ];
+      // The disposition picker now lives in a focused modal (DispositionModal,
+      // rendered by the page) so the options don't sprawl across the wide
+      // header. Here we just show a calm "ended" marker.
       return (
-        <div className="flex flex-col gap-2">
-          <span className="text-[12px] text-zinc-500">
-            How did it go?{suggested ? ` (suggested: ${suggested.replace(/_/g, " ")})` : ""}
-          </span>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {opts.map((o) => (
-              <Button
-                key={o.key}
-                variant={suggested === o.key ? "solid" : "outline"}
-                size="sm"
-                onClick={() => onDisposition(o.key)}
-              >
-                {o.label}
-              </Button>
-            ))}
-            <Button variant="ghost" size="sm" onClick={() => onCall(selected.contactId)} className="gap-1">
-              <Phone className="h-3.5 w-3.5" /> Call again
-            </Button>
-          </div>
-        </div>
+        <span className="flex items-center gap-2 text-[13px] text-zinc-500 dark:text-zinc-400">
+          <PhoneOff className="h-4 w-4" />
+          Call ended
+        </span>
       );
     }
   }
+}
+
+const DISPOSITION_OPTIONS: { key: string; label: string }[] = [
+  { key: "connected", label: "Connected" },
+  { key: "meeting_booked", label: "Meeting booked" },
+  { key: "callback_requested", label: "Callback" },
+  { key: "no_answer", label: "No answer" },
+  { key: "voicemail_left", label: "Voicemail" },
+  { key: "not_interested", label: "Not interested" },
+];
+
+/**
+ * Post-call disposition — a focused modal instead of a row of buttons sprawled
+ * across the header. One tap logs the outcome (cadence + CRM run server-side),
+ * advances to the next prospect, and closes. The suggested outcome (from the
+ * provider's call result) is pre-highlighted.
+ */
+function DispositionModal(props: {
+  open: boolean;
+  suggested: string | null;
+  contactName: string | null;
+  onDispose: (outcome: string) => void;
+  onCallAgain: () => void;
+  onClose: () => void;
+}) {
+  const { open, suggested, contactName, onDispose, onCallAgain, onClose } = props;
+  return (
+    <Modal open={open} onClose={onClose} title="How did it go?" size="sm">
+      <div className="flex flex-col gap-3">
+        <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+          {contactName ? `Call with ${contactName} ended.` : "Call ended."} Log the
+          outcome — the cadence and CRM update on their own.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {DISPOSITION_OPTIONS.map((o) => {
+            const isSuggested = suggested === o.key;
+            return (
+              <Button
+                key={o.key}
+                variant={isSuggested ? "solid" : "outline"}
+                onClick={() => onDispose(o.key)}
+                className="justify-center"
+              >
+                {o.label}
+                {isSuggested && (
+                  <span className="ml-1 text-[10px] uppercase tracking-wide opacity-80">
+                    suggested
+                  </span>
+                )}
+              </Button>
+            );
+          })}
+        </div>
+        <div className="flex items-center justify-between border-t pt-3" style={{ borderColor: "var(--color-border-default)" }}>
+          <Button variant="ghost" size="sm" onClick={onCallAgain} className="gap-1.5">
+            <Phone className="h-3.5 w-3.5" /> Call again
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Skip
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
 }
 
 /**
