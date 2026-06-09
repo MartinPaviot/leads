@@ -62,7 +62,7 @@ async function getAccessToken(userId: string): Promise<string | null> {
         client_secret: process.env.MICROSOFT_CLIENT_SECRET!,
         refresh_token: account.refresh_token,
         grant_type: "refresh_token",
-        scope: "openid email profile offline_access Mail.Read Calendars.Read",
+        scope: "openid email profile offline_access Mail.Read Mail.Send Calendars.Read",
       }),
     });
 
@@ -81,6 +81,38 @@ async function getAccessToken(userId: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Send an email AS the user via Microsoft Graph (`/me/sendMail`, requires
+ * the Mail.Send scope — callers gate on it). Graph returns 202 with no
+ * body, so we synthesise a message id. Throws on failure so the caller can
+ * fall back to Resend + flag needs_reauth.
+ */
+export async function sendViaGraph(
+  userId: string,
+  msg: { to: string; cc?: string[]; subject: string; text: string },
+): Promise<{ messageId: string }> {
+  const token = await getAccessToken(userId);
+  if (!token) throw new Error("Outlook not connected");
+  const res = await fetch(`${GRAPH_BASE}/me/sendMail`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: {
+        subject: msg.subject,
+        body: { contentType: "Text", content: msg.text },
+        toRecipients: [{ emailAddress: { address: msg.to } }],
+        ccRecipients: (msg.cc || []).map((a) => ({ emailAddress: { address: a } })),
+      },
+      saveToSentItems: true,
+    }),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Graph sendMail ${res.status}: ${t.slice(0, 200)}`);
+  }
+  return { messageId: crypto.randomUUID() };
 }
 
 /** Fetch recent emails from Outlook via Microsoft Graph API */

@@ -52,6 +52,36 @@ export async function getGmailClient(userId: string) {
   return google.gmail({ version: "v1", auth: oauth2Client });
 }
 
+/**
+ * Send an email AS the user via the Gmail API (requires the gmail.send
+ * scope — see lib/emails/oauth-send-scope.ts; callers gate on it). Builds
+ * a UTF-8 RFC822 message (RFC2047-encoded subject so accents survive) and
+ * base64url-encodes it for users.messages.send. Throws on failure so the
+ * caller can fall back to Resend + flag needs_reauth.
+ */
+export async function sendViaGmail(
+  userId: string,
+  msg: { to: string; cc?: string[]; subject: string; text: string },
+): Promise<{ messageId: string }> {
+  const gmail = await getGmailClient(userId);
+  if (!gmail) throw new Error("Gmail not connected");
+
+  const lines = [
+    `To: ${msg.to}`,
+    ...(msg.cc && msg.cc.length > 0 ? [`Cc: ${msg.cc.join(", ")}`] : []),
+    `Subject: =?UTF-8?B?${Buffer.from(msg.subject, "utf-8").toString("base64")}?=`,
+    "MIME-Version: 1.0",
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    Buffer.from(msg.text, "utf-8").toString("base64"),
+  ];
+  const raw = Buffer.from(lines.join("\r\n"), "utf-8").toString("base64url");
+
+  const res = await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
+  return { messageId: res.data.id || "" };
+}
+
 export interface SyncedEmail {
   gmailMessageId: string;
   threadId: string;
