@@ -546,6 +546,40 @@ export const syncEmails = inngest.createFunction(
       }
     }
 
+    // Post-interaction coaching + playbook extraction (Monaco-parity). Both
+    // `postInteractionCoaching` and `playbookExtractFromActivity` fan in from
+    // `coaching/post-interaction` — until now that event had NO producer, so
+    // neither ran and the playbook never auto-populated. Fire on INBOUND
+    // replies: the prospect's own words are what we learn objections / hooks /
+    // questions from. The consumers self-gate on content length + an LLM key
+    // (a clean no-op without one), so this is a cheap, safe fan-out.
+    for (const act of createdActivities) {
+      if (act.direction === "inbound" && act.body && act.body.length >= 50) {
+        await inngest.send({
+          name: "coaching/post-interaction",
+          data: { tenantId, activityId: act.id },
+        }).catch((e) => console.warn("sync: post-interaction trigger failed (non-blocking)", e));
+      }
+    }
+
+    // AI auto-fill custom fields the user marked aiFillMode='auto', from the
+    // fresh conversation — once per affected contact. Gives
+    // `entity/auto-fill-requested` its missing producer; `aiAutoFill` no-ops
+    // when the tenant defines no auto-fill fields, so this is free otherwise.
+    const autofillEntityIds = [
+      ...new Set(
+        createdActivities
+          .map((a) => a.entityId)
+          .filter((id): id is string => !!id && id !== "unknown"),
+      ),
+    ];
+    for (const entityId of autofillEntityIds) {
+      await inngest.send({
+        name: "entity/auto-fill-requested",
+        data: { tenantId, entityType: "contact" as const, entityId },
+      }).catch((e) => console.warn("sync: auto-fill trigger failed (non-blocking)", e));
+    }
+
     return { synced: created, contactsCreated, total: emails.length };
   }
 );
