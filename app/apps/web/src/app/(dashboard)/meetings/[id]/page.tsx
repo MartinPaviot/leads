@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LiveExtraction } from "@/components/live-extraction";
-import { ScopedChat } from "@/components/scoped-chat";
 import { useToast } from "@/components/ui/toast";
 
 interface MeetingNotes {
@@ -1007,16 +1006,6 @@ export default function MeetingDetailPage() {
         </div>
       )}
 
-      {/* CHAT-03: scoped chat panel for this meeting. Seeds surface
-          context so the LLM prioritizes meeting-scoped tools
-          (updateMeetingNotes, sendMeetingFollowUp, getCallRecording). */}
-      {meeting && (
-        <ScopedChat
-          contextType="meeting"
-          contextId={meeting.id}
-          contextLabel={meeting.title || "Meeting"}
-        />
-      )}
     </div>
   );
 }

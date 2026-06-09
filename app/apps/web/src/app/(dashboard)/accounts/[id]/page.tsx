@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Users, DollarSign, ClipboardList, Swords, Sparkles, RefreshCw } from "lucide-react";
-import { ScopedChat } from "@/components/scoped-chat";
 import { IntelligenceBrief } from "@/components/intelligence-brief";
 import { CompanyDossier } from "@/components/company-dossier";
 import { AccountCallIntel } from "@/components/call-intel";
@@ -322,15 +321,6 @@ export default function AccountDetailPage() {
 
         {/* G3: Suggested Contacts */}
         <SuggestedContacts accountId={accountId} accountName={account.name} />
-
-        {/* Scoped chat */}
-        <div className="mt-8">
-          <ScopedChat
-            contextType="account"
-            contextId={accountId}
-            contextLabel={account.name}
-          />
-        </div>
       </div>
 
       {/* Right panel */}

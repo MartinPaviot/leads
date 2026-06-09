@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Check, X, Pencil, TrendingUp, TrendingDown, Minus, Gauge, Mail, Send, Phone } from "lucide-react";
-import { ScopedChat } from "@/components/scoped-chat";
 import { EmailComposerPanel } from "@/components/email-composer-panel";
 import type { EmailComposerDraft } from "@/components/email-composer-panel";
 import { Button } from "@/components/ui/button";
@@ -329,14 +328,6 @@ export default function ContactDetailPage() {
           )}
         </div>
 
-        {/* Scoped chat */}
-        <div className="mt-8">
-          <ScopedChat
-            contextType="contact"
-            contextId={contactId}
-            contextLabel={name}
-          />
-        </div>
       </div>
 
       {/* Right panel — details */}

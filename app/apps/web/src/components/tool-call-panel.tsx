@@ -18,6 +18,7 @@ import {
   Layers,
   Database,
   BarChart3,
+  Phone,
 } from "lucide-react";
 
 interface ToolCallPanelProps {
@@ -68,6 +69,9 @@ const toolDisplayNames: Record<string, { label: string; pastLabel: string; icon:
   semanticSearchCallRecordings: { label: "Searching calls", pastLabel: "Searched calls",      icon: Calendar,    category: "retrieve" },
   getRecordsByIds:        { label: "Loading records",       pastLabel: "Loaded records",      icon: Database,    category: "retrieve" },
   findDuplicateContacts:  { label: "Finding duplicates",    pastLabel: "Found duplicates",    icon: Users,       category: "retrieve" },
+  enrichAccount:          { label: "Enriching account",     pastLabel: "Enriched account",    icon: Building2,   category: "action" },
+  findContactMobile:      { label: "Finding mobile",        pastLabel: "Requested mobile",    icon: Phone,       category: "action" },
+  getCallList:            { label: "Building call list",    pastLabel: "Call list",           icon: Phone,       category: "retrieve" },
 };
 
 /** Fallback: turn an unmapped tool name like "runBasicReport" into "Run basic report" so internal names never leak to users. */

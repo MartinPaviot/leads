@@ -5,6 +5,7 @@ import { chatThreads } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { Sidebar } from "@/components/sidebar";
 import { PersistentChatBar } from "@/components/persistent-chat-bar";
+import { ChatDock } from "@/components/chat/chat-dock";
 import { PostHogIdentify } from "@/components/posthog-provider";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { ToastProvider } from "@/components/ui/toast";
@@ -95,6 +96,7 @@ export default async function DashboardLayout({
             </main>
 
             <CommandPalette />
+            <ChatDock />
             <KeyboardShortcutsProvider />
             <IdleLogout />
           </div>

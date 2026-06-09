@@ -370,8 +370,18 @@ RULES:
           return { error: "Email sending not configured (RESEND_API_KEY missing)" };
         }
         const resend = new Resend(process.env.RESEND_API_KEY);
+        // Send AS the meeting owner (the current user) when they have a
+        // connected mailbox, so the follow-up comes from their real
+        // address rather than a generic no-reply. Falls back to the
+        // system sender. (Routing through the owner's own SMTP/Gmail
+        // transport — not Resend — is a larger change; see
+        // lib/integrations/owner-mailbox.ts.)
+        const { getOwnerMailbox } = await import("@/lib/integrations/owner-mailbox");
+        const ownerMailbox = await getOwnerMailbox(tenantId, userId);
         const FROM_ADDRESS =
-          process.env.INVITE_FROM_ADDRESS || "Elevay <no-reply@resend.dev>";
+          ownerMailbox?.emailAddress ||
+          process.env.INVITE_FROM_ADDRESS ||
+          "Elevay <no-reply@resend.dev>";
 
         const [activity] = await db
           .select()

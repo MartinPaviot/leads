@@ -9,7 +9,6 @@ import {
   Target, Trophy, XCircle, CheckCircle2, CircleAlert, Lightbulb, BarChart3,
   ThumbsUp, ThumbsDown, Clock,
 } from "lucide-react";
-import { ScopedChat } from "@/components/scoped-chat";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -722,10 +721,6 @@ export default function DealDetailPage() {
           )}
         </div>
 
-        {/* Scoped chat */}
-        <div className="mt-8">
-          <ScopedChat contextType="deal" contextId={dealId} contextLabel={deal.name} />
-        </div>
       </div>
 
       {/* Right panel */}
