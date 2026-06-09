@@ -7,10 +7,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  * account, the plain delete (no cascade), and — the security-relevant part —
  * that the `cascade` body is filtered to valid CascadeType values before it
  * reaches cascadeSoftDeleteCompany (so a client can't pass arbitrary strings).
+ * The company + its cascade share ONE delete timestamp so a later restore is
+ * symmetric.
  */
 
 vi.mock("@/lib/auth/auth-utils", () => ({ getAuthContext: vi.fn() }));
-vi.mock("@/db", () => ({ db: { select: vi.fn() } }));
+vi.mock("@/db", () => ({ db: { select: vi.fn(), update: vi.fn() } }));
 vi.mock("@/db/schema", () => ({
   companies: { id: "id", name: "name", tenantId: "tenantId", deletedAt: "deletedAt" },
   deals: {},
@@ -24,7 +26,6 @@ vi.mock("drizzle-orm", () => ({
   sql: vi.fn(() => "sql"),
   isNull: vi.fn(() => "isNull"),
 }));
-vi.mock("@/lib/infra/soft-delete", () => ({ softDelete: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/infra/audit-log", () => ({ logAudit: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/accounts/cascade-delete", () => ({
   CASCADE_TYPES: ["contacts", "deals", "activities", "notes", "tasks"],
@@ -33,7 +34,6 @@ vi.mock("@/lib/accounts/cascade-delete", () => ({
 
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { softDelete } from "@/lib/infra/soft-delete";
 import { logAudit } from "@/lib/infra/audit-log";
 import { cascadeSoftDeleteCompany } from "@/lib/accounts/cascade-delete";
 
@@ -59,7 +59,14 @@ function mockExistence(rows: Array<{ id: string; name: string | null }>) {
   vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 }
 
-beforeEach(() => vi.clearAllMocks());
+/** db.update().set().where() resolves — the company soft-delete write. */
+function mockUpdate() {
+  const whereFn = vi.fn().mockResolvedValue(undefined);
+  const setFn = vi.fn().mockReturnValue({ where: whereFn });
+  vi.mocked(db.update).mockReturnValue({ set: setFn } as never);
+}
+
+beforeEach(() => { vi.clearAllMocks(); mockUpdate(); });
 
 describe("DELETE /api/accounts/[id]", () => {
   it("401 when unauthenticated", async () => {
@@ -73,7 +80,7 @@ describe("DELETE /api/accounts/[id]", () => {
     const res = await mod.DELETE(makeReq(), { params: params() });
     expect(res.status).toBe(403);
     expect(cascadeSoftDeleteCompany).not.toHaveBeenCalled();
-    expect(softDelete).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
   });
 
   it("404 when the account does not exist for this tenant", async () => {
@@ -81,7 +88,7 @@ describe("DELETE /api/accounts/[id]", () => {
     mockExistence([]);
     const res = await mod.DELETE(makeReq(), { params: params() });
     expect(res.status).toBe(404);
-    expect(softDelete).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
   });
 
   it("plain delete (no body): soft-deletes the company, no cascade", async () => {
@@ -92,7 +99,8 @@ describe("DELETE /api/accounts/[id]", () => {
     const data = await res.json();
     expect(data).toEqual({ success: true, id: "co1", cascaded: {} });
     expect(cascadeSoftDeleteCompany).not.toHaveBeenCalled();
-    expect(softDelete).toHaveBeenCalledWith("companies", "co1", "t1");
+    // The company itself is soft-deleted via db.update(companies).set({ deletedAt }).
+    expect(db.update).toHaveBeenCalledTimes(1);
     expect(logAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "delete",
@@ -103,7 +111,7 @@ describe("DELETE /api/accounts/[id]", () => {
     );
   });
 
-  it("filters the cascade list to valid types before deleting", async () => {
+  it("filters the cascade list to valid types + shares the delete timestamp", async () => {
     vi.mocked(getAuthContext).mockResolvedValue(admin);
     mockExistence([{ id: "co1", name: "Acme" }]);
     vi.mocked(cascadeSoftDeleteCompany).mockResolvedValue({ contacts: 3, deals: 1 });
@@ -111,11 +119,12 @@ describe("DELETE /api/accounts/[id]", () => {
     // "bogus" and the number must be dropped; only contacts + deals survive.
     const res = await mod.DELETE(makeReq({ cascade: ["contacts", "deals", "bogus", 42] }), { params: params() });
     expect(res.status).toBe(200);
-    expect(cascadeSoftDeleteCompany).toHaveBeenCalledWith("t1", "co1", ["contacts", "deals"]);
+    // 4th arg = the shared delete timestamp passed to both the cascade and the company.
+    expect(cascadeSoftDeleteCompany).toHaveBeenCalledWith("t1", "co1", ["contacts", "deals"], expect.any(Date));
     const data = await res.json();
     expect(data).toEqual({ success: true, id: "co1", cascaded: { contacts: 3, deals: 1 } });
-    // Company itself is still soft-deleted after the cascade.
-    expect(softDelete).toHaveBeenCalledWith("companies", "co1", "t1");
+    // The company itself is still soft-deleted after the cascade.
+    expect(db.update).toHaveBeenCalledTimes(1);
   });
 
   it("ignores a non-array cascade value (treats as no cascade)", async () => {
@@ -124,6 +133,6 @@ describe("DELETE /api/accounts/[id]", () => {
     const res = await mod.DELETE(makeReq({ cascade: "contacts" }), { params: params() });
     expect(res.status).toBe(200);
     expect(cascadeSoftDeleteCompany).not.toHaveBeenCalled();
-    expect(softDelete).toHaveBeenCalledWith("companies", "co1", "t1");
+    expect(db.update).toHaveBeenCalledTimes(1);
   });
 });

@@ -29,7 +29,7 @@ vi.mock("drizzle-orm", () => ({
 vi.mock("@/db", () => ({ db: { update: vi.fn(), select: vi.fn() } }));
 
 import { db } from "@/db";
-import { getCompanyRelatedCounts, cascadeSoftDeleteCompany, CASCADE_TYPES } from "@/lib/accounts/cascade-delete";
+import { getCompanyRelatedCounts, cascadeSoftDeleteCompany, cascadeSoftRestoreCompany, CASCADE_TYPES } from "@/lib/accounts/cascade-delete";
 
 type TableTag = "contacts" | "deals" | "activities" | "notes" | "tasks";
 
@@ -119,6 +119,41 @@ describe("cascadeSoftDeleteCompany", () => {
     mockSelect({ contacts: [{ id: "ct1" }, { id: "ct2" }] });
     const out = await cascadeSoftDeleteCompany("t1", "co1", ["contacts", "deals"]);
     expect(out).toEqual({ contacts: 2, deals: 1 });
+  });
+});
+
+describe("cascadeSoftRestoreCompany (symmetric inverse)", () => {
+  it("restores every related set matched by the shared delete timestamp", async () => {
+    const at = new Date("2026-06-09T10:00:00.000Z");
+    mockUpdate({
+      deals: [{ id: "d1" }],
+      activities: [{ id: "a1" }, { id: "a2" }],
+      notes: [{ id: "n1" }],
+      tasks: [{ id: "tk1" }],
+      contacts: [{ id: "ct1" }],
+    });
+    mockSelect({ contacts: [{ id: "ct1" }] }); // allCompanyContactIds (scope)
+    const out = await cascadeSoftRestoreCompany("t1", "co1", at);
+    expect(out).toEqual({ deals: 1, activities: 2, notes: 1, tasks: 1, contacts: 1 });
+    // Contacts restored last; their ids were gathered up-front for the
+    // polymorphic activities/notes/tasks scope.
+    expect(updatedTablesInOrder()).toEqual(["deals", "activities", "notes", "tasks", "contacts"]);
+  });
+
+  it("omits types with nothing matching the timestamp (standalone-deleted children untouched)", async () => {
+    const at = new Date();
+    mockUpdate({ deals: [{ id: "d1" }] }); // only deals had a row deleted at `at`
+    mockSelect({ contacts: [] });
+    const out = await cascadeSoftRestoreCompany("t1", "co1", at);
+    expect(out).toEqual({ deals: 1 });
+  });
+
+  it("gathers contact ids regardless of deleted state, once, before the updates", async () => {
+    const at = new Date();
+    mockUpdate({ contacts: [{ id: "ct1" }] });
+    mockSelect({ contacts: [{ id: "ct1" }, { id: "ct2" }] });
+    await cascadeSoftRestoreCompany("t1", "co1", at);
+    expect(db.select).toHaveBeenCalledTimes(1);
   });
 });
 

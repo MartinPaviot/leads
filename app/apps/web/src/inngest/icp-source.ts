@@ -31,7 +31,7 @@ export const sourceIcpToProposals = inngest.createFunction(
       const [icp] = await db
         .select({ id: icps.id, name: icps.name })
         .from(icps)
-        .where(and(eq(icps.id, icpId), eq(icps.tenantId, tenantId)))
+        .where(and(eq(icps.id, icpId), eq(icps.tenantId, tenantId), isNull(icps.deletedAt)))
         .limit(1);
       if (!icp) return null;
       const crit = await db

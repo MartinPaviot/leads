@@ -5,6 +5,7 @@ import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/permissions";
 import { logAudit } from "@/lib/infra/audit-log";
 import { liftSuppression } from "@/lib/accounts/suppression";
+import { cascadeSoftRestoreCompany } from "@/lib/accounts/cascade-delete";
 
 /**
  * POST /api/accounts/restore — bring soft-deleted accounts back.
@@ -38,6 +39,23 @@ export async function POST(req: Request) {
         isNotNull(companies.deletedAt),
         restoreAll ? undefined : inArray(companies.id, ids),
       );
+
+      // Capture each target's delete timestamp BEFORE clearing it, so the
+      // cascade children (deals/contacts/activities/notes/tasks) deleted
+      // together with the account — matched by that shared timestamp — are
+      // restored too. Children deleted standalone at another time are untouched.
+      const targets = await db
+        .select({ id: companies.id, deletedAt: companies.deletedAt })
+        .from(companies)
+        .where(scope);
+
+      for (const t of targets) {
+        if (t.deletedAt) {
+          await cascadeSoftRestoreCompany(authCtx.tenantId, t.id, t.deletedAt).catch((e) =>
+            console.error(`cascade restore failed for account ${t.id}:`, e),
+          );
+        }
+      }
 
       const result = await db
         .update(companies)

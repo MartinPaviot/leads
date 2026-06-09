@@ -3,7 +3,6 @@ import { db } from "@/db";
 import { companies, deals, contacts, activities } from "@/db/schema";
 import { and, eq, desc, sql, isNull } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/permissions";
-import { softDelete } from "@/lib/infra/soft-delete";
 import { logAudit } from "@/lib/infra/audit-log";
 import { cascadeSoftDeleteCompany, CASCADE_TYPES, type CascadeType } from "@/lib/accounts/cascade-delete";
 
@@ -251,11 +250,17 @@ export async function DELETE(
   // Cascade the selected related sets first (soft-delete, recoverable), then
   // the account itself. Without a cascade, only the company row is removed —
   // its contacts/deals keep their rows (may be re-pointed to another account).
+  // One shared timestamp for the company AND its cascade so a later restore
+  // brings back exactly the set deleted together (symmetric cascade-restore).
+  const deletedAt = new Date();
   const cascaded = cascade.length
-    ? await cascadeSoftDeleteCompany(authCtx.tenantId, id, cascade)
+    ? await cascadeSoftDeleteCompany(authCtx.tenantId, id, cascade, deletedAt)
     : {};
 
-  await softDelete("companies", id, authCtx.tenantId);
+  await db
+    .update(companies)
+    .set({ deletedAt })
+    .where(and(eq(companies.id, id), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)));
 
   await logAudit({
     tenantId: authCtx.tenantId,

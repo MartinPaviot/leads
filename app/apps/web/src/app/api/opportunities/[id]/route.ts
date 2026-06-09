@@ -4,7 +4,6 @@ import { db } from "@/db";
 import { deals, companies, activities } from "@/db/schema";
 import { eq, desc, and, isNull } from "drizzle-orm";
 import { logAudit } from "@/lib/infra/audit-log";
-import { softDelete } from "@/lib/infra/soft-delete";
 import { apiError } from "@/lib/infra/api-errors";
 import { cascadeSoftDeleteDeal, DEAL_CASCADE_TYPES, type DealCascadeType } from "@/lib/deals/cascade-delete";
 import { inngest } from "@/inngest/client";
@@ -194,12 +193,17 @@ export async function DELETE(
   }
 
   // Cascade the selected related sets first (soft-delete, recoverable), then
-  // the deal itself.
+  // the deal itself. One shared timestamp for the deal AND its cascade so a
+  // later restore brings back exactly the set deleted together.
+  const deletedAt = new Date();
   const cascaded = cascade.length
-    ? await cascadeSoftDeleteDeal(authCtx.tenantId, id, cascade)
+    ? await cascadeSoftDeleteDeal(authCtx.tenantId, id, cascade, deletedAt)
     : {};
 
-  await softDelete("deals", id, authCtx.tenantId);
+  await db
+    .update(deals)
+    .set({ deletedAt })
+    .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)));
 
   await logAudit({
     tenantId: authCtx.tenantId,

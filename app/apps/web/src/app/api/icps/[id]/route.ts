@@ -1,7 +1,7 @@
 /**
  * GET    /api/icps/[id]  — one ICP + its criteria
  * PATCH  /api/icps/[id]  — replace name/status/priority/criteria
- * DELETE /api/icps/[id]  — delete the ICP (cascades criteria + fit rows)
+ * DELETE /api/icps/[id]  — soft-delete the ICP (restorable via /api/icps/restore)
  *
  * All tenant-scoped. PATCH re-validates against the catalog and
  * replaces the criteria set wholesale (simpler + race-free than diffing).
@@ -10,8 +10,9 @@
 
 import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { icps, icpCriteria } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { icps, icpCriteria, companyIcpFit } from "@/db/schema";
+import { and, eq, isNull } from "drizzle-orm";
+import { logAudit } from "@/lib/infra/audit-log";
 import { validateIcpInput } from "@/lib/icp/validation";
 import { resolveCatalogForValidation } from "@/lib/icp/catalog-db";
 import { inngest } from "@/inngest/client";
@@ -20,7 +21,7 @@ async function loadOwnedIcp(id: string, tenantId: string) {
   const [icp] = await db
     .select()
     .from(icps)
-    .where(and(eq(icps.id, id), eq(icps.tenantId, tenantId)))
+    .where(and(eq(icps.id, id), eq(icps.tenantId, tenantId), isNull(icps.deletedAt)))
     .limit(1);
   return icp ?? null;
 }
@@ -112,12 +113,26 @@ export async function DELETE(
   const icp = await loadOwnedIcp(id, authCtx.tenantId);
   if (!icp) return Response.json({ error: "ICP not found" }, { status: 404 });
 
-  // icp_criteria + company_icp_fit cascade via FK ON DELETE CASCADE.
-  await db.delete(icps).where(eq(icps.id, id));
+  // Soft-delete: keep the ICP row + its criteria so it stays restorable, but
+  // stop it scoring immediately by dropping its fit cells (rebuilt on restore)
+  // and recomputing the tenant — which now excludes deleted ICPs and
+  // re-resolves each company's primary ICP + companies.score without it.
+  const now = new Date();
+  await db.update(icps).set({ deletedAt: now, updatedAt: now }).where(eq(icps.id, id));
+  await db.delete(companyIcpFit).where(eq(companyIcpFit.icpId, id));
 
   inngest
     .send({ name: "icp/recompute-tenant", data: { tenantId: authCtx.tenantId } })
     .catch(() => {});
+
+  await logAudit({
+    tenantId: authCtx.tenantId,
+    userId: authCtx.appUserId,
+    action: "delete",
+    entityType: "icp",
+    entityId: id,
+    metadata: { name: icp.name, softDeleted: true },
+  });
 
   return Response.json({ deleted: id });
 }

@@ -5,11 +5,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  *
  * Covers auth (401), permission (403), 404, the active-enrollment 409 (which
  * must block BEFORE any cascade or delete runs), the plain delete, and that the
- * `cascade` body is filtered to valid ContactCascadeType values.
+ * `cascade` body is filtered to valid ContactCascadeType values. The contact +
+ * its cascade share ONE delete timestamp so a later restore is symmetric.
  */
 
 vi.mock("@/lib/auth/auth-utils", () => ({ getAuthContext: vi.fn() }));
-vi.mock("@/db", () => ({ db: { select: vi.fn() } }));
+vi.mock("@/db", () => ({ db: { select: vi.fn(), update: vi.fn() } }));
 vi.mock("@/db/schema", () => ({
   contacts: { id: "id", email: "email", firstName: "firstName", lastName: "lastName", linkedinUrl: "linkedinUrl", tenantId: "tenantId", deletedAt: "deletedAt" },
   activities: {},
@@ -21,7 +22,6 @@ vi.mock("drizzle-orm", () => ({
   sql: vi.fn(() => "sql"),
   isNull: vi.fn(() => "isNull"),
 }));
-vi.mock("@/lib/infra/soft-delete", () => ({ softDelete: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/infra/audit-log", () => ({ logAudit: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/accounts/suppression", () => ({ suppressContacts: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/contacts/cascade-delete", () => ({
@@ -31,7 +31,6 @@ vi.mock("@/lib/contacts/cascade-delete", () => ({
 
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { softDelete } from "@/lib/infra/soft-delete";
 import { cascadeSoftDeleteContact } from "@/lib/contacts/cascade-delete";
 
 const mod = await import("@/app/api/contacts/[id]/route");
@@ -59,9 +58,16 @@ function queueSelects(...resultsPerCall: Array<Array<unknown>>) {
   }
 }
 
+/** db.update().set().where() resolves — the contact soft-delete write. */
+function mockUpdate() {
+  const whereFn = vi.fn().mockResolvedValue(undefined);
+  const setFn = vi.fn().mockReturnValue({ where: whereFn });
+  vi.mocked(db.update).mockReturnValue({ set: setFn } as never);
+}
+
 const contactRow = { id: "ct1", email: "x@y.com", firstName: "Jo", lastName: "Lee", linkedinUrl: null };
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => { vi.clearAllMocks(); mockUpdate(); });
 
 describe("DELETE /api/contacts/[id]", () => {
   it("401 when unauthenticated", async () => {
@@ -74,7 +80,7 @@ describe("DELETE /api/contacts/[id]", () => {
     vi.mocked(getAuthContext).mockResolvedValue(viewer);
     const res = await mod.DELETE(makeReq(), { params: params() });
     expect(res.status).toBe(403);
-    expect(softDelete).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
   });
 
   it("404 when the contact does not exist for this tenant", async () => {
@@ -82,7 +88,7 @@ describe("DELETE /api/contacts/[id]", () => {
     queueSelects([]); // existing lookup → none
     const res = await mod.DELETE(makeReq(), { params: params() });
     expect(res.status).toBe(404);
-    expect(softDelete).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
   });
 
   it("409 on active enrollment — blocks BEFORE any cascade or delete", async () => {
@@ -91,7 +97,7 @@ describe("DELETE /api/contacts/[id]", () => {
     const res = await mod.DELETE(makeReq({ cascade: ["activities"] }), { params: params() });
     expect(res.status).toBe(409);
     expect(cascadeSoftDeleteContact).not.toHaveBeenCalled();
-    expect(softDelete).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
   });
 
   it("plain delete (no body): soft-deletes the contact, no cascade", async () => {
@@ -102,18 +108,19 @@ describe("DELETE /api/contacts/[id]", () => {
     const data = await res.json();
     expect(data).toEqual({ success: true, id: "ct1", cascaded: {} });
     expect(cascadeSoftDeleteContact).not.toHaveBeenCalled();
-    expect(softDelete).toHaveBeenCalledWith("contacts", "ct1", "t1");
+    expect(db.update).toHaveBeenCalledTimes(1);
   });
 
-  it("filters the cascade list to valid types before deleting", async () => {
+  it("filters the cascade list to valid types + shares the delete timestamp", async () => {
     vi.mocked(getAuthContext).mockResolvedValue(admin);
     queueSelects([contactRow], []);
     vi.mocked(cascadeSoftDeleteContact).mockResolvedValue({ activities: 5 });
     const res = await mod.DELETE(makeReq({ cascade: ["activities", "deals", "bogus", 7] }), { params: params() });
     expect(res.status).toBe(200);
-    // "deals" is not a valid ContactCascadeType, and neither is "bogus"/7.
-    expect(cascadeSoftDeleteContact).toHaveBeenCalledWith("t1", "ct1", ["activities"]);
+    // "deals" is not a valid ContactCascadeType, and neither is "bogus"/7. 4th arg = shared timestamp.
+    expect(cascadeSoftDeleteContact).toHaveBeenCalledWith("t1", "ct1", ["activities"], expect.any(Date));
     const data = await res.json();
     expect(data).toEqual({ success: true, id: "ct1", cascaded: { activities: 5 } });
+    expect(db.update).toHaveBeenCalledTimes(1);
   });
 });

@@ -112,3 +112,15 @@ export function employeeRangeToTranches(min: number | null, max: number | null):
   const hi = max ?? Infinity;
   return TRANCHES.filter((t) => t.max >= lo && t.min <= hi).map((t) => t.code);
 }
+
+/** INSEE effectif tranche code -> a human size range ("20-49", "1000+").
+ *  The inverse of the sourcing map above, used to fill a company's size
+ *  from SIRENE/Pappers `tranche_effectif`. */
+export function trancheToSizeRange(code: string | null | undefined): string | null {
+  if (!code) return null;
+  const t = TRANCHES.find((x) => x.code === code);
+  if (!t) return null;
+  if (t.min === 0 && t.max === 0) return "0";
+  if (t.max === Infinity) return `${t.min}+`;
+  return `${t.min}-${t.max}`;
+}
