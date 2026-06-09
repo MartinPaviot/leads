@@ -67,7 +67,11 @@ still sees the row.
    (deals.ownerId app-id → clerk_id auth-id → mailbox user_id). **Recommendation:
    pick ONE space for "user fk" going forward (app `users.id` is the larger
    set) and add a lint/convention; or centralize the bridge in one helper used
-   everywhere.**
+   everywhere.** *(Done 2026-06-09: the bridge is centralized in
+   `lib/auth/user-id.ts` — `appToAuthUserId` / `authToAppUserId`, tested;
+   `owner-mailbox.ts` now uses it. Convention: new user FKs reference `users.id`,
+   cross-space joins call these helpers. Full single-space convergence remains a
+   separate, larger chantier — not done.)*
 
 2. **"Has a user column" ≠ "private."** The model is consistent *once you split
    the two intents*: a small **private** set (§2, read-scoped) vs a large
