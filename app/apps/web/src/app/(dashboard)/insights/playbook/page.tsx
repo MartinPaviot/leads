@@ -252,12 +252,12 @@ function EmptyState() {
         color: "var(--color-text-tertiary)",
       }}
     >
-      No entries yet. Objections, hooks and questions are captured
-      automatically from your calls, meetings and replies — or use{" "}
+      No entries yet. Use{" "}
       <strong style={{ color: "var(--color-text-secondary)" }}>
         Add entry
       </strong>{" "}
-      to record one yourself.
+      to capture an objection, hook or question worth reusing — your
+      playbook grows as you add what works.
     </div>
   );
 }

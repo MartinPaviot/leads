@@ -56,8 +56,18 @@ export default function RecordingSettingsPage() {
   const [domainAliasesInput, setDomainAliasesInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  // Whether a notetaker (Recall) is actually configured. Without it the bot
+  // never joins, so the "records automatically" copy must not promise it.
+  const [notetakerOn, setNotetakerOn] = useState(true);
 
   const sfetch = useSafeFetch();
+
+  useEffect(() => {
+    fetch("/api/features")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d && typeof d.recallai === "boolean") setNotetakerOn(d.recallai); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     sfetch<WorkspaceResponse>("/api/settings/workspace", {
@@ -124,11 +134,16 @@ export default function RecordingSettingsPage() {
               <Video size={16} style={{ color: "var(--color-text-secondary)" }} />
             </div>
             <div>
-              <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-                Auto-record meetings
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+                  Auto-record meetings
+                </p>
+                {!notetakerOn && <Badge variant="warning" size="sm">Not configured</Badge>}
+              </div>
               <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-                A bot joins your meetings to record and transcribe automatically.
+                {notetakerOn
+                  ? "A bot joins your meetings to record and transcribe automatically."
+                  : "Once a notetaker integration is connected, a bot will join your meetings to record and transcribe automatically. Until then, this setting is saved but inactive."}
               </p>
             </div>
           </div>

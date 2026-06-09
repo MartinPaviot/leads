@@ -171,7 +171,7 @@ export default function DataModelPage() {
     <>
       <SettingsHeader
         title="Data Model"
-        subtitle="Customize fields for each entity type. The AI reads field descriptions to fill data automatically."
+        subtitle="Customize the fields Elevay tracks for each entity type."
       />
       {error && <p className="mt-2 text-[12px]" style={{ color: "var(--color-error)" }}>{error}</p>}
 
