@@ -103,6 +103,18 @@ type PoolNumber = VoiceConfig["pool"][number];
 
 const FROM_NUMBER_STORAGE_KEY = "elevay.callmode.fromNumber";
 
+// Countries we let a rep buy a local number in straight from Call Mode. Kept to
+// the francophone wedge + common targets; Twilio inventory is checked at buy.
+const BUY_COUNTRIES: Array<[code: string, label: string]> = [
+  ["FR", "France"],
+  ["CH", "Switzerland"],
+  ["BE", "Belgium"],
+  ["US", "United States"],
+  ["CA", "Canada"],
+  ["GB", "United Kingdom"],
+  ["DE", "Germany"],
+];
+
 // Map the E.164 dialing prefix to an ISO country tag for the small label
 // beside each number. Mirrors the prefixes the server-side parser knows.
 function countryOf(n: PoolNumber): string {
