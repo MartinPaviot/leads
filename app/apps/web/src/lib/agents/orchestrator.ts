@@ -66,6 +66,10 @@ const TOOL_GROUP_MAP: Record<string, string> = {
   getRecordsByIds: "query", listComments: "query", listCommentReplies: "query",
   findDuplicateContacts: "query", listRecentToolCalls: "query",
   listSharedPrompts: "query", deleteSharedPrompt: "query",
+  // navigation + command layer (always-available via "query")
+  openRecord: "query", openListView: "query", composeEmail: "query",
+  // read-gap tools
+  querySequences: "query", getMailboxHealth: "query", queryProposals: "query",
   // create
   createContact: "create", createAccount: "create", createDeal: "create",
   createNote: "create", logActivity: "create", createSequence: "create",

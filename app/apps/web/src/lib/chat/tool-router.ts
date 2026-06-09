@@ -62,6 +62,16 @@ const TOOL_GROUPS: Record<string, string> = {
   listRecentToolCalls: "query",
   listSharedPrompts: "query",
   deleteSharedPrompt: "query",
+  // navigation + command layer (navigation.ts) — always available so the
+  // chat can drive the UI (jump to a record, open a view, open the composer)
+  // from any surface.
+  openRecord: "query",
+  openListView: "query",
+  composeEmail: "query",
+  // read-gap tools (read-gaps.ts)
+  querySequences: "query",
+  getMailboxHealth: "query",
+  queryProposals: "query",
 
   // create (create.ts)
   createContact: "create",

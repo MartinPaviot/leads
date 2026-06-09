@@ -19,6 +19,9 @@ import {
   Database,
   BarChart3,
   Phone,
+  ArrowUpRight,
+  Send,
+  FileText,
 } from "lucide-react";
 
 interface ToolCallPanelProps {
@@ -72,6 +75,12 @@ const toolDisplayNames: Record<string, { label: string; pastLabel: string; icon:
   enrichAccount:          { label: "Enriching account",     pastLabel: "Enriched account",    icon: Building2,   category: "action" },
   findContactMobile:      { label: "Finding mobile",        pastLabel: "Requested mobile",    icon: Phone,       category: "action" },
   getCallList:            { label: "Building call list",    pastLabel: "Call list",           icon: Phone,       category: "retrieve" },
+  openRecord:             { label: "Opening",                pastLabel: "Opened",              icon: ArrowUpRight, category: "action" },
+  openListView:           { label: "Opening view",           pastLabel: "Opened view",         icon: ArrowUpRight, category: "action" },
+  composeEmail:           { label: "Opening composer",       pastLabel: "Draft ready",         icon: Mail,        category: "action" },
+  querySequences:         { label: "Loading sequences",      pastLabel: "Sequences",           icon: Send,        category: "retrieve" },
+  getMailboxHealth:       { label: "Checking mailboxes",     pastLabel: "Mailbox health",      icon: Mail,        category: "retrieve" },
+  queryProposals:         { label: "Loading proposals",      pastLabel: "Proposals",           icon: FileText,    category: "retrieve" },
 };
 
 /** Fallback: turn an unmapped tool name like "runBasicReport" into "Run basic report" so internal names never leak to users. */
@@ -120,6 +129,7 @@ function extractRecords(result: unknown): { records: Record<string, unknown>[]; 
   for (const [key, label] of [
     ["contacts", "contacts"], ["accounts", "accounts"], ["deals", "deals"],
     ["activities", "activities"], ["notes", "notes"], ["tasks", "tasks"], ["results", "results"],
+    ["sequences", "sequences"], ["mailboxes", "mailboxes"], ["proposals", "proposals"], ["templates", "templates"],
   ] as [string, string][]) {
     if (Array.isArray(r[key]) && r[key].length > 0) {
       return { records: r[key] as Record<string, unknown>[], label };
@@ -348,6 +358,16 @@ function summarizeResult(toolName: string, result: unknown): string | null {
   if (Array.isArray(r.notes)) return `${r.notes.length} note${r.notes.length !== 1 ? "s" : ""}`;
   if (Array.isArray(r.tasks)) return `${r.tasks.length} task${r.tasks.length !== 1 ? "s" : ""}`;
   if (Array.isArray(r.results)) return `${r.results.length} result${r.results.length !== 1 ? "s" : ""}`;
+  if (Array.isArray(r.sequences)) return `${r.sequences.length} sequence${r.sequences.length !== 1 ? "s" : ""}`;
+  if (Array.isArray(r.mailboxes)) return `${r.mailboxes.length} mailbox${r.mailboxes.length !== 1 ? "es" : ""}`;
+  if (Array.isArray(r.proposals)) return `${r.proposals.length} proposal${r.proposals.length !== 1 ? "s" : ""}`;
+  if (Array.isArray(r.templates)) return `${r.templates.length} template${r.templates.length !== 1 ? "s" : ""}`;
+  // navigation + command directives
+  if (r.opened && typeof r.opened === "object") {
+    const o = r.opened as { name?: string; view?: string };
+    return o.name || o.view || "opened";
+  }
+  if (r.composer) return "draft ready";
   if (r.proposal) return "awaiting approval";
   if (r.created) return "created";
   if (r.updated) return "updated";

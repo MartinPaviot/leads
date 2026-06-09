@@ -13,6 +13,8 @@ import type { EmailComposerDraft } from "@/components/email-composer-panel";
 import { StreamingSkeleton } from "@/components/chat/streaming-skeleton";
 import { FollowUpPills, extractFollowUps } from "@/components/chat/follow-up-pills";
 import { CopyButton } from "@/components/chat/copy-button";
+import { useUiDirectives, runUiDirective } from "@/components/chat/use-ui-directives";
+import type { UiDirective } from "@/lib/chat/ui-directives";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { Compass, Send, Mail, Check, Paperclip, Mic, MicOff, Loader2, Search, Target, AlertTriangle, ListChecks, Lightbulb, Sparkles, ArrowUpRight } from "lucide-react";
@@ -59,6 +61,19 @@ export default function ChatPage() {
   const savingRef = useRef(false);
   const [emailComposer, setEmailComposer] = useState<EmailComposerDraft | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+
+  // Command layer: execute UI directives carried on tool results (open a
+  // record/view, or the composer) exactly once per turn. Replayed thread
+  // history has no tool parts, so loading an old chat never auto-navigates.
+  const onDirective = useCallback(
+    (d: UiDirective) =>
+      runUiDirective(d, {
+        navigate: (p) => router.push(p),
+        openComposer: (draft) => setEmailComposer(draft),
+      }),
+    [router],
+  );
+  useUiDirectives(chat, onDirective);
   const [firstName, setFirstName] = useState<string>("");
   // Time-based greeting computed AFTER mount. new Date().getHours() differs
   // between the SSR render (server timezone) and the client (local tz), so

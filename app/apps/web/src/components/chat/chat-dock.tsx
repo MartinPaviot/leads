@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Compass, Send, X, Maximize2, Plus, Loader2, Mail, ArrowUpRight,
@@ -17,6 +17,8 @@ import { CopyButton } from "@/components/chat/copy-button";
 import { EmailComposerPanel, type EmailComposerDraft } from "@/components/email-composer-panel";
 import { trackEvent } from "@/components/posthog-provider";
 import { deriveSurface, type SurfaceIcon } from "@/lib/chat/surface-from-path";
+import { useUiDirectives, runUiDirective } from "@/components/chat/use-ui-directives";
+import type { UiDirective } from "@/lib/chat/ui-directives";
 
 const ICONS: Record<SurfaceIcon, typeof Compass> = {
   building: Building2,
@@ -97,6 +99,19 @@ export function ChatDock() {
   );
   const chat = useChat({ transport });
   const actionCards = useChatActionCards(chat);
+
+  // Command layer: when a tool result carries a UI directive (open a record /
+  // view, or the composer), execute it once. Navigation keeps the dock mounted
+  // (it lives in the dashboard layout), so the conversation persists.
+  const onDirective = useCallback(
+    (d: UiDirective) =>
+      runUiDirective(d, {
+        navigate: (p) => router.push(p),
+        openComposer: (draft) => setEmailComposer(draft),
+      }),
+    [router],
+  );
+  useUiDirectives(chat, onDirective);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
