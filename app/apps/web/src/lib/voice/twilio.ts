@@ -61,6 +61,59 @@ async function getClient(): Promise<TwilioClient> {
   return cachedClient;
 }
 
+// ISO country code -> English name, used to match an approved Regulatory
+// Bundle by its friendly name (the Bundles list doesn't expose iso_country).
+const COUNTRY_NAMES: Record<string, string> = {
+  CH: "Switzerland",
+  FR: "France",
+  BE: "Belgium",
+  GB: "United Kingdom",
+  DE: "Germany",
+  ES: "Spain",
+  IT: "Italy",
+  NL: "Netherlands",
+  PT: "Portugal",
+  IE: "Ireland",
+};
+
+/**
+ * Find the account's validated local Address and approved Regulatory Bundle
+ * for a country, needed to purchase regulated numbers (CH, FR, ...). Returns
+ * empty SIDs when none exist so the caller can fail with a clear message.
+ */
+async function resolveRegulatory(
+  client: TwilioClient,
+  countryCode: string,
+): Promise<{ addressSid?: string; bundleSid?: string }> {
+  const out: { addressSid?: string; bundleSid?: string } = {};
+  try {
+    const addresses = await client.addresses.list({ limit: 50 });
+    const match = addresses.find(
+      (a) => a.isoCountry === countryCode && a.validated,
+    ) ?? addresses.find((a) => a.isoCountry === countryCode);
+    if (match) out.addressSid = match.sid;
+  } catch {
+    /* addresses unavailable — leave unset */
+  }
+  try {
+    const bundles = await client.numbers.v2.regulatoryCompliance.bundles.list({
+      status: "twilio-approved",
+      limit: 50,
+    });
+    const name = COUNTRY_NAMES[countryCode]?.toLowerCase();
+    const match =
+      (name &&
+        bundles.find((b) =>
+          (b.friendlyName ?? "").toLowerCase().includes(name),
+        )) ||
+      (bundles.length === 1 ? bundles[0] : undefined);
+    if (match) out.bundleSid = match.sid;
+  } catch {
+    /* bundles unavailable — leave unset */
+  }
+  return out;
+}
+
 export const twilioProvider: VoiceProvider = {
   name: "twilio",
 
@@ -192,24 +245,48 @@ export const twilioProvider: VoiceProvider = {
   async buyNumber(input: BuyNumberInput): Promise<PurchasedNumber> {
     const client = await getClient();
     try {
+      // `contains` (E.164 prefix) wins for locality search; areaCode is the
+      // NANP-only fallback. CH/FR city numbers are only findable via contains.
       const available = await client
         .availablePhoneNumbers(input.countryCode)
         .local.list({
-          areaCode: input.areaCode ? Number(input.areaCode) : undefined,
+          contains: input.contains || undefined,
+          areaCode:
+            !input.contains && input.areaCode ? Number(input.areaCode) : undefined,
           voiceEnabled: true,
           smsEnabled: input.smsCapability ?? false,
           limit: 1,
         });
       if (available.length === 0) {
         throw new VoiceProviderError(
-          `No Twilio inventory for ${input.countryCode}${input.areaCode ? ` area ${input.areaCode}` : ""}`,
+          `No Twilio inventory for ${input.countryCode}${input.contains ? ` (${input.contains})` : input.areaCode ? ` area ${input.areaCode}` : ""}`,
           "no_inventory",
         );
       }
       const target = available[0];
-      const purchased = await client.incomingPhoneNumbers.create({
-        phoneNumber: target.phoneNumber,
-      });
+
+      // Many non-US countries (CH, FR, ...) require a validated local Address
+      // and an approved Regulatory Bundle to purchase. Attach the account's
+      // country-matched ones when the number demands them.
+      const createParams: {
+        phoneNumber: string;
+        addressSid?: string;
+        bundleSid?: string;
+      } = { phoneNumber: target.phoneNumber };
+      const addrReq = (target.addressRequirements || "none").toLowerCase();
+      if (addrReq !== "none") {
+        const reg = await resolveRegulatory(client, input.countryCode);
+        if (!reg.addressSid) {
+          throw new VoiceProviderError(
+            `${input.countryCode} numbers need a validated local address on the Twilio account (none found). Add one in Twilio Console → Regulatory.`,
+            "address_required",
+          );
+        }
+        createParams.addressSid = reg.addressSid;
+        if (reg.bundleSid) createParams.bundleSid = reg.bundleSid;
+      }
+
+      const purchased = await client.incomingPhoneNumbers.create(createParams);
       return {
         e164: purchased.phoneNumber,
         providerSid: purchased.sid,

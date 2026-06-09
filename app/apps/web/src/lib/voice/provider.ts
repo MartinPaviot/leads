@@ -37,6 +37,9 @@ export interface WebRtcToken {
 export interface BuyNumberInput {
   countryCode: string;
   areaCode?: string;
+  // E.164 prefix to search by (e.g. "+4121" for Lausanne). Twilio's areaCode
+  // filter is NANP-only, so non-US/CA locality search goes through `contains`.
+  contains?: string;
   smsCapability?: boolean;
 }
 
@@ -118,6 +121,7 @@ export class VoiceProviderError extends Error {
       | "not_configured"
       | "invalid_signature"
       | "no_inventory"
+      | "address_required"
       | "provider_down"
       | "unknown",
     public readonly cause?: unknown,

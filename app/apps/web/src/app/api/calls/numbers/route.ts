@@ -48,9 +48,23 @@ export async function POST(req: Request) {
     }
 
     try {
+      // Twilio's areaCode filter is NANP-only. For other countries, turn the
+      // area code into an E.164 prefix so city numbers are findable (e.g.
+      // CH + "21" -> contains "+4121" = Lausanne; the leading trunk 0 dropped).
+      const NANP = parsed.data.countryCode === "US" || parsed.data.countryCode === "CA";
+      const DIAL_PREFIX: Record<string, string> = {
+        FR: "33", CH: "41", BE: "32", GB: "44", DE: "49",
+        ES: "34", IT: "39", NL: "31", PT: "351", IE: "353",
+      };
+      const area = parsed.data.areaCode?.replace(/^0+/, "");
+      const contains =
+        !NANP && area && DIAL_PREFIX[parsed.data.countryCode]
+          ? `+${DIAL_PREFIX[parsed.data.countryCode]}${area}`
+          : undefined;
       const purchased = await provider.buyNumber({
         countryCode: parsed.data.countryCode,
         areaCode: parsed.data.areaCode,
+        contains,
         smsCapability: parsed.data.smsCapability,
       });
       const [row] = await db
@@ -76,13 +90,19 @@ export async function POST(req: Request) {
         message: err instanceof Error ? err.message : String(err),
       });
       const status =
-        code === "no_inventory" ? 409 : code === "not_configured" ? 503 : 502;
+        code === "no_inventory" || code === "address_required"
+          ? 409
+          : code === "not_configured"
+            ? 503
+            : 502;
       return Response.json(
         {
           error:
             code === "no_inventory"
-              ? "No Twilio inventory matches the requested area code"
-              : "Provider purchase failed",
+              ? "No Twilio inventory matches the requested location"
+              : code === "address_required"
+                ? (err instanceof Error ? err.message : "A validated local address is required for this country.")
+                : "Provider purchase failed",
           code,
         },
         { status },
