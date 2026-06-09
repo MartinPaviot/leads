@@ -17,7 +17,8 @@
  * No emoji per the brand rule — Lucide icons only.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import {
   Sparkles,
   Phone,
@@ -46,6 +47,7 @@ import {
   Swords,
   Target,
   ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { CompanyLogo } from "@/components/ui/company-logo";
@@ -304,6 +306,41 @@ function Section({
   );
 }
 
+// Country-level geography, grounded on the contact's computed timezone (derived
+// from companies.properties.countryCode/timezone). We deliberately stop at the
+// country: there is no reliable city/canton field, so we never fake one.
+const TZ_COUNTRY: Record<string, string> = {
+  "Europe/Zurich": "Suisse",
+  "Europe/Paris": "France",
+  "Europe/Brussels": "Belgique",
+  "Europe/Luxembourg": "Luxembourg",
+  "Europe/Monaco": "Monaco",
+  "Europe/London": "Royaume-Uni",
+  "Europe/Berlin": "Allemagne",
+  "Europe/Madrid": "Espagne",
+  "Europe/Rome": "Italie",
+  "Europe/Lisbon": "Portugal",
+  "Europe/Amsterdam": "Pays-Bas",
+};
+function geoLabel(tz: string | null | undefined): string | null {
+  if (!tz) return null;
+  if (TZ_COUNTRY[tz]) return TZ_COUNTRY[tz];
+  const city = tz.split("/")[1]?.replace(/_/g, " ");
+  return city || null;
+}
+
+function ContextChip({ icon: Icon, children }: { icon: typeof Globe; children: ReactNode }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px]"
+      style={{ background: "var(--color-bg-hover)", color: "var(--color-text-secondary)" }}
+    >
+      <Icon className="h-3 w-3 text-zinc-400" />
+      {children}
+    </span>
+  );
+}
+
 // ── Pre-call brief (centre column, idle) ────────────────────────
 
 export function PreCallBrief({
@@ -409,6 +446,25 @@ export function PreCallBrief({
         </div>
       </div>
 
+      {/* Société : secteur · taille · géographie · heure locale — grounded context up
+          front, plus a direct way to enrich the person. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {company?.industry && <ContextChip icon={Building2}>{company.industry}</ContextChip>}
+        {company?.sizeBand && <ContextChip icon={Users}>{company.sizeBand}</ContextChip>}
+        {geoLabel(selected.localTimezone) && <ContextChip icon={Globe}>{geoLabel(selected.localTimezone)}</ContextChip>}
+        {selected.localTime && <ContextChip icon={Clock}>{selected.localTime} (heure locale)</ContextChip>}
+        {onEnrich && (
+          <button
+            onClick={onEnrich}
+            disabled={enriching}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium text-indigo-600 transition hover:bg-indigo-50 disabled:opacity-60 dark:text-indigo-300 dark:hover:bg-indigo-950"
+          >
+            <Zap className="h-3 w-3" />
+            {enriching ? "Enrichissement…" : "Enrichir ce contact"}
+          </button>
+        )}
+      </div>
+
       {/* Replaceable stack — the Pilae lever, surfaced as ammo (grounded, from research) */}
       {stack.length > 0 && (
         <Section icon={Cpu} title="Stack en place — ce que Pilae peut remplacer" count={stack.length}>
@@ -437,16 +493,6 @@ export function PreCallBrief({
               </span>
             ))}
           </div>
-          {onEnrich && !focal?.email && (
-            <button
-              onClick={onEnrich}
-              disabled={enriching}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-[13px] font-medium text-white transition hover:bg-indigo-700 disabled:opacity-60"
-            >
-              <Zap className="h-3.5 w-3.5" />
-              {enriching ? "Enrichissement…" : "Enrichir l'email"}
-            </button>
-          )}
         </Section>
       )}
 
@@ -757,11 +803,16 @@ export function AccountBrainPanel({
             {committee.slice(0, 6).map((c) => {
               const name = `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim() || "—";
               return (
-                <div key={c.id} className="flex items-center gap-2.5">
+                <Link
+                  key={c.id}
+                  href={`/contacts/${c.id}`}
+                  className="group -mx-1 flex items-center gap-2.5 rounded-lg px-1 py-1 transition hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                  title={`Ouvrir ${name} — appeler ou écrire`}
+                >
                   <Avatar name={name} size="sm" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="truncate text-sm text-zinc-800 dark:text-zinc-200">{name}</span>
+                      <span className="truncate text-sm text-zinc-800 group-hover:text-indigo-600 dark:text-zinc-200 dark:group-hover:text-indigo-300">{name}</span>
                       {c.isChampion && <Crown className="h-3 w-3 shrink-0 text-amber-500" />}
                     </div>
                     <div className="truncate text-[11px] text-zinc-400">{c.title ?? "—"}</div>
@@ -769,7 +820,8 @@ export function AccountBrainPanel({
                   {c.intentScore != null && (
                     <span className="shrink-0 text-[11px] font-medium text-zinc-500">{Math.round(c.intentScore * 100)}</span>
                   )}
-                </div>
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-300 transition group-hover:text-indigo-500" />
+                </Link>
               );
             })}
           </div>
