@@ -228,7 +228,7 @@ RULES:
         .where(eq(calls.id, callId));
     });
 
-    await step.run("create-activity", async () => {
+    const callCapture = await step.run("create-activity", async () => {
       // Route through the capture-approval seam (gap E): 'auto' inserts
       // now (default); 'review' parks it for human approval, deduped by
       // the call id.
@@ -238,7 +238,7 @@ RULES:
         .where(eq(tenants.id, callRow.tenantId))
         .limit(1);
       const mode = getCaptureApprovalMode(t?.settings as Record<string, unknown> | null);
-      await recordCapturedActivity({
+      const res = await recordCapturedActivity({
         tenantId: callRow.tenantId,
         mode,
         kind: "call",
@@ -254,6 +254,9 @@ RULES:
           direction: "outbound",
           sentiment: notes.sentiment,
           summary: notes.summary,
+          // Ground the post-call playbook/coaching extraction in the
+          // prospect's actual words, not just the LLM summary.
+          rawContent: transcriptText.slice(0, 10000),
           metadata: {
             callId: callRow.id,
             dealId: callRow.dealId,
@@ -265,7 +268,27 @@ RULES:
           },
         },
       });
+      return { applied: res.applied, activityId: res.activityId ?? null };
     });
+
+    // POST-CALL ONLY. This whole function runs AFTER the call has ended
+    // (processingState → done); there is deliberately no in-call path here, so
+    // the call itself stays a human exchange. Feed the transcript into the
+    // playbook extractor + post-interaction coaching (both fan in from
+    // coaching/post-interaction). Only when the activity was actually inserted
+    // (auto mode); review mode emits on approval instead.
+    if (callCapture.applied && callCapture.activityId) {
+      await step.run("emit-post-interaction", async () => {
+        await inngest.send({
+          name: "coaching/post-interaction",
+          data: {
+            tenantId: callRow.tenantId,
+            activityId: callCapture.activityId as string,
+            userId: callRow.userId ?? undefined,
+          },
+        });
+      });
+    }
 
     await step.run("campaign-cadence", async () => {
       // Feed the disposition back into any active call campaign: connected/
