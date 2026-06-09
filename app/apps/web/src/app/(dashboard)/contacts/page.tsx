@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, Trash2, type LucideIcon } from "lucide-react";
+import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, Trash2, Archive, RotateCcw, type LucideIcon } from "lucide-react";
 import { SmartImport } from "@/components/smart-import";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { displayScore, ENRICHMENT_COLORS } from "@/lib/util/ui-utils";
@@ -93,6 +93,9 @@ export default function ContactsPage() {
   const [importHistory, setImportHistory] = useState<Array<{ id: string; fileName: string; recordType: string; totalRows: number; createdCount: number; skippedCount: number; companiesCreated: number; status: string; createdAt: string }>>([]);
   const [showImportHistory, setShowImportHistory] = useState(false);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  // Archive view: true = show only soft-deleted contacts so they can be
+  // reviewed and restored (parity with the Accounts archive).
+  const [viewDeleted, setViewDeleted] = useState(false);
   // Per-column header filters (Notion / Excel style), parity with Accounts.
   const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilterState>>({});
   const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null);
@@ -113,6 +116,7 @@ export default function ContactsPage() {
   const fetchContacts = useCallback(async () => {
     try {
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      if (viewDeleted) params.set("deleted", "true");
       if (debouncedSearch) params.set("search", debouncedSearch);
       // Map active column filters -> server params (see /api/contacts).
       const cf = debouncedColumnFilters;
@@ -147,7 +151,7 @@ export default function ContactsPage() {
     } catch (e) {
       console.warn("contacts: list fetch failed", e);
     } finally { setLoading(false); }
-  }, [page, debouncedSearch, debouncedColumnFilters, smartFilters]);
+  }, [page, debouncedSearch, debouncedColumnFilters, smartFilters, viewDeleted]);
 
   // Debounce the search box and push it to the server, so the search spans ALL
   // contacts (not just the loaded 50-row page). Reset to page 1 on a new query.
@@ -243,6 +247,28 @@ export default function ContactsPage() {
       }
     } catch {
       toast("Failed to create contact", "error");
+    }
+  }
+
+  // Restore soft-deleted contacts from the Archive view — clears deleted_at,
+  // lifts the suppression, and brings back the cascade children deleted with
+  // each contact (matched by the shared delete timestamp).
+  async function restoreContacts(ids: string[]) {
+    if (ids.length === 0) return;
+    try {
+      const res = await fetch("/api/contacts/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) { toast("Couldn't restore.", "error"); return; }
+      const data = await res.json().catch(() => ({ restored: ids.length }));
+      toast(`Restored ${data.restored} contact${data.restored === 1 ? "" : "s"}.`, "success");
+      setSelectedRows(new Set());
+      await fetchContacts();
+    } catch (e) {
+      console.warn("contacts: restore failed", e);
+      toast("Couldn't restore.", "error");
     }
   }
 
@@ -449,39 +475,57 @@ export default function ContactsPage() {
       <BulkActionsBar
         count={selectedRows.size}
         onClear={() => setSelectedRows(new Set())}
-        actions={[
-          { label: "Enrich", icon: <Zap size={13} />, onClick: bulkEnrichSelected },
-          { label: "Find mobile", icon: <Phone size={13} />, onClick: bulkFindMobile },
-          {
-            label: "Merge",
-            icon: <GitMerge size={13} />,
-            onClick: bulkMergeSelected,
-            disabled: selectedRows.size < 2,
-          },
-          {
-            label: "Delete",
-            icon: <Trash2 size={13} />,
-            variant: "danger",
-            onClick: () => setDeleteTarget({ type: "bulk" }),
-          },
-        ]}
+        actions={viewDeleted
+          ? [
+              { label: "Restore", icon: <RotateCcw size={13} />, onClick: () => restoreContacts(Array.from(selectedRows)) },
+            ]
+          : [
+              { label: "Enrich", icon: <Zap size={13} />, onClick: bulkEnrichSelected },
+              { label: "Find mobile", icon: <Phone size={13} />, onClick: bulkFindMobile },
+              {
+                label: "Merge",
+                icon: <GitMerge size={13} />,
+                onClick: bulkMergeSelected,
+                disabled: selectedRows.size < 2,
+              },
+              {
+                label: "Delete",
+                icon: <Trash2 size={13} />,
+                variant: "danger",
+                onClick: () => setDeleteTarget({ type: "bulk" }),
+              },
+            ]}
       />
       <PageHeader icon={<Users size={16} />} title="Contacts" subtitle={`${contacts.length}`}>
         {/* Enrich lives in the selection bar — it only makes sense once
-            contacts are checked. The toolbar keeps workspace-level actions. */}
-        <Button variant="outline" size="sm" icon={<GitMerge size={12} />} onClick={() => router.push("/contacts/merge")}>
-          Find duplicates
+            contacts are checked. The toolbar keeps workspace-level actions.
+            In the Archive view only the toggle back stays. */}
+        {!viewDeleted && (
+          <>
+            <Button variant="outline" size="sm" icon={<GitMerge size={12} />} onClick={() => router.push("/contacts/merge")}>
+              Find duplicates
+            </Button>
+            <Button variant="outline" size="sm" icon={<Upload size={12} />} onClick={() => setShowSmartImport(true)} style={{ color: "var(--color-accent)" }}>
+              Smart Import
+            </Button>
+            <label className="cursor-pointer">
+              <Button variant="outline" size="sm" disabled={importing} loading={importing} onClick={() => fileRef.current?.click()}>
+                {importing ? "Importing..." : "Import CSV"}
+              </Button>
+              <input ref={fileRef} type="file" accept=".csv" onChange={handleImport} className="hidden" disabled={importing} />
+            </label>
+            <Button variant="gradient" size="sm" icon={<Plus size={12} />} onClick={() => setShowCreate(true)}>Create contact</Button>
+          </>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          icon={viewDeleted ? <RotateCcw size={13} /> : <Archive size={13} />}
+          onClick={() => { setViewDeleted((v) => !v); setSelectedRows(new Set()); setPage(1); }}
+          title={viewDeleted ? "Back to the active contacts" : "Review removed contacts and restore them"}
+        >
+          {viewDeleted ? "Back to active" : "Archive"}
         </Button>
-        <Button variant="outline" size="sm" icon={<Upload size={12} />} onClick={() => setShowSmartImport(true)} style={{ color: "var(--color-accent)" }}>
-          Smart Import
-        </Button>
-        <label className="cursor-pointer">
-          <Button variant="outline" size="sm" disabled={importing} loading={importing} onClick={() => fileRef.current?.click()}>
-            {importing ? "Importing..." : "Import CSV"}
-          </Button>
-          <input ref={fileRef} type="file" accept=".csv" onChange={handleImport} className="hidden" disabled={importing} />
-        </label>
-        <Button variant="gradient" size="sm" icon={<Plus size={12} />} onClick={() => setShowCreate(true)}>Create contact</Button>
       </PageHeader>
 
       <FilterBar>

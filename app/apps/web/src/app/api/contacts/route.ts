@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { contacts, companies, activities } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth/auth-utils";
-import { and, eq, sql, isNull, type SQL } from "drizzle-orm";
+import { and, eq, sql, isNull, isNotNull, type SQL } from "drizzle-orm";
 import { matchIndustries } from "@/lib/search/industry-match";
 import { inngest } from "@/inngest/client";
 import { embedEntity, contactToText } from "@/lib/ai/embeddings";
@@ -38,9 +38,14 @@ export async function GET(req: Request) {
     const search = url.searchParams.get("search")?.trim();
 
     // Build where clause — optional free-text search and/or an exact email
-    // match. Always exclude soft-deleted records. Search runs server-side so
-    // it spans ALL contacts, not just the current 50-row page.
-    const baseWhere = and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt))!;
+    // match. Excludes soft-deleted records by default; `?deleted=true` flips to
+    // the Archive view (only soft-deleted, for review + restore). Search runs
+    // server-side so it spans ALL contacts, not just the current 50-row page.
+    const showDeleted = url.searchParams.get("deleted") === "true";
+    const baseWhere = and(
+      eq(contacts.tenantId, authCtx.tenantId),
+      showDeleted ? isNotNull(contacts.deletedAt) : isNull(contacts.deletedAt),
+    )!;
 
     let searchWhere: SQL = baseWhere;
     if (search) {

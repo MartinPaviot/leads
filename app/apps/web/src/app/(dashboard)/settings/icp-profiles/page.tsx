@@ -18,7 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 import { SettingsHeader } from "@/components/ui/settings-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
-import { Plus, Trash2, Target, Radar } from "lucide-react";
+import { Plus, Trash2, Target, Radar, Archive, RotateCcw } from "lucide-react";
 
 type CatalogField = {
   fieldKey: string;
@@ -74,6 +74,9 @@ export default function IcpProfilesPage() {
   const [saving, setSaving] = useState(false);
   // Build TAM per ICP: maps icpId → live inserted count while streaming.
   const [building, setBuilding] = useState<Record<string, number>>({});
+  // Archive view: true = show only soft-deleted ICPs so an admin can review
+  // and restore them (parity with the Accounts/Contacts archive).
+  const [viewDeleted, setViewDeleted] = useState(false);
 
   const buildTam = useCallback(
     async (icpId: string, icpName: string) => {
@@ -139,7 +142,7 @@ export default function IcpProfilesPage() {
     setLoading(true);
     try {
       const [icpsRes, catRes] = await Promise.all([
-        fetch("/api/icps"),
+        fetch(`/api/icps${viewDeleted ? "?deleted=true" : ""}`),
         fetch("/api/icp-catalog"),
       ]);
       if (icpsRes.ok) setList((await icpsRes.json()).icps ?? []);
@@ -149,7 +152,7 @@ export default function IcpProfilesPage() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, viewDeleted]);
 
   useEffect(() => {
     refresh();
@@ -221,6 +224,21 @@ export default function IcpProfilesPage() {
     }
   }
 
+  async function restore(id: string) {
+    const res = await fetch("/api/icps/restore", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: [id] }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      toast(d.error ?? "Restore failed", "error");
+      return;
+    }
+    toast("ICP restored — rescoring companies.", "success");
+    refresh();
+  }
+
   async function remove(id: string) {
     const res = await fetch(`/api/icps/${id}`, { method: "DELETE" });
     if (!res.ok) {
@@ -241,13 +259,23 @@ export default function IcpProfilesPage() {
       <div>
         {!draft && (
           <>
-            <div className="mb-4 flex justify-end">
+            <div className="mb-4 flex justify-end gap-2">
+              {!viewDeleted && (
+                <button
+                  onClick={() => setDraft({ ...EMPTY_DRAFT })}
+                  className="flex items-center gap-1 rounded px-3 py-1.5 text-[12px] font-medium"
+                  style={{ color: "#fff", background: "var(--color-accent)", border: "1px solid var(--color-accent)" }}
+                >
+                  <Plus size={13} /> New ICP
+                </button>
+              )}
               <button
-                onClick={() => setDraft({ ...EMPTY_DRAFT })}
+                onClick={() => setViewDeleted((v) => !v)}
                 className="flex items-center gap-1 rounded px-3 py-1.5 text-[12px] font-medium"
-                style={{ color: "#fff", background: "var(--color-accent)", border: "1px solid var(--color-accent)" }}
+                style={{ color: "var(--color-text-secondary)", border: "1px solid var(--color-border-default)" }}
+                title={viewDeleted ? "Back to the active ICPs" : "Review deleted ICPs and restore them"}
               >
-                <Plus size={13} /> New ICP
+                {viewDeleted ? <><RotateCcw size={13} /> Back to active</> : <><Archive size={13} /> Archive</>}
               </button>
             </div>
             {loading && list.length === 0 && (
@@ -255,7 +283,7 @@ export default function IcpProfilesPage() {
             )}
             {!loading && list.length === 0 && (
               <div className="rounded border p-6 text-center text-[12px]" style={{ borderColor: "var(--color-border-default)", color: "var(--color-text-tertiary)" }}>
-                No ICP profiles yet. Create one to start scoring companies against it.
+                {viewDeleted ? "No deleted ICPs." : "No ICP profiles yet. Create one to start scoring companies against it."}
               </div>
             )}
             <div className="space-y-2">
@@ -263,7 +291,7 @@ export default function IcpProfilesPage() {
                 <Card key={icp.id}>
                   <CardBody>
                     <div className="flex items-center justify-between gap-3">
-                      <button onClick={() => openEdit(icp.id)} className="min-w-0 flex-1 text-left">
+                      <button onClick={() => { if (!viewDeleted) openEdit(icp.id); }} className="min-w-0 flex-1 text-left" style={viewDeleted ? { cursor: "default" } : undefined}>
                         <div className="flex items-center gap-2">
                           <Target size={13} style={{ color: "var(--color-accent)" }} />
                           <span className="text-[14px] font-semibold" style={{ color: "var(--color-text-primary)" }}>{icp.name}</span>
@@ -278,25 +306,37 @@ export default function IcpProfilesPage() {
                         </p>
                       </button>
                       <div className="flex shrink-0 items-center gap-2">
-                        <button
-                          onClick={() => buildTam(icp.id, icp.name)}
-                          disabled={building[icp.id] !== undefined || icp.criteriaCount === 0}
-                          title={icp.criteriaCount === 0 ? "Add criteria first" : "Source the TAM for this ICP via Apollo"}
-                          className="flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium"
-                          style={{
-                            color: building[icp.id] !== undefined ? "var(--color-text-tertiary)" : "#fff",
-                            background: building[icp.id] !== undefined ? "var(--color-bg-card)" : "var(--color-accent)",
-                            border: "1px solid var(--color-accent)",
-                            opacity: icp.criteriaCount === 0 ? 0.5 : 1,
-                            cursor: icp.criteriaCount === 0 ? "not-allowed" : "pointer",
-                          }}
-                        >
-                          <Radar size={12} />
-                          {building[icp.id] !== undefined ? `Sourcing… ${building[icp.id]}` : "Build TAM"}
-                        </button>
-                        <button onClick={() => remove(icp.id)} aria-label="Delete ICP" className="rounded p-1.5" style={{ color: "var(--color-text-tertiary)", border: "1px solid var(--color-border-default)" }}>
-                          <Trash2 size={13} />
-                        </button>
+                        {viewDeleted ? (
+                          <button
+                            onClick={() => restore(icp.id)}
+                            className="flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium"
+                            style={{ color: "#fff", background: "var(--color-accent)", border: "1px solid var(--color-accent)" }}
+                          >
+                            <RotateCcw size={12} /> Restore
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => buildTam(icp.id, icp.name)}
+                              disabled={building[icp.id] !== undefined || icp.criteriaCount === 0}
+                              title={icp.criteriaCount === 0 ? "Add criteria first" : "Source the TAM for this ICP via Apollo"}
+                              className="flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium"
+                              style={{
+                                color: building[icp.id] !== undefined ? "var(--color-text-tertiary)" : "#fff",
+                                background: building[icp.id] !== undefined ? "var(--color-bg-card)" : "var(--color-accent)",
+                                border: "1px solid var(--color-accent)",
+                                opacity: icp.criteriaCount === 0 ? 0.5 : 1,
+                                cursor: icp.criteriaCount === 0 ? "not-allowed" : "pointer",
+                              }}
+                            >
+                              <Radar size={12} />
+                              {building[icp.id] !== undefined ? `Sourcing… ${building[icp.id]}` : "Build TAM"}
+                            </button>
+                            <button onClick={() => remove(icp.id)} aria-label="Delete ICP" className="rounded p-1.5" style={{ color: "var(--color-text-tertiary)", border: "1px solid var(--color-border-default)" }}>
+                              <Trash2 size={13} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </CardBody>
