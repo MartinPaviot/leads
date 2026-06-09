@@ -1,6 +1,7 @@
 import { registerProvider } from "./registry";
 import { apolloCompanyEnrichmentProvider } from "./apollo-adapter";
 import { sireneCompanyEnrichmentProvider } from "./sirene-adapter";
+import { zefixLindasCompanyEnrichmentProvider } from "./zefix-lindas-adapter";
 import { datagmaCompanyEnrichmentProvider } from "./datagma-adapter";
 import { firmableCompanyEnrichmentProvider } from "./firmable-adapter";
 import { hunterCompanyEnrichmentProvider } from "./hunter-adapter";
@@ -30,6 +31,9 @@ export function registerDefaults(): void {
   // SIRENE (15) — keyless FR registry; catches domainless / Apollo-miss
   // French companies before the key-gated EU brokers.
   registerProvider(sireneCompanyEnrichmentProvider);
+  // Zefix via LINDAS (16) — keyless CH registry; catches Swiss companies
+  // (the romand ICP) by name with the official purpose + country.
+  registerProvider(zefixLindasCompanyEnrichmentProvider);
   registerProvider(datagmaCompanyEnrichmentProvider);
   registerProvider(firmableCompanyEnrichmentProvider);
   registerProvider(crunchbaseCompanyEnrichmentProvider);
