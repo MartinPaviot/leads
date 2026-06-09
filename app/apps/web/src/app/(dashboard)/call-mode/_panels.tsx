@@ -50,6 +50,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
+import { isVoiceableSignal } from "@/lib/call-mode/live-script";
 import { CompanyLogo } from "@/components/ui/company-logo";
 
 // lucide dropped brand glyphs — inline the LinkedIn mark (same path the
@@ -235,53 +236,6 @@ function IntentTrend({ trend }: { trend: BrainContact["intentTrend"] }) {
   );
 }
 
-// ── Score ring ──────────────────────────────────────────────────
-
-function ScoreRing({ value }: { value: number }) {
-  const pct = Math.max(0, Math.min(100, Math.round(value)));
-  const r = 30;
-  const c = 2 * Math.PI * r;
-  const dash = (pct / 100) * c;
-  const hue =
-    pct >= 70 ? "rgb(22,163,74)" : pct >= 40 ? "rgb(202,138,4)" : "rgb(100,116,139)";
-  return (
-    <div className="relative h-[76px] w-[76px] shrink-0">
-      <svg viewBox="0 0 76 76" className="h-full w-full -rotate-90">
-        <circle cx="38" cy="38" r={r} fill="none" stroke="var(--color-border-default)" strokeWidth="7" />
-        <circle
-          cx="38"
-          cy="38"
-          r={r}
-          fill="none"
-          stroke={hue}
-          strokeWidth="7"
-          strokeLinecap="round"
-          strokeDasharray={`${dash} ${c}`}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{pct}</span>
-        <span className="text-[9px] uppercase tracking-wide text-zinc-400">/100</span>
-      </div>
-    </div>
-  );
-}
-
-function MiniBar({ label, value }: { label: string; value: number }) {
-  const pct = Math.max(0, Math.min(100, Math.round(value * 100)));
-  return (
-    <div>
-      <div className="flex items-center justify-between text-[11px] text-zinc-500">
-        <span>{label}</span>
-        <span className="font-medium text-zinc-700 dark:text-zinc-300">{pct}</span>
-      </div>
-      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-        <div className="h-full rounded-full bg-zinc-900 dark:bg-zinc-100" style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
-
 function Section({
   icon: Icon,
   title,
@@ -361,7 +315,6 @@ export function PreCallBrief({
   const deals = brain?.ownedDeals ?? [];
   const activities = brain?.directActivities ?? [];
   const dossier = brain?.cachedDossier ?? null;
-  const approach = dossier?.recommendedApproach;
   const company = brain?.companyBrain?.company;
   // Precise location (enrichment city/canton/country) when we have it; otherwise
   // fall back to the country derived from the contact's timezone.
@@ -386,17 +339,30 @@ export function PreCallBrief({
       ? "Décideur probable"
       : "Influenceur — viser l'intro au décideur";
 
-  // 2) The one reason to call THEM — grounded: real signal > researched angle >
-  // the replaceable stack (the Pilae lever) > sector+size. Never generic filler.
+  // 2) Signals — the concrete "why now", PROMOTED to the top of the brief
+  // (they used to be one buried line / hidden in the collapsed dossier). Only
+  // externally-voiceable triggers qualify: a live signal of a sayable type,
+  // funding, hiring, heating intent, the replaceable stack (the Pilae lever).
+  // Never an internal/behavioral signal, and never the rep's own strategy note
+  // (messagingAngle) — those are not reasons to call.
   const stack = dossier?.techStack ?? [];
-  const reason =
-    selected.latestSignal?.label ||
-    approach?.messagingAngle?.trim() ||
-    (stack.length > 0
-      ? `Stack en place (${stack.slice(0, 3).join(", ")}) — l'angle remplacement / coût porte ici.`
-      : company?.industry
-        ? `${company.industry}${company.sizeBand ? ` · ${company.sizeBand}` : ""} — froid sur le profil ICP : ancrer sur le coût et le renouvellement.`
-        : "Appel à froid sur le profil ICP — ancrer sur le coût et la souveraineté.");
+  const liveSignal =
+    selected.latestSignal && isVoiceableSignal(selected.latestSignal.type)
+      ? selected.latestSignal.label
+      : null;
+  const hiringRoles = (dossier?.hiringSignals ?? []).map((h) => h.role).filter(Boolean);
+  const signals: Array<{ icon: typeof Radio; text: string; tag: string; hot?: boolean }> = [];
+  if (liveSignal) signals.push({ icon: Radio, text: liveSignal, tag: "Signal", hot: true });
+  if (dossier?.funding) {
+    const d = dossier.funding.date && dossier.funding.date !== "Unknown" ? ` (${dossier.funding.date})` : "";
+    signals.push({ icon: Banknote, text: `${dossier.funding.totalRaised} levés · ${dossier.funding.lastRound}${d}`, tag: "Levée" });
+  }
+  if (hiringRoles.length > 0) signals.push({ icon: UserPlus, text: `Recrute ${hiringRoles.slice(0, 3).join(", ")}`, tag: "Recrutement" });
+  if (stack.length > 0) signals.push({ icon: Cpu, text: `Stack remplaçable : ${stack.slice(0, 3).join(", ")}`, tag: "Levier Pilae" });
+  // Honest cold framing when nothing fired — never generic filler.
+  const coldReason = company?.industry
+    ? `${company.industry}${company.sizeBand ? ` · ${company.sizeBand}` : ""} — froid sur le profil ICP : ancrer sur le coût et le renouvellement.`
+    : "Appel à froid — ancrer sur le coût, le renouvellement et la souveraineté.";
 
   // 3) Relationship — cold vs warm, fully grounded (deals + activities are real).
   const openDeal = deals[0];
@@ -410,11 +376,11 @@ export function PreCallBrief({
         : "Premier contact — froid, jamais touché.";
 
   // What's still worth pulling before the call — honest gap list.
+  // Only ACTIONABLE gaps — things the rep can fix before dialling. The
+  // "absences" (no signal / no activity / no deal) are the default on a cold
+  // call, not gaps worth a line; the Relation line already says it's cold.
   const gaps: string[] = [];
   if (!focal?.email && !brainLoading) gaps.push("Email direct introuvable");
-  if (!selected.latestSignal) gaps.push("Aucun signal récent — déclencheur à surveiller");
-  if (activities.length === 0 && !brainLoading) gaps.push("Aucune interaction passée enregistrée");
-  if (deals.length === 0 && !brainLoading) gaps.push("Pas de deal lié — premier contact");
   if (selected.accessibilityScore <= 0.5) gaps.push("Numéro non qualifié (standard probable)");
 
   return (
@@ -445,7 +411,34 @@ export function PreCallBrief({
           className="divide-y divide-zinc-100 dark:divide-zinc-800"
           style={{ borderTop: "1px solid var(--color-border-default)" }}
         >
-          <HeroBullet icon={Sparkles} label="La raison de l'appeler" value={reason} />
+          {/* Signaux — the concrete why-now, promoted (was a single buried line) */}
+          <div className="px-4 py-2.5">
+            <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">
+              <Radio className="h-3.5 w-3.5" />
+              {signals.length > 0 ? "Signaux — pourquoi maintenant" : "Pourquoi maintenant"}
+            </div>
+            {signals.length > 0 ? (
+              <ul className="mt-1.5 space-y-1.5">
+                {signals.map((sig, i) => {
+                  const Icon = sig.icon;
+                  return (
+                    <li key={i} className="flex items-start gap-2">
+                      <Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${sig.hot ? "text-emerald-500" : "text-zinc-400"}`} />
+                      <span className="min-w-0 flex-1 text-[13px] leading-snug text-zinc-800 dark:text-zinc-100">{sig.text}</span>
+                      <span
+                        className="shrink-0 rounded-sm px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide"
+                        style={{ background: "var(--color-bg-hover)", color: "var(--color-text-tertiary)" }}
+                      >
+                        {sig.tag}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="mt-0.5 text-[13px] leading-snug text-zinc-700 dark:text-zinc-300">{coldReason}</p>
+            )}
+          </div>
           <HeroBullet icon={Activity} label="Relation" value={relationship} />
         </div>
       </div>
@@ -468,19 +461,6 @@ export function PreCallBrief({
           </button>
         )}
       </div>
-
-      {/* Replaceable stack — the Pilae lever, surfaced as ammo (grounded, from research) */}
-      {stack.length > 0 && (
-        <Section icon={Cpu} title="Stack en place — ce que Pilae peut remplacer" count={stack.length}>
-          <div className="flex flex-wrap gap-1.5">
-            {stack.slice(0, 10).map((t, i) => (
-              <span key={i} className="rounded-md bg-zinc-100 px-2 py-0.5 text-[12px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                {t}
-              </span>
-            ))}
-          </div>
-        </Section>
-      )}
 
       {/* Gaps to enrich — actionable, stays visible above the collapsed dossier */}
       {gaps.length > 0 && (
@@ -505,89 +485,22 @@ export function PreCallBrief({
         onClick={() => setShowDossier((v) => !v)}
         className="flex w-full items-center justify-between rounded-lg border border-zinc-200 px-3 py-2 text-[12px] font-medium text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
       >
-        <span>Dossier complet — score, faits, historique, deals</span>
+        <span>Dossier complet — historique, deals, paysage</span>
         <ChevronDown className={`h-4 w-4 transition-transform ${showDossier ? "rotate-180" : ""}`} />
       </button>
 
       {showDossier && (
         <div className="space-y-6">
-          {/* Score hero */}
-          <div className="flex items-center gap-5 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4">
-            <ScoreRing value={selected.score * 100} />
-            <div className="flex-1 min-w-0 grid grid-cols-3 gap-x-5 gap-y-2">
-              <MiniBar label="Intent" value={selected.intentScore} />
-              <MiniBar label="Joignabilité" value={selected.accessibilityScore} />
-              <MiniBar label="Poids deal" value={Math.min(1, selected.dealValueWeight / 2)} />
-            </div>
-          </div>
+          {/* Score / quick facts / champion-badge intentionally removed: the
+              score is queue-prioritisation metadata (still in the queue badge),
+              and heure/numéro/poste/champion are already shown above. The
+              dossier keeps only what isn't elsewhere. */}
 
-          {/* Quick facts */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Fact icon={Clock} label="Heure locale" value={`${selected.localTime}`} sub={selected.localTimezone.split("/")[1] ?? selected.localTimezone} />
-            <Fact icon={Phone} label="Numéro" value={selected.phone} />
-            <Fact icon={Briefcase} label="Poste" value={selected.title ?? "—"} />
-            <Fact icon={Mail} label="Email" value={focal?.email ?? (brainLoading ? "…" : "—")} />
-          </div>
-
-          {focal?.isChampion && (
-            <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium" style={{ background: "rgba(217,119,6,.10)", color: "rgb(180,83,9)" }}>
-              <Crown className="h-3.5 w-3.5" />
-              Champion identifié chez {selected.companyName ?? "le compte"}
-            </div>
-          )}
-
-      {/* Renseignements société (dossier de recherche en cache) */}
-      {dossier && (dossier.funding || (dossier.hiringSignals?.length ?? 0) > 0 || (dossier.techStack?.length ?? 0) > 0 || dossier.competitiveLandscape) && (
-        <Section icon={Building2} title="Renseignements société">
-          <div className="space-y-3">
-            {dossier.funding && (
-              <div className="flex items-start gap-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
-                <Banknote className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-                <div className="min-w-0 text-sm">
-                  <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                    {dossier.funding.totalRaised} levés
-                  </span>
-                  <span className="text-zinc-500">
-                    {" "}· {dossier.funding.lastRound}
-                    {dossier.funding.date && dossier.funding.date !== "Unknown" ? ` (${dossier.funding.date})` : ""}
-                  </span>
-                  {dossier.funding.investors.length > 0 && (
-                    <div className="mt-0.5 text-[12px] text-zinc-400">
-                      Investisseurs: {dossier.funding.investors.slice(0, 4).join(", ")}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-            {(dossier.hiringSignals?.length ?? 0) > 0 && (
-              <div className="flex items-start gap-2.5">
-                <UserPlus className="mt-0.5 h-4 w-4 shrink-0 text-indigo-500" />
-                <div className="min-w-0 text-sm text-zinc-700 dark:text-zinc-300">
-                  Recrute: {dossier.hiringSignals!.slice(0, 3).map((h) => h.role).join(", ")}
-                </div>
-              </div>
-            )}
-            {(dossier.techStack?.length ?? 0) > 0 && (
-              <div className="flex items-start gap-2.5">
-                <Cpu className="mt-0.5 h-4 w-4 shrink-0 text-zinc-400" />
-                <div className="flex flex-wrap gap-1.5">
-                  {dossier.techStack!.slice(0, 8).map((t, i) => (
-                    <span key={i} className="rounded-md bg-zinc-100 px-2 py-0.5 text-[12px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                      {t}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {dossier.competitiveLandscape && (
-              <div className="flex items-start gap-2.5">
-                <Swords className="mt-0.5 h-4 w-4 shrink-0 text-zinc-400" />
-                <p className="text-[13px] leading-snug text-zinc-600 dark:text-zinc-400">
-                  {dossier.competitiveLandscape}
-                </p>
-              </div>
-            )}
-          </div>
+      {/* Paysage concurrentiel — the one research fact not already promoted to
+          Signaux (funding / hiring / stack now live at the top). */}
+      {dossier?.competitiveLandscape && (
+        <Section icon={Swords} title="Paysage concurrentiel">
+          <p className="text-[13px] leading-snug text-zinc-600 dark:text-zinc-400">{dossier.competitiveLandscape}</p>
         </Section>
       )}
 
@@ -669,31 +582,6 @@ function HeroBullet({
         <p className="mt-0.5 text-[13px] leading-snug text-zinc-700 dark:text-zinc-300">{value}</p>
       </div>
       {trend && <IntentTrend trend={trend} />}
-    </div>
-  );
-}
-
-function Fact({
-  icon: Icon,
-  label,
-  value,
-  sub,
-}: {
-  icon: typeof Phone;
-  label: string;
-  value: string;
-  sub?: string;
-}) {
-  return (
-    <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
-      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-zinc-400">
-        <Icon className="h-3 w-3" />
-        {label}
-      </div>
-      <div className="mt-1 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100" title={value}>
-        {value}
-      </div>
-      {sub && <div className="text-[11px] text-zinc-400">{sub}</div>}
     </div>
   );
 }
