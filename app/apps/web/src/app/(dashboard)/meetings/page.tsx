@@ -49,6 +49,10 @@ export default function MeetingsPage() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
   const [calendarConnected, setCalendarConnected] = useState(true);
+  // Whether a notetaker (Recall) is actually configured. The empty-state copy
+  // promised auto-join + auto-transcription unconditionally, but bot
+  // scheduling hard-skips without RECALL_API_KEY — so gate that promise.
+  const [notetakerOn, setNotetakerOn] = useState(false);
   const [expandedMeeting, setExpandedMeeting] = useState<string | null>(null);
   const [prepDocs, setPrepDocs] = useState<Record<string, string>>({});
   const [prepLoading, setPrepLoading] = useState<Record<string, boolean>>({});
@@ -75,6 +79,13 @@ export default function MeetingsPage() {
       }
       setLoading(false);
     })();
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/features")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setNotetakerOn(!!d?.recallai))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -155,7 +166,11 @@ export default function MeetingsPage() {
           <EmptyState
             icon={<Calendar size={24} />}
             title="Connect your calendar"
-            description="Connect Google, Microsoft, or any IMAP/CalDAV calendar (Zimbra, Infomaniak, OVH…). Elevay then shows your meetings here, links each to the right account, and its notetaker auto-joins any call with a link — so the transcript and notes land here on their own."
+            description={
+              notetakerOn
+                ? "Connect Google, Microsoft, or any IMAP/CalDAV calendar (Zimbra, Infomaniak, OVH…). Elevay then shows your meetings here, links each to the right account, and its notetaker auto-joins any call with a link — so the transcript and notes land here on their own."
+                : "Connect Google, Microsoft, or any IMAP/CalDAV calendar (Zimbra, Infomaniak, OVH…). Elevay then shows your meetings here and links each to the right account."
+            }
             actionLabel="Go to settings"
             onAction={() => router.push("/settings/mail-calendar")}
             actionVariant="outline"
@@ -164,7 +179,11 @@ export default function MeetingsPage() {
           <EmptyState
             icon={<Calendar size={24} />}
             title="No meetings in view"
-            description="Your calendar is connected — meetings show up here automatically. Elevay's notetaker joins any call with a link and captures the transcript and notes for you, so there's nothing to upload."
+            description={
+              notetakerOn
+                ? "Your calendar is connected — meetings show up here automatically. Elevay's notetaker joins any call with a link and captures the transcript and notes for you, so there's nothing to upload."
+                : "Your calendar is connected — meetings show up here automatically, each linked to the right account."
+            }
             actionLabel="Manage calendars"
             onAction={() => router.push("/settings/mail-calendar")}
             actionVariant="outline"
