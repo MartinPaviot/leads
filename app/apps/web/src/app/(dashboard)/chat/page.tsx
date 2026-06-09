@@ -387,7 +387,7 @@ export default function ChatPage() {
             placeholder="Ask Elevay..."
             autoFocus
             rows={1}
-            className={`w-full resize-none rounded-xl pl-10 pr-20 outline-none transition-all ${big ? "py-3.5 text-[15px]" : "py-2.5 text-[14px]"}`}
+            className={`block w-full resize-none rounded-xl pl-10 pr-20 outline-none transition-all ${big ? "py-3.5 text-[15px]" : "py-2.5 text-[14px]"}`}
             style={{
               background: "var(--color-bg-card)",
               color: "var(--color-text-primary)",
