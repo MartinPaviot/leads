@@ -19,6 +19,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { sendViaSmtp } from "@/lib/integrations/smtp-send";
 import { decryptSecret } from "@/lib/crypto/settings-encryption";
 import { logger } from "@/lib/observability/logger";
+import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
 
 const BATCH = 25;
 
@@ -45,6 +46,21 @@ export const dispatchOutboundSmtp = inngest.createFunction(
 
     for (const o of queued) {
       const result = await step.run(`send-${o.id}`, async () => {
+        // TEST-MODE GUARDRAIL — never reach a real prospect over SMTP while
+        // test mode is on. Fail the row with a clear reason instead.
+        if (!isRecipientAllowed(o.toAddress)) {
+          await db
+            .update(outboundEmails)
+            .set({
+              status: "failed",
+              failedAt: new Date(),
+              errorMessage: recipientBlockReason(o.toAddress),
+              updatedAt: new Date(),
+            })
+            .where(eq(outboundEmails.id, o.id));
+          return "failed";
+        }
+
         // Resolve the tenant's active SMTP mailbox. If none, this tenant isn't
         // on the IMAP/SMTP path — leave the row queued for its own sender.
         const [mb] = await db

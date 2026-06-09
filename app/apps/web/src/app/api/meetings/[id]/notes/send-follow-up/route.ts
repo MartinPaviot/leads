@@ -6,6 +6,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { logger } from "@/lib/observability/logger";
 import { Resend } from "resend";
 import { buildCtaFootersForActivity, appendFooterIfExternal } from "@/lib/recording/cta";
+import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -98,7 +99,18 @@ export async function POST(
     .map((r) => r.email?.toLowerCase())
     .filter((e): e is string => !!e && attendeeEmails.has(e));
 
-  const toEmails = recipients.length > 0 ? recipients : Array.from(attendeeEmails);
+  const resolvedEmails = recipients.length > 0 ? recipients : Array.from(attendeeEmails);
+
+  // Test-mode guardrail — only contact allowlisted addresses while test
+  // mode is on. Blocked recipients are dropped; if every recipient is
+  // blocked, the follow-up is not sent.
+  const toEmails = resolvedEmails.filter((e) => isRecipientAllowed(e));
+  if (toEmails.length === 0) {
+    return NextResponse.json(
+      { error: recipientBlockReason(resolvedEmails[0] ?? "a recipient") },
+      { status: 403 }
+    );
+  }
 
   // WS-1: per-recipient CTA footer for externals with exposures. Non-fatal
   // if the lookup fails — we fall back to the original bulk send.

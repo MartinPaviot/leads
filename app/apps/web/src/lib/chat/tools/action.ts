@@ -17,6 +17,7 @@ import {
   users,
 } from "@/db/schema";
 import { and, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
+import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -418,7 +419,13 @@ RULES:
         )
           .map((r) => r.email?.toLowerCase())
           .filter((e): e is string => !!e && attendeeEmails.has(e));
-        const toEmails = known.length > 0 ? known : Array.from(attendeeEmails);
+        const resolvedEmails = known.length > 0 ? known : Array.from(attendeeEmails);
+        // Test-mode guardrail — drop non-allowlisted recipients while test
+        // mode is on; if all are blocked, don't send.
+        const toEmails = resolvedEmails.filter((e) => isRecipientAllowed(e));
+        if (toEmails.length === 0) {
+          return { error: recipientBlockReason(resolvedEmails[0] ?? "a recipient") };
+        }
 
         const { data, error: sendError } = await resend.emails.send({
           from: FROM_ADDRESS,

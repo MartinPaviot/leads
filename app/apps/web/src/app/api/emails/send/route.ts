@@ -11,6 +11,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkPlanLimit } from "@/lib/billing/plan-limits";
 import { trackUsage } from "@/lib/billing/billing";
 import { logger } from "@/lib/observability/logger";
+import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
 import { Resend } from "resend";
 
 /* ------------------------------------------------------------------ */
@@ -61,6 +62,17 @@ export async function POST(req: Request) {
       );
     }
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  // ── Test-mode guardrail ───────────────────────────────────────
+  // Block real prospects while test mode is on, even for a deliberate
+  // manual composer send. The user disables it (OUTBOUND_TEST_MODE=off)
+  // when ready to send for real.
+  if (!isRecipientAllowed(parsed.to)) {
+    return NextResponse.json(
+      { error: recipientBlockReason(parsed.to) },
+      { status: 403 }
+    );
   }
 
   // ── Plan limit check ─────────────────────────────────────────

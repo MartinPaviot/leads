@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CampaignWizard } from "@/components/campaign-wizard";
-import { Zap, Plus, Send, Users, Mail, Play, ThumbsDown, Loader2 } from "lucide-react";
+import { Zap, Plus, Send, Users, Mail, Play, ThumbsDown, Loader2, FlaskConical } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 
 interface Sequence {
@@ -31,6 +31,11 @@ export default function CampaignsPage() {
   // Per-row pending state so we can disable both buttons + show a
   // spinner during the in-flight approve/reject without flicker.
   const [pendingId, setPendingId] = useState<string | null>(null);
+  // Outbound test-mode guardrail state (drives the honest banner + toast).
+  const [sendingMode, setSendingMode] = useState<{ testMode: boolean; allowlist: string[] }>({
+    testMode: false,
+    allowlist: [],
+  });
 
   const fetchSequences = useCallback(async () => {
     try {
@@ -46,6 +51,13 @@ export default function CampaignsPage() {
   }, []);
 
   useEffect(() => { fetchSequences(); }, [fetchSequences]);
+
+  useEffect(() => {
+    fetch("/api/sending-mode")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d && typeof d.testMode === "boolean") setSendingMode(d); })
+      .catch(() => {});
+  }, []);
 
   // Monaco-parity: when an AI-proposed sequence lands as "draft",
   // expose Approve (Start) / Reject (thumbs-down) inline so the
@@ -68,7 +80,9 @@ export default function CampaignsPage() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         toast(
           next === "active"
-            ? "Campaign started — sending begins on the next worker tick."
+            ? sendingMode.testMode
+              ? "Campaign started. Test mode is on — emails only go to your allowlist, not real prospects."
+              : "Campaign started — sending begins on the next worker tick."
             : "Campaign archived — re-open from the archive view.",
           next === "active" ? "success" : "info",
         );
@@ -82,7 +96,7 @@ export default function CampaignsPage() {
         setPendingId(null);
       }
     },
-    [sequences, toast]
+    [sequences, toast, sendingMode.testMode]
   );
 
   const statusVariant: Record<string, "success" | "warning" | "neutral" | "info"> = {
@@ -116,6 +130,25 @@ export default function CampaignsPage() {
       )}
 
       <div className="flex-1 overflow-auto px-4 py-6">
+        {sendingMode.testMode && (
+          <div
+            className="mb-4 flex items-start gap-2.5 rounded-lg px-3.5 py-2.5"
+            style={{
+              background: "var(--color-warning-soft, rgba(217,119,6,0.10))",
+              border: "1px solid var(--color-warning, rgba(217,119,6,0.35))",
+            }}
+          >
+            <FlaskConical size={15} className="mt-0.5 shrink-0" style={{ color: "var(--color-warning, #b45309)" }} />
+            <div className="text-[12px] leading-[17px]" style={{ color: "var(--color-text-secondary)" }}>
+              <span className="font-semibold" style={{ color: "var(--color-text-primary)" }}>Test mode is on.</span>{" "}
+              Outbound emails only reach your allowlist
+              {sendingMode.allowlist.length > 0 && (
+                <> (<span className="font-medium">{sendingMode.allowlist.join(", ")}</span>)</>
+              )}
+              {" "}— real prospects are never contacted. You can launch and review campaigns end-to-end safely. Lift it by setting <code className="rounded px-1" style={{ background: "var(--color-bg-hover)" }}>OUTBOUND_TEST_MODE=off</code>.
+            </div>
+          </div>
+        )}
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (

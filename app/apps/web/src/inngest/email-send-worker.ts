@@ -10,6 +10,7 @@ import { eq, and, sql, inArray } from "drizzle-orm";
 import { Resend } from "resend";
 import { buildUnsubscribeUrl } from "@/lib/emails/unsubscribe-token";
 import { signTrackingId } from "@/lib/emails/tracking-token";
+import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
 import { checkPlanLimit } from "@/lib/billing/plan-limits";
 import { trackUsage } from "@/lib/billing/billing";
 import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
@@ -252,6 +253,23 @@ export const processOutboundEmails = inngest.createFunction(
 
     for (const email of sendableEmails) {
       await step.run(`send-${email.id}`, async () => {
+        // TEST-MODE GUARDRAIL — never let a campaign reach a real prospect
+        // while test mode is on. Fail the row with a clear reason instead of
+        // sending. Holds regardless of how the email got queued.
+        if (!isRecipientAllowed(email.toAddress)) {
+          await db
+            .update(outboundEmails)
+            .set({
+              status: "failed",
+              failedAt: new Date(),
+              errorMessage: recipientBlockReason(email.toAddress),
+              updatedAt: new Date(),
+            })
+            .where(eq(outboundEmails.id, email.id));
+          failed++;
+          return;
+        }
+
         // Resolve sender address
         let fromAddress = FALLBACK_FROM;
         const mailboxKey = email.mailboxId
@@ -544,6 +562,20 @@ export const sendSingleEmail = inngest.createFunction(
         })
         .where(eq(outboundEmails.id, emailId));
       return { emailId, sent: false, reason: "Recipient opted out" };
+    }
+
+    // TEST-MODE GUARDRAIL — block real prospects while test mode is on.
+    if (!isRecipientAllowed(email.toAddress)) {
+      await db
+        .update(outboundEmails)
+        .set({
+          status: "failed",
+          failedAt: new Date(),
+          errorMessage: recipientBlockReason(email.toAddress),
+          updatedAt: new Date(),
+        })
+        .where(eq(outboundEmails.id, emailId));
+      return { emailId, sent: false, reason: "Blocked by test-mode guardrail" };
     }
 
     if (!resend) {
