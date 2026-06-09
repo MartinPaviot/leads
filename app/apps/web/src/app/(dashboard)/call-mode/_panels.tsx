@@ -319,29 +319,54 @@ export function PreCallBrief({
   onEnrich?: () => void;
   enriching?: boolean;
 }) {
-  const firstName = selected.contactName.split(" ")[0];
   const focal = brain?.focalContact;
   const deals = brain?.ownedDeals ?? [];
   const activities = brain?.directActivities ?? [];
   const dossier = brain?.cachedDossier ?? null;
   const approach = dossier?.recommendedApproach;
-  const opener =
-    approach?.openingLine?.trim() ||
-    `« Bonjour ${firstName}, j'ai 30 secondes ? »`;
-
-  // Pre-call hero — the three things to know in the 5 seconds before dialing.
-  // The dense dossier (score, facts, history, deals) collapses beneath it.
+  const company = brain?.companyBrain?.company;
   const [showDossier, setShowDossier] = useState(false);
-  const whyNow =
+
+  // The script is on the right — the centre is situational intelligence. What an
+  // expert wants before dialling, ranked by what changes the call:
+
+  // 1) Authority (decider-first). isChampion is the only grounded flag; the
+  // seniority read is a soft, title-based hint ("probable"), never a hard claim.
+  const titleStr = (focal?.title ?? selected.title ?? "").toLowerCase();
+  const isSenior = [
+    "ceo", "chief", "founder", "fondat", "président", "president",
+    "directeur général", "directrice général", "direction générale", "dg ",
+    "gérant", "gerant", "owner", "propriétaire", "associé", "partner",
+    "secrétaire général", "secretaire general", "daf", "cfo", "coo", "dsi", "cto",
+  ].some((k) => titleStr.includes(k));
+  const authorityLabel = focal?.isChampion
+    ? "Champion interne"
+    : isSenior
+      ? "Décideur probable"
+      : "Influenceur — viser l'intro au décideur";
+
+  // 2) The one reason to call THEM — grounded: real signal > researched angle >
+  // the replaceable stack (the Pilae lever) > sector+size. Never generic filler.
+  const stack = dossier?.techStack ?? [];
+  const reason =
     selected.latestSignal?.label ||
-    "Pas de signal temps réel — appel à froid sur le profil ICP.";
-  const whatTheyCare =
     approach?.messagingAngle?.trim() ||
-    (dossier?.hiringSignals && dossier.hiringSignals.length > 0
-      ? `Recrute ${dossier.hiringSignals[0].role}`
-      : `Priorités d'un(e) ${selected.title ?? "décideur"}`);
-  // Aligned with the script's deep-dive ask (45 min), not a contradicting 15.
-  const theAsk = "Décrocher un échange de 45 min cette semaine.";
+    (stack.length > 0
+      ? `Stack en place (${stack.slice(0, 3).join(", ")}) — l'angle remplacement / coût porte ici.`
+      : company?.industry
+        ? `${company.industry}${company.sizeBand ? ` · ${company.sizeBand}` : ""} — froid sur le profil ICP : ancrer sur le coût et le renouvellement.`
+        : "Appel à froid sur le profil ICP — ancrer sur le coût et la souveraineté.");
+
+  // 3) Relationship — cold vs warm, fully grounded (deals + activities are real).
+  const openDeal = deals[0];
+  const lastActivity = activities[0];
+  const relationship = openDeal
+    ? `Deal lié : ${openDeal.name} · ${openDeal.stage}`
+    : lastActivity
+      ? `Déjà en contact — ${lastActivity.summary ?? lastActivity.type.replace(/_/g, " ")} · ${relTime(lastActivity.occurredAt)}`
+      : focal?.lastTouchAt
+        ? `Dernier contact ${relTime(focal.lastTouchAt)}`
+        : "Premier contact — froid, jamais touché.";
 
   // What's still worth pulling before the call — honest gap list.
   const gaps: string[] = [];
@@ -353,24 +378,49 @@ export function PreCallBrief({
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 p-6">
-      {/* ── Hero: the line to say, then why now / what they care about / the ask ── */}
+      {/* ── Expert brief: situational intelligence (the script lives on the right) ── */}
       <div className="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
-        <div className="p-4" style={{ background: "rgba(99,102,241,.06)" }}>
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide" style={{ color: "rgb(79,70,229)" }}>
-            <MessageSquare className="h-3.5 w-3.5" />
-            Accroche à dire
+        <div
+          className="flex items-center gap-2.5 px-4 py-2.5"
+          style={{ background: focal?.isChampion ? "rgba(217,119,6,.07)" : isSenior ? "rgba(16,185,129,.07)" : "rgba(99,102,241,.05)" }}
+        >
+          {focal?.isChampion ? (
+            <Crown className="h-4 w-4 shrink-0 text-amber-500" />
+          ) : (
+            <Target className="h-4 w-4 shrink-0" style={{ color: isSenior ? "rgb(16,185,129)" : "rgb(99,102,241)" }} />
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Autorité</div>
+            <p className="truncate text-[13px] font-medium leading-snug text-zinc-800 dark:text-zinc-100">
+              {authorityLabel}
+              {(focal?.title ?? selected.title) && (
+                <span className="font-normal text-zinc-500"> · {focal?.title ?? selected.title}</span>
+              )}
+            </p>
           </div>
-          <p className="mt-1.5 text-[15px] italic leading-snug text-zinc-800 dark:text-zinc-100">{opener}</p>
+          {focal?.intentTrend && <IntentTrend trend={focal.intentTrend} />}
         </div>
         <div
           className="divide-y divide-zinc-100 dark:divide-zinc-800"
           style={{ borderTop: "1px solid var(--color-border-default)" }}
         >
-          <HeroBullet icon={Sparkles} label="Pourquoi maintenant" value={whyNow} trend={focal?.intentTrend ?? null} />
-          <HeroBullet icon={Target} label="Ce qui compte pour eux" value={whatTheyCare} />
-          <HeroBullet icon={Phone} label="L'objectif de l'appel" value={theAsk} />
+          <HeroBullet icon={Sparkles} label="La raison de l'appeler" value={reason} />
+          <HeroBullet icon={Activity} label="Relation" value={relationship} />
         </div>
       </div>
+
+      {/* Replaceable stack — the Pilae lever, surfaced as ammo (grounded, from research) */}
+      {stack.length > 0 && (
+        <Section icon={Cpu} title="Stack en place — ce que Pilae peut remplacer" count={stack.length}>
+          <div className="flex flex-wrap gap-1.5">
+            {stack.slice(0, 10).map((t, i) => (
+              <span key={i} className="rounded-md bg-zinc-100 px-2 py-0.5 text-[12px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                {t}
+              </span>
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* Gaps to enrich — actionable, stays visible above the collapsed dossier */}
       {gaps.length > 0 && (
