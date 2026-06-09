@@ -89,6 +89,85 @@ export async function companyDetailBySiren(siren: string): Promise<SireneDetail 
   return { siren, dirigeants, ca, resultatNet, year };
 }
 
+export interface SireneEnriched {
+  siren: string;
+  name: string | null;
+  naf: string | null; // dotted NAF code, e.g. 62.01Z
+  section: string | null; // NAF section letter (A..U), e.g. J
+  effectifTranche: string | null; // INSEE code
+  foundedYear: number | null;
+  city: string | null;
+  postalCode: string | null;
+  departement: string | null;
+  ca: number | null; // latest annual revenue in EUR
+  caYear: string | null;
+  /** True only when the result's legal name EXACTLY matches the query
+   *  (normalized) — the adapter trusts firmographics only on an exact
+   *  match, so a US "Apple" can't be enriched with a French "Apple". */
+  exact: boolean;
+}
+
+function normSireneName(s: string | null | undefined): string {
+  return (s ?? "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+/**
+ * Enrich a French company by NAME (keyless, free). One search call with
+ * `minimal=false` already carries NAF, effectif tranche, location and
+ * finances (CA). Returns the best result with an `exact` flag the adapter
+ * uses to gate on a confident match.
+ */
+export async function enrichCompanyByNameSirene(
+  name: string,
+  opts?: { departement?: string },
+): Promise<SireneEnriched | null> {
+  const q = name.trim();
+  if (!q) return null;
+  const qs = new URLSearchParams({ q, minimal: "false", per_page: "5", etat_administratif: "A" });
+  if (opts?.departement) qs.set("departement", opts.departement);
+
+  const res = await fetch(`${BASE}?${qs}`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(20_000) });
+  if (!res.ok) throw new Error(`recherche-entreprises ${res.status}`);
+  const j = (await res.json()) as Record<string, unknown>;
+  const results = (Array.isArray(j.results) ? j.results : []) as Array<Record<string, unknown>>;
+  if (results.length === 0) return null;
+
+  const target = normSireneName(q);
+  const exactIdx = results.findIndex((r) => normSireneName((r.nom_complet ?? r.nom_raison_sociale) as string) === target);
+  const r = (exactIdx >= 0 ? results[exactIdx] : results[0]) as Record<string, unknown>;
+  const siege = (r.siege ?? {}) as Record<string, unknown>;
+
+  let ca: number | null = null;
+  let caYear: string | null = null;
+  const fin = (r.finances ?? null) as Record<string, { ca?: number }> | null;
+  if (fin && typeof fin === "object") {
+    const years = Object.keys(fin).sort();
+    const last = years[years.length - 1];
+    if (last) {
+      caYear = last;
+      ca = typeof fin[last]?.ca === "number" ? (fin[last]!.ca as number) : null;
+    }
+  }
+
+  const dateCreation = (r.date_creation ?? siege.date_creation) as string | null;
+  const foundedYear = dateCreation ? Number(String(dateCreation).slice(0, 4)) || null : null;
+
+  return {
+    siren: String(r.siren ?? ""),
+    name: (r.nom_complet ?? r.nom_raison_sociale ?? null) as string | null,
+    naf: (r.activite_principale ?? null) as string | null,
+    section: (r.section_activite_principale ?? null) as string | null,
+    effectifTranche: (r.tranche_effectif_salarie ?? null) as string | null,
+    foundedYear,
+    city: (siege.libelle_commune ?? null) as string | null,
+    postalCode: (siege.code_postal ?? null) as string | null,
+    departement: (siege.departement ?? null) as string | null,
+    ca,
+    caYear,
+    exact: exactIdx >= 0,
+  };
+}
+
 export async function searchCompaniesSirene(params: {
   activite_principale?: string[];
   departement?: string[];
