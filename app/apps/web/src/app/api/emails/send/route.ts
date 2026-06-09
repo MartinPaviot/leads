@@ -28,6 +28,7 @@ const STATUS_BY_CODE: Record<string, number> = {
   plan_limit: 429,
   not_configured: 503,
   send_failed: 502,
+  test_mode: 403,
 };
 
 export async function POST(req: Request) {
