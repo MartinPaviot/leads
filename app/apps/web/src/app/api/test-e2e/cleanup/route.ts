@@ -52,6 +52,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "tenantId required" }, { status: 400 });
   }
 
+  // Hard guard: only ever wipe tenants THIS harness seeded — they're named
+  // "E2E <slug> <ts>" (see ../seed). Without it, a stray REAL tenantId (e.g.
+  // read from a logged-in session) gets hard-deleted: that's the 2026-06-09
+  // near-miss. Belt to the ENABLE_E2E_SEED + Bearer braces.
+  const [target] = await db
+    .select({ name: tenants.name })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1);
+  if (!target || !/^E2E /.test(target.name ?? "")) {
+    return NextResponse.json(
+      { error: "Refused: target is not an E2E-seeded tenant (name must start with 'E2E ')" },
+      { status: 403 },
+    );
+  }
+
   try {
     // Child tables first (tenant-scoped).
     // sequenceEnrollments doesn't have tenantId but joins via sequenceId.
