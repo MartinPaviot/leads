@@ -52,6 +52,11 @@ export const icps = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Soft-delete: a deleted ICP keeps its row + criteria (so it stays
+    // restorable) but is excluded from every read, scoring, sourcing and TAM
+    // build. Its company_icp_fit cells are dropped on delete (scoring stops
+    // immediately) and rebuilt by the recompute on restore.
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => [
     index("icps_tenant_idx").on(t.tenantId),

@@ -11,7 +11,7 @@
 import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { icps, icpCriteria, companyIcpFit } from "@/db/schema";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { validateIcpInput } from "@/lib/icp/validation";
 import { resolveCatalogForValidation } from "@/lib/icp/catalog-db";
 import { inngest } from "@/inngest/client";
@@ -37,7 +37,7 @@ export async function GET() {
       fitCount: sql<number>`(SELECT count(*)::int FROM company_icp_fit WHERE company_icp_fit.icp_id = "icps"."id" AND company_icp_fit.fit_score >= 0.5)`,
     })
     .from(icps)
-    .where(eq(icps.tenantId, authCtx.tenantId))
+    .where(and(eq(icps.tenantId, authCtx.tenantId), isNull(icps.deletedAt)))
     .orderBy(icps.priority, icps.createdAt);
 
   return Response.json({ icps: rows });

@@ -263,7 +263,7 @@ export async function POST(req: Request) {
           const [icp] = await db
             .select({ id: icps.id, name: icps.name })
             .from(icps)
-            .where(and(eq(icps.id, body.icpId), eq(icps.tenantId, authCtx.tenantId)))
+            .where(and(eq(icps.id, body.icpId), eq(icps.tenantId, authCtx.tenantId), isNull(icps.deletedAt)))
             .limit(1);
           if (!icp) {
             send({

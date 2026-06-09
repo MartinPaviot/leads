@@ -44,7 +44,7 @@ export async function recomputeTenant(tenantId: string): Promise<{
   const activeIcps = await db
     .select({ id: icps.id, priority: icps.priority })
     .from(icps)
-    .where(and(eq(icps.tenantId, tenantId), eq(icps.status, "active")));
+    .where(and(eq(icps.tenantId, tenantId), eq(icps.status, "active"), isNull(icps.deletedAt)));
 
   if (activeIcps.length === 0) {
     return { companies: 0, icps: 0, cells: 0 };
@@ -189,7 +189,7 @@ export const icpFitRecomputeDaily = inngest.createFunction(
   },
   async ({ step }: { step: any }) => {
     const tenants = await step.run("fetch-tenants", async () =>
-      db.select({ id: icps.tenantId }).from(icps).groupBy(icps.tenantId),
+      db.select({ id: icps.tenantId }).from(icps).where(isNull(icps.deletedAt)).groupBy(icps.tenantId),
     );
     let total = 0;
     for (const t of tenants) {

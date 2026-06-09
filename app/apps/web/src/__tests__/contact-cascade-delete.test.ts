@@ -21,7 +21,7 @@ vi.mock("drizzle-orm", () => ({
 vi.mock("@/db", () => ({ db: { update: vi.fn(), select: vi.fn() } }));
 
 import { db } from "@/db";
-import { getContactRelatedCounts, cascadeSoftDeleteContact, CONTACT_CASCADE_TYPES } from "@/lib/contacts/cascade-delete";
+import { getContactRelatedCounts, cascadeSoftDeleteContact, cascadeSoftRestoreContact, CONTACT_CASCADE_TYPES } from "@/lib/contacts/cascade-delete";
 
 type TableTag = "activities" | "notes" | "tasks";
 
@@ -74,6 +74,22 @@ describe("cascadeSoftDeleteContact", () => {
     expect(updatedTablesInOrder().sort()).toEqual(["activities", "tasks"]);
     // notes was not selected → not touched.
     expect(updatedTablesInOrder()).not.toContain("notes");
+  });
+});
+
+describe("cascadeSoftRestoreContact (symmetric inverse)", () => {
+  it("restores the polymorphic rows matched by the shared delete timestamp", async () => {
+    const at = new Date("2026-06-09T10:00:00.000Z");
+    mockUpdate({ activities: [{ id: "a1" }], notes: [{ id: "n1" }, { id: "n2" }], tasks: [{ id: "tk1" }] });
+    const out = await cascadeSoftRestoreContact("t1", "ct1", at);
+    expect(out).toEqual({ activities: 1, notes: 2, tasks: 1 });
+    expect(updatedTablesInOrder()).toEqual(["activities", "notes", "tasks"]);
+  });
+
+  it("omits types with nothing matching the timestamp (standalone-deleted rows untouched)", async () => {
+    mockUpdate({ tasks: [{ id: "tk1" }] });
+    const out = await cascadeSoftRestoreContact("t1", "ct1", new Date());
+    expect(out).toEqual({ tasks: 1 });
   });
 });
 

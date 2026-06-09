@@ -42,22 +42,43 @@ export async function cascadeSoftDeleteContact(
   tenantId: string,
   contactId: string,
   types: ContactCascadeType[],
+  at: Date = new Date(),
 ): Promise<Partial<Record<ContactCascadeType, number>>> {
   if (types.length === 0) return {};
-  const now = new Date();
   const out: Partial<Record<ContactCascadeType, number>> = {};
 
   if (types.includes("activities")) {
-    const r = await db.update(activities).set({ deletedAt: now }).where(and(eq(activities.tenantId, tenantId), eq(activities.entityId, contactId), isNull(activities.deletedAt))).returning({ id: activities.id });
+    const r = await db.update(activities).set({ deletedAt: at }).where(and(eq(activities.tenantId, tenantId), eq(activities.entityId, contactId), isNull(activities.deletedAt))).returning({ id: activities.id });
     out.activities = r.length;
   }
   if (types.includes("notes")) {
-    const r = await db.update(notes).set({ deletedAt: now }).where(and(eq(notes.tenantId, tenantId), eq(notes.entityId, contactId), isNull(notes.deletedAt))).returning({ id: notes.id });
+    const r = await db.update(notes).set({ deletedAt: at }).where(and(eq(notes.tenantId, tenantId), eq(notes.entityId, contactId), isNull(notes.deletedAt))).returning({ id: notes.id });
     out.notes = r.length;
   }
   if (types.includes("tasks")) {
-    const r = await db.update(tasks).set({ deletedAt: now }).where(and(eq(tasks.tenantId, tenantId), eq(tasks.entityId, contactId), isNull(tasks.deletedAt))).returning({ id: tasks.id });
+    const r = await db.update(tasks).set({ deletedAt: at }).where(and(eq(tasks.tenantId, tenantId), eq(tasks.entityId, contactId), isNull(tasks.deletedAt))).returning({ id: tasks.id });
     out.tasks = r.length;
   }
+  return out;
+}
+
+/**
+ * Symmetric inverse of cascadeSoftDeleteContact: restore exactly the polymorphic
+ * rows cascade-deleted together with the contact, identified by the shared
+ * delete timestamp `at` (= the contact's deleted_at at delete time). Rows
+ * deleted standalone at another moment are left untouched.
+ */
+export async function cascadeSoftRestoreContact(
+  tenantId: string,
+  contactId: string,
+  at: Date,
+): Promise<Partial<Record<ContactCascadeType, number>>> {
+  const out: Partial<Record<ContactCascadeType, number>> = {};
+  const a = await db.update(activities).set({ deletedAt: null }).where(and(eq(activities.tenantId, tenantId), eq(activities.entityId, contactId), eq(activities.deletedAt, at))).returning({ id: activities.id });
+  if (a.length) out.activities = a.length;
+  const nt = await db.update(notes).set({ deletedAt: null }).where(and(eq(notes.tenantId, tenantId), eq(notes.entityId, contactId), eq(notes.deletedAt, at))).returning({ id: notes.id });
+  if (nt.length) out.notes = nt.length;
+  const tk = await db.update(tasks).set({ deletedAt: null }).where(and(eq(tasks.tenantId, tenantId), eq(tasks.entityId, contactId), eq(tasks.deletedAt, at))).returning({ id: tasks.id });
+  if (tk.length) out.tasks = tk.length;
   return out;
 }

@@ -4,7 +4,6 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { requirePermission } from "@/lib/auth/permissions";
 import { eq, and, sql, isNull } from "drizzle-orm";
 import { logAudit } from "@/lib/infra/audit-log";
-import { softDelete } from "@/lib/infra/soft-delete";
 import { suppressContacts } from "@/lib/accounts/suppression";
 import { cascadeSoftDeleteContact, CONTACT_CASCADE_TYPES, type ContactCascadeType } from "@/lib/contacts/cascade-delete";
 
@@ -176,12 +175,17 @@ export async function DELETE(
 
     // Cascade the selected related sets first (soft-delete, recoverable), then
     // the contact itself.
+    // One shared timestamp for the contact AND its cascade so a later restore
+    // brings back exactly the set deleted together (symmetric cascade-restore).
+    const deletedAt = new Date();
     const cascaded = cascade.length
-      ? await cascadeSoftDeleteContact(authCtx.tenantId, id, cascade)
+      ? await cascadeSoftDeleteContact(authCtx.tenantId, id, cascade, deletedAt)
       : {};
 
-    // Soft-delete the contact (sets deleted_at = now() instead of hard delete)
-    await softDelete("contacts", id, authCtx.tenantId);
+    await db
+      .update(contacts)
+      .set({ deletedAt })
+      .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));
 
     // Durable suppression so the contact is never re-sourced (by email/LinkedIn).
     await suppressContacts({
