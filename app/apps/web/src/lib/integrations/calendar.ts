@@ -2,6 +2,10 @@ import { google } from "googleapis";
 import { db } from "@/db";
 import { authAccounts } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import {
+  decryptOAuthToken,
+  encryptOAuthToken,
+} from "@/lib/crypto/oauth-token-crypto";
 
 export async function getCalendarClient(userId: string) {
   const [account] = await db
@@ -25,14 +29,16 @@ export async function getCalendarClient(userId: string) {
   );
 
   oauth2Client.setCredentials({
-    access_token: account.access_token,
-    refresh_token: account.refresh_token,
+    access_token: decryptOAuthToken(account.access_token),
+    refresh_token: decryptOAuthToken(account.refresh_token),
   });
 
-  // Handle token refresh — persist new access_token and expiry to DB
+  // Handle token refresh — persist new access_token (encrypted) and expiry to DB
   oauth2Client.on("tokens", async (tokens) => {
     if (tokens.access_token) {
-      const updates: Record<string, unknown> = { access_token: tokens.access_token };
+      const updates: Record<string, unknown> = {
+        access_token: encryptOAuthToken(tokens.access_token),
+      };
       if (tokens.expiry_date) {
         updates.expires_at = Math.floor(tokens.expiry_date / 1000);
       }

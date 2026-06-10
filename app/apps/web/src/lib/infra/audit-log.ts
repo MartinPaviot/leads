@@ -19,6 +19,7 @@
  *   flow without legal review.
  */
 
+import * as Sentry from "@sentry/nextjs";
 import { db } from "@/db";
 import { activities } from "@/db/schema";
 import { signAuditEntry } from "@/lib/infra/signed-audit";
@@ -26,7 +27,9 @@ import { signAuditEntry } from "@/lib/infra/signed-audit";
 export async function logAudit(params: {
   tenantId: string;
   userId: string;
-  action: "create" | "update" | "delete";
+  // "login" / "deactivate" / "reactivate" cover the CC6.1 authentication
+  // and offboarding events; the CRUD trio covers entity mutations.
+  action: "create" | "update" | "delete" | "login" | "deactivate" | "reactivate";
   entityType: string;
   entityId: string;
   changes?: Record<string, { old: unknown; new: unknown }>;
@@ -55,7 +58,10 @@ export async function logAudit(params: {
       entityId: params.entityId,
       channel: "system",
       direction: "internal",
-      summary: `User ${params.action}d ${params.entityType}`,
+      summary:
+        params.action === "login"
+          ? "User signed in"
+          : `User ${params.action}d ${params.entityType}`,
       metadata: {
         audit: true,
         action: params.action,
@@ -66,7 +72,17 @@ export async function logAudit(params: {
       },
     });
   } catch (error) {
-    // Audit logging should never break the main operation
+    // Audit logging should never break the main operation — but a
+    // silently failing audit trail is itself a SOC 2 incident, so the
+    // failure must be visible somewhere durable, not just stdout.
     console.error("Failed to write audit log:", error);
+    Sentry.captureException(error, {
+      tags: { component: "audit-log" },
+      extra: {
+        action: params.action,
+        entityType: params.entityType,
+        tenantId: params.tenantId,
+      },
+    });
   }
 }

@@ -108,14 +108,37 @@ async function resolveUserTenant(authUserId: string, email: string) {
   return { tenantId: tenant.id, userId: user.id, role: user.role || "member" };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- pnpm dual-resolves drizzle-orm via @neondatabase peer; types are structurally identical
+const baseAdapter = DrizzleAdapter(db as any, {
+  usersTable: authUsers as any,
+  accountsTable: authAccounts as any,
+  sessionsTable: authSessions as any,
+  verificationTokensTable: authVerificationTokens as any,
+});
+
+// SOC2 T1 — OAuth tokens are encrypted at rest. `linkAccount` is the
+// single write path for fresh provider tokens (initial sign-in /
+// re-consent); refresh-time writes go through lib/integrations/* which
+// encrypt too. Readers (getGmailClient & co) decrypt tolerantly, so
+// pre-encryption rows keep working until scripts/encrypt-oauth-tokens.ts
+// has backfilled them.
+const adapter: typeof baseAdapter = {
+  ...baseAdapter,
+  async linkAccount(account) {
+    const { encryptOAuthToken } = await import(
+      "@/lib/crypto/oauth-token-crypto"
+    );
+    await baseAdapter.linkAccount!({
+      ...account,
+      access_token: encryptOAuthToken(account.access_token as string | undefined) ?? undefined,
+      refresh_token: encryptOAuthToken(account.refresh_token as string | undefined) ?? undefined,
+      id_token: encryptOAuthToken(account.id_token as string | undefined) ?? undefined,
+    });
+  },
+};
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pnpm dual-resolves drizzle-orm via @neondatabase peer; types are structurally identical
-  adapter: DrizzleAdapter(db as any, {
-    usersTable: authUsers as any,
-    accountsTable: authAccounts as any,
-    sessionsTable: authSessions as any,
-    verificationTokensTable: authVerificationTokens as any,
-  }),
+  adapter,
   providers: [
     ...(process.env.GOOGLE_CLIENT_ID
       ? [
@@ -240,6 +263,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const isValid = await bcrypt.compare(password, storedHash);
         if (!isValid) {
           await recordFailedSignIn(email, ip);
+          return null;
+        }
+
+        // SOC2 T5 — a deactivated (offboarded) member must not sign back
+        // in even with a valid password. Checked after the bcrypt compare
+        // so the rejection is indistinguishable from a wrong password.
+        const [appUser] = await db
+          .select({ deactivatedAt: users.deactivatedAt })
+          .from(users)
+          .where(eq(users.clerkId, user.id))
+          .limit(1);
+        if (appUser?.deactivatedAt) {
           return null;
         }
 
@@ -394,8 +429,41 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         (session as any).tenantId = token.tenantId as string;
         (session as any).appUserId = token.appUserId as string;
         (session as any).role = (token.role as string) || "member";
+        // SOC2 T7 — surface the JWT issue time so getAuthContext can
+        // reject tokens minted before the last password change.
+        (session as any).issuedAt = (token as any).iat as number | undefined;
       }
       return session;
+    },
+  },
+  events: {
+    // SOC2 T6 (CC6.1) — successful authentications are audit-logged,
+    // not just failures. Best-effort: a logging hiccup must never block
+    // a legitimate sign-in; logAudit itself reports failures to Sentry.
+    async signIn({ user, account }) {
+      if (!user?.id) return;
+      try {
+        const [appUser] = await db
+          .select({ id: users.id, tenantId: users.tenantId })
+          .from(users)
+          .where(eq(users.clerkId, user.id))
+          .limit(1);
+        if (!appUser) return; // first-ever sign-in: app user not created yet
+        const { logAudit } = await import("@/lib/infra/audit-log");
+        await logAudit({
+          tenantId: appUser.tenantId,
+          userId: appUser.id,
+          action: "login",
+          entityType: "user",
+          entityId: appUser.id,
+          metadata: {
+            event: "sign_in",
+            provider: account?.provider ?? "credentials",
+          },
+        });
+      } catch (err) {
+        console.warn("auth: failed to audit-log successful sign-in", err);
+      }
     },
   },
 });

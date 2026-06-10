@@ -9,6 +9,10 @@
 import { db } from "@/db";
 import { authAccounts } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import {
+  decryptOAuthToken,
+  encryptOAuthToken,
+} from "@/lib/crypto/oauth-token-crypto";
 
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 
@@ -47,11 +51,12 @@ async function getAccessToken(userId: string): Promise<string | null> {
   // Check if token needs refresh
   const expiresAt = account.expires_at ? account.expires_at * 1000 : 0;
   if (Date.now() < expiresAt - 60000) {
-    return account.access_token;
+    return decryptOAuthToken(account.access_token);
   }
 
   // Refresh token
-  if (!account.refresh_token || !process.env.MICROSOFT_CLIENT_ID) return null;
+  const refreshToken = decryptOAuthToken(account.refresh_token);
+  if (!refreshToken || !process.env.MICROSOFT_CLIENT_ID) return null;
 
   try {
     const res = await fetch("https://login.microsoftonline.com/common/oauth2/v2.0/token", {
@@ -60,7 +65,7 @@ async function getAccessToken(userId: string): Promise<string | null> {
       body: new URLSearchParams({
         client_id: process.env.MICROSOFT_CLIENT_ID,
         client_secret: process.env.MICROSOFT_CLIENT_SECRET!,
-        refresh_token: account.refresh_token,
+        refresh_token: refreshToken,
         grant_type: "refresh_token",
         scope: "openid email profile offline_access Mail.Read Calendars.Read",
       }),
@@ -70,10 +75,10 @@ async function getAccessToken(userId: string): Promise<string | null> {
 
     const data = await res.json();
 
-    // Update stored tokens
+    // Update stored tokens (encrypted at rest)
     await db.update(authAccounts).set({
-      access_token: data.access_token,
-      refresh_token: data.refresh_token || account.refresh_token,
+      access_token: encryptOAuthToken(data.access_token),
+      refresh_token: encryptOAuthToken(data.refresh_token) || account.refresh_token,
       expires_at: Math.floor(Date.now() / 1000) + (data.expires_in || 3600),
     }).where(and(eq(authAccounts.userId, userId), eq(authAccounts.provider, "microsoft-entra-id")));
 

@@ -1,6 +1,10 @@
 import { auth } from "@/auth";
 import { setTenantId, clearTenantId } from "@/db/rls";
 import { authToAppUserId } from "@/lib/auth/user-id";
+import {
+  getSessionGuard,
+  isTokenPredatingPasswordChange,
+} from "@/lib/auth/session-guard";
 import { getFreshRole } from "@/lib/auth/fresh-role";
 
 export interface AuthContext {
@@ -24,6 +28,17 @@ export async function getAuthContext(): Promise<AuthContext | null> {
 
   // Require tenant context for all data operations
   if (!tenantId) return null;
+
+  // SOC2 T5/T7 — server-side revocation gate (60s-cached DB read).
+  // Deactivated members and tokens issued before the last password
+  // change are treated as signed out even though the JWT itself is
+  // still cryptographically valid for up to 8h.
+  const guard = await getSessionGuard(session.user.id);
+  if (guard.deactivatedAt) return null;
+  const issuedAt = (session as any).issuedAt as number | undefined;
+  if (isTokenPredatingPasswordChange(issuedAt, guard.passwordChangedAt)) {
+    return null;
+  }
 
   // `appUserId` is the APP `users.id` (NOT the auth-user id). New sessions
   // always carry it (set in the jwt callback from resolveUserTenant). For a

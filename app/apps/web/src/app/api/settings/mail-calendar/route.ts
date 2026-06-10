@@ -4,6 +4,7 @@ import { authAccounts, connectedMailboxes, tenants } from "@/db/schema";
 import { eq, and, ne } from "drizzle-orm";
 import { updateTenantSettings } from "@/lib/config/tenant-settings";
 import { isNeedsReauth } from "@/lib/integrations/sync-health";
+import { decryptOAuthToken } from "@/lib/crypto/oauth-token-crypto";
 
 const CONTACT_CREATION_MODES = ["disabled", "selective", "always"] as const;
 const BACKSYNC_RANGES = ["1m", "3m", "6m", "12m"] as const;
@@ -111,10 +112,11 @@ export async function GET() {
 
       // Decode email from id_token
       let oauthEmail = "";
-      if (oa.idToken) {
+      const idToken = decryptOAuthToken(oa.idToken);
+      if (idToken) {
         try {
           const payload = JSON.parse(
-            Buffer.from(oa.idToken.split(".")[1], "base64url").toString()
+            Buffer.from(idToken.split(".")[1], "base64url").toString()
           );
           oauthEmail = (payload.email || payload.preferred_username || "").toLowerCase();
         } catch { /* ignore decode errors */ }
