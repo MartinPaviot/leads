@@ -52,6 +52,7 @@ import { CampaignFunnelBar } from "./_funnel-bar";
 import { CallScriptPanel } from "./_call-script";
 import { isVoiceableSignal, mergeTechStacks } from "@/lib/call-mode/live-script";
 import { pickReplaceableTools } from "@/lib/tech-detect/replaceable";
+import type { ScriptContext } from "@/lib/voice/script-context";
 import { CallActions } from "./_call-actions";
 
 interface QueueItem {
@@ -464,6 +465,10 @@ export default function CallModePage() {
     return queue;
   }, [queue, filter]);
 
+  // Last script context the panel reported — stamped on the call at dial time
+  // so outcomes can be segmented by script variant (ref: no re-renders).
+  const scriptCtxRef = useRef<ScriptContext | null>(null);
+
   const handleAppeler = useCallback(
     async (contactId: string) => {
       setSoftphone({ kind: "starting", contactId });
@@ -478,6 +483,7 @@ export default function CallModePage() {
           body: JSON.stringify({
             contactId,
             fromNumber: fromNumberOverride ?? undefined,
+            scriptContext: scriptCtxRef.current ?? undefined,
           }),
         });
         if (!res.ok) {
@@ -1278,6 +1284,7 @@ export default function CallModePage() {
                     : null,
                 ].filter(Boolean).join(" ")}
                 replaceableTool={replaceableTool}
+                onContext={(c) => { scriptCtxRef.current = c; }}
               />
             </div>
             {inCall && (

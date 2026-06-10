@@ -31,6 +31,18 @@ const startSchema = z.object({
   // Explicit outbound number chosen by the rep in Call Mode. When absent,
   // we fall back to local-presence auto-selection.
   fromNumber: z.string().optional(),
+  // What the script panel showed at dial time (lib/voice/script-context.ts) —
+  // stamped on the call so outcomes can be segmented by script variant.
+  // Strict + size-capped: this is client input.
+  scriptContext: z
+    .object({
+      reasonSource: z.enum(["signal", "hiring", "funding"]).nullable(),
+      matchedEnjeu: z.boolean(),
+      viaTool: z.boolean(),
+      tool: z.string().trim().max(80).nullable(),
+    })
+    .strict()
+    .optional(),
 });
 
 export async function POST(req: Request) {
@@ -171,6 +183,7 @@ export async function POST(req: Request) {
         toNumber: contact.phone,
         twoPartyConsentRegion: requiresConsent,
         recordingConsent: requiresConsent ? "pending" : "n_a",
+        scriptContext: input.scriptContext ?? null,
       })
       .returning({ id: calls.id });
 

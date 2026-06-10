@@ -11,11 +11,12 @@
  * No emoji per the brand rule — Lucide icons only. Design-system tokens only.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, CalendarClock, Phone, Pencil, Sparkles, Loader2, X, Plus, Trash2 } from "lucide-react";
 import { interpolateOpener, defaultScriptFields, splitGuidance, withNoResponse, type ScriptFields } from "@/lib/call-mode/call-scripts";
 import { deriveOpeningReason, REASON_BRIDGE, type OpeningReasonInput } from "@/lib/call-mode/live-script";
 import { planProblems } from "@/lib/call-mode/match-problem";
+import type { ScriptContext } from "@/lib/voice/script-context";
 import { useToast } from "@/components/ui/toast";
 
 export function CallScriptPanel({
@@ -25,6 +26,7 @@ export function CallScriptPanel({
   reasonInput,
   triggerText,
   replaceableTool,
+  onContext,
 }: {
   contactName?: string | null;
   defaultSector?: string | null;
@@ -38,6 +40,9 @@ export function CallScriptPanel({
   /** The detected REPLACEABLE tool (catalog-classified) — interpolated into
    *  {tool} enjeux so the top problem literally names what they run. */
   replaceableTool?: string | null;
+  /** Reports what the panel is showing (reason source, matched enjeu, tool) so
+   *  the dial captures it as the call's scriptContext. */
+  onContext?: (ctx: ScriptContext) => void;
 }) {
   const { toast } = useToast();
   const [sector, setSector] = useState(defaultSector ?? "");
@@ -148,6 +153,21 @@ export function CallScriptPanel({
     if (matchedIdx < 0) return problemDisplay;
     return [...problemDisplay].sort((a, b) => Number(b.idx === matchedIdx) - Number(a.idx === matchedIdx));
   }, [problemDisplay, matchedIdx]);
+
+  // Report what the panel is showing so the dial can stamp it on the call
+  // (scriptContext). Latest-callback ref so the parent's inline arrow doesn't
+  // retrigger the effect every render.
+  const onContextRef = useRef(onContext);
+  onContextRef.current = onContext;
+  const matchedViaTool = matchedIdx >= 0 && (problemDisplay.find((d) => d.idx === matchedIdx)?.viaTool ?? false);
+  useEffect(() => {
+    onContextRef.current?.({
+      reasonSource: reason?.source ?? null,
+      matchedEnjeu: matchedIdx >= 0,
+      viaTool: matchedViaTool,
+      tool: replaceableTool ?? null,
+    });
+  }, [reason?.source, matchedIdx, matchedViaTool, replaceableTool]);
 
   return (
     <div
