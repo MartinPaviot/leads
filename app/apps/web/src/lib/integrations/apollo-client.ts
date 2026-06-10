@@ -110,6 +110,16 @@ export interface ApolloPerson {
   country: string | null;
   organization_id: string | null;
   organization: { id: string; name: string; website_url: string } | null;
+  /** Career history — returned by people/match (and search). Additive
+   * widening of the type to what the live API already sends; feeds the
+   * Call Mode prospect brief's deterministic timeline. */
+  employment_history?: Array<{
+    organization_name?: string | null;
+    title?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    current?: boolean | null;
+  }> | null;
 }
 
 export async function enrichPerson(params: {
