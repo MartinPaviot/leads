@@ -83,7 +83,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     workspaceName: tenant?.name || "your team",
     inviterName,
     inviterEmail: inviter?.email,
-    role: invite.role as "admin" | "member",
+    role: invite.role as "admin" | "member" | "viewer",
     acceptUrl,
     expiresAt: invite.expiresAt,
   });

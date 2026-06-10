@@ -12,6 +12,8 @@
  * This is the CHAT-02 deliverable from feature_list.json.
  */
 
+import { getToolGroup } from "@/lib/chat/tool-router";
+
 /** Tools that require role === "admin". */
 export const ADMIN_ONLY_TOOLS = new Set<string>([
   // Workspace config
@@ -116,6 +118,44 @@ const PRO_TIER_TOOLS = new Set<string>([
 ]);
 
 /**
+ * Tool groups a viewer (read-only role) may use. Group taxonomy comes
+ * from the tool-router so there is a single source of truth. Skills are
+ * excluded (many spend enrichment credits), memory is excluded (mixed
+ * read/write), intelligence is excluded v1 (generateMeetingPrep and
+ * executeCode are not provably read-only).
+ */
+export const VIEWER_ALLOWED_GROUPS = new Set<string>([
+  "query",
+  "briefing",
+  "coaching",
+  "schema",
+]);
+
+/**
+ * Write/outbound tools that live inside otherwise-allowed groups.
+ * composeEmail opens the outbound composer; deleteSharedPrompt mutates.
+ */
+export const VIEWER_DENIED_TOOLS = new Set<string>([
+  "composeEmail",
+  "deleteSharedPrompt",
+]);
+
+/**
+ * Fail-closed allowlist for viewers: a tool must belong to an allowed
+ * group AND not be denied by name. Unknown tools (no group mapping yet)
+ * are dropped for viewers — the opposite of the router's fail-open
+ * default for members, on purpose.
+ */
+export function isViewerAllowedTool(name: string): boolean {
+  if (VIEWER_DENIED_TOOLS.has(name)) return false;
+  const group = getToolGroup(name);
+  return !!group && VIEWER_ALLOWED_GROUPS.has(group);
+}
+
+const VIEWER_PROMPT_ADDENDUM =
+  "\n\n## Read-Only Access\nThis user has the Viewer role: they can read everything (pipeline, records, reports, briefs) but cannot create, update, delete, send, enroll, enrich, or configure anything. If they ask for a change or an outbound action, explain that their Viewer role is read-only and that a workspace member or admin has to do it — then offer the closest read-only help (e.g. a brief, a report, or navigating to the record).";
+
+/**
  * Resolve the capability subset for this turn.
  *
  * Non-destructive: this function is a pure filter on the registry
@@ -127,6 +167,7 @@ export function resolveCapabilities<T>(
 ): ResolveOutput<T> {
   const surface: SurfaceContext = input.surface || { type: "global" };
   const isAdmin = input.role === "admin";
+  const isViewer = input.role === "viewer";
   const allowDestructive = input.allowDestructive === true;
   const planTier = input.planTier || "free";
 
@@ -134,6 +175,11 @@ export function resolveCapabilities<T>(
   const dropped: Array<{ name: string; reason: string }> = [];
 
   for (const [name, tool] of Object.entries(allTools)) {
+    // Viewer first: read-only allowlist beats every other rule.
+    if (isViewer && !isViewerAllowedTool(name)) {
+      dropped.push({ name, reason: "viewer:read-only" });
+      continue;
+    }
     if (ADMIN_ONLY_TOOLS.has(name) && !isAdmin) {
       dropped.push({ name, reason: "admin-only" });
       continue;
@@ -158,7 +204,9 @@ export function resolveCapabilities<T>(
 
   return {
     tools: filtered,
-    surfacePromptAddendum: buildSurfacePromptAddendum(surface),
+    surfacePromptAddendum:
+      buildSurfacePromptAddendum(surface) +
+      (isViewer ? VIEWER_PROMPT_ADDENDUM : ""),
     droppedTools: dropped,
     surface,
   };

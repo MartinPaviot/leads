@@ -6,6 +6,7 @@
  */
 
 import { withAuthRLS } from "@/lib/auth/auth-utils";
+import { requirePermission } from "@/lib/auth/permissions";
 import { db } from "@/db";
 import { phoneNumberPool } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -31,6 +32,10 @@ const buySchema = z.object({
 
 export async function POST(req: Request) {
   return withAuthRLS(async (authCtx) => {
+    // Buying a number charges the Twilio account — admin-only money action.
+    const denied = requirePermission(authCtx.role, "billing:manage");
+    if (denied) return denied;
+
     const provider = getVoiceProvider();
     if (!provider) {
       return Response.json(
@@ -113,6 +118,10 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   return withAuthRLS(async (authCtx) => {
+    // Releasing a pool number changes what the whole team can dial from.
+    const denied = requirePermission(authCtx.role, "billing:manage");
+    if (denied) return denied;
+
     const url = new URL(req.url);
     const e164 = url.searchParams.get("e164");
     if (!e164) {

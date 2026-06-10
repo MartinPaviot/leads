@@ -1,5 +1,6 @@
 import { auth } from "./auth";
 import { NextResponse } from "next/server";
+import { isViewerWriteBlocked } from "./lib/auth/viewer-guard";
 
 // ── IP-based rate limiting for API routes ──
 // Simple in-memory store (works in Edge Runtime)
@@ -124,6 +125,24 @@ export default auth((req) => {
   // Protected routes: redirect to sign-in if not authenticated
   if (!req.auth?.user) {
     return NextResponse.redirect(new URL("/sign-in", req.url));
+  }
+
+  // Viewer role: central fail-closed write gate. One predicate covers all
+  // /api/* mutations (incl. future routes) instead of per-route checks.
+  // Uses the JWT role only — no DB work on the middleware path; the
+  // API layer overlays the fresh DB role separately (lib/auth/fresh-role).
+  const sessionRole = (req.auth as { role?: string } | null)?.role;
+  if (isViewerWriteBlocked(sessionRole, req.method, pathname)) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "FORBIDDEN",
+          message: "Viewers have read-only access",
+          reason: "viewer-read-only",
+        },
+      },
+      { status: 403 },
+    );
   }
 
   return NextResponse.next();

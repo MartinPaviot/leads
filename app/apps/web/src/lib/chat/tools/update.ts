@@ -1311,10 +1311,10 @@ export function buildUpdateTools(ctx: ToolContext) {
 
     updateMemberRole: makeTool({
       description:
-        "Change a workspace member's role (admin|member). Admin-only. Rejects self-demotion. Use when the user says 'promote X to admin', 'demote Y to member'.",
+        "Change a workspace member's role (admin|member|viewer). Admin-only. Rejects self-demotion. Use when the user says 'promote X to admin', 'demote Y to member', 'make Z read-only' (viewer).",
       inputSchema: z.object({
         memberId: z.string().describe("User ID of the member"),
-        role: z.enum(["admin", "member"]).describe("New role"),
+        role: z.enum(["admin", "member", "viewer"]).describe("New role ('viewer' is read-only)"),
       }),
       execute: async (input) => {
         if (!isAdmin) return { error: "Admin access required" };
@@ -1326,6 +1326,10 @@ export function buildUpdateTools(ctx: ToolContext) {
           .update(users)
           .set({ role: input.role, updatedAt: new Date() })
           .where(and(eq(users.id, input.memberId), eq(users.tenantId, tenantId)));
+
+        // Apply immediately on this instance (fresh-role cache, ≤60s elsewhere)
+        const { invalidateRoleCache } = await import("@/lib/auth/fresh-role");
+        invalidateRoleCache(input.memberId);
 
         return { updated: { memberId: input.memberId, role: input.role } };
       },

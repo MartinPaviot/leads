@@ -34,7 +34,7 @@ export default function MembersSettingsPage() {
   const [invites, setInvites] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
+  const [inviteRole, setInviteRole] = useState<"admin" | "member" | "viewer">("member");
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState("");
 
@@ -170,9 +170,10 @@ export default function MembersSettingsPage() {
           />
           <Select
             value={inviteRole}
-            onChange={(e) => setInviteRole(e.target.value as "admin" | "member")}
+            onChange={(e) => setInviteRole(e.target.value as "admin" | "member" | "viewer")}
             options={[
               { value: "member", label: "Member" },
+              { value: "viewer", label: "Viewer" },
               { value: "admin", label: "Admin" },
             ]}
           />
@@ -205,7 +206,7 @@ export default function MembersSettingsPage() {
                           <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
                             {inv.email}
                           </p>
-                          <Badge variant={inv.role === "admin" ? "warning" : "info"} size="sm">
+                          <Badge variant={inv.role === "admin" ? "warning" : inv.role === "viewer" ? "neutral" : "info"} size="sm">
                             {inv.role}
                           </Badge>
                           {expired && <Badge variant="error" size="sm">expired</Badge>}
@@ -281,6 +282,7 @@ export default function MembersSettingsPage() {
                     onChange={(e) => handleRoleChange(member.id, e.target.value)}
                     options={[
                       { value: "member", label: "Member" },
+                      { value: "viewer", label: "Viewer" },
                       { value: "admin", label: "Admin" },
                     ]}
                   />
