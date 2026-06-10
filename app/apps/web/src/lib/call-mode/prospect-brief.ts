@@ -51,12 +51,12 @@ const briefLlmSchema = z.object({
   personBackground: z
     .string()
     .describe(
-      "1 à 2 phrases factuelles en français sur le parcours du prospect (postes, employeurs, années), UNIQUEMENT à partir des données fournies. Chaîne vide si les données sont insuffisantes.",
+      "1 à 2 phrases factuelles en français sur le parcours du prospect (postes, employeurs, années), UNIQUEMENT à partir des données fournies. Aucun sigle non développé. Chaîne vide si les données sont insuffisantes.",
     ),
   companySummary: z
     .string()
     .describe(
-      "2 à 3 phrases factuelles en français sur ce que fait l'entreprise d'après le texte de SON site (activité, offre, clients/secteurs). Chaîne vide si le texte est insuffisant.",
+      "2 à 3 phrases factuelles en français sur ce que fait l'entreprise d'après le texte de SON site (activité, offre, clients/secteurs). Aucun sigle non développé. Chaîne vide si le texte est insuffisant.",
     ),
 });
 
@@ -148,6 +148,7 @@ async function synthesize(
       model,
       schema: briefLlmSchema,
       prompt: `Tu prépares un commercial avant un appel à froid. Réponds en français, faits uniquement — aucune invention, aucun superlatif, aucun conseil de vente. Chaque affirmation doit être traçable aux données ci-dessous ; si une section manque de données, renvoie une chaîne vide pour ce champ.
+Écris les sigles et acronymes en toutes lettres — le lecteur ne connaît pas le jargon du secteur (« l'assurance-invalidité », pas « l'AI » ; « petites et moyennes entreprises », pas « PME »). Si le sigle est utile, mets-le entre parenthèses après la forme complète. Les noms propres (entreprises, produits) restent tels quels.
 
 PROSPECT (CRM + Apollo) :
 ${personBlock}

@@ -44,6 +44,15 @@ describe("extractWebsiteText", () => {
     expect(extractWebsiteText(og).metaDescription).toBe("Version OG");
   });
 
+  it("keeps the other quote char inside meta content (afiro.ch 'L' regression)", () => {
+    const apos = `<head><meta name="description" content="L'AFIRO accompagne l'insertion socioprofessionnelle"></head><body>x</body>`;
+    expect(extractWebsiteText(apos).metaDescription).toBe(
+      "L'AFIRO accompagne l'insertion socioprofessionnelle",
+    );
+    const dquote = `<head><meta name="description" content='Il a dit "bonjour" au marché'></head><body>x</body>`;
+    expect(extractWebsiteText(dquote).metaDescription).toBe('Il a dit "bonjour" au marché');
+  });
+
   it("caps the text length and survives empty/junk input", () => {
     const long = `<body>${"mot ".repeat(5000)}</body>`;
     expect(extractWebsiteText(long, 100).text.length).toBeLessThanOrEqual(100);

@@ -89,17 +89,20 @@ function collapse(s: string): string {
 }
 
 function matchMetaContent(html: string, nameOrProp: string): string | null {
-  // Both attribute orders, name= or property= (og:*).
+  // Both attribute orders, name= or property= (og:*). The content value can
+  // contain the OTHER quote char (content="L'insertion…"), so the close
+  // quote must be matched to the open quote via a backreference — a naive
+  // [^"'] class truncates at the first apostrophe ("L").
   const re1 = new RegExp(
-    `<meta\\b[^>]*\\b(?:name|property)\\s*=\\s*["']${nameOrProp}["'][^>]*\\bcontent\\s*=\\s*["']([^"']*)["']`,
+    `<meta\\b[^>]*\\b(?:name|property)\\s*=\\s*["']${nameOrProp}["'][^>]*\\bcontent\\s*=\\s*(["'])((?:(?!\\1)[\\s\\S])*)\\1`,
     "i",
   );
   const re2 = new RegExp(
-    `<meta\\b[^>]*\\bcontent\\s*=\\s*["']([^"']*)["'][^>]*\\b(?:name|property)\\s*=\\s*["']${nameOrProp}["']`,
+    `<meta\\b[^>]*\\bcontent\\s*=\\s*(["'])((?:(?!\\1)[\\s\\S])*)\\1[^>]*\\b(?:name|property)\\s*=\\s*["']${nameOrProp}["']`,
     "i",
   );
   const m = html.match(re1) ?? html.match(re2);
-  const v = m ? collapse(decodeEntities(m[1])) : "";
+  const v = m ? collapse(decodeEntities(m[2])) : "";
   return v.length > 0 ? v : null;
 }
 
