@@ -17,6 +17,7 @@ import { withAuthRLS } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { callCampaigns } from "@/db/schema";
 import { and, eq, desc, sql } from "drizzle-orm";
+import { segmentImpact } from "@/lib/voice/script-context";
 
 function startOfTodayUTC(now = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -63,11 +64,13 @@ export async function GET(req: Request) {
         count(*) FILTER (WHERE started_at >= ${today.toISOString()})::int AS calls_today,
         count(*) FILTER (WHERE started_at >= ${weekStart.toISOString()})::int AS calls_week,
         count(*) FILTER (WHERE started_at >= ${weekStart.toISOString()} AND outcome IN ('connected','meeting_booked','callback_requested'))::int AS connects_week,
-        count(*) FILTER (WHERE started_at >= ${weekStart.toISOString()} AND outcome = 'meeting_booked')::int AS meetings_week
+        count(*) FILTER (WHERE started_at >= ${weekStart.toISOString()} AND outcome = 'meeting_booked')::int AS meetings_week,
+        count(*) FILTER (WHERE started_at >= ${weekStart.toISOString()} AND script_context->>'reasonSource' IS NOT NULL)::int AS reason_calls_week,
+        count(*) FILTER (WHERE started_at >= ${weekStart.toISOString()} AND script_context->>'reasonSource' IS NOT NULL AND outcome = 'meeting_booked')::int AS reason_meetings_week
       FROM calls
       WHERE tenant_id = ${tenantId}${scope === "me" ? sql` AND user_id = ${userId}` : sql``}
-    `)) as unknown as Array<{ calls_today: number; calls_week: number; connects_week: number; meetings_week: number }>;
-    const p = progressRows[0] ?? { calls_today: 0, calls_week: 0, connects_week: 0, meetings_week: 0 };
+    `)) as unknown as Array<{ calls_today: number; calls_week: number; connects_week: number; meetings_week: number; reason_calls_week: number; reason_meetings_week: number }>;
+    const p = progressRows[0] ?? { calls_today: 0, calls_week: 0, connects_week: 0, meetings_week: 0, reason_calls_week: 0, reason_meetings_week: 0 };
 
     // Cadence breakdown by target status (+ due today), across the in-scope campaigns.
     const cadenceRows = (await db.execute(sql`
@@ -126,6 +129,9 @@ export async function GET(req: Request) {
       },
       cadence: { ...cadence, dueToday, total: Object.values(cadence).reduce((a, b) => a + b, 0) },
       coverage: { targets: cov.total, withPhone: cov.with_phone },
+      // Outcomes segmented by script variant: calls dialled with a grounded
+      // reason line showing vs without (the Living Script measurement seed).
+      scriptImpact: segmentImpact(p.calls_week, p.meetings_week, p.reason_calls_week, p.reason_meetings_week),
     });
   });
 }
