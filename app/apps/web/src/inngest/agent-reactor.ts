@@ -446,7 +446,11 @@ async function deferAction(
       deferralReason: reason,
       source: "agent-reactor",
     },
-    graceMs: 0,
+    // Awaiting the founder's approval — recorded as 'scheduled' with no
+    // execution time so it surfaces in the "Needs you" approval lane and is
+    // approvable/skippable. (Previously graceMs:0 mis-stamped it 'executed',
+    // which hid it from the lane and made approve a no-op.)
+    awaitingApproval: true,
     reversibleForMs: 24 * 60 * 60 * 1000,
   });
 

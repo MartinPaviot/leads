@@ -830,8 +830,13 @@ export const processReply = inngest.createFunction(
     },
     triggers: [{ event: "email/reply-received" }],
   },
-  async ({ event, step }: { event: { data: { enrollmentId: string; replyContent: string } }; step: any }) => {
-    const { enrollmentId, replyContent } = event.data;
+  async ({ event, step }: { event: { data: { enrollmentId: string; replyContent?: string; replyBody?: string; outboundEmailId?: string; tenantId?: string } }; step: any }) => {
+    const { enrollmentId, outboundEmailId, tenantId } = event.data;
+    // The sync pipeline (sync-functions.ts) emits `replyBody`; older callers
+    // used `replyContent`. Reading only the latter made classify-reply throw
+    // on every IMAP-synced reply (3 retries → dead letter), so the
+    // classification never persisted. Accept both, fail-soft on empty.
+    const replyContent = event.data.replyContent ?? event.data.replyBody ?? "";
 
     // Mark enrollment as replied (centralised — also writes audit activity)
     await step.run("mark-replied", async () => {
@@ -842,7 +847,7 @@ export const processReply = inngest.createFunction(
     const model = getLLMModel();
     let classification = "unknown";
 
-    if (model) {
+    if (model && replyContent.trim().length > 0) {
       const result = await step.run("classify-reply", async () => {
         const { object } = await tracedGenerateObject({
           model: model!,
@@ -885,6 +890,22 @@ Also determine:
         return object as any;
       });
       classification = result.classification;
+
+      // Persist the classification on the replied outbound email — the
+      // inbox triage lanes and outcome-detector both read this column
+      // (it used to be computed here and dropped, leaving it always null).
+      if (outboundEmailId) {
+        await step.run("persist-classification", async () => {
+          await db
+            .update(outboundEmails)
+            .set({ replyClassification: result.classification, updatedAt: new Date() })
+            .where(
+              tenantId
+                ? and(eq(outboundEmails.id, outboundEmailId), eq(outboundEmails.tenantId, tenantId))
+                : eq(outboundEmails.id, outboundEmailId),
+            );
+        });
+      }
 
       // Fire event for intelligent reply handling (if not ooo/unsubscribe)
       if (!["ooo", "unsubscribe"].includes(classification)) {

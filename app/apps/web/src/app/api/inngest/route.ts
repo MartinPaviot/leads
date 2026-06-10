@@ -64,6 +64,7 @@ import { dailyStallPrediction, onDemandStallPrediction } from "@/inngest/stall-p
 import { evaluateRealtimeSignals } from "@/inngest/realtime-signal-handler";
 import { agentTaskExecute, agentTaskCleanup } from "@/inngest/agent-task-runner";
 import { agentReactor, agentDailySweep } from "@/inngest/agent-reactor";
+import { agentActionDispatcher } from "@/inngest/agent-action-dispatcher";
 import { outcomeDetectorCron } from "@/inngest/outcome-detector";
 import { weeklyTrustRecalculation } from "@/inngest/trust-recalculator";
 // Campaign Engine 1000x
@@ -249,6 +250,9 @@ export const { GET, POST, PUT } = serve({
     // F001: Agent event loop — real-time autonomous decision reactor
     agentReactor,
     agentDailySweep,
+    // WS-7 completion: dispatcher that executes approved (and auto-grace)
+    // agent_actions through the safe paths. Without it, approve was a no-op.
+    agentActionDispatcher,
     // F003: Outcome tracking — feedback loop for agent actions
     outcomeDetectorCron,
     // F005: Learned trust — weekly threshold recalculation from outcomes

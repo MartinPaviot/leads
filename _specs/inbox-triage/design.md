@@ -132,8 +132,23 @@ Reuses as-is: `EmailComposerPanel` (send as me), `CallActions` (call-mode bookin
 - Draft consume verifies tenant ownership of the row.
 - No user-supplied HTML rendered: inbound `rawContent` is plain text rendered in `white-space: pre-wrap` (no dangerouslySetInnerHTML).
 
+## Review-driven decisions (2026-06-10 code review)
+
+- `inbox_triage` is **tenant-level by design**: the CRM is a shared workspace
+  (like archive/restore and capture approvals), so one teammate finishing a
+  conversation finishes it for the workspace. Revisit if multi-seat triage
+  diverges.
+- A classification label (`reply_classification`) is only trusted while it
+  describes the LAST inbound message; a newer inbound supersedes it (prevents
+  the permanent-handled trap for once-ooo threads).
+- `processReply` accepts both `replyBody` (the sync pipeline's field) and
+  `replyContent` (legacy) — reading only the latter dead-lettered every real
+  classification.
+- Lane fetches await any in-flight triage POST (tab-switch race).
+
 ## Documented gaps (vs 10/10)
 
 - Composer replies don't set In-Reply-To/References headers (new SMTP thread). Follow-up: thread-aware deliverInteractiveEmail.
+- preparedDraft is keyed by contact (reply-handler drafts carry no threadId); with two live threads for one contact the draft can be offered on the sibling thread.
 - Handled lane shows what processReply did but offers no undo of the opt-out (Settings remains the place).
 - Up-Next feed and inbox priorities not yet unified (shared lib makes it possible).

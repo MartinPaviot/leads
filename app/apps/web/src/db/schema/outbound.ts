@@ -360,6 +360,30 @@ export const meetingOptOuts = pgTable(
   ]
 );
 
+// === INBOX TRIAGE ===
+//
+// Per-conversation triage state for the Inbox page (_specs/inbox-triage).
+// conversation_key = threadId | "contact:<id>" | "email:<id>". Reopen is
+// computed at read time (done_at < lastInboundAt ⇒ open), so the only
+// writes are the three verbs: done / snooze / reopen.
+
+export const inboxTriage = pgTable(
+  "inbox_triage",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    conversationKey: text("conversation_key").notNull(),
+    status: text("status").notNull().default("open"), // open | done | snoozed
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    snoozedUntil: timestamp("snoozed_until", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("inbox_triage_tenant_key_uq").on(table.tenantId, table.conversationKey),
+    index("inbox_triage_tenant_idx").on(table.tenantId),
+  ]
+);
+
 // === NOTIFICATION TABLES ===
 
 export const notificationTypeEnum = pgEnum("notification_type", [

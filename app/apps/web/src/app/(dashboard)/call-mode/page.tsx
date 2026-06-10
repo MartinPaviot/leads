@@ -193,8 +193,13 @@ function formatE164(e164: string): string {
  * Draggable divider between two cockpit columns. Drag horizontally to resize the
  * adjacent rail; a double-arrow handle appears on hover. Pointer listeners are
  * bound once and read the latest onDelta through a ref.
+ *
+ * Zero layout width: the visible line IS the adjacent panel's border (border-r
+ * on the left rail, border-l on the right rail) — the handle only overlays an
+ * invisible grab zone plus a hover highlight on that exact pixel. `side` says
+ * which side of the handle the panel border sits on.
  */
-function ResizeHandle({ onDelta }: { onDelta: (dx: number) => void }) {
+function ResizeHandle({ onDelta, side }: { onDelta: (dx: number) => void; side: "left" | "right" }) {
   const onDeltaRef = useRef(onDelta);
   onDeltaRef.current = onDelta;
   const startX = useRef<number | null>(null);
@@ -226,11 +231,16 @@ function ResizeHandle({ onDelta }: { onDelta: (dx: number) => void }) {
         document.body.style.userSelect = "none";
         e.preventDefault();
       }}
-      className="group relative z-10 flex w-1.5 shrink-0 cursor-col-resize select-none items-center justify-center"
+      className="group relative z-10 w-0 shrink-0 select-none"
       title="Glisser pour redimensionner"
     >
-      <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-zinc-200 transition-colors group-hover:bg-indigo-400 dark:bg-zinc-800" />
-      <div className="relative flex h-7 w-4 items-center justify-center rounded border border-zinc-200 bg-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="absolute inset-y-0 -left-1 w-2 cursor-col-resize" />
+      <div
+        className={`pointer-events-none absolute inset-y-0 w-px bg-transparent transition-colors group-hover:bg-indigo-400 ${
+          side === "left" ? "-left-px" : "left-0"
+        }`}
+      />
+      <div className="pointer-events-none absolute left-1/2 top-1/2 flex h-7 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded border border-zinc-200 bg-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 dark:border-zinc-700 dark:bg-zinc-900">
         <MoveHorizontal size={12} className="text-zinc-400" />
       </div>
     </div>
@@ -1095,7 +1105,7 @@ export default function CallModePage() {
       </aside>
 
       {!inCall && (
-        <ResizeHandle onDelta={(dx) => setColW((w) => ({ ...w, left: clampPx(w.left + dx, 180, 420) }))} />
+        <ResizeHandle side="left" onDelta={(dx) => setColW((w) => ({ ...w, left: clampPx(w.left + dx, 180, 420) }))} />
       )}
 
       {/* ───── CENTER — Brief + softphone (flex-1) ───── */}
@@ -1241,7 +1251,7 @@ export default function CallModePage() {
       </main>
 
       {!inCall && (
-        <ResizeHandle onDelta={(dx) => setColW((w) => ({ ...w, right: clampPx(w.right - dx, 300, 680) }))} />
+        <ResizeHandle side="right" onDelta={(dx) => setColW((w) => ({ ...w, right: clampPx(w.right - dx, 300, 680) }))} />
       )}
 
       {/* ───── RIGHT — Account brain (prep) / call context (live) ───── */}

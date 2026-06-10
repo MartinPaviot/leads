@@ -1,360 +1,243 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Inbox, Mail, MailCheck, MailX, Clock, ExternalLink, Sparkles, Loader2 } from "lucide-react";
+/**
+ * Inbox — conversation triage, not a delivery log (_specs/inbox-triage).
+ *
+ * Master-detail: lanes of conversations on the left (needs-attention first,
+ * priority-ordered from persisted labels), full reading pane on the right.
+ * The old sent-emails table lives on under the Outbound tab.
+ *
+ * Keyboard: j/k select, e done, r reply — ignored while typing.
+ */
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Inbox } from "lucide-react";
 import { PageHeader, FilterBar } from "@/components/ui/page-header";
-import { Badge } from "@/components/ui/badge";
-import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
-import { EmailComposerPanel } from "@/components/email-composer-panel";
-import type { EmailComposerDraft } from "@/components/email-composer-panel";
 import { useToast } from "@/components/ui/toast";
+import { ConversationList } from "./_conversation-list";
+import { ConversationPane } from "./_conversation-pane";
+import { OutboundTable } from "./_outbound-table";
+import type { ConversationListItem, InboxLane, LaneCounts } from "./_types";
 
-interface InboxEmail {
-  id: string;
-  direction?: "inbound" | "outbound";
-  toAddress: string;
-  fromAddress: string;
-  subject: string;
-  status?: string;
-  sentAt?: string | null;
-  openedAt?: string | null;
-  clickedAt?: string | null;
-  repliedAt?: string | null;
-  bouncedAt?: string | null;
-  replySnippet?: string | null;
-  replyClassification?: string | null;
-  bounceType?: string | null;
-  contactId: string | null;
-  enrollmentId?: string | null;
-  stepNumber?: number | null;
-  contact: { name: string; email: string | null } | null;
-  // Inbound-only (filter === "inbound")
-  body?: string | null;
-  receivedAt?: string | null;
-  sentiment?: "positive" | "neutral" | "negative" | null;
-}
+type Tab = InboxLane | "outbound";
 
-interface InboxCounts {
-  total: number;
-  replied: number;
-  awaiting: number;
-  bounced: number;
-  inbound: number;
-}
+const TAB_LABELS: Record<Tab, string> = {
+  attention: "Needs attention",
+  snoozed: "Snoozed",
+  done: "Done",
+  handled: "Handled",
+  outbound: "Outbound",
+};
 
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  return `${Math.floor(days / 30)}mo ago`;
-}
+const TABS: Tab[] = ["attention", "snoozed", "done", "handled", "outbound"];
 
 export default function InboxPage() {
   const { toast } = useToast();
-  const [emails, setEmails] = useState<InboxEmail[]>([]);
-  const [counts, setCounts] = useState<InboxCounts>({ total: 0, replied: 0, awaiting: 0, bounced: 0, inbound: 0 });
+  const [tab, setTab] = useState<Tab>("attention");
+  const [conversations, setConversations] = useState<ConversationListItem[]>([]);
+  const [counts, setCounts] = useState<LaneCounts>({ attention: 0, snoozed: 0, done: 0, handled: 0, outbound: 0 });
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "replied" | "awaiting" | "bounced" | "inbound">("all");
-  // Inline "Draft AI reply" flow. Monaco surfaces a suggested reply
-  // right on the email thread; we mirror that pattern from the inbox
-  // list so users don't have to jump to the contact detail page.
-  const [draftingFor, setDraftingFor] = useState<string | null>(null);
-  const [composer, setComposer] = useState<EmailComposerDraft | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [replySignal, setReplySignal] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
+  // In-flight triage POST. Lane fetches await it so switching to Done/
+  // Snoozed right after the verb never races the write (the GET would
+  // otherwise read pre-commit state and show an empty lane).
+  const pendingTriage = useRef<Promise<unknown> | null>(null);
 
-  async function draftAiReply(email: InboxEmail) {
-    const sourceContent = email.body || email.replySnippet;
-    if (!sourceContent) return;
-    setDraftingFor(email.id);
-    try {
-      const res = await fetch("/api/emails/suggest-reply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          emailContent: sourceContent,
-          senderName: email.contact?.name ?? null,
-          senderEmail: email.fromAddress,
-        }),
-      });
-      if (!res.ok) {
-        toast("Couldn't draft a reply right now", "error");
-        return;
+  const loadLane = useCallback(
+    async (lane: InboxLane, pageNum: number, append: boolean) => {
+      if (append) setLoadingMore(true);
+      else setLoading(true);
+      try {
+        if (pendingTriage.current) await pendingTriage.current.catch(() => {});
+        const res = await fetch(`/api/inbox/conversations?lane=${lane}&page=${pageNum}`);
+        if (!res.ok) throw new Error(`${res.status}`);
+        const data = (await res.json()) as {
+          conversations: ConversationListItem[];
+          counts: LaneCounts;
+          pagination: { total: number };
+        };
+        setCounts(data.counts);
+        setTotal(data.pagination.total);
+        setConversations((prev) => (append ? [...prev, ...data.conversations] : data.conversations));
+      } catch {
+        toast("Couldn't load the inbox.", "error");
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
       }
-      const data = await res.json() as { replies?: Array<{ tone: string; subject: string; body: string }> };
-      const brief = data.replies?.find((r) => r.tone === "brief") ?? data.replies?.[0];
-      if (!brief) {
-        toast("No reply generated — falling back to blank composer", "warning");
-      }
-      setComposer({
-        to: email.fromAddress,
-        subject: brief?.subject ?? `Re: ${email.subject}`,
-        body: brief?.body ?? "",
-      });
-    } catch (err) {
-      console.warn("inbox: suggest-reply failed", err);
-      toast("Couldn't draft a reply right now", "error");
-    } finally {
-      setDraftingFor(null);
-    }
-  }
+    },
+    [toast],
+  );
 
   useEffect(() => {
-    setLoading(true);
-    fetch(`/api/inbox?filter=${filter}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setEmails(data.emails || []);
-        setCounts(data.counts || { total: 0, replied: 0, awaiting: 0, bounced: 0, inbound: 0 });
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [filter]);
+    if (tab === "outbound") return;
+    setPage(1);
+    void loadLane(tab, 1, false);
+  }, [tab, loadLane]);
 
-  function statusBadge(email: InboxEmail) {
-    if (email.repliedAt) return <Badge variant="success" size="sm">Replied</Badge>;
-    if (email.bouncedAt) return <Badge variant="error" size="sm">{email.bounceType === "complaint" ? "Spam" : "Bounced"}</Badge>;
-    if (email.clickedAt) return <Badge variant="info" size="sm">Clicked</Badge>;
-    if (email.openedAt) return <Badge variant="info" size="sm">Opened</Badge>;
-    if (email.status === "delivered") return <Badge variant="neutral" size="sm">Delivered</Badge>;
-    if (email.status === "sent") return <Badge variant="neutral" size="sm">Sent</Badge>;
-    return <Badge variant="neutral" size="sm">{email.status}</Badge>;
-  }
+  // Reconcile the selection whenever the list changes: keep it if the
+  // conversation is still listed, otherwise fall back to the first row.
+  // (Single place — list updaters stay side-effect free.)
+  useEffect(() => {
+    setSelectedKey((sel) =>
+      sel && conversations.some((c) => c.key === sel) ? sel : conversations[0]?.key ?? null,
+    );
+  }, [conversations]);
 
-  const filters = [
-    { key: "all" as const, label: "Sent", count: counts.total },
-    { key: "inbound" as const, label: "Inbound", count: counts.inbound },
-    { key: "replied" as const, label: "Replied", count: counts.replied },
-    { key: "awaiting" as const, label: "Awaiting", count: counts.awaiting },
-    { key: "bounced" as const, label: "Bounced", count: counts.bounced },
-  ];
+  const handleTriage = useCallback(
+    async (key: string, action: "done" | "snooze" | "reopen", snoozeUntil?: string) => {
+      // Optimistic: remove from the current lane and advance the selection.
+      const idx = conversations.findIndex((c) => c.key === key);
+      const next = conversations.filter((c) => c.key !== key);
+      setConversations(next);
+      setSelectedKey(next[Math.min(Math.max(idx, 0), next.length - 1)]?.key ?? null);
+      setCounts((c) => {
+        const updated = { ...c };
+        if (tab !== "outbound") updated[tab] = Math.max(0, updated[tab] - 1);
+        if (action === "done") updated.done += 1;
+        if (action === "snooze") updated.snoozed += 1;
+        if (action === "reopen") updated.attention += 1;
+        return updated;
+      });
+
+      try {
+        const post = fetch("/api/inbox/triage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conversationKey: key, action, snoozeUntil }),
+        });
+        pendingTriage.current = post;
+        const res = await post;
+        if (!res.ok) throw new Error(`${res.status}`);
+      } catch {
+        toast("Couldn't update the conversation — reloading.", "error");
+        if (tab !== "outbound") void loadLane(tab, 1, false);
+      } finally {
+        pendingTriage.current = null;
+      }
+    },
+    [tab, toast, loadLane, conversations],
+  );
+
+  // Keyboard: j/k navigate, e done, r reply. Never while typing.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (tab === "outbound") return;
+
+      if (e.key === "j" || e.key === "k") {
+        if (conversations.length === 0) return;
+        e.preventDefault();
+        const idx = conversations.findIndex((c) => c.key === selectedKey);
+        const nextIdx =
+          e.key === "j" ? Math.min(idx + 1, conversations.length - 1) : Math.max(idx - 1, 0);
+        const next = conversations[nextIdx]?.key ?? selectedKey;
+        setSelectedKey(next);
+        listRef.current
+          ?.querySelector(`[data-conversation-key="${CSS.escape(next ?? "")}"]`)
+          ?.scrollIntoView({ block: "nearest" });
+      } else if (e.key === "e") {
+        if ((tab === "attention" || tab === "snoozed") && selectedKey) {
+          e.preventDefault();
+          void handleTriage(selectedKey, "done");
+        }
+      } else if (e.key === "r") {
+        if (selectedKey) {
+          e.preventDefault();
+          setReplySignal((n) => n + 1);
+        }
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [tab, selectedKey, handleTriage, conversations]);
+
+  const hasMore = tab !== "outbound" && conversations.length < total;
 
   return (
     <div className="flex h-full flex-col animate-content-in">
-      <PageHeader icon={<Inbox size={16} />} title="Inbox" subtitle={`${counts.total} emails`} />
+      <PageHeader
+        icon={<Inbox size={16} />}
+        title="Inbox"
+        subtitle={
+          counts.attention > 0
+            ? `${counts.attention} conversation${counts.attention === 1 ? "" : "s"} need${counts.attention === 1 ? "s" : ""} your attention`
+            : "All caught up"
+        }
+      />
 
       <FilterBar>
         <div className="flex gap-0.5">
-          {filters.map((f) => (
+          {TABS.map((t) => (
             <button
-              key={f.key}
-              onClick={() => setFilter(f.key)}
+              key={t}
+              onClick={() => setTab(t)}
               className="rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
               style={{
-                background: filter === f.key ? "var(--color-accent-soft)" : "transparent",
-                color: filter === f.key ? "var(--color-accent)" : "var(--color-text-tertiary)",
+                background: tab === t ? "var(--color-accent-soft)" : "transparent",
+                color: tab === t ? "var(--color-accent)" : "var(--color-text-tertiary)",
               }}
             >
-              {f.label} ({f.count})
+              {TAB_LABELS[t]} ({counts[t]})
             </button>
           ))}
         </div>
       </FilterBar>
 
-      <div className="flex-1 overflow-auto">
-        {loading ? (
-          <TableSkeleton rows={8} cols={6} />
-        ) : emails.length === 0 ? (
-          <EmptyState
-            icon={<Inbox size={28} />}
-            title={filter === "inbound" ? "No inbound messages" : "No emails"}
-            description={
-              filter === "inbound"
-                ? "Incoming email and replies land here once a mailbox is connected and your contacts write back."
-                : filter === "all"
-                  ? "Send your first sequence to see emails here."
-                  : `No ${filter} emails.`
-            }
-          />
-        ) : filter === "inbound" ? (
-          /* ── Inbound view: the actual incoming messages, full body ── */
-          <table className="ls-table">
-            <thead>
-              <tr>
-                <th><span className="flex items-center gap-1.5"><Mail size={12} style={{ opacity: 0.5 }} /> From</span></th>
-                <th><span className="flex items-center gap-1.5">Subject</span></th>
-                <th><span className="flex items-center gap-1.5"><Clock size={12} style={{ opacity: 0.5 }} /> Received</span></th>
-                <th><span className="flex items-center gap-1.5">Message</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {emails.map((email) => (
-                <tr key={email.id}>
-                  {/* From */}
-                  <td>
-                    <div className="min-w-0">
-                      <div className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-                        {email.contact?.name || email.fromAddress || "Unknown sender"}
-                      </div>
-                      {email.fromAddress && (
-                        <div className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{email.fromAddress}</div>
-                      )}
-                    </div>
-                  </td>
-
-                  {/* Subject */}
-                  <td>
-                    <span className="text-[13px]" style={{ color: "var(--color-text-primary)" }}>
-                      {email.subject}
-                    </span>
-                  </td>
-
-                  {/* Received */}
-                  <td className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-                    {email.receivedAt ? timeAgo(email.receivedAt) : "—"}
-                  </td>
-
-                  {/* Message */}
-                  <td>
-                    <div>
-                      {email.body && (
-                        <p className="line-clamp-2 max-w-[420px] text-[12px]" style={{ color: "var(--color-text-secondary)" }} title={email.body}>
-                          {email.body}
-                        </p>
-                      )}
-                      <div className="mt-1 flex items-center gap-2">
-                        {email.sentiment && (
-                          <Badge
-                            variant={email.sentiment === "positive" ? "success" : email.sentiment === "negative" ? "error" : "neutral"}
-                            size="sm"
-                          >
-                            {email.sentiment}
-                          </Badge>
-                        )}
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); void draftAiReply(email); }}
-                          disabled={draftingFor === email.id}
-                          className="inline-flex items-center gap-1 text-[11px] font-medium transition-opacity hover:underline disabled:opacity-60"
-                          style={{ color: "var(--color-accent)" }}
-                          title="Draft an AI-suggested reply"
-                        >
-                          {draftingFor === email.id ? (
-                            <>
-                              <Loader2 size={10} className="animate-spin" /> Drafting…
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles size={10} /> Draft AI reply
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <table className="ls-table">
-            <thead>
-              <tr>
-                <th><span className="flex items-center gap-1.5"><Mail size={12} style={{ opacity: 0.5 }} /> To</span></th>
-                <th><span className="flex items-center gap-1.5">Subject</span></th>
-                <th><span className="flex items-center gap-1.5">Status</span></th>
-                <th><span className="flex items-center gap-1.5"><Clock size={12} style={{ opacity: 0.5 }} /> Sent</span></th>
-                <th><span className="flex items-center gap-1.5"><MailCheck size={12} style={{ opacity: 0.5 }} /> Reply</span></th>
-                <th><span className="flex items-center gap-1.5">Step</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {emails.map((email) => (
-                <tr key={email.id}>
-                  {/* To */}
-                  <td>
-                    <div className="min-w-0">
-                      <div className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-                        {email.contact?.name || email.toAddress}
-                      </div>
-                      {email.contact && (
-                        <div className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{email.toAddress}</div>
-                      )}
-                    </div>
-                  </td>
-
-                  {/* Subject */}
-                  <td>
-                    <span className="text-[13px]" style={{ color: "var(--color-text-primary)" }}>
-                      {email.subject}
-                    </span>
-                  </td>
-
-                  {/* Status */}
-                  <td>{statusBadge(email)}</td>
-
-                  {/* Sent */}
-                  <td className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-                    {email.sentAt ? timeAgo(email.sentAt) : "—"}
-                  </td>
-
-                  {/* Reply */}
-                  <td>
-                    {email.repliedAt ? (
-                      <div>
-                        <div className="text-[12px]" style={{ color: "var(--color-success)" }}>
-                          {timeAgo(email.repliedAt)}
-                        </div>
-                        {email.replySnippet && (
-                          <p className="mt-0.5 max-w-[250px] truncate text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-                            {email.replySnippet}
-                          </p>
-                        )}
-                        <div className="mt-1 flex items-center gap-2">
-                          {email.replyClassification && (
-                            <Badge
-                              variant={email.replyClassification.includes("positive") ? "success" : email.replyClassification.includes("negative") ? "error" : "neutral"}
-                              size="sm"
-                            >
-                              {email.replyClassification}
-                            </Badge>
-                          )}
-                          {email.replySnippet && (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); void draftAiReply(email); }}
-                              disabled={draftingFor === email.id}
-                              className="inline-flex items-center gap-1 text-[11px] font-medium transition-opacity hover:underline disabled:opacity-60"
-                              style={{ color: "var(--color-accent)" }}
-                              title="Draft an AI-suggested reply"
-                            >
-                              {draftingFor === email.id ? (
-                                <>
-                                  <Loader2 size={10} className="animate-spin" /> Drafting…
-                                </>
-                              ) : (
-                                <>
-                                  <Sparkles size={10} /> Draft AI reply
-                                </>
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>
-                    )}
-                  </td>
-
-                  {/* Step */}
-                  <td className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-                    {email.stepNumber ? `Step ${email.stepNumber}` : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {composer && (
-        <EmailComposerPanel
-          draft={composer}
-          onClose={() => setComposer(null)}
-        />
+      {tab === "outbound" ? (
+        <div className="flex-1 overflow-hidden">
+          <OutboundTable />
+        </div>
+      ) : (
+        <div className="flex flex-1 overflow-hidden">
+          <div
+            ref={listRef}
+            className="w-[360px] shrink-0 overflow-y-auto border-r"
+            style={{ borderColor: "var(--color-border-default)" }}
+          >
+            {loading ? (
+              <TableSkeleton rows={8} cols={1} />
+            ) : (
+              <ConversationList
+                lane={tab}
+                conversations={conversations}
+                selectedKey={selectedKey}
+                onSelect={setSelectedKey}
+                hasMore={hasMore}
+                loadingMore={loadingMore}
+                onLoadMore={() => {
+                  const next = page + 1;
+                  setPage(next);
+                  void loadLane(tab, next, true);
+                }}
+              />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <ConversationPane
+              conversationKey={selectedKey}
+              lane={tab}
+              replySignal={replySignal}
+              onTriage={handleTriage}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
