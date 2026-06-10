@@ -39,6 +39,14 @@ const ACT_TINT: Record<ActualiteKind, string> = {
   meeting_done: "var(--color-text-tertiary)", account: "var(--color-info)", contact: "var(--color-badge-3)",
   campaign: "var(--color-warning)",
 };
+// Contact/account chips use variants of the brand gradient (teal→blue→orange,
+// like the gradient-brand buttons) with a white glyph — they read as the "people
+// & companies" of the book, distinct from the semantic event tints. Linear only
+// (no radial/blur — GPU-safe).
+const ACT_GRADIENT: Partial<Record<ActualiteKind, string>> = {
+  account: "linear-gradient(135deg, #17C3B2 0%, #2C6BED 52%, #FF7A3D 100%)",
+  contact: "linear-gradient(135deg, #2C6BED 0%, #8B5CF6 50%, #FF7A3D 100%)",
+};
 const TODO_ICON: Record<TodoKind, typeof Mail> = { reply: Mail, deal_risk: AlertTriangle, meeting: Calendar, task: CheckSquare };
 const TODO_TINT: Record<string, string> = {
   reply: "var(--color-accent)", risk: "var(--color-error)", meeting: "var(--color-badge-1)", task: "var(--color-text-tertiary)",
@@ -147,6 +155,7 @@ export function UpNextView() {
               {actualites.map((a, i) => {
                 const Icon = ACT_ICON[a.kind] ?? TrendingUp;
                 const tint = ACT_TINT[a.kind] ?? "var(--color-text-tertiary)";
+                const grad = ACT_GRADIENT[a.kind];
                 return (
                   <button
                     key={a.id}
@@ -155,8 +164,11 @@ export function UpNextView() {
                     className="group flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-[var(--color-bg-hover)]"
                     style={{ borderTop: i === 0 ? "none" : "1px solid var(--color-border-default)", cursor: a.href ? "pointer" : "default" }}
                   >
-                    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: `color-mix(in srgb, ${tint} 12%, transparent)` }}>
-                      <Icon size={13} style={{ color: tint }} />
+                    <span
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                      style={grad ? { background: grad, boxShadow: "var(--shadow-button)" } : { background: `color-mix(in srgb, ${tint} 12%, transparent)` }}
+                    >
+                      <Icon size={13} style={{ color: grad ? "#FFFFFF" : tint }} />
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{a.title}</p>
