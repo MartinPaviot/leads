@@ -110,11 +110,18 @@ Rien de tout cela n'existe aujourd'hui dans le repo ; tout est exigé par l'audi
 ## 3ter. État d'exécution vague 2 (2026-06-10, soir)
 
 - **T4 ✓** MFA TOTP complet : RFC 6238 maison validé par les vecteurs de l'Appendix B (14 tests), secret chiffré AES-256-GCM dans `user_mfa_secrets` (table prod préexistante, schéma calqué), anti-replay par step, 10 recovery codes single-use hashés SHA-256, exigé au login credentials (`MfaRequired`/`InvalidTotp` + champ conditionnel sur /sign-in), carte d'enrôlement sur /settings/security, audit `mfa_enrolled`/`mfa_disabled`. Politique 02 : MFA requis pour les admins (grâce 14 j).
-- **T8 ✓ (constat)** — voir le correctif RLS en section 1 : la RLS n'existe pas en prod ; documenté honnêtement (risque R-08b), fix infra = rôle DB dédié (hors périmètre de cette vague).
+- **T8 ✓ (constat, RÉSOLU en vague 3)** — voir le correctif RLS en section 1 et la vague 3 ci-dessous.
 - **T9 ✓** `/api/health` teste la DB (budget 3 s, 503 si KO) + expose le commit déployé ; `uptime.yml` (probe 5 min sur prod, alerte email GitHub native) — en attente du scope workflow avec ci.yml.
 - **T11 ✓** Cron `recording-retention-purge` (04:00 UTC) : recordings > 90 j (override `settings.recordingRetentionDays`, min 7) supprimés chez Twilio puis pointeur nullé ; 404 toléré, échec → re-tenté le lendemain ; transcripts conservés (vie du contrat) ; audit-loggé par batch.
 - **T12 — exclu sur décision Martin** (risque R-03 accepté au registre).
-- **Volet org ✓ (v1)** : 12 politiques + liste subprocessors (28 vendors prod) dans `_compliance/`, ancrées sur les mécanismes réels (crons, endpoints, env), registre de risques 11 entrées. Restent les actes externes : signer les DPAs, choisir Vanta/Drata, drill de restauration, pentest.
+- **Volet org ✓ (v1)** : 12 politiques + liste subprocessors (28 vendors prod) dans `_compliance/`, ancrées sur les mécanismes réels (crons, endpoints, env), registre de risques 11 entrées. Restent les actes externes : signer les DPAs, choisir Vanta/Drata, pentest.
+
+## 3quater. État d'exécution vague 3 (2026-06-10, soir — RLS + drill)
+
+- **T8/R-08b RÉSOLU — RLS réelle en prod (PR #127, deploy f853c1a, health db:ok, trafic sain)** : rôle `elevay_app` (LOGIN, NOSUPERUSER, **NOBYPASSRLS**, non-propriétaire) ; migration 0074 = policy d'isolation sur les **84 tables à tenant_id** avec prédicat *fallback* (sans `app.tenant_id` posé → visibilité totale, donc les 49 workers Inngest et les routes sans contexte tournent à l'identique ; isolation dès qu'un contexte est posé). `withTenantTx` ajouté (transaction + SET LOCAL — seule forme qui survit au pooler Supavisor transaction-mode). **Bascule prod `DATABASE_URL` → elevay_app effectuée** (valeur vérifiée octet-exact ; corruption BOM/CRLF du footgun `vercel env` attrapée et corrigée). Enforcement **prouvé live avant bascule** (`scripts/probe-rls.ts` PASS : ctx A → 1196/0 étranger, ctx tiers → 0 de A, write cross-tenant bloqué WITH CHECK, rolbypassrls=false) + smoke read/write PASS. URL admin conservée pour rollback. SUIVI : passer en mode *strict* (retirer le fallback) une fois que tout chemin de lecture passe par `withTenantTx`.
+- **Drill de restauration ✓ (Policy 08, exigence annuelle)** : `scripts/restore-drill.ts` a restauré le dump chiffré du 2026-06-09 dans un schéma scratch — **119 tables / 15 900 lignes / 0 écart de comptage** / lien contact→société intact / 120 s (< RTO 4 h). Le drill a débusqué et fait corriger un vrai bug de tooling (double-encodage JSON du driver). Preuve : `_compliance/evidence/2026-06-10-restore-drill.md`. Prochain drill : 2027-06.
+
+**Bilan code SOC 2** : tout le périmètre techniquement réalisable en autonomie est livré et vérifié en prod (waves 1-3). Reste exclusivement des actes externes/décisionnels : GitHub Pro (branch protection), DPAs vendors, comptes nominatifs, plateforme Vanta/Drata, pentest, auditeur Type I → fenêtre 3 mois → Type II. Rotation des clés exclue (R-03 accepté).
 
 ## 4. Ordre d'exécution recommandé
 
