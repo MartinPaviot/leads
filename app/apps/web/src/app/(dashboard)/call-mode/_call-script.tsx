@@ -12,10 +12,11 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, CalendarClock, Phone, Pencil, Sparkles, Loader2, X, Plus, Trash2 } from "lucide-react";
+import { Check, CalendarClock, Phone, Pencil, Sparkles, Loader2, X, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { interpolateOpener, defaultScriptFields, splitGuidance, withNoResponse, type ScriptFields } from "@/lib/call-mode/call-scripts";
 import { deriveOpeningReason, REASON_BRIDGE, type OpeningReasonInput } from "@/lib/call-mode/live-script";
 import { planProblems } from "@/lib/call-mode/match-problem";
+import { checkScriptMethod } from "@/lib/call-mode/script-levers";
 import type { ScriptContext } from "@/lib/voice/script-context";
 import { useToast } from "@/components/ui/toast";
 
@@ -153,6 +154,9 @@ export function CallScriptPanel({
     if (matchedIdx < 0) return problemDisplay;
     return [...problemDisplay].sort((a, b) => Number(b.idx === matchedIdx) - Number(a.idx === matchedIdx));
   }, [problemDisplay, matchedIdx]);
+  // Methodology guard on whatever is being shown (saved script OR live draft):
+  // soft markers, never blocking — the rep stays free, but informed.
+  const methodGaps = useMemo(() => checkScriptMethod(view), [view]);
 
   // Report what the panel is showing so the dial can stamp it on the call
   // (scriptContext). Latest-callback ref so the parent's inline arrow doesn't
@@ -326,6 +330,28 @@ export function CallScriptPanel({
             </ul>
           )}
         </>
+      )}
+
+      {/* Méthode — soft lever markers on the shown script (read AND draft).
+          Informative, never blocking: the rep owns the words. */}
+      {!loading && methodGaps.length > 0 && (
+        <div
+          className="rounded-md border px-3 py-2"
+          style={{ borderColor: "rgba(234,179,8,.35)", background: "rgba(234,179,8,.06)" }}
+        >
+          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: "rgb(133,77,14)" }}>
+            <AlertTriangle size={11} />
+            Méthode — {methodGaps.length} point{methodGaps.length > 1 ? "s" : ""} à revoir
+          </div>
+          <ul className="flex flex-col gap-1">
+            {methodGaps.map((g) => (
+              <li key={g.id} className="text-[11px] leading-snug" style={{ color: "var(--color-text-secondary)" }}>
+                <span className="font-medium" style={{ color: "var(--color-text-primary)" }}>{g.label}</span>
+                <span style={{ color: "var(--color-text-tertiary)" }}> — {g.hint}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );
