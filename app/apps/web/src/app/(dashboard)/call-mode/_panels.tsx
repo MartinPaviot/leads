@@ -50,6 +50,12 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
+import {
+  careerEntryLabel,
+  profileUrl,
+  recentActivityUrl,
+  type ProspectBriefPayload,
+} from "@/lib/call-mode/prospect-brief-core";
 import { isVoiceableSignal, mergeTechStacks } from "@/lib/call-mode/live-script";
 import { countryFromTimezone } from "@/lib/call-mode/geo";
 import { pickReplaceableTools } from "@/lib/tech-detect/replaceable";
@@ -279,6 +285,182 @@ function ContextChip({ icon: Icon, children }: { icon: typeof Globe; children: R
   );
 }
 
+// ── Prospect brief card (career + company from its own site) ────
+//
+// Auto-built on first open (Apollo career match + real homepage text +
+// one grounded LLM pass), then served from the jsonb caches — see
+// lib/call-mode/prospect-brief.ts. Renders each half independently with
+// honest fallbacks; LinkedIn "Posts récents" is a deep link into the
+// rep's logged-in browser (we have no LinkedIn data source — no scraping).
+
+const briefCache = new Map<string, ProspectBriefPayload>();
+const briefInflight = new Map<string, Promise<ProspectBriefPayload | null>>();
+
+function useProspectBrief(contactId: string): {
+  loading: boolean;
+  data: ProspectBriefPayload | null;
+} {
+  const [state, setState] = useState<{
+    loading: boolean;
+    data: ProspectBriefPayload | null;
+  }>(() => ({
+    loading: !briefCache.has(contactId),
+    data: briefCache.get(contactId) ?? null,
+  }));
+
+  useEffect(() => {
+    let cancelled = false;
+    const cached = briefCache.get(contactId);
+    if (cached) {
+      setState({ loading: false, data: cached });
+      return;
+    }
+    setState({ loading: true, data: null });
+    let p = briefInflight.get(contactId);
+    if (!p) {
+      p = fetch(
+        `/api/call-mode/prospect-brief?contactId=${encodeURIComponent(contactId)}`,
+      )
+        .then((r) =>
+          r.ok ? (r.json() as Promise<ProspectBriefPayload>) : null,
+        )
+        .catch(() => null)
+        .finally(() => briefInflight.delete(contactId));
+      briefInflight.set(contactId, p);
+    }
+    p.then((data) => {
+      if (data) briefCache.set(contactId, data);
+      if (!cancelled) setState({ loading: false, data });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [contactId]);
+
+  return state;
+}
+
+function BriefLinkChip({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium text-indigo-600 transition hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950"
+    >
+      <LinkedInGlyph className="h-3 w-3" />
+      {label}
+    </a>
+  );
+}
+
+function ProspectBriefCard({ contactId }: { contactId: string }) {
+  const { loading, data } = useProspectBrief(contactId);
+  const person = data?.person ?? null;
+  const company = data?.company ?? null;
+
+  const careerLines = (person?.career ?? []).slice(0, 3).map(careerEntryLabel);
+  const liProfile = profileUrl(person?.linkedinUrl);
+  const liPosts = recentActivityUrl(person?.linkedinUrl);
+  // Grounded summary first; the site's own meta description as the
+  // deterministic fallback, labelled as such.
+  const companyText = company?.summary ?? company?.metaDescription ?? null;
+  const companyIsMetaOnly = !company?.summary && Boolean(company?.metaDescription);
+  let companyHost: string | null = null;
+  if (company?.url) {
+    try {
+      companyHost = new URL(company.url).host.replace(/^www\./, "");
+    } catch {
+      companyHost = null;
+    }
+  }
+  const hasPersonContent =
+    Boolean(person?.background) || careerLines.length > 0 || Boolean(person?.headline);
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
+      {/* Le prospect */}
+      <div className="px-4 py-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">
+            <Users className="h-3.5 w-3.5" />
+            Le prospect
+          </div>
+          {(liProfile || liPosts) && (
+            <div className="flex items-center gap-1">
+              {liProfile && <BriefLinkChip href={liProfile} label="Profil" />}
+              {liPosts && <BriefLinkChip href={liPosts} label="Posts récents" />}
+            </div>
+          )}
+        </div>
+        {loading ? (
+          <div className="mt-1.5">
+            <BriefSkeleton rows={2} />
+          </div>
+        ) : hasPersonContent ? (
+          <div className="mt-1 space-y-1">
+            {person?.background ? (
+              <p className="text-[13px] leading-snug text-zinc-800 dark:text-zinc-100">
+                {person.background}
+              </p>
+            ) : person?.headline ? (
+              <p className="text-[13px] italic leading-snug text-zinc-700 dark:text-zinc-300">
+                {person.headline}
+              </p>
+            ) : null}
+            {careerLines.length > 0 && (
+              <ul className="space-y-0.5">
+                {careerLines.map((l, i) => (
+                  <li key={i} className="text-[12px] leading-snug text-zinc-500">
+                    {l}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : (
+          <p className="mt-1 text-[12px] text-zinc-400">
+            Parcours non retrouvé — pas de correspondance LinkedIn/Apollo.
+          </p>
+        )}
+      </div>
+
+      {/* L'entreprise, d'après son propre site */}
+      <div
+        className="px-4 py-2.5"
+        style={{ borderTop: "1px solid var(--color-border-default)" }}
+      >
+        <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">
+          <Globe className="h-3.5 w-3.5" />
+          L&apos;entreprise — d&apos;après son site
+        </div>
+        {loading ? (
+          <div className="mt-1.5">
+            <BriefSkeleton rows={2} />
+          </div>
+        ) : companyText ? (
+          <div className="mt-1">
+            <p className="text-[13px] leading-snug text-zinc-800 dark:text-zinc-100">
+              {companyText}
+            </p>
+            <p className="mt-1 text-[11px] text-zinc-400">
+              {companyIsMetaOnly ? "Meta description du site" : "Synthèse du site"}
+              {companyHost ? ` · ${companyHost}` : ""}
+              {company?.generatedAt ? ` · ${relTime(company.generatedAt)}` : ""}
+            </p>
+          </div>
+        ) : (
+          <p className="mt-1 text-[12px] text-zinc-400">
+            {company?.url
+              ? "Site injoignable ou vide — résumé indisponible."
+              : "Pas de site connu pour cette entreprise."}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Pre-call brief (centre column, idle) ────────────────────────
 
 export function PreCallBrief({
@@ -454,6 +636,10 @@ export function PreCallBrief({
           </button>
         )}
       </div>
+
+      {/* Qui est-ce / ce que fait l'entreprise d'après SON site — auto-built,
+          caché 30 j (carrière Apollo + homepage réelle + une passe LLM groundée). */}
+      <ProspectBriefCard contactId={selected.contactId} />
 
       {/* Gaps to enrich — actionable, stays visible above the collapsed dossier */}
       {gaps.length > 0 && (
