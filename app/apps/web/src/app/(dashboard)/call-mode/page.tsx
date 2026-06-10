@@ -29,6 +29,7 @@ import {
   Plus,
   ClipboardList,
   MoveHorizontal,
+  History,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +49,7 @@ import { CallModeOnboarding } from "./_onboarding";
 import { EditCampaignModal } from "./_edit-campaign-modal";
 import { CampaignFunnelBar } from "./_funnel-bar";
 import { CallScriptPanel } from "./_call-script";
+import { isVoiceableSignal, mergeTechStacks } from "@/lib/call-mode/live-script";
 import { CallActions } from "./_call-actions";
 
 interface QueueItem {
@@ -1027,7 +1029,15 @@ export default function CallModePage() {
                       {item.localTime && item.latestSignal && <span>·</span>}
                       {item.latestSignal && (
                         <span className="flex min-w-0 items-center gap-1">
-                          <Sparkles className="h-3 w-3 shrink-0" />
+                          {/* Sparkles ONLY for a real, voiceable buying signal —
+                              the campaign queue also carries a cadence breadcrumb
+                              ({type:"call"}, "Attempt N · outcome") which renders
+                              as neutral history, never dressed up as a signal. */}
+                          {isVoiceableSignal(item.latestSignal.type) ? (
+                            <Sparkles className="h-3 w-3 shrink-0" />
+                          ) : (
+                            <History className="h-3 w-3 shrink-0" />
+                          )}
                           <span className="truncate">{item.latestSignal.label}</span>
                         </span>
                       )}
@@ -1242,8 +1252,10 @@ export default function CallModePage() {
                   fundingLastRound: brain?.cachedDossier?.funding?.lastRound,
                 }}
                 triggerText={[
-                  ...(brain?.cachedDossier?.techStack ?? []),
-                  selected.latestSignal?.label,
+                  ...mergeTechStacks(brain?.cachedDossier?.techStack, brain?.enrichedTechnologies),
+                  selected.latestSignal && isVoiceableSignal(selected.latestSignal.type)
+                    ? selected.latestSignal.label
+                    : null,
                 ].filter(Boolean).join(" ")}
               />
             </div>

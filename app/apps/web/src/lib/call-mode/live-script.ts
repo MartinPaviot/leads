@@ -87,6 +87,31 @@ function clean(s?: string | null): string {
  * live signal → hiring → funding. Returns null when nothing sayable is known
  * (never fabricates, never voices an internal signal or a strategy note).
  */
+/**
+ * Union of the research dossier's techStack and the enrichment-detected
+ * technologies (companies.properties.technologies — the tech-detect output).
+ * The two live in different fields; Call Mode must see both. Dossier order
+ * first, enriched extras appended, case-insensitive dedupe, capped.
+ */
+export function mergeTechStacks(
+  dossier?: string[] | null,
+  enriched?: string[] | null,
+  cap = 12,
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const t of [...(dossier ?? []), ...(enriched ?? [])]) {
+    const v = (t ?? "").trim();
+    if (!v) continue;
+    const k = v.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(v);
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+
 export function deriveOpeningReason(input: OpeningReasonInput): OpeningReason | null {
   if (input.signal && isVoiceableSignal(input.signal.type)) {
     const label = clean(input.signal.label);

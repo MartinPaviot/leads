@@ -50,7 +50,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
-import { isVoiceableSignal } from "@/lib/call-mode/live-script";
+import { isVoiceableSignal, mergeTechStacks } from "@/lib/call-mode/live-script";
 import { CompanyLogo } from "@/components/ui/company-logo";
 
 // lucide dropped brand glyphs — inline the LinkedIn mark (same path the
@@ -145,6 +145,9 @@ export interface ContactBrainJSON {
   ownedDeals: BrainDeal[];
   companyBrain: CompanyBrainJSON;
   cachedDossier?: DossierJSON | null;
+  /** Enrichment-detected technologies (companies.properties.technologies,
+   *  via tech-detect) — merged with the dossier's techStack client-side. */
+  enrichedTechnologies?: string[] | null;
 }
 
 // What the centre brief needs from the queue row alongside the brain.
@@ -345,7 +348,7 @@ export function PreCallBrief({
   // funding, hiring, heating intent, the replaceable stack (the Pilae lever).
   // Never an internal/behavioral signal, and never the rep's own strategy note
   // (messagingAngle) — those are not reasons to call.
-  const stack = dossier?.techStack ?? [];
+  const stack = mergeTechStacks(dossier?.techStack, brain?.enrichedTechnologies);
   const liveSignal =
     selected.latestSignal && isVoiceableSignal(selected.latestSignal.type)
       ? selected.latestSignal.label
@@ -830,7 +833,12 @@ export function InCallContext({
     approach?.openingLine?.trim() ||
     `« Bonjour ${firstName}, j'ai 30 secondes ? »`;
   const angle = approach?.messagingAngle?.trim() || null;
-  const whyNow = selected.latestSignal?.label ?? null;
+  // Voiceable signals only — the campaign queue synthesizes a cadence
+  // breadcrumb ({type:"call"}) that must never read as a "why now".
+  const whyNow =
+    selected.latestSignal && isVoiceableSignal(selected.latestSignal.type)
+      ? selected.latestSignal.label
+      : null;
   const champion =
     brain?.companyBrain?.contacts?.find((c) => c.isChampion && c.id !== selected.contactId) ?? null;
   const championName = champion

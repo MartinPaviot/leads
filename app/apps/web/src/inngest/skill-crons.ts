@@ -8,6 +8,7 @@ import { db } from "@/db";
 import { tenants, companies, contacts, notifications, users } from "@/db/schema";
 import { eq, sql, desc, and, isNotNull } from "drizzle-orm";
 import { runSkill } from "@/skills/runner";
+import { recordLatestSignals } from "@/lib/signals/latest-signal";
 import { signalScannerSkill } from "@/skills/signals/signal-scanner";
 import { churnRiskDetectorSkill } from "@/skills/intelligence/churn-risk-detector";
 import { expansionSignalSpotterSkill } from "@/skills/signals/expansion-signal-spotter";
@@ -74,9 +75,15 @@ export const weeklySignalScan = inngest.createFunction(
         }, { tenantId, dryRun: false });
 
         if (result.success && result.data) {
-          const data = result.data as { totalSignalsDetected: number; signals: Array<{ companyId?: string; companyName: string; signalType: string; title: string; description?: string }> };
+          const data = result.data as { totalSignalsDetected: number; signals: Array<{ companyId?: string; companyName: string; signalType: string; title: string; description?: string; detectedAt?: string }> };
           totalSignals += data.totalSignalsDetected;
           if (data.totalSignalsDetected > 0) {
+            // Land the freshest signal on each company's contacts so the call
+            // queue + Call Mode fiche/script (readers of properties.latestSignal,
+            // which previously had NO writer) finally see real buying signals.
+            await recordLatestSignals(tenantId, data.signals).catch((e) =>
+              console.warn("latest-signal write failed (non-blocking)", e),
+            );
             const topSignals = data.signals.slice(0, 3).map((s) => s.title).join(", ");
             await createNotification(tenantId, "system",
               `${data.totalSignalsDetected} buying signal(s) detected this week`,

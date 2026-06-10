@@ -69,6 +69,11 @@ export async function GET(
     // a fresh build here, which is expensive (Apollo + LLM synth). This
     // is additive; consumers that don't need it ignore the field.
     let cachedDossier: unknown = null;
+    // Enrichment-detected technologies (companies.properties.technologies —
+    // filled by the Tech-stack criterion / tech-detect). A DIFFERENT field from
+    // the research dossier's techStack; Call Mode needs the union, so we expose
+    // both and let the client merge (mergeTechStacks).
+    let enrichedTechnologies: string[] = [];
     try {
       const companyId = brain.companyBrain.company.id;
       const [co] = await db
@@ -80,11 +85,16 @@ export async function GET(
         .limit(1);
       const props = (co?.properties ?? {}) as Record<string, unknown>;
       if (props.dossier) cachedDossier = props.dossier;
+      if (Array.isArray(props.technologies)) {
+        enrichedTechnologies = props.technologies.filter(
+          (t): t is string => typeof t === "string" && t.trim().length > 0,
+        );
+      }
     } catch {
       // Dossier is a nice-to-have — never fail the brain over it.
     }
 
-    return NextResponse.json({ ...brain, cachedDossier });
+    return NextResponse.json({ ...brain, cachedDossier, enrichedTechnologies });
   } catch (err) {
     console.error("[GET /api/brain/contact]", err);
     return NextResponse.json(

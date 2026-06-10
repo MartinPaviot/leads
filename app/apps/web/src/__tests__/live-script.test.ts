@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deriveOpeningReason, isVoiceableSignal, REASON_BRIDGE } from "@/lib/call-mode/live-script";
+import { deriveOpeningReason, isVoiceableSignal, mergeTechStacks, REASON_BRIDGE } from "@/lib/call-mode/live-script";
 
 describe("isVoiceableSignal", () => {
   it("accepts real-world trigger events + explicit interactions", () => {
@@ -55,5 +55,30 @@ describe("deriveOpeningReason", () => {
   it("keeps the bridge a fixed, content-free connector", () => {
     expect(REASON_BRIDGE).toMatch(/pour ça que je vous appelle/i);
     expect(REASON_BRIDGE.endsWith(":")).toBe(true);
+  });
+});
+
+describe("mergeTechStacks", () => {
+  it("unions dossier + enriched, dossier order first", () => {
+    expect(mergeTechStacks(["Salesforce", "SAP"], ["WordPress", "HubSpot"])).toEqual([
+      "Salesforce",
+      "SAP",
+      "WordPress",
+      "HubSpot",
+    ]);
+  });
+
+  it("dedupes case-insensitively (keeps the first spelling)", () => {
+    expect(mergeTechStacks(["WordPress"], ["wordpress", "Wix"])).toEqual(["WordPress", "Wix"]);
+  });
+
+  it("handles null/empty sides and blank entries", () => {
+    expect(mergeTechStacks(null, ["Wix", " ", ""])).toEqual(["Wix"]);
+    expect(mergeTechStacks(undefined, undefined)).toEqual([]);
+  });
+
+  it("caps the merged list", () => {
+    const many = Array.from({ length: 20 }, (_, i) => `T${i}`);
+    expect(mergeTechStacks(many, []).length).toBe(12);
   });
 });
