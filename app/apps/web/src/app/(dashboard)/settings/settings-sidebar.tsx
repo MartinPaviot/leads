@@ -30,6 +30,7 @@ import {
   Radio,
   Inbox,
 } from "lucide-react";
+import { BILLING_PAGE_ENABLED } from "@/lib/billing/page-visibility";
 
 interface NavItem {
   label: string;
@@ -93,7 +94,8 @@ const settingsNav: NavSection[] = [
   {
     label: "Billing",
     items: [
-      { label: "Billing", href: "/settings/billing", icon: CreditCard },
+      // Dev-only: the billing page 404s in production builds (page-visibility.ts).
+      { label: "Billing", href: "/settings/billing", icon: CreditCard, ready: BILLING_PAGE_ENABLED },
     ],
   },
 ];
