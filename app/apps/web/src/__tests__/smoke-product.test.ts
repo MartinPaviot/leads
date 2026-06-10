@@ -88,9 +88,12 @@ describe("critical module loading", () => {
 
   it("rls module loads", async () => {
     const mod = await import("@/db/rls");
-    expect(typeof mod.setTenantId).toBe("function");
-    expect(typeof mod.clearTenantId).toBe("function");
-    expect(typeof mod.withTenantRLS).toBe("function");
+    expect(typeof mod.withTenantTx).toBe("function");
+    // The session-scoped helpers poisoned pooled backends (2026-06-10
+    // incident) and must stay deleted — withTenantTx is the only primitive.
+    expect(mod).not.toHaveProperty("setTenantId");
+    expect(mod).not.toHaveProperty("clearTenantId");
+    expect(mod).not.toHaveProperty("withTenantRLS");
   });
 
   // auth-utils imports next-auth which requires Next.js server runtime — skip in vitest

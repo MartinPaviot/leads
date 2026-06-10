@@ -1,5 +1,4 @@
 import { auth } from "@/auth";
-import { setTenantId, clearTenantId } from "@/db/rls";
 import { authToAppUserId } from "@/lib/auth/user-id";
 import {
   getSessionGuard,
@@ -67,12 +66,15 @@ export async function getAuthContext(): Promise<AuthContext | null> {
 }
 
 /**
- * Authenticate, set RLS tenant context, run the handler, then clear RLS.
+ * Authenticate, then run the handler with the resolved context.
  *
  * This is the recommended wrapper for API routes that perform
- * tenant-scoped database queries. It combines authentication with
- * Row-Level Security enforcement so every route that uses it
- * automatically gets defense-in-depth tenant isolation.
+ * tenant-scoped database queries. Isolation comes from the app-layer
+ * `WHERE tenant_id = ?` filters plus the 0074 fallback RLS policies;
+ * routes that want the DB to enforce a pinned tenant context use
+ * `withTenantTx` from @/db/rls (the session-scoped set_config this
+ * wrapper used to issue was pooler-unsound and poisoned shared backends
+ * — see _audit/2026-06-10-rls-session-poison.md).
  *
  * @example
  * export async function GET() {
@@ -90,12 +92,7 @@ export async function withAuthRLS(
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await setTenantId(authCtx.tenantId);
-  try {
-    return await handler(authCtx);
-  } finally {
-    await clearTenantId();
-  }
+  return handler(authCtx);
 }
 
 /**

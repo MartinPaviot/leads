@@ -1,5 +1,4 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
-import { clearTenantId } from "@/db/rls";
 import { checkPlanLimit } from "@/lib/billing/plan-limits";
 import { trackUsage } from "@/lib/billing/billing";
 import { apiError } from "@/lib/infra/api-errors";
@@ -585,245 +584,236 @@ export async function POST(req: Request) {
 
   const tenantId = authCtx.tenantId;
 
-  // FINDING-007: Set RLS tenant context so DB-level policies enforce isolation
-  // even if a tool query forgets the WHERE tenantId clause.
-  const { setTenantId } = await import("@/db/rls");
-  await setTenantId(tenantId);
+  // Back-compat: if surface isn't set explicitly, infer from contextType/Id
+  const inferredSurface: SurfaceContext = surfaceInput || inferSurface(contextType, contextId);
+
+  // Build chat tool registry + resolve capabilities for this turn
+  const toolCtx: ToolContext = {
+    tenantId,
+    userId: authCtx.appUserId,
+    authCtx,
+    settings: tenantSettings,
+    agentApprovalMode,
+  };
+  const allTools = buildAllChatTools(toolCtx);
+  const resolved = resolveCapabilities(allTools, {
+    role: authCtx.role,
+    surface: inferredSurface,
+    // allowDestructive + planTier default to safe values (false / free)
+    // until CHAT-04 + billing integration land.
+  });
+
+  // ── Multi-Agent Orchestrator ──────────────────────────────
+  // BEFORE the existing tool routing, run the orchestrator to
+  // classify intent and route to specialist sub-agents. If the
+  // orchestrator is confident (>0.8), use specialist routing with
+  // a focused prompt addendum. Otherwise, fall back to the existing
+  // broad tool routing via routeTools.
+  const orchestratorResult = orchestrate(lastUserText, resolved.tools);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let chatTools: any;
+  let specialistPromptAddendum = "";
+
+  if (orchestratorResult.routed) {
+    // Orchestrator is confident — use specialist routing
+    chatTools = orchestratorResult.tools;
+    specialistPromptAddendum = orchestratorResult.promptAddendum;
+  } else {
+    // Orchestrator is not confident — fall back to existing tool routing
+    // resolveCapabilities filters by role/surface; routeTools further
+    // filters by the user's message intent (~40-50 tools vs 126).
+    chatTools = routeTools(resolved.tools, lastUserText);
+  }
+
+  // Prompt canary: check if a versioned prompt exists for "chat".
+  // If a canary version is active, it replaces the hardcoded prompt
+  // for a subset of tenants (consistent hashing on tenantId).
+  const canaryVersion = await getActivePromptVersion("chat", tenantId);
+
+  // Prompt A/B experiment: check if an active experiment exists for "chat".
+  // If so, and the tenant is assigned to the variant arm, apply the
+  // prompt delta on top of the base prompt. Non-blocking — failures
+  // silently fall back to the base prompt.
+  let experimentAssignment: { experimentId: string; variant: "base" | "variant"; delta: string | null } | null = null;
+  try {
+    experimentAssignment = await getChatExperimentDelta(tenantId);
+  } catch {
+    // Non-critical — experiment lookup failures should never block chat
+  }
+
+  let systemPrompt = canaryVersion
+    ? canaryVersion.content + resolved.surfacePromptAddendum + specialistPromptAddendum
+    : buildChatSystemPrompt({
+        crmSnapshot,
+        ragContext,
+        entityContext,
+        knowledgeContext,
+        memoriesContext,
+        workQueueContext,
+        agentApprovalMode,
+        userName: tenantSettings.onboardingCompanyName || undefined,
+        preferredLanguage: tenantSettings.language || undefined,
+      }) + resolved.surfacePromptAddendum + specialistPromptAddendum;
+
+  // Apply experiment variant delta if this tenant is in the variant arm
+  if (experimentAssignment?.delta) {
+    systemPrompt = applyPromptDelta(systemPrompt, experimentAssignment.delta);
+  }
+
+  // ── Context Budget Manager: allocate tokens across sections ──
+  const budgetResult = allocateContextBudget({
+    systemPrompt,
+    toolDefinitions: chatTools as Record<string, unknown>,
+    messages,
+    ragResults: (ragContext ? [{ content: ragContext, score: 1.0 }] : []) as RagResult[],
+    entityContext: entityContext || "",
+  });
+
+  // Use optimized messages from the budget manager (may be compacted)
+  const compactedMessages = budgetResult.optimizedMessages.length < messages.length
+    ? budgetResult.optimizedMessages
+    : await compactMessages(messages);
+  const convertedMessages = await convertToModelMessages(compactedMessages);
+
+  // Log budget breakdown for observability (non-blocking)
+  if (budgetResult.budget.history.compacted || budgetResult.budget.total.remaining < 10000) {
+    console.log(formatBudgetSummary(budgetResult.budget));
+  }
+
+  // CHAT-07: fire auto-extract every ~20 turns on a thread. Fire-and-
+  // forget — the chat response doesn't wait on it. The worker dedupes
+  // via (tenant, scope, key) existence checks so re-firing is safe.
+  if (threadId && messages.length > 0 && messages.length % 20 === 0) {
+    void (async () => {
+      try {
+        const { inngest } = await import("@/inngest/client");
+        await inngest.send({
+          name: "memory/auto-extract",
+          data: { tenantId, userId: authCtx.appUserId, threadId },
+        });
+      } catch (err) {
+        console.warn("chat: memory/auto-extract emit failed (non-fatal)", err);
+      }
+    })();
+  }
 
   try {
-    // Back-compat: if surface isn't set explicitly, infer from contextType/Id
-    const inferredSurface: SurfaceContext = surfaceInput || inferSurface(contextType, contextId);
+    // Track AI query usage (fire-and-forget)
+    void trackUsage(authCtx.tenantId, "ai_query").catch(() => {});
 
-    // Build chat tool registry + resolve capabilities for this turn
-    const toolCtx: ToolContext = {
-      tenantId,
-      userId: authCtx.appUserId,
-      authCtx,
-      settings: tenantSettings,
-      agentApprovalMode,
-    };
-    const allTools = buildAllChatTools(toolCtx);
-    const resolved = resolveCapabilities(allTools, {
-      role: authCtx.role,
-      surface: inferredSurface,
-      // allowDestructive + planTier default to safe values (false / free)
-      // until CHAT-04 + billing integration land.
+    const result = await tracedStreamText({
+      model,
+      system: systemPrompt,
+      messages: convertedMessages,
+      tools: chatTools,
+      // AI SDK v6 renamed maxTokens -> maxOutputTokens; the old name was
+      // silently ignored. Anthropic also requires max_tokens > thinking
+      // budget, so the previous `thinking.budgetTokens: 16000` (with no
+      // honoured cap) produced an invalid request that streamed empty —
+      // hence the 200-with-no-answer. Extended thinking is dropped for the
+      // interactive chat: it added 16k hidden tokens of latency for little
+      // gain. Re-add with budget < maxOutputTokens if deep reasoning is needed.
+      maxOutputTokens: 4000,
+      temperature: 0.4,
+      stopWhen: stepCountIs(10),
+      providerOptions: {
+        anthropic: {
+          cacheControl: { type: "ephemeral" },
+        },
+      },
+      _trace: {
+        agentId: "chat",
+        tenantId,
+        inputPreview: lastUserText.slice(0, 300),
+        surfaceType: inferredSurface.type,
+        allowedToolCount: Object.keys(chatTools).length,
+        droppedToolCount: resolved.droppedTools.length,
+        orchestratorRouted: orchestratorResult.routed,
+        orchestratorSpecialists: orchestratorResult.decision.specialists.join(",") || "none",
+        orchestratorConfidence: orchestratorResult.decision.confidence,
+        ...(canaryVersion ? {
+          promptVersion: canaryVersion.version,
+          promptIsCanary: canaryVersion.isCanary,
+        } : {}),
+        ...(experimentAssignment ? {
+          experimentId: experimentAssignment.experimentId,
+          experimentVariant: experimentAssignment.variant,
+        } : {}),
+        contextBudgetUsed: budgetResult.budget.total.used,
+        contextBudgetRemaining: budgetResult.budget.total.remaining,
+        contextBudgetCompacted: budgetResult.budget.history.compacted,
+      },
     });
 
-    // ── Multi-Agent Orchestrator ──────────────────────────────
-    // BEFORE the existing tool routing, run the orchestrator to
-    // classify intent and route to specialist sub-agents. If the
-    // orchestrator is confident (>0.8), use specialist routing with
-    // a focused prompt addendum. Otherwise, fall back to the existing
-    // broad tool routing via routeTools.
-    const orchestratorResult = orchestrate(lastUserText, resolved.tools);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let chatTools: any;
-    let specialistPromptAddendum = "";
-
-    if (orchestratorResult.routed) {
-      // Orchestrator is confident — use specialist routing
-      chatTools = orchestratorResult.tools;
-      specialistPromptAddendum = orchestratorResult.promptAddendum;
-    } else {
-      // Orchestrator is not confident — fall back to existing tool routing
-      // resolveCapabilities filters by role/surface; routeTools further
-      // filters by the user's message intent (~40-50 tools vs 126).
-      chatTools = routeTools(resolved.tools, lastUserText);
+    // Record experiment metric (fire-and-forget, non-blocking)
+    if (experimentAssignment) {
+      void recordExperimentMetric(
+        tenantId,
+        experimentAssignment.experimentId,
+        experimentAssignment.variant,
+        "eval_score",
+        1.0, // Successful response — the online eval sampler will update with real score
+      ).catch(() => {});
     }
 
-    // Prompt canary: check if a versioned prompt exists for "chat".
-    // If a canary version is active, it replaces the hardcoded prompt
-    // for a subset of tenants (consistent hashing on tenantId).
-    const canaryVersion = await getActivePromptVersion("chat", tenantId);
-
-    // Prompt A/B experiment: check if an active experiment exists for "chat".
-    // If so, and the tenant is assigned to the variant arm, apply the
-    // prompt delta on top of the base prompt. Non-blocking — failures
-    // silently fall back to the base prompt.
-    let experimentAssignment: { experimentId: string; variant: "base" | "variant"; delta: string | null } | null = null;
-    try {
-      experimentAssignment = await getChatExperimentDelta(tenantId);
-    } catch {
-      // Non-critical — experiment lookup failures should never block chat
-    }
-
-    let systemPrompt = canaryVersion
-      ? canaryVersion.content + resolved.surfacePromptAddendum + specialistPromptAddendum
-      : buildChatSystemPrompt({
-          crmSnapshot,
-          ragContext,
-          entityContext,
-          knowledgeContext,
-          memoriesContext,
-          workQueueContext,
-          agentApprovalMode,
-          userName: tenantSettings.onboardingCompanyName || undefined,
-          preferredLanguage: tenantSettings.language || undefined,
-        }) + resolved.surfacePromptAddendum + specialistPromptAddendum;
-
-    // Apply experiment variant delta if this tenant is in the variant arm
-    if (experimentAssignment?.delta) {
-      systemPrompt = applyPromptDelta(systemPrompt, experimentAssignment.delta);
-    }
-
-    // ── Context Budget Manager: allocate tokens across sections ──
-    const budgetResult = allocateContextBudget({
-      systemPrompt,
-      toolDefinitions: chatTools as Record<string, unknown>,
-      messages,
-      ragResults: (ragContext ? [{ content: ragContext, score: 1.0 }] : []) as RagResult[],
-      entityContext: entityContext || "",
-    });
-
-    // Use optimized messages from the budget manager (may be compacted)
-    const compactedMessages = budgetResult.optimizedMessages.length < messages.length
-      ? budgetResult.optimizedMessages
-      : await compactMessages(messages);
-    const convertedMessages = await convertToModelMessages(compactedMessages);
-
-    // Log budget breakdown for observability (non-blocking)
-    if (budgetResult.budget.history.compacted || budgetResult.budget.total.remaining < 10000) {
-      console.log(formatBudgetSummary(budgetResult.budget));
-    }
-
-    // CHAT-07: fire auto-extract every ~20 turns on a thread. Fire-and-
-    // forget — the chat response doesn't wait on it. The worker dedupes
-    // via (tenant, scope, key) existence checks so re-firing is safe.
-    if (threadId && messages.length > 0 && messages.length % 20 === 0) {
+    // RAG quality measurement: sample 10% of requests, measure after
+    // stream completes. Fire-and-forget — never blocks the response.
+    if (shouldSampleRag && ragRetrievedResults.length > 0) {
       void (async () => {
         try {
-          const { inngest } = await import("@/inngest/client");
-          await inngest.send({
-            name: "memory/auto-extract",
-            data: { tenantId, userId: authCtx.appUserId, threadId },
+          // Wait for the stream to fully complete so we can read the text
+          const fullText = await result.text;
+          const citations = extractCitationsFromResponse(fullText);
+
+          const ragMetrics = await measureRagQuality({
+            query: lastUserText,
+            retrievedResults: ragRetrievedResults,
+            agentResponse: fullText,
+            citations,
+            retrievalLatencyMs: ragRetrievalLatencyMs,
+            searchMode: "hybrid",
           });
+
+          if (ragMetrics) {
+            // Store RAG metrics as a separate trace so they appear in the
+            // agent health dashboard alongside latency and cost metrics.
+            await recordTrace(
+              { agentId: "chat", tenantId, metadata: { ragQualityMetrics: ragMetrics } },
+              {
+                input: `RAG quality measurement for: ${lastUserText.slice(0, 200)}`,
+                output: JSON.stringify(ragMetrics),
+                latencyMs: 0,
+                status: "ok",
+              },
+            );
+          }
         } catch (err) {
-          console.warn("chat: memory/auto-extract emit failed (non-fatal)", err);
+          console.warn("chat: RAG quality measurement failed (non-fatal)", err);
         }
       })();
     }
 
-    try {
-      // Track AI query usage (fire-and-forget)
-      void trackUsage(authCtx.tenantId, "ai_query").catch(() => {});
-
+    return result.toUIMessageStreamResponse({ sendReasoning: false });
+  } catch (err) {
+    if (model === primaryModel && fallbackModel) {
+      console.warn("Primary model failed, falling back to OpenAI:", err);
       const result = await tracedStreamText({
-        model,
+        model: fallbackModel,
         system: systemPrompt,
         messages: convertedMessages,
         tools: chatTools,
-        // AI SDK v6 renamed maxTokens -> maxOutputTokens; the old name was
-        // silently ignored. Anthropic also requires max_tokens > thinking
-        // budget, so the previous `thinking.budgetTokens: 16000` (with no
-        // honoured cap) produced an invalid request that streamed empty —
-        // hence the 200-with-no-answer. Extended thinking is dropped for the
-        // interactive chat: it added 16k hidden tokens of latency for little
-        // gain. Re-add with budget < maxOutputTokens if deep reasoning is needed.
-        maxOutputTokens: 4000,
-        temperature: 0.4,
         stopWhen: stepCountIs(10),
-        providerOptions: {
-          anthropic: {
-            cacheControl: { type: "ephemeral" },
-          },
-        },
         _trace: {
           agentId: "chat",
           tenantId,
           inputPreview: lastUserText.slice(0, 300),
           surfaceType: inferredSurface.type,
           allowedToolCount: Object.keys(chatTools).length,
-          droppedToolCount: resolved.droppedTools.length,
-          orchestratorRouted: orchestratorResult.routed,
-          orchestratorSpecialists: orchestratorResult.decision.specialists.join(",") || "none",
-          orchestratorConfidence: orchestratorResult.decision.confidence,
-          ...(canaryVersion ? {
-            promptVersion: canaryVersion.version,
-            promptIsCanary: canaryVersion.isCanary,
-          } : {}),
-          ...(experimentAssignment ? {
-            experimentId: experimentAssignment.experimentId,
-            experimentVariant: experimentAssignment.variant,
-          } : {}),
-          contextBudgetUsed: budgetResult.budget.total.used,
-          contextBudgetRemaining: budgetResult.budget.total.remaining,
-          contextBudgetCompacted: budgetResult.budget.history.compacted,
         },
       });
-
-      // Record experiment metric (fire-and-forget, non-blocking)
-      if (experimentAssignment) {
-        void recordExperimentMetric(
-          tenantId,
-          experimentAssignment.experimentId,
-          experimentAssignment.variant,
-          "eval_score",
-          1.0, // Successful response — the online eval sampler will update with real score
-        ).catch(() => {});
-      }
-
-      // RAG quality measurement: sample 10% of requests, measure after
-      // stream completes. Fire-and-forget — never blocks the response.
-      if (shouldSampleRag && ragRetrievedResults.length > 0) {
-        void (async () => {
-          try {
-            // Wait for the stream to fully complete so we can read the text
-            const fullText = await result.text;
-            const citations = extractCitationsFromResponse(fullText);
-
-            const ragMetrics = await measureRagQuality({
-              query: lastUserText,
-              retrievedResults: ragRetrievedResults,
-              agentResponse: fullText,
-              citations,
-              retrievalLatencyMs: ragRetrievalLatencyMs,
-              searchMode: "hybrid",
-            });
-
-            if (ragMetrics) {
-              // Store RAG metrics as a separate trace so they appear in the
-              // agent health dashboard alongside latency and cost metrics.
-              await recordTrace(
-                { agentId: "chat", tenantId, metadata: { ragQualityMetrics: ragMetrics } },
-                {
-                  input: `RAG quality measurement for: ${lastUserText.slice(0, 200)}`,
-                  output: JSON.stringify(ragMetrics),
-                  latencyMs: 0,
-                  status: "ok",
-                },
-              );
-            }
-          } catch (err) {
-            console.warn("chat: RAG quality measurement failed (non-fatal)", err);
-          }
-        })();
-      }
-
       return result.toUIMessageStreamResponse({ sendReasoning: false });
-    } catch (err) {
-      if (model === primaryModel && fallbackModel) {
-        console.warn("Primary model failed, falling back to OpenAI:", err);
-        const result = await tracedStreamText({
-          model: fallbackModel,
-          system: systemPrompt,
-          messages: convertedMessages,
-          tools: chatTools,
-          stopWhen: stepCountIs(10),
-          _trace: {
-            agentId: "chat",
-            tenantId,
-            inputPreview: lastUserText.slice(0, 300),
-            surfaceType: inferredSurface.type,
-            allowedToolCount: Object.keys(chatTools).length,
-          },
-        });
-        return result.toUIMessageStreamResponse({ sendReasoning: false });
-      }
-      return apiError("PROVIDER_UNAVAILABLE", "AI service temporarily unavailable. Please try again."
-      );
     }
-  } finally {
-    await clearTenantId();
+    return apiError("PROVIDER_UNAVAILABLE", "AI service temporarily unavailable. Please try again."
+    );
   }
 }

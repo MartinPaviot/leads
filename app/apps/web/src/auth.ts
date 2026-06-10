@@ -88,20 +88,32 @@ async function resolveUserTenant(authUserId: string, email: string) {
   // "member", which would lock the founder out of every admin-gated
   // surface — billing, members, settings, number purchase). Users who
   // arrive via an invite get the invite's role in the accept flow.
-  const [tenant] = await db
-    .insert(tenants)
-    .values({ name: email.split("@")[1] || "default" })
-    .returning();
+  //
+  // Both inserts run in ONE withTenantTx pinned to the new tenant id:
+  // atomic (no orphan tenant row if the user insert fails) and the
+  // SET LOCAL context satisfies the 0074 users WITH CHECK regardless of
+  // what any pooled backend carries (2026-06-10 incident: a stale
+  // session-level app.tenant_id rejected this insert for every new
+  // sign-up — _audit/2026-06-10-rls-session-poison.md).
+  const newTenantId = crypto.randomUUID();
+  const { withTenantTx } = await import("@/db/rls");
+  const { tenant, user } = await withTenantTx(newTenantId, async (tx) => {
+    const [tenant] = await tx
+      .insert(tenants)
+      .values({ id: newTenantId, name: email.split("@")[1] || "default" })
+      .returning();
 
-  const [user] = await db
-    .insert(users)
-    .values({
-      clerkId: authUserId,
-      tenantId: tenant.id,
-      email,
-      role: "admin",
-    })
-    .returning();
+    const [user] = await tx
+      .insert(users)
+      .values({
+        clerkId: authUserId,
+        tenantId: tenant.id,
+        email,
+        role: "admin",
+      })
+      .returning();
+    return { tenant, user };
+  });
 
   // WS-1: attribute the signup if this email was previously exposed to an
   // Elevay-branded meeting bot. Non-blocking — never fail signup.

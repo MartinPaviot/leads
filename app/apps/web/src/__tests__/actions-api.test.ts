@@ -5,8 +5,7 @@ vi.mock("@/auth", () => ({
 }));
 
 vi.mock("@/db/rls", () => ({
-  setTenantId: vi.fn().mockResolvedValue(undefined),
-  clearTenantId: vi.fn().mockResolvedValue(undefined),
+  withTenantTx: vi.fn(async (_tenantId: string, fn: (tx: unknown) => Promise<unknown>) => fn({})),
 }));
 
 const { mockGetAuthContext } = vi.hoisted(() => ({
