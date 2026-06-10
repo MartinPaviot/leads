@@ -26,7 +26,11 @@ export async function POST(req: Request) {
   }
 
   const rawEmail = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  const role = body.role === "admin" ? "admin" : "member";
+  // Allowlist parse — unknown values coerce to member, never to admin.
+  const role =
+    body.role === "admin" || body.role === "viewer"
+      ? body.role
+      : "member";
   if (!rawEmail || !EMAIL_RE.test(rawEmail)) {
     return Response.json({ error: "Invalid email address" }, { status: 400 });
   }

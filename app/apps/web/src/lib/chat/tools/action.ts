@@ -958,19 +958,19 @@ RULES:
 
     inviteMember: makeTool({
       description:
-        "Invite a teammate to the workspace by email. Admin-only. Creates (or refreshes) a pending invite with a 7-day token, then emails it. Re-inviting the same address refreshes the token + counters. Use when the user says 'invite jane@acme.com as admin', 'add X to the workspace'.",
+        "Invite a teammate to the workspace by email. Admin-only. Creates (or refreshes) a pending invite with a 7-day token, then emails it. Re-inviting the same address refreshes the token + counters. Use when the user says 'invite jane@acme.com as admin', 'add X to the workspace', 'give my advisor read-only access' (role viewer).",
       inputSchema: z.object({
         email: z.string().email().describe("Email address to invite"),
         role: z
-          .enum(["admin", "member"])
+          .enum(["admin", "member", "viewer"])
           .optional()
-          .describe("Role (default 'member')"),
+          .describe("Role (default 'member'; 'viewer' is read-only)"),
       }),
       execute: async (input) => {
         if (!isAdmin) return { error: "Admin access required" };
 
         const rawEmail = input.email.trim().toLowerCase();
-        const role: "admin" | "member" = input.role || "member";
+        const role: "admin" | "member" | "viewer" = input.role || "member";
 
         const [existingUser] = await db
           .select({ id: users.id })
@@ -1128,7 +1128,7 @@ RULES:
           workspaceName: tenant?.name || "your team",
           inviterName,
           inviterEmail: inviter?.email,
-          role: invite.role as "admin" | "member",
+          role: invite.role as "admin" | "member" | "viewer",
           acceptUrl,
           expiresAt: invite.expiresAt,
         });

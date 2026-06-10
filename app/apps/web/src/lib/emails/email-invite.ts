@@ -8,7 +8,7 @@ export interface InviteEmailParams {
   workspaceName: string;
   inviterName: string;
   inviterEmail?: string;
-  role: "admin" | "member";
+  role: "admin" | "member" | "viewer";
   acceptUrl: string;
   expiresAt: Date;
 }

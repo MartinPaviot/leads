@@ -1,4 +1,5 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
+import { requirePermission } from "@/lib/auth/permissions";
 import { db } from "@/db";
 import { sequences, sequenceSteps, sequenceEnrollments, contacts } from "@/db/schema";
 import { eq, sql, and, isNotNull, gte, isNull } from "drizzle-orm";
@@ -11,6 +12,10 @@ export async function POST(
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Bulk-enrolling contacts triggers real outbound — execute-gated.
+  const denied = requirePermission(authCtx.role, "sequences:execute");
+  if (denied) return denied;
 
   const { id } = await params;
 

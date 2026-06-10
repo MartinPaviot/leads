@@ -768,7 +768,7 @@ export const pendingInvites = pgTable(
     id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
     tenantId: text("tenant_id").references(() => tenants.id, { onDelete: "cascade" }).notNull(),
     email: text("email").notNull(),
-    role: text("role").notNull().default("member"), // "admin" | "member"
+    role: text("role").notNull().default("member"), // "admin" | "member" | "viewer"
     /** 24-byte base64url random token, unique across all tenants. */
     token: text("token").notNull().unique(),
     invitedByUserId: text("invited_by_user_id").references(() => users.id),

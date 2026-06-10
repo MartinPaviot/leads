@@ -45,16 +45,26 @@ const ALL_PERMISSIONS: Permission[] = [
 
 export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   admin: [...ALL_PERMISSIONS],
+  // Members are sellers: full CRM read/write incl. soft-deletes (recoverable
+  // since the delete/restore-coherence work) and running their OWN outbound
+  // (sequences:execute — sending identity stays per-owner regardless).
+  // Admin keeps exclusivity on settings:write, billing, members and mcp.
   member: [
     "contacts:read",
     "contacts:write",
+    "contacts:delete",
     "companies:delete",
     "deals:read",
     "deals:write",
+    "deals:delete",
     "sequences:read",
     "sequences:write",
+    "sequences:execute",
     "settings:read",
   ],
+  // Viewers (advisors, investors, coaches) are read-only. Writes are also
+  // blocked centrally in the middleware (lib/auth/viewer-guard.ts) and the
+  // chat strips mutation tools (lib/agents/capability-resolver.ts).
   viewer: [
     "contacts:read",
     "deals:read",

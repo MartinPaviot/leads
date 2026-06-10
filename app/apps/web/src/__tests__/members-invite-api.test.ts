@@ -197,6 +197,42 @@ describe("POST /api/settings/members/invite", () => {
     );
   });
 
+  it("accepts role viewer and stores it on the invite", async () => {
+    vi.mocked(getAuthContext).mockResolvedValue(authAdmin);
+    mockSelectOnce([]); // no existing user
+    mockSelectOnce([{ id: "t1", name: "Acme" }]); // tenant
+    mockSelectOnce([{ email: "alice@acme.com" }]); // inviter
+    mockSelectOnce([]); // no existing pending invite
+
+    const returningFn = vi.fn().mockResolvedValue([{ id: "viewer-invite-id" }]);
+    const valuesFn = vi.fn().mockReturnValue({ returning: returningFn });
+    vi.mocked(db.insert).mockReturnValue({ values: valuesFn } as never);
+
+    const res = await mod.POST(makeReq({ email: "advisor@fund.com", role: "viewer" }));
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.invite.role).toBe("viewer");
+    expect(valuesFn).toHaveBeenCalledWith(expect.objectContaining({ role: "viewer" }));
+    expect(sendInviteEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ role: "viewer" })
+    );
+  });
+
+  it("coerces an unknown role to member, never to admin", async () => {
+    vi.mocked(getAuthContext).mockResolvedValue(authAdmin);
+    mockSelectOnce([]);
+    mockSelectOnce([{ id: "t1", name: "Acme" }]);
+    mockSelectOnce([{ email: "alice@acme.com" }]);
+    mockSelectOnce([]);
+    const returningFn = vi.fn().mockResolvedValue([{ id: "x" }]);
+    vi.mocked(db.insert).mockReturnValue({ values: vi.fn().mockReturnValue({ returning: returningFn }) } as never);
+
+    const res = await mod.POST(makeReq({ email: "bob@acme.com", role: "owner" }));
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.invite.role).toBe("member");
+  });
+
   it("returns emailError when sendInviteEmail fails but row was created", async () => {
     vi.mocked(getAuthContext).mockResolvedValue(authAdmin);
     vi.mocked(sendInviteEmail).mockResolvedValue({
