@@ -21,6 +21,8 @@ interface Member {
   email: string;
   role: string;
   avatarUrl: string | null;
+  status: "active" | "deactivated";
+  isSelf: boolean;
 }
 
 interface PendingInvite {
@@ -157,6 +159,45 @@ export default function MembersSettingsPage() {
     }
   }
 
+  // Revoke a member's workspace access — deactivates them (DELETE
+  // /api/settings/members). Their account is NOT deleted: they lose
+  // access to this workspace's data + actions and their live sessions
+  // are revoked, but the row stays so access can be restored. Routed
+  // through ConfirmDialog so the member is named before the action.
+  const [removeMember, setRemoveMember] = useState<{ id: string; name: string } | null>(null);
+  const [removing, setRemoving] = useState(false);
+
+  async function confirmRemove() {
+    if (!removeMember) return;
+    setRemoving(true);
+    const { error: err } = await sfetch("/api/settings/members", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId: removeMember.id }),
+      errorMessage: "Failed to remove access",
+    });
+    setRemoving(false);
+    const id = removeMember.id;
+    setRemoveMember(null);
+    if (!err) {
+      setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, status: "deactivated" } : m)));
+      toast("Access removed", "success");
+    }
+  }
+
+  async function handleRestore(memberId: string) {
+    const { error: err } = await sfetch("/api/settings/members", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId, reactivate: true }),
+      errorMessage: "Failed to restore access",
+    });
+    if (!err) {
+      setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, status: "active" } : m)));
+      toast("Access restored", "success");
+    }
+  }
+
   return (
     <>
       <SettingsHeader
@@ -266,13 +307,15 @@ export default function MembersSettingsPage() {
             ))}
           </div>
         ) : (
-          members.map((member) => (
+          members.map((member) => {
+            const deactivated = member.status === "deactivated";
+            return (
             <Card key={member.id}>
               <CardBody>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3" style={deactivated ? { opacity: 0.55 } : undefined}>
                     <div
-                      className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
                       style={{ background: "var(--color-accent)" }}
                     >
                       {member.name
@@ -282,34 +325,71 @@ export default function MembersSettingsPage() {
                         .toUpperCase()
                         .slice(0, 2)}
                     </div>
-                    <div>
-                      <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-                        {member.name}
-                      </p>
-                      <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+                          {member.name}
+                        </p>
+                        {member.isSelf && (
+                          <Badge variant="neutral" size="sm">You</Badge>
+                        )}
+                        {deactivated && (
+                          <Badge variant="error" size="sm">No access</Badge>
+                        )}
+                      </div>
+                      <p className="truncate text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
                         {member.email}
                       </p>
                     </div>
                   </div>
-                  {canManage ? (
-                    <Select
-                      value={member.role}
-                      onChange={(e) => handleRoleChange(member.id, e.target.value)}
-                      options={[
-                        { value: "member", label: "Member" },
-                        { value: "viewer", label: "Viewer" },
-                        { value: "admin", label: "Admin" },
-                      ]}
-                    />
-                  ) : (
-                    <Badge variant={roleBadgeVariant(member.role)} size="sm">
-                      {member.role}
-                    </Badge>
-                  )}
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {deactivated ? (
+                      <>
+                        <Badge variant={roleBadgeVariant(member.role)} size="sm">
+                          {member.role}
+                        </Badge>
+                        {canManage && !member.isSelf && (
+                          <Button variant="ghost" size="sm" onClick={() => handleRestore(member.id)}>
+                            Restore access
+                          </Button>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {canManage ? (
+                          <Select
+                            value={member.role}
+                            onChange={(e) => handleRoleChange(member.id, e.target.value)}
+                            options={[
+                              { value: "member", label: "Member" },
+                              { value: "viewer", label: "Viewer" },
+                              { value: "admin", label: "Admin" },
+                            ]}
+                          />
+                        ) : (
+                          <Badge variant={roleBadgeVariant(member.role)} size="sm">
+                            {member.role}
+                          </Badge>
+                        )}
+                        {canManage && !member.isSelf && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setRemoveMember({ id: member.id, name: member.name })}
+                            title="Remove this member's access to the workspace"
+                            style={{ color: "var(--color-error)" }}
+                          >
+                            Remove access
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               </CardBody>
             </Card>
-          ))
+            );
+          })
         )}
       </div>
 
@@ -327,6 +407,18 @@ export default function MembersSettingsPage() {
         onConfirm={confirmCancelInvite}
         onCancel={() => setCancelInvite(null)}
         busy={cancellingInvite}
+      />
+
+      <ConfirmDialog
+        open={removeMember !== null}
+        title={removeMember ? `Remove ${removeMember.name}'s access?` : "Remove access?"}
+        description="They'll immediately lose access to this workspace's data and actions, and their active sessions are signed out. Their account isn't deleted — you can restore access anytime."
+        confirmLabel="Remove access"
+        cancelLabel="Keep access"
+        variant="destructive"
+        onConfirm={confirmRemove}
+        onCancel={() => setRemoveMember(null)}
+        busy={removing}
       />
     </>
   );

@@ -34,6 +34,9 @@ export async function GET() {
         avatarUrl: m.avatarUrl,
         createdAt: m.createdAt,
         status: m.deactivatedAt ? "deactivated" : "active",
+        // Lets the client hide the "remove access" action on the acting
+        // admin's own row (the DELETE route also rejects self-removal).
+        isSelf: m.id === authCtx.appUserId,
       })),
     });
   } catch (error) {
