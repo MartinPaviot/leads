@@ -1,12 +1,15 @@
 /**
- * Static objection → response playbook for the live coaching layer.
+ * NEUTRAL objection → response playbook for the live coaching layer.
  *
- * Seed bank. Phase 3.5 learns per-tenant responses from accepted
- * cards (when the AE actually says the suggested line versus when
- * they ignore it). For now this is enough to validate the surface.
+ * This is the universal FALLBACK: methodology-sound aikido (acknowledge →
+ * one calibrated question → de-risk), product-agnostic, in "vous" — safe to
+ * whisper to ANY tenant's rep. It deliberately contains no product names, no
+ * prices, no vendor claims: those belong to the per-tenant bank generated
+ * from the tenant's own product + ICP (lib/voice/tenant-playbook.ts), which
+ * overrides these entries class-by-class when present.
  *
- * Each suggestion is intentionally short (one or two sentences) — a
- * cold-call reframe, not a Salesforce-flavoured pitch.
+ * Each suggestion is intentionally short — a cold-call reframe the rep can
+ * say in one breath, never a pitch.
  */
 
 export type ObjectionClass =
@@ -32,80 +35,80 @@ export const PLAYBOOK: Record<ObjectionClass, PlaybookEntry> = {
     objectionClass: "price_too_high",
     label: "Trop cher / pas dans le budget",
     suggestedResponses: [
-      "Le prix de surface est $999/mo — mais je voulais surtout savoir si vous trackez le coût par meeting actuellement, parce que c'est là que la comparaison devient pertinente.",
-      "Je comprends. La plupart des founders qu'on signe étaient au même point — ce qui a débloqué, c'est de calculer le coût d'un SDR vs Elevay sur 3 mois.",
+      "C'est une vraie question, et honnêtement le chiffre seul ne veut rien dire : il se compare à ce que ça remplace. C'est exactement ce qu'on poserait à plat en rendez-vous — qu'est-ce que vous payez aujourd'hui sur ce poste ?",
+      "Je comprends. Avant de parler prix : est-ce que le sujet lui-même vous parle ? Si oui, le rendez-vous sert justement à chiffrer l'écart, sans engagement.",
     ],
   },
   not_the_right_time: {
     objectionClass: "not_the_right_time",
     label: "Pas le bon moment",
     suggestedResponses: [
-      "OK, qu'est-ce qu'il faudrait débloquer pour que ça devienne le bon moment ? Si je connais le déclencheur, je peux te recontacter pile au bon moment.",
-      "Compris. Je te programme un rappel pour {{date+45j}} — entre temps, tu veux que je t'envoie 2-3 retours de fondateurs dans ton secteur ?",
+      "Aucun souci. Juste pour comprendre — c'est le timing, ou le sujet ne vous parle pas du tout ? Si c'est le timing, je vous rappelle quand ce sera mieux : qu'est-ce qui changerait d'ici là ?",
+      "Compris, je ne vous retiens pas. Une seule question : si je vous recontacte dans quelques mois, qu'est-ce qui aura bougé chez vous d'ici là ?",
     ],
   },
   already_have_a_vendor: {
     objectionClass: "already_have_a_vendor",
     label: "Déjà un fournisseur",
     suggestedResponses: [
-      "Curieux, vous êtes sur Outreach ou Apollo ? Ce qu'on fait différemment c'est zéro CRM manuel — tu veux que je te montre comment ça change la journée d'un AE en 5 min ?",
-      "Logique. Le seul cas où ça vaut la peine d'évaluer un challenger, c'est quand tu sens que ton outil actuel te coûte plus en saisie qu'il te ramène. Tu es dans ce cas ?",
+      "Logique — vous ne seriez pas à votre poste sans avoir réglé ça. La question n'est jamais « changer », c'est « mesurer l'écart » : qu'est-ce qui vous agace le plus dans l'outil en place, même un détail ?",
+      "Très bien, je ne vous propose pas de changer. Si un jour vous voulez un point de comparaison chiffré, c'est exactement ce qu'on prépare — ça se regarde en 45 minutes, sans suite obligée.",
     ],
   },
   no_budget: {
     objectionClass: "no_budget",
     label: "Pas de budget",
     suggestedResponses: [
-      "Compris. Quand le budget Q+1 est défini, c'est toi qui le portes ou c'est le COO/CRO ?",
-      "OK. Pour info, on a un onboarding qui te fait économiser le coût d'un SDR junior — la conversation budget devient différente quand on regarde la fully-loaded cost.",
+      "Compris. Par curiosité, le budget sur ce poste, il se décide quand et par qui ? Je préfère revenir au bon moment qu'insister au mauvais.",
+      "C'est entendu. La rencontre ne vous coûte rien et ne vous engage à rien — vous repartez avec une lecture chiffrée que vous pourrez ressortir quand le budget s'ouvrira.",
     ],
   },
   not_the_decision_maker: {
     objectionClass: "not_the_decision_maker",
     label: "Pas décideur",
     suggestedResponses: [
-      "Sans souci. Qui d'autre devrait être dans la conversation ? Je veux pas te faire perdre du temps en repassant par toi à chaque étape.",
-      "OK. Tu portes ce sujet ou c'est plus côté Head of Sales / CRO ? Je peux les approcher directement avec ton contexte si tu veux.",
+      "Merci de me le dire — c'est précieux. Qui porte ce sujet chez vous ? Et est-ce que ça vous touche quand même dans votre périmètre ?",
+      "Très bien. Vous préférez me mettre en relation, ou que je le contacte directement en mentionnant notre échange ?",
     ],
   },
   not_the_right_problem: {
     objectionClass: "not_the_right_problem",
     label: "Pas le problème actuel",
     suggestedResponses: [
-      "Compris. C'est quoi ton top 2 priorités GTM ces 90 prochains jours ? Si Elevay ne s'y plug pas, c'est autant pour toi que pour moi de le savoir.",
-      "OK. Pour clarifier — c'est plutôt outbound velocity, retention, ou conversion top-of-funnel que tu tries en ce moment ?",
+      "C'est noté, et c'est une vraie réponse. Pour que je ne vous rappelle pas pour rien : c'est quoi, vous, le sujet qui compte ce trimestre ?",
+      "Compris. Si ce n'est pas ce sujet-là, je préfère le savoir — qu'est-ce qui vous occupe vraiment en ce moment ?",
     ],
   },
   send_email_instead: {
     objectionClass: "send_email_instead",
     label: "Envoyez un mail",
     suggestedResponses: [
-      "Bien sûr, je t'envoie ça dans la foulée. Avant — qu'est-ce qui te ferait dire « OK, ça vaut le coup d'en parler 15 min » en lisant le mail ?",
-      "Pas de problème. Pour cibler le mail, c'est plus le côté zéro saisie CRM, la vitesse d'enrichissement, ou la qualité du targeting qui te parlerait ?",
+      "Avec plaisir, je vous l'envoie. Pour qu'il ne finisse pas dans la pile : qu'est-ce qui vous ferait dire, en le lisant, « OK, ça mérite un échange » ?",
+      "Bien sûr. Une question avant, pour cibler le mail : sur ce sujet, vous en êtes où aujourd'hui ?",
     ],
   },
   happy_with_current: {
     objectionClass: "happy_with_current",
     label: "Content du setup actuel",
     suggestedResponses: [
-      "Top — c'est rare d'entendre ça. Curieux : si tu devais améliorer un truc sur ton outbound aujourd'hui, ça serait quoi ?",
-      "Cool. Just pour cadrer — tu mesures ton outbound sur quel KPI principal ? Replies, meetings, opps ?",
+      "C'est rare, et tant mieux. Par curiosité : s'il y avait UNE chose à améliorer dans ce qui est en place, ce serait quoi ?",
+      "Très bien. Je ne cherche pas à vous faire changer — juste à savoir si un point de comparaison chiffré vous serait utile un jour. Oui ou non, en toute franchise ?",
     ],
   },
   need_more_info: {
     objectionClass: "need_more_info",
     label: "Besoin de plus d'infos",
     suggestedResponses: [
-      "Je peux faire mieux qu'un PDF — je te montre Elevay sur ton propre TAM en 8 min. Tu as un créneau cette semaine ?",
-      "Bien sûr. Avant le mail, juste pour cadrer — c'est quoi ton process outbound aujourd'hui : SDR interne, agence, founder-led ?",
+      "Normal. Le plus efficace, c'est 45 minutes où on regarde votre cas précis — vous repartez avec une lecture concrète, même si on ne va pas plus loin. Plutôt début ou fin de semaine ?",
+      "Bien sûr. Pour vous envoyer la bonne info et pas une plaquette : qu'est-ce que vous voulez vérifier en premier ?",
     ],
   },
   send_to_someone_else: {
     objectionClass: "send_to_someone_else",
     label: "Voyez avec quelqu'un d'autre",
     suggestedResponses: [
-      "OK, qui je devrais contacter ? Et qu'est-ce que je devrais lui dire pour cadrer le contexte que tu m'as donné ?",
-      "Compris. Tu peux me mettre en intro par mail, ou tu préfères que je le contacte cold en mentionnant que tu m'as redirigé ?",
+      "Merci, c'est exactement ce qu'il me fallait. Qui dois-je contacter, et qu'est-ce que je devrais mentionner de notre échange pour que ce soit utile ?",
+      "Très bien. Vous préférez faire l'intro par mail, ou que je l'appelle en disant que vous m'avez orienté vers lui ?",
     ],
   },
 };
