@@ -198,19 +198,7 @@ export function NotificationBell({ collapsed, variant = "icon" }: NotificationBe
               </span>
             )}
           </div>
-          {!collapsed && (
-            <>
-              <span className="truncate">Notifications</span>
-              {unreadCount > 0 && (
-                <span
-                  className="ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white"
-                  style={{ background: "var(--color-error)" }}
-                >
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </span>
-              )}
-            </>
-          )}
+          {!collapsed && <span className="truncate">Notifications</span>}
         </button>
       ) : (
         <button
