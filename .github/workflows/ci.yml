@@ -9,11 +9,19 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   typecheck-test:
     name: tsc + vitest
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # The web app's tsc run needs more than Node's default ~2GB old space
+      # on the runner (OOM-killed on the first CI run without this).
+      NODE_OPTIONS: --max-old-space-size=6144
     defaults:
       run:
         working-directory: app
@@ -44,3 +52,6 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No PR comments — keeps the job on read-only permissions.
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_SUMMARY: "true"
