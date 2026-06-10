@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { isVoiceableSignal, mergeTechStacks } from "@/lib/call-mode/live-script";
+import { countryFromTimezone } from "@/lib/call-mode/geo";
 import { pickReplaceableTools } from "@/lib/tech-detect/replaceable";
 import { scoreTranscriptLevers, DRILL_COPY } from "@/lib/voice/lever-scoring";
 import { CompanyLogo } from "@/components/ui/company-logo";
@@ -266,29 +267,6 @@ function Section({
   );
 }
 
-// Country-level geography, grounded on the contact's computed timezone (derived
-// from companies.properties.countryCode/timezone). We deliberately stop at the
-// country: there is no reliable city/canton field, so we never fake one.
-const TZ_COUNTRY: Record<string, string> = {
-  "Europe/Zurich": "Suisse",
-  "Europe/Paris": "France",
-  "Europe/Brussels": "Belgique",
-  "Europe/Luxembourg": "Luxembourg",
-  "Europe/Monaco": "Monaco",
-  "Europe/London": "Royaume-Uni",
-  "Europe/Berlin": "Allemagne",
-  "Europe/Madrid": "Espagne",
-  "Europe/Rome": "Italie",
-  "Europe/Lisbon": "Portugal",
-  "Europe/Amsterdam": "Pays-Bas",
-};
-function geoLabel(tz: string | null | undefined): string | null {
-  if (!tz) return null;
-  if (TZ_COUNTRY[tz]) return TZ_COUNTRY[tz];
-  const city = tz.split("/")[1]?.replace(/_/g, " ");
-  return city || null;
-}
-
 function ContextChip({ icon: Icon, children }: { icon: typeof Globe; children: ReactNode }) {
   return (
     <span
@@ -323,7 +301,7 @@ export function PreCallBrief({
   const company = brain?.companyBrain?.company;
   // Precise location (enrichment city/canton/country) when we have it; otherwise
   // fall back to the country derived from the contact's timezone.
-  const geo = company?.location ?? geoLabel(selected.localTimezone);
+  const geo = company?.location ?? countryFromTimezone(selected.localTimezone);
   const [showDossier, setShowDossier] = useState(false);
 
   // The script is on the right — the centre is situational intelligence. What an
