@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, CalendarClock, Phone, Pencil, Sparkles, Loader2, X, Plus, Trash2 } from "lucide-react";
 import { interpolateOpener, defaultScriptFields, splitGuidance, withNoResponse, type ScriptFields } from "@/lib/call-mode/call-scripts";
 import { deriveOpeningReason, REASON_BRIDGE, type OpeningReasonInput } from "@/lib/call-mode/live-script";
-import { matchProblem } from "@/lib/call-mode/match-problem";
+import { planProblems } from "@/lib/call-mode/match-problem";
 import { useToast } from "@/components/ui/toast";
 
 export function CallScriptPanel({
@@ -24,6 +24,7 @@ export function CallScriptPanel({
   defaultGeo,
   reasonInput,
   triggerText,
+  replaceableTool,
 }: {
   contactName?: string | null;
   defaultSector?: string | null;
@@ -34,6 +35,9 @@ export function CallScriptPanel({
   /** The prospect's trigger text (detected stack + signal) — floats the most
    *  relevant enjeu to the top of the problem list. */
   triggerText?: string | null;
+  /** The detected REPLACEABLE tool (catalog-classified) — interpolated into
+   *  {tool} enjeux so the top problem literally names what they run. */
+  replaceableTool?: string | null;
 }) {
   const { toast } = useToast();
   const [sector, setSector] = useState(defaultSector ?? "");
@@ -134,12 +138,16 @@ export function CallScriptPanel({
 
   const view = editing && draft ? draft : fields;
   const { noResponse: viewNoResp, tips: viewTips } = splitGuidance(view.guidance);
-  // Float the enjeu most relevant to this prospect's trigger to the top.
-  const matchedIdx = useMemo(() => matchProblem(view.problems, triggerText), [view.problems, triggerText]);
-  const problemOrder = useMemo(() => {
-    const idx = view.problems.map((_, i) => i);
-    return matchedIdx < 0 ? idx : [matchedIdx, ...idx.filter((i) => i !== matchedIdx)];
-  }, [view.problems, matchedIdx]);
+  // Plan the per-prospect problem list: {tool} enjeux interpolated with the
+  // detected replaceable tool (hidden when none), most relevant one first.
+  const { display: problemDisplay, matchedIdx } = useMemo(
+    () => planProblems(view.problems, triggerText, replaceableTool),
+    [view.problems, triggerText, replaceableTool],
+  );
+  const orderedProblems = useMemo(() => {
+    if (matchedIdx < 0) return problemDisplay;
+    return [...problemDisplay].sort((a, b) => Number(b.idx === matchedIdx) - Number(a.idx === matchedIdx));
+  }, [problemDisplay, matchedIdx]);
 
   return (
     <div
@@ -204,7 +212,7 @@ export function CallScriptPanel({
             <textarea value={draft.opener} onChange={(e) => setDraft({ ...draft, opener: e.target.value })}
               rows={2} className="w-full resize-y rounded-md px-2 py-1.5 text-[12.5px]" style={inputStyle} />
           </Field>
-          <Field label="Enjeux (validés un par un en appel)">
+          <Field label="Enjeux (validés un par un en appel — {tool} = outil détecté chez le prospect, masqué sinon)">
             <div className="flex flex-col gap-1.5">
               {draft.problems.map((p, i) => (
                 <div key={i} className="flex items-start gap-1.5">
@@ -256,8 +264,7 @@ export function CallScriptPanel({
             </p>
           )}
           <div className="flex flex-col gap-1.5">
-            {problemOrder.map((i) => {
-              const p = view.problems[i];
+            {orderedProblems.map(({ idx: i, text: p, viaTool }) => {
               const isMatch = i === matchedIdx;
               return (
                 <button key={i} type="button" onClick={() => toggle(i)}
@@ -271,7 +278,7 @@ export function CallScriptPanel({
                     {p}
                     {isMatch && (
                       <span className="ml-1.5 rounded-sm px-1.5 py-px align-middle text-[9px] font-semibold uppercase tracking-wide" style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
-                        Le plus pertinent
+                        {viaTool ? "Détecté chez eux" : "Le plus pertinent"}
                       </span>
                     )}
                   </span>

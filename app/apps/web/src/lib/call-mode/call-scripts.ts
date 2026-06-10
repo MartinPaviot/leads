@@ -81,6 +81,11 @@ export const GUIDANCE = [
 // sector/industry string (accent/case-insensitive substring). Defaults for
 // the Pilae ICP (romand mid-orgs: fondations / santé / parapublic / low-tech,
 // trigger = SaaS remplaçable ; offre = open-source opéré, souverain, moins cher).
+//
+// {tool} convention: ONE enjeu per sector carries the {tool} placeholder. At
+// display time (planProblems) it is interpolated with the prospect's detected
+// REPLACEABLE tool and floated first ("Détecté chez eux") — or hidden entirely
+// when no tool is detected, so a raw placeholder is never read aloud.
 const SECTOR_SCRIPTS: Array<{
   key: string;
   match: string[];
@@ -94,7 +99,7 @@ const SECTOR_SCRIPTS: Array<{
     problems: [
       "le budget logiciels rogne sur des moyens qui devraient aller à la mission",
       "vos données donateurs ou bénéficiaires vivent sur des outils américains dont vous ne maîtrisez pas l'hébergement",
-      "des abonnements accumulés au fil du temps qu'on pourrait remplacer à l'identique pour bien moins cher",
+      "des abonnements comme {tool}, accumulés au fil du temps, qu'on pourrait remplacer à l'identique pour bien moins cher",
     ],
     qualifiers: [
       "combien d'outils en abonnement aujourd'hui ?",
@@ -108,7 +113,7 @@ const SECTOR_SCRIPTS: Array<{
     match: ["sant", "health", "medical", "médic", "clinique", "hopital", "hôpital", "ems", "soin"],
     problems: [
       "vos données résidents ou patients transitent par des outils du quotidien hébergés aux États-Unis, au moment où la nLPD se durcit",
-      "vous payez plusieurs logiciels métier et bureautiques dont la facture grimpe à chaque renouvellement",
+      "vous payez {tool} et d'autres logiciels dont la facture grimpe à chaque renouvellement",
       "peu de ressources internes pour remplacer un outil vieillissant sans risquer de tout casser",
     ],
     qualifiers: [
@@ -122,7 +127,7 @@ const SECTOR_SCRIPTS: Array<{
     key: "parapublic",
     match: ["parapublic", "public", "administration", "commune", "canton", "collectivit", "état", "etat"],
     problems: [
-      "des systèmes hérités coûteux à maintenir et difficiles à faire évoluer",
+      "des systèmes comme {tool}, coûteux à maintenir et difficiles à faire évoluer",
       "des données publiques ou citoyens hébergées hors de Suisse, alors que la pression à la souveraineté monte",
       "une pression à digitaliser sans équipe projet dédiée en interne",
     ],
@@ -136,7 +141,7 @@ const SECTOR_SCRIPTS: Array<{
     key: "low-tech",
     match: ["industrie", "manufact", "construction", "btp", "logistique", "négoce", "negoce", "retail", "commerce"],
     problems: [
-      "un SaaS ou un ERP en place qui ne suit plus vos besoins mais que c'est lourd de remplacer",
+      "un outil comme {tool} en place, qui ne suit plus vos besoins mais que c'est lourd de remplacer",
       "des données dispersées entre plusieurs outils qui ne se parlent pas",
       "une facture logicielle qui grimpe à chaque renouvellement sans que personne ne pilote",
     ],
@@ -149,7 +154,7 @@ const SECTOR_SCRIPTS: Array<{
 ];
 
 export const GENERIC_PROBLEMS = [
-  "des outils logiciels en place qui ne suivent plus vos besoins, mais qu'il est lourd de remplacer",
+  "des outils comme {tool} en place, qui ne suivent plus vos besoins mais qu'il est lourd de remplacer",
   "des données et processus éclatés entre plusieurs systèmes qui ne communiquent pas",
   "une facture logicielle qui grimpe à chaque renouvellement",
 ];

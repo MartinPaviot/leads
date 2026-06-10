@@ -41,3 +41,47 @@ export function matchProblem(problems: string[], triggerText?: string | null): n
   });
   return best;
 }
+
+/**
+ * Placeholder convention for tenant enjeux: an enjeu containing `{tool}` is
+ * interpolated with the detected replaceable tool at display time — and HIDDEN
+ * when no tool is detected (a raw placeholder must never be read aloud).
+ */
+export const TOOL_PLACEHOLDER = "{tool}";
+
+export interface DisplayProblem {
+  /** Index into the ORIGINAL problems array (stable for checkboxes/edit). */
+  idx: number;
+  /** The text to show/say (interpolated when the enjeu carried {tool}). */
+  text: string;
+  /** True when this enjeu was grounded by interpolating the detected tool. */
+  viaTool: boolean;
+}
+
+/**
+ * Plan the read-mode problem list for THIS prospect: interpolate or hide
+ * `{tool}` enjeux, then pick the most relevant one — a tool-grounded enjeu
+ * wins outright (it literally names what they run); otherwise fall back to
+ * token overlap with the trigger text. matchedIdx is an ORIGINAL index, or -1.
+ */
+export function planProblems(
+  problems: string[],
+  triggerText?: string | null,
+  tool?: string | null,
+): { display: DisplayProblem[]; matchedIdx: number } {
+  const t = (tool ?? "").trim();
+  const display: DisplayProblem[] = [];
+  for (let i = 0; i < problems.length; i++) {
+    const p = problems[i];
+    if (p.includes(TOOL_PLACEHOLDER)) {
+      if (!t) continue; // no detected tool → never show a raw placeholder
+      display.push({ idx: i, text: p.split(TOOL_PLACEHOLDER).join(t), viaTool: true });
+    } else {
+      display.push({ idx: i, text: p, viaTool: false });
+    }
+  }
+  const toolHit = display.find((d) => d.viaTool);
+  if (toolHit) return { display, matchedIdx: toolHit.idx };
+  const overlapPos = matchProblem(display.map((d) => d.text), triggerText);
+  return { display, matchedIdx: overlapPos < 0 ? -1 : display[overlapPos].idx };
+}

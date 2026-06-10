@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { isVoiceableSignal, mergeTechStacks } from "@/lib/call-mode/live-script";
+import { pickReplaceableTools } from "@/lib/tech-detect/replaceable";
 import { CompanyLogo } from "@/components/ui/company-logo";
 
 // lucide dropped brand glyphs — inline the LinkedIn mark (same path the
@@ -361,7 +362,17 @@ export function PreCallBrief({
     signals.push({ icon: Banknote, text: `${dossier.funding.totalRaised} levés · ${dossier.funding.lastRound}${d}`, tag: "Levée" });
   }
   if (hiringRoles.length > 0) signals.push({ icon: UserPlus, text: `Recrute ${hiringRoles.slice(0, 3).join(", ")}`, tag: "Recrutement" });
-  if (stack.length > 0) signals.push({ icon: Cpu, text: `Stack remplaçable : ${stack.slice(0, 3).join(", ")}`, tag: "Levier Pilae" });
+  if (stack.length > 0) {
+    // Lead with the tools that are actually REPLACEABLE (catalog-classified) —
+    // "Microsoft 365, WordPress" is ammo; "AI, Apache, GTM" is noise. Honest
+    // tag downgrade when nothing in the stack is replaceable.
+    const replaceable = pickReplaceableTools(stack);
+    signals.push({
+      icon: Cpu,
+      text: `${replaceable.length > 0 ? "Stack remplaçable" : "Stack détectée"} : ${(replaceable.length > 0 ? replaceable : stack).slice(0, 3).join(", ")}`,
+      tag: replaceable.length > 0 ? "Levier Pilae" : "Stack",
+    });
+  }
   // Honest cold framing when nothing fired — never generic filler.
   const coldReason = company?.industry
     ? `${company.industry}${company.sizeBand ? ` · ${company.sizeBand}` : ""} — froid sur le profil ICP : ancrer sur le coût et le renouvellement.`
