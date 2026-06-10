@@ -55,6 +55,14 @@ export interface TenantSettings {
    */
   companyInvestors?: string[];
 
+  // ── Live call coaching ──
+  /** Per-tenant objection responses (lib/voice/tenant-playbook.ts) —
+   * generated once from product + ICP, class-by-class override of the
+   * neutral coaching PLAYBOOK. Founder-editable. */
+  objectionBank?: Array<{ objectionClass: string; responses: string[] }>;
+  /** ISO timestamp of the one-shot bank generation (idempotency marker). */
+  objectionBankGeneratedAt?: string;
+
   // ── ICP (Ideal Customer Profile) ──
   targetIndustries?: string[];
   targetCompanySizes?: string[];
