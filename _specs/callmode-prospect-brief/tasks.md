@@ -30,4 +30,9 @@
        - 0 console errors; fiche regression OK (Autorité/Signaux/Relation/
          dossier/script intact).
        Screenshots: screenshots/001 (Afiro), 002 (Bricks).
-10. [ ] Push + PR + preview green + merge. Doc/memory update.
+10. [x] Push + PR #138 (preview, CI tsc+vitest, gitleaks, CodeRabbit all
+        green) + merge 7f4d34dc → prod deployment READY on
+        www.elevay.dev (dpl_CJUZi32QN65tjEB53wuVhsfes8qm). Memory updated
+        (project_callmode-prospect-brief). Note: the Afiro/Bricks briefs
+        built during local eval live in the shared DB, so prod renders
+        them instantly from cache.
