@@ -1270,6 +1270,7 @@ export default function CallModePage() {
             <div className="p-3">
               <CallScriptPanel
                 contactName={selected.contactName}
+                contactId={selected.contactId}
                 defaultSector={brain?.companyBrain?.company?.industry}
                 reasonInput={{
                   signal: selected.latestSignal,

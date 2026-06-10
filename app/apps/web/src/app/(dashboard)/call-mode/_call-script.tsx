@@ -22,6 +22,7 @@ import { useToast } from "@/components/ui/toast";
 
 export function CallScriptPanel({
   contactName,
+  contactId,
   defaultSector,
   defaultGeo,
   reasonInput,
@@ -30,6 +31,9 @@ export function CallScriptPanel({
   onContext,
 }: {
   contactName?: string | null;
+  /** Focal prospect id — lets Régénérer ground the draft on THIS prospect's
+   *  server-side evidence (cited fail-closed). */
+  contactId?: string | null;
   defaultSector?: string | null;
   defaultGeo?: string | null;
   /** Grounded prospect context (live signal + dossier) — drives the sayable
@@ -53,6 +57,10 @@ export function CallScriptPanel({
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ScriptFields | null>(null);
+  // Review-time grounding notes for a freshly generated draft ("Ancré : …"
+  // under the enjeux built on this prospect's evidence). Cleared as soon as
+  // the rep restructures the list — a stale note is worse than none.
+  const [draftGrounding, setDraftGrounding] = useState<Array<{ index: number; fact: string }>>([]);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
 
@@ -119,6 +127,7 @@ export function CallScriptPanel({
       setFields({ opener: data.script.opener, problems: data.script.problems ?? [], permissionCheck: data.script.permissionCheck, bookingAsk: data.script.bookingAsk, guidance: data.script.guidance ?? [] });
       setEditing(false);
       setDraft(null);
+      setDraftGrounding([]);
       toast("Script enregistré", "success");
     } catch { toast("Erreur réseau", "error"); }
     finally { setSaving(false); }
@@ -130,14 +139,21 @@ export function CallScriptPanel({
       const res = await fetch("/api/calls/script/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sector }),
+        // contactId grounds the draft on THIS prospect's server-side evidence.
+        body: JSON.stringify({ sector, contactId: contactId ?? undefined }),
       });
       const data = await res.json();
       if (!res.ok) { toast(data.error || "Génération impossible", "error"); return; }
       const d: ScriptFields = { ...data.draft, guidance: data.draft.guidance ?? fields.guidance };
       setDraft(d);
+      setDraftGrounding(Array.isArray(data.grounding) ? data.grounding : []);
       setEditing(true);
-      toast("Brouillon généré — relisez puis enregistrez", "success");
+      toast(
+        Array.isArray(data.grounding) && data.grounding.length > 0
+          ? "Brouillon généré, ancré sur ce prospect — relisez puis enregistrez"
+          : "Brouillon généré — relisez puis enregistrez",
+        "success",
+      );
     } catch { toast("Erreur réseau", "error"); }
     finally { setGenerating(false); }
   }
@@ -208,7 +224,7 @@ export function CallScriptPanel({
                 style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Enregistrer
               </button>
-              <button type="button" onClick={() => { setEditing(false); setDraft(null); }}
+              <button type="button" onClick={() => { setEditing(false); setDraft(null); setDraftGrounding([]); }}
                 className="inline-flex items-center justify-center rounded-md p-1 transition-colors hover:bg-[var(--color-bg-hover)]"
                 style={{ color: "var(--color-text-tertiary)" }} title="Annuler">
                 <X size={13} />
@@ -238,16 +254,26 @@ export function CallScriptPanel({
           </Field>
           <Field label="Enjeux (validés un par un en appel — {tool} = outil détecté chez le prospect, masqué sinon)">
             <div className="flex flex-col gap-1.5">
-              {draft.problems.map((p, i) => (
-                <div key={i} className="flex items-start gap-1.5">
-                  <input value={p} onChange={(e) => { const next = [...draft.problems]; next[i] = e.target.value; setDraft({ ...draft, problems: next }); }}
-                    className="flex-1 rounded-md px-2 py-1 text-[12.5px]" style={inputStyle} />
-                  <button type="button" onClick={() => setDraft({ ...draft, problems: draft.problems.filter((_, j) => j !== i) })}
-                    className="mt-0.5 rounded p-1 transition-colors hover:bg-[var(--color-bg-hover)]" style={{ color: "var(--color-text-tertiary)" }}>
-                    <Trash2 size={12} />
-                  </button>
+              {draft.problems.map((p, i) => {
+                const grounded = draftGrounding.find((g) => g.index === i);
+                return (
+                <div key={i} className="flex flex-col gap-0.5">
+                  <div className="flex items-start gap-1.5">
+                    <input value={p} onChange={(e) => { const next = [...draft.problems]; next[i] = e.target.value; setDraft({ ...draft, problems: next }); setDraftGrounding((g) => g.filter((e2) => e2.index !== i)); }}
+                      className="flex-1 rounded-md px-2 py-1 text-[12.5px]" style={inputStyle} />
+                    <button type="button" onClick={() => { setDraft({ ...draft, problems: draft.problems.filter((_, j) => j !== i) }); setDraftGrounding([]); }}
+                      className="mt-0.5 rounded p-1 transition-colors hover:bg-[var(--color-bg-hover)]" style={{ color: "var(--color-text-tertiary)" }}>
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                  {grounded && (
+                    <span className="ml-1 w-fit rounded-sm px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide" style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
+                      Ancré : {grounded.fact}
+                    </span>
+                  )}
                 </div>
-              ))}
+                );
+              })}
               {draft.problems.length < 5 && (
                 <button type="button" onClick={() => setDraft({ ...draft, problems: [...draft.problems, ""] })}
                   className="inline-flex w-fit items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors hover:bg-[var(--color-bg-hover)]" style={{ color: "var(--color-accent)" }}>

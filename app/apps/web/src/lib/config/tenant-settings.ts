@@ -62,6 +62,10 @@ export interface TenantSettings {
   objectionBank?: Array<{ objectionClass: string; responses: string[] }>;
   /** ISO timestamp of the one-shot bank generation (idempotency marker). */
   objectionBankGeneratedAt?: string;
+  /** Script generation posture. "consultative" (default — sober, no
+   * contrarian reframe; fits fondations/parapublic/santé) or "challenger"
+   * (one grounded factual reframe allowed). Founder-set. */
+  scriptPosture?: "consultative" | "challenger";
 
   // ── ICP (Ideal Customer Profile) ──
   targetIndustries?: string[];
