@@ -12,8 +12,9 @@ import {
   authVerificationTokens,
   tenants,
   users,
+  pendingInvites,
 } from "./db/schema";
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { inngest } from "./inngest/client";
 import {
@@ -83,11 +84,57 @@ async function resolveUserTenant(authUserId: string, email: string) {
 
   if (existing) return { tenantId: existing.tenantId, userId: existing.id, role: existing.role || "member" };
 
-  // First login — create tenant + user. The tenant creator is the
+  const { withTenantTx } = await import("@/db/rls");
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Invited net-new user: if a pending, unexpired invite matches this email,
+  // join THAT workspace with the invited role instead of spinning up a solo
+  // tenant. Without this, every first login creates an own-tenant where the
+  // user is the sole admin, and the explicit /accept-invite flow then dead-
+  // locks on the M10 "you're the only admin" guard — so an invited member
+  // could never actually join (verified live 2026-06-10). Email match is the
+  // same bar the accept route enforces. Create + mark-accepted run atomically
+  // in one withTenantTx pinned to the invite's tenant (0074 WITH CHECK).
+  const [invite] = await db
+    .select()
+    .from(pendingInvites)
+    .where(and(eq(pendingInvites.email, normalizedEmail), eq(pendingInvites.status, "pending")))
+    .orderBy(desc(pendingInvites.createdAt))
+    .limit(1);
+
+  if (invite && invite.expiresAt.getTime() > Date.now()) {
+    const invitedUser = await withTenantTx(invite.tenantId, async (tx) => {
+      const [user] = await tx
+        .insert(users)
+        .values({
+          clerkId: authUserId,
+          tenantId: invite.tenantId,
+          email,
+          role: invite.role || "member",
+        })
+        .returning();
+      await tx
+        .update(pendingInvites)
+        .set({
+          status: "accepted",
+          acceptedAt: new Date(),
+          acceptedByUserId: user.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(pendingInvites.id, invite.id));
+      return user;
+    });
+    return {
+      tenantId: invite.tenantId,
+      userId: invitedUser.id,
+      role: invitedUser.role || "member",
+    };
+  }
+
+  // First login, no invite — create tenant + user. The tenant creator is the
   // founder: they get the admin role explicitly (the column default is
   // "member", which would lock the founder out of every admin-gated
-  // surface — billing, members, settings, number purchase). Users who
-  // arrive via an invite get the invite's role in the accept flow.
+  // surface — billing, members, settings, number purchase).
   //
   // Both inserts run in ONE withTenantTx pinned to the new tenant id:
   // atomic (no orphan tenant row if the user insert fails) and the
@@ -96,7 +143,6 @@ async function resolveUserTenant(authUserId: string, email: string) {
   // session-level app.tenant_id rejected this insert for every new
   // sign-up — _audit/2026-06-10-rls-session-poison.md).
   const newTenantId = crypto.randomUUID();
-  const { withTenantTx } = await import("@/db/rls");
   const { tenant, user } = await withTenantTx(newTenantId, async (tx) => {
     const [tenant] = await tx
       .insert(tenants)
