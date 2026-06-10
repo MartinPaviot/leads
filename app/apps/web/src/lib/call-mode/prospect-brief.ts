@@ -274,20 +274,36 @@ async function buildProspectBrief(
   const contactName =
     [contact.firstName, contact.lastName].filter(Boolean).join(" ").trim();
 
+  // A fresh person half is reused as-is — no Apollo re-match just because
+  // the company half (e.g. a slow/dead site) needs another pass.
   const [person, site] = await Promise.all([
-    matchPerson({
-      firstName: contact.firstName,
-      lastName: contact.lastName,
-      linkedinUrl: contact.linkedinUrl,
-      companyDomain: company?.domain ?? null,
-      companyName: company?.name ?? null,
-    }),
-    company?.domain ? fetchSiteSignals(company.domain) : Promise.resolve(null),
+    personFresh
+      ? Promise.resolve(null)
+      : matchPerson({
+          firstName: contact.firstName,
+          lastName: contact.lastName,
+          linkedinUrl: contact.linkedinUrl,
+          companyDomain: company?.domain ?? null,
+          companyName: company?.name ?? null,
+        }),
+    // Swiss SMB homepages routinely take 8-12 s to first byte; the build is
+    // async behind a skeleton and cached 30 d, so a generous timeout beats
+    // a false "site injoignable".
+    company?.domain
+      ? fetchSiteSignals(company.domain, { timeoutMs: 15_000 })
+      : Promise.resolve(null),
   ]);
 
-  const career = buildCareerTimeline(person?.employment_history);
-  const headline = (person?.headline ?? "").trim() || null;
-  const linkedinUrl = contact.linkedinUrl || person?.linkedin_url || null;
+  const career = personFresh
+    ? cachedPerson!.career
+    : buildCareerTimeline(person?.employment_history);
+  const headline = personFresh
+    ? cachedPerson!.headline
+    : (person?.headline ?? "").trim() || null;
+  const linkedinUrl =
+    contact.linkedinUrl ||
+    (personFresh ? cachedPerson!.linkedinUrl : person?.linkedin_url) ||
+    null;
   const siteUrl = company?.domain ? toHomepageUrl(company.domain) : null;
   const extracted = site ? extractWebsiteText(site.html) : null;
 
@@ -320,11 +336,11 @@ async function buildProspectBrief(
   const now = new Date().toISOString();
   const personBrief: PersonBriefCache = {
     v: 1,
-    background: validated.background,
+    background: validated.background ?? (personFresh ? cachedPerson!.background : null),
     headline,
     career,
     linkedinUrl,
-    source: person ? "apollo" : "crm",
+    source: personFresh ? cachedPerson!.source : person ? "apollo" : "crm",
     generatedAt: now,
   };
   const companyBrief: CompanyWebBriefCache | null = company?.domain

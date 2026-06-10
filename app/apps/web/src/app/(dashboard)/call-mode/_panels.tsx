@@ -637,6 +637,10 @@ export function PreCallBrief({
         )}
       </div>
 
+      {/* Qui est-ce / ce que fait l'entreprise d'après SON site — auto-built,
+          caché 30 j (carrière Apollo + homepage réelle + une passe LLM groundée). */}
+      <ProspectBriefCard contactId={selected.contactId} />
+
       {/* Gaps to enrich — actionable, stays visible above the collapsed dossier */}
       {gaps.length > 0 && (
         <Section icon={Search} title="À enrichir avant l'appel" count={gaps.length}>
