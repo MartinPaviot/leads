@@ -25,13 +25,23 @@ export async function sendInviteEmail(p: InviteEmailParams): Promise<{ sent: boo
   const subject = `${p.inviterName} invited you to join ${p.workspaceName} on Elevay`;
   const expiresStr = p.expiresAt.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   const safeUrl = escapeHtml(p.acceptUrl);
+  // Absolute logo URL on the same origin as the accept link (canonical
+  // https://www.elevay.dev in prod). Email clients block SVG <img>, so we
+  // ship a raster logo-Elevay.png in /public for this.
+  let logoUrl = "https://www.elevay.dev/logo-Elevay.png";
+  try {
+    logoUrl = `${new URL(p.acceptUrl).origin}/logo-Elevay.png`;
+  } catch {
+    /* keep the canonical default */
+  }
   // Brand palette (matches the app's --gradient-shimmer + --color-accent):
   // teal #17C3B2 → blue #2C6BED → orange #FF7A3D, accent blue #2C6BED.
   const html = `<!doctype html>
 <html><body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#f4f4f5; padding: 24px; margin: 0;">
   <div style="max-width: 560px; margin: 0 auto;">
     <div style="padding: 4px 4px 18px;">
-      <span style="font-size: 20px; font-weight: 800; letter-spacing: -0.6px; color:#2C6BED;">Elevay</span>
+      <img src="${logoUrl}" width="32" height="32" alt="Elevay" style="vertical-align: middle; border-radius: 8px; display: inline-block;" />
+      <span style="font-size: 20px; font-weight: 800; letter-spacing: -0.6px; color:#2C6BED; vertical-align: middle; margin-left: 9px;">Elevay</span>
     </div>
     <div style="background:#ffffff; border-radius: 14px; border: 1px solid #e4e4e7; overflow: hidden;">
       <div style="height: 4px; background:#2C6BED; background: linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D);">&nbsp;</div>
@@ -50,8 +60,7 @@ export async function sendInviteEmail(p: InviteEmailParams): Promise<{ sent: boo
           </tr>
         </table>
         <p style="margin: 16px 0 0; color:#71717a; font-size: 13px; line-height: 1.5;">
-          Or paste this link into your browser:<br />
-          <a href="${safeUrl}" style="color:#2C6BED; word-break: break-all;">${safeUrl}</a>
+          Button not working? <a href="${safeUrl}" style="color:#2C6BED; font-weight: 600;">Accept your invitation here</a>.
         </p>
         <p style="margin: 24px 0 0; color:#a1a1aa; font-size: 12px;">
           This invitation expires on ${expiresStr}. If you didn't expect this email, you can ignore it.
