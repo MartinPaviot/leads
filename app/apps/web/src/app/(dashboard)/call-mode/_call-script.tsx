@@ -86,11 +86,12 @@ export function CallScriptPanel({
     return () => { cancelled = true; clearTimeout(t); };
   }, [sector]);
 
-  // Auto-fill the sector from the selected account's industry once the brain
-  // loads (it arrives async, per contact). The rep can still type to override.
-  useEffect(() => {
-    if (defaultSector) setSector(defaultSector);
-  }, [defaultSector]);
+  // Auto-fill the sector AND the geography from the selected account once the
+  // brain loads (it arrives async, per contact), and re-sync on prospect
+  // switch so neither field carries the previous prospect's value. The rep
+  // can still type to override.
+  useEffect(() => { setSector(defaultSector ?? ""); }, [contactId, defaultSector]);
+  useEffect(() => { setGeo(defaultGeo ?? ""); }, [contactId, defaultGeo]);
 
   const opener = useMemo(
     () => interpolateOpener(fields.opener, { name: contactName, sector, geo }),

@@ -51,6 +51,7 @@ import { EditCampaignModal } from "./_edit-campaign-modal";
 import { CampaignFunnelBar } from "./_funnel-bar";
 import { CallScriptPanel } from "./_call-script";
 import { isVoiceableSignal, mergeTechStacks } from "@/lib/call-mode/live-script";
+import { speakableGeo } from "@/lib/call-mode/geo";
 import { pickReplaceableTools } from "@/lib/tech-detect/replaceable";
 import type { ScriptContext } from "@/lib/voice/script-context";
 import { CallActions } from "./_call-actions";
@@ -1272,6 +1273,7 @@ export default function CallModePage() {
                 contactName={selected.contactName}
                 contactId={selected.contactId}
                 defaultSector={brain?.companyBrain?.company?.industry}
+                defaultGeo={speakableGeo(brain?.companyBrain?.company?.location, selected.localTimezone)}
                 reasonInput={{
                   signal: selected.latestSignal,
                   hiringRole: brain?.cachedDossier?.hiringSignals?.[0]?.role,

@@ -37,7 +37,10 @@ function Bar({ done, total }: { done: number; total: number }) {
 }
 
 /** One compact KPI cell: label and value on a single baseline-aligned line,
- * with an optional thin progress bar underneath. */
+ * with an optional thin progress bar underneath. The line is an ellipsized
+ * inline flow: the cells' minWidth floors let flexbox squeeze them below
+ * their content width in reduced windows, so without truncation the nowrap
+ * text would overflow into the neighbouring cell. */
 function Cell({
   label,
   children,
@@ -51,11 +54,13 @@ function Cell({
 }) {
   return (
     <div className="px-3.5 py-1.5" style={style}>
-      <div className="flex items-baseline gap-1.5 whitespace-nowrap">
-        <span className="text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
+      {/* text-[13px] on the line keeps its strut equal to the value's line box,
+          so the strip height matches the previous flex layout exactly */}
+      <div className="truncate text-[13px]">
+        <span className="mr-1.5 text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
           {label}
         </span>
-        <span className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+        <span className="font-semibold" style={{ color: "var(--color-text-primary)" }}>
           {children}
         </span>
       </div>
