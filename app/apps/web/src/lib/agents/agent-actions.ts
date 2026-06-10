@@ -39,6 +39,13 @@ export interface RecordActionInput {
    *  `/api/agent-actions/:id/reverse`. Writes default to 24 h;
    *  sends default to the grace window. */
   reversibleForMs?: number;
+  /** Human-in-the-loop: the agent DECIDED but is waiting for the founder to
+   *  approve. Recorded as `scheduled` with NO `scheduledExecutionAt`, so the
+   *  dispatcher will not run it until `approveAgentAction` sets the time. This
+   *  is what makes a deferred action appear in (and be actionable from) the
+   *  "Needs you" approval lane — see _specs/up-next-redesign/ + the dispatcher
+   *  in inngest/agent-action-dispatcher.ts. Overrides `graceMs`. */
+  awaitingApproval?: boolean;
 }
 
 export async function recordAgentAction(
@@ -49,7 +56,18 @@ export async function recordAgentAction(
   const reversibleForMs =
     input.reversibleForMs ?? (graceMs > 0 ? graceMs : DEFAULT_WRITE_REVERSIBLE_MS);
 
-  const scheduledAt = graceMs > 0 ? new Date(now + graceMs) : null;
+  // Three shapes:
+  //   awaitingApproval → scheduled, NO exec time (waits for approve).
+  //   graceMs > 0       → scheduled, exec = now + grace (dispatcher runs after grace).
+  //   else              → executed (immediate write intent recorded as done;
+  //                        unchanged legacy behaviour for non-deferred writes).
+  const scheduledAt = input.awaitingApproval
+    ? null
+    : graceMs > 0
+      ? new Date(now + graceMs)
+      : null;
+  const status = input.awaitingApproval || graceMs > 0 ? "scheduled" : "executed";
+  const executedAt = status === "executed" ? new Date() : null;
   const reversibleUntil = new Date(now + reversibleForMs);
 
   const [row] = await db
@@ -61,8 +79,8 @@ export async function recordAgentAction(
       payload: input.payload,
       scheduledExecutionAt: scheduledAt,
       reversibleUntil,
-      status: graceMs > 0 ? "scheduled" : "executed",
-      executedAt: graceMs > 0 ? null : new Date(),
+      status,
+      executedAt,
     })
     .returning({ id: agentActions.id });
 

@@ -12,6 +12,7 @@ import { ToastProvider } from "@/components/ui/toast";
 import { CommandPalette } from "@/components/ui/command-palette";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts-provider";
 import { FlagsProvider } from "@/components/flags-provider";
+import { RoleProvider } from "@/components/role-provider";
 import { NavigationProgress } from "@/components/ui/navigation-progress";
 import { IdleLogout } from "@/components/idle-logout";
 import { getFlagsForTenant } from "@/lib/experiments";
@@ -29,17 +30,19 @@ export default async function DashboardLayout({
   let recentChats: Array<{ id: string; title: string | null }> = [];
   let userAvatarUrl: string | null = null;
   let tenantName: string | null = null;
+  let userRole = "member";
   let flags: Awaited<ReturnType<typeof getFlagsForTenant>> = {} as any;
   try {
     const { users, tenants } = await import("@/db/schema");
     const [appUser] = await db
-      .select({ id: users.id, avatarUrl: users.avatarUrl, tenantId: users.tenantId })
+      .select({ id: users.id, avatarUrl: users.avatarUrl, tenantId: users.tenantId, role: users.role })
       .from(users)
       .where(eq(users.clerkId, session.user.id!))
       .limit(1);
 
     if (appUser) {
       userAvatarUrl = appUser.avatarUrl;
+      userRole = appUser.role || "member";
       recentChats = await db
         .select({ id: chatThreads.id, title: chatThreads.title })
         .from(chatThreads)
@@ -69,6 +72,7 @@ export default async function DashboardLayout({
     <ThemeProvider>
       <ToastProvider>
         <FlagsProvider flags={flags}>
+          <RoleProvider role={userRole}>
           <NavigationProgress />
           <div className="flex h-screen overflow-hidden" style={{ background: "var(--color-bg-page)" }}>
             <Sidebar
@@ -100,6 +104,7 @@ export default async function DashboardLayout({
             <KeyboardShortcutsProvider />
             <IdleLogout />
           </div>
+          </RoleProvider>
         </FlagsProvider>
       </ToastProvider>
     </ThemeProvider>

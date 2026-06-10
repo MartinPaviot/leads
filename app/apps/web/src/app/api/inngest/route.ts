@@ -47,6 +47,7 @@ import { icpFitRecomputeTenant, icpFitRecomputeDaily } from "@/inngest/icp-fit-r
 import { nightlyRelationshipGraphBuild, onDemandRelationshipGraphBuild } from "@/inngest/relationship-graph-builder";
 import { customSignalBackfill } from "@/inngest/custom-signal-backfill";
 import { dataRetentionPurge } from "@/inngest/data-retention";
+import { recordingRetentionPurge } from "@/inngest/recording-retention";
 import { evictSignalUrlCache } from "@/inngest/signal-url-cache-evict";
 import { identifyVisit } from "@/inngest/identify-visit";
 import { weeklyEvalHarness } from "@/inngest/eval-harness-cron";
@@ -63,6 +64,7 @@ import { dailyStallPrediction, onDemandStallPrediction } from "@/inngest/stall-p
 import { evaluateRealtimeSignals } from "@/inngest/realtime-signal-handler";
 import { agentTaskExecute, agentTaskCleanup } from "@/inngest/agent-task-runner";
 import { agentReactor, agentDailySweep } from "@/inngest/agent-reactor";
+import { agentActionDispatcher } from "@/inngest/agent-action-dispatcher";
 import { outcomeDetectorCron } from "@/inngest/outcome-detector";
 import { weeklyTrustRecalculation } from "@/inngest/trust-recalculator";
 // Campaign Engine 1000x
@@ -207,6 +209,7 @@ export const { GET, POST, PUT } = serve({
     customSignalBackfill,
     // GDPR data-retention: purge canceled tenant data after 30 days
     dataRetentionPurge,
+    recordingRetentionPurge,
     // MONACO-PARITY-01: evict expired URL-verification cache rows
     // (7-day TTL). Runs at 03:30 UTC daily.
     evictSignalUrlCache,
@@ -247,6 +250,9 @@ export const { GET, POST, PUT } = serve({
     // F001: Agent event loop — real-time autonomous decision reactor
     agentReactor,
     agentDailySweep,
+    // WS-7 completion: dispatcher that executes approved (and auto-grace)
+    // agent_actions through the safe paths. Without it, approve was a no-op.
+    agentActionDispatcher,
     // F003: Outcome tracking — feedback loop for agent actions
     outcomeDetectorCron,
     // F005: Learned trust — weekly threshold recalculation from outcomes

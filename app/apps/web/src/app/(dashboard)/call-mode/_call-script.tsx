@@ -11,21 +11,29 @@
  * No emoji per the brand rule — Lucide icons only. Design-system tokens only.
  */
 
-import { useEffect, useMemo, useState } from "react";
-import { Check, CalendarClock, Phone, Pencil, Sparkles, Loader2, X, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, CalendarClock, Phone, Pencil, Sparkles, Loader2, X, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { interpolateOpener, defaultScriptFields, splitGuidance, withNoResponse, type ScriptFields } from "@/lib/call-mode/call-scripts";
 import { deriveOpeningReason, REASON_BRIDGE, type OpeningReasonInput } from "@/lib/call-mode/live-script";
-import { matchProblem } from "@/lib/call-mode/match-problem";
+import { planProblems } from "@/lib/call-mode/match-problem";
+import { checkScriptMethod } from "@/lib/call-mode/script-levers";
+import type { ScriptContext } from "@/lib/voice/script-context";
 import { useToast } from "@/components/ui/toast";
 
 export function CallScriptPanel({
   contactName,
+  contactId,
   defaultSector,
   defaultGeo,
   reasonInput,
   triggerText,
+  replaceableTool,
+  onContext,
 }: {
   contactName?: string | null;
+  /** Focal prospect id — lets Régénérer ground the draft on THIS prospect's
+   *  server-side evidence (cited fail-closed). */
+  contactId?: string | null;
   defaultSector?: string | null;
   defaultGeo?: string | null;
   /** Grounded prospect context (live signal + dossier) — drives the sayable
@@ -34,6 +42,12 @@ export function CallScriptPanel({
   /** The prospect's trigger text (detected stack + signal) — floats the most
    *  relevant enjeu to the top of the problem list. */
   triggerText?: string | null;
+  /** The detected REPLACEABLE tool (catalog-classified) — interpolated into
+   *  {tool} enjeux so the top problem literally names what they run. */
+  replaceableTool?: string | null;
+  /** Reports what the panel is showing (reason source, matched enjeu, tool) so
+   *  the dial captures it as the call's scriptContext. */
+  onContext?: (ctx: ScriptContext) => void;
 }) {
   const { toast } = useToast();
   const [sector, setSector] = useState(defaultSector ?? "");
@@ -43,6 +57,10 @@ export function CallScriptPanel({
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ScriptFields | null>(null);
+  // Review-time grounding notes for a freshly generated draft ("Ancré : …"
+  // under the enjeux built on this prospect's evidence). Cleared as soon as
+  // the rep restructures the list — a stale note is worse than none.
+  const [draftGrounding, setDraftGrounding] = useState<Array<{ index: number; fact: string }>>([]);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
 
@@ -109,6 +127,7 @@ export function CallScriptPanel({
       setFields({ opener: data.script.opener, problems: data.script.problems ?? [], permissionCheck: data.script.permissionCheck, bookingAsk: data.script.bookingAsk, guidance: data.script.guidance ?? [] });
       setEditing(false);
       setDraft(null);
+      setDraftGrounding([]);
       toast("Script enregistré", "success");
     } catch { toast("Erreur réseau", "error"); }
     finally { setSaving(false); }
@@ -120,26 +139,55 @@ export function CallScriptPanel({
       const res = await fetch("/api/calls/script/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sector }),
+        // contactId grounds the draft on THIS prospect's server-side evidence.
+        body: JSON.stringify({ sector, contactId: contactId ?? undefined }),
       });
       const data = await res.json();
       if (!res.ok) { toast(data.error || "Génération impossible", "error"); return; }
       const d: ScriptFields = { ...data.draft, guidance: data.draft.guidance ?? fields.guidance };
       setDraft(d);
+      setDraftGrounding(Array.isArray(data.grounding) ? data.grounding : []);
       setEditing(true);
-      toast("Brouillon généré — relisez puis enregistrez", "success");
+      toast(
+        Array.isArray(data.grounding) && data.grounding.length > 0
+          ? "Brouillon généré, ancré sur ce prospect — relisez puis enregistrez"
+          : "Brouillon généré — relisez puis enregistrez",
+        "success",
+      );
     } catch { toast("Erreur réseau", "error"); }
     finally { setGenerating(false); }
   }
 
   const view = editing && draft ? draft : fields;
   const { noResponse: viewNoResp, tips: viewTips } = splitGuidance(view.guidance);
-  // Float the enjeu most relevant to this prospect's trigger to the top.
-  const matchedIdx = useMemo(() => matchProblem(view.problems, triggerText), [view.problems, triggerText]);
-  const problemOrder = useMemo(() => {
-    const idx = view.problems.map((_, i) => i);
-    return matchedIdx < 0 ? idx : [matchedIdx, ...idx.filter((i) => i !== matchedIdx)];
-  }, [view.problems, matchedIdx]);
+  // Plan the per-prospect problem list: {tool} enjeux interpolated with the
+  // detected replaceable tool (hidden when none), most relevant one first.
+  const { display: problemDisplay, matchedIdx } = useMemo(
+    () => planProblems(view.problems, triggerText, replaceableTool),
+    [view.problems, triggerText, replaceableTool],
+  );
+  const orderedProblems = useMemo(() => {
+    if (matchedIdx < 0) return problemDisplay;
+    return [...problemDisplay].sort((a, b) => Number(b.idx === matchedIdx) - Number(a.idx === matchedIdx));
+  }, [problemDisplay, matchedIdx]);
+  // Methodology guard on whatever is being shown (saved script OR live draft):
+  // soft markers, never blocking — the rep stays free, but informed.
+  const methodGaps = useMemo(() => checkScriptMethod(view), [view]);
+
+  // Report what the panel is showing so the dial can stamp it on the call
+  // (scriptContext). Latest-callback ref so the parent's inline arrow doesn't
+  // retrigger the effect every render.
+  const onContextRef = useRef(onContext);
+  onContextRef.current = onContext;
+  const matchedViaTool = matchedIdx >= 0 && (problemDisplay.find((d) => d.idx === matchedIdx)?.viaTool ?? false);
+  useEffect(() => {
+    onContextRef.current?.({
+      reasonSource: reason?.source ?? null,
+      matchedEnjeu: matchedIdx >= 0,
+      viaTool: matchedViaTool,
+      tool: replaceableTool ?? null,
+    });
+  }, [reason?.source, matchedIdx, matchedViaTool, replaceableTool]);
 
   return (
     <div
@@ -176,7 +224,7 @@ export function CallScriptPanel({
                 style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Enregistrer
               </button>
-              <button type="button" onClick={() => { setEditing(false); setDraft(null); }}
+              <button type="button" onClick={() => { setEditing(false); setDraft(null); setDraftGrounding([]); }}
                 className="inline-flex items-center justify-center rounded-md p-1 transition-colors hover:bg-[var(--color-bg-hover)]"
                 style={{ color: "var(--color-text-tertiary)" }} title="Annuler">
                 <X size={13} />
@@ -204,18 +252,28 @@ export function CallScriptPanel({
             <textarea value={draft.opener} onChange={(e) => setDraft({ ...draft, opener: e.target.value })}
               rows={2} className="w-full resize-y rounded-md px-2 py-1.5 text-[12.5px]" style={inputStyle} />
           </Field>
-          <Field label="Enjeux (validés un par un en appel)">
+          <Field label="Enjeux (validés un par un en appel — {tool} = outil détecté chez le prospect, masqué sinon)">
             <div className="flex flex-col gap-1.5">
-              {draft.problems.map((p, i) => (
-                <div key={i} className="flex items-start gap-1.5">
-                  <input value={p} onChange={(e) => { const next = [...draft.problems]; next[i] = e.target.value; setDraft({ ...draft, problems: next }); }}
-                    className="flex-1 rounded-md px-2 py-1 text-[12.5px]" style={inputStyle} />
-                  <button type="button" onClick={() => setDraft({ ...draft, problems: draft.problems.filter((_, j) => j !== i) })}
-                    className="mt-0.5 rounded p-1 transition-colors hover:bg-[var(--color-bg-hover)]" style={{ color: "var(--color-text-tertiary)" }}>
-                    <Trash2 size={12} />
-                  </button>
+              {draft.problems.map((p, i) => {
+                const grounded = draftGrounding.find((g) => g.index === i);
+                return (
+                <div key={i} className="flex flex-col gap-0.5">
+                  <div className="flex items-start gap-1.5">
+                    <input value={p} onChange={(e) => { const next = [...draft.problems]; next[i] = e.target.value; setDraft({ ...draft, problems: next }); setDraftGrounding((g) => g.filter((e2) => e2.index !== i)); }}
+                      className="flex-1 rounded-md px-2 py-1 text-[12.5px]" style={inputStyle} />
+                    <button type="button" onClick={() => { setDraft({ ...draft, problems: draft.problems.filter((_, j) => j !== i) }); setDraftGrounding([]); }}
+                      className="mt-0.5 rounded p-1 transition-colors hover:bg-[var(--color-bg-hover)]" style={{ color: "var(--color-text-tertiary)" }}>
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                  {grounded && (
+                    <span className="ml-1 w-fit rounded-sm px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide" style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
+                      Ancré : {grounded.fact}
+                    </span>
+                  )}
                 </div>
-              ))}
+                );
+              })}
               {draft.problems.length < 5 && (
                 <button type="button" onClick={() => setDraft({ ...draft, problems: [...draft.problems, ""] })}
                   className="inline-flex w-fit items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors hover:bg-[var(--color-bg-hover)]" style={{ color: "var(--color-accent)" }}>
@@ -256,8 +314,7 @@ export function CallScriptPanel({
             </p>
           )}
           <div className="flex flex-col gap-1.5">
-            {problemOrder.map((i) => {
-              const p = view.problems[i];
+            {orderedProblems.map(({ idx: i, text: p, viaTool }) => {
               const isMatch = i === matchedIdx;
               return (
                 <button key={i} type="button" onClick={() => toggle(i)}
@@ -271,7 +328,7 @@ export function CallScriptPanel({
                     {p}
                     {isMatch && (
                       <span className="ml-1.5 rounded-sm px-1.5 py-px align-middle text-[9px] font-semibold uppercase tracking-wide" style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
-                        Le plus pertinent
+                        {viaTool ? "Détecté chez eux" : "Le plus pertinent"}
                       </span>
                     )}
                   </span>
@@ -299,6 +356,28 @@ export function CallScriptPanel({
             </ul>
           )}
         </>
+      )}
+
+      {/* Méthode — soft lever markers on the shown script (read AND draft).
+          Informative, never blocking: the rep owns the words. */}
+      {!loading && methodGaps.length > 0 && (
+        <div
+          className="rounded-md border px-3 py-2"
+          style={{ borderColor: "rgba(234,179,8,.35)", background: "rgba(234,179,8,.06)" }}
+        >
+          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: "rgb(133,77,14)" }}>
+            <AlertTriangle size={11} />
+            Méthode — {methodGaps.length} point{methodGaps.length > 1 ? "s" : ""} à revoir
+          </div>
+          <ul className="flex flex-col gap-1">
+            {methodGaps.map((g) => (
+              <li key={g.id} className="text-[11px] leading-snug" style={{ color: "var(--color-text-secondary)" }}>
+                <span className="font-medium" style={{ color: "var(--color-text-primary)" }}>{g.label}</span>
+                <span style={{ color: "var(--color-text-tertiary)" }}> — {g.hint}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );

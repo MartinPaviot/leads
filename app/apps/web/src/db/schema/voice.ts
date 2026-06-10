@@ -92,6 +92,16 @@ export const calls = pgTable(
     //   [{ts, objectionClass, label, prospectQuote, suggestedResponses}]
     coachingCards: jsonb("coaching_cards").default([]),
 
+    // What the script panel showed at dial time, so outcomes can be segmented
+    // by script variant. Shape (lib/voice/script-context.ts ScriptContext):
+    //   { reasonSource: "signal"|"hiring"|"funding"|null,
+    //     matchedEnjeu: boolean, viaTool: boolean, tool: string|null }
+    scriptContext: jsonb("script_context"),
+
+    // Deterministic post-call lever execution scores (lever-scoring.ts
+    // LeverScores): talkRatioPct, opener/reason/de-risk/slot booleans, drill.
+    leverScores: jsonb("lever_scores"),
+
     // Stamps the post-call worker writes; `null` until processed.
     processingState: text("processing_state").default("pending"),
     processingError: text("processing_error"),

@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { CampaignWizard } from "@/components/campaign-wizard";
 import { DestructiveConfirm } from "@/components/ui/destructive-confirm";
 import { useToast } from "@/components/ui/toast";
+import { useCan } from "@/components/role-provider";
 import {
   Zap, ArrowLeft, Mail, Clock, Users, Play, Pause,
   ChevronDown, ChevronRight, Loader2, FileText, Send,
@@ -72,6 +73,9 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
   const { id } = use(params);
   const router = useRouter();
   const { toast } = useToast();
+  // Launching / pausing a campaign drives real sending — sequences:execute
+  // (member + admin). Viewers see the sequence read-only.
+  const canExecute = useCan("sequences:execute");
   const [sequence, setSequence] = useState<Sequence | null>(null);
   const [steps, setSteps] = useState<Step[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
@@ -274,12 +278,12 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
         <Badge variant={statusVariant[sequence.status] || "neutral"} size="md">
           {sequence.status}
         </Badge>
-        {sequence.status !== "active" && campaignStatus !== "launched" && (
+        {canExecute && sequence.status !== "active" && campaignStatus !== "launched" && (
           <Button variant="gradient" size="sm" onClick={() => setShowCampaignWizard(true)}>
             <Zap size={14} /> {steps.length > 0 ? "Continue Campaign" : "Configure Campaign"}
           </Button>
         )}
-        {(sequence.status === "active" || sequence.status === "paused") && (
+        {canExecute && (sequence.status === "active" || sequence.status === "paused") && (
           <Button variant="outline" size="sm" onClick={toggleStatus} loading={updatingStatus}>
             {sequence.status === "active" ? <><Pause size={13} /> Pause</> : <><Play size={13} /> Resume</>}
           </Button>

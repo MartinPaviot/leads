@@ -45,6 +45,9 @@ export interface ClassifierDeps {
   model: any;
   /** Override generateObject for tests. */
   generate?: typeof generateObject;
+  /** Per-tenant objection bank (lib/voice/tenant-playbook.ts). Falls back to
+   *  the neutral PLAYBOOK when absent — never another vendor's pitch. */
+  playbook?: Record<ObjectionClass, PlaybookEntry>;
 }
 
 export interface ClassifyInput {
@@ -103,7 +106,8 @@ Classify the prospect's stance in this window.`,
     return null;
   }
 
-  const entry: PlaybookEntry | null = lookupPlaybook(result.objectionClass);
+  const entry: PlaybookEntry | null =
+    deps.playbook?.[result.objectionClass] ?? lookupPlaybook(result.objectionClass);
   if (!entry) return null;
 
   return {

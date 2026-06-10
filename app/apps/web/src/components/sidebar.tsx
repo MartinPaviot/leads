@@ -42,7 +42,6 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/components/ui/theme-provider";
 import { Avatar } from "@/components/ui/avatar";
-import { NotificationBell } from "@/components/notification-bell";
 import { BetaTag } from "@/components/ui/beta-tag";
 import { isBetaRoute } from "@/lib/beta-routes";
 import { useRef, useCallback } from "react";
@@ -427,10 +426,6 @@ export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tena
                   </Link>
                 );
               })}
-              {/* Notifications nav item — right below "Up next" */}
-              {sectionIdx === 0 && (
-                <NotificationBell collapsed={collapsed} variant="nav" />
-              )}
             </div>
           </div>
         ))}

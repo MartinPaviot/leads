@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { impactDisplayable, type ScriptImpact } from "@/lib/voice/script-context";
 
 interface Stats {
   campaign: { id: string; name: string; dailyQuota: number; weeklyTarget: number } | null;
@@ -19,6 +20,7 @@ interface Stats {
   progress: { callsToday: number; callsWeek: number; connectsWeek: number; meetingsWeek: number; dailyQuota: number };
   cadence: { queued: number; in_progress: number; connected: number; converted: number; exhausted: number; dnc: number; dueToday: number; total: number };
   coverage: { targets: number; withPhone: number };
+  scriptImpact?: ScriptImpact;
 }
 
 const GOAL_NOUN: Record<string, string> = { calls: "calls", connects: "connects", meetings: "meetings" };
@@ -137,6 +139,17 @@ export function CampaignFunnelBar() {
       {cov > 0 && (
         <Cell label="Callable" style={{ ...divider, minWidth: 120 }}>
           {s.coverage.withPhone}<span style={muted}> / {cov} have a phone</span>
+        </Cell>
+      )}
+
+      {/* Script impact — meetings from calls dialled WITH a grounded reason
+          line vs without. Hidden until both buckets carry a minimal sample,
+          so we never display noise as insight. */}
+      {s.scriptImpact && impactDisplayable(s.scriptImpact) && (
+        <Cell label="Script" style={{ ...divider, minWidth: 210 }}>
+          <span style={{ fontWeight: 400, fontSize: "12px", color: "var(--color-text-secondary)" }}>
+            raison ancrée {s.scriptImpact.withReason.meetings}/{s.scriptImpact.withReason.calls} RDV · sans {s.scriptImpact.withoutReason.meetings}/{s.scriptImpact.withoutReason.calls}
+          </span>
         </Cell>
       )}
     </div>

@@ -40,6 +40,25 @@ export const authUsers = pgTable("auth_user", {
   passwordChangedAt: timestamp("password_changed_at", { mode: "date" }),
 });
 
+/**
+ * SOC2 T4 — TOTP MFA state, one row per auth user. The table pre-existed
+ * in prod (empty); this definition matches its live columns exactly.
+ * `secret` holds the AES-256-GCM ciphertext (v1. format) of the base32
+ * TOTP secret — never plaintext. `backup_codes` holds a JSON array of
+ * SHA-256 hex digests of the single-use recovery codes. `last_used_at`
+ * stores the timestamp of the last accepted TOTP step so the same code
+ * cannot be replayed inside its validity window.
+ */
+export const userMfaSecrets = pgTable("user_mfa_secrets", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").notNull(),
+  secret: text("secret").notNull(),
+  backupCodes: text("backup_codes"),
+  isVerified: boolean("is_verified").default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+});
+
 export const authAccounts = pgTable(
   "auth_account",
   {

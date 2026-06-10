@@ -35,6 +35,11 @@ export const SIGN_IN_ERROR_COPY: Record<string, string> = {
   CredentialsSignin: "Email or password is incorrect.",
   AccountLocked:
     "Too many failed attempts. Try again in a few minutes, or reset your password.",
+  // --- MFA (SOC2 T4) — the sign-in page reveals the code field on these ---
+  MfaRequired:
+    "Two-factor authentication is on for this account. Enter the 6-digit code from your authenticator app.",
+  InvalidTotp:
+    "That authentication code is invalid or expired. Enter a fresh code, or use a recovery code.",
 
   // --- account linking ---
   OAuthAccountNotLinked:

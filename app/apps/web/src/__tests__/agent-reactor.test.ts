@@ -95,16 +95,14 @@ describe("Agent Reactor — Types & Heuristics", () => {
     expect(decision.actions[0].type).toBe("alert_founder");
   });
 
-  it("deal_stale heuristic creates task", () => {
+  it("deal_stale heuristic takes no reflex action (surfaced to the founder instead)", () => {
     const decision = HEURISTIC_DECISIONS.deal_stale!;
-    expect(decision.actions).toHaveLength(1);
-    expect(decision.actions[0].type).toBe("create_task");
+    expect(decision.actions).toHaveLength(0);
   });
 
-  it("signal_detected heuristic creates deal", () => {
+  it("signal_detected heuristic takes no action (signals prioritise outreach, not create deals)", () => {
     const decision = HEURISTIC_DECISIONS.signal_detected!;
-    expect(decision.actions).toHaveLength(1);
-    expect(decision.actions[0].type).toBe("create_deal");
+    expect(decision.actions).toHaveLength(0);
   });
 });
 

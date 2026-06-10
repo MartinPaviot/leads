@@ -9,6 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
 import { useSafeFetch } from "@/lib/infra/use-safe-fetch";
+import { useCan } from "@/components/role-provider";
+
+function roleBadgeVariant(role: string) {
+  return role === "admin" ? "warning" : role === "viewer" ? "neutral" : "info";
+}
 
 interface Member {
   id: string;
@@ -40,6 +45,11 @@ export default function MembersSettingsPage() {
 
   const sfetch = useSafeFetch();
   const { toast } = useToast();
+  // Managing members is admin-only (members:invite / members:manage).
+  // Non-admins get a read-only roster: no invite box, roles shown as
+  // badges, no resend/cancel. The server enforces this regardless.
+  const canInvite = useCan("members:invite");
+  const canManage = useCan("members:manage");
 
   const loadInvites = useCallback(async () => {
     const { data } = await sfetch<{ invites: PendingInvite[] }>(
@@ -159,34 +169,36 @@ export default function MembersSettingsPage() {
         }
       />
 
-      <div>
-        <div className="flex gap-2">
-          <Input
-            value={inviteEmail}
-            onChange={(e) => setInviteEmail(e.target.value)}
-            placeholder="Invite via email"
-            type="email"
-            className="flex-1"
-          />
-          <Select
-            value={inviteRole}
-            onChange={(e) => setInviteRole(e.target.value as "admin" | "member" | "viewer")}
-            options={[
-              { value: "member", label: "Member" },
-              { value: "viewer", label: "Viewer" },
-              { value: "admin", label: "Admin" },
-            ]}
-          />
-          <Button
-            variant="gradient"
-            disabled={!inviteEmail.trim() || inviting}
-            onClick={handleInvite}
-          >
-            {inviting ? "Inviting..." : "Invite"}
-          </Button>
+      {canInvite && (
+        <div>
+          <div className="flex gap-2">
+            <Input
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              placeholder="Invite via email"
+              type="email"
+              className="flex-1"
+            />
+            <Select
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value as "admin" | "member" | "viewer")}
+              options={[
+                { value: "member", label: "Member" },
+                { value: "viewer", label: "Viewer" },
+                { value: "admin", label: "Admin" },
+              ]}
+            />
+            <Button
+              variant="gradient"
+              disabled={!inviteEmail.trim() || inviting}
+              onClick={handleInvite}
+            >
+              {inviting ? "Inviting..." : "Invite"}
+            </Button>
+          </div>
+          {error && <p className="mt-1.5 text-[12px]" style={{ color: "var(--color-error)" }}>{error}</p>}
         </div>
-        {error && <p className="mt-1.5 text-[12px]" style={{ color: "var(--color-error)" }}>{error}</p>}
-      </div>
+      )}
 
       {invites.length > 0 && (
         <div className="mt-6">
@@ -216,20 +228,22 @@ export default function MembersSettingsPage() {
                           {inv.resendCount > 0 && ` · resent ${inv.resendCount}×`}
                         </p>
                       </div>
-                      <div className="flex gap-1.5">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleResend(inv.id)}
-                          disabled={inv.resendCount >= 3}
-                          title={inv.resendCount >= 3 ? "Resend limit reached" : "Resend invitation"}
-                        >
-                          Resend
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleCancel(inv.id)}>
-                          Cancel
-                        </Button>
-                      </div>
+                      {canManage && (
+                        <div className="flex gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleResend(inv.id)}
+                            disabled={inv.resendCount >= 3}
+                            title={inv.resendCount >= 3 ? "Resend limit reached" : "Resend invitation"}
+                          >
+                            Resend
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleCancel(inv.id)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </CardBody>
                 </Card>
@@ -277,15 +291,21 @@ export default function MembersSettingsPage() {
                       </p>
                     </div>
                   </div>
-                  <Select
-                    value={member.role}
-                    onChange={(e) => handleRoleChange(member.id, e.target.value)}
-                    options={[
-                      { value: "member", label: "Member" },
-                      { value: "viewer", label: "Viewer" },
-                      { value: "admin", label: "Admin" },
-                    ]}
-                  />
+                  {canManage ? (
+                    <Select
+                      value={member.role}
+                      onChange={(e) => handleRoleChange(member.id, e.target.value)}
+                      options={[
+                        { value: "member", label: "Member" },
+                        { value: "viewer", label: "Viewer" },
+                        { value: "admin", label: "Admin" },
+                      ]}
+                    />
+                  ) : (
+                    <Badge variant={roleBadgeVariant(member.role)} size="sm">
+                      {member.role}
+                    </Badge>
+                  )}
                 </div>
               </CardBody>
             </Card>

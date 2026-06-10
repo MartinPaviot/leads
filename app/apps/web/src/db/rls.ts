@@ -73,3 +73,33 @@ export async function withTenantRLS<T>(
     await clearTenantId();
   }
 }
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * SOC2 R-08b — the POOLER-SOUND tenant context primitive.
+ *
+ * Production connects through Supavisor in TRANSACTION mode (port 6543):
+ * outside an explicit transaction, consecutive statements can land on
+ * different backend connections, so the session-scoped `setTenantId`
+ * above does NOT reliably bind the RLS variable to the queries that
+ * follow it. This wrapper opens a real transaction (pinned to one
+ * backend for its duration) and uses SET LOCAL semantics
+ * (set_config(..., true)), so every query made through `tx` runs with
+ * the tenant context enforced by the 0074 policies — verified live by
+ * scripts/probe-rls.ts.
+ *
+ * Queries MUST go through the provided `tx`, not the global `db`,
+ * or they escape the transaction (and therefore the context).
+ */
+export async function withTenantTx<T>(
+  tenantId: string,
+  fn: (tx: Tx) => Promise<T>
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT set_config('app.tenant_id', ${tenantId}, true)`
+    );
+    return fn(tx);
+  });
+}

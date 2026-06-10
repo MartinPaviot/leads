@@ -17,6 +17,7 @@ import { eq, sql } from "drizzle-orm";
 import { validateTwilioSignature } from "@/lib/voice/twilio-signature";
 import { looksLikeObjection } from "@/lib/voice/coaching-playbook";
 import { classifyObjection } from "@/lib/voice/coaching-classifier";
+import { getTenantPlaybook } from "@/lib/voice/tenant-playbook";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { logger } from "@/lib/observability/logger";
 
@@ -78,6 +79,7 @@ export async function POST(req: Request) {
   // One read: call-start (for relative tsMs) + recent context + coaching state.
   const [row] = await db
     .select({
+      tenantId: calls.tenantId,
       createdAt: calls.createdAt,
       connectedAt: calls.connectedAt,
       transcript: calls.transcript,
@@ -114,9 +116,13 @@ export async function POST(req: Request) {
           .slice(-AGENT_CONTEXT_CHUNKS)
           .map((c) => c.text)
           .join(" ");
+        // Per-tenant objection bank (cached 5 min) — the rep hears responses
+        // about THEIR product, or the neutral methodology fallback. Never
+        // another vendor's pitch.
+        const playbook = await getTenantPlaybook(row.tenantId);
         const card = await classifyObjection(
           { prospectWindow: text, agentContext: recentAgentText },
-          { model: anthropic("claude-haiku-4-5-20251001") },
+          { model: anthropic("claude-haiku-4-5-20251001"), playbook },
         );
         if (card) {
           const sameClassRecent = cards.some(

@@ -223,11 +223,20 @@ export async function GET() {
         .select({ count: sql<number>`count(*)::int` })
         .from(contacts)
         .where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt))),
-      // Total accounts
+      // Total accounts — the WORKING SET, matching what the Accounts page shows
+      // by default: non-deleted AND not excluded ("not a fit"). Counting excluded
+      // rows here is what made the home line read e.g. 998 while Accounts showed
+      // 897 (101 excluded). One source of truth.
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(companies)
-        .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt))),
+        .where(
+          and(
+            eq(companies.tenantId, authCtx.tenantId),
+            isNull(companies.deletedAt),
+            isNull(companies.excludedReason),
+          ),
+        ),
       // Email deliverability (last 7 days)
       db
         .select({
@@ -280,6 +289,9 @@ export async function GET() {
     const openRate = emailHealth?.sent > 0
       ? Math.round((emailHealth.opened / emailHealth.sent) * 100)
       : null;
+    const replyRate = emailHealth?.sent > 0
+      ? Math.round((emailHealth.replied / emailHealth.sent) * 100)
+      : null;
 
     const firstName = settings.onboardingFullName?.split(" ")[0]
       || (await auth())?.user?.name?.split(" ")[0]
@@ -315,6 +327,8 @@ export async function GET() {
         totalAccounts: accountsCount[0]?.count || 0,
         emailsSent7d: emailHealth?.sent || 0,
         openRate,
+        replies7d: emailHealth?.replied || 0,
+        replyRate,
         dealsAtRisk: dealsAtRisk.map((d) => ({
           id: d.id,
           name: d.name,
