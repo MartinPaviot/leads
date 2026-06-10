@@ -105,7 +105,14 @@ export async function POST(req: Request) {
     inviteId = created.id;
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
+  // Prefer the configured public URL; fall back to the request origin, then
+  // to the canonical prod host. The request origin can be an internal Vercel
+  // alias on server-to-server calls, which would bake a non-clickable host
+  // into the invite link — the canonical default guarantees a usable URL.
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    new URL(req.url).origin ||
+    "https://www.elevay.dev";
   const acceptUrl = `${appUrl}/accept-invite?token=${rawToken}`;
 
   const sendResult = await sendInviteEmail({
