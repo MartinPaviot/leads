@@ -3,13 +3,11 @@
 import { useState } from "react";
 import { useToast } from "@/components/ui/toast";
 import { SettingsHeader } from "@/components/ui/settings-header";
+import { MfaCard } from "./_mfa-card";
 
 /**
- * `/settings/security` — Password change.
- *
- * Minimal v1: requires current password + new password. Shown only to
- * users who actually have a credentials account (the endpoint returns a
- * hint if they're SSO-only). 2FA + active-sessions list are v2 ideas.
+ * `/settings/security` — Password change + two-factor authentication
+ * (TOTP, SOC2 T4). Active-sessions list is still a v2 idea.
  */
 export default function SecurityPage() {
   const { toast } = useToast();
@@ -154,6 +152,8 @@ export default function SecurityPage() {
           </button>
         </div>
       </form>
+
+      <MfaCard />
     </div>
   );
 }

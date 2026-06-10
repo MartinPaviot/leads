@@ -48,6 +48,10 @@ export default async function SignInPage({
   const registered = params.registered === "true";
   const reason = params.reason ? SIGN_IN_REASON_COPY[params.reason] ?? null : null;
   const errorMessage = resolveSignInErrorCopy(params.error);
+  // SOC2 T4 — reveal the second-factor field once the password cleared
+  // and the account turned out to have TOTP enabled.
+  const showTotpField =
+    params.error === "MfaRequired" || params.error === "InvalidTotp";
 
   return (
     <div
@@ -265,6 +269,32 @@ export default async function SignInPage({
               placeholder="Enter password"
             />
           </div>
+          {showTotpField && (
+            <div>
+              <label
+                htmlFor="totp"
+                className="block text-[13px] font-medium"
+                style={{ color: "var(--color-text-secondary)" }}
+              >
+                Authentication code
+              </label>
+              <input
+                id="totp"
+                name="totp"
+                type="text"
+                required
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="6-digit code or recovery code"
+                className="auth-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-[13px] outline-none transition-colors"
+                style={{
+                  background: "var(--color-bg-page)",
+                  color: "var(--color-text-primary)",
+                  border: "1px solid var(--color-border-default)",
+                }}
+              />
+            </div>
+          )}
           {/* Gradient CTA button — disables itself while pending (I7). */}
           <AuthSubmitButton label="Sign in" busyLabel="Signing in…" />
         </form>

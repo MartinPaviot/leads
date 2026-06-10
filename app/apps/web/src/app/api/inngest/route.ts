@@ -47,6 +47,7 @@ import { icpFitRecomputeTenant, icpFitRecomputeDaily } from "@/inngest/icp-fit-r
 import { nightlyRelationshipGraphBuild, onDemandRelationshipGraphBuild } from "@/inngest/relationship-graph-builder";
 import { customSignalBackfill } from "@/inngest/custom-signal-backfill";
 import { dataRetentionPurge } from "@/inngest/data-retention";
+import { recordingRetentionPurge } from "@/inngest/recording-retention";
 import { evictSignalUrlCache } from "@/inngest/signal-url-cache-evict";
 import { identifyVisit } from "@/inngest/identify-visit";
 import { weeklyEvalHarness } from "@/inngest/eval-harness-cron";
@@ -207,6 +208,7 @@ export const { GET, POST, PUT } = serve({
     customSignalBackfill,
     // GDPR data-retention: purge canceled tenant data after 30 days
     dataRetentionPurge,
+    recordingRetentionPurge,
     // MONACO-PARITY-01: evict expired URL-verification cache rows
     // (7-day TTL). Runs at 03:30 UTC daily.
     evictSignalUrlCache,

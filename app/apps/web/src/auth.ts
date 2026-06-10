@@ -62,6 +62,16 @@ class AccountLockedError extends CredentialsSignin {
   code = "AccountLocked";
 }
 
+/** SOC2 T4 — password was correct but the account has TOTP enabled and
+ *  no (or an invalid) code was supplied. The sign-in page reveals the
+ *  authentication-code field on these codes. */
+class MfaRequiredError extends CredentialsSignin {
+  code = "MfaRequired";
+}
+class InvalidTotpError extends CredentialsSignin {
+  code = "InvalidTotp";
+}
+
 /** Resolve (or create) a tenant + app user for the given auth user */
 async function resolveUserTenant(authUserId: string, email: string) {
   // Check if app-level user already exists
@@ -184,6 +194,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        totp: { label: "Authentication code", type: "text" },
       },
       async authorize(credentials, request) {
         if (!credentials?.email || !credentials?.password) return null;
@@ -276,6 +287,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           .limit(1);
         if (appUser?.deactivatedAt) {
           return null;
+        }
+
+        // SOC2 T4 — second factor. Only enforced AFTER the bcrypt check
+        // succeeded, so MfaRequired never leaks whether a password was
+        // right for an account the attacker is probing (they had it).
+        const { isMfaEnabled, verifyMfaCode } = await import("@/lib/auth/mfa");
+        if (await isMfaEnabled(user.id)) {
+          const totpCode = ((credentials.totp as string) || "").trim();
+          if (!totpCode) {
+            throw new MfaRequiredError();
+          }
+          const mfaOk = await verifyMfaCode(user.id, totpCode);
+          if (!mfaOk) {
+            await recordFailedSignIn(email, ip);
+            throw new InvalidTotpError();
+          }
         }
 
         // Success — wipe the failure counter so a few legit typos earlier

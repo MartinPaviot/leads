@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-05-19",
+  "lastUpdated": "2026-06-10",
   "notificationPolicy": "We will notify subscribed customers at least 30 days in advance of any new sub-processor. Subscribe at security@elevay.dev.",
   "subProcessors": [
     {
@@ -161,6 +161,86 @@
       "dpaStatus": "available",
       "dpaUrl": null,
       "notes": "Only activated when API keys are configured. Datagma + Pappers are EU-sovereign; preferred for EU lookups."
+    },
+    {
+      "name": "Twilio",
+      "purpose": "Outbound voice calls, phone numbers, opt-in call recording",
+      "region": "EU (region ie1, Dublin) for voice media when configured",
+      "operatorJurisdiction": "United States (Twilio Inc.)",
+      "cloudActExposure": "yes",
+      "dpaStatus": "available",
+      "dpaUrl": "https://www.twilio.com/legal/data-protection-addendum",
+      "notes": "Pinned to the ie1 (Ireland) region. Recording is opt-in (default off) and recordings are deleted after the retention window (90 days by default)."
+    },
+    {
+      "name": "Deepgram",
+      "purpose": "Real-time speech-to-text for live call transcription",
+      "region": "United States",
+      "operatorJurisdiction": "United States (Deepgram Inc.)",
+      "cloudActExposure": "yes",
+      "dpaStatus": "available",
+      "dpaUrl": "https://deepgram.com/dpa",
+      "notes": "Streams call audio for transcription only; no retention requested. Active only during live calls."
+    },
+    {
+      "name": "Upstash",
+      "purpose": "Redis cache (rate limiting, transient state)",
+      "region": "EU (configured region)",
+      "operatorJurisdiction": "United States (Upstash Inc.)",
+      "cloudActExposure": "yes",
+      "dpaStatus": "available",
+      "dpaUrl": "https://upstash.com/trust/dpa.pdf",
+      "notes": "Holds short-lived operational state, not durable customer records."
+    },
+    {
+      "name": "Kaspr",
+      "purpose": "Phone-number enrichment (FR-focused)",
+      "region": "EU (France)",
+      "operatorJurisdiction": "France (Kaspr SAS, Cognism group)",
+      "cloudActExposure": "no",
+      "dpaStatus": "available",
+      "dpaUrl": null,
+      "notes": "Used only when the user actively triggers phone enrichment. CNIL enforcement precedent (2024) tracked in our vendor reviews."
+    },
+    {
+      "name": "Lusha",
+      "purpose": "Phone-number and email enrichment (fallback)",
+      "region": "United States / Israel",
+      "operatorJurisdiction": "Israel (Lusha Systems Ltd.)",
+      "cloudActExposure": "no",
+      "dpaStatus": "available",
+      "dpaUrl": "https://www.lusha.com/legal/dpa/",
+      "notes": "Israel holds an EU adequacy decision. Activated only on explicit enrichment requests."
+    },
+    {
+      "name": "FullEnrich",
+      "purpose": "Waterfall contact enrichment (EU mobile/email)",
+      "region": "EU (France)",
+      "operatorJurisdiction": "France (FullEnrich SAS)",
+      "cloudActExposure": "no",
+      "dpaStatus": "available",
+      "dpaUrl": null,
+      "notes": "Asynchronous enrichment via signed webhooks; activated only when configured and triggered."
+    },
+    {
+      "name": "Zeliq",
+      "purpose": "Contact enrichment (async)",
+      "region": "EU (France)",
+      "operatorJurisdiction": "France (Zeliq SAS)",
+      "cloudActExposure": "no",
+      "dpaStatus": "available",
+      "dpaUrl": null,
+      "notes": "Asynchronous enrichment via signed webhooks; activated only when configured and triggered."
+    },
+    {
+      "name": "Crunchbase",
+      "purpose": "Company intelligence (funding, investors) — optional",
+      "region": "United States",
+      "operatorJurisdiction": "United States",
+      "cloudActExposure": "yes",
+      "dpaStatus": "available",
+      "dpaUrl": null,
+      "notes": "Company-level data only (no personal data beyond public executive names). Activated only when an API key is configured."
     }
   ]
 }
