@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, Trash2, Archive, RotateCcw, type LucideIcon } from "lucide-react";
+import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, Trash2, Archive, RotateCcw, Loader2, type LucideIcon } from "lucide-react";
 import { SmartImport } from "@/components/smart-import";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { displayScore, ENRICHMENT_COLORS } from "@/lib/util/ui-utils";
@@ -61,6 +61,10 @@ function timeAgo(dateStr: string): string {
   return `${months}mo ago`;
 }
 
+/** Rows fetched per page — same batch size as the Accounts list, which the
+ *  infinite scroll below mirrors. */
+const PAGE_SIZE = 200;
+
 export default function ContactsPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -71,10 +75,14 @@ export default function ContactsPage() {
   const [enrichStatus, setEnrichStatus] = useState<Record<string, EnrichStatus>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  // Pagination
-  const [page, setPage] = useState(1);
+  // Infinite scroll (parity with Accounts): pages accumulate as the user
+  // scrolls; a sentinel below the last row auto-loads the next page when it
+  // enters the scroll container's viewport.
+  const [currentPage, setCurrentPage] = useState(1);
   const [totalContacts, setTotalContacts] = useState(0);
-  const pageSize = 50;
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   // Sort
   const [sortField, setSortField] = useState<string>("firstName");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -110,62 +118,128 @@ export default function ContactsPage() {
   const [cascadeBusy, setCascadeBusy] = useState(false);
   const { fields: customFields } = useCustomFields("contact");
 
-  const fetchContacts = useCallback(async () => {
-    try {
-      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-      if (viewDeleted) params.set("deleted", "true");
-      if (debouncedSearch) params.set("search", debouncedSearch);
-      // Map active column filters -> server params (see /api/contacts).
-      const cf = debouncedColumnFilters;
-      const txt = (k: string) => cf[k]?.text?.trim();
-      const vals = (k: string) => (cf[k]?.values ?? []).filter(Boolean);
-      const pres = (k: string) => cf[k]?.presence;
-      if (txt("contact")) params.set("fName", txt("contact")!);
-      if (txt("email")) params.set("fEmail", txt("email")!);
-      if (txt("title")) params.set("fTitle", txt("title")!);
-      if (vals("companyName").length) params.set("fCompany", vals("companyName").join(","));
-      if (vals("score").length) params.set("fGrade", vals("score").join(","));
-      if (pres("linkedin")) params.set("fLinkedin", pres("linkedin")!);
-      if (pres("phone")) params.set("fPhone", pres("phone")!);
-      // Smart-filter score threshold -> server (parity with accounts) so the
-      // count reflects it; any residual non-score conditions stay client-side.
-      for (const c of smartFilters) {
-        if (c.field !== "score") continue;
-        const n = typeof c.value === "number" ? c.value : Number(c.value);
-        if (!Number.isFinite(n)) continue;
-        if (c.operator === "gte" || c.operator === "gt") params.set("fScoreMin", String(n));
-        else if (c.operator === "lte" || c.operator === "lt") params.set("fScoreMax", String(n));
-        else if (c.operator === "eq") { params.set("fScoreMin", String(n)); params.set("fScoreMax", String(n)); }
-      }
+  /** Active search / filter state -> the query params /api/contacts
+   *  understands. Shared by the page fetch and the post-mutation refetch. */
+  const serializeContactFilters = useCallback((): URLSearchParams => {
+    const params = new URLSearchParams();
+    if (viewDeleted) params.set("deleted", "true");
+    if (debouncedSearch) params.set("search", debouncedSearch);
+    // Map active column filters -> server params (see /api/contacts).
+    const cf = debouncedColumnFilters;
+    const txt = (k: string) => cf[k]?.text?.trim();
+    const vals = (k: string) => (cf[k]?.values ?? []).filter(Boolean);
+    const pres = (k: string) => cf[k]?.presence;
+    if (txt("contact")) params.set("fName", txt("contact")!);
+    if (txt("email")) params.set("fEmail", txt("email")!);
+    if (txt("title")) params.set("fTitle", txt("title")!);
+    if (vals("companyName").length) params.set("fCompany", vals("companyName").join(","));
+    if (vals("score").length) params.set("fGrade", vals("score").join(","));
+    if (pres("linkedin")) params.set("fLinkedin", pres("linkedin")!);
+    if (pres("phone")) params.set("fPhone", pres("phone")!);
+    // Smart-filter score threshold -> server (parity with accounts) so the
+    // count reflects it; any residual non-score conditions stay client-side.
+    for (const c of smartFilters) {
+      if (c.field !== "score") continue;
+      const n = typeof c.value === "number" ? c.value : Number(c.value);
+      if (!Number.isFinite(n)) continue;
+      if (c.operator === "gte" || c.operator === "gt") params.set("fScoreMin", String(n));
+      else if (c.operator === "lte" || c.operator === "lt") params.set("fScoreMax", String(n));
+      else if (c.operator === "eq") { params.set("fScoreMin", String(n)); params.set("fScoreMax", String(n)); }
+    }
+    return params;
+  }, [viewDeleted, debouncedSearch, debouncedColumnFilters, smartFilters]);
 
+  /** Fetch one page of contacts.
+   *  - page=1, append=false → initial load / filter change (replaces list)
+   *  - page>1, append=true  → infinite-scroll load (appends below)
+   *  Any filter change recreates this callback, which re-runs the fetch
+   *  effect below and resets the list to page 1. */
+  const fetchContacts = useCallback(async (page = 1, append = false) => {
+    try {
+      if (page === 1 && !append) setLoading(true);
+      else setLoadingMore(true);
+      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+      for (const [k, v] of serializeContactFilters()) params.set(k, v);
       const res = await fetch(`/api/contacts?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        setContacts(data.contacts || data.items || []);
-        setTotalContacts(data.pagination?.total ?? (data.contacts || data.items)?.length ?? 0);
+        const batch: Contact[] = data.contacts || data.items || [];
+        setContacts((prev) => (append ? [...prev, ...batch] : batch));
+        setCurrentPage(data.pagination?.page ?? page);
+        setTotalContacts(data.pagination?.total ?? batch.length);
         if (data.filterOptions?.companies) setServerCompanyOptions(data.filterOptions.companies);
       }
     } catch (e) {
       console.warn("contacts: list fetch failed", e);
-    } finally { setLoading(false); }
-  }, [page, debouncedSearch, debouncedColumnFilters, smartFilters, viewDeleted]);
+    } finally { setLoading(false); setLoadingMore(false); }
+  }, [serializeContactFilters]);
 
-  // Debounce the search box and push it to the server, so the search spans ALL
-  // contacts (not just the loaded 50-row page). Reset to page 1 on a new query.
+  /** Reload every page loaded so far. Used after mutations (import, create,
+   *  enrich, delete, restore) so the user keeps their scroll position and
+   *  loaded rows instead of snapping back to the first page. */
+  const refetchLoadedContacts = useCallback(async () => {
+    try {
+      const pagesToLoad = Math.max(currentPage, 1);
+      let all: Contact[] = [];
+      for (let p = 1; p <= pagesToLoad; p++) {
+        const params = new URLSearchParams({ page: String(p), pageSize: String(PAGE_SIZE) });
+        for (const [k, v] of serializeContactFilters()) params.set(k, v);
+        const res = await fetch(`/api/contacts?${params.toString()}`);
+        if (!res.ok) break;
+        const data = await res.json();
+        const batch: Contact[] = data.contacts || data.items || [];
+        all = [...all, ...batch];
+        if (p === pagesToLoad) {
+          setTotalContacts(data.pagination?.total ?? all.length);
+          if (data.filterOptions?.companies) setServerCompanyOptions(data.filterOptions.companies);
+        }
+      }
+      setContacts(all);
+    } catch (e) {
+      console.warn("contacts: refetch failed", e);
+    }
+  }, [currentPage, serializeContactFilters]);
+
+  const loadMoreContacts = useCallback(() => {
+    if (loading || loadingMore) return;
+    if (currentPage >= Math.ceil(totalContacts / PAGE_SIZE)) return;
+    void fetchContacts(currentPage + 1, true);
+  }, [fetchContacts, loading, loadingMore, currentPage, totalContacts]);
+
+  // Auto-load on scroll: when the bottom sentinel enters the scroll
+  // container's viewport, pull the next page (pre-fetching a little early
+  // via rootMargin so growth feels seamless). `loadMoreContacts` is guarded
+  // (no-op while a load is in flight or once the last page is reached) and
+  // the effect re-binds after each page so it keeps chaining.
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel) return;
+    if (currentPage >= Math.ceil(totalContacts / PAGE_SIZE)) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMoreContacts();
+      },
+      { root: scrollContainerRef.current ?? null, rootMargin: "300px 0px", threshold: 0 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMoreContacts, currentPage, totalContacts, loading]);
+
+  // Debounce the search box and push it to the server, so the search spans
+  // ALL contacts (not just the loaded rows). A new query recreates
+  // fetchContacts, which restarts the list from page 1.
   useEffect(() => {
     const t = setTimeout(() => {
       setDebouncedSearch(searchQuery.trim());
-      setPage(1);
     }, 300);
     return () => clearTimeout(t);
   }, [searchQuery]);
 
-  // Debounce column-filter changes -> server, and reset to page 1 so the
-  // filtered set starts at the top.
+  // Debounce column-filter changes -> server; the filtered set restarts
+  // from the top (page 1) via the fetch effect.
   useEffect(() => {
     const t = setTimeout(() => {
       setDebouncedColumnFilters(columnFilters);
-      setPage(1);
     }, 300);
     return () => clearTimeout(t);
   }, [columnFilters]);
@@ -190,7 +264,7 @@ export default function ContactsPage() {
       const data = await res.json();
       if (res.ok) {
         setImportResult(`Imported ${data.created} contacts, ${data.companiesCreated} companies. ${data.skipped} skipped.`);
-        fetchContacts();
+        refetchLoadedContacts();
       } else { setImportResult(`Error: ${data.error}`); }
     } catch { setImportResult("Import failed — network error"); }
     finally { setImporting(false); if (fileRef.current) fileRef.current.value = ""; }
@@ -206,7 +280,7 @@ export default function ContactsPage() {
     try {
       const res = await fetch("/api/enrich-contacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactIds: [id] }) });
       setEnrichStatus((prev) => ({ ...prev, [id]: res.ok ? "done" : "failed" }));
-      if (res.ok) await fetchContacts();
+      if (res.ok) await refetchLoadedContacts();
     } catch { setEnrichStatus((prev) => ({ ...prev, [id]: "failed" })); }
   }
 
@@ -237,7 +311,7 @@ export default function ContactsPage() {
         toast("Contact created", "success");
         setShowCreate(false);
         setCreateForm({ firstName: "", lastName: "", email: "", title: "", companyName: "" });
-        fetchContacts();
+        refetchLoadedContacts();
       } else {
         const data = await res.json();
         toast(data.error || "Failed to create contact", "error");
@@ -262,7 +336,7 @@ export default function ContactsPage() {
       const data = await res.json().catch(() => ({ restored: ids.length }));
       toast(`Restored ${data.restored} contact${data.restored === 1 ? "" : "s"}.`, "success");
       setSelectedRows(new Set());
-      await fetchContacts();
+      await refetchLoadedContacts();
     } catch (e) {
       console.warn("contacts: restore failed", e);
       toast("Couldn't restore.", "error");
@@ -348,7 +422,7 @@ export default function ContactsPage() {
         errors > 0 ? "warning" : "success",
       );
       setSelectedRows(new Set());
-      fetchContacts();
+      refetchLoadedContacts();
     } else {
       toast(firstError || `Delete failed for ${errors} contact${errors > 1 ? "s" : ""}`, "error");
     }
@@ -369,7 +443,7 @@ export default function ContactsPage() {
       });
       for (const id of ids) setEnrichStatus((prev) => ({ ...prev, [id]: res.ok ? "done" : "failed" }));
       if (res.ok) {
-        await fetchContacts();
+        await refetchLoadedContacts();
         toast(`Enriched ${ids.length} contact${ids.length === 1 ? "" : "s"}.`, "success");
       } else {
         toast("Bulk enrichment failed.", "error");
@@ -469,8 +543,6 @@ export default function ContactsPage() {
     return sortDir === "asc" ? cmp : -cmp;
   });
 
-  const totalPages = Math.ceil(totalContacts / pageSize);
-
   return (
     <div className="flex h-full flex-col animate-content-in">
       <BulkActionsBar
@@ -497,7 +569,7 @@ export default function ContactsPage() {
               },
             ]}
       />
-      <PageHeader icon={<Users size={16} />} title="Contacts" subtitle={`${contacts.length}`}>
+      <PageHeader icon={<Users size={16} />} title="Contacts" subtitle={`${totalContacts}`}>
         {/* Enrich lives in the selection bar — it only makes sense once
             contacts are checked. The toolbar keeps workspace-level actions.
             In the Archive view only the toggle back stays. */}
@@ -522,7 +594,7 @@ export default function ContactsPage() {
           variant="outline"
           size="sm"
           icon={viewDeleted ? <RotateCcw size={13} /> : <Archive size={13} />}
-          onClick={() => { setViewDeleted((v) => !v); setSelectedRows(new Set()); setPage(1); }}
+          onClick={() => { setViewDeleted((v) => !v); setSelectedRows(new Set()); }}
           title={viewDeleted ? "Back to the active contacts" : "Review removed contacts and restore them"}
         >
           {viewDeleted ? "Back to active" : "Archive"}
@@ -542,7 +614,7 @@ export default function ContactsPage() {
             onFilters={(filters, meta) => {
               setSmartFilters(filters);
               setSmartMeta(meta);
-              setPage(1); // smart-score now filters server-side — start at page 1
+              // smart-score filters server-side — the fetch effect restarts at page 1
               // Keep the broad server text search (debouncedSearch) running and
               // let the extracted refinements (score / exclusions) compose on
               // top. The search box already matches the words across every
@@ -601,7 +673,7 @@ export default function ContactsPage() {
         </div>
       )}
 
-      <div className="flex-1 overflow-auto">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto">
         {loading ? (
           <TableSkeleton rows={5} cols={10 + customFields.length} />
         ) : filteredContacts.length === 0 ? (
@@ -636,6 +708,7 @@ export default function ContactsPage() {
             />
           )
         ) : (
+          <>
           <table className="ls-table">
             <thead>
               <tr>
@@ -853,6 +926,42 @@ export default function ContactsPage() {
               })}
             </tbody>
           </table>
+          {/* Infinite scroll sentinel — the IntersectionObserver effect
+              auto-loads the next page when this enters view, so the list
+              grows on scroll with no click. The text doubles as a manual
+              fallback (clickable) for the rare case the observer can't
+              fire (e.g. the loaded rows are shorter than the viewport). */}
+          {currentPage < Math.ceil(totalContacts / PAGE_SIZE) && (
+            <div
+              ref={loadMoreSentinelRef}
+              className="flex items-center justify-center gap-2 border-t py-4"
+              style={{ borderColor: "var(--color-border-default)" }}
+            >
+              {loadingMore ? (
+                <span className="inline-flex items-center gap-2 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                  <Loader2 size={14} className="animate-spin" />
+                  Loading more…
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={loadMoreContacts}
+                  className="text-[12px] transition-colors hover:underline"
+                  style={{ color: "var(--color-text-tertiary)" }}
+                >
+                  Showing {contacts.length} of {totalContacts} — scroll to load more
+                </button>
+              )}
+            </div>
+          )}
+          {currentPage >= Math.ceil(totalContacts / PAGE_SIZE) && contacts.length > 0 && (
+            <div className="flex items-center justify-center py-3">
+              <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>
+                Showing all {contacts.length} contacts
+              </span>
+            </div>
+          )}
+          </>
         )}
       </div>
 
@@ -893,24 +1002,7 @@ export default function ContactsPage() {
         </div>
       )}
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between border-t px-5 py-2" style={{ borderColor: "var(--color-border)" }}>
-          <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-            {totalContacts} contacts · Page {page} of {totalPages}
-          </span>
-          <div className="flex gap-1">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-              Previous
-            </Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {showSmartImport && <SmartImport onClose={() => setShowSmartImport(false)} onComplete={fetchContacts} />}
+      {showSmartImport && <SmartImport onClose={() => setShowSmartImport(false)} onComplete={() => void refetchLoadedContacts()} />}
 
       {/* Create contact dialog */}
       {showCreate && (
