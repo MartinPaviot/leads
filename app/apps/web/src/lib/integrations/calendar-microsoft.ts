@@ -2,6 +2,10 @@ import { db } from "@/db";
 import { authAccounts } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import type { SyncedMeeting } from "./calendar";
+import {
+  decryptAccountTokens,
+  encryptOAuthToken,
+} from "@/lib/crypto/oauth-token-crypto";
 
 async function getMicrosoftTokens(userId: string) {
   const [account] = await db
@@ -16,7 +20,7 @@ async function getMicrosoftTokens(userId: string) {
     .limit(1);
 
   if (!account?.access_token) return null;
-  return account;
+  return decryptAccountTokens(account);
 }
 
 async function refreshMicrosoftToken(userId: string, refreshToken: string): Promise<string | null> {
@@ -40,8 +44,8 @@ async function refreshMicrosoftToken(userId: string, refreshToken: string): Prom
   await db
     .update(authAccounts)
     .set({
-      access_token: data.access_token,
-      refresh_token: data.refresh_token || refreshToken,
+      access_token: encryptOAuthToken(data.access_token),
+      refresh_token: encryptOAuthToken(data.refresh_token || refreshToken),
       expires_at: data.expires_in ? Math.floor(Date.now() / 1000) + data.expires_in : null,
     })
     .where(

@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { users, connectedMailboxes, authAccounts, tenants } from "@/db/schema";
 import { eq, and, ne } from "drizzle-orm";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
+import { decryptOAuthToken } from "@/lib/crypto/oauth-token-crypto";
 
 export async function GET() {
   const authCtx = await getAuthContext();
@@ -58,10 +59,11 @@ export async function GET() {
 
       // Decode the id_token payload (base64url-encoded JWT, no signature verification needed)
       let oauthEmail = "";
-      if (oa.idToken) {
+      const idToken = decryptOAuthToken(oa.idToken);
+      if (idToken) {
         try {
           const payload = JSON.parse(
-            Buffer.from(oa.idToken.split(".")[1], "base64url").toString()
+            Buffer.from(idToken.split(".")[1], "base64url").toString()
           );
           oauthEmail = payload.email || payload.preferred_username || "";
         } catch { /* ignore decode errors */ }

@@ -257,7 +257,7 @@ describe("POST /api/auth/reset-password", () => {
     expect(res.status).toBe(200);
     // Two update calls: (1) authUsers.passwordHash = new hash,
     // (2) authAccounts.access_token = null (legacy column cleared).
-    expect(setFn).toHaveBeenNthCalledWith(1, { passwordHash: "hashed-pw" });
+    expect(setFn).toHaveBeenNthCalledWith(1, { passwordHash: "hashed-pw", passwordChangedAt: expect.any(Date) });
     expect(setFn).toHaveBeenNthCalledWith(2, { access_token: null });
     expect(consumeResetToken).toHaveBeenCalledWith("tok-id");
     expect(sendPasswordChangedEmail).toHaveBeenCalledWith("bob@acme.com", null);
@@ -285,7 +285,7 @@ describe("POST /api/auth/reset-password", () => {
       })
     );
     expect(res.status).toBe(200);
-    expect(setFn).toHaveBeenCalledWith({ passwordHash: "hashed-pw" });
+    expect(setFn).toHaveBeenCalledWith({ passwordHash: "hashed-pw", passwordChangedAt: expect.any(Date) });
     // The new credentials row must NOT carry a hash — the hash lives
     // on authUsers now.
     const insertedRow = valuesFn.mock.calls[0]?.[0];
@@ -381,7 +381,7 @@ describe("POST /api/account/password", () => {
       })
     );
     expect(res.status).toBe(200);
-    expect(setFn).toHaveBeenNthCalledWith(1, { passwordHash: "hashed-pw" });
+    expect(setFn).toHaveBeenNthCalledWith(1, { passwordHash: "hashed-pw", passwordChangedAt: expect.any(Date) });
     expect(setFn).toHaveBeenNthCalledWith(2, { access_token: null });
   });
 
@@ -401,7 +401,7 @@ describe("POST /api/account/password", () => {
     );
     expect(res.status).toBe(200);
     // New hash goes in the canonical place; legacy column cleared.
-    expect(setFn).toHaveBeenNthCalledWith(1, { passwordHash: "hashed-pw" });
+    expect(setFn).toHaveBeenNthCalledWith(1, { passwordHash: "hashed-pw", passwordChangedAt: expect.any(Date) });
     expect(setFn).toHaveBeenNthCalledWith(2, { access_token: null });
   });
 });

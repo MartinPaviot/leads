@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { logAudit } from "@/lib/infra/audit-log";
+import { invalidateSessionGuard } from "@/lib/auth/session-guard";
 
 export async function GET() {
   const authCtx = await getAuthContext();
@@ -18,6 +19,7 @@ export async function GET() {
         role: users.role,
         avatarUrl: users.avatarUrl,
         createdAt: users.createdAt,
+        deactivatedAt: users.deactivatedAt,
       })
       .from(users)
       .where(eq(users.tenantId, authCtx.tenantId));
@@ -30,6 +32,7 @@ export async function GET() {
         role: m.role || "member",
         avatarUrl: m.avatarUrl,
         createdAt: m.createdAt,
+        status: m.deactivatedAt ? "deactivated" : "active",
       })),
     });
   } catch (error) {
@@ -99,5 +102,75 @@ export async function PUT(req: Request) {
   } catch (error) {
     console.error("Failed to update member:", error);
     return Response.json({ error: "Failed to update member" }, { status: 500 });
+  }
+}
+
+/**
+ * SOC2 T5 — offboard a member. Soft: sets `users.deactivated_at`, which
+ * (1) blocks new sign-ins (credentials authorize + OAuth via the guard)
+ * and (2) revokes live sessions through lib/auth/session-guard within
+ * 60s (instantly on this instance). Reversible: pass { reactivate: true }
+ * to clear the flag. Audit-logged either way.
+ */
+export async function DELETE(req: Request) {
+  const authCtx = await getAuthContext();
+  if (!authCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const adminCheck = requireAdmin(authCtx);
+  if (adminCheck) return adminCheck;
+
+  try {
+    const body = await req.json();
+    const { memberId, reactivate } = body as {
+      memberId?: string;
+      reactivate?: boolean;
+    };
+
+    if (!memberId) {
+      return Response.json({ error: "memberId required" }, { status: 400 });
+    }
+    if (memberId === authCtx.appUserId) {
+      return Response.json(
+        { error: "Cannot deactivate your own account" },
+        { status: 400 },
+      );
+    }
+
+    // Tenant-scoped, like PUT — a tenant-A admin must not be able to
+    // deactivate a tenant-B user by guessing ids. clerkId is needed to
+    // bust the session-guard cache (it is keyed by the AUTH user id).
+    const updated = await db
+      .update(users)
+      .set({
+        deactivatedAt: reactivate ? null : new Date(),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(users.id, memberId), eq(users.tenantId, authCtx.tenantId)))
+      .returning({ id: users.id, clerkId: users.clerkId });
+
+    if (updated.length === 0) {
+      return Response.json({ error: "Member not found" }, { status: 404 });
+    }
+
+    invalidateSessionGuard(updated[0].clerkId);
+
+    await logAudit({
+      tenantId: authCtx.tenantId,
+      userId: authCtx.appUserId,
+      action: reactivate ? "reactivate" : "deactivate",
+      entityType: "user",
+      entityId: memberId,
+      metadata: {
+        event: reactivate ? "member_reactivated" : "member_deactivated",
+      },
+    });
+
+    return Response.json({ success: true });
+  } catch (error) {
+    console.error("Failed to deactivate member:", error);
+    return Response.json(
+      { error: "Failed to deactivate member" },
+      { status: 500 },
+    );
   }
 }

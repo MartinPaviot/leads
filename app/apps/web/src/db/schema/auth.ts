@@ -34,6 +34,10 @@ export const authUsers = pgTable("auth_user", {
   // Read/write sites use the helpers in `src/lib/password-hash.ts`.
   // Old rows are migrated opportunistically on successful sign-in.
   passwordHash: text("password_hash"),
+  // SOC2 T7 — JWTs issued before this instant are rejected by
+  // lib/auth/session-guard, so changing/resetting the password revokes
+  // every pre-existing session instead of leaving them valid up to 8h.
+  passwordChangedAt: timestamp("password_changed_at", { mode: "date" }),
 });
 
 export const authAccounts = pgTable(

@@ -9,6 +9,7 @@ import {
   validateResetToken,
 } from "@/lib/auth/password-reset";
 import { hashPassword } from "@/lib/auth/password-hash";
+import { invalidateSessionGuard } from "@/lib/auth/session-guard";
 import { isPasswordPwned } from "@/lib/auth/password-pwned";
 import { sendPasswordChangedEmail } from "@/lib/emails/password-changed";
 import { logger } from "@/lib/observability/logger";
@@ -76,11 +77,14 @@ export async function POST(req: Request) {
     // H12 — canonical password hash lives on authUsers.passwordHash.
     // We still ensure a credentials row exists on authAccounts for
     // NextAuth's provider-binding expectations, but we no longer use
-    // its access_token column for the hash.
+    // its access_token column for the hash. `passwordChangedAt` revokes
+    // all sessions issued before the reset (SOC2 T7) — the exact attack
+    // a reset is meant to end.
     await db
       .update(authUsers)
-      .set({ passwordHash: hash })
+      .set({ passwordHash: hash, passwordChangedAt: new Date() })
       .where(eq(authUsers.id, row.userId));
+    invalidateSessionGuard(row.userId);
 
     const [existing] = await db
       .select({ provider: authAccounts.provider })

@@ -36,6 +36,10 @@ export const users = pgTable(
     lastName: text("last_name"),
     avatarUrl: text("avatar_url"),
     role: text("role").default("member"),
+    // SOC2 T5 — offboarding. Set => the member can no longer authenticate
+    // (login rejected + live sessions revoked via lib/auth/session-guard).
+    // Null => active. Reversible by clearing it.
+    deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   },

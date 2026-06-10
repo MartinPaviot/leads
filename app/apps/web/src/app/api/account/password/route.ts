@@ -7,6 +7,7 @@ import { authAccounts, authUsers } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { isPasswordAcceptable } from "@/lib/auth/password-reset";
 import { hashPassword } from "@/lib/auth/password-hash";
+import { invalidateSessionGuard } from "@/lib/auth/session-guard";
 import { logger } from "@/lib/observability/logger";
 
 const schema = z.object({
@@ -88,11 +89,14 @@ export async function POST(req: Request) {
     const newHash = await hashPassword(newPassword);
     // Write the new hash to the canonical location. Also clear the
     // legacy column so a later backfill or debug query sees only one
-    // source of truth.
+    // source of truth. `passwordChangedAt` revokes every JWT minted
+    // before this instant (SOC2 T7) — including this device's, which is
+    // the intended "signed out everywhere" behaviour after a rotation.
     await db
       .update(authUsers)
-      .set({ passwordHash: newHash })
+      .set({ passwordHash: newHash, passwordChangedAt: new Date() })
       .where(eq(authUsers.id, authCtx.userId));
+    invalidateSessionGuard(authCtx.userId);
     await db
       .update(authAccounts)
       .set({ access_token: null })
