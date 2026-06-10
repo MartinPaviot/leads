@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { signOut } from "next-auth/react";
 
 interface InviteInfo {
   email: string;
@@ -22,7 +23,7 @@ function AcceptInviteInner() {
     | { kind: "accepting" }
     | { kind: "accepted" }
     | { kind: "needs_signin"; invite: InviteInfo }
-    | { kind: "wrong_account"; message: string }
+    | { kind: "wrong_account"; message: string; email?: string }
   >({ kind: "loading" });
 
   useEffect(() => {
@@ -49,6 +50,7 @@ function AcceptInviteInner() {
 
   async function accept() {
     if (state.kind !== "valid") return;
+    const invitedEmail = state.invite.email;
     setState({ kind: "accepting" });
     const res = await fetch("/api/auth/invite/accept", {
       method: "POST",
@@ -66,6 +68,7 @@ function AcceptInviteInner() {
       setState({
         kind: "wrong_account",
         message: data.error || "Sign in with the invited email address to accept this invitation.",
+        email: invitedEmail,
       });
       return;
     }
@@ -83,63 +86,95 @@ function AcceptInviteInner() {
     }, 1200);
   }
 
+  // Sign the current (wrong) account out and bounce back to this invite via
+  // sign-in, so the user can authenticate as the invited email and accept.
+  function switchAccount() {
+    const callback = `/accept-invite?token=${encodeURIComponent(token)}`;
+    void signOut({ callbackUrl: `/sign-in?callbackUrl=${encodeURIComponent(callback)}` });
+  }
+
   return (
-    <div style={pageStyle}>
-      <div style={cardStyle}>
+    <div
+      className="bg-grid flex min-h-screen flex-col px-4 py-8"
+      style={{ background: "var(--color-bg-page)" }}
+    >
+      <div
+        className="m-auto w-full max-w-md space-y-4 rounded-xl px-7 py-6"
+        style={{
+          background: "var(--color-bg-card)",
+          border: "1px solid var(--color-border-default)",
+          boxShadow: "var(--shadow-dialog)",
+        }}
+      >
+        <div className="flex flex-col items-center text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-Elevay.svg" alt="Elevay" className="mb-3 h-10 w-10" />
+          <h1 className="gradient-text text-2xl font-bold tracking-tight">Elevay</h1>
+        </div>
+
         {state.kind === "loading" && <Centered>Verifying invitation…</Centered>}
 
         {state.kind === "invalid" && (
-          <>
-            <h1 style={h1Style}>Invitation unavailable</h1>
+          <div className="text-center">
+            <h2 style={h2Style}>Invitation unavailable</h2>
             <p style={pStyle}>{state.reason}</p>
-            <p style={mutedStyle}>
-              Ask the workspace admin to send a new invitation.
-            </p>
-          </>
+            <p style={mutedStyle}>Ask the workspace admin to send a new invitation.</p>
+          </div>
         )}
 
         {state.kind === "valid" && (
-          <>
-            <h1 style={h1Style}>Join {state.invite.workspace}</h1>
+          <div className="text-center">
+            <h2 style={h2Style}>Join {state.invite.workspace}</h2>
             <p style={pStyle}>
               You&apos;ve been invited to <strong>{state.invite.workspace}</strong> as a{" "}
               <strong>{state.invite.role}</strong>.
             </p>
             <p style={mutedStyle}>
               Invitation sent to <strong>{state.invite.email}</strong>. Sign in with that
-              email — if you don&apos;t have an account yet, create one first, then return here.
+              email — if you don&apos;t have an account yet, create one first.
             </p>
-            <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
+            <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
               <button onClick={accept} style={primaryButtonStyle}>
                 Sign in &amp; accept
               </button>
               <a
-                href={`/sign-up?email=${encodeURIComponent(state.invite.email)}`}
+                href={`/sign-up?email=${encodeURIComponent(state.invite.email)}&invite=${encodeURIComponent(token)}`}
                 style={secondaryButtonStyle}
               >
                 Create account
               </a>
             </div>
-          </>
+          </div>
         )}
 
         {state.kind === "accepting" && <Centered>Accepting invitation…</Centered>}
 
         {state.kind === "accepted" && (
-          <>
-            <h1 style={h1Style}>You&apos;re in!</h1>
+          <div className="text-center">
+            <h2 style={h2Style}>You&apos;re in!</h2>
             <p style={pStyle}>Redirecting you to the workspace…</p>
-          </>
+          </div>
         )}
 
         {state.kind === "wrong_account" && (
-          <>
-            <h1 style={h1Style}>Wrong account</h1>
-            <p style={pStyle}>{state.message}</p>
-            <p style={mutedStyle}>
-              Sign out, then sign back in with the invited email address.
+          <div className="text-center">
+            <h2 style={h2Style}>Wrong account</h2>
+            <p style={pStyle}>
+              {state.email ? (
+                <>
+                  This invitation was sent to <strong>{state.email}</strong>, but you&apos;re
+                  signed in with a different account.
+                </>
+              ) : (
+                state.message
+              )}
             </p>
-          </>
+            <div style={{ display: "flex", justifyContent: "center", marginTop: 22 }}>
+              <button onClick={switchAccount} style={primaryButtonStyle}>
+                Sign out &amp; switch account
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>
@@ -148,16 +183,25 @@ function AcceptInviteInner() {
 
 export default function AcceptInvitePage() {
   return (
-    <Suspense fallback={<div style={pageStyle}><div style={cardStyle}><Centered>Loading…</Centered></div></div>}>
+    <Suspense
+      fallback={
+        <div className="bg-grid flex min-h-screen flex-col px-4 py-8" style={{ background: "var(--color-bg-page)" }}>
+          <div
+            className="m-auto w-full max-w-md rounded-xl px-7 py-6"
+            style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}
+          >
+            <Centered>Loading…</Centered>
+          </div>
+        </div>
+      }
+    >
       <AcceptInviteInner />
     </Suspense>
   );
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
-  return (
-    <p style={{ ...pStyle, textAlign: "center", margin: 0 }}>{children}</p>
-  );
+  return <p style={{ ...pStyle, textAlign: "center", margin: 0 }}>{children}</p>;
 }
 
 function friendlyReason(reason?: string): string {
@@ -171,47 +215,30 @@ function friendlyReason(reason?: string): string {
   }
 }
 
-const pageStyle: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "#09090b",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "1rem",
-  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-};
-
-const cardStyle: React.CSSProperties = {
-  maxWidth: 480,
-  width: "100%",
-  background: "#121214",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: 12,
-  padding: "2rem",
-  color: "rgba(255,255,255,0.92)",
-};
-
-const h1Style: React.CSSProperties = {
-  fontSize: "1.5rem",
+const h2Style: React.CSSProperties = {
+  fontSize: "1.25rem",
   fontWeight: 600,
-  margin: "0 0 1rem",
+  margin: "0 0 0.75rem",
+  color: "var(--color-text-primary)",
 };
 
 const pStyle: React.CSSProperties = {
   margin: "0 0 0.75rem",
   fontSize: "0.95rem",
   lineHeight: 1.6,
+  color: "var(--color-text-secondary)",
 };
 
 const mutedStyle: React.CSSProperties = {
   margin: "0.75rem 0 0",
   fontSize: "0.85rem",
-  color: "rgba(255,255,255,0.55)",
+  color: "var(--color-text-tertiary)",
   lineHeight: 1.6,
 };
 
 const primaryButtonStyle: React.CSSProperties = {
-  background: "#6366f1",
+  flex: 1,
+  background: "var(--color-accent)",
   color: "#fff",
   border: "none",
   padding: "0.625rem 1.25rem",
@@ -222,10 +249,16 @@ const primaryButtonStyle: React.CSSProperties = {
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
-  ...primaryButtonStyle,
+  flex: 1,
   background: "transparent",
-  border: "1px solid rgba(255,255,255,0.16)",
+  color: "var(--color-text-primary)",
+  border: "1px solid var(--color-border-default)",
+  padding: "0.625rem 1.25rem",
+  borderRadius: 8,
+  fontWeight: 600,
+  fontSize: "0.875rem",
   textDecoration: "none",
   display: "inline-flex",
   alignItems: "center",
+  justifyContent: "center",
 };
