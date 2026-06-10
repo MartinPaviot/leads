@@ -1,0 +1,30 @@
+name: Uptime probe
+
+# SOC2 T9 — external availability check. GitHub emails the repo owner on
+# workflow failure, which gives a zero-vendor alerting path. The /api/health
+# endpoint returns 503 when the database is unreachable, so this catches
+# both "site down" and "site up but DB dead".
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Probe production health
+        run: |
+          for attempt in 1 2 3; do
+            code=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 15 https://www.elevay.dev/api/health || echo "000")
+            if [ "$code" = "200" ]; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            echo "attempt $attempt: HTTP $code"
+            sleep 20
+          done
+          echo "Production health check failing (last HTTP $code)"
+          cat /tmp/health.json 2>/dev/null || true
+          exit 1
