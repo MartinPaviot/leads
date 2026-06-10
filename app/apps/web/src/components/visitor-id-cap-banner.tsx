@@ -21,6 +21,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ExternalLink, X } from "lucide-react";
+import { BILLING_PAGE_ENABLED } from "@/lib/billing/page-visibility";
 
 interface SpendSnapshot {
   spendUsd: number;
@@ -155,13 +156,15 @@ export function VisitorIdCapBanner() {
           )}
         </p>
         <div className="mt-2 flex items-center gap-3">
-          <Link
-            href="/settings/billing"
-            className="inline-flex items-center gap-1 text-[12px] font-medium underline"
-            style={{ color: palette.accent }}
-          >
-            Adjust cap <ExternalLink size={10} aria-hidden />
-          </Link>
+          {BILLING_PAGE_ENABLED && (
+            <Link
+              href="/settings/billing"
+              className="inline-flex items-center gap-1 text-[12px] font-medium underline"
+              style={{ color: palette.accent }}
+            >
+              Adjust cap <ExternalLink size={10} aria-hidden />
+            </Link>
+          )}
           <span
             className="text-[11px]"
             style={{ color: "var(--color-text-tertiary)" }}
