@@ -73,7 +73,11 @@ async function resolveUserTenant(authUserId: string, email: string) {
 
   if (existing) return { tenantId: existing.tenantId, userId: existing.id, role: existing.role || "member" };
 
-  // First login — create tenant + user
+  // First login — create tenant + user. The tenant creator is the
+  // founder: they get the admin role explicitly (the column default is
+  // "member", which would lock the founder out of every admin-gated
+  // surface — billing, members, settings, number purchase). Users who
+  // arrive via an invite get the invite's role in the accept flow.
   const [tenant] = await db
     .insert(tenants)
     .values({ name: email.split("@")[1] || "default" })
@@ -85,6 +89,7 @@ async function resolveUserTenant(authUserId: string, email: string) {
       clerkId: authUserId,
       tenantId: tenant.id,
       email,
+      role: "admin",
     })
     .returning();
 
