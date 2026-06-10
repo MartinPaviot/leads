@@ -44,12 +44,17 @@ export default function InboxPage() {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [replySignal, setReplySignal] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+  // In-flight triage POST. Lane fetches await it so switching to Done/
+  // Snoozed right after the verb never races the write (the GET would
+  // otherwise read pre-commit state and show an empty lane).
+  const pendingTriage = useRef<Promise<unknown> | null>(null);
 
   const loadLane = useCallback(
     async (lane: InboxLane, pageNum: number, append: boolean) => {
       if (append) setLoadingMore(true);
       else setLoading(true);
       try {
+        if (pendingTriage.current) await pendingTriage.current.catch(() => {});
         const res = await fetch(`/api/inbox/conversations?lane=${lane}&page=${pageNum}`);
         if (!res.ok) throw new Error(`${res.status}`);
         const data = (await res.json()) as {
@@ -104,15 +109,19 @@ export default function InboxPage() {
       });
 
       try {
-        const res = await fetch("/api/inbox/triage", {
+        const post = fetch("/api/inbox/triage", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ conversationKey: key, action, snoozeUntil }),
         });
+        pendingTriage.current = post;
+        const res = await post;
         if (!res.ok) throw new Error(`${res.status}`);
       } catch {
         toast("Couldn't update the conversation — reloading.", "error");
         if (tab !== "outbound") void loadLane(tab, 1, false);
+      } finally {
+        pendingTriage.current = null;
       }
     },
     [tab, toast, loadLane],
