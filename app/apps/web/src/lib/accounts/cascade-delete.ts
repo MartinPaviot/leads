@@ -24,22 +24,33 @@ export interface RelatedCounts {
   tasks: number;
 }
 
-async function companyContactIds(tenantId: string, companyId: string): Promise<string[]> {
+async function companiesContactIds(tenantId: string, companyIds: string[]): Promise<string[]> {
+  if (companyIds.length === 0) return [];
   const rows = await db
     .select({ id: contacts.id })
     .from(contacts)
-    .where(and(eq(contacts.tenantId, tenantId), eq(contacts.companyId, companyId), isNull(contacts.deletedAt)));
+    .where(and(eq(contacts.tenantId, tenantId), inArray(contacts.companyId, companyIds), isNull(contacts.deletedAt)));
   return rows.map((r) => r.id);
 }
 
 /** Live (non-deleted) counts of each related set, for the delete modal. */
 export async function getCompanyRelatedCounts(tenantId: string, companyId: string): Promise<RelatedCounts> {
-  const cids = await companyContactIds(tenantId, companyId);
-  const entityIds = [companyId, ...cids];
+  return getCompaniesRelatedCounts(tenantId, [companyId]);
+}
+
+/**
+ * Multi-company variant — aggregate counts across the whole selection in the
+ * same 5 set-based queries, so the bulk delete modal costs the same as the
+ * single one regardless of how many accounts are selected.
+ */
+export async function getCompaniesRelatedCounts(tenantId: string, companyIds: string[]): Promise<RelatedCounts> {
+  if (companyIds.length === 0) return { contacts: 0, deals: 0, activities: 0, notes: 0, tasks: 0 };
+  const cids = await companiesContactIds(tenantId, companyIds);
+  const entityIds = [...companyIds, ...cids];
   const n = async (rows: { id: string }[]) => rows.length;
   const [c, d, a, nt, tk] = await Promise.all([
-    db.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.companyId, companyId), isNull(contacts.deletedAt))).then(n),
-    db.select({ id: deals.id }).from(deals).where(and(eq(deals.tenantId, tenantId), eq(deals.companyId, companyId), isNull(deals.deletedAt))).then(n),
+    db.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.tenantId, tenantId), inArray(contacts.companyId, companyIds), isNull(contacts.deletedAt))).then(n),
+    db.select({ id: deals.id }).from(deals).where(and(eq(deals.tenantId, tenantId), inArray(deals.companyId, companyIds), isNull(deals.deletedAt))).then(n),
     db.select({ id: activities.id }).from(activities).where(and(eq(activities.tenantId, tenantId), inArray(activities.entityId, entityIds), isNull(activities.deletedAt))).then(n),
     db.select({ id: notes.id }).from(notes).where(and(eq(notes.tenantId, tenantId), inArray(notes.entityId, entityIds), isNull(notes.deletedAt))).then(n),
     db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.tenantId, tenantId), inArray(tasks.entityId, entityIds), isNull(tasks.deletedAt))).then(n),
@@ -50,8 +61,6 @@ export async function getCompanyRelatedCounts(tenantId: string, companyId: strin
 /**
  * Soft-delete the selected related sets for a company. Does NOT delete the
  * company itself (the caller does that). Returns the count deleted per type.
- * Computes contact ids BEFORE deleting contacts so the polymorphic sweep is
- * complete.
  */
 export async function cascadeSoftDeleteCompany(
   tenantId: string,
@@ -59,14 +68,30 @@ export async function cascadeSoftDeleteCompany(
   types: CascadeType[],
   at: Date = new Date(),
 ): Promise<Partial<Record<CascadeType, number>>> {
-  if (types.length === 0) return {};
+  return cascadeSoftDeleteCompanies(tenantId, [companyId], types, at);
+}
+
+/**
+ * Multi-company variant — soft-delete the selected related sets for every
+ * company in one set-based pass (5 queries max, any N). Does NOT delete the
+ * company rows (the caller does that, with the SAME `at` timestamp so the
+ * per-company symmetric restore keeps working). Computes contact ids BEFORE
+ * deleting contacts so the polymorphic sweep is complete.
+ */
+export async function cascadeSoftDeleteCompanies(
+  tenantId: string,
+  companyIds: string[],
+  types: CascadeType[],
+  at: Date = new Date(),
+): Promise<Partial<Record<CascadeType, number>>> {
+  if (types.length === 0 || companyIds.length === 0) return {};
   const needsContactScope = types.some((t) => t === "activities" || t === "notes" || t === "tasks");
-  const cids = needsContactScope ? await companyContactIds(tenantId, companyId) : [];
-  const entityIds = [companyId, ...cids];
+  const cids = needsContactScope ? await companiesContactIds(tenantId, companyIds) : [];
+  const entityIds = [...companyIds, ...cids];
   const out: Partial<Record<CascadeType, number>> = {};
 
   if (types.includes("deals")) {
-    const r = await db.update(deals).set({ deletedAt: at }).where(and(eq(deals.tenantId, tenantId), eq(deals.companyId, companyId), isNull(deals.deletedAt))).returning({ id: deals.id });
+    const r = await db.update(deals).set({ deletedAt: at }).where(and(eq(deals.tenantId, tenantId), inArray(deals.companyId, companyIds), isNull(deals.deletedAt))).returning({ id: deals.id });
     out.deals = r.length;
   }
   if (types.includes("activities")) {
@@ -83,7 +108,7 @@ export async function cascadeSoftDeleteCompany(
   }
   // Contacts last so their ids were available for the polymorphic sweep above.
   if (types.includes("contacts")) {
-    const r = await db.update(contacts).set({ deletedAt: at }).where(and(eq(contacts.tenantId, tenantId), eq(contacts.companyId, companyId), isNull(contacts.deletedAt))).returning({ id: contacts.id });
+    const r = await db.update(contacts).set({ deletedAt: at }).where(and(eq(contacts.tenantId, tenantId), inArray(contacts.companyId, companyIds), isNull(contacts.deletedAt))).returning({ id: contacts.id });
     out.contacts = r.length;
   }
   return out;

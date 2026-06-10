@@ -16,12 +16,14 @@ vi.mock("drizzle-orm", () => ({
   and: vi.fn((...args) => ({ _and: args })),
   eq: vi.fn((a, b) => ({ _eq: [a, b] })),
   isNull: vi.fn(() => "isNull"),
+  inArray: vi.fn((col, vals) => ({ _inArray: [col, vals] })),
 }));
 
 vi.mock("@/db", () => ({ db: { update: vi.fn(), select: vi.fn() } }));
 
+import { inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { getDealRelatedCounts, cascadeSoftDeleteDeal, cascadeSoftRestoreDeal, DEAL_CASCADE_TYPES } from "@/lib/deals/cascade-delete";
+import { getDealRelatedCounts, getDealsRelatedCounts, cascadeSoftDeleteDeal, cascadeSoftRestoreDeal, DEAL_CASCADE_TYPES } from "@/lib/deals/cascade-delete";
 
 type TableTag = "activities" | "notes" | "tasks";
 
@@ -97,5 +99,27 @@ describe("getDealRelatedCounts", () => {
     mockSelect({ activities: [{ id: "a1" }], notes: [], tasks: [{ id: "tk1" }, { id: "tk2" }] });
     const counts = await getDealRelatedCounts("t1", "dl1");
     expect(counts).toEqual({ activities: 1, notes: 0, tasks: 2 });
+  });
+});
+
+describe("getDealsRelatedCounts (multi-deal, bulk delete modal)", () => {
+  it("returns zeros without touching the db for an empty selection", async () => {
+    mockSelect({});
+    const counts = await getDealsRelatedCounts("t1", []);
+    expect(counts).toEqual({ activities: 0, notes: 0, tasks: 0 });
+    expect(db.select).not.toHaveBeenCalled();
+  });
+
+  it("aggregates across the whole selection via one entityId IN (…) scope per table", async () => {
+    mockSelect({
+      activities: [{ id: "a1" }, { id: "a2" }],
+      notes: [{ id: "n1" }],
+      tasks: [],
+    });
+    const counts = await getDealsRelatedCounts("t1", ["dl1", "dl2", "dl3"]);
+    expect(counts).toEqual({ activities: 2, notes: 1, tasks: 0 });
+    const scopes = vi.mocked(inArray).mock.calls.map((c) => c[1]);
+    expect(scopes).toHaveLength(3);
+    for (const scope of scopes) expect(scope).toEqual(["dl1", "dl2", "dl3"]);
   });
 });
