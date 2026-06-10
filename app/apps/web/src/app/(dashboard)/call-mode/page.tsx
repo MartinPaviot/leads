@@ -1250,6 +1250,7 @@ export default function CallModePage() {
                   signal: selected.latestSignal,
                   hiringRole: brain?.cachedDossier?.hiringSignals?.[0]?.role,
                   fundingLastRound: brain?.cachedDossier?.funding?.lastRound,
+                  fundingDate: brain?.cachedDossier?.funding?.date,
                 }}
                 triggerText={[
                   ...mergeTechStacks(brain?.cachedDossier?.techStack, brain?.enrichedTechnologies),

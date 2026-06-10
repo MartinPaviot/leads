@@ -15,34 +15,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, CalendarClock, Phone, Pencil, Sparkles, Loader2, X, Plus, Trash2 } from "lucide-react";
 import { interpolateOpener, defaultScriptFields, splitGuidance, withNoResponse, type ScriptFields } from "@/lib/call-mode/call-scripts";
 import { deriveOpeningReason, REASON_BRIDGE, type OpeningReasonInput } from "@/lib/call-mode/live-script";
+import { matchProblem } from "@/lib/call-mode/match-problem";
 import { useToast } from "@/components/ui/toast";
-
-// Token overlap between the prospect's trigger (detected stack + live signal)
-// and each sector enjeu — surfaces the ONE problem most relevant to THIS
-// prospect. Pure; returns -1 when nothing overlaps (keep the normal order).
-function tokenize(s: string): Set<string> {
-  return new Set(
-    s.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").split(/[^a-z0-9]+/).filter((w) => w.length > 3),
-  );
-}
-function matchProblem(problems: string[], triggerText?: string | null): number {
-  const t = (triggerText ?? "").trim();
-  if (!t || problems.length === 0) return -1;
-  const tw = tokenize(t);
-  if (tw.size === 0) return -1;
-  let best = -1;
-  let bestScore = 0;
-  problems.forEach((p, i) => {
-    const pw = tokenize(p);
-    let n = 0;
-    for (const w of pw) if (tw.has(w)) n++;
-    if (n > bestScore) {
-      bestScore = n;
-      best = i;
-    }
-  });
-  return best;
-}
 
 export function CallScriptPanel({
   contactName,

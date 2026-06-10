@@ -1,4 +1,5 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
+import { requirePermission } from "@/lib/auth/permissions";
 import { db } from "@/db";
 import { sequences, sequenceSteps, sequenceEnrollments, contacts } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -87,6 +88,14 @@ export async function PUT(
   try {
     const body = await req.json();
     const { name, description, status } = body;
+
+    // Status is the lifecycle control (Start/Pause → real sending via the
+    // status-gated cron). Editing name/description stays open; flipping
+    // status requires sequences:execute.
+    if (status) {
+      const denied = requirePermission(authCtx.role, "sequences:execute");
+      if (denied) return denied;
+    }
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (name) updates.name = name.trim();

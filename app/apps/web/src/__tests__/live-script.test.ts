@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { deriveOpeningReason, isVoiceableSignal, mergeTechStacks, REASON_BRIDGE } from "@/lib/call-mode/live-script";
+import { readFileSync } from "node:fs";
+import {
+  deriveOpeningReason,
+  isVoiceableSignal,
+  INTERNAL_SIGNAL_TYPES,
+  mergeTechStacks,
+  REASON_BRIDGE,
+} from "@/lib/call-mode/live-script";
 
 describe("isVoiceableSignal", () => {
   it("accepts real-world trigger events + explicit interactions", () => {
@@ -42,6 +49,16 @@ describe("deriveOpeningReason", () => {
     expect(r?.fact).toBe("Série B (2026)");
   });
 
+  it("dates the funding reason so an old round is never presented as current", () => {
+    const r = deriveOpeningReason({ fundingLastRound: "Série B", fundingDate: "2026" });
+    expect(r?.fact).toBe("Série B (2026)");
+  });
+
+  it("ignores the dossier's 'Unknown' date marker and avoids double-dating", () => {
+    expect(deriveOpeningReason({ fundingLastRound: "Série B", fundingDate: "Unknown" })?.fact).toBe("Série B");
+    expect(deriveOpeningReason({ fundingLastRound: "Série B (2026)", fundingDate: "2026" })?.fact).toBe("Série B (2026)");
+  });
+
   it("returns null when nothing sayable is known — never invents a reason", () => {
     expect(deriveOpeningReason({})).toBeNull();
     expect(deriveOpeningReason({ signal: null, hiringRole: "", fundingLastRound: undefined })).toBeNull();
@@ -80,5 +97,39 @@ describe("mergeTechStacks", () => {
   it("caps the merged list", () => {
     const many = Array.from({ length: 20 }, (_, i) => `T${i}`);
     expect(mergeTechStacks(many, []).length).toBe(12);
+  });
+});
+
+// ── Drift guard ─────────────────────────────────────────────────
+// Every signal type a producer can emit must be EXPLICITLY classified:
+// voiceable (sayable as a reason to call) XOR internal (never voiced).
+// Reads the producers' zod enums from source so adding a new type without
+// classifying it here fails CI instead of silently leaking into the script.
+describe("signal-type classification covers every producer type", () => {
+  const SCHEMAS = [
+    "src/skills/signals/signal-scanner/schema.ts",
+    "src/skills/signals/expansion-signal-spotter/schema.ts",
+  ];
+
+  function producerTypes(): string[] {
+    const out = new Set<string>();
+    for (const path of SCHEMAS) {
+      const src = readFileSync(path, "utf8");
+      // Tolerate the z.array( wrapper: scanner declares z.array(z.enum([...])).
+      const enums = src.match(/signalTypes?:\s*z\s*\.(?:array\(\s*z\s*\.)?enum\(\[([\s\S]*?)\]/g) ?? [];
+      for (const block of enums) {
+        for (const lit of block.match(/"([^"]+)"/g) ?? []) out.add(lit.slice(1, -1));
+      }
+    }
+    // The campaign queue's synthesized cadence breadcrumb.
+    out.add("call");
+    return [...out];
+  }
+
+  it("classifies every type exactly once (voiceable XOR internal)", () => {
+    const types = producerTypes();
+    expect(types.length).toBeGreaterThanOrEqual(13); // scanner 8 + spotter 5 (+ call)
+    const unclassified = types.filter((t) => isVoiceableSignal(t) === INTERNAL_SIGNAL_TYPES.has(t));
+    expect(unclassified).toEqual([]);
   });
 });

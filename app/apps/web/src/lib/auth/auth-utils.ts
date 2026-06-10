@@ -5,6 +5,7 @@ import {
   getSessionGuard,
   isTokenPredatingPasswordChange,
 } from "@/lib/auth/session-guard";
+import { getFreshRole } from "@/lib/auth/fresh-role";
 
 export interface AuthContext {
   userId: string;
@@ -50,11 +51,18 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     appUserId = (await authToAppUserId(session.user.id)) ?? undefined;
   }
 
+  // The JWT role is minted at sign-in and never re-read until the token
+  // expires (8h), so promotions/demotions would lag a full workday.
+  // Overlay the DB role (60s in-memory cache; null on DB failure → keep
+  // the JWT role) so requirePermission/requireAdmin and the chat see
+  // role changes within a minute without forcing a re-login.
+  const freshRole = appUserId ? await getFreshRole(appUserId) : null;
+
   return {
     userId: session.user.id,
     tenantId,
     appUserId: appUserId || session.user.id,
-    role: role || "member",
+    role: freshRole || role || "member",
   };
 }
 

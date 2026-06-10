@@ -3,6 +3,8 @@ import {
   resolveCapabilities,
   ADMIN_ONLY_TOOLS,
   DESTRUCTIVE_TOOLS,
+  VIEWER_DENIED_TOOLS,
+  isViewerAllowedTool,
 } from "@/lib/agents/capability-resolver";
 
 // Build a fake tool registry with the names we care about. Values are
@@ -228,5 +230,121 @@ describe("resolveCapabilities", () => {
       expect(d.reason.length).toBeGreaterThan(0);
       expect(d.name in registry).toBe(true);
     }
+  });
+});
+
+describe("resolveCapabilities — viewer (read-only role)", () => {
+  function viewerRegistry(): Record<string, { name: string }> {
+    const names = [
+      // query group — allowed
+      "searchCRM",
+      "queryContacts",
+      "queryAccounts",
+      "queryDeals",
+      "whoami",
+      "openRecord",
+      "openListView",
+      "querySequences",
+      "getMailboxHealth",
+      "queryProposals",
+      // query group but write/outbound — denied by name
+      "composeEmail",
+      "deleteSharedPrompt",
+      // briefing — allowed
+      "briefAllDeals",
+      "briefDeal",
+      "getCompanyBrain",
+      // coaching — allowed
+      "getCoachingInsights",
+      "searchExactWords",
+      // schema — allowed
+      "listSchema",
+      "listAttributeDefinitions",
+      // intelligence / skills / memory / mutations — dropped
+      "getDealCoaching",
+      "executeCode",
+      "enrichContact",
+      "buildTAM",
+      "rememberContext",
+      "exploreGraph",
+      "createContact",
+      "updateDeal",
+      "draftEmail",
+      "enrollInSequence",
+      "bookMeeting",
+      // unknown tool (no group mapping)
+      "someBrandNewTool",
+    ];
+    const r: Record<string, { name: string }> = {};
+    for (const n of names) r[n] = { name: n };
+    return r;
+  }
+
+  it("keeps only query/briefing/coaching/schema reads", () => {
+    const res = resolveCapabilities(viewerRegistry(), { role: "viewer" });
+    const kept = Object.keys(res.tools).sort();
+    expect(kept).toEqual(
+      [
+        "searchCRM",
+        "queryContacts",
+        "queryAccounts",
+        "queryDeals",
+        "whoami",
+        "openRecord",
+        "openListView",
+        "querySequences",
+        "getMailboxHealth",
+        "queryProposals",
+        "briefAllDeals",
+        "briefDeal",
+        "getCompanyBrain",
+        "getCoachingInsights",
+        "searchExactWords",
+        "listSchema",
+        "listAttributeDefinitions",
+      ].sort(),
+    );
+  });
+
+  it("drops composeEmail and deleteSharedPrompt even though they live in the query group", () => {
+    const res = resolveCapabilities(viewerRegistry(), { role: "viewer" });
+    for (const name of VIEWER_DENIED_TOOLS) {
+      expect(res.tools[name]).toBeUndefined();
+    }
+    expect(isViewerAllowedTool("composeEmail")).toBe(false);
+    // sanity: a member still gets composeEmail (query group passes through)
+    const member = resolveCapabilities(viewerRegistry(), { role: "member" });
+    expect(member.tools.composeEmail).toBeDefined();
+  });
+
+  it("drops unknown tools for viewers (fail-closed) but keeps them for members (fail-open)", () => {
+    const viewer = resolveCapabilities(viewerRegistry(), { role: "viewer" });
+    expect(viewer.tools.someBrandNewTool).toBeUndefined();
+    const member = resolveCapabilities(viewerRegistry(), { role: "member" });
+    expect(member.tools.someBrandNewTool).toBeDefined();
+  });
+
+  it("tags every viewer drop with the viewer:read-only reason", () => {
+    const res = resolveCapabilities(viewerRegistry(), { role: "viewer" });
+    const viewerDrops = res.droppedTools.filter((d) => d.reason === "viewer:read-only");
+    expect(viewerDrops.map((d) => d.name)).toContain("createContact");
+    expect(viewerDrops.map((d) => d.name)).toContain("composeEmail");
+    expect(viewerDrops.map((d) => d.name)).toContain("someBrandNewTool");
+  });
+
+  it("appends the read-only prompt addendum for viewers only", () => {
+    const viewer = resolveCapabilities(viewerRegistry(), { role: "viewer" });
+    expect(viewer.surfacePromptAddendum).toContain("Read-Only Access");
+    const member = resolveCapabilities(viewerRegistry(), { role: "member" });
+    expect(member.surfacePromptAddendum).not.toContain("Read-Only Access");
+  });
+
+  it("composes with surface addenda (viewer on a contact page gets both)", () => {
+    const res = resolveCapabilities(viewerRegistry(), {
+      role: "viewer",
+      surface: { type: "contact", entityId: "c1", entityName: "Jane Doe" },
+    });
+    expect(res.surfacePromptAddendum).toContain("Jane Doe");
+    expect(res.surfacePromptAddendum).toContain("Read-Only Access");
   });
 });

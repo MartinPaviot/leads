@@ -41,6 +41,7 @@ export interface OpeningReason {
  */
 const VOICEABLE_SIGNAL_TYPES = new Set([
   "hiring",
+  "hiring_intent",
   "funding",
   "funding_recent",
   "leadership_change",
@@ -51,6 +52,26 @@ const VOICEABLE_SIGNAL_TYPES = new Set([
   "competitor_mention",
   "trial_expiring",
   "reply_received",
+]);
+
+/**
+ * Internal/behavioral signal types we deliberately NEVER voice on a cold call.
+ * Exported so the drift-guard test can assert that every type a producer can
+ * emit is EXPLICITLY classified (voiceable or internal) — adding a new signal
+ * type without classifying it fails the build, instead of silently leaking
+ * into (or vanishing from) the spoken reason.
+ */
+export const INTERNAL_SIGNAL_TYPES = new Set([
+  "engagement_spike",
+  "deal_stall",
+  "stalled_no_activity",
+  "at_risk_negative",
+  "positive_sentiment",
+  "negative_sentiment",
+  "usage_increase",
+  "deal_upsell_ready",
+  // The campaign queue's cadence breadcrumb ({type:"call", "Attempt N · …"}).
+  "call",
 ]);
 
 export function isVoiceableSignal(type?: string | null): boolean {
@@ -64,6 +85,9 @@ export interface OpeningReasonInput {
   hiringRole?: string | null;
   /** Last funding round from the dossier (a voiceable event). */
   fundingLastRound?: string | null;
+  /** Round date from the dossier — shown so a 2019 round is never presented
+   *  as a current reason. "Unknown" (the dossier's null marker) is ignored. */
+  fundingDate?: string | null;
 }
 
 const SOURCE_LABEL: Record<OpeningReasonSource, string> = {
@@ -82,11 +106,6 @@ function clean(s?: string | null): string {
   return (s ?? "").replace(/\s+/g, " ").trim();
 }
 
-/**
- * Pick the single strongest grounded AND sayable reason to call: a voiceable
- * live signal → hiring → funding. Returns null when nothing sayable is known
- * (never fabricates, never voices an internal signal or a strategy note).
- */
 /**
  * Union of the research dossier's techStack and the enrichment-detected
  * technologies (companies.properties.technologies — the tech-detect output).
@@ -112,6 +131,11 @@ export function mergeTechStacks(
   return out;
 }
 
+/**
+ * Pick the single strongest grounded AND sayable reason to call: a voiceable
+ * live signal → hiring → funding. Returns null when nothing sayable is known
+ * (never fabricates, never voices an internal signal or a strategy note).
+ */
 export function deriveOpeningReason(input: OpeningReasonInput): OpeningReason | null {
   if (input.signal && isVoiceableSignal(input.signal.type)) {
     const label = clean(input.signal.label);
@@ -122,7 +146,13 @@ export function deriveOpeningReason(input: OpeningReasonInput): OpeningReason | 
   if (hiring) return { fact: `Recrute ${hiring}`, source: "hiring", sourceLabel: SOURCE_LABEL.hiring };
 
   const funding = clean(input.fundingLastRound);
-  if (funding) return { fact: funding, source: "funding", sourceLabel: SOURCE_LABEL.funding };
+  if (funding) {
+    const date = clean(input.fundingDate);
+    const dated = date && date.toLowerCase() !== "unknown" && !funding.includes(date)
+      ? `${funding} (${date})`
+      : funding;
+    return { fact: dated, source: "funding", sourceLabel: SOURCE_LABEL.funding };
+  }
 
   return null;
 }

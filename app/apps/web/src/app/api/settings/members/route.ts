@@ -1,4 +1,5 @@
 import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { invalidateRoleCache } from "@/lib/auth/fresh-role";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -55,7 +56,7 @@ export async function PUT(req: Request) {
     if (!memberId || !role) {
       return Response.json({ error: "memberId and role required" }, { status: 400 });
     }
-    if (!["admin", "member"].includes(role)) {
+    if (!["admin", "member", "viewer"].includes(role)) {
       return Response.json({ error: "Invalid role" }, { status: 400 });
     }
 
@@ -85,6 +86,10 @@ export async function PUT(req: Request) {
     if (updated.length === 0) {
       return Response.json({ error: "Member not found" }, { status: 404 });
     }
+
+    // Apply the new role on this instance immediately (other instances
+    // converge within the fresh-role cache TTL, ≤60s).
+    invalidateRoleCache(memberId);
 
     // H7 — role changes cross the SOC 2 CC6.1 / ISO 27001 A.5.15
     // threshold. Always logged, with the before/after pair.
