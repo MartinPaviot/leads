@@ -7,7 +7,7 @@
  * triage verbs: Reply, Book meeting, Stop sequence, Done, Snooze.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   Mail,
@@ -80,6 +80,24 @@ export function ConversationPane({
   const [schedOpen, setSchedOpen] = useState(false);
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const snoozeRef = useRef<HTMLDivElement>(null);
+
+  // Dismiss the snooze popover on Escape or outside click.
+  useEffect(() => {
+    if (!snoozeOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setSnoozeOpen(false);
+    }
+    function onPointer(e: MouseEvent) {
+      if (snoozeRef.current && !snoozeRef.current.contains(e.target as Node)) setSnoozeOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onPointer);
+    };
+  }, [snoozeOpen]);
 
   useEffect(() => {
     setComposer(null);
@@ -294,7 +312,7 @@ export function ConversationPane({
           )}
           <div className="ml-auto flex items-center gap-2">
             {triageable && (
-              <div className="relative">
+              <div className="relative" ref={snoozeRef}>
                 <Button variant="outline" size="sm" onClick={() => setSnoozeOpen((v) => !v)} className="gap-1.5">
                   <AlarmClock className="h-3.5 w-3.5" />
                   Snooze

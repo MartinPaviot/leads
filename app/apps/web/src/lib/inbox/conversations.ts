@@ -176,11 +176,20 @@ function normalizeSnippet(text: string | null | undefined, max = 140): string {
 function conversationLabels(lastInbound: InboundRow | null, outbound: OutboundRow[]): string[] {
   const labels: string[] = [];
   if (lastInbound?.intent) labels.push(...lastInbound.intent.filter(Boolean));
-  // Latest classified outbound (processReply writes reply_classification).
+  // Latest classified outbound (processReply writes reply_classification) —
+  // but only while it still describes the LAST inbound. A newer inbound
+  // supersedes it; otherwise a thread once classified ooo/unsubscribe would
+  // sit in the handled lane forever, hiding a genuine new reply.
   const classified = outbound
     .filter((o) => o.replyClassification)
     .sort((a, b) => (toMs(b.repliedAt) ?? 0) - (toMs(a.repliedAt) ?? 0));
-  if (classified[0]?.replyClassification) labels.push(classified[0].replyClassification);
+  const latest = classified[0];
+  if (latest?.replyClassification) {
+    const repliedMs = toMs(latest.repliedAt);
+    const lastInboundMs = lastInbound ? toMs(lastInbound.occurredAt) : null;
+    const stale = repliedMs !== null && lastInboundMs !== null && lastInboundMs > repliedMs;
+    if (!stale) labels.push(latest.replyClassification);
+  }
   return labels;
 }
 
@@ -256,11 +265,7 @@ export function buildConversations(input: {
       lane = "attention";
     }
 
-    const priority = Math.min(
-      4,
-      ...labels.map((l) => PRIORITY_BY_LABEL[l] ?? 4),
-      4,
-    );
+    const priority = Math.min(4, ...labels.map((l) => PRIORITY_BY_LABEL[l] ?? 4));
 
     let reason: string;
     if (lane === "handled") {

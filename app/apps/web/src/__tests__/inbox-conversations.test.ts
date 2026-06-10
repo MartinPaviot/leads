@@ -137,6 +137,26 @@ describe("lanes", () => {
     expect(convs[0].lane).toBe("handled");
   });
 
+  it("a NEWER inbound supersedes a stale ooo classification (no handled trap)", () => {
+    const convs = buildConversations({
+      inbound: [
+        inbound({ id: "i2", threadId: "t1", occurredAt: "2026-06-10T11:00:00Z", intent: ["interested"] }),
+      ],
+      outbound: [
+        outbound({
+          id: "o1",
+          threadId: "t1",
+          repliedAt: "2026-06-08T10:00:00Z",
+          replyClassification: "ooo",
+        }),
+      ],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].lane).toBe("attention");
+    expect(convs[0].reason).toBe("Interested");
+  });
+
   it("routes unsubscribe to handled with the opt-out note", () => {
     const convs = buildConversations({
       inbound: [inbound({ id: "i1", threadId: "t1", intent: ["unsubscribe"] })],

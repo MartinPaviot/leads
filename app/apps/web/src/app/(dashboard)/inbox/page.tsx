@@ -64,14 +64,7 @@ export default function InboxPage() {
         };
         setCounts(data.counts);
         setTotal(data.pagination.total);
-        setConversations((prev) => {
-          const next = append ? [...prev, ...data.conversations] : data.conversations;
-          // Keep (or initialise) the selection.
-          setSelectedKey((sel) =>
-            sel && next.some((c) => c.key === sel) ? sel : next[0]?.key ?? null,
-          );
-          return next;
-        });
+        setConversations((prev) => (append ? [...prev, ...data.conversations] : data.conversations));
       } catch {
         toast("Couldn't load the inbox.", "error");
       } finally {
@@ -88,17 +81,22 @@ export default function InboxPage() {
     void loadLane(tab, 1, false);
   }, [tab, loadLane]);
 
+  // Reconcile the selection whenever the list changes: keep it if the
+  // conversation is still listed, otherwise fall back to the first row.
+  // (Single place — list updaters stay side-effect free.)
+  useEffect(() => {
+    setSelectedKey((sel) =>
+      sel && conversations.some((c) => c.key === sel) ? sel : conversations[0]?.key ?? null,
+    );
+  }, [conversations]);
+
   const handleTriage = useCallback(
     async (key: string, action: "done" | "snooze" | "reopen", snoozeUntil?: string) => {
       // Optimistic: remove from the current lane and advance the selection.
-      let nextSelected: string | null = null;
-      setConversations((prev) => {
-        const idx = prev.findIndex((c) => c.key === key);
-        const next = prev.filter((c) => c.key !== key);
-        nextSelected = next[Math.min(idx, next.length - 1)]?.key ?? null;
-        return next;
-      });
-      setSelectedKey(nextSelected);
+      const idx = conversations.findIndex((c) => c.key === key);
+      const next = conversations.filter((c) => c.key !== key);
+      setConversations(next);
+      setSelectedKey(next[Math.min(Math.max(idx, 0), next.length - 1)]?.key ?? null);
       setCounts((c) => {
         const updated = { ...c };
         if (tab !== "outbound") updated[tab] = Math.max(0, updated[tab] - 1);
@@ -124,7 +122,7 @@ export default function InboxPage() {
         pendingTriage.current = null;
       }
     },
-    [tab, toast, loadLane],
+    [tab, toast, loadLane, conversations],
   );
 
   // Keyboard: j/k navigate, e done, r reply. Never while typing.
@@ -144,21 +142,16 @@ export default function InboxPage() {
       if (tab === "outbound") return;
 
       if (e.key === "j" || e.key === "k") {
+        if (conversations.length === 0) return;
         e.preventDefault();
-        setConversations((prev) => {
-          if (prev.length === 0) return prev;
-          setSelectedKey((sel) => {
-            const idx = prev.findIndex((c) => c.key === sel);
-            const nextIdx =
-              e.key === "j" ? Math.min(idx + 1, prev.length - 1) : Math.max(idx - 1, 0);
-            const next = prev[nextIdx]?.key ?? sel;
-            listRef.current
-              ?.querySelector(`[data-conversation-key="${CSS.escape(next ?? "")}"]`)
-              ?.scrollIntoView({ block: "nearest" });
-            return next;
-          });
-          return prev;
-        });
+        const idx = conversations.findIndex((c) => c.key === selectedKey);
+        const nextIdx =
+          e.key === "j" ? Math.min(idx + 1, conversations.length - 1) : Math.max(idx - 1, 0);
+        const next = conversations[nextIdx]?.key ?? selectedKey;
+        setSelectedKey(next);
+        listRef.current
+          ?.querySelector(`[data-conversation-key="${CSS.escape(next ?? "")}"]`)
+          ?.scrollIntoView({ block: "nearest" });
       } else if (e.key === "e") {
         if ((tab === "attention" || tab === "snoozed") && selectedKey) {
           e.preventDefault();
@@ -173,7 +166,7 @@ export default function InboxPage() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tab, selectedKey, handleTriage]);
+  }, [tab, selectedKey, handleTriage, conversations]);
 
   const hasMore = tab !== "outbound" && conversations.length < total;
 
