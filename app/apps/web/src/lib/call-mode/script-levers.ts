@@ -33,19 +33,22 @@ export interface MethodGap {
 }
 
 // The single worst opener (-40% on meetings, Gong) + small-talk openers.
-const BANNED_OPENER =
+export const BANNED_OPENER =
   /(mauvais moment|comment allez-vous|comment vous allez|je vous d[ée]range|how are you|bad time|caught you at a bad)/i;
 
-// Deferring the slot instead of guiding it (JOLT: guidance > defer).
-const DEFER =
-  /(quand seriez-vous|quand seriez vous|quelles sont vos dispo|vos disponibilit|envoyez-moi vos dispo|vous me direz vos dispo|[àa] quel moment vous arrange|when works for you|let me know your availability)/i;
+// Deferring the slot instead of guiding it (JOLT: guidance > defer). The
+// "quand" is required on the inverted spoken forms ("dites-moi quand vous
+// seriez disponible") so a GUIDED binary ask ("Vous seriez disponible plutôt
+// mardi ou jeudi ?") never false-positives.
+export const DEFER =
+  /(quand seriez-vous|quand seriez vous|quand (est-ce que )?vous (seriez|serez|êtes|etes) dispo|dites-moi quand|quelles sont vos dispo|vos disponibilit|envoyez-moi vos dispo|vous me direz vos dispo|[àa] quel moment vous arrange|when works for you|let me know your availability)/i;
 
 // A concrete time anchor — needed for a guided binary slot ("mardi 14h ou jeudi ?").
-const TIME_WORD =
+export const TIME_WORD =
   /(lundi|mardi|mercredi|jeudi|vendredi|matin|apr[èe]s-?midi|d[ée]but de semaine|fin de semaine|semaine prochaine|\b\d{1,2}\s?h\b|\bnext week\b)/i;
 
 // De-risk / reversibility markers (JOLT: take risk off the table).
-const DERISK =
+export const DERISK =
   /(m[êe]me si|sans engagement|rien [àa] pr[ée]parer|vous saurez|c'est vous qui voyez|repartez avec|premi[èe]re lecture|[ée]cart de co[ûu]t|10\s?min|dix minutes|r[ée]versible|no strings)/i;
 
 function norm(s: string): string {

@@ -77,6 +77,9 @@ export async function ensureVoiceTables(): Promise<void> {
     // (reason source, matched enjeu, detected tool) so outcomes can be
     // segmented by script variant. Nullable; absent on pre-feature calls.
     await sql`ALTER TABLE calls ADD COLUMN IF NOT EXISTS script_context jsonb`;
+    // Deterministic post-call lever scores (lib/voice/lever-scoring.ts) —
+    // how the rep executed the methodology on this transcript.
+    await sql`ALTER TABLE calls ADD COLUMN IF NOT EXISTS lever_scores jsonb`;
 
     // ── voicemail_templates ──────────────────────────────────
     await sql`

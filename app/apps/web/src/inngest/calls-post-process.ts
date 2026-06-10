@@ -34,6 +34,7 @@ import { recordCapturedActivity, getCaptureApprovalMode } from "@/lib/capture/ap
 import { recordCallOutcomeForCampaigns } from "@/lib/voice/campaign";
 import { applyCallToCrm } from "@/lib/voice/post-call-crm";
 import { indexTranscript } from "@/lib/coaching/index-transcript";
+import { scoreTranscriptLevers } from "@/lib/voice/lever-scoring";
 import { ingestEpisode } from "@/lib/ai/context-graph";
 import { logger } from "@/lib/observability/logger";
 
@@ -101,6 +102,19 @@ export const postProcessCall = inngest.createFunction(
       return chunks
         .map((c) => `${c.speaker ?? "?"}: ${c.text}`)
         .join("\n");
+    });
+
+    // Deterministic methodology execution scores — same patterns as the
+    // script guard, persisted so outcomes can be segmented by execution.
+    await step.run("score-levers", async () => {
+      const chunks = (callRow.transcript as TranscriptChunk[] | null) ?? [];
+      const scores = scoreTranscriptLevers(chunks);
+      if (!scores) return { skipped: "thin transcript" };
+      await db
+        .update(calls)
+        .set({ leverScores: scores, updatedAt: new Date() })
+        .where(eq(calls.id, callId));
+      return { drill: scores.drill, talkRatioPct: scores.talkRatioPct };
     });
 
     if (!transcriptText || transcriptText.length < 30) {

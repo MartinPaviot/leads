@@ -17,7 +17,7 @@
  * No emoji per the brand rule — Lucide icons only.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   Sparkles,
@@ -52,6 +52,7 @@ import {
 import { Avatar } from "@/components/ui/avatar";
 import { isVoiceableSignal, mergeTechStacks } from "@/lib/call-mode/live-script";
 import { pickReplaceableTools } from "@/lib/tech-detect/replaceable";
+import { scoreTranscriptLevers, DRILL_COPY } from "@/lib/voice/lever-scoring";
 import { CompanyLogo } from "@/components/ui/company-logo";
 
 // lucide dropped brand glyphs — inline the LinkedIn mark (same path the
@@ -977,6 +978,11 @@ export function LiveTranscript({
   const mm = Math.floor(elapsed / 60).toString().padStart(2, "0");
   const ss = (elapsed % 60).toString().padStart(2, "0");
 
+  // Méthodology execution — computed instantly client-side at hang-up from the
+  // in-memory chunks (the worker persists the same result for history). Null
+  // on thin transcripts: no verdict on a voicemail.
+  const lever = useMemo(() => (ended ? scoreTranscriptLevers(chunks) : null), [ended, chunks]);
+
   return (
     <div className="flex h-full flex-col">
       {/* Status bar */}
@@ -1058,6 +1064,54 @@ export function LiveTranscript({
           </div>
         )}
       </div>
+
+      {/* Post-call execution — what the methodology heard, the moment it
+          matters. Deterministic (words said or not), one drill max. */}
+      {ended && lever && (
+        <div className="shrink-0 border-t border-zinc-200 px-6 py-3 dark:border-zinc-800">
+          <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+            Exécution
+            <span className="font-normal normal-case tracking-normal text-zinc-400">
+              vous avez parlé {lever.talkRatioPct}% (cible ~55%)
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {([
+              ["Permission", lever.openerPermission],
+              ["Raison", lever.reasonStated],
+              ["Dé-risque", lever.askDerisked],
+              ["Créneau guidé", lever.binarySlot],
+            ] as const).map(([label, ok]) => (
+              <span
+                key={label}
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]"
+                style={{
+                  background: ok ? "rgba(34,197,94,.08)" : "var(--color-bg-hover)",
+                  color: ok ? "rgb(21,128,61)" : "var(--color-text-tertiary)",
+                }}
+              >
+                {ok ? "✓" : "—"} {label}
+              </span>
+            ))}
+            {lever.bannedOpener && (
+              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]" style={{ background: "rgba(220,38,38,.08)", color: "rgb(185,28,28)" }}>
+                Accroche bannie
+              </span>
+            )}
+            {lever.deferUsed && (
+              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]" style={{ background: "rgba(234,179,8,.10)", color: "rgb(133,77,14)" }}>
+                Créneau déféré
+              </span>
+            )}
+          </div>
+          {lever.drill && (
+            <p className="mt-1.5 text-[11px] leading-snug" style={{ color: "var(--color-text-secondary)" }}>
+              <span className="font-medium" style={{ color: "rgb(133,77,14)" }}>À travailler : {DRILL_COPY[lever.drill].label}</span>
+              <span style={{ color: "var(--color-text-tertiary)" }}> — {DRILL_COPY[lever.drill].hint}</span>
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Post-call objections review */}
       {ended && coaching.length > 0 && (
