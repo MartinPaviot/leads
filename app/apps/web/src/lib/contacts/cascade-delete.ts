@@ -12,7 +12,7 @@
 
 import { db } from "@/db";
 import { activities, notes, tasks } from "@/db/schema";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 export const CONTACT_CASCADE_TYPES = ["activities", "notes", "tasks"] as const;
 export type ContactCascadeType = (typeof CONTACT_CASCADE_TYPES)[number];
@@ -25,11 +25,20 @@ export interface ContactRelatedCounts {
 
 /** Live (non-deleted) counts of each related set, for the delete modal. */
 export async function getContactRelatedCounts(tenantId: string, contactId: string): Promise<ContactRelatedCounts> {
+  return getContactsRelatedCounts(tenantId, [contactId]);
+}
+
+/**
+ * Multi-contact variant — aggregate counts across the whole selection in the
+ * same 3 set-based queries, for the bulk delete modal.
+ */
+export async function getContactsRelatedCounts(tenantId: string, contactIds: string[]): Promise<ContactRelatedCounts> {
+  if (contactIds.length === 0) return { activities: 0, notes: 0, tasks: 0 };
   const n = async (rows: { id: string }[]) => rows.length;
   const [a, nt, tk] = await Promise.all([
-    db.select({ id: activities.id }).from(activities).where(and(eq(activities.tenantId, tenantId), eq(activities.entityId, contactId), isNull(activities.deletedAt))).then(n),
-    db.select({ id: notes.id }).from(notes).where(and(eq(notes.tenantId, tenantId), eq(notes.entityId, contactId), isNull(notes.deletedAt))).then(n),
-    db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.tenantId, tenantId), eq(tasks.entityId, contactId), isNull(tasks.deletedAt))).then(n),
+    db.select({ id: activities.id }).from(activities).where(and(eq(activities.tenantId, tenantId), inArray(activities.entityId, contactIds), isNull(activities.deletedAt))).then(n),
+    db.select({ id: notes.id }).from(notes).where(and(eq(notes.tenantId, tenantId), inArray(notes.entityId, contactIds), isNull(notes.deletedAt))).then(n),
+    db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.tenantId, tenantId), inArray(tasks.entityId, contactIds), isNull(tasks.deletedAt))).then(n),
   ]);
   return { activities: a, notes: nt, tasks: tk };
 }

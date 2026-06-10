@@ -11,7 +11,7 @@
 
 import { db } from "@/db";
 import { activities, notes, tasks } from "@/db/schema";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 export const DEAL_CASCADE_TYPES = ["activities", "notes", "tasks"] as const;
 export type DealCascadeType = (typeof DEAL_CASCADE_TYPES)[number];
@@ -24,11 +24,20 @@ export interface DealRelatedCounts {
 
 /** Live (non-deleted) counts of each related set, for the delete modal. */
 export async function getDealRelatedCounts(tenantId: string, dealId: string): Promise<DealRelatedCounts> {
+  return getDealsRelatedCounts(tenantId, [dealId]);
+}
+
+/**
+ * Multi-deal variant — aggregate counts across the whole selection in the
+ * same 3 set-based queries, for the bulk delete modal.
+ */
+export async function getDealsRelatedCounts(tenantId: string, dealIds: string[]): Promise<DealRelatedCounts> {
+  if (dealIds.length === 0) return { activities: 0, notes: 0, tasks: 0 };
   const n = async (rows: { id: string }[]) => rows.length;
   const [a, nt, tk] = await Promise.all([
-    db.select({ id: activities.id }).from(activities).where(and(eq(activities.tenantId, tenantId), eq(activities.entityId, dealId), isNull(activities.deletedAt))).then(n),
-    db.select({ id: notes.id }).from(notes).where(and(eq(notes.tenantId, tenantId), eq(notes.entityId, dealId), isNull(notes.deletedAt))).then(n),
-    db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.tenantId, tenantId), eq(tasks.entityId, dealId), isNull(tasks.deletedAt))).then(n),
+    db.select({ id: activities.id }).from(activities).where(and(eq(activities.tenantId, tenantId), inArray(activities.entityId, dealIds), isNull(activities.deletedAt))).then(n),
+    db.select({ id: notes.id }).from(notes).where(and(eq(notes.tenantId, tenantId), inArray(notes.entityId, dealIds), isNull(notes.deletedAt))).then(n),
+    db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.tenantId, tenantId), inArray(tasks.entityId, dealIds), isNull(tasks.deletedAt))).then(n),
   ]);
   return { activities: a, notes: nt, tasks: tk };
 }

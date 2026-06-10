@@ -28,8 +28,9 @@ vi.mock("drizzle-orm", () => ({
 
 vi.mock("@/db", () => ({ db: { update: vi.fn(), select: vi.fn() } }));
 
+import { inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { getCompanyRelatedCounts, cascadeSoftDeleteCompany, cascadeSoftRestoreCompany, CASCADE_TYPES } from "@/lib/accounts/cascade-delete";
+import { getCompanyRelatedCounts, getCompaniesRelatedCounts, cascadeSoftDeleteCompany, cascadeSoftDeleteCompanies, cascadeSoftRestoreCompany, CASCADE_TYPES } from "@/lib/accounts/cascade-delete";
 
 type TableTag = "contacts" | "deals" | "activities" | "notes" | "tasks";
 
@@ -168,5 +169,67 @@ describe("getCompanyRelatedCounts", () => {
     });
     const counts = await getCompanyRelatedCounts("t1", "co1");
     expect(counts).toEqual({ contacts: 2, deals: 1, activities: 3, notes: 0, tasks: 1 });
+  });
+});
+
+describe("getCompaniesRelatedCounts (multi-company, bulk delete modal)", () => {
+  it("returns zeros without touching the db for an empty selection", async () => {
+    mockSelect({});
+    const counts = await getCompaniesRelatedCounts("t1", []);
+    expect(counts).toEqual({ contacts: 0, deals: 0, activities: 0, notes: 0, tasks: 0 });
+    expect(db.select).not.toHaveBeenCalled();
+  });
+
+  it("scopes contacts/deals by the FULL selection of company ids", async () => {
+    mockSelect({
+      contacts: [{ id: "ct1" }, { id: "ct2" }, { id: "ct3" }],
+      deals: [{ id: "d1" }, { id: "d2" }],
+      activities: [{ id: "a1" }],
+      notes: [],
+      tasks: [],
+    });
+    const counts = await getCompaniesRelatedCounts("t1", ["co1", "co2"]);
+    expect(counts).toEqual({ contacts: 3, deals: 2, activities: 1, notes: 0, tasks: 0 });
+    // The contacts/deals scopes carried every selected company id.
+    const scopes = vi.mocked(inArray).mock.calls.map((c) => c[1]);
+    expect(scopes).toContainEqual(["co1", "co2"]);
+  });
+});
+
+describe("cascadeSoftDeleteCompanies (multi-company, bulk delete)", () => {
+  it("no-ops with an empty company selection", async () => {
+    mockUpdate({});
+    mockSelect({});
+    const out = await cascadeSoftDeleteCompanies("t1", [], ["contacts", "deals"]);
+    expect(out).toEqual({});
+    expect(db.update).not.toHaveBeenCalled();
+    expect(db.select).not.toHaveBeenCalled();
+  });
+
+  it("soft-deletes contacts/deals across every selected company in one pass", async () => {
+    mockUpdate({ contacts: [{ id: "ct1" }, { id: "ct2" }], deals: [{ id: "d1" }] });
+    mockSelect({});
+    const out = await cascadeSoftDeleteCompanies("t1", ["co1", "co2"], ["contacts", "deals"]);
+    expect(out).toEqual({ contacts: 2, deals: 1 });
+    // One update per table regardless of selection size (set-based).
+    expect(updatedTablesInOrder()).toEqual(["deals", "contacts"]);
+    const scopes = vi.mocked(inArray).mock.calls.map((c) => c[1]);
+    expect(scopes).toContainEqual(["co1", "co2"]);
+  });
+
+  it("polymorphic sweep covers every company id + the contact ids of ALL selected companies", async () => {
+    mockUpdate({ activities: [{ id: "a1" }] });
+    mockSelect({ contacts: [{ id: "ct9" }] });
+    await cascadeSoftDeleteCompanies("t1", ["co1", "co2"], ["activities"]);
+    const scopes = vi.mocked(inArray).mock.calls.map((c) => c[1]);
+    expect(scopes).toContainEqual(["co1", "co2", "ct9"]);
+  });
+
+  it("still deletes contacts LAST so the polymorphic sweep sees their ids", async () => {
+    mockUpdate({ contacts: [{ id: "ct1" }], activities: [{ id: "a1" }], notes: [], tasks: [] });
+    mockSelect({ contacts: [{ id: "ct1" }] });
+    await cascadeSoftDeleteCompanies("t1", ["co1", "co2"], ["contacts", "activities", "notes", "tasks"]);
+    const order = updatedTablesInOrder();
+    expect(order[order.length - 1]).toBe("contacts");
   });
 });

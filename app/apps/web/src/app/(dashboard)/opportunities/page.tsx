@@ -23,7 +23,6 @@ import { Input, Select } from "@/components/ui/input";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { KanbanColumnSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-delete-modal";
 import { BulkActionsBar } from "@/components/ui/bulk-actions-bar";
 
@@ -200,14 +199,12 @@ export default function OpportunitiesPage() {
   const displayPanelRef = useRef<HTMLDivElement>(null);
   const filterPanelRef = useRef<HTMLDivElement>(null);
 
-  // Delete confirmation — single row or multi-select (table view).
-  const [deleteTarget, setDeleteTarget] = useState<{ type: "single" | "bulk"; id?: string; name?: string } | null>(null);
-  // Single-deal delete goes through the cascade modal (lets the user also
-  // delete the deal's activities/notes/tasks in one step).
-  const [cascadeTarget, setCascadeTarget] = useState<{ id: string; name: string } | null>(null);
+  // Deletes — single row AND the multi-selection (table view) — go through
+  // the cascade modal (lets the user also delete the deals' activities/notes/
+  // tasks in one step). Everything is soft-delete, recoverable from Archive.
+  const [cascadeTarget, setCascadeTarget] = useState<{ ids: string[]; label: string } | null>(null);
   const [cascadeCounts, setCascadeCounts] = useState<CascadeOption[] | null>(null);
   const [cascadeBusy, setCascadeBusy] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
 
   // Drag & drop
@@ -433,30 +430,74 @@ export default function OpportunitiesPage() {
 
   function handleCardClick(id: string) { if (!isDraggingRef.current) router.push(`/opportunities/${id}`); }
 
-  // Soft-delete one deal or the current multi-selection (confirmed via
-  // <ConfirmDialog>). Optimistic removal with rollback on failure, then a
-  // quick analytics refresh.
-  async function performDelete() {
-    if (!deleteTarget) return;
-    const ids = deleteTarget.type === "single" && deleteTarget.id
-      ? [deleteTarget.id]
-      : Array.from(selectedRows);
-    if (ids.length === 0) { setDeleteTarget(null); return; }
-    setDeleting(true);
+  // Open the cascade delete modal — for one row or the whole multi-selection
+  // — and load live related-data counts. One set-based aggregate request,
+  // whatever the selection size.
+  async function openCascadeDelete(ids: string[], label: string) {
+    if (ids.length === 0) return;
+    setCascadeTarget({ ids, label });
+    setCascadeCounts(null);
+    const labels: Array<[string, string]> = [
+      ["activities", "Activities"],
+      ["notes", "Notes"],
+      ["tasks", "Tasks"],
+    ];
+    try {
+      const res = await fetch("/api/opportunities/related-counts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { counts?: Record<string, number> };
+      const counts = data.counts ?? {};
+      setCascadeCounts(labels.map(([key, text]) => ({ key, label: text, count: counts[key] ?? 0 })));
+    } catch {
+      setCascadeCounts(labels.map(([key, text]) => ({ key, label: text, count: 0 })));
+    }
+  }
+
+  // Selection-bar Delete. A selection of one gets the deal's real name so it
+  // reads exactly like a row delete.
+  function openBulkCascadeDelete() {
+    const ids = Array.from(selectedRows);
+    if (ids.length === 0) return;
+    const label =
+      ids.length === 1
+        ? (deals.find((d) => d.id === ids[0])?.name ?? "This opportunity")
+        : `${ids.length} selected opportunities`;
+    void openCascadeDelete(ids, label);
+  }
+
+  // Soft-delete the targeted deals plus any related sets the user ticked.
+  // Optimistic removal with rollback on total failure; per-deal requests so
+  // each keeps its own delete timestamp (symmetric restore).
+  async function performCascadeDelete(selectedKeys: string[]) {
+    if (!cascadeTarget) return;
+    const ids = cascadeTarget.ids;
+    setCascadeBusy(true);
     const prev = deals;
     const idSet = new Set(ids);
     setDeals((p) => p.filter((d) => !idSet.has(d.id)));
     try {
       const results = await Promise.all(
         ids.map((id) =>
-          fetch(`/api/opportunities/${id}`, { method: "DELETE" })
-            .then((r) => r.ok)
-            .catch(() => false),
+          fetch(`/api/opportunities/${id}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cascade: selectedKeys }),
+          })
+            .then(async (r) => {
+              if (!r.ok) return null;
+              const data = (await r.json().catch(() => ({}))) as { cascaded?: Record<string, number> };
+              return Object.values(data.cascaded ?? {}).reduce<number>((a, b) => a + (b ?? 0), 0);
+            })
+            .catch(() => null),
         ),
       );
-      const ok = results.filter(Boolean).length;
-      const failed = results.length - ok;
-      if (ok === 0) {
+      const ok = results.filter((r): r is number => r !== null);
+      const failed = results.length - ok.length;
+      const extra = ok.reduce((a, b) => a + b, 0);
+      if (ok.length === 0) {
         setDeals(prev);
         toast("Failed to delete opportunit" + (ids.length === 1 ? "y" : "ies"), "error");
       } else {
@@ -465,7 +506,7 @@ export default function OpportunitiesPage() {
           fetchDeals();
         }
         toast(
-          `Deleted ${ok} opportunit${ok === 1 ? "y" : "ies"}${failed > 0 ? ` (${failed} failed)` : ""}`,
+          `Moved ${ok.length} opportunit${ok.length === 1 ? "y" : "ies"}${extra > 0 ? ` + ${extra} related record${extra === 1 ? "" : "s"}` : ""} to Archive${failed > 0 ? ` (${failed} failed)` : ""}.`,
           failed > 0 ? "warning" : "success",
         );
         setSelectedRows(new Set());
@@ -474,62 +515,6 @@ export default function OpportunitiesPage() {
     } catch (e) {
       setDeals(prev);
       toast("Failed to delete opportunities", "error");
-      console.warn("opportunities: delete failed", e);
-    } finally {
-      setDeleting(false);
-      setDeleteTarget(null);
-    }
-  }
-
-  // Open the single-deal cascade modal and load live related-data counts.
-  async function openCascadeDelete(id: string, name: string) {
-    setCascadeTarget({ id, name });
-    setCascadeCounts(null);
-    const labels: Array<[string, string]> = [
-      ["activities", "Activities"],
-      ["notes", "Notes"],
-      ["tasks", "Tasks"],
-    ];
-    try {
-      const res = await fetch(`/api/opportunities/${id}/related-counts`);
-      const data = (await res.json().catch(() => ({}))) as { counts?: Record<string, number> };
-      const counts = data.counts ?? {};
-      setCascadeCounts(labels.map(([key, label]) => ({ key, label, count: counts[key] ?? 0 })));
-    } catch {
-      setCascadeCounts(labels.map(([key, label]) => ({ key, label, count: 0 })));
-    }
-  }
-
-  // Soft-delete one deal plus any related sets the user ticked. Optimistic
-  // removal with rollback on failure, mirroring performDelete.
-  async function performCascadeDelete(selectedKeys: string[]) {
-    if (!cascadeTarget) return;
-    const id = cascadeTarget.id;
-    setCascadeBusy(true);
-    const prev = deals;
-    setDeals((p) => p.filter((d) => d.id !== id));
-    try {
-      const res = await fetch(`/api/opportunities/${id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cascade: selectedKeys }),
-      });
-      if (!res.ok) {
-        setDeals(prev);
-        toast("Failed to delete opportunity", "error");
-        return;
-      }
-      const data = (await res.json().catch(() => ({}))) as { cascaded?: Record<string, number> };
-      const extra = Object.values(data.cascaded ?? {}).reduce<number>((a, b) => a + (b ?? 0), 0);
-      toast(
-        extra > 0 ? `Deleted opportunity + ${extra} related record${extra === 1 ? "" : "s"}.` : "Deleted opportunity.",
-        "success",
-      );
-      setSelectedRows(new Set());
-      fetchAnalytics();
-    } catch (e) {
-      setDeals(prev);
-      toast("Failed to delete opportunity", "error");
       console.warn("opportunities: cascade delete failed", e);
     } finally {
       setCascadeBusy(false);
@@ -818,7 +803,7 @@ export default function OpportunitiesPage() {
                 label: "Delete",
                 icon: <Trash2 size={13} />,
                 variant: "danger",
-                onClick: () => setDeleteTarget({ type: "bulk" }),
+                onClick: () => openBulkCascadeDelete(),
               },
             ]}
       />
@@ -1314,7 +1299,7 @@ export default function OpportunitiesPage() {
                         type="button"
                         aria-label={`Delete ${deal.name}`}
                         title="Delete opportunity"
-                        onClick={() => openCascadeDelete(deal.id, deal.name ?? "This opportunity")}
+                        onClick={() => void openCascadeDelete([deal.id], deal.name ?? "This opportunity")}
                         className="inline-flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
                         style={{ color: "var(--color-text-muted)" }}
                       >
@@ -1419,7 +1404,7 @@ export default function OpportunitiesPage() {
                           type="button"
                           aria-label={`Delete ${deal.name}`}
                           title="Delete opportunity"
-                          onClick={(e) => { e.stopPropagation(); openCascadeDelete(deal.id, deal.name ?? "This opportunity"); }}
+                          onClick={(e) => { e.stopPropagation(); void openCascadeDelete([deal.id], deal.name ?? "This opportunity"); }}
                           onMouseDown={(e) => e.stopPropagation()}
                           className="absolute right-1.5 top-1.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
                           style={{ color: "var(--color-text-muted)", background: "var(--color-bg-card)" }}
@@ -1540,33 +1525,14 @@ export default function OpportunitiesPage() {
         onCancel={handleCloseReasonCancel}
       />
 
-      {/* Delete confirmation — single row or multi-selection. */}
-      <ConfirmDialog
-        open={!!deleteTarget}
-        title={
-          deleteTarget?.type === "bulk"
-            ? `Delete ${selectedRows.size} opportunit${selectedRows.size === 1 ? "y" : "ies"}?`
-            : "Delete opportunity?"
-        }
-        description={
-          deleteTarget?.type === "bulk"
-            ? `The selected opportunit${selectedRows.size === 1 ? "y" : "ies"} will be removed from your pipeline. Their activity history is kept.`
-            : `"${deleteTarget?.name || "This deal"}" will be removed from your pipeline. Its activity history is kept.`
-        }
-        confirmLabel={
-          deleteTarget?.type === "bulk" ? `Delete ${selectedRows.size}` : "Delete"
-        }
-        variant="destructive"
-        busy={deleting}
-        onConfirm={performDelete}
-        onCancel={() => { if (!deleting) setDeleteTarget(null); }}
-      />
-
-      {/* Single-deal delete with optional cascade to related data. */}
+      {/* Delete — single row or the multi-selection — with optional cascade
+          to related data. Soft-delete: everything moves to the Archive view
+          and is restorable anytime. */}
       <CascadeDeleteModal
         open={!!cascadeTarget}
-        entityKind="opportunity"
-        entityLabel={cascadeTarget?.name ?? "This opportunity"}
+        entityKind={cascadeTarget && cascadeTarget.ids.length > 1 ? `${cascadeTarget.ids.length} opportunities` : "opportunity"}
+        entityLabel={cascadeTarget?.label ?? "This opportunity"}
+        entityCount={cascadeTarget?.ids.length ?? 1}
         options={cascadeCounts}
         busy={cascadeBusy}
         onConfirm={performCascadeDelete}

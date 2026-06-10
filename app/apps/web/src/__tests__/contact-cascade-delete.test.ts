@@ -16,12 +16,14 @@ vi.mock("drizzle-orm", () => ({
   and: vi.fn((...args) => ({ _and: args })),
   eq: vi.fn((a, b) => ({ _eq: [a, b] })),
   isNull: vi.fn(() => "isNull"),
+  inArray: vi.fn((col, vals) => ({ _inArray: [col, vals] })),
 }));
 
 vi.mock("@/db", () => ({ db: { update: vi.fn(), select: vi.fn() } }));
 
+import { inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { getContactRelatedCounts, cascadeSoftDeleteContact, cascadeSoftRestoreContact, CONTACT_CASCADE_TYPES } from "@/lib/contacts/cascade-delete";
+import { getContactRelatedCounts, getContactsRelatedCounts, cascadeSoftDeleteContact, cascadeSoftRestoreContact, CONTACT_CASCADE_TYPES } from "@/lib/contacts/cascade-delete";
 
 type TableTag = "activities" | "notes" | "tasks";
 
@@ -102,5 +104,28 @@ describe("getContactRelatedCounts", () => {
     });
     const counts = await getContactRelatedCounts("t1", "ct1");
     expect(counts).toEqual({ activities: 2, notes: 1, tasks: 0 });
+  });
+});
+
+describe("getContactsRelatedCounts (multi-contact, bulk delete modal)", () => {
+  it("returns zeros without touching the db for an empty selection", async () => {
+    mockSelect({});
+    const counts = await getContactsRelatedCounts("t1", []);
+    expect(counts).toEqual({ activities: 0, notes: 0, tasks: 0 });
+    expect(db.select).not.toHaveBeenCalled();
+  });
+
+  it("aggregates across the whole selection via one entityId IN (…) scope per table", async () => {
+    mockSelect({
+      activities: [{ id: "a1" }, { id: "a2" }, { id: "a3" }],
+      notes: [{ id: "n1" }],
+      tasks: [{ id: "tk1" }, { id: "tk2" }],
+    });
+    const counts = await getContactsRelatedCounts("t1", ["ct1", "ct2"]);
+    expect(counts).toEqual({ activities: 3, notes: 1, tasks: 2 });
+    // Every polymorphic scope carried the FULL selection, not one id.
+    const scopes = vi.mocked(inArray).mock.calls.map((c) => c[1]);
+    expect(scopes).toHaveLength(3);
+    for (const scope of scopes) expect(scope).toEqual(["ct1", "ct2"]);
   });
 });

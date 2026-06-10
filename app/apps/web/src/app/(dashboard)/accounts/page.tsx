@@ -37,7 +37,6 @@ import { SmartSearchBar, ActiveFiltersChips } from "@/components/ui/smart-search
 import { applyFilters } from "@/lib/search/filters";
 import type { FilterCondition } from "@/lib/search/filters";
 import { ColumnFilter, isColumnFilterActive, type ColumnFilterKind, type ColumnFilterState } from "@/components/ui/column-filter";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-delete-modal";
 import { EnrichMenu } from "@/components/ui/enrich-menu";
 import { useEnrichStream, type EnrichCellState } from "@/hooks/use-enrich-stream";
@@ -164,13 +163,12 @@ export default function AccountsPage() {
   const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null);
   // Bulk contact extraction (Apollo) + delete flows.
   const [extractingContacts, setExtractingContacts] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ type: "single" | "bulk" | "all"; id?: string; name?: string } | null>(null);
-  // Single-account delete now goes through the cascade modal (lets the user
-  // also delete related contacts/deals/activities/notes/tasks in one step).
-  const [cascadeTarget, setCascadeTarget] = useState<{ id: string; name: string } | null>(null);
+  // Deletes — single row AND the checkbox selection — go through the cascade
+  // modal (lets the user also delete related contacts/deals/activities/notes/
+  // tasks in one step). Everything is soft-delete, recoverable from Archive.
+  const [cascadeTarget, setCascadeTarget] = useState<{ ids: string[]; label: string } | null>(null);
   const [cascadeCounts, setCascadeCounts] = useState<CascadeOption[] | null>(null);
   const [cascadeBusy, setCascadeBusy] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [detectingSignals, setDetectingSignals] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   // Debounced search term pushed to the server. The accounts endpoint
@@ -907,57 +905,14 @@ export default function AccountsPage() {
     }
   }
 
-  // Soft-delete: single row, the current selection, or every account in
-  // the tenant. Driven by `deleteTarget` + confirmed via <ConfirmDialog>.
-  async function performDelete() {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      let ok = false;
-      let deletedCount = 0;
-      if (deleteTarget.type === "single" && deleteTarget.id) {
-        const res = await fetch(`/api/accounts/${deleteTarget.id}`, { method: "DELETE" });
-        ok = res.ok;
-        deletedCount = ok ? 1 : 0;
-      } else if (deleteTarget.type === "bulk") {
-        const ids = Array.from(selectedRows);
-        const res = await fetch("/api/accounts/batch", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ids }),
-        });
-        ok = res.ok;
-        if (ok) deletedCount = (await res.json().catch(() => ({}))).deleted ?? ids.length;
-      } else if (deleteTarget.type === "all") {
-        const res = await fetch("/api/accounts/batch", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ all: true }),
-        });
-        ok = res.ok;
-        if (ok) deletedCount = (await res.json().catch(() => ({}))).deleted ?? 0;
-      }
-      if (!ok) {
-        toast("Delete failed.", "error");
-        return;
-      }
-      toast(`Deleted ${deletedCount} account${deletedCount === 1 ? "" : "s"}.`, "success");
-      setSelectedRows(new Set());
-      await refetchLoadedAccounts();
-    } catch (e) {
-      toast("Delete failed.", "error");
-      console.warn("accounts: delete failed", e);
-    } finally {
-      setDeleting(false);
-      setDeleteTarget(null);
-    }
-  }
-
-  // Open the single-account cascade modal and load live related-data counts so
-  // the checkboxes can show "Contacts 4 / Deals 1 / …". Counts start null
-  // (modal shows "Loading…") and resolve from /related-counts.
-  async function openCascadeDelete(id: string, name: string) {
-    setCascadeTarget({ id, name });
+  // Open the cascade delete modal — for one row or the whole checkbox
+  // selection — and load live related-data counts so the checkboxes can show
+  // "Contacts 4 / Deals 1 / …". Counts start null (modal shows "Loading…")
+  // and resolve from one set-based aggregate request, whatever the selection
+  // size.
+  async function openCascadeDelete(ids: string[], label: string) {
+    if (ids.length === 0) return;
+    setCascadeTarget({ ids, label });
     setCascadeCounts(null);
     const labels: Array<[string, string]> = [
       ["contacts", "Contacts"],
@@ -967,34 +922,53 @@ export default function AccountsPage() {
       ["tasks", "Tasks"],
     ];
     try {
-      const res = await fetch(`/api/accounts/${id}/related-counts`);
+      const res = await fetch("/api/accounts/related-counts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
       const data = (await res.json().catch(() => ({}))) as { counts?: Record<string, number> };
       const counts = data.counts ?? {};
-      setCascadeCounts(labels.map(([key, label]) => ({ key, label, count: counts[key] ?? 0 })));
+      setCascadeCounts(labels.map(([key, text]) => ({ key, label: text, count: counts[key] ?? 0 })));
     } catch {
-      setCascadeCounts(labels.map(([key, label]) => ({ key, label, count: 0 })));
+      setCascadeCounts(labels.map(([key, text]) => ({ key, label: text, count: 0 })));
     }
   }
 
-  // Soft-delete one account plus any related sets the user ticked. Everything
-  // is recoverable from the Archive view.
+  // Selection-bar Delete. A selection of one gets the account's real name so
+  // it reads exactly like a row delete.
+  function openBulkCascadeDelete() {
+    const ids = Array.from(selectedRows);
+    if (ids.length === 0) return;
+    const label =
+      ids.length === 1
+        ? (accounts.find((a) => a.id === ids[0])?.name ?? "This account")
+        : `${ids.length} selected accounts`;
+    void openCascadeDelete(ids, label);
+  }
+
+  // Soft-delete the targeted accounts plus any related sets the user ticked.
+  // Routed through the batch endpoint so every delete also writes the
+  // suppression ledger (keeps deleted accounts out of future TAM sourcing;
+  // restoring lifts it). Everything is recoverable from the Archive view.
   async function performCascadeDelete(selectedKeys: string[]) {
     if (!cascadeTarget) return;
     setCascadeBusy(true);
     try {
-      const res = await fetch(`/api/accounts/${cascadeTarget.id}`, {
+      const res = await fetch("/api/accounts/batch", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cascade: selectedKeys }),
+        body: JSON.stringify({ ids: cascadeTarget.ids, cascade: selectedKeys }),
       });
       if (!res.ok) {
         toast("Delete failed.", "error");
         return;
       }
-      const data = (await res.json().catch(() => ({}))) as { cascaded?: Record<string, number> };
+      const data = (await res.json().catch(() => ({}))) as { deleted?: number; cascaded?: Record<string, number> };
+      const deleted = data.deleted ?? cascadeTarget.ids.length;
       const extra = Object.values(data.cascaded ?? {}).reduce<number>((a, b) => a + (b ?? 0), 0);
       toast(
-        extra > 0 ? `Deleted account + ${extra} related record${extra === 1 ? "" : "s"}.` : "Deleted account.",
+        `Moved ${deleted} account${deleted === 1 ? "" : "s"}${extra > 0 ? ` + ${extra} related record${extra === 1 ? "" : "s"}` : ""} to Archive.`,
         "success",
       );
       setSelectedRows(new Set());
@@ -1333,7 +1307,7 @@ export default function AccountsPage() {
                   label: "Delete",
                   icon: <Trash2 size={13} />,
                   variant: "danger" as const,
-                  onClick: () => setDeleteTarget({ type: "bulk" }),
+                  onClick: () => openBulkCascadeDelete(),
                 },
               ]),
         ]}
@@ -2211,7 +2185,7 @@ export default function AccountsPage() {
                           title="Delete account"
                           onClick={(e) => {
                             e.stopPropagation();
-                            openCascadeDelete(account.id, account.name);
+                            void openCascadeDelete([account.id], account.name);
                           }}
                           className="inline-flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
                           style={{ color: "var(--color-text-muted)" }}
@@ -2496,41 +2470,14 @@ export default function AccountsPage() {
         })()}
       </SlideOver>
 
-      {/* Delete confirmation — single row, current selection, or all. */}
-      <ConfirmDialog
-        open={!!deleteTarget}
-        title={
-          deleteTarget?.type === "all"
-            ? "Delete all accounts?"
-            : deleteTarget?.type === "bulk"
-              ? `Delete ${selectedRows.size} account${selectedRows.size === 1 ? "" : "s"}?`
-              : "Delete account?"
-        }
-        description={
-          deleteTarget?.type === "all"
-            ? `This removes every account in this workspace (${totalAccounts}). Contacts and deals keep their records but are no longer attached to a listed account. This can be undone by support, but not from here.`
-            : deleteTarget?.type === "bulk"
-              ? `The selected account${selectedRows.size === 1 ? "" : "s"} will be removed from your Accounts list. Their contacts and deals are kept.`
-              : `"${deleteTarget?.name ?? "This account"}" will be removed from your Accounts list. Its contacts and deals are kept.`
-        }
-        confirmLabel={
-          deleteTarget?.type === "all"
-            ? "Delete all"
-            : deleteTarget?.type === "bulk"
-              ? `Delete ${selectedRows.size}`
-              : "Delete"
-        }
-        variant="destructive"
-        busy={deleting}
-        onConfirm={performDelete}
-        onCancel={() => { if (!deleting) setDeleteTarget(null); }}
-      />
-
-      {/* Single-account delete with optional cascade to related data. */}
+      {/* Delete — single row or the checkbox selection — with optional
+          cascade to related data. Soft-delete: everything moves to the
+          Archive view (toggle in the toolbar) and is restorable anytime. */}
       <CascadeDeleteModal
         open={!!cascadeTarget}
-        entityKind="account"
-        entityLabel={cascadeTarget?.name ?? "This account"}
+        entityKind={cascadeTarget && cascadeTarget.ids.length > 1 ? `${cascadeTarget.ids.length} accounts` : "account"}
+        entityLabel={cascadeTarget?.label ?? "This account"}
+        entityCount={cascadeTarget?.ids.length ?? 1}
         options={cascadeCounts}
         busy={cascadeBusy}
         onConfirm={performCascadeDelete}

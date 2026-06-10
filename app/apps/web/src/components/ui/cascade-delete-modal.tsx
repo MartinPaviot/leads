@@ -20,6 +20,7 @@ export function CascadeDeleteModal({
   open,
   entityKind = "account",
   entityLabel,
+  entityCount = 1,
   options,
   busy = false,
   onConfirm,
@@ -28,6 +29,8 @@ export function CascadeDeleteModal({
   open: boolean;
   entityKind?: string;
   entityLabel: string;
+  /** How many entities the label covers — drives verb/pronoun agreement. */
+  entityCount?: number;
   /** null = counts still loading */
   options: CascadeOption[] | null;
   busy?: boolean;
@@ -53,6 +56,7 @@ export function CascadeDeleteModal({
 
   if (!open) return null;
 
+  const plural = entityCount > 1;
   const withData = (options ?? []).filter((o) => o.count > 0);
   const toggle = (k: string) =>
     setSelected((prev) => {
@@ -90,7 +94,7 @@ export function CascadeDeleteModal({
               Delete {entityKind}?
             </h2>
             <p className="mt-1 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-              <span className="font-medium" style={{ color: "var(--color-text-primary)" }}>{entityLabel}</span> moves to Archive (recoverable). Optionally also delete its related data:
+              <span className="font-medium" style={{ color: "var(--color-text-primary)" }}>{entityLabel}</span> {plural ? "move" : "moves"} to Archive — restore {plural ? "them" : "it"} anytime from the Archive view on this page. Optionally also delete {plural ? "their" : "its"} related data:
             </p>
           </div>
         </div>
@@ -101,21 +105,26 @@ export function CascadeDeleteModal({
           ) : withData.length === 0 ? (
             <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>No related data attached.</p>
           ) : (
-            <div className="space-y-0.5">
-              {withData.map((o) => (
-                <label
-                  key={o.key}
-                  className="flex items-center gap-2.5 rounded-md px-2 py-1.5"
-                  style={{ cursor: busy ? "default" : "pointer" }}
-                  onMouseEnter={(e) => { if (!busy) e.currentTarget.style.background = "var(--color-bg-hover)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                >
-                  <input type="checkbox" checked={selected.has(o.key)} disabled={busy} onChange={() => toggle(o.key)} />
-                  <span className="text-[13px]" style={{ color: "var(--color-text-primary)" }}>{o.label}</span>
-                  <span className="ml-auto text-[12px] tabular-nums" style={{ color: "var(--color-text-tertiary)" }}>{o.count}</span>
-                </label>
-              ))}
-            </div>
+            <>
+              <div className="space-y-0.5">
+                {withData.map((o) => (
+                  <label
+                    key={o.key}
+                    className="flex items-center gap-2.5 rounded-md px-2 py-1.5"
+                    style={{ cursor: busy ? "default" : "pointer" }}
+                    onMouseEnter={(e) => { if (!busy) e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <input type="checkbox" checked={selected.has(o.key)} disabled={busy} onChange={() => toggle(o.key)} />
+                    <span className="text-[13px]" style={{ color: "var(--color-text-primary)" }}>{o.label}</span>
+                    <span className="ml-auto text-[12px] tabular-nums" style={{ color: "var(--color-text-tertiary)" }}>{o.count}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                Unticked data is kept. Restoring from Archive also brings back anything deleted with it.
+              </p>
+            </>
           )}
         </div>
 

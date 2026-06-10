@@ -20,7 +20,6 @@ import { SmartSearchBar, ActiveFiltersChips } from "@/components/ui/smart-search
 import { applyFilters } from "@/lib/search/filters";
 import type { FilterCondition } from "@/lib/search/filters";
 import { ColumnFilter, isColumnFilterActive, type ColumnFilterKind, type ColumnFilterState } from "@/components/ui/column-filter";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-delete-modal";
 
 function LinkedInIcon({ size = 13 }: { size?: number }) {
@@ -103,14 +102,12 @@ export default function ContactsPage() {
   // just the loaded 50-row page. Company options also come from the server.
   const [debouncedColumnFilters, setDebouncedColumnFilters] = useState<Record<string, ColumnFilterState>>({});
   const [serverCompanyOptions, setServerCompanyOptions] = useState<string[]>([]);
-  // Delete confirmation (single row or current selection).
-  const [deleteTarget, setDeleteTarget] = useState<{ type: "single" | "bulk"; id?: string; name?: string } | null>(null);
-  // Single-contact delete goes through the cascade modal (lets the user also
-  // delete the contact's activities/notes/tasks in one step).
-  const [cascadeTarget, setCascadeTarget] = useState<{ id: string; name: string } | null>(null);
+  // Deletes — single row AND the checkbox selection — go through the cascade
+  // modal (lets the user also delete the contacts' activities/notes/tasks in
+  // one step). Everything is soft-delete, recoverable from Archive.
+  const [cascadeTarget, setCascadeTarget] = useState<{ ids: string[]; label: string } | null>(null);
   const [cascadeCounts, setCascadeCounts] = useState<CascadeOption[] | null>(null);
   const [cascadeBusy, setCascadeBusy] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const { fields: customFields } = useCustomFields("contact");
 
   const fetchContacts = useCallback(async () => {
@@ -272,38 +269,12 @@ export default function ContactsPage() {
     }
   }
 
-  // Delete — single row or the current selection. Confirmed via the
-  // <ConfirmDialog>; the actual requests fire here.
-  async function performDelete() {
-    if (!deleteTarget) return;
-    const ids = deleteTarget.type === "single" && deleteTarget.id
-      ? [deleteTarget.id]
-      : Array.from(selectedRows);
-    if (ids.length === 0) { setDeleteTarget(null); return; }
-    setDeleting(true);
-    let deleted = 0;
-    let errors = 0;
-    for (const id of ids) {
-      try {
-        const res = await fetch(`/api/contacts/${id}`, { method: "DELETE" });
-        if (res.ok) deleted++;
-        else errors++;
-      } catch { errors++; }
-    }
-    setSelectedRows(new Set());
-    setDeleting(false);
-    setDeleteTarget(null);
-    if (deleted > 0) {
-      toast(`Deleted ${deleted} contact${deleted > 1 ? "s" : ""}${errors > 0 ? ` (${errors} failed)` : ""}`, "success");
-      fetchContacts();
-    } else {
-      toast(`Delete failed for ${errors} contact${errors > 1 ? "s" : ""}`, "error");
-    }
-  }
-
-  // Open the single-contact cascade modal and load live related-data counts.
-  async function openCascadeDelete(id: string, name: string) {
-    setCascadeTarget({ id, name });
+  // Open the cascade delete modal — for one row or the whole checkbox
+  // selection — and load live related-data counts. One set-based aggregate
+  // request, whatever the selection size.
+  async function openCascadeDelete(ids: string[], label: string) {
+    if (ids.length === 0) return;
+    setCascadeTarget({ ids, label });
     setCascadeCounts(null);
     const labels: Array<[string, string]> = [
       ["activities", "Activities"],
@@ -311,45 +282,75 @@ export default function ContactsPage() {
       ["tasks", "Tasks"],
     ];
     try {
-      const res = await fetch(`/api/contacts/${id}/related-counts`);
+      const res = await fetch("/api/contacts/related-counts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
       const data = (await res.json().catch(() => ({}))) as { counts?: Record<string, number> };
       const counts = data.counts ?? {};
-      setCascadeCounts(labels.map(([key, label]) => ({ key, label, count: counts[key] ?? 0 })));
+      setCascadeCounts(labels.map(([key, text]) => ({ key, label: text, count: counts[key] ?? 0 })));
     } catch {
-      setCascadeCounts(labels.map(([key, label]) => ({ key, label, count: 0 })));
+      setCascadeCounts(labels.map(([key, text]) => ({ key, label: text, count: 0 })));
     }
   }
 
-  // Soft-delete one contact plus any related sets the user ticked. The contact
-  // route may 409 if the contact has active sequence enrollments.
+  // Selection-bar Delete. A selection of one gets the contact's real name so
+  // it reads exactly like a row delete.
+  function openBulkCascadeDelete() {
+    const ids = Array.from(selectedRows);
+    if (ids.length === 0) return;
+    const one = ids.length === 1 ? contacts.find((c) => c.id === ids[0]) : undefined;
+    const label =
+      ids.length === 1
+        ? ([one?.firstName, one?.lastName].filter(Boolean).join(" ") || "This contact")
+        : `${ids.length} selected contacts`;
+    void openCascadeDelete(ids, label);
+  }
+
+  // Soft-delete the targeted contacts plus any related sets the user ticked.
+  // Per-contact requests so each keeps its own delete timestamp (symmetric
+  // restore) and a 409 (active sequence enrollment) only blocks that contact.
   async function performCascadeDelete(selectedKeys: string[]) {
     if (!cascadeTarget) return;
     setCascadeBusy(true);
-    try {
-      const res = await fetch(`/api/contacts/${cascadeTarget.id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cascade: selectedKeys }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { error?: string };
-        toast(data.error || "Delete failed.", "error");
-        return;
+    let deleted = 0;
+    let errors = 0;
+    let extra = 0;
+    let firstError: string | null = null;
+    for (const id of cascadeTarget.ids) {
+      try {
+        const res = await fetch(`/api/contacts/${id}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cascade: selectedKeys }),
+        });
+        if (res.ok) {
+          deleted++;
+          const data = (await res.json().catch(() => ({}))) as { cascaded?: Record<string, number> };
+          extra += Object.values(data.cascaded ?? {}).reduce<number>((a, b) => a + (b ?? 0), 0);
+        } else {
+          errors++;
+          if (!firstError) {
+            const data = (await res.json().catch(() => ({}))) as { error?: string };
+            firstError = data.error ?? null;
+          }
+        }
+      } catch {
+        errors++;
       }
-      const data = (await res.json().catch(() => ({}))) as { cascaded?: Record<string, number> };
-      const extra = Object.values(data.cascaded ?? {}).reduce<number>((a, b) => a + (b ?? 0), 0);
+    }
+    setCascadeBusy(false);
+    setCascadeTarget(null);
+    if (deleted > 0) {
       toast(
-        extra > 0 ? `Deleted contact + ${extra} related record${extra === 1 ? "" : "s"}.` : "Deleted contact.",
-        "success",
+        `Moved ${deleted} contact${deleted === 1 ? "" : "s"}${extra > 0 ? ` + ${extra} related record${extra === 1 ? "" : "s"}` : ""} to Archive${errors > 0 ? ` (${errors} failed)` : ""}.`,
+        errors > 0 ? "warning" : "success",
       );
       setSelectedRows(new Set());
       fetchContacts();
-    } catch (e) {
-      toast("Delete failed.", "error");
-      console.warn("contacts: cascade delete failed", e);
-    } finally {
-      setCascadeBusy(false);
-      setCascadeTarget(null);
+    } else {
+      toast(firstError || `Delete failed for ${errors} contact${errors > 1 ? "s" : ""}`, "error");
     }
   }
 
@@ -492,7 +493,7 @@ export default function ContactsPage() {
                 label: "Delete",
                 icon: <Trash2 size={13} />,
                 variant: "danger",
-                onClick: () => setDeleteTarget({ type: "bulk" }),
+                onClick: () => openBulkCascadeDelete(),
               },
             ]}
       />
@@ -839,7 +840,7 @@ export default function ContactsPage() {
                           type="button"
                           aria-label={`Delete ${name}`}
                           title="Delete contact"
-                          onClick={() => openCascadeDelete(contact.id, name)}
+                          onClick={() => void openCascadeDelete([contact.id], name)}
                           className="inline-flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
                           style={{ color: "var(--color-text-muted)" }}
                         >
@@ -933,33 +934,14 @@ export default function ContactsPage() {
         </div>
       )}
 
-      {/* Delete confirmation — single row or current selection. */}
-      <ConfirmDialog
-        open={!!deleteTarget}
-        title={
-          deleteTarget?.type === "bulk"
-            ? `Delete ${selectedRows.size} contact${selectedRows.size === 1 ? "" : "s"}?`
-            : "Delete contact?"
-        }
-        description={
-          deleteTarget?.type === "bulk"
-            ? `The selected contact${selectedRows.size === 1 ? "" : "s"} will be removed. Their activity history is kept.`
-            : `"${deleteTarget?.name || "This contact"}" will be removed. Their activity history is kept.`
-        }
-        confirmLabel={
-          deleteTarget?.type === "bulk" ? `Delete ${selectedRows.size}` : "Delete"
-        }
-        variant="destructive"
-        busy={deleting}
-        onConfirm={performDelete}
-        onCancel={() => { if (!deleting) setDeleteTarget(null); }}
-      />
-
-      {/* Single-contact delete with optional cascade to related data. */}
+      {/* Delete — single row or the checkbox selection — with optional
+          cascade to related data. Soft-delete: everything moves to the
+          Archive view and is restorable anytime. */}
       <CascadeDeleteModal
         open={!!cascadeTarget}
-        entityKind="contact"
-        entityLabel={cascadeTarget?.name ?? "This contact"}
+        entityKind={cascadeTarget && cascadeTarget.ids.length > 1 ? `${cascadeTarget.ids.length} contacts` : "contact"}
+        entityLabel={cascadeTarget?.label ?? "This contact"}
+        entityCount={cascadeTarget?.ids.length ?? 1}
         options={cascadeCounts}
         busy={cascadeBusy}
         onConfirm={performCascadeDelete}
