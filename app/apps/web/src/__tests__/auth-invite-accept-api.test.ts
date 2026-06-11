@@ -36,6 +36,8 @@ vi.mock("@/db/schema", () => ({
 
 vi.mock("drizzle-orm", () => ({
   eq: vi.fn(),
+  and: vi.fn(),
+  ne: vi.fn(),
 }));
 
 import { getAuthContext } from "@/lib/auth/auth-utils";
@@ -170,5 +172,35 @@ describe("POST /api/auth/invite/accept", () => {
     expect(updateCalls.length).toBe(2);
     expect(updateCalls[0]).toMatchObject({ tenantId: "new-tenant", role: "member" });
     expect(updateCalls[1]).toMatchObject({ status: "accepted", acceptedByUserId: "u1" });
+  });
+
+  it("solo admin (no other member) CAN accept — the old workspace goes dormant", async () => {
+    vi.mocked(getAuthContext).mockResolvedValue({ ...authCtx, role: "admin" });
+    mockSelectOnce([inviteRow()]); // invite
+    mockSelectOnce([{ id: "u1", email: "bob@acme.com" }]); // user
+    mockSelectOnce([]); // anotherMember lookup -> nobody else in the workspace
+
+    const updateWhere = vi.fn().mockResolvedValue(undefined);
+    const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
+    vi.mocked(db.update).mockReturnValue({ set: updateSet } as never);
+
+    const res = await mod.POST(makeReq({ token: "x" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.tenantId).toBe("new-tenant");
+  });
+
+  it("409 when the sole admin leaves a workspace that still has members", async () => {
+    vi.mocked(getAuthContext).mockResolvedValue({ ...authCtx, role: "admin" });
+    mockSelectOnce([inviteRow()]); // invite
+    mockSelectOnce([{ id: "u1", email: "bob@acme.com" }]); // user
+    mockSelectOnce([{ id: "u2" }]); // anotherMember -> someone would be stranded
+    mockSelectOnce([]); // anotherAdmin -> none
+
+    const res = await mod.POST(makeReq({ token: "x" }));
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toMatch(/only admin/i);
   });
 });

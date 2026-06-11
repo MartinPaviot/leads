@@ -78,32 +78,42 @@ export async function POST(req: Request) {
   }
 
   // M10 — block the accept if leaving the current tenant would strand
-  // it with no admin. Without this guard, a workspace founder who
-  // accepts a cross-tenant invite quietly abandons their own org; any
-  // remaining members are locked out of billing, invites, and settings
-  // (all admin-gated). We look for any OTHER admin in the current
-  // tenant; if there isn't one, the user has to promote someone else
-  // first.
+  // OTHER MEMBERS with no admin. Without this guard, a workspace founder
+  // who accepts a cross-tenant invite quietly abandons their own org;
+  // any remaining members are locked out of billing, invites, and
+  // settings (all admin-gated).
+  //
+  // A SOLO workspace (no other member at all) strands nobody — it just
+  // goes dormant. That's the common "signed up first, then got invited
+  // to the real workspace" path: blocking it dead-ends the invite,
+  // because the sole user has nobody to promote.
   if (authCtx.role === "admin") {
-    const [anotherAdmin] = await db
+    const [anotherMember] = await db
       .select({ id: users.id })
       .from(users)
-      .where(
-        and(
-          eq(users.tenantId, authCtx.tenantId),
-          eq(users.role, "admin"),
-          ne(users.id, user.id)
-        )
-      )
+      .where(and(eq(users.tenantId, authCtx.tenantId), ne(users.id, user.id)))
       .limit(1);
-    if (!anotherAdmin) {
-      return Response.json(
-        {
-          error:
-            "You're the only admin in your current workspace. Promote another member to admin before accepting this invitation, or delete the workspace first.",
-        },
-        { status: 409 }
-      );
+    if (anotherMember) {
+      const [anotherAdmin] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            eq(users.tenantId, authCtx.tenantId),
+            eq(users.role, "admin"),
+            ne(users.id, user.id)
+          )
+        )
+        .limit(1);
+      if (!anotherAdmin) {
+        return Response.json(
+          {
+            error:
+              "You're the only admin in your current workspace. Promote another member to admin before accepting this invitation, or delete the workspace first.",
+          },
+          { status: 409 }
+        );
+      }
     }
   }
 
