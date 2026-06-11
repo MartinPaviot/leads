@@ -688,6 +688,23 @@ export default function ContactsPage() {
       </PageHeader>
 
       <FilterBar>
+        {/* "All (N)" — Accounts-style anchor tab. N is the server total under
+            the ACTIVE filters (search, column filters, smart filters), so it
+            shrinks as the list narrows. Clicking it resets the list view. */}
+        <button
+          type="button"
+          onClick={() => {
+            setColumnFilters({});
+            setSmartFilters([]);
+            setSmartMeta(null);
+            setSearchQuery("");
+          }}
+          className="shrink-0 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
+          style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
+          title="Show all contacts — clears the active filters"
+        >
+          All ({totalContacts})
+        </button>
         {(() => {
           const activeKeys = Object.keys(columnFilters).filter((k) => isColumnFilterActive(columnFilters[k]));
           if (activeKeys.length === 0) return null;
@@ -816,10 +833,10 @@ export default function ContactsPage() {
                 </th>
                 {([
                   { label: "Contact", icon: Users, field: "firstName", filterKey: "contact" },
+                  { label: "Title", icon: Briefcase, field: "title", filterKey: "title" },
                   { label: "Company", icon: Briefcase, field: "companyName", filterKey: "companyName" },
                   { label: "Industry", icon: Factory, field: "companyIndustry", filterKey: "industry" },
                   { label: "Email", icon: Mail, field: "email", filterKey: "email" },
-                  { label: "Title", icon: Briefcase, field: "title", filterKey: "title" },
                   { label: "LinkedIn", icon: null as LucideIcon | null, field: null, filterKey: "linkedin" },
                   { label: "Phone", icon: Phone, field: null, filterKey: "phone" },
                   { label: "Score", icon: Gauge, field: "score", filterKey: "score" },
@@ -908,6 +925,17 @@ export default function ContactsPage() {
                       </div>
                     </td>
 
+                    {/* Title -- seniority-tier icon + hue (from Apollo enrichment) */}
+                    <td>
+                      {contact.title ? (
+                        <TitleBadge
+                          title={contact.title}
+                          seniority={(contact.properties as Record<string, unknown> | null)?.seniority as string | undefined}
+                          className="max-w-[180px]"
+                        />
+                      ) : <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>}
+                    </td>
+
                     {/* Company */}
                     <td>
                       {contact.companyName ? (
@@ -933,17 +961,6 @@ export default function ContactsPage() {
                     {/* Email */}
                     <td className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
                       {contact.email || "—"}
-                    </td>
-
-                    {/* Title -- seniority-tier icon + hue (from Apollo enrichment) */}
-                    <td>
-                      {contact.title ? (
-                        <TitleBadge
-                          title={contact.title}
-                          seniority={(contact.properties as Record<string, unknown> | null)?.seniority as string | undefined}
-                          className="max-w-[180px]"
-                        />
-                      ) : <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>}
                     </td>
 
                     {/* LinkedIn */}
