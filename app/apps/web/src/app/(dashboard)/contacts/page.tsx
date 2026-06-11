@@ -21,6 +21,8 @@ import { applyFilters } from "@/lib/search/filters";
 import type { FilterCondition } from "@/lib/search/filters";
 import { ColumnFilter, isColumnFilterActive, type ColumnFilterKind, type ColumnFilterState } from "@/components/ui/column-filter";
 import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-delete-modal";
+import { chunkedBulkCall } from "@/lib/infra/chunk-bulk";
+import { selectAllMatchingIds } from "@/lib/infra/select-all-matching";
 
 function LinkedInIcon({ size = 13 }: { size?: number }) {
   return (
@@ -356,13 +358,20 @@ export default function ContactsPage() {
       ["tasks", "Tasks"],
     ];
     try {
-      const res = await fetch("/api/contacts/related-counts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { counts?: Record<string, number> };
-      const counts = data.counts ?? {};
+      // The endpoint counts at most 500 ids per call — chunk and sum so the
+      // modal's numbers stay truthful for select-all-sized selections.
+      const counts: Record<string, number> = {};
+      for (let i = 0; i < ids.length; i += 500) {
+        const res = await fetch("/api/contacts/related-counts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: ids.slice(i, i + 500) }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { counts?: Record<string, number> };
+        for (const [key, value] of Object.entries(data.counts ?? {})) {
+          counts[key] = (counts[key] ?? 0) + (value ?? 0);
+        }
+      }
       setCascadeCounts(labels.map(([key, text]) => ({ key, label: text, count: counts[key] ?? 0 })));
     } catch {
       setCascadeCounts(labels.map(([key, text]) => ({ key, label: text, count: 0 })));
@@ -385,6 +394,9 @@ export default function ContactsPage() {
   // Soft-delete the targeted contacts plus any related sets the user ticked.
   // Per-contact requests so each keeps its own delete timestamp (symmetric
   // restore) and a 409 (active sequence enrollment) only blocks that contact.
+  // Requests run in small parallel waves — with "select all matching" a
+  // selection can be the whole base, and strictly sequential round-trips
+  // would take minutes.
   async function performCascadeDelete(selectedKeys: string[]) {
     if (!cascadeTarget) return;
     setCascadeBusy(true);
@@ -392,27 +404,32 @@ export default function ContactsPage() {
     let errors = 0;
     let extra = 0;
     let firstError: string | null = null;
-    for (const id of cascadeTarget.ids) {
-      try {
-        const res = await fetch(`/api/contacts/${id}`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cascade: selectedKeys }),
-        });
-        if (res.ok) {
-          deleted++;
-          const data = (await res.json().catch(() => ({}))) as { cascaded?: Record<string, number> };
-          extra += Object.values(data.cascaded ?? {}).reduce<number>((a, b) => a + (b ?? 0), 0);
-        } else {
-          errors++;
-          if (!firstError) {
-            const data = (await res.json().catch(() => ({}))) as { error?: string };
-            firstError = data.error ?? null;
+    const WAVE = 6;
+    for (let i = 0; i < cascadeTarget.ids.length; i += WAVE) {
+      await Promise.all(
+        cascadeTarget.ids.slice(i, i + WAVE).map(async (id) => {
+          try {
+            const res = await fetch(`/api/contacts/${id}`, {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ cascade: selectedKeys }),
+            });
+            if (res.ok) {
+              deleted++;
+              const data = (await res.json().catch(() => ({}))) as { cascaded?: Record<string, number> };
+              extra += Object.values(data.cascaded ?? {}).reduce<number>((a, b) => a + (b ?? 0), 0);
+            } else {
+              errors++;
+              if (!firstError) {
+                const data = (await res.json().catch(() => ({}))) as { error?: string };
+                firstError = data.error ?? null;
+              }
+            }
+          } catch {
+            errors++;
           }
-        }
-      } catch {
-        errors++;
-      }
+        }),
+      );
     }
     setCascadeBusy(false);
     setCascadeTarget(null);
@@ -435,23 +452,36 @@ export default function ContactsPage() {
     const ids = Array.from(selectedRows);
     if (ids.length === 0) return;
     for (const id of ids) setEnrichStatus((prev) => ({ ...prev, [id]: "enriching" }));
-    try {
-      const res = await fetch("/api/enrich-contacts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactIds: ids }),
-      });
-      for (const id of ids) setEnrichStatus((prev) => ({ ...prev, [id]: res.ok ? "done" : "failed" }));
-      if (res.ok) {
-        await refetchLoadedContacts();
-        toast(`Enriched ${ids.length} contact${ids.length === 1 ? "" : "s"}.`, "success");
-      } else {
-        toast("Bulk enrichment failed.", "error");
-      }
-    } catch (e) {
-      for (const id of ids) setEnrichStatus((prev) => ({ ...prev, [id]: "failed" }));
+    // The endpoint enriches at most 20 contacts per call (provider rate
+    // guard) — fan out in 20-id chunks so EVERY selected contact is actually
+    // processed. One POST with 990 ids used to enrich the first 20 and toast
+    // "Enriched 990 contacts."
+    const result = await chunkedBulkCall({
+      ids,
+      chunkSize: 20,
+      endpoint: "/api/enrich-contacts",
+      buildPayload: (chunk) => ({ contactIds: chunk }),
+      onProgress: (done, total) => {
+        if (total > 20) toast(`Enriching ${Math.min(done, total)} / ${total}…`, "info");
+      },
+    });
+    const failedIds = new Set(result.errors.flatMap((e) => e.ids));
+    setEnrichStatus((prev) => {
+      const next = { ...prev };
+      for (const id of ids) next[id] = failedIds.has(id) ? "failed" : "done";
+      return next;
+    });
+    if (result.succeeded > 0) {
+      await refetchLoadedContacts();
+      toast(
+        result.failed === 0
+          ? `Enriched ${result.succeeded} contact${result.succeeded === 1 ? "" : "s"}.`
+          : `Enriched ${result.succeeded} of ${result.total} — ${result.failed} failed.`,
+        result.failed === 0 ? "success" : "warning",
+      );
+    } else {
       toast("Bulk enrichment failed.", "error");
-      console.warn("contacts: bulk enrich selected failed", e);
+      console.warn("contacts: bulk enrich selected failed", result.errors);
     }
   }
 
@@ -479,20 +509,49 @@ export default function ContactsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast(data?.error || "FullEnrich isn't available.", "error");
+        toast(data?.error || "Deep enrichment isn't available.", "error");
         return;
       }
+      // The deep pass runs at most 100 contacts per submission — say so
+      // instead of silently dropping the rest of a select-all selection.
+      const requested = data.requested ?? Math.min(ids.length, 100);
       toast(
-        `FullEnrich is searching ${data.requested ?? ids.length} contact${(data.requested ?? ids.length) === 1 ? "" : "s"} — phones and emails appear as they're found.`,
-        "success",
+        ids.length > 100
+          ? `Deep enrichment runs 100 contacts at a time — searching ${requested} of ${ids.length} now. Run it again for the rest.`
+          : `Searching ${requested} contact${requested === 1 ? "" : "s"} in depth — phones and emails appear as they're found.`,
+        ids.length > 100 ? "warning" : "success",
       );
       setSelectedRows(new Set());
     } catch (e) {
-      toast("FullEnrich request failed.", "error");
+      toast("Deep enrichment request failed.", "error");
       console.warn("contacts: fullenrich find-mobile failed", e);
     }
   }
 
+  // Header-checkbox "select all": select EVERY contact matching the active
+  // search/filters — the server resolves the full id set with the exact WHERE
+  // the list and its count use — not just the loaded page. The loaded rows
+  // are selected instantly for feedback; the full set replaces them when the
+  // ids arrive. Residual non-score NL smart filters only exist client-side
+  // (the server can't compute "all matching" for them), so with one active
+  // the selection honestly stays the visible rows.
+  async function selectAllMatching() {
+    const visibleIds = filteredContacts.map((c) => c.id);
+    setSelectedRows(new Set(visibleIds));
+    if (smartFilters.some((c) => c.field !== "score")) return;
+    if (contacts.length >= totalContacts) return; // every matching row is already loaded
+    const result = await selectAllMatchingIds({
+      endpoint: "/api/contacts",
+      params: serializeContactFilters(),
+      visibleIds,
+    });
+    setSelectedRows(result.ids);
+    if (result.failed) {
+      toast(`Couldn't load the full list — selected the ${visibleIds.length} loaded contacts.`, "warning");
+    } else if (result.truncated && result.total != null) {
+      toast(`Selected the first ${result.ids.size.toLocaleString()} of ${result.total.toLocaleString()} matching contacts.`, "warning");
+    }
+  }
 
   // Header column-filter config — label + kind drive the <ColumnFilter>
   // dropdowns. The filtering itself runs server-side (see fetchContacts ->
@@ -542,6 +601,12 @@ export default function ContactsPage() {
     const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
     return sortDir === "asc" ? cmp : -cmp;
   });
+
+  // Header checkbox state: checked when every visible row is selected (the
+  // selection may hold MORE than the visible rows after a select-all-matching),
+  // indeterminate when only part of it is.
+  const allVisibleSelected =
+    filteredContacts.length > 0 && filteredContacts.every((c) => selectedRows.has(c.id));
 
   return (
     <div className="flex h-full flex-col animate-content-in">
@@ -716,13 +781,13 @@ export default function ContactsPage() {
                   <input
                     type="checkbox"
                     aria-label="Select all contacts"
-                    checked={selectedRows.size > 0 && selectedRows.size === filteredContacts.length}
+                    checked={allVisibleSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = selectedRows.size > 0 && !allVisibleSelected;
+                    }}
                     onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedRows(new Set(filteredContacts.map((c) => c.id)));
-                      } else {
-                        setSelectedRows(new Set());
-                      }
+                      if (e.target.checked) void selectAllMatching();
+                      else setSelectedRows(new Set());
                     }}
                     className="h-3.5 w-3.5 rounded"
                   />

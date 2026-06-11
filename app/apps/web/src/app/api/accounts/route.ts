@@ -138,6 +138,32 @@ export async function GET(req: Request) {
     )!;
     const whereClause = tabCond ? and(countsWhere, tabCond)! : countsWhere;
 
+    // "Select all matching" support: `?idsOnly=true` returns just the ids of
+    // EVERY account the current view + filters match (the exact whereClause
+    // the list and its count use), so the header checkbox can select the full
+    // filtered set instead of only the loaded page. The cap is a payload
+    // guard far above any realistic tenant; `total` lets the client detect
+    // (and say) when it was hit.
+    if (url.searchParams.get("idsOnly") === "true") {
+      const MAX_SELECT_ALL_IDS = 50_000;
+      const [idRows, idCount] = await Promise.all([
+        db
+          .select({ id: companies.id })
+          .from(companies)
+          .where(whereClause)
+          .orderBy(sql`${companies.score} DESC NULLS LAST`, companies.id)
+          .limit(MAX_SELECT_ALL_IDS),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(companies)
+          .where(whereClause),
+      ]);
+      return Response.json({
+        ids: idRows.map((r) => r.id),
+        total: idCount[0]?.count ?? idRows.length,
+      });
+    }
+
     // Filter dropdown options (facets): computed over the VIEW's base scope
     // (tenant + the same deleted/excluded mode), INDEPENDENT of every narrowing
     // filter, so the column menus stay complete even when only filtered rows
