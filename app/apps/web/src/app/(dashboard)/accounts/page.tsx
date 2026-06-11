@@ -1897,7 +1897,7 @@ export default function AccountsPage() {
                         className="h-3.5 w-3.5 rounded"
                       />
                     </td>
-                    {/* Account name with logo + status */}
+                    {/* Account name with logo */}
                     <td>
                       <div className="flex items-center gap-2.5">
                         {/* Expand contacts chevron */}
@@ -1919,28 +1919,6 @@ export default function AccountsPage() {
                         >
                           {expandedAccountId === account.id ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                         </button>
-                        {/* Status dot — driven by the live enrichment stream. */}
-                        {(() => {
-                          const active = enrichStream.active.has(account.id);
-                          const streamStatus = enrichStream.companyStatus.get(account.id);
-                          const color = active
-                            ? "var(--color-warning)"
-                            : isEnriched(account)
-                              ? "var(--color-success)"
-                              : streamStatus === "no-data"
-                                ? "var(--color-warning)"
-                                : streamStatus === "error"
-                                  ? "var(--color-error)"
-                                  : "var(--color-text-muted)";
-                          return (
-                            <span
-                              className={`h-1.5 w-1.5 shrink-0 rounded-full${active ? " animate-pulse" : ""}`}
-                              style={{ background: color }}
-                              title={active ? "Enriching…" : streamStatus === "no-data" ? "No data found" : undefined}
-                            />
-                          );
-                        })()}
-
                         {/* Logo */}
                         <CompanyLogo
                           domain={account.domain}

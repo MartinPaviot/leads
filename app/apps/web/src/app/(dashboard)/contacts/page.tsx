@@ -297,7 +297,8 @@ export default function ContactsPage() {
       const res = await fetch("/api/enrich-contacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactIds: [id] }) });
       setEnrichStatus((prev) => ({ ...prev, [id]: res.ok ? "done" : "failed" }));
       if (res.ok) await refetchLoadedContacts();
-    } catch { setEnrichStatus((prev) => ({ ...prev, [id]: "failed" })); }
+      else toast("Enrichment failed.", "error");
+    } catch { setEnrichStatus((prev) => ({ ...prev, [id]: "failed" })); toast("Enrichment failed.", "error"); }
   }
 
 
@@ -885,10 +886,6 @@ export default function ContactsPage() {
             <tbody>
               {filteredContacts.map((contact) => {
                 const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "—";
-                const statusColor = enrichStatus[contact.id] === "enriching" ? "var(--color-warning)"
-                  : isEnriched(contact) ? "var(--color-success)"
-                  : enrichStatus[contact.id] === "failed" ? "var(--color-error)"
-                  : "var(--color-text-muted)";
 
                 return (
                   <tr
@@ -912,10 +909,9 @@ export default function ContactsPage() {
                         className="h-3.5 w-3.5 rounded"
                       />
                     </td>
-                    {/* Contact name with avatar + status */}
+                    {/* Contact name with avatar */}
                     <td onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-2.5">
-                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${enrichStatus[contact.id] === "enriching" ? "animate-pulse" : ""}`} style={{ background: statusColor }} />
                         <CompanyLogo domain={contact.companyDomain} name={contact.firstName || contact.email || "?"} size={24} />
                         <div className="min-w-0">
                           <button onClick={() => router.push(`/contacts/${contact.id}`)} className="truncate text-left text-[13px] font-medium transition-colors hover:underline" style={{ color: "var(--color-text-primary)" }}>
@@ -1020,12 +1016,17 @@ export default function ContactsPage() {
                       );
                     })}
 
-                    {/* Actions */}
-                    <td className="actions" onClick={(e) => e.stopPropagation()}>
+                    {/* Actions — forced visible while enriching so the in-flight
+                        spinner (the row's only live feedback) can't hide. */}
+                    <td className="actions" style={enrichStatus[contact.id] === "enriching" ? { opacity: 1 } : undefined} onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
-                        {!isEnriched(contact) && enrichStatus[contact.id] !== "enriching" && (
+                        {enrichStatus[contact.id] === "enriching" ? (
+                          <span className="inline-flex items-center gap-1 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                            <Loader2 size={12} className="animate-spin" /> Enriching…
+                          </span>
+                        ) : (!isEnriched(contact) && (
                           <Button variant="ghost" size="sm" onClick={() => enrichSingle(contact.id)} className="!px-2 !py-0.5">Enrich</Button>
-                        )}
+                        ))}
                         <button
                           type="button"
                           aria-label={`Delete ${name}`}
