@@ -15,14 +15,21 @@
  * for chat/RAG.
  *
  * Scope (deliberate): captures inbound we can confidently attribute — a tracked
- * thread reply, a known contact, or a known company domain (auto-creating the
- * contact only when the tenant opted in via contactCreationMode). Inbound from
- * a wholly-unknown sender is left for a future cold-inbound triage increment
- * rather than auto-creating contact spam or inserting orphan activities.
+ * thread reply, a known contact, or a known company domain. A sender at a
+ * company ALREADY in the CRM gets their contact auto-created in every mode but
+ * "disabled" (the CRM-graph rule: that is exactly the interaction the product
+ * promises to capture); senders at unknown companies create contacts only when
+ * the tenant opted in via contactCreationMode. Inbound from a wholly-unknown
+ * sender is left for a future cold-inbound triage increment rather than
+ * auto-creating contact spam or inserting orphan activities.
+ *
+ * Since the IMAP/Gmail pull-sync unification, ALL inbound paths run through
+ * this seam — webhook, 15-min cron, force-sync — so attribution and dedup
+ * cannot diverge again.
  */
 
 import { db } from "@/db";
-import { activities, contacts, companies } from "@/db/schema";
+import { activities, contacts, companies, outboundEmails } from "@/db/schema";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { recordCapturedActivity, getCaptureApprovalMode } from "@/lib/capture/approval";
 import {
@@ -32,11 +39,24 @@ import {
 } from "@/lib/config/tenant-settings";
 import { embedEntity } from "@/lib/ai/embeddings";
 import { ingestEpisode } from "@/lib/ai/context-graph";
+import { inngest } from "@/inngest/client";
 
 /** "John Doe <john@example.com>" -> "john@example.com" (lowercased). */
 export function extractEmailFromHeader(header: string): string {
   const m = header?.match(/<([^>]+)>/);
   return (m ? m[1] : header || "").trim().toLowerCase();
+}
+
+/**
+ * Normalize a date that may have crossed an Inngest step boundary. step.run
+ * results are JSON round-tripped, so a Date comes back as an ISO STRING —
+ * passing that to a drizzle timestamp column throws at insert time and
+ * dead-letters the whole sync batch (after the IMAP cursor already advanced:
+ * the original silent-loss bug). Invalid/missing values fall back to now.
+ */
+export function normalizeSyncDate(value: Date | string | null | undefined): Date {
+  const d = value instanceof Date ? value : value ? new Date(value) : new Date();
+  return Number.isNaN(d.getTime()) ? new Date() : d;
 }
 
 /** "John Doe <john@example.com>" -> { firstName: "John", lastName: "Doe" }. */
@@ -66,7 +86,8 @@ export interface InboundEmailInput {
   threadId?: string | null;
   /** When the inbound is a reply to a tracked outbound, its contactId. */
   knownContactId?: string | null;
-  occurredAt?: Date;
+  /** May be an ISO string when the caller crossed an Inngest step boundary. */
+  occurredAt?: Date | string;
 }
 
 export interface InboundCaptureResult {
@@ -77,6 +98,73 @@ export interface InboundCaptureResult {
   approvalId?: string;
   contactId?: string | null;
   companyId?: string | null;
+  /** true → this capture auto-created the contact. */
+  contactCreated?: boolean;
+}
+
+/**
+ * Detect a reply to a tracked outbound sequence email (threadId match), flip
+ * `repliedAt` and emit `email/reply-received` for the processReply handler.
+ *
+ * Idempotent: the FIRST caller to see the reply wins (repliedAt null-guard) —
+ * the cron, force-sync and any future path can all call this without
+ * double-firing processReply. The EmailEngine webhook keeps its own
+ * reply-classification queue; its fallback also sets repliedAt, which this
+ * guard respects.
+ */
+export async function detectSequenceReply(opts: {
+  tenantId: string;
+  threadId?: string | null;
+  contactId?: string | null;
+  replyBody?: string | null;
+  replySubject?: string | null;
+  replierEmail?: string | null;
+}): Promise<boolean> {
+  if (!opts.threadId || !opts.contactId) return false;
+
+  const [outbound] = await db
+    .select({
+      id: outboundEmails.id,
+      enrollmentId: outboundEmails.enrollmentId,
+      contactId: outboundEmails.contactId,
+      repliedAt: outboundEmails.repliedAt,
+    })
+    .from(outboundEmails)
+    .where(
+      and(
+        eq(outboundEmails.threadId, opts.threadId),
+        eq(outboundEmails.tenantId, opts.tenantId),
+        eq(outboundEmails.status, "sent"),
+      ),
+    )
+    .limit(1);
+
+  if (!outbound?.enrollmentId || outbound.repliedAt) return false;
+
+  await db
+    .update(outboundEmails)
+    .set({
+      repliedAt: new Date(),
+      replySnippet: (opts.replyBody || "").slice(0, 500),
+    })
+    .where(eq(outboundEmails.id, outbound.id));
+
+  await inngest
+    .send({
+      name: "email/reply-received",
+      data: {
+        tenantId: opts.tenantId,
+        enrollmentId: outbound.enrollmentId,
+        contactId: outbound.contactId || opts.contactId,
+        outboundEmailId: outbound.id,
+        replyBody: (opts.replyBody || "").slice(0, 5000),
+        replySubject: opts.replySubject || "",
+        replierEmail: opts.replierEmail || "",
+      },
+    })
+    .catch(console.warn);
+
+  return true;
 }
 
 /**
@@ -91,6 +179,9 @@ export async function captureInboundEmail(
   const messageId = input.messageId || null;
 
   // Idempotency: skip if this messageId is already captured for the tenant.
+  // The batch pull paths historically keyed dedup on metadata.gmailMessageId,
+  // so honour both keys — a message captured by one path must never be
+  // re-inserted by another.
   if (messageId) {
     const [dup] = await db
       .select({ id: activities.id })
@@ -99,7 +190,7 @@ export async function captureInboundEmail(
         and(
           eq(activities.tenantId, tenantId),
           eq(activities.channel, "email"),
-          sql`(${activities.metadata} ->> 'messageId') = ${messageId}`,
+          sql`((${activities.metadata} ->> 'messageId') = ${messageId} OR (${activities.metadata} ->> 'gmailMessageId') = ${messageId})`,
         ),
       )
       .limit(1);
@@ -108,6 +199,7 @@ export async function captureInboundEmail(
 
   // Resolve the contact: explicit thread reply -> existing by sender -> create.
   let contact: { id: string; companyId: string | null } | null = null;
+  let contactCreated = false;
   if (input.knownContactId) {
     const [c] = await db
       .select({ id: contacts.id, companyId: contacts.companyId })
@@ -159,7 +251,15 @@ export async function captureInboundEmail(
       .limit(1);
     let resolvedCompanyId: string | null = existingCo?.id ?? null;
 
-    if (shouldAutoCreateContact(settings.contactCreationMode, "inbound")) {
+    // CRM-graph rule: a sender at a company ALREADY in the CRM is the exact
+    // interaction the product promises to capture — create the contact under
+    // that account even in "selective" mode (only "disabled" opts out).
+    // Senders at unknown companies still require an explicit opt-in mode.
+    const createContact =
+      shouldAutoCreateContact(settings.contactCreationMode, "inbound") ||
+      (!!existingCo && settings.contactCreationMode !== "disabled");
+
+    if (createContact) {
       if (!resolvedCompanyId) {
         const base = domain.split(".")[0] || domain;
         const [newCo] = await db
@@ -167,6 +267,9 @@ export async function captureInboundEmail(
           .values({ tenantId, name: base.charAt(0).toUpperCase() + base.slice(1), domain })
           .returning({ id: companies.id });
         resolvedCompanyId = newCo.id;
+        void inngest
+          .send({ name: "company/created", data: { companyId: newCo.id, tenantId } })
+          .catch(() => {});
       }
       const nm = extractNameFromHeader(input.fromHeader || "");
       const [newContact] = await db
@@ -180,7 +283,11 @@ export async function captureInboundEmail(
         })
         .returning({ id: contacts.id, companyId: contacts.companyId });
       contact = newContact;
+      contactCreated = true;
       companyId = newContact.companyId;
+      void inngest
+        .send({ name: "contact/created", data: { contactId: newContact.id, tenantId } })
+        .catch(() => {});
     } else {
       companyId = resolvedCompanyId;
     }
@@ -200,7 +307,7 @@ export async function captureInboundEmail(
   }
 
   const mode = getCaptureApprovalMode(settings as unknown as Record<string, unknown>);
-  const occurredAt = input.occurredAt ?? new Date();
+  const occurredAt = normalizeSyncDate(input.occurredAt);
 
   const res = await recordCapturedActivity({
     tenantId,
@@ -254,5 +361,6 @@ export async function captureInboundEmail(
     approvalId: res.approvalId,
     contactId: contact?.id ?? null,
     companyId,
+    contactCreated,
   };
 }

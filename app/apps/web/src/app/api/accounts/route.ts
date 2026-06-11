@@ -5,6 +5,7 @@ import { and, eq, sql, desc, isNull, isNotNull, or, ilike, inArray, gte, lte, ty
 import { matchIndustries } from "@/lib/search/industry-match";
 import { parseExcludedMode, parseAccountListFilters, GRADE_RANGES } from "@/lib/accounts/list-filters";
 import { EFFECTIVE_LIFECYCLE_STAGE_SQL } from "@/lib/accounts/lifecycle-stage";
+import { lastInteractionUnionSql } from "@/lib/accounts/last-interaction";
 import { inngest } from "@/inngest/client";
 import { apiError } from "@/lib/infra/api-errors";
 import { paginatedResponse } from "@/lib/infra/api-response";
@@ -265,23 +266,25 @@ export async function GET(req: Request) {
 
     const total = countResult[0]?.count ?? 0;
 
-    // Fetch last interaction per account (most recent activity linked to each company's contacts)
+    // Fetch last interaction per account — real exchanges only (email, call,
+    // meeting), across the account's contacts, the company itself and its
+    // deals. The shape lives in lib/accounts/last-interaction.ts so the type
+    // filter and deleted_at guards are testable and can't silently regress
+    // into surfacing logAudit bookkeeping as an "interaction".
     const lastInteractions: Record<string, { date: Date; summary: string | null }> = {};
 
     try {
       if (accounts.length > 0) {
         const accountIds = accounts.map((a) => a.id);
-        const interactions = await db.execute(sql`
-          SELECT DISTINCT ON (c.company_id)
-            c.company_id,
-            a.occurred_at,
-            a.summary
-          FROM activities a
-          JOIN contacts c ON c.id = a.entity_id AND a.entity_type = 'contact'
-          WHERE c.company_id = ANY(ARRAY[${sql.join(accountIds.map(id => sql`${id}`), sql`, `)}]::text[])
-            AND a.tenant_id = ${authCtx.tenantId}
-          ORDER BY c.company_id, a.occurred_at DESC
-        `);
+        const idsArr = sql`ARRAY[${sql.join(accountIds.map(id => sql`${id}`), sql`, `)}]::text[]`;
+        const tpl = lastInteractionUnionSql({ idsParam: "__IDS__", tenantParam: "__TENANT__" });
+        const query = sql.join(
+          tpl.split(/(__IDS__|__TENANT__)/).map((part) =>
+            part === "__IDS__" ? idsArr : part === "__TENANT__" ? sql`${authCtx.tenantId}` : sql.raw(part),
+          ),
+          sql``,
+        );
+        const interactions = await db.execute(query);
         for (const row of interactions as unknown as Array<{ company_id: string; occurred_at: Date; summary: string | null }>) {
           lastInteractions[row.company_id] = { date: row.occurred_at, summary: row.summary };
         }

@@ -1,8 +1,9 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities, contacts, companies, users, tenants, connectedMailboxes, authAccounts } from "@/db/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, sql } from "drizzle-orm";
 import { fetchRecentEmails } from "@/lib/integrations/gmail";
+import { captureInboundEmail, detectSequenceReply, normalizeSyncDate } from "@/lib/capture/email-capture";
 import { ingestEpisode } from "@/lib/ai/context-graph";
 import { embedEntity } from "@/lib/ai/embeddings";
 import { getTenantSettings, backsyncRangeToDays, buildIgnoredDomains, shouldAutoCreateContact } from "@/lib/config/tenant-settings";
@@ -124,39 +125,71 @@ export async function POST() {
 
     let created = 0;
     let skipped = 0;
+    let queued = 0;
     let contactsCreated = 0;
     let companiesCreated = 0;
 
     for (const email of emails) {
+      // ── Inbound: unified capture seam — same attribution, dedup,
+      // capture-approval and CRM-graph rules as the webhook and the
+      // IMAP cron (captureInboundEmail). This replaced a duplicated
+      // inline version whose dedup keyed on the SUBJECT (any same-subject
+      // email was silently skipped).
+      if (email.direction === "inbound") {
+        const captured = await captureInboundEmail({
+          tenantId: authCtx.tenantId,
+          fromHeader: email.from,
+          toHeader: email.to?.[0] ?? null,
+          subject: email.subject,
+          text: email.body || email.snippet || null,
+          messageId: email.gmailMessageId,
+          threadId: email.threadId,
+          occurredAt: email.date,
+        });
+        if (captured.captured) created++;
+        else if (captured.reason === "queued_for_review") queued++;
+        else skipped++;
+        if (captured.contactCreated) contactsCreated++;
+
+        // Sequence reply detection — idempotent in the seam (repliedAt
+        // null-guard), so force-sync and the cron can't double-fire.
+        if (captured.reason !== "duplicate") {
+          await detectSequenceReply({
+            tenantId: authCtx.tenantId,
+            threadId: email.threadId,
+            contactId: captured.contactId,
+            replyBody: email.body || email.snippet,
+            replySubject: email.subject,
+            replierEmail: extractEmailFromHeader(email.from),
+          });
+        }
+        continue;
+      }
+
+      // ── Outbound: direct insert (sent mail is always first-party) ──
       // Dedup by gmailMessageId — use raw SQL for JSONB containment
       const existing = await db.select({ id: activities.id }).from(activities)
         .where(and(
           eq(activities.tenantId, authCtx.tenantId),
           eq(activities.channel, "email"),
-          eq(activities.summary, email.subject),
+          sql`(${activities.metadata} ->> 'gmailMessageId') = ${email.gmailMessageId}`,
         ))
         .limit(1);
 
-      // More robust dedup: check if we already have this message ID
       if (existing.length > 0) {
         skipped++;
         continue;
       }
 
       // Match email to contact
-      const relevantEmail =
-        email.direction === "inbound"
-          ? extractEmailFromHeader(email.from)
-          : email.to.map(extractEmailFromHeader).find((e) => contactByEmail.has(e.toLowerCase()));
+      const relevantEmail = email.to.map(extractEmailFromHeader).find((e) => contactByEmail.has(e.toLowerCase()));
 
       let matchedContact = relevantEmail
         ? contactByEmail.get(relevantEmail.toLowerCase())
         : null;
 
       // Auto-create contact + company from email domain
-      const counterpartyEmail = email.direction === "inbound"
-        ? extractEmailFromHeader(email.from)
-        : email.to.map(extractEmailFromHeader)[0];
+      const counterpartyEmail = email.to.map(extractEmailFromHeader)[0];
 
       if (
         !matchedContact &&
@@ -180,9 +213,7 @@ export async function POST() {
           }
 
           // Create contact from email header
-          const nameFromHeader = extractNameFromHeader(
-            email.direction === "inbound" ? email.from : email.to[0]
-          );
+          const nameFromHeader = extractNameFromHeader(email.to[0]);
           const [newContact] = await db.insert(contacts).values({
             tenantId: authCtx.tenantId,
             firstName: nameFromHeader.firstName,
@@ -207,18 +238,14 @@ export async function POST() {
         sourceRef: email.gmailMessageId,
         activity: {
           tenantId: authCtx.tenantId,
-          actorType: email.direction === "inbound" ? "contact" : "user",
-          actorId:
-            email.direction === "inbound"
-              ? matchedContact?.id || null
-              : authCtx.userId,
+          actorType: "user",
+          actorId: authCtx.userId,
           entityType,
           entityId,
-          activityType:
-            email.direction === "inbound" ? "email_received" : "email_sent",
+          activityType: "email_sent",
           channel: "email",
-          direction: email.direction,
-          occurredAt: email.date,
+          direction: "outbound",
+          occurredAt: normalizeSyncDate(email.date),
           summary: email.subject,
           metadata: {
             gmailMessageId: email.gmailMessageId,
@@ -256,6 +283,7 @@ export async function POST() {
       success: true,
       created,
       skipped,
+      queued,
       contactsCreated,
       companiesCreated,
       total: emails.length,

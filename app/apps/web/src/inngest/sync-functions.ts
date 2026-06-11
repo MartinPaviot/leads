@@ -5,6 +5,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { fetchRecentEmails, type SyncedEmail } from "@/lib/integrations/gmail";
 import { fetchOutlookEmails } from "@/lib/integrations/outlook";
 import { fetchRecentEmailsImap } from "@/lib/integrations/imap";
+import { captureInboundEmail, detectSequenceReply, normalizeSyncDate } from "@/lib/capture/email-capture";
 import { decryptSecret } from "@/lib/crypto/settings-encryption";
 import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/integrations/calendar";
 import { embedEntity, activityToText, contactToText, companyToText } from "@/lib/ai/embeddings";
@@ -248,6 +249,59 @@ export const syncEmails = inngest.createFunction(
         let batchContacts = 0;
 
         for (const email of batch) {
+          // ── Inbound: unified capture seam ─────────────────────────────
+          // Same attribution, dedup, capture-approval and CRM-graph rules as
+          // the EmailEngine webhook (captureInboundEmail) — known contact →
+          // contact-attached; sender at a company already in the CRM →
+          // company-attached + contact auto-created; unknown sender → no
+          // orphan row. This replaced a duplicated, weaker inline version
+          // whose direct insert also dead-lettered on step-serialized dates.
+          if (email.direction === "inbound") {
+            const counterpartyEmail = extractEmail(email.from).toLowerCase();
+            const captured = await captureInboundEmail({
+              tenantId,
+              fromHeader: email.from,
+              toHeader: email.to?.[0] ?? null,
+              subject: email.subject,
+              text: (email.body || email.snippet || "").slice(0, 10000),
+              messageId: email.gmailMessageId,
+              threadId: email.threadId,
+              occurredAt: email.date,
+            });
+            if (captured.captured) {
+              batchCreated++;
+              // Post-processing (sentiment, contact scoring, realtime
+              // signals) keys on CONTACT ids — company-attached captures
+              // stay out of it rather than leaking a company id in.
+              if (captured.activityId && captured.contactId) {
+                createdActivities.push({
+                  id: captured.activityId,
+                  entityId: captured.contactId,
+                  subject: email.subject,
+                  body: (email.body || "").slice(0, 2000),
+                  direction: email.direction,
+                  metadata: { gmailMessageId: email.gmailMessageId, threadId: email.threadId },
+                });
+              }
+            }
+            if (captured.contactCreated) batchContacts++;
+
+            // Sequence reply detection — idempotent in the seam (repliedAt
+            // null-guard), so force-sync and the cron can't double-fire.
+            if (captured.reason !== "duplicate") {
+              await detectSequenceReply({
+                tenantId,
+                threadId: email.threadId,
+                contactId: captured.contactId,
+                replyBody: email.body || email.snippet,
+                replySubject: email.subject,
+                replierEmail: counterpartyEmail,
+              });
+            }
+            continue;
+          }
+
+          // ── Outbound: direct insert (sent mail is always first-party) ──
           // Dedup by gmailMessageId in metadata
           const [existing] = await db
             .select({ id: activities.id })
@@ -263,10 +317,7 @@ export const syncEmails = inngest.createFunction(
           if (existing) continue;
 
           // Determine counterparty email
-          const counterpartyHeader =
-            email.direction === "inbound"
-              ? email.from
-              : email.to[0] || email.from;
+          const counterpartyHeader = email.to[0] || email.from;
           const counterpartyEmail = extractEmail(counterpartyHeader).toLowerCase();
 
           // Find or create contact for counterparty
@@ -362,14 +413,16 @@ export const syncEmails = inngest.createFunction(
           // Create activity record
           const [activity] = await db.insert(activities).values({
             tenantId,
-            actorType: email.direction === "inbound" ? "contact" : "user",
-            actorId: email.direction === "inbound" ? matchedContact?.id || null : appUserId,
+            actorType: "user",
+            actorId: appUserId,
             entityType: "contact",
             entityId: matchedContact?.id || "unknown",
-            activityType: email.direction === "inbound" ? "email_received" : "email_sent",
+            activityType: "email_sent",
             channel: "email",
             direction: email.direction,
-            occurredAt: email.date,
+            // step.run JSON round-trips dates into strings; a raw string here
+            // throws at insert time and dead-letters the whole batch.
+            occurredAt: normalizeSyncDate(email.date),
             summary: email.subject,
             rawContent: (email.body || email.snippet || "").slice(0, 10000),
             threadId: email.threadId,
@@ -392,7 +445,7 @@ export const syncEmails = inngest.createFunction(
                 rawContent: (email.body || email.snippet || "").slice(0, 10000),
                 channel: "email",
                 direction: email.direction,
-                occurredAt: email.date,
+                occurredAt: normalizeSyncDate(email.date),
                 contactName: matchedContact ? [matchedContact.firstName, matchedContact.lastName].filter(Boolean).join(" ") : null,
               });
               if (text.trim()) {
@@ -400,47 +453,6 @@ export const syncEmails = inngest.createFunction(
               }
             } catch {
               // Non-critical embedding failure
-            }
-          }
-
-          // Detect replies to outbound sequence emails (match by threadId)
-          if (email.direction === "inbound" && email.threadId && matchedContact?.id) {
-            const [outbound] = await db
-              .select({
-                id: outboundEmails.id,
-                enrollmentId: outboundEmails.enrollmentId,
-                contactId: outboundEmails.contactId,
-              })
-              .from(outboundEmails)
-              .where(
-                and(
-                  eq(outboundEmails.threadId, email.threadId),
-                  eq(outboundEmails.tenantId, tenantId),
-                  eq(outboundEmails.status, "sent"),
-                )
-              )
-              .limit(1);
-
-            if (outbound?.enrollmentId) {
-              // Mark outbound email as replied
-              await db.update(outboundEmails).set({
-                repliedAt: new Date(),
-                replySnippet: (email.body || email.snippet || "").slice(0, 500),
-              }).where(eq(outboundEmails.id, outbound.id));
-
-              // Emit reply event for processReply handler
-              await inngest.send({
-                name: "email/reply-received",
-                data: {
-                  tenantId,
-                  enrollmentId: outbound.enrollmentId,
-                  contactId: outbound.contactId || matchedContact.id,
-                  outboundEmailId: outbound.id,
-                  replyBody: (email.body || email.snippet || "").slice(0, 5000),
-                  replySubject: email.subject || "",
-                  replierEmail: counterpartyEmail,
-                },
-              }).catch(console.warn);
             }
           }
 
@@ -675,7 +687,11 @@ export const syncCalendar = inngest.createFunction(
 
         const primaryContact = matchedAttendees.find((a: AttendeeWithContact) => a.contact)?.contact;
 
-        const isPast = meeting.startTime < new Date();
+        // step.run JSON round-trips dates into strings — a raw string here
+        // throws (toISOString) and dead-letters the whole calendar batch.
+        const startTime = normalizeSyncDate(meeting.startTime);
+        const endTime = normalizeSyncDate(meeting.endTime);
+        const isPast = startTime < new Date();
         const activityType = isPast ? "meeting_completed" : "meeting_scheduled";
 
         const [activity] = await db.insert(activities).values({
@@ -687,13 +703,13 @@ export const syncCalendar = inngest.createFunction(
           activityType,
           channel: "meeting",
           direction: "outbound",
-          occurredAt: meeting.startTime,
+          occurredAt: startTime,
           summary: meeting.title,
           rawContent: meeting.description,
           metadata: {
             calendarEventId: meeting.calendarEventId,
-            startTime: meeting.startTime.toISOString(),
-            endTime: meeting.endTime.toISOString(),
+            startTime: startTime.toISOString(),
+            endTime: endTime.toISOString(),
             attendees: matchedAttendees.map((a: AttendeeWithContact) => ({
               email: a.email,
               displayName: a.displayName,
@@ -714,7 +730,7 @@ export const syncCalendar = inngest.createFunction(
               rawContent: meeting.description,
               channel: "meeting",
               direction: "outbound",
-              occurredAt: meeting.startTime,
+              occurredAt: startTime,
               contactName: primaryContact ? [primaryContact.firstName, primaryContact.lastName].filter(Boolean).join(" ") : null,
             });
             if (text.trim()) {
@@ -885,13 +901,23 @@ export const cronSyncEmails = inngest.createFunction(
     // separately and poll each via the same email/sync-requested handler.
     const imapMailboxes = await step.run("find-imap-mailboxes", async () => {
       const rows = await db
-        .select({ id: connectedMailboxes.id, tenantId: connectedMailboxes.tenantId })
+        .select({ id: connectedMailboxes.id, tenantId: connectedMailboxes.tenantId, userId: connectedMailboxes.userId })
         .from(connectedMailboxes)
         .where(and(eq(connectedMailboxes.provider, "smtp_custom"), eq(connectedMailboxes.status, "active")));
-      const out: { mailboxId: string; tenantId: string; appUserId: string }[] = [];
+      const out: { mailboxId: string; tenantId: string; userId: string; appUserId: string }[] = [];
       for (const mb of rows) {
-        const [u] = await db.select({ id: users.id }).from(users).where(eq(users.tenantId, mb.tenantId)).limit(1);
-        out.push({ mailboxId: mb.id, tenantId: mb.tenantId, appUserId: u?.id ?? "" });
+        // Mailboxes are personal (PR #173): resolve the OWNER's app user via
+        // the clerk_id bridge — never "any user of the tenant" — so outbound
+        // attribution and the per-user concurrency key stay correct. Legacy
+        // rows without user_id fall back to the first tenant user (their
+        // app-user id then doubles as the concurrency key).
+        const [owner] = mb.userId
+          ? await db.select({ id: users.id }).from(users).where(eq(users.clerkId, mb.userId)).limit(1)
+          : [undefined];
+        const [appUser] = owner
+          ? [owner]
+          : await db.select({ id: users.id }).from(users).where(eq(users.tenantId, mb.tenantId)).limit(1);
+        out.push({ mailboxId: mb.id, tenantId: mb.tenantId, userId: mb.userId ?? appUser?.id ?? "", appUserId: appUser?.id ?? "" });
       }
       return out;
     });
@@ -900,7 +926,7 @@ export const cronSyncEmails = inngest.createFunction(
       for (const mb of imapMailboxes) {
         await inngest.send({
           name: "email/sync-requested",
-          data: { userId: mb.appUserId, tenantId: mb.tenantId, appUserId: mb.appUserId, daysBack: 1, provider: "smtp_custom", mailboxId: mb.mailboxId },
+          data: { userId: mb.userId, tenantId: mb.tenantId, appUserId: mb.appUserId, daysBack: 1, provider: "smtp_custom", mailboxId: mb.mailboxId },
         });
       }
     });
