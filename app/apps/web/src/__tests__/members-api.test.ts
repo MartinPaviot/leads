@@ -37,7 +37,7 @@ vi.mock("@/db/schema", () => ({
   },
 }));
 
-vi.mock("drizzle-orm", () => ({ eq: vi.fn(), and: vi.fn() }));
+vi.mock("drizzle-orm", () => ({ eq: vi.fn(), and: vi.fn(), isNull: vi.fn() }));
 
 import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
@@ -75,21 +75,24 @@ beforeEach(() => {
 });
 
 describe("GET /api/settings/members", () => {
-  it("flags the acting admin's own row with isSelf", async () => {
+  it("returns active members (deactivated are filtered by the query) and flags isSelf", async () => {
     vi.mocked(getAuthContext).mockResolvedValue(authAdmin);
+    // The route adds isNull(deactivatedAt) to the WHERE, so the DB returns only
+    // active rows — the mock reflects that (no deactivated rows come back).
     mockSelectRows([
-      { id: "u1", email: "me@acme.com", firstName: "Me", lastName: null, role: "admin", avatarUrl: null, createdAt: null, deactivatedAt: null },
-      { id: "u2", email: "bob@acme.com", firstName: "Bob", lastName: null, role: "member", avatarUrl: null, createdAt: null, deactivatedAt: new Date() },
+      { id: "u1", email: "me@acme.com", firstName: "Me", lastName: null, role: "admin", avatarUrl: null, createdAt: null },
+      { id: "u2", email: "bob@acme.com", firstName: "Bob", lastName: null, role: "member", avatarUrl: null, createdAt: null },
     ]);
     const res = await mod.GET();
     expect(res.status).toBe(200);
     const body = await res.json();
+    expect(body.members).toHaveLength(2);
     const me = body.members.find((m: { id: string }) => m.id === "u1");
     const bob = body.members.find((m: { id: string }) => m.id === "u2");
     expect(me.isSelf).toBe(true);
-    expect(me.status).toBe("active");
     expect(bob.isSelf).toBe(false);
-    expect(bob.status).toBe("deactivated");
+    // No deactivated state is surfaced anymore.
+    expect(me).not.toHaveProperty("status");
   });
 });
 

@@ -6,6 +6,8 @@ import { and, eq } from "drizzle-orm";
 import { sendInviteEmail } from "@/lib/emails/email-invite";
 import { generateInviteToken } from "@/lib/auth/invite-token";
 import { logAudit } from "@/lib/infra/audit-log";
+import { invalidateRoleCache } from "@/lib/auth/fresh-role";
+import { invalidateSessionGuard } from "@/lib/auth/session-guard";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -35,14 +37,39 @@ export async function POST(req: Request) {
     return Response.json({ error: "Invalid email address" }, { status: 400 });
   }
 
-  // Reject if already a member of this tenant
+  // Already in this tenant? An ACTIVE member is a no-op (reject). A previously
+  // REVOKED (deactivated) member is re-added in place: clearing deactivated_at
+  // restores their login + access immediately and re-applies the chosen role,
+  // so "remove" stays reversible without stranding the account. No email/link
+  // needed — they keep their existing account.
   const [existingUser] = await db
-    .select({ id: users.id })
+    .select({ id: users.id, clerkId: users.clerkId, deactivatedAt: users.deactivatedAt })
     .from(users)
     .where(and(eq(users.tenantId, authCtx.tenantId), eq(users.email, rawEmail)))
     .limit(1);
-  if (existingUser) {
+  if (existingUser && !existingUser.deactivatedAt) {
     return Response.json({ error: "User is already a member of this workspace" }, { status: 400 });
+  }
+  if (existingUser && existingUser.deactivatedAt) {
+    await db
+      .update(users)
+      .set({ deactivatedAt: null, role, updatedAt: new Date() })
+      .where(eq(users.id, existingUser.id));
+    invalidateSessionGuard(existingUser.clerkId);
+    invalidateRoleCache(existingUser.id);
+    await logAudit({
+      tenantId: authCtx.tenantId,
+      userId: authCtx.appUserId,
+      action: "reactivate",
+      entityType: "user",
+      entityId: existingUser.id,
+      changes: { role: { old: null, new: role } },
+      metadata: { event: "member_readded", email: rawEmail, role },
+    });
+    return Response.json(
+      { reactivated: true, member: { id: existingUser.id, email: rawEmail, role } },
+      { status: 200 },
+    );
   }
 
   // Look up workspace + inviter for the email

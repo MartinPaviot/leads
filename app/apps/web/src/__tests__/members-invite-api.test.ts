@@ -134,11 +134,28 @@ describe("POST /api/settings/members/invite", () => {
     expect(res.status).toBe(400);
   });
 
-  it("400 when target email is already a workspace member", async () => {
+  it("400 when target email is already an ACTIVE workspace member", async () => {
     vi.mocked(getAuthContext).mockResolvedValue(authAdmin);
-    mockSelectOnce([{ id: "existing-user-id" }]); // existing member match
+    mockSelectOnce([{ id: "existing-user-id", clerkId: "auth-x", deactivatedAt: null }]); // active member
     const res = await mod.POST(makeReq({ email: "bob@acme.com" }));
     expect(res.status).toBe(400);
+  });
+
+  it("re-adds (reactivates) a previously-removed member instead of inviting", async () => {
+    vi.mocked(getAuthContext).mockResolvedValue(authAdmin);
+    mockSelectOnce([{ id: "u-old", clerkId: "auth-old", deactivatedAt: new Date() }]); // deactivated row
+
+    const updateWhere = vi.fn().mockResolvedValue(undefined);
+    const setFn = vi.fn().mockReturnValue({ where: updateWhere });
+    vi.mocked(db.update).mockReturnValue({ set: setFn } as never);
+
+    const res = await mod.POST(makeReq({ email: "bob@acme.com", role: "member" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.reactivated).toBe(true);
+    expect(setFn).toHaveBeenCalledWith(
+      expect.objectContaining({ deactivatedAt: null, role: "member" }),
+    );
   });
 
   it("404 when tenant lookup empty", async () => {
