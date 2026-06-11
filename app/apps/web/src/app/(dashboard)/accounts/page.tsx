@@ -43,6 +43,7 @@ import { useEnrichStream, type EnrichCellState } from "@/hooks/use-enrich-stream
 import { ColumnPicker, type PickerCategory } from "@/components/ui/column-picker";
 import { COLUMN_CATEGORIES, DEFAULT_VISIBLE_CATEGORY_KEYS, getColumnCategory } from "@/lib/accounts/column-categories";
 import { TAM_PROPOSALS_ENTRY_ENABLED } from "@/lib/tam/entry-visibility";
+import { deriveAccountTabCounts } from "@/lib/accounts/tab-counts";
 
 /** Firmographic-extra category columns (founded year, tech, funding,
  * keywords) — addable via the Categories picker, filled by the same
@@ -1268,10 +1269,14 @@ export default function AccountsPage() {
       return litSignalCount(b) - litSignalCount(a);
     });
 
-  // Prefer the server's tenant-wide working-set counts (true totals,
-  // independent of the active filters); fall back to the loaded rows until the
-  // first response lands.
-  const tamCount = serverCounts ? serverCounts.tam : accounts.filter(isTAM).length;
+  // Per-tab counts shown in parentheses (All / Prospects / Manual). The server
+  // counts reflect the active column/search/score filters but are independent
+  // of the selected tab, so the badges evolve with the filters and add up
+  // (all === tam + manual). Fall back to the loaded rows until page 1 lands.
+  const tabCounts = deriveAccountTabCounts(
+    serverCounts,
+    accounts.map((a) => ({ isTam: isTAM(a) })),
+  );
 
   // G27: Collect unique signal types across all accounts for individual columns
   const signalTypeColumns = Array.from(
@@ -1462,7 +1467,7 @@ export default function AccountsPage() {
                 color: filter === f ? "var(--color-accent)" : "var(--color-text-tertiary)",
               }}
             >
-              {f === "all" ? "All" : f === "tam" ? `Prospects (${tamCount})` : "Manual"}
+              {f === "all" ? `All (${tabCounts.all})` : f === "tam" ? `Prospects (${tabCounts.tam})` : `Manual (${tabCounts.manual})`}
             </button>
           ))}
         </div>

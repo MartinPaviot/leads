@@ -51,16 +51,22 @@ export async function GET(req: Request) {
           ? isNotNull(companies.excludedReason)
           : isNull(companies.excludedReason);
 
-    // Intelligent search: resolve the typed query to the matching industries in
-    // THIS tenant's data via an LLM (matchIndustries) -- not a hardcoded synonym
-    // list -- plus a name/domain/description match. Server-side, so a search like
-    // "medical" returns every health-care / medical-device account, paginated,
-    // not just whatever happened to be on the loaded page.
-    let whereClause = and(
+    // Base scope shared by the list, the tab counts and the facets: tenant +
+    // the active deleted/excluded view. The tab, column, search and score
+    // filters all narrow on top of this.
+    const baseWhere = and(
       eq(companies.tenantId, authCtx.tenantId),
       deletedPredicate,
       excludedPredicate,
     )!;
+
+    // Intelligent search: resolve the typed query to the matching industries in
+    // THIS tenant's data via an LLM (matchIndustries) -- not a hardcoded synonym
+    // list -- plus a name/domain/description match. Server-side, so a search like
+    // "medical" returns every health-care / medical-device account, paginated,
+    // not just whatever happened to be on the loaded page. Built once and reused
+    // by both the list and the tab counts, so a search narrows the badges too.
+    let searchCond: SQL | undefined;
     if (search) {
       const indRows = await db
         .selectDistinct({ industry: companies.industry })
@@ -68,33 +74,29 @@ export async function GET(req: Request) {
         .where(and(eq(companies.tenantId, authCtx.tenantId), deletedPredicate));
       const industries = indRows.map((r) => r.industry).filter((x): x is string => !!x);
       const matched = await matchIndustries(search, industries, authCtx.tenantId);
-      whereClause = and(
-        eq(companies.tenantId, authCtx.tenantId),
-        deletedPredicate,
-        excludedPredicate,
-        or(
-          ...(matched.length > 0 ? [inArray(companies.industry, matched)] : []),
-          ilike(companies.name, `%${search}%`),
-          ilike(companies.domain, `%${search}%`),
-          sql`${companies.description} ILIKE ${"%" + search + "%"}`,
-        )!,
+      searchCond = or(
+        ...(matched.length > 0 ? [inArray(companies.industry, matched)] : []),
+        ilike(companies.name, `%${search}%`),
+        ilike(companies.domain, `%${search}%`),
+        sql`${companies.description} ILIKE ${"%" + search + "%"}`,
       )!;
     }
 
     // ── Per-column / smart-filter narrowing, applied server-side so the
-    //    count(*) below (same whereClause) and the paginated list both reflect
-    //    the active filters — the header then shows the *filtered* total, not
-    //    the library size. Mirrors the Accounts table column filters, the
-    //    tab (all/tam/manual), and the NL smart-filter score threshold. ──
+    //    count(*) and the paginated list both reflect the active filters — the
+    //    header then shows the *filtered* total, not the library size. Mirrors
+    //    the Accounts table column filters and the NL smart-filter score
+    //    threshold. The tab (all/tam/manual) is split out below so it scopes the
+    //    list but not the per-tab counts. ──
     const f = parseAccountListFilters(url.searchParams);
-    const filterConds: SQL[] = [];
+    const refineConds: SQL[] = [];
     const anyArr = (vals: string[]) =>
       sql`ARRAY[${sql.join(vals.map((v) => sql`${v}`), sql`, `)}]::text[]`;
-    if (f.industries.length) filterConds.push(sql`${companies.industry} = ANY(${anyArr(f.industries)})`);
-    if (f.sizes.length) filterConds.push(sql`${companies.size} = ANY(${anyArr(f.sizes)})`);
-    if (f.revenues.length) filterConds.push(sql`${companies.revenue} = ANY(${anyArr(f.revenues)})`);
-    if (f.geographies.length) filterConds.push(sql`btrim(${companies.properties}->>'country') = ANY(${anyArr(f.geographies)})`);
-    if (f.stages.length) filterConds.push(sql`COALESCE(${companies.properties}->>'lifecycleStage', 'new') = ANY(${anyArr(f.stages)})`);
+    if (f.industries.length) refineConds.push(sql`${companies.industry} = ANY(${anyArr(f.industries)})`);
+    if (f.sizes.length) refineConds.push(sql`${companies.size} = ANY(${anyArr(f.sizes)})`);
+    if (f.revenues.length) refineConds.push(sql`${companies.revenue} = ANY(${anyArr(f.revenues)})`);
+    if (f.geographies.length) refineConds.push(sql`btrim(${companies.properties}->>'country') = ANY(${anyArr(f.geographies)})`);
+    if (f.stages.length) refineConds.push(sql`COALESCE(${companies.properties}->>'lifecycleStage', 'new') = ANY(${anyArr(f.stages)})`);
     if (f.grades.length) {
       // A grade only applies once the row is enriched (matches displayScore,
       // which returns "Not scored" otherwise), then it's a score band.
@@ -105,28 +107,43 @@ export async function GET(req: Request) {
           ? sql`(${enriched} AND round(${companies.score}) >= ${lo})`
           : sql`(${enriched} AND round(${companies.score}) >= ${lo} AND round(${companies.score}) < ${hi})`;
       });
-      filterConds.push(sql`(${sql.join(gradeConds, sql` OR `)})`);
+      refineConds.push(sql`(${sql.join(gradeConds, sql` OR `)})`);
     }
     if (f.linkedin === "has")
-      filterConds.push(sql`(COALESCE(${companies.properties}->>'linkedinUrl','') <> '' OR COALESCE(${companies.properties}->>'linkedin_url','') <> '')`);
+      refineConds.push(sql`(COALESCE(${companies.properties}->>'linkedinUrl','') <> '' OR COALESCE(${companies.properties}->>'linkedin_url','') <> '')`);
     if (f.linkedin === "empty")
-      filterConds.push(sql`(COALESCE(${companies.properties}->>'linkedinUrl','') = '' AND COALESCE(${companies.properties}->>'linkedin_url','') = '')`);
-    if (f.name) filterConds.push(ilike(companies.name, `%${f.name}%`));
-    if (f.domain) filterConds.push(ilike(companies.domain, `%${f.domain}%`));
-    if (f.tab === "tam") filterConds.push(sql`${companies.properties}->>'source' = 'tam'`);
-    if (f.tab === "manual") filterConds.push(sql`(${companies.properties}->>'source' IS DISTINCT FROM 'tam')`);
-    if (f.scoreMin != null) filterConds.push(gte(companies.score, f.scoreMin));
-    if (f.scoreMax != null) filterConds.push(lte(companies.score, f.scoreMax));
-    if (filterConds.length > 0) {
-      whereClause = and(whereClause, ...filterConds)!;
-    }
+      refineConds.push(sql`(COALESCE(${companies.properties}->>'linkedinUrl','') = '' AND COALESCE(${companies.properties}->>'linkedin_url','') = '')`);
+    if (f.name) refineConds.push(ilike(companies.name, `%${f.name}%`));
+    if (f.domain) refineConds.push(ilike(companies.domain, `%${f.domain}%`));
+    if (f.scoreMin != null) refineConds.push(gte(companies.score, f.scoreMin));
+    if (f.scoreMax != null) refineConds.push(lte(companies.score, f.scoreMax));
 
-    // Filter dropdown options (facets) + working-set counts — both computed
-    // over the current VIEW's base scope (tenant + the same deleted/excluded
-    // mode as the list), but INDEPENDENT of the active column/tab/score filters.
-    // That keeps the filter menus complete even when only filtered rows are
-    // loaded, and lets the tab/enrich badges show true totals (not the loaded
-    // subset). Computed once on the first page; the client caches them.
+    // The tab (all/tam/manual) is the one filter held OUT of the tab counts:
+    // each badge shows how the current refinement splits across sources, so it
+    // must not depend on which tab is currently selected.
+    const tabCond: SQL | undefined =
+      f.tab === "tam"
+        ? sql`${companies.properties}->>'source' = 'tam'`
+        : f.tab === "manual"
+          ? sql`(${companies.properties}->>'source' IS DISTINCT FROM 'tam')`
+          : undefined;
+
+    // Counts scope = base + search + column/score filters, WITHOUT the tab, so
+    // All / Prospects / Manual each reflect the active filters and add up.
+    // List scope = counts scope + the active tab partition.
+    const countsWhere = and(
+      baseWhere,
+      ...(searchCond ? [searchCond] : []),
+      ...refineConds,
+    )!;
+    const whereClause = tabCond ? and(countsWhere, tabCond)! : countsWhere;
+
+    // Filter dropdown options (facets): computed over the VIEW's base scope
+    // (tenant + the same deleted/excluded mode), INDEPENDENT of every narrowing
+    // filter, so the column menus stay complete even when only filtered rows
+    // are loaded. Working-set counts: computed over base + search + column/score
+    // filters but WITHOUT the tab (countsWhere), so the All / Prospects / Manual
+    // badges reflect the active filters and add up. Both run once on page 1.
     let facets:
       | { industries: string[]; geographies: string[]; sizes: string[]; revenues: string[]; stages: string[] }
       | undefined;
@@ -140,17 +157,13 @@ export async function GET(req: Request) {
             : excludedMode === "only"
               ? sql`excluded_reason IS NOT NULL`
               : sql`excluded_reason IS NULL`;
-        const enrichedSql = sql`(industry IS NOT NULL AND industry <> '' AND description IS NOT NULL AND description <> '')`;
         const fr = await db.execute(sql`
           SELECT
             COALESCE(array_agg(DISTINCT industry) FILTER (WHERE industry IS NOT NULL AND industry <> ''), '{}') AS industries,
             COALESCE(array_agg(DISTINCT btrim(properties->>'country')) FILTER (WHERE btrim(properties->>'country') IS NOT NULL AND btrim(properties->>'country') <> ''), '{}') AS geographies,
             COALESCE(array_agg(DISTINCT size) FILTER (WHERE size IS NOT NULL AND size <> ''), '{}') AS sizes,
             COALESCE(array_agg(DISTINCT revenue) FILTER (WHERE revenue IS NOT NULL AND revenue <> ''), '{}') AS revenues,
-            COALESCE(array_agg(DISTINCT COALESCE(properties->>'lifecycleStage','new')), '{}') AS stages,
-            count(*)::int AS total,
-            (count(*) FILTER (WHERE properties->>'source' = 'tam'))::int AS tam,
-            (count(*) FILTER (WHERE NOT ${enrichedSql}))::int AS unenriched
+            COALESCE(array_agg(DISTINCT COALESCE(properties->>'lifecycleStage','new')), '{}') AS stages
           FROM companies
           WHERE tenant_id = ${authCtx.tenantId} AND ${deletedSql} AND ${excludedSql}
         `);
@@ -163,11 +176,24 @@ export async function GET(req: Request) {
           revenues: srt(row?.revenues),
           stages: srt(row?.stages),
         };
-        const totalActive = Number(row?.total ?? 0);
-        const tam = Number(row?.tam ?? 0);
-        counts = { total: totalActive, tam, manual: totalActive - tam, unenriched: Number(row?.unenriched ?? 0) };
       } catch (e) {
         console.warn("accounts: facets query failed", e);
+      }
+      try {
+        const enrichedExpr = sql`(${companies.industry} IS NOT NULL AND ${companies.industry} <> '' AND ${companies.description} IS NOT NULL AND ${companies.description} <> '')`;
+        const cr = await db
+          .select({
+            total: sql<number>`count(*)::int`,
+            tam: sql<number>`(count(*) FILTER (WHERE ${companies.properties}->>'source' = 'tam'))::int`,
+            unenriched: sql<number>`(count(*) FILTER (WHERE NOT ${enrichedExpr}))::int`,
+          })
+          .from(companies)
+          .where(countsWhere);
+        const total = Number(cr[0]?.total ?? 0);
+        const tam = Number(cr[0]?.tam ?? 0);
+        counts = { total, tam, manual: Math.max(0, total - tam), unenriched: Number(cr[0]?.unenriched ?? 0) };
+      } catch (e) {
+        console.warn("accounts: counts query failed", e);
       }
     }
 
