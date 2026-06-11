@@ -2,7 +2,7 @@
  * title-style pins the contact-title chip contract:
  *  - the tier comes ONLY from the stored Apollo seniority enum — every enum
  *    value (API snake_case form AND the ICP-picker display form) resolves to
- *    a styled tier with a real lucide icon;
+ *    a styled tier with a tooltip label;
  *  - anything else (null, empty, free text, a job title passed by mistake)
  *    degrades to the neutral "unknown" style — no icon, no guessing, no throw.
  */
@@ -21,10 +21,9 @@ describe("curated coverage", () => {
     expect(missing).toEqual([]);
   });
 
-  it("every curated value gets a real icon, label and theme tokens", () => {
+  it("every curated value gets a label and theme tokens", () => {
     for (const v of SENIORITY_VOCABULARY) {
       const s = seniorityStyle(v);
-      expect(s.icon, `icon for "${v}"`).toBeTruthy();
       expect(s.label).toBeTruthy();
       expect(s.color).toMatch(/^var\(--sen-/);
       expect(s.bg).toMatch(/^var\(--sen-.*-bg\)$/);
@@ -45,11 +44,10 @@ describe("curated coverage", () => {
 });
 
 describe("unknown fallback", () => {
-  it("gives null/empty/out-of-enum values the neutral style with no icon", () => {
+  it("gives null/empty/out-of-enum values the neutral style with no tier label", () => {
     for (const v of [null, undefined, "", "   ", "Chief Executive Officer", "Directeur Général"]) {
       const s = seniorityStyle(v);
       expect(s.tier, String(v)).toBe("unknown");
-      expect(s.icon).toBeNull();
       expect(s.label).toBeNull();
       expect(s.color).toBeTruthy();
       expect(s.bg).toBeTruthy();

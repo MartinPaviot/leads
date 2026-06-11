@@ -19,15 +19,13 @@
  * light and dark values, AA contrast in both.
  */
 
-import { Award, Crown, User, UserCheck, type LucideIcon } from "lucide-react";
-
 export type SeniorityTier = "exec" | "lead" | "mgmt" | "team" | "unknown";
 
 export interface TitleStyle {
   tier: SeniorityTier;
-  /** Tier icon — null for unknown (neutral chip carries no icon). */
-  icon: LucideIcon | null;
-  /** Human label for tooltips ("Executive"); null for unknown. */
+  /** Human label for tooltips ("Executive"); null for unknown. The chip
+   *  icon is NOT per-tier — TitleBadge renders one sober Briefcase for
+   *  every title; tier identity is color + this label. */
   label: string | null;
   /** Text + icon color — CSS var, theme-aware. */
   color: string;
@@ -42,11 +40,11 @@ const TIER_TOKENS: Record<Exclude<SeniorityTier, "unknown">, { color: string; bg
   team: { color: "var(--sen-team)", bg: "var(--sen-team-bg)" },
 };
 
-const TIER_META: Record<Exclude<SeniorityTier, "unknown">, { icon: LucideIcon; label: string }> = {
-  exec: { icon: Crown, label: "Executive" },
-  lead: { icon: Award, label: "Leadership" },
-  mgmt: { icon: UserCheck, label: "Management" },
-  team: { icon: User, label: "Team" },
+const TIER_LABELS: Record<Exclude<SeniorityTier, "unknown">, string> = {
+  exec: "Executive",
+  lead: "Leadership",
+  mgmt: "Management",
+  team: "Team",
 };
 
 /** Apollo's people-seniority enum, exhaustively. Keys are the canonical
@@ -79,13 +77,12 @@ export function seniorityStyle(seniority: string | null | undefined): TitleStyle
   if (!tier) {
     return {
       tier: "unknown",
-      icon: null,
       label: null,
       color: "var(--color-text-secondary)",
       bg: "var(--color-bg-hover)",
     };
   }
-  return { tier, ...TIER_META[tier], ...TIER_TOKENS[tier] };
+  return { tier, label: TIER_LABELS[tier], ...TIER_TOKENS[tier] };
 }
 
 /** Exported for tests — the curated seniority vocabulary. */

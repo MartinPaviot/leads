@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Briefcase, X } from "lucide-react";
 import { getGrade } from "@/lib/scoring/scoring";
 import { industryStyle } from "@/lib/ui/industry-style";
 import { seniorityStyle } from "@/lib/ui/title-style";
@@ -155,8 +155,9 @@ export function IndustryBadge({ value, className = "" }: IndustryBadgeProps) {
   );
 }
 
-/* ── Title Badge (seniority-tier icon + hue; tier from the stored Apollo
-      seniority enum, never parsed from the title text) ── */
+/* ── Title Badge (one sober Briefcase on every chip; seniority tier carries
+      the hue + tooltip label, from the stored Apollo enum — never parsed
+      from the title text) ── */
 interface TitleBadgeProps {
   title: string;
   seniority?: string | null;
@@ -165,7 +166,6 @@ interface TitleBadgeProps {
 
 export function TitleBadge({ title, seniority, className = "" }: TitleBadgeProps) {
   const s = seniorityStyle(seniority);
-  const Icon = s.icon;
   return (
     <span
       className={`inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${className}`}
@@ -176,7 +176,7 @@ export function TitleBadge({ title, seniority, className = "" }: TitleBadgeProps
       }}
       title={s.label ? `${title} — ${s.label}` : title}
     >
-      {Icon && <Icon size={11} strokeWidth={1.75} aria-hidden className="shrink-0" style={{ opacity: 0.85 }} />}
+      <Briefcase size={11} strokeWidth={1.75} aria-hidden className="shrink-0" style={{ opacity: 0.85 }} />
       <span className="truncate">{title}</span>
     </span>
   );
