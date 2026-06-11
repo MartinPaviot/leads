@@ -1,9 +1,10 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { outboundEmails } from "@/db/schema";
-import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, inArray, sql } from "drizzle-orm";
 import { buildConversations, laneCounts, type Lane } from "@/lib/inbox/conversations";
 import { loadConversationRows, contactNameMap } from "@/lib/inbox/load";
+import { getInboxScope, scopeConversationRows } from "@/lib/inbox/user-scope";
 
 const LANES: Lane[] = ["attention", "handled", "snoozed", "done"];
 const PAGE_SIZE = 30;
@@ -18,14 +19,23 @@ export async function GET(req: Request) {
     const lane: Lane = (LANES as string[]).includes(laneParam) ? (laneParam as Lane) : "attention";
     const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
 
-    const rows = await loadConversationRows(authCtx.tenantId);
+    // The inbox is personal: scope to the signed-in user's own mailbox(es),
+    // never the whole workspace. No mailbox connected → an empty inbox.
+    const scope = await getInboxScope(authCtx.tenantId, authCtx.userId);
+    const rows = scopeConversationRows(await loadConversationRows(authCtx.tenantId), scope);
     const conversations = buildConversations(rows);
 
     const counts = laneCounts(conversations);
     const [outboundCountRow] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(outboundEmails)
-      .where(and(eq(outboundEmails.tenantId, authCtx.tenantId), isNotNull(outboundEmails.sentAt)));
+      .where(
+        and(
+          eq(outboundEmails.tenantId, authCtx.tenantId),
+          isNotNull(outboundEmails.sentAt),
+          scope.hasMailbox ? inArray(outboundEmails.mailboxId, [...scope.mailboxIds]) : sql`false`,
+        ),
+      );
 
     const inLane = conversations.filter((c) => c.lane === lane);
     const pageRows = inLane.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -54,6 +64,7 @@ export async function GET(req: Request) {
       })),
       counts: { ...counts, outbound: Number(outboundCountRow?.count || 0) },
       pagination: { page, pageSize: PAGE_SIZE, total: inLane.length },
+      mailboxConnected: scope.hasMailbox,
     });
   } catch (error) {
     console.error("Failed to load inbox conversations:", error);

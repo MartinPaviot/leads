@@ -4,6 +4,7 @@ import { outboundEmails, sequenceEnrollments, sequences } from "@/db/schema";
 import { and, eq, desc, isNull, inArray } from "drizzle-orm";
 import { buildConversations } from "@/lib/inbox/conversations";
 import { loadConversationRows, contactNameMap } from "@/lib/inbox/load";
+import { getInboxScope, scopeConversationRows } from "@/lib/inbox/user-scope";
 
 /**
  * GET /api/inbox/conversations/detail?key=<conversationKey>
@@ -22,7 +23,10 @@ export async function GET(req: Request) {
     const key = url.searchParams.get("key");
     if (!key) return Response.json({ error: "key required" }, { status: 400 });
 
-    const rows = await loadConversationRows(authCtx.tenantId);
+    // Personal inbox: only resolve conversations in the user's own mailbox, so
+    // a member can't open another user's thread by guessing its key.
+    const scope = await getInboxScope(authCtx.tenantId, authCtx.userId);
+    const rows = scopeConversationRows(await loadConversationRows(authCtx.tenantId), scope);
     const conversation = buildConversations(rows).find((c) => c.key === key);
     if (!conversation) return Response.json({ error: "Conversation not found" }, { status: 404 });
 
