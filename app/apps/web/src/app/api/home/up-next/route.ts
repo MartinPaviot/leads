@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { activities, deals, companies, contacts, calls } from "@/db/schema";
 import { and, eq, isNull, desc, inArray } from "drizzle-orm";
 import { GET as getSummary } from "@/app/api/dashboard/summary/route";
+import { conversationKeyFor } from "@/lib/inbox/conversations";
 import {
   buildNeedsYou,
   buildKpis,
@@ -130,6 +131,7 @@ async function loadActualites(tenantId: string): Promise<Actualite[]> {
           occurredAt: activities.occurredAt,
           entityType: activities.entityType,
           entityId: activities.entityId,
+          threadId: activities.threadId,
           metadata: activities.metadata,
         })
         .from(activities)
@@ -261,7 +263,20 @@ async function loadActualites(tenantId: string): Promise<Actualite[]> {
       const who = a.entityType === "contact" && a.entityId ? nameMap.get(a.entityId) ?? null : null;
       const href = a.entityType === "contact" && a.entityId ? `/contacts/${a.entityId}` : null;
       if (a.activityType === "email_received" || a.activityType === "email_replied") {
-        items.push({ id: `act:${a.id}`, kind: "reply", title: who ? `${who} replied` : "Reply received", detail: a.summary ?? null, at: iso(a.occurredAt), href });
+        // email_received rows ARE inbox conversations (same key derivation) —
+        // deep-link straight to the thread. email_replied isn't an inbox seed,
+        // so it keeps the contact fiche.
+        const replyHref =
+          a.activityType === "email_received"
+            ? `/inbox?conversation=${encodeURIComponent(
+                conversationKeyFor({
+                  threadId: a.threadId,
+                  contactId: a.entityType === "contact" ? a.entityId : null,
+                  id: a.id,
+                }),
+              )}`
+            : href;
+        items.push({ id: `act:${a.id}`, kind: "reply", title: who ? `${who} replied` : "Reply received", detail: a.summary ?? null, at: iso(a.occurredAt), href: replyHref });
       } else if (a.activityType === "form_submitted") {
         const source = (a.metadata as Record<string, unknown> | null)?.source;
         items.push({

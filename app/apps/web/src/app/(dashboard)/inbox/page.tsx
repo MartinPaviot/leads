@@ -49,6 +49,19 @@ export default function InboxPage() {
   // otherwise read pre-commit state and show an empty lane).
   const pendingTriage = useRef<Promise<unknown> | null>(null);
 
+  // Deep-link (?conversation=<key>, e.g. from the /home Activity feed):
+  // select that thread on arrival. Consumed once — later triage flows are
+  // never pinned to it, and the param is stripped from the URL immediately.
+  const wantedKeyRef = useRef<string | null>(null);
+  const probedHandledRef = useRef(false);
+  useEffect(() => {
+    const key = new URLSearchParams(window.location.search).get("conversation");
+    if (key) {
+      wantedKeyRef.current = key;
+      window.history.replaceState({}, "", "/inbox");
+    }
+  }, []);
+
   const loadLane = useCallback(
     async (lane: InboxLane, pageNum: number, append: boolean) => {
       if (append) setLoadingMore(true);
@@ -81,14 +94,36 @@ export default function InboxPage() {
     void loadLane(tab, 1, false);
   }, [tab, loadLane]);
 
-  // Reconcile the selection whenever the list changes: keep it if the
-  // conversation is still listed, otherwise fall back to the first row.
-  // (Single place — list updaters stay side-effect free.)
+  // Reconcile the selection whenever the list changes: a pending deep-link
+  // wins when its thread is listed; otherwise keep the current selection if
+  // still listed, else fall back to the first row. (Single place — list
+  // updaters stay side-effect free.)
   useEffect(() => {
+    const wanted = wantedKeyRef.current;
+    if (wanted && conversations.some((c) => c.key === wanted)) {
+      wantedKeyRef.current = null;
+      setSelectedKey(wanted);
+      return;
+    }
     setSelectedKey((sel) =>
       sel && conversations.some((c) => c.key === sel) ? sel : conversations[0]?.key ?? null,
     );
   }, [conversations]);
+
+  // Deep-linked thread not in the attention lane (already triaged)? Probe the
+  // handled lane once, then give up gracefully back on attention.
+  useEffect(() => {
+    const wanted = wantedKeyRef.current;
+    if (!wanted || loading) return;
+    if (conversations.some((c) => c.key === wanted)) return;
+    if (!probedHandledRef.current && tab === "attention") {
+      probedHandledRef.current = true;
+      setTab("handled");
+    } else {
+      wantedKeyRef.current = null;
+      if (tab !== "attention") setTab("attention");
+    }
+  }, [conversations, loading, tab]);
 
   const handleTriage = useCallback(
     async (key: string, action: "done" | "snooze" | "reopen", snoozeUntil?: string) => {

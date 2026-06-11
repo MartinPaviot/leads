@@ -39,20 +39,24 @@ const ACT_ICON: Record<ActualiteKind, typeof Mail> = {
   form: Inbox, call: Phone, meeting_booked: CalendarPlus, meeting_done: CheckCircle2,
   account: Building2, contact: UserPlus, campaign: Send,
 };
-const ACT_TINT: Record<ActualiteKind, string> = {
-  deal: "var(--color-success)", deal_won: "var(--color-success)", deal_lost: "var(--color-error)",
-  reply: "var(--color-accent)", open: "var(--color-badge-4)", form: "var(--color-warning)",
-  call: "var(--color-badge-7)", meeting_booked: "var(--color-badge-1)",
-  meeting_done: "var(--color-text-tertiary)", account: "var(--color-info)", contact: "var(--color-badge-3)",
-  campaign: "var(--color-warning)",
-};
-// Contact/account chips use variants of the brand gradient (teal→blue→orange,
-// like the gradient-brand buttons) with a white glyph — they read as the "people
-// & companies" of the book, distinct from the semantic event tints. Linear only
-// (no radial/blur — GPU-safe).
-const ACT_GRADIENT: Partial<Record<ActualiteKind, string>> = {
+// Every activity chip carries a variant of the brand gradient (teal→blue→orange,
+// like the gradient-brand buttons) with a white glyph. Hue families keep the
+// semantics readable: email events in blues, inbound heat in oranges, calls in
+// indigo→purple, deals in teal→green (lost = red family), people & companies on
+// the full 3-stop brand run. Linear only (no radial/blur — GPU-safe).
+const ACT_GRADIENT: Record<ActualiteKind, string> = {
+  reply: "linear-gradient(135deg, #2C6BED 0%, #17C3B2 100%)",
+  open: "linear-gradient(135deg, #0EA5E9 0%, #2C6BED 100%)",
+  form: "linear-gradient(135deg, #FF7A3D 0%, #F59E0B 100%)",
+  call: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+  deal: "linear-gradient(135deg, #17C3B2 0%, #10B981 100%)",
+  deal_won: "linear-gradient(135deg, #10B981 0%, #2C6BED 100%)",
+  deal_lost: "linear-gradient(135deg, #EF4444 0%, #E8653A 100%)",
+  meeting_booked: "linear-gradient(135deg, #17C3B2 0%, #2C6BED 100%)",
+  meeting_done: "linear-gradient(135deg, #94A3B8 0%, #64748B 100%)",
   account: "linear-gradient(135deg, #17C3B2 0%, #2C6BED 52%, #FF7A3D 100%)",
   contact: "linear-gradient(135deg, #2C6BED 0%, #8B5CF6 50%, #FF7A3D 100%)",
+  campaign: "linear-gradient(135deg, #F59E0B 0%, #FF7A3D 100%)",
 };
 const TODO_ICON: Record<TodoKind, typeof Mail> = { reply: Mail, deal_risk: AlertTriangle, meeting: Calendar, task: CheckSquare };
 const TODO_TINT: Record<string, string> = {
@@ -161,8 +165,7 @@ export function UpNextView() {
             <div className="mt-2.5 overflow-hidden rounded-xl" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}>
               {actualites.map((a, i) => {
                 const Icon = ACT_ICON[a.kind] ?? TrendingUp;
-                const tint = ACT_TINT[a.kind] ?? "var(--color-text-tertiary)";
-                const grad = ACT_GRADIENT[a.kind];
+                const grad = ACT_GRADIENT[a.kind] ?? "var(--gradient-brand)";
                 return (
                   <button
                     key={a.id}
@@ -173,9 +176,9 @@ export function UpNextView() {
                   >
                     <span
                       className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-                      style={grad ? { background: grad, boxShadow: "var(--shadow-button)" } : { background: `color-mix(in srgb, ${tint} 12%, transparent)` }}
+                      style={{ background: grad, boxShadow: "var(--shadow-button)" }}
                     >
-                      <Icon size={13} style={{ color: grad ? "#FFFFFF" : tint }} />
+                      <Icon size={13} style={{ color: "#FFFFFF" }} />
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{a.title}</p>
