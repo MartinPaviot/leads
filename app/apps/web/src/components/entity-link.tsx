@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { TrendingUp } from "lucide-react";
-import { IndustryBadge } from "./ui/badge";
+import { IndustryBadge, TitleBadge } from "./ui/badge";
 import { SlideOver, PropertyRow } from "./slide-over";
 import { GeneratedCompanyAvatar } from "./ui/generated-company-avatar";
 
@@ -160,7 +160,12 @@ export function EntityLink({ type, id, name }: EntityLinkProps) {
         {entityData && type === "contact" && (
           <div>
             <PropertyRow label="Email" value={entityData.email as string} />
-            <PropertyRow label="Title" value={entityData.title as string} />
+            <PropertyRow label="Title" value={entityData.title ? (
+              <TitleBadge
+                title={entityData.title as string}
+                seniority={(entityData.properties as Record<string, unknown> | null)?.seniority as string | undefined}
+              />
+            ) : null} />
             <PropertyRow label="Phone" value={entityData.phone as string} />
           </div>
         )}

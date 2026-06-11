@@ -132,6 +132,16 @@
   --ind-media: #A21CAF;
   --ind-media-bg: rgba(162, 28, 175, 0.07);
 
+  /* Seniority tiers (lib/ui/title-style.ts) — power ramp for title chips */
+  --sen-exec: #B45309;
+  --sen-exec-bg: rgba(217, 119, 6, 0.10);
+  --sen-lead: #4F46E5;
+  --sen-lead-bg: rgba(79, 70, 229, 0.08);
+  --sen-mgmt: #0F766E;
+  --sen-mgmt-bg: rgba(15, 118, 110, 0.08);
+  --sen-team: #475569;
+  --sen-team-bg: rgba(71, 85, 105, 0.08);
+
   /* Shadows */
   --shadow-button: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
@@ -231,6 +241,16 @@
   --ind-consumer-bg: rgba(236, 72, 153, 0.14);
   --ind-media: #F0ABFC;
   --ind-media-bg: rgba(217, 70, 239, 0.14);
+
+  /* Seniority tiers — lifted text colors + denser tints for dark */
+  --sen-exec: #FCD34D;
+  --sen-exec-bg: rgba(245, 158, 11, 0.15);
+  --sen-lead: #A5B4FC;
+  --sen-lead-bg: rgba(99, 102, 241, 0.16);
+  --sen-mgmt: #5EEAD4;
+  --sen-mgmt-bg: rgba(20, 184, 166, 0.14);
+  --sen-team: #CBD5E1;
+  --sen-team-bg: rgba(148, 163, 184, 0.14);
 
   --shadow-button: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2);
