@@ -7,7 +7,7 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
-  users: { id: "id", role: "role" },
+  users: { id: "id", role: "role", tenantId: "tenantId" },
 }));
 
 vi.mock("drizzle-orm", () => ({
@@ -17,6 +17,7 @@ vi.mock("drizzle-orm", () => ({
 import { db } from "@/db";
 import {
   getFreshRole,
+  getFreshUserState,
   invalidateRoleCache,
   __clearRoleCacheForTests,
 } from "@/lib/auth/fresh-role";
@@ -98,5 +99,60 @@ describe("getFreshRole", () => {
     expect(await getFreshRole("u1")).toBe("member");
     expect(await getFreshRole("u2")).toBe("viewer");
     expect(db.select).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("getFreshUserState", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    __clearRoleCacheForTests();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("returns role AND tenantId from the same single query", async () => {
+    mockSelectOnce([{ role: "member", tenantId: "t-pilae" }]);
+    expect(await getFreshUserState("u1")).toEqual({
+      role: "member",
+      tenantId: "t-pilae",
+    });
+    expect(db.select).toHaveBeenCalledTimes(1);
+  });
+
+  it("shares the cache with getFreshRole (one query serves both)", async () => {
+    mockSelectOnce([{ role: "viewer", tenantId: "t1" }]);
+    expect(await getFreshRole("u1")).toBe("viewer");
+    expect((await getFreshUserState("u1"))?.tenantId).toBe("t1");
+    expect(db.select).toHaveBeenCalledTimes(1);
+  });
+
+  it("a tenant switch is visible immediately after invalidateRoleCache (invite-accept incident)", async () => {
+    mockSelectOnce([{ role: "admin", tenantId: "t-solo" }]);
+    expect((await getFreshUserState("u1"))?.tenantId).toBe("t-solo");
+    // invite accept: users.tenantId switched + cache dropped
+    invalidateRoleCache("u1");
+    mockSelectOnce([{ role: "member", tenantId: "t-pilae" }]);
+    expect(await getFreshUserState("u1")).toEqual({
+      role: "member",
+      tenantId: "t-pilae",
+    });
+  });
+
+  it("returns tenantId null when the row has none (caller falls back to the JWT claim)", async () => {
+    mockSelectOnce([{ role: "member", tenantId: null }]);
+    expect((await getFreshUserState("u1"))?.tenantId).toBeNull();
+  });
+
+  it("returns null on missing row / DB failure / empty id", async () => {
+    mockSelectOnce([]);
+    expect(await getFreshUserState("ghost")).toBeNull();
+    vi.mocked(db.select).mockImplementationOnce(() => {
+      throw new Error("connection refused");
+    });
+    expect(await getFreshUserState("u1")).toBeNull();
+    expect(await getFreshUserState("")).toBeNull();
   });
 });

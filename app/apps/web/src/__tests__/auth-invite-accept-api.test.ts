@@ -40,6 +40,13 @@ vi.mock("drizzle-orm", () => ({
   ne: vi.fn(),
 }));
 
+const { mockInvalidateRoleCache } = vi.hoisted(() => ({
+  mockInvalidateRoleCache: vi.fn(),
+}));
+vi.mock("@/lib/auth/fresh-role", () => ({
+  invalidateRoleCache: mockInvalidateRoleCache,
+}));
+
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 
@@ -172,6 +179,9 @@ describe("POST /api/auth/invite/accept", () => {
     expect(updateCalls.length).toBe(2);
     expect(updateCalls[0]).toMatchObject({ tenantId: "new-tenant", role: "member" });
     expect(updateCalls[1]).toMatchObject({ status: "accepted", acceptedByUserId: "u1" });
+    // The fresh-user-state overlay must see the switch on the next request,
+    // not after the 60s TTL — the accept drops this instance's cache entry.
+    expect(mockInvalidateRoleCache).toHaveBeenCalledWith("u1");
   });
 
   it("solo admin (no other member) CAN accept — the old workspace goes dormant", async () => {

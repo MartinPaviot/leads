@@ -4,7 +4,7 @@ import {
   getSessionGuard,
   isTokenPredatingPasswordChange,
 } from "@/lib/auth/session-guard";
-import { getFreshRole } from "@/lib/auth/fresh-role";
+import { getFreshUserState } from "@/lib/auth/fresh-role";
 
 export interface AuthContext {
   userId: string;
@@ -21,12 +21,9 @@ export async function getAuthContext(): Promise<AuthContext | null> {
   const session = await auth();
   if (!session?.user?.id) return null;
 
-  const tenantId = (session as any).tenantId as string | undefined;
+  const claimTenantId = (session as any).tenantId as string | undefined;
   let appUserId = (session as any).appUserId as string | undefined;
   const role = (session as any).role as string | undefined;
-
-  // Require tenant context for all data operations
-  if (!tenantId) return null;
 
   // SOC2 T5/T7 — server-side revocation gate (60s-cached DB read).
   // Deactivated members and tokens issued before the last password
@@ -50,18 +47,28 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     appUserId = (await authToAppUserId(session.user.id)) ?? undefined;
   }
 
-  // The JWT role is minted at sign-in and never re-read until the token
-  // expires (8h), so promotions/demotions would lag a full workday.
-  // Overlay the DB role (60s in-memory cache; null on DB failure → keep
-  // the JWT role) so requirePermission/requireAdmin and the chat see
-  // role changes within a minute without forcing a re-login.
-  const freshRole = appUserId ? await getFreshRole(appUserId) : null;
+  // The JWT role AND tenantId are minted at sign-in and never re-read until
+  // the token expires (8h), so promotions/demotions — and TENANT SWITCHES
+  // (invite accepted into another workspace) — would lag a full workday.
+  // A live.fr member hit exactly that on 2026-06-11: invite accepted at
+  // 13:55, but every session token minted earlier kept routing him to his
+  // old empty solo workspace. Overlay the DB values (60s in-memory cache;
+  // null on DB failure → keep the JWT claims) so role changes AND workspace
+  // switches apply within a minute on every live session, no re-login
+  // needed. users.tenantId is the single source of truth for membership —
+  // the JWT claim is just its boot-time snapshot.
+  const fresh = appUserId ? await getFreshUserState(appUserId) : null;
+
+  // Require tenant context for all data operations. The DB overlay wins
+  // over the claim; a session with neither is unusable.
+  const tenantId = fresh?.tenantId || claimTenantId;
+  if (!tenantId) return null;
 
   return {
     userId: session.user.id,
     tenantId,
     appUserId: appUserId || session.user.id,
-    role: freshRole || role || "member",
+    role: fresh?.role || role || "member",
   };
 }
 

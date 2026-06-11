@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { pendingInvites, users } from "@/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 import { hashInviteToken } from "@/lib/auth/invite-token";
+import { invalidateRoleCache } from "@/lib/auth/fresh-role";
 import { logAudit } from "@/lib/infra/audit-log";
 
 /**
@@ -126,6 +127,11 @@ export async function POST(req: Request) {
       updatedAt: new Date(),
     })
     .where(eq(users.id, user.id));
+
+  // The fresh-user-state overlay (getAuthContext) is what routes live
+  // sessions to the NEW tenant — drop this instance's cache so the switch
+  // bites on the very next request instead of after the 60s TTL.
+  invalidateRoleCache(user.id);
 
   // Mark invite accepted
   await db
