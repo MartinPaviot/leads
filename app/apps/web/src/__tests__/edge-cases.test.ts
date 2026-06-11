@@ -274,8 +274,9 @@ describe("Edge case tests", () => {
 
       const offsetFn = vi.fn().mockResolvedValue([]);
       const limitFn = vi.fn().mockReturnValue({ offset: offsetFn });
+      const orderByFn = vi.fn().mockReturnValue({ limit: limitFn });
       const whereFn = vi.fn()
-        .mockReturnValueOnce({ limit: limitFn }) // data query
+        .mockReturnValueOnce({ orderBy: orderByFn }) // data query (stable id order)
         .mockResolvedValueOnce([{ count: 0 }]); // count query
       const fromFn = vi.fn().mockReturnValue({ where: whereFn });
       vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
@@ -293,8 +294,9 @@ describe("Edge case tests", () => {
 
       const offsetFn = vi.fn().mockResolvedValue([]);
       const limitFn = vi.fn().mockReturnValue({ offset: offsetFn });
+      const orderByFn = vi.fn().mockReturnValue({ limit: limitFn });
       const whereFn = vi.fn()
-        .mockReturnValueOnce({ limit: limitFn })
+        .mockReturnValueOnce({ orderBy: orderByFn })
         .mockResolvedValueOnce([{ count: 0 }]);
       const fromFn = vi.fn().mockReturnValue({ where: whereFn });
       vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
@@ -312,8 +314,9 @@ describe("Edge case tests", () => {
 
       const offsetFn = vi.fn().mockResolvedValue([]);
       const limitFn = vi.fn().mockReturnValue({ offset: offsetFn });
+      const orderByFn = vi.fn().mockReturnValue({ limit: limitFn });
       const whereFn = vi.fn()
-        .mockReturnValueOnce({ limit: limitFn })
+        .mockReturnValueOnce({ orderBy: orderByFn })
         .mockResolvedValueOnce([{ count: 0 }]);
       const fromFn = vi.fn().mockReturnValue({ where: whereFn });
       vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);

@@ -160,11 +160,42 @@ export async function GET(req: Request) {
       ? sql`${whereClause} AND ${sql.join(conds, sql` AND `)}`
       : whereClause;
 
+    // "Select all matching" support: `?idsOnly=true` returns just the ids of
+    // EVERY contact the current search + filters match (the exact finalWhere
+    // the list and its count use), so the header checkbox can select the full
+    // filtered set instead of only the loaded page. The cap is a payload
+    // guard far above any realistic tenant; `total` lets the client detect
+    // (and say) when it was hit.
+    if (url.searchParams.get("idsOnly") === "true") {
+      const MAX_SELECT_ALL_IDS = 50_000;
+      const [idRows, idCount] = await Promise.all([
+        db
+          .select({ id: contacts.id })
+          .from(contacts)
+          .where(finalWhere)
+          .orderBy(contacts.id)
+          .limit(MAX_SELECT_ALL_IDS),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(contacts)
+          .where(finalWhere),
+      ]);
+      return Response.json({
+        ids: idRows.map((r) => r.id),
+        total: idCount[0]?.count ?? idRows.length,
+      });
+    }
+
     const [result, countResult] = await Promise.all([
       db
         .select()
         .from(contacts)
         .where(finalWhere)
+        // Stable order is REQUIRED for offset pagination — without it Postgres
+        // returns rows in an arbitrary order and successive pages can overlap
+        // or skip rows while the user scrolls. The client re-sorts the loaded
+        // rows for display, so id order here only stabilizes the paging.
+        .orderBy(contacts.id)
         .limit(pageSize)
         .offset(offset),
       db
