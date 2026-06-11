@@ -690,7 +690,7 @@ export default function ContactsPage() {
             <EmptyState
               icon={<Users size={28} />}
               title="No contacts yet"
-              description="Get your first contacts in two clicks — import a CSV you already have, or let Apollo find decision-makers at your TAM accounts."
+              description="Get your first contacts in two clicks — import a CSV you already have, or let Elevay find decision-makers at your TAM accounts."
               actionLabel="Import CSV"
               onAction={() => setShowSmartImport(true)}
               actionVariant="gradient"

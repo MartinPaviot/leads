@@ -939,9 +939,9 @@ function ProfileEditor({
               {draft.hasUiState && (
                 <span className="flex items-center gap-1">
                   {estimating
-                    ? "Estimating Apollo TAM…"
+                    ? "Estimating TAM…"
                     : tamEstimate !== null
-                      ? `~${tamEstimate.toLocaleString()} in Apollo TAM`
+                      ? `~${tamEstimate.toLocaleString()} companies in TAM`
                       : null}
                   <button
                     type="button"
@@ -949,7 +949,7 @@ function ProfileEditor({
                     disabled={estimating}
                     className="rounded border px-1.5 py-0.5 text-[10px]"
                     style={{ borderColor: "var(--color-border-default)", color: "var(--color-text-tertiary)" }}
-                    title="Re-estimate the Apollo TAM for the current targeting"
+                    title="Re-estimate the TAM for the current targeting"
                   >
                     Estimate
                   </button>

@@ -257,7 +257,7 @@ export function PersonaSearch({ onClose, onSaved }: { onClose: () => void; onSav
             {estimate === null ? (
               <span className="inline-flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Estimating reach…</span>
             ) : estimate.gated ? (
-              <span>Connect Apollo in Settings to see the live match count. Your ICP still saves and drives sourcing.</span>
+              <span>Connect sourcing in Settings to see the live match count. Your ICP still saves and drives sourcing.</span>
             ) : estimate.total === null ? (
               <span>Couldn&rsquo;t fetch the live count right now.</span>
             ) : (

@@ -213,32 +213,39 @@ export interface AddRow {
   at: string | null;
 }
 
-/** Display labels for OUR OWN sourceSystem values (written by us at capture
- *  time) — a UI label map, not business classification. */
+/** Provenance in PRODUCT language only — provider names (Apollo, SIRENE,
+ *  Pappers, Zefix...) are Elevay's plumbing and never reach the UI. Machine
+ *  sourcing reads "sourced by Elevay"; unknown values show NOTHING rather
+ *  than leak a raw internal string. */
 const SOURCE_LABEL: Record<string, string> = {
-  apollo: "Apollo",
-  csv: "CSV import",
-  manual: "manual",
-  inbound: "inbound form",
-  tam: "TAM discovery",
-  sirene: "SIRENE",
-  pappers: "Pappers",
-  zefix: "Zefix",
+  apollo: "sourced by Elevay",
+  tam: "sourced by Elevay",
+  sirene: "sourced by Elevay",
+  pappers: "sourced by Elevay",
+  zefix: "sourced by Elevay",
+  csv: "via CSV import",
+  manual: "manually",
+  inbound: "via inbound",
 };
 
 function sourceLabel(s: string | null): string | null {
   if (!s) return null;
-  return SOURCE_LABEL[s.toLowerCase()] ?? s;
+  return SOURCE_LABEL[s.toLowerCase()] ?? null;
+}
+
+/** Real per-source totals from a COUNT query (key = lowercased sourceSystem,
+ *  "" for null). The grouped line shows the REAL number — never a
+ *  fetch-window artifact like "25+". */
+export interface AddCount {
+  n: number;
+  newest: string | null;
 }
 
 export function groupAdds(
   rows: AddRow[],
   kind: "account" | "contact",
   threshold = 3,
-  /** How many rows the caller fetched. A group that saturates the fetch
-   *  window is almost certainly truncated (e.g. a 600-row import showing as
-   *  25 rows) — its count gets a "+" so the line never under-claims. */
-  fetchCap = Number.POSITIVE_INFINITY,
+  counts?: Map<string, AddCount>,
 ): Actualite[] {
   const listHref = kind === "account" ? "/accounts" : "/contacts";
   const single = kind === "account" ? "account added" : "contact added";
@@ -251,18 +258,20 @@ export function groupAdds(
     bySource.set(key, list);
   }
   const out: Actualite[] = [];
-  for (const list of bySource.values()) {
-    if (list.length >= threshold) {
-      const newest = list.reduce<string | null>(
+  for (const [key, list] of bySource) {
+    const real = counts?.get(key);
+    const n = real?.n ?? list.length;
+    if (n >= threshold) {
+      const newestFromRows = list.reduce<string | null>(
         (m, r) => (r.at && (!m || r.at > m) ? r.at : m),
         null,
       );
       out.push({
-        id: `${kind}-group:${(list[0].sourceSystem ?? "unknown").toLowerCase()}:${list[0].id}`,
+        id: `${kind}-group:${key || "unknown"}:${list[0].id}`,
         kind,
-        title: `${list.length}${list.length >= fetchCap ? "+" : ""} ${kind === "account" ? "accounts" : "contacts"} added`,
+        title: `${n} ${kind === "account" ? "accounts" : "contacts"} added`,
         detail: sourceLabel(list[0].sourceSystem),
-        at: newest,
+        at: real?.newest ?? newestFromRows,
         href: listHref,
       });
     } else {

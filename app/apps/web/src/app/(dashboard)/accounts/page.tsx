@@ -818,7 +818,7 @@ export default function AccountsPage() {
 
       // Apollo key missing (env-level): can't source automatically.
       if (res.status === 503) {
-        setSourceResult({ tone: "error", text: "Apollo isn't connected, so contacts can't be sourced automatically. Add one manually for now." });
+        setSourceResult({ tone: "error", text: "Automatic sourcing isn't available right now, so contacts can't be pulled. Add one manually for now." });
         return;
       }
       if (!res.ok) {
@@ -840,7 +840,7 @@ export default function AccountsPage() {
         return;
       }
       if (result?.error === "Apollo search failed") {
-        setSourceResult({ tone: "error", text: "Apollo didn't respond. Try again in a moment.", retry: true });
+        setSourceResult({ tone: "error", text: "The sourcing engine didn't respond. Try again in a moment.", retry: true });
         return;
       }
       // Searched successfully, but nothing new to add.
@@ -2296,7 +2296,7 @@ export default function AccountsPage() {
                                   className="!px-2.5 !py-1"
                                 >
                                   {sourcingContacts ? (
-                                    <span className="inline-flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Searching Apollo…</span>
+                                    <span className="inline-flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Sourcing contacts…</span>
                                   ) : (
                                     <span className="inline-flex items-center gap-1.5"><UserPlus size={12} /> {sourceResult?.retry ? "Try again" : "Find contacts"}</span>
                                   )}
@@ -2442,7 +2442,7 @@ export default function AccountsPage() {
                 ) : (
                   <div className="mt-1 rounded-lg p-2.5" style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}>
                     <p className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-                      Not enriched yet — pull industry, size and revenue from Apollo.
+                      Not enriched yet — pull industry, size and revenue automatically.
                     </p>
                     <button
                       type="button"
@@ -2463,7 +2463,7 @@ export default function AccountsPage() {
                       className="mt-1.5 text-[11px] font-medium hover:underline"
                       style={{ color: "var(--color-accent)" }}
                     >
-                      Enrich with Apollo →
+                      Enrich →
                     </button>
                   </div>
                 )}

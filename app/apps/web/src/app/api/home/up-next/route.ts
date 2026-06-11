@@ -1,7 +1,7 @@
 import { withAuthRLS } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities, deals, companies, contacts, calls } from "@/db/schema";
-import { and, eq, isNull, desc, inArray } from "drizzle-orm";
+import { and, eq, isNull, desc, inArray, gte, count, max } from "drizzle-orm";
 import { GET as getSummary } from "@/app/api/dashboard/summary/route";
 import { conversationKeyFor } from "@/lib/inbox/conversations";
 import {
@@ -11,6 +11,7 @@ import {
   aggregateOpens,
   groupAdds,
   formatCallDuration,
+  type AddCount,
   type ReplyInput,
   type DealRiskInput,
   type MeetingInput,
@@ -121,7 +122,12 @@ const capWord = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 async function loadActualites(tenantId: string): Promise<Actualite[]> {
   try {
-    const [acts, opens, dealEvents, recentCalls, recentCompanies, recentContacts] = await Promise.all([
+    // "Added" is only news while it's recent — a 3-month-old import isn't an
+    // actualité. Window also bounds the COUNT queries so the grouped lines
+    // show the REAL recent total (never a fetch-window artifact).
+    const addsSince = new Date(Date.now() - 30 * 86400000);
+
+    const [acts, opens, dealEvents, recentCalls, recentCompanies, recentContacts, companyCounts, contactCounts] = await Promise.all([
       // Inbound / milestone events on contacts: replies, meetings, forms.
       db
         .select({
@@ -201,12 +207,12 @@ async function loadActualites(tenantId: string): Promise<Actualite[]> {
         .where(and(eq(calls.tenantId, tenantId), inArray(calls.outcome, [...FEED_CALL_OUTCOMES])))
         .orderBy(desc(calls.startedAt))
         .limit(8),
-      // Adds fetch a wider window (25) so bulk imports group honestly instead
-      // of showing 6 arbitrary rows of a 100-row import.
+      // Recent add ROWS (names for the individual-trickle case). The grouped
+      // counts come from the aggregate queries below, not from these rows.
       db
         .select({ id: companies.id, name: companies.name, sourceSystem: companies.sourceSystem, createdAt: companies.createdAt })
         .from(companies)
-        .where(and(eq(companies.tenantId, tenantId), isNull(companies.deletedAt), isNull(companies.excludedReason)))
+        .where(and(eq(companies.tenantId, tenantId), isNull(companies.deletedAt), isNull(companies.excludedReason), gte(companies.createdAt, addsSince)))
         .orderBy(desc(companies.createdAt))
         .limit(25),
       db
@@ -219,9 +225,20 @@ async function loadActualites(tenantId: string): Promise<Actualite[]> {
           createdAt: contacts.createdAt,
         })
         .from(contacts)
-        .where(and(eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt)))
+        .where(and(eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt), gte(contacts.createdAt, addsSince)))
         .orderBy(desc(contacts.createdAt))
         .limit(25),
+      // REAL per-source totals for the window — what the grouped lines show.
+      db
+        .select({ src: companies.sourceSystem, n: count(), newest: max(companies.createdAt) })
+        .from(companies)
+        .where(and(eq(companies.tenantId, tenantId), isNull(companies.deletedAt), isNull(companies.excludedReason), gte(companies.createdAt, addsSince)))
+        .groupBy(companies.sourceSystem),
+      db
+        .select({ src: contacts.sourceSystem, n: count(), newest: max(contacts.createdAt) })
+        .from(contacts)
+        .where(and(eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt), gte(contacts.createdAt, addsSince)))
+        .groupBy(contacts.sourceSystem),
     ]);
 
     // Resolve every referenced contact name in ONE query (acts + opens + calls).
@@ -345,12 +362,15 @@ async function loadActualites(tenantId: string): Promise<Actualite[]> {
       });
     }
 
+    const toCountMap = (rs: Array<{ src: string | null; n: number; newest: unknown }>): Map<string, AddCount> =>
+      new Map(rs.map((r) => [(r.src ?? "").toLowerCase(), { n: Number(r.n), newest: iso(r.newest) }]));
+
     items.push(
       ...groupAdds(
         recentCompanies.map((c) => ({ id: c.id, name: c.name, sourceSystem: c.sourceSystem, at: iso(c.createdAt) })),
         "account",
         3,
-        25,
+        toCountMap(companyCounts),
       ),
       ...groupAdds(
         recentContacts.map((c) => ({
@@ -361,7 +381,7 @@ async function loadActualites(tenantId: string): Promise<Actualite[]> {
         })),
         "contact",
         3,
-        25,
+        toCountMap(contactCounts),
       ),
     );
 
