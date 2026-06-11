@@ -34,19 +34,32 @@ export default function WorkspaceSettingsPage() {
       .catch(() => setError("Failed to load workspace settings"));
   }, []);
 
+  /** Extract a human message from an error response. Routes answer with
+   * either `{ error: "..." }` (validation) or `{ error: { message } }`
+   * (requirePermission 403) — handle both so a denied member sees
+   * "Missing permission: settings:write", never "[object Object]". */
+  async function readApiError(res: Response, fallback: string): Promise<string> {
+    const body = await res.json().catch(() => null);
+    const err = body?.error;
+    if (typeof err === "string" && err) return err;
+    if (typeof err?.message === "string" && err.message) return err.message;
+    return fallback;
+  }
+
   async function saveName() {
     if (!name.trim()) return;
     setError("");
     try {
-      await fetch("/api/settings/workspace", {
+      const res = await fetch("/api/settings/workspace", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim() }),
       });
+      if (!res.ok) throw new Error(await readApiError(res, "Failed to save workspace name"));
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch {
-      setError("Failed to save workspace name");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save workspace name");
     }
   }
 
@@ -56,10 +69,7 @@ export default function WorkspaceSettingsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ logoDataUrl }),
     });
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      throw new Error(body?.error || "Failed to save logo");
-    }
+    if (!res.ok) throw new Error(await readApiError(res, "Failed to save logo"));
     // Re-read so the preview gets the fresh versioned URL…
     const data = await fetch("/api/settings/workspace").then((r) => r.json());
     setLogoUrl(data.logoUrl || null);
@@ -97,37 +107,33 @@ export default function WorkspaceSettingsPage() {
     }
   }
 
-  async function addDomain() {
-    const d = newDomain.trim().toLowerCase();
-    if (!d || domains.includes(d)) return;
-    const updated = [...domains, d];
+  /** Optimistic domains write — reverts the local list when the server
+   * refuses (403 for non-admins, 500), instead of lying with kept state. */
+  async function saveDomains(updated: string[], previous: string[], fallback: string) {
     setDomains(updated);
-    setNewDomain("");
     setError("");
     try {
-      await fetch("/api/settings/workspace", {
+      const res = await fetch("/api/settings/workspace", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyDomains: updated }),
       });
-    } catch {
-      setError("Failed to save domain");
+      if (!res.ok) throw new Error(await readApiError(res, fallback));
+    } catch (err) {
+      setDomains(previous);
+      setError(err instanceof Error ? err.message : fallback);
     }
   }
 
+  async function addDomain() {
+    const d = newDomain.trim().toLowerCase();
+    if (!d || domains.includes(d)) return;
+    setNewDomain("");
+    await saveDomains([...domains, d], domains, "Failed to save domain");
+  }
+
   async function removeDomain(domain: string) {
-    const updated = domains.filter((d) => d !== domain);
-    setDomains(updated);
-    setError("");
-    try {
-      await fetch("/api/settings/workspace", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyDomains: updated }),
-      });
-    } catch {
-      setError("Failed to remove domain");
-    }
+    await saveDomains(domains.filter((x) => x !== domain), domains, "Failed to remove domain");
   }
 
   return (
