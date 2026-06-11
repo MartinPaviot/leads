@@ -62,6 +62,7 @@ import { countryFromTimezone } from "@/lib/call-mode/geo";
 import { pickReplaceableTools } from "@/lib/tech-detect/replaceable";
 import { scoreTranscriptLevers, DRILL_COPY } from "@/lib/voice/lever-scoring";
 import { CompanyLogo } from "@/components/ui/company-logo";
+import { CollisionWarning } from "./_collision-warning";
 
 // lucide dropped brand glyphs — inline the LinkedIn mark (same path the
 // Accounts page uses) so the Direction section stays on-brand.
@@ -561,6 +562,10 @@ export function PreCallBrief({
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 p-6">
+      {/* Collision heads-up: a teammate already worked this prospect recently
+          (soft, non-blocking — informs, never gates the call). */}
+      <CollisionWarning contactId={selected.contactId} />
+
       {/* ── Expert brief: situational intelligence (the script lives on the right) ── */}
       <div className="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
         <div
