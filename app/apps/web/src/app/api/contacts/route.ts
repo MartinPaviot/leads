@@ -226,16 +226,16 @@ export async function GET(req: Request) {
     const contactIds = result.map((c) => c.id);
     const companyIds = [...new Set(result.map((c) => c.companyId).filter(Boolean))] as string[];
 
-    // Fetch company names/domains
-    const companyMap: Record<string, { name: string; domain: string | null }> = {};
+    // Fetch company names/domains/industries
+    const companyMap: Record<string, { name: string; domain: string | null; industry: string | null }> = {};
     try {
       if (companyIds.length > 0) {
         const companyRows = await db
-          .select({ id: companies.id, name: companies.name, domain: companies.domain })
+          .select({ id: companies.id, name: companies.name, domain: companies.domain, industry: companies.industry })
           .from(companies)
           .where(sql`${companies.id} = ANY(ARRAY[${sql.join(companyIds.map(id => sql`${id}`), sql`, `)}]::text[])`);
         for (const c of companyRows) {
-          companyMap[c.id] = { name: c.name, domain: c.domain };
+          companyMap[c.id] = { name: c.name, domain: c.domain, industry: c.industry };
         }
       }
     } catch (e) {
@@ -269,6 +269,7 @@ export async function GET(req: Request) {
       ...c,
       companyName: c.companyId ? companyMap[c.companyId]?.name || null : null,
       companyDomain: c.companyId ? companyMap[c.companyId]?.domain || null : null,
+      companyIndustry: c.companyId ? companyMap[c.companyId]?.industry || null : null,
       lastInteraction: lastInteractions[c.id] || null,
     }));
 
