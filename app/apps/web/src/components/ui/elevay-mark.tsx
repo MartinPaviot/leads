@@ -12,7 +12,7 @@
 export function ElevayMark({ size = 14, className = "" }: { size?: number; className?: string }) {
   return (
     <img
-      src="/logo-Elevay.svg"
+      src="/logo-Elevay.svg?v=2"
       alt=""
       aria-hidden="true"
       className={`shrink-0 ${className}`.trim()}
