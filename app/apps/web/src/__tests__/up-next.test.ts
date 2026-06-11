@@ -4,7 +4,7 @@ import {
   buildKpis,
   buildActualites,
   aggregateOpens,
-  groupAdds,
+  mapAddBatches,
   formatCallDuration,
   isTestLabel,
   money,
@@ -15,7 +15,7 @@ import {
   type KpiMetrics,
   type Actualite,
   type OpenRow,
-  type AddRow,
+  type AddBatch,
 } from "@/lib/home/up-next";
 
 function reply(over: Partial<ReplyInput> & { conversationKey: string }): ReplyInput {
@@ -175,62 +175,53 @@ describe("aggregateOpens", () => {
   });
 });
 
-describe("groupAdds", () => {
-  function add(over: Partial<AddRow> & { id: string }): AddRow {
-    return { name: "Acme SA", sourceSystem: "apollo", at: "2026-06-11T08:00:00.000Z", ...over };
+describe("mapAddBatches", () => {
+  function batch(over: Partial<AddBatch>): AddBatch {
+    return {
+      sourceSystem: "apollo",
+      n: 136,
+      newest: "2026-06-08T07:05:00.000Z",
+      sampleIds: ["a1", "a2"],
+      sampleNames: ["Acme SA", "Beta SA"],
+      ...over,
+    };
   }
-  it("collapses a bulk import into one grouped line with product-language provenance", () => {
-    const out = groupAdds(
+  it("renders one dated event per import batch with the exact frozen count", () => {
+    const out = mapAddBatches([batch({})], "account");
+    expect(out).toHaveLength(1);
+    expect(out[0].title).toBe("136 accounts added"); // the batch's real size, not a window aggregate
+    expect(out[0].detail).toBe("sourced by Elevay"); // never the provider name
+    expect(out[0].at).toBe("2026-06-08T07:05:00.000Z");
+    expect(out[0].href).toBe("/accounts");
+  });
+  it("two imports from the same source are two distinct events", () => {
+    const out = mapAddBatches(
       [
-        add({ id: "a1" }),
-        add({ id: "a2", name: "Beta SA", at: "2026-06-11T09:00:00.000Z" }),
-        add({ id: "a3", name: "Gamma SA", at: "2026-06-11T07:00:00.000Z" }),
+        batch({ n: 500, newest: "2026-06-01T10:00:00.000Z", sampleIds: ["x1"], sampleNames: ["Old SA"] }),
+        batch({ n: 136, newest: "2026-06-08T07:05:00.000Z" }),
       ],
       "account",
     );
-    expect(out).toHaveLength(1);
-    expect(out[0].title).toBe("3 accounts added");
-    expect(out[0].detail).toBe("sourced by Elevay"); // never the provider name
-    expect(out[0].at).toBe("2026-06-11T09:00:00.000Z");
-    expect(out[0].href).toBe("/accounts");
+    expect(out.map((o) => o.title)).toEqual(["500 accounts added", "136 accounts added"]);
+    expect(new Set(out.map((o) => o.id)).size).toBe(2);
   });
-  it("keeps a trickle individual, each line carrying its provenance", () => {
-    const out = groupAdds(
-      [add({ id: "a1", name: "Marie Dupont" }), add({ id: "a2", name: "Jean Petit", sourceSystem: null })],
+  it("a small batch renders as individual named lines with provenance", () => {
+    const out = mapAddBatches(
+      [batch({ n: 2, sampleIds: ["c1", "c2"], sampleNames: ["Marie Dupont", "Jean Petit"], sourceSystem: "manual" })],
       "contact",
     );
     expect(out).toHaveLength(2);
-    expect(out.find((o) => o.id === "contact:a1")!.detail).toBe("contact added · sourced by Elevay");
-    expect(out.find((o) => o.id === "contact:a1")!.href).toBe("/contacts/a1");
-    expect(out.find((o) => o.id === "contact:a2")!.detail).toBe("contact added");
+    expect(out[0].title).toBe("Marie Dupont");
+    expect(out[0].detail).toBe("contact added · manually");
+    expect(out[0].href).toBe("/contacts/c1");
   });
-  it("never leaks an unknown sourceSystem value to the UI", () => {
-    const out = groupAdds([add({ id: "a1", sourceSystem: "kaspr" })], "contact");
-    expect(out[0].detail).toBe("contact added"); // raw internal value shown as nothing
-  });
-  it("shows the REAL per-source total from the count query, not the fetch window", () => {
-    const rows = Array.from({ length: 25 }, (_, i) => add({ id: `a${i}`, name: `Company ${i}` }));
-    const counts = new Map([["apollo", { n: 136, newest: "2026-06-11T09:00:00.000Z" }]]);
-    const out = groupAdds(rows, "account", 3, counts);
-    expect(out).toHaveLength(1);
-    expect(out[0].title).toBe("136 accounts added"); // the DB count, never "25+"
-    expect(out[0].detail).toBe("sourced by Elevay");
-    expect(out[0].at).toBe("2026-06-11T09:00:00.000Z");
-  });
-  it("groups per source independently and drops test rows before counting", () => {
-    const out = groupAdds(
-      [
-        add({ id: "a1" }),
-        add({ id: "a2", name: "Beta SA" }),
-        add({ id: "a3", name: "Gamma SA" }),
-        add({ id: "m1", sourceSystem: "manual", name: "Solo SA" }),
-        add({ id: "t1", name: "Test Workspace Co" }),
-      ],
-      "account",
+  it("never leaks an unknown sourceSystem value and skips test-named rows", () => {
+    const out = mapAddBatches(
+      [batch({ n: 2, sourceSystem: "kaspr", sampleIds: ["c1", "c2"], sampleNames: ["Real SA", "Test Workspace Co"] })],
+      "contact",
     );
-    expect(out).toHaveLength(2);
-    expect(out.find((o) => o.title === "3 accounts added")).toBeTruthy(); // t1 excluded from the apollo group
-    expect(out.find((o) => o.title === "Solo SA")!.detail).toBe("account added · manually");
+    expect(out).toHaveLength(1); // test row dropped
+    expect(out[0].detail).toBe("contact added"); // raw internal value shown as nothing
   });
 });
 

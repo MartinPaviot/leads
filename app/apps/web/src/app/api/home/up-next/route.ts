@@ -1,7 +1,7 @@
 import { withAuthRLS } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities, deals, companies, contacts, calls } from "@/db/schema";
-import { and, eq, isNull, desc, inArray, gte, count, max } from "drizzle-orm";
+import { and, eq, isNull, desc, inArray, sql } from "drizzle-orm";
 import { GET as getSummary } from "@/app/api/dashboard/summary/route";
 import { conversationKeyFor } from "@/lib/inbox/conversations";
 import {
@@ -9,9 +9,9 @@ import {
   buildKpis,
   buildActualites,
   aggregateOpens,
-  groupAdds,
+  mapAddBatches,
   formatCallDuration,
-  type AddCount,
+  type AddBatch,
   type ReplyInput,
   type DealRiskInput,
   type MeetingInput,
@@ -122,12 +122,7 @@ const capWord = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 async function loadActualites(tenantId: string): Promise<Actualite[]> {
   try {
-    // "Added" is only news while it's recent — a 3-month-old import isn't an
-    // actualité. Window also bounds the COUNT queries so the grouped lines
-    // show the REAL recent total (never a fetch-window artifact).
-    const addsSince = new Date(Date.now() - 30 * 86400000);
-
-    const [acts, opens, dealEvents, recentCalls, recentCompanies, recentContacts, companyCounts, contactCounts] = await Promise.all([
+    const [acts, opens, dealEvents, recentCalls, companyBatches, contactBatches] = await Promise.all([
       // Inbound / milestone events on contacts: replies, meetings, forms.
       db
         .select({
@@ -207,38 +202,54 @@ async function loadActualites(tenantId: string): Promise<Actualite[]> {
         .where(and(eq(calls.tenantId, tenantId), inArray(calls.outcome, [...FEED_CALL_OUTCOMES])))
         .orderBy(desc(calls.startedAt))
         .limit(8),
-      // Recent add ROWS (names for the individual-trickle case). The grouped
-      // counts come from the aggregate queries below, not from these rows.
-      db
-        .select({ id: companies.id, name: companies.name, sourceSystem: companies.sourceSystem, createdAt: companies.createdAt })
-        .from(companies)
-        .where(and(eq(companies.tenantId, tenantId), isNull(companies.deletedAt), isNull(companies.excludedReason), gte(companies.createdAt, addsSince)))
-        .orderBy(desc(companies.createdAt))
-        .limit(25),
-      db
-        .select({
-          id: contacts.id,
-          firstName: contacts.firstName,
-          lastName: contacts.lastName,
-          email: contacts.email,
-          sourceSystem: contacts.sourceSystem,
-          createdAt: contacts.createdAt,
-        })
-        .from(contacts)
-        .where(and(eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt), gte(contacts.createdAt, addsSince)))
-        .orderBy(desc(contacts.createdAt))
-        .limit(25),
-      // REAL per-source totals for the window — what the grouped lines show.
-      db
-        .select({ src: companies.sourceSystem, n: count(), newest: max(companies.createdAt) })
-        .from(companies)
-        .where(and(eq(companies.tenantId, tenantId), isNull(companies.deletedAt), isNull(companies.excludedReason), gte(companies.createdAt, addsSince)))
-        .groupBy(companies.sourceSystem),
-      db
-        .select({ src: contacts.sourceSystem, n: count(), newest: max(contacts.createdAt) })
-        .from(contacts)
-        .where(and(eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt), gte(contacts.createdAt, addsSince)))
-        .groupBy(contacts.sourceSystem),
+      // Add EVENTS — one import burst = one batch (same source, a gap of more
+      // than 30 minutes starts a new one), reconstructed in SQL. Each line is
+      // a dated fact whose count never changes; the latest batches compete
+      // chronologically with every other event (no rolling window).
+      db.execute(sql`
+        WITH flags AS (
+          SELECT id, name, source_system, created_at,
+                 CASE WHEN lag(created_at) OVER w IS NULL
+                        OR created_at - lag(created_at) OVER w > interval '30 minutes'
+                      THEN 1 ELSE 0 END AS nb
+          FROM companies
+          WHERE tenant_id = ${tenantId} AND deleted_at IS NULL AND excluded_reason IS NULL
+          WINDOW w AS (PARTITION BY source_system ORDER BY created_at)
+        ), batches AS (
+          SELECT *, sum(nb) OVER (PARTITION BY source_system ORDER BY created_at) AS batch
+          FROM flags
+        )
+        SELECT source_system AS src, count(*)::int AS n, max(created_at) AS newest,
+               (array_agg(id ORDER BY created_at DESC))[1:2] AS sample_ids,
+               (array_agg(name ORDER BY created_at DESC))[1:2] AS sample_names
+        FROM batches
+        GROUP BY source_system, batch
+        ORDER BY newest DESC
+        LIMIT 8
+      `),
+      db.execute(sql`
+        WITH flags AS (
+          SELECT id,
+                 coalesce(nullif(btrim(concat(first_name, ' ', last_name)), ''), email, 'Contact') AS name,
+                 source_system, created_at,
+                 CASE WHEN lag(created_at) OVER w IS NULL
+                        OR created_at - lag(created_at) OVER w > interval '30 minutes'
+                      THEN 1 ELSE 0 END AS nb
+          FROM contacts
+          WHERE tenant_id = ${tenantId} AND deleted_at IS NULL
+          WINDOW w AS (PARTITION BY source_system ORDER BY created_at)
+        ), batches AS (
+          SELECT *, sum(nb) OVER (PARTITION BY source_system ORDER BY created_at) AS batch
+          FROM flags
+        )
+        SELECT source_system AS src, count(*)::int AS n, max(created_at) AS newest,
+               (array_agg(id ORDER BY created_at DESC))[1:2] AS sample_ids,
+               (array_agg(name ORDER BY created_at DESC))[1:2] AS sample_names
+        FROM batches
+        GROUP BY source_system, batch
+        ORDER BY newest DESC
+        LIMIT 8
+      `),
     ]);
 
     // Resolve every referenced contact name in ONE query (acts + opens + calls).
@@ -362,27 +373,29 @@ async function loadActualites(tenantId: string): Promise<Actualite[]> {
       });
     }
 
-    const toCountMap = (rs: Array<{ src: string | null; n: number; newest: unknown }>): Map<string, AddCount> =>
-      new Map(rs.map((r) => [(r.src ?? "").toLowerCase(), { n: Number(r.n), newest: iso(r.newest) }]));
+    interface BatchRow {
+      src: string | null;
+      n: number | string;
+      newest: unknown;
+      sample_ids: string[] | null;
+      sample_names: string[] | null;
+    }
+    const toBatches = (rs: unknown): AddBatch[] => {
+      const rows: BatchRow[] = Array.isArray(rs)
+        ? (rs as BatchRow[])
+        : ((rs as { rows?: BatchRow[] }).rows ?? []);
+      return rows.map((r) => ({
+        sourceSystem: r.src,
+        n: Number(r.n),
+        newest: iso(r.newest),
+        sampleIds: r.sample_ids ?? [],
+        sampleNames: r.sample_names ?? [],
+      }));
+    };
 
     items.push(
-      ...groupAdds(
-        recentCompanies.map((c) => ({ id: c.id, name: c.name, sourceSystem: c.sourceSystem, at: iso(c.createdAt) })),
-        "account",
-        3,
-        toCountMap(companyCounts),
-      ),
-      ...groupAdds(
-        recentContacts.map((c) => ({
-          id: c.id,
-          name: [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email || "Contact",
-          sourceSystem: c.sourceSystem,
-          at: iso(c.createdAt),
-        })),
-        "contact",
-        3,
-        toCountMap(contactCounts),
-      ),
+      ...mapAddBatches(toBatches(companyBatches), "account"),
+      ...mapAddBatches(toBatches(contactBatches), "contact"),
     );
 
     return buildActualites(items, 12);
