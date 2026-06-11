@@ -13,6 +13,7 @@ import { db } from "@/db";
 import { icps } from "@/db/schema";
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { logAudit } from "@/lib/infra/audit-log";
+import { syncRankOneMirror } from "@/lib/icp/mirror";
 import { inngest } from "@/inngest/client";
 
 export async function POST(req: Request) {
@@ -51,6 +52,8 @@ export async function POST(req: Request) {
   // Rebuild the fit matrix for the restored ICP(s) from their preserved
   // criteria (their cells were dropped on delete).
   if (restoredIds.length > 0) {
+    // A restored profile may take rank 1 — re-derive the flats mirror.
+    await syncRankOneMirror(authCtx.tenantId);
     inngest
       .send({ name: "icp/recompute-tenant", data: { tenantId: authCtx.tenantId } })
       .catch(() => {});

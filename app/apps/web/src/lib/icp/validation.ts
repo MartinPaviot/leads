@@ -19,6 +19,13 @@
  */
 
 import type { CriterionOperator } from "./field-catalog";
+import {
+  parseUiState,
+  parseSourcingFilters,
+  uiStateToCriteria,
+  type IcpUiState,
+  type SourcingFilters,
+} from "./ui-state";
 
 export type CatalogEntry = {
   fieldKey: string;
@@ -40,6 +47,10 @@ export type IcpInput = {
   priority?: unknown;
   description?: unknown;
   criteria?: unknown;
+  /** Phase 1 (R5.5): { uiState?, sourcingFilters? } — validated via
+   *  parseUiState / parseSourcingFilters; other metadata keys are the
+   *  route's business (merged server-side, never client-clobbered). */
+  metadata?: unknown;
 };
 
 export type ValidationResult =
@@ -57,6 +68,8 @@ export type ValidationResult =
           weight: number;
           isRequired: boolean;
         }>;
+        uiState: IcpUiState | null;
+        sourcingFilters: SourcingFilters | null;
       };
     }
   | { ok: false; error: string };
@@ -151,11 +164,41 @@ export function validateIcpInput(
       ? null
       : String(input.description);
 
-  // criteria
+  // metadata (Phase 1, R5.5): only uiState + sourcingFilters are
+  // validated here; sibling metadata keys (AI provenance, colour…) are
+  // the route's business and merged server-side.
+  let uiState: IcpUiState | null = null;
+  let sourcingFilters: SourcingFilters | null = null;
+  if (input.metadata !== undefined && input.metadata !== null) {
+    if (typeof input.metadata !== "object" || Array.isArray(input.metadata)) {
+      return { ok: false, error: "metadata must be an object" };
+    }
+    const m = input.metadata as Record<string, unknown>;
+    if (m.uiState !== undefined && m.uiState !== null) {
+      const parsed = parseUiState(m.uiState);
+      if (!parsed.ok) return { ok: false, error: parsed.error };
+      uiState = parsed.value;
+    }
+    if (m.sourcingFilters !== undefined && m.sourcingFilters !== null) {
+      const parsed = parseSourcingFilters(m.sourcingFilters);
+      if (!parsed.ok) return { ok: false, error: parsed.error };
+      sourcingFilters = parsed.value;
+    }
+  }
+
+  // criteria. When a uiState is present, the guided criteria are
+  // REGENERATED from it here (single code path for the editor, AI
+  // apply, onboarding and api/icp/apply) and input.criteria carries
+  // only the Advanced rows. Both go through the same per-criterion
+  // catalog validation below.
   if (input.criteria !== undefined && !Array.isArray(input.criteria)) {
     return { ok: false, error: "criteria must be an array" };
   }
-  const rawCriteria = (input.criteria as CriterionInput[] | undefined) ?? [];
+  const generated: CriterionInput[] = uiState ? uiStateToCriteria(uiState) : [];
+  const rawCriteria = [
+    ...generated,
+    ...((input.criteria as CriterionInput[] | undefined) ?? []),
+  ];
   const catalogByKey = new Map(catalog.map((c) => [c.fieldKey, c]));
 
   const criteria: Array<{
@@ -218,6 +261,14 @@ export function validateIcpInput(
 
   return {
     ok: true,
-    value: { name, status: status as "draft" | "active" | "archived", priority, description, criteria },
+    value: {
+      name,
+      status: status as "draft" | "active" | "archived",
+      priority,
+      description,
+      criteria,
+      uiState,
+      sourcingFilters,
+    },
   };
 }

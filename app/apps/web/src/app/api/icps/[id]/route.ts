@@ -15,6 +15,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { logAudit } from "@/lib/infra/audit-log";
 import { validateIcpInput } from "@/lib/icp/validation";
 import { resolveCatalogForValidation } from "@/lib/icp/catalog-db";
+import { syncRankOneMirror } from "@/lib/icp/mirror";
 import { inngest } from "@/inngest/client";
 
 async function loadOwnedIcp(id: string, tenantId: string) {
@@ -51,8 +52,7 @@ export async function PATCH(
 ) {
   const authCtx = await getAuthContext();
   if (!authCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const adminCheck = requireAdmin(authCtx);
-  if (adminCheck) return adminCheck;
+  // R4.10: members edit profiles; only DELETE stays admin-gated.
   const { id } = await params;
 
   const icp = await loadOwnedIcp(id, authCtx.tenantId);
@@ -70,14 +70,24 @@ export async function PATCH(
   if (!validation.ok) {
     return Response.json({ error: validation.error }, { status: 400 });
   }
-  const { name, status, priority, description, criteria } = validation.value;
+  const { name, status, priority, description, criteria, uiState, sourcingFilters } =
+    validation.value;
+
+  // Merge — never clobber sibling metadata keys (AI provenance, colour…).
+  const existingMeta = (icp.metadata ?? {}) as Record<string, unknown>;
+  const metadata = {
+    ...existingMeta,
+    ...(uiState ? { uiState } : {}),
+    ...(sourcingFilters ? { sourcingFilters } : {}),
+  };
 
   await db.transaction(async (tx) => {
     await tx
       .update(icps)
-      .set({ name, status, priority, description, updatedAt: new Date() })
+      .set({ name, status, priority, description, metadata, updatedAt: new Date() })
       .where(eq(icps.id, id));
-    // Replace the criteria set wholesale.
+    // Replace the criteria set wholesale (guided rows regenerated from
+    // uiState by validateIcpInput + the client's Advanced rows).
     await tx.delete(icpCriteria).where(eq(icpCriteria.icpId, id));
     if (criteria.length > 0) {
       await tx.insert(icpCriteria).values(
@@ -92,6 +102,9 @@ export async function PATCH(
       );
     }
   });
+
+  // The flats mirror follows whoever is rank 1 now (R5.2).
+  await syncRankOneMirror(authCtx.tenantId);
 
   inngest
     .send({ name: "icp/recompute-tenant", data: { tenantId: authCtx.tenantId } })
@@ -120,6 +133,9 @@ export async function DELETE(
   const now = new Date();
   await db.update(icps).set({ deletedAt: now, updatedAt: now }).where(eq(icps.id, id));
   await db.delete(companyIcpFit).where(eq(companyIcpFit.icpId, id));
+
+  // Rank 1 may have changed — re-derive the flats mirror (R5.2).
+  await syncRankOneMirror(authCtx.tenantId);
 
   inngest
     .send({ name: "icp/recompute-tenant", data: { tenantId: authCtx.tenantId } })

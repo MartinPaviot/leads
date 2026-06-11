@@ -8,12 +8,13 @@
  * matrix + companies.score reflect the new ICP.
  */
 
-import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { icps, icpCriteria, companyIcpFit } from "@/db/schema";
 import { and, eq, isNull, isNotNull, sql } from "drizzle-orm";
 import { validateIcpInput } from "@/lib/icp/validation";
 import { resolveCatalogForValidation } from "@/lib/icp/catalog-db";
+import { syncRankOneMirror } from "@/lib/icp/mirror";
 import { inngest } from "@/inngest/client";
 
 export async function GET(req: Request) {
@@ -50,8 +51,9 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
   if (!authCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const adminCheck = requireAdmin(authCtx);
-  if (adminCheck) return adminCheck;
+  // R4.10: members create/edit profiles (parity with the legacy ICP
+  // page's documented decision); only DELETE stays admin-gated.
+  // Viewers are blocked upstream by the middleware write gate.
 
   let body: unknown;
   try {
@@ -65,7 +67,8 @@ export async function POST(req: Request) {
   if (!validation.ok) {
     return Response.json({ error: validation.error }, { status: 400 });
   }
-  const { name, status, priority, description, criteria } = validation.value;
+  const { name, status, priority, description, criteria, uiState, sourcingFilters } =
+    validation.value;
 
   const icpId = crypto.randomUUID();
   await db.transaction(async (tx) => {
@@ -76,6 +79,10 @@ export async function POST(req: Request) {
       description,
       status,
       priority,
+      metadata: {
+        ...(uiState ? { uiState } : {}),
+        ...(sourcingFilters ? { sourcingFilters } : {}),
+      },
       // createdByUserId FK -> users.id (APP id), not the auth-user id.
       createdByUserId: authCtx.appUserId,
     });
@@ -92,6 +99,9 @@ export async function POST(req: Request) {
       );
     }
   });
+
+  // The flats mirror follows whoever is rank 1 now (R5.2).
+  await syncRankOneMirror(authCtx.tenantId);
 
   // Recompute the matrix for this tenant so the new ICP scores.
   inngest
