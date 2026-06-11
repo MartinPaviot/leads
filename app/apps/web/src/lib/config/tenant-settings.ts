@@ -98,6 +98,18 @@ export interface TenantSettings {
   /** q_organization_job_titles — roles companies are actively hiring for. */
   hiringTitles?: string[];
 
+  // ── Workspace branding ──
+  /** Workspace logo shown in place of the initials avatar (sidebar +
+   * Settings → General). A small raster data URL (png/jpeg/webp), client-
+   * rasterized to ≤256px and capped at WORKSPACE_LOGO_MAX_DATAURL_CHARS
+   * (lib/logo/workspace-logo.ts). Served to the browser via
+   * GET /api/settings/workspace/logo — never inline the bytes into SSR
+   * payloads or LLM prompts. Null/absent = initials fallback. */
+  logoDataUrl?: string | null;
+  /** ISO timestamp of the last logo change — cache-busting `?v=` param on
+   * the serving URL. */
+  logoUpdatedAt?: string;
+
   // ── Email provider ──
   emailProvider?: string;
 

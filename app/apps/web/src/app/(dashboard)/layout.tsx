@@ -16,6 +16,8 @@ import { RoleProvider } from "@/components/role-provider";
 import { NavigationProgress } from "@/components/ui/navigation-progress";
 import { IdleLogout } from "@/components/idle-logout";
 import { getFlagsForTenant } from "@/lib/experiments";
+import { workspaceLogoUrl } from "@/lib/logo/workspace-logo";
+import type { TenantSettings } from "@/lib/config/tenant-settings";
 
 export default async function DashboardLayout({
   children,
@@ -30,6 +32,7 @@ export default async function DashboardLayout({
   let recentChats: Array<{ id: string; title: string | null }> = [];
   let userAvatarUrl: string | null = null;
   let tenantName: string | null = null;
+  let tenantLogoUrl: string | null = null;
   let userRole = "member";
   let flags: Awaited<ReturnType<typeof getFlagsForTenant>> = {} as any;
   try {
@@ -51,11 +54,16 @@ export default async function DashboardLayout({
         .limit(5);
 
       const [tenant] = await db
-        .select({ name: tenants.name })
+        .select({ name: tenants.name, settings: tenants.settings })
         .from(tenants)
         .where(eq(tenants.id, appUser.tenantId))
         .limit(1);
-      if (tenant) tenantName = tenant.name;
+      if (tenant) {
+        tenantName = tenant.name;
+        // Versioned URL only — the logo bytes stay behind the API route,
+        // never inlined into the SSR payload.
+        tenantLogoUrl = workspaceLogoUrl((tenant.settings || {}) as TenantSettings);
+      }
 
       flags = await getFlagsForTenant(appUser.tenantId);
     }
@@ -81,6 +89,7 @@ export default async function DashboardLayout({
               userInitials={initials}
               userAvatarUrl={userAvatarUrl}
               tenantName={tenantName}
+              tenantLogoUrl={tenantLogoUrl}
               recentChats={recentChats}
               onSignOut={handleSignOut}
             />

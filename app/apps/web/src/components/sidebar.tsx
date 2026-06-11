@@ -57,6 +57,9 @@ interface SidebarProps {
   userInitials: string;
   userAvatarUrl?: string | null;
   tenantName?: string | null;
+  /** Versioned URL of the workspace logo (Settings → General). Replaces the
+   * workspace-initials bubble; a personal avatar photo still wins. */
+  tenantLogoUrl?: string | null;
   recentChats: Array<{ id: string; title: string | null }>;
   onSignOut: () => void;
 }
@@ -114,6 +117,7 @@ function UserMenu({
   userEmail,
   avatarUrl,
   tenantName,
+  tenantLogoUrl,
   collapsed,
   theme,
   onToggleTheme,
@@ -125,6 +129,7 @@ function UserMenu({
   userEmail?: string;
   avatarUrl?: string | null;
   tenantName?: string | null;
+  tenantLogoUrl?: string | null;
   collapsed: boolean;
   theme: string;
   onToggleTheme: () => void;
@@ -145,6 +150,9 @@ function UserMenu({
 
   // Company initials for avatar fallback
   const avatarName = tenantName || userName;
+  // The uploaded workspace logo takes the spot the initials bubble had;
+  // a personal avatar photo (when set) keeps precedence, as before.
+  const avatarSrc = avatarUrl || tenantLogoUrl || null;
 
   return (
     <div
@@ -171,7 +179,7 @@ function UserMenu({
         }`}
         style={{ cursor: "pointer", background: "none", border: "none", textAlign: "left" }}
       >
-        <Avatar src={avatarUrl} name={avatarName} size="sm" />
+        <Avatar src={avatarSrc} name={avatarName} size="sm" />
         {!collapsed && (
           <span
             className="flex-1 truncate text-[13px] font-medium"
@@ -263,7 +271,7 @@ function UserMenu({
   );
 }
 
-export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tenantName, recentChats, onSignOut }: SidebarProps) {
+export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tenantName, tenantLogoUrl, recentChats, onSignOut }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   // Auto-collapse on small screens so the sidebar doesn't eat the viewport
@@ -544,6 +552,7 @@ export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tena
         userEmail={userEmail}
         avatarUrl={userAvatarUrl}
         tenantName={tenantName}
+        tenantLogoUrl={tenantLogoUrl}
         collapsed={collapsed}
         theme={theme}
         onToggleTheme={toggleTheme}

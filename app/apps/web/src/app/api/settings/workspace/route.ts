@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { logAudit } from "@/lib/infra/audit-log";
 import { readApprovalMode } from "@/lib/guardrails/approval-mode";
 import type { TenantSettings } from "@/lib/config/tenant-settings";
+import { isValidWorkspaceLogoDataUrl, workspaceLogoUrl } from "@/lib/logo/workspace-logo";
 
 export async function GET() {
   const authCtx = await getAuthContext();
@@ -35,6 +36,8 @@ export async function GET() {
       // legacy strings leak out of the API even when the DB still
       // holds one (pre-migration tenants).
       agentApprovalMode: readApprovalMode(settings as TenantSettings),
+      // Versioned serving URL (never the raw data URL — keep payloads small).
+      logoUrl: workspaceLogoUrl(settings as TenantSettings),
       // Recording / notetaker channel (WS-1)
       settings: {
         recordingEnabled: settings.recordingEnabled ?? true,
@@ -140,6 +143,24 @@ export async function PUT(req: Request) {
         .filter((d: string) => d.length > 0)
         .slice(0, 10);
     }
+    // Workspace logo — small raster data URL (the client rasterizes any
+    // input, SVG included, to ≤256px PNG/JPEG before upload). `null`
+    // removes the logo. Raw SVG and oversize payloads are rejected
+    // fail-closed so nothing scriptable or heavy lands in settings.
+    if (body.logoDataUrl !== undefined) {
+      if (body.logoDataUrl === null) {
+        updates.logoDataUrl = null;
+        updates.logoUpdatedAt = new Date().toISOString();
+      } else if (typeof body.logoDataUrl === "string" && isValidWorkspaceLogoDataUrl(body.logoDataUrl)) {
+        updates.logoDataUrl = body.logoDataUrl;
+        updates.logoUpdatedAt = new Date().toISOString();
+      } else {
+        return Response.json(
+          { error: "Logo must be a PNG, JPEG or WebP image under 300 KB" },
+          { status: 400 },
+        );
+      }
+    }
 
     await db.update(tenants).set({ settings: updates, updatedAt: new Date() }).where(eq(tenants.id, authCtx.tenantId));
 
@@ -153,6 +174,10 @@ export async function PUT(req: Request) {
     }
     if (body.agentApprovalMode !== undefined) {
       changes.agentApprovalMode = { old: currentSettings.agentApprovalMode, new: body.agentApprovalMode };
+    }
+    if (body.logoDataUrl !== undefined) {
+      // Booleans only — never write image bytes into the audit log.
+      changes.logo = { old: !!currentSettings.logoDataUrl, new: !!body.logoDataUrl };
     }
 
     await logAudit({
