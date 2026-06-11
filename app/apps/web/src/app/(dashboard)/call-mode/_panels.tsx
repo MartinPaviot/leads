@@ -420,7 +420,7 @@ function ProspectBriefCard({ contactId }: { contactId: string }) {
           </div>
         ) : (
           <p className="mt-1 text-[12px] text-zinc-400">
-            Parcours non retrouvé — pas de correspondance LinkedIn/Apollo.
+            Parcours non retrouvé — pas de correspondance LinkedIn.
           </p>
         )}
       </div>

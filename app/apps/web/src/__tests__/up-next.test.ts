@@ -179,7 +179,7 @@ describe("groupAdds", () => {
   function add(over: Partial<AddRow> & { id: string }): AddRow {
     return { name: "Acme SA", sourceSystem: "apollo", at: "2026-06-11T08:00:00.000Z", ...over };
   }
-  it("collapses a bulk import into one grouped line with provenance", () => {
+  it("collapses a bulk import into one grouped line with product-language provenance", () => {
     const out = groupAdds(
       [
         add({ id: "a1" }),
@@ -190,7 +190,7 @@ describe("groupAdds", () => {
     );
     expect(out).toHaveLength(1);
     expect(out[0].title).toBe("3 accounts added");
-    expect(out[0].detail).toBe("Apollo");
+    expect(out[0].detail).toBe("sourced by Elevay"); // never the provider name
     expect(out[0].at).toBe("2026-06-11T09:00:00.000Z");
     expect(out[0].href).toBe("/accounts");
   });
@@ -200,16 +200,22 @@ describe("groupAdds", () => {
       "contact",
     );
     expect(out).toHaveLength(2);
-    expect(out.find((o) => o.id === "contact:a1")!.detail).toBe("contact added · Apollo");
+    expect(out.find((o) => o.id === "contact:a1")!.detail).toBe("contact added · sourced by Elevay");
     expect(out.find((o) => o.id === "contact:a1")!.href).toBe("/contacts/a1");
     expect(out.find((o) => o.id === "contact:a2")!.detail).toBe("contact added");
   });
-  it("marks a group that saturates the fetch window as truncated (25+)", () => {
+  it("never leaks an unknown sourceSystem value to the UI", () => {
+    const out = groupAdds([add({ id: "a1", sourceSystem: "kaspr" })], "contact");
+    expect(out[0].detail).toBe("contact added"); // raw internal value shown as nothing
+  });
+  it("shows the REAL per-source total from the count query, not the fetch window", () => {
     const rows = Array.from({ length: 25 }, (_, i) => add({ id: `a${i}`, name: `Company ${i}` }));
-    const out = groupAdds(rows, "contact", 3, 25);
+    const counts = new Map([["apollo", { n: 136, newest: "2026-06-11T09:00:00.000Z" }]]);
+    const out = groupAdds(rows, "account", 3, counts);
     expect(out).toHaveLength(1);
-    expect(out[0].title).toBe("25+ contacts added"); // a 600-row import must never read as exactly 25
-    expect(out[0].detail).toBe("Apollo");
+    expect(out[0].title).toBe("136 accounts added"); // the DB count, never "25+"
+    expect(out[0].detail).toBe("sourced by Elevay");
+    expect(out[0].at).toBe("2026-06-11T09:00:00.000Z");
   });
   it("groups per source independently and drops test rows before counting", () => {
     const out = groupAdds(
@@ -224,7 +230,7 @@ describe("groupAdds", () => {
     );
     expect(out).toHaveLength(2);
     expect(out.find((o) => o.title === "3 accounts added")).toBeTruthy(); // t1 excluded from the apollo group
-    expect(out.find((o) => o.title === "Solo SA")!.detail).toBe("account added · manual");
+    expect(out.find((o) => o.title === "Solo SA")!.detail).toBe("account added · manually");
   });
 });
 

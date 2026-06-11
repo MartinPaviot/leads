@@ -140,7 +140,7 @@ export function TAMRevealNotification() {
         <div className="mt-0.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
           <Sparkles size={10} style={{ display: "inline", marginRight: 4 }} />
           {count === null
-            ? "Searching Apollo for companies matching your criteria"
+            ? "Searching for companies matching your criteria"
             : `${count.toLocaleString()} companies so far`}
         </div>
       </CardBody>
