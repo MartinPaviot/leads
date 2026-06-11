@@ -29,7 +29,7 @@ import {
 export async function GET() {
   return withAuthRLS(async (authCtx) => {
     const [replies, summary, actualites] = await Promise.all([
-      loadReplies(authCtx.tenantId),
+      loadReplies(authCtx.tenantId, authCtx.userId),
       loadSummary(),
       loadActualites(authCtx.tenantId),
     ]);
@@ -73,13 +73,24 @@ export async function GET() {
 
 // ── À faire: inbound replies needing an answer (inbox attention lane) ─
 
-async function loadReplies(tenantId: string): Promise<ReplyInput[]> {
+async function loadReplies(
+  tenantId: string,
+  authUserId: string | null | undefined,
+): Promise<ReplyInput[]> {
   try {
-    const [{ loadConversationRows }, { buildConversations }] = await Promise.all([
-      import("@/lib/inbox/load"),
-      import("@/lib/inbox/conversations"),
-    ]);
-    const { inbound, outbound, triage } = await loadConversationRows(tenantId);
+    const [{ loadConversationRows }, { buildConversations }, { getInboxScope, scopeConversationRows }] =
+      await Promise.all([
+        import("@/lib/inbox/load"),
+        import("@/lib/inbox/conversations"),
+        import("@/lib/inbox/user-scope"),
+      ]);
+    // The inbox is personal: a member's "Needs you" replies come from THEIR own
+    // mailbox (a prospect's reply that landed in it), never the workspace's.
+    const scope = await getInboxScope(tenantId, authUserId);
+    const { inbound, outbound, triage } = scopeConversationRows(
+      await loadConversationRows(tenantId),
+      scope,
+    );
     return buildConversations({ inbound, outbound, triage })
       .filter((c) => c.lane === "attention")
       .slice(0, 25)
