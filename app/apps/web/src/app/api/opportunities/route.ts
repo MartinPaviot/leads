@@ -4,6 +4,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { and, eq, gte, lte, sql, desc, asc, inArray, isNull, isNotNull, or, ilike } from "drizzle-orm";
 import { matchIndustries } from "@/lib/search/industry-match";
 import { logAudit } from "@/lib/infra/audit-log";
+import { logDealEvent } from "@/lib/deals/log-deal-event";
 import { apiError } from "@/lib/infra/api-errors";
 import { paginatedResponse } from "@/lib/infra/api-response";
 import { z } from "zod";
@@ -195,6 +196,17 @@ export async function POST(req: Request) {
         stage: deal.stage,
         value: deal.value,
       },
+    });
+
+    await logDealEvent({
+      tenantId: authCtx.tenantId,
+      dealId: deal.id,
+      type: "deal_created",
+      actorType: "user",
+      actorId: authCtx.appUserId,
+      summary: "Deal created",
+      newStage: deal.stage,
+      triggeredBy: "manual",
     });
 
     return Response.json({ deal }, { status: 201 });

@@ -22,6 +22,7 @@ import {
   type CustomObjectTypeDef,
 } from "@/lib/config/tenant-settings";
 import { logToolCall } from "@/lib/chat/tool-call-log";
+import { logDealEvent } from "@/lib/deals/log-deal-event";
 import { makeTool, type ToolContext } from "./context";
 
 export function buildCreateTools(ctx: ToolContext) {
@@ -149,6 +150,16 @@ export function buildCreateTools(ctx: ToolContext) {
             contactId: input.contactId,
           })
           .returning();
+        await logDealEvent({
+          tenantId,
+          dealId: created.id,
+          type: "deal_created",
+          actorType: "user",
+          actorId: userId,
+          summary: "Deal created",
+          newStage: created.stage,
+          triggeredBy: "chat",
+        });
         await logToolCall({
           tenantId,
           userId,
@@ -691,6 +702,16 @@ export function buildCreateTools(ctx: ToolContext) {
               : undefined,
           })
           .returning();
+        await logDealEvent({
+          tenantId,
+          dealId: created.id,
+          type: "deal_created",
+          actorType: "user",
+          actorId: userId,
+          summary: "Deal created",
+          newStage: created.stage,
+          triggeredBy: "chat",
+        });
         return {
           upserted: {
             id: created.id,

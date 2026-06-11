@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { deals, companies, activities } from "@/db/schema";
 import { eq, desc, and, isNull } from "drizzle-orm";
 import { logAudit } from "@/lib/infra/audit-log";
+import { logDealEvent } from "@/lib/deals/log-deal-event";
 import { apiError } from "@/lib/infra/api-errors";
 import { cascadeSoftDeleteDeal, DEAL_CASCADE_TYPES, type DealCascadeType } from "@/lib/deals/cascade-delete";
 import { inngest } from "@/inngest/client";
@@ -145,6 +146,29 @@ export async function PUT(
     .set(updates)
     .where(and(eq(deals.id, id), eq(deals.tenantId, authCtx.tenantId)))
     .returning();
+
+  // Journal the stage transition so the Activity feed and the deal timeline
+  // see MANUAL moves (kanban drag, edit form), not only engine/chat ones.
+  if (body.stage !== undefined && body.stage !== existing.stage) {
+    const type =
+      body.stage === "won" ? "deal_won" : body.stage === "lost" ? "deal_lost" : "deal_stage_changed";
+    await logDealEvent({
+      tenantId: authCtx.tenantId,
+      dealId: id,
+      type,
+      actorType: "user",
+      actorId: authCtx.appUserId,
+      summary:
+        type === "deal_won"
+          ? "Deal won"
+          : type === "deal_lost"
+            ? "Deal lost"
+            : `Stage changed from ${existing.stage} to ${body.stage}`,
+      oldStage: existing.stage,
+      newStage: body.stage,
+      triggeredBy: "manual",
+    });
+  }
 
   // Trigger win/loss analysis when deal is closed
   if (body.stage === "won" || body.stage === "lost") {

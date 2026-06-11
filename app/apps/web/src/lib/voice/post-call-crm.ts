@@ -18,6 +18,7 @@ import { deals, tasks, contacts, companies, tenants } from "@/db/schema";
 import { and, eq, isNull, inArray, desc, sql } from "drizzle-orm";
 import type { CallNotes } from "./extraction-schema";
 import { getCaptureApprovalMode } from "@/lib/capture/approval";
+import { logDealEvent } from "@/lib/deals/log-deal-event";
 
 const OPEN_STAGES = ["lead", "qualification", "demo", "trial", "proposal", "negotiation"] as const;
 
@@ -137,6 +138,16 @@ export async function applyCallToCrm(args: ApplyCallArgs): Promise<ApplyCallResu
       .where(eq(deals.id, openDeal.id));
     result.dealId = openDeal.id;
     result.dealAction = "closed_lost";
+    await logDealEvent({
+      tenantId,
+      dealId: openDeal.id,
+      type: "deal_lost",
+      actorType: "system",
+      summary: "Deal lost — prospect not interested (call)",
+      oldStage: openDeal.stage as string,
+      newStage: "lost",
+      triggeredBy: "call_analysis",
+    });
   } else if (companyId && (outcome === "meeting_booked" || (outcome === "connected" && notes.sentiment === "positive"))) {
     if (!openDeal) {
       // Create a deal only for a clear-intent call.
@@ -160,6 +171,18 @@ export async function applyCallToCrm(args: ApplyCallArgs): Promise<ApplyCallResu
           .returning({ id: deals.id });
         result.dealId = created.id;
         result.dealAction = "created";
+        await logDealEvent({
+          tenantId,
+          dealId: created.id,
+          type: "deal_created",
+          actorType: "system",
+          summary:
+            outcome === "meeting_booked"
+              ? "Deal created — meeting booked on call"
+              : "Deal created from call",
+          newStage: outcome === "meeting_booked" ? "demo" : "qualification",
+          triggeredBy: "call_analysis",
+        });
       }
     } else {
       // Patch the existing deal with anything newly learned.
@@ -174,6 +197,18 @@ export async function applyCallToCrm(args: ApplyCallArgs): Promise<ApplyCallResu
       await db.update(deals).set(patch).where(eq(deals.id, openDeal.id));
       result.dealId = openDeal.id;
       result.dealAction = "updated";
+      if (patch.stage === "demo") {
+        await logDealEvent({
+          tenantId,
+          dealId: openDeal.id,
+          type: "deal_stage_changed",
+          actorType: "system",
+          summary: "Advanced to demo — meeting booked on call",
+          oldStage: openDeal.stage as string,
+          newStage: "demo",
+          triggeredBy: "call_analysis",
+        });
+      }
     }
   }
 
