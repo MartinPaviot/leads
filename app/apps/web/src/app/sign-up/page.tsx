@@ -208,7 +208,7 @@ export default async function SignUpPage({
         }}
       >
         <div className="flex flex-col items-center text-center">
-          <img src="/logo-Elevay.svg" alt="Elevay" className="mb-3 h-10 w-10" />
+          <img src="/logo-Elevay.svg?v=2" alt="Elevay" className="mb-3 h-10 w-10" />
           <h1 className="gradient-text text-2xl font-bold tracking-tight">
             Elevay
           </h1>

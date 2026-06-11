@@ -225,7 +225,7 @@ export default function LandingPage() {
       >
         <div className="mx-auto flex max-w-[1240px] items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/logo-Elevay.svg" alt="Elevay" className="h-7 w-7" />
+            <img src="/logo-Elevay.svg?v=2" alt="Elevay" className="h-7 w-7" />
             <span className="text-xl font-bold" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Elevay</span>
           </Link>
           <div className="hidden items-center gap-8 md:flex">
@@ -543,7 +543,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-[1240px] px-6 pb-8 pt-12">
           <div className="flex flex-col items-center justify-between gap-8 md:flex-row">
             <div className="flex items-center gap-2">
-              <img src="/logo-Elevay.svg" alt="Elevay" className="h-6 w-6" />
+              <img src="/logo-Elevay.svg?v=2" alt="Elevay" className="h-6 w-6" />
               <span className="text-base font-bold" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Elevay</span>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-6">

@@ -114,7 +114,7 @@ function Sidebar({ active }: { active: string }) {
   return (
     <aside className="hidden w-[160px] shrink-0 flex-col border-r sm:flex" style={{ borderColor: T.soft, background: T.card }}>
       <div className="flex h-[42px] shrink-0 items-center gap-1.5 border-b px-3" style={{ borderColor: T.soft }}>
-        <img src="/logo-Elevay.svg" alt="" className="h-5 w-5" />
+        <img src="/logo-Elevay.svg?v=2" alt="" className="h-5 w-5" />
         <span className="text-[13px] font-bold" style={{ background: BRAND, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Elevay</span>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden px-2 py-1.5">
