@@ -23,7 +23,7 @@ function AcceptInviteInner() {
     | { kind: "valid"; invite: InviteInfo }
     | { kind: "invalid"; reason: string }
     | { kind: "accepting" }
-    | { kind: "accepted" }
+    | { kind: "accepted"; reauth: boolean }
     | { kind: "needs_signin"; invite: InviteInfo }
     | { kind: "wrong_account"; message: string; email?: string }
   >({ kind: "loading" });
@@ -81,10 +81,20 @@ function AcceptInviteInner() {
       });
       return;
     }
-    setState({ kind: "accepted" });
-    // Force a fresh session so the new tenantId/role propagate, then go home.
+    // When the accept MOVED the user into a different workspace, the current
+    // JWT still carries the OLD tenant — a plain navigation keeps that stale
+    // session, so they'd land on the old (often empty) workspace's data. The
+    // accept route flags this via `requiresReauth`; sign out so they
+    // re-authenticate and get a token with the new tenant. (`requiresReauth`
+    // is false when they were already in the tenant — then just go home.)
+    const reauth = data.requiresReauth === true;
+    setState({ kind: "accepted", reauth });
     setTimeout(() => {
-      window.location.href = "/home";
+      if (reauth) {
+        void signOut({ callbackUrl: `/sign-in?callbackUrl=${encodeURIComponent("/home")}` });
+      } else {
+        window.location.href = "/home";
+      }
     }, 1200);
   }
 
@@ -190,7 +200,11 @@ function AcceptInviteInner() {
         {state.kind === "accepted" && (
           <div className="text-center">
             <h2 style={h2Style}>You&apos;re in!</h2>
-            <p style={pStyle}>Redirecting you to the workspace…</p>
+            <p style={pStyle}>
+              {state.reauth
+                ? "Sign in once more to enter your new workspace…"
+                : "Redirecting you to the workspace…"}
+            </p>
           </div>
         )}
 
