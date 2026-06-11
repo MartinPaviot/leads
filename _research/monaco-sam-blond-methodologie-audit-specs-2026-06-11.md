@@ -1,580 +1,440 @@
-# Audit PM — La méthodologie GTM de Sam Blond, feature par feature, traduite en specs Kiro
+# Audit PM — La méthodologie GTM de Sam Blond, feature par feature, comparée au code Elevay réel
 
-**Date**: 2026-06-11
-**Source primaire**: `_research/raw/transcript-sam-blond-monaco-gtm.md` (podcast Turner Novak × Sam Blond, CEO Monaco, enregistré ~mai 2026 — « Monaco launched about three months ago » + GA « should come in July »)
-**Posture de l'exercice**: je me place comme PM senior CHEZ Monaco, chargé de traduire ce que le CEO affirme en public en specs produit rigoureuses, avec un regard de CRO (chaque feature jugée par la variable de revenu qu'elle bouge). L'intérêt pour nous : reverse-engineerer la logique produit de Monaco depuis la bouche de son fondateur, et voir où sa méthodologie est solide, où elle est sur-vendue, et ce que ça implique pour Elevay.
-**Limites**: n=1 podcast, discours marketing parlé. Je distingue systématiquement ce qui est revendiqué comme LIVE (« we have an insights agent ») de ce qui est décrit comme POSSIBLE (« AI can then route the meeting »). Les références §N pointent vers les sections du transcript.
+**Date**: 2026-06-11 (v2 — comparaison Elevay intégrée)
+**Source primaire**: `_research/raw/transcript-sam-blond-monaco-gtm.md` (podcast Turner Novak × Sam Blond, CEO Monaco, enregistré ~mai 2026)
+**Méthode v2**: la v1 (audit Monaco-only, commit `33f92406`) a été enrichie d'une vérification du code Elevay RÉEL par 4 explorations exhaustives (TAM/ICP/scoring, signaux/contacts, séquences/envoi, analytics/deals/capture), réconciliées avec `origin/main` au 2026-06-11 (les PRs collision #182-#194 et title-chip #187/#192 sont sur main, pas dans la branche de travail explorée — corrigé ici).
+**Format par feature**: méthodo Sam (verbatim) → lecture CRO → audit PM de SA méthode → **état réel Elevay** (tables, fichiers, flux) → **critères de la spec, statut chez nous** ([OK] / [PARTIEL] / [ABSENT]) → **le comment chez nous** (étapes concrètes ancrées sur nos fichiers).
 
 ---
 
 ## 0. Synthèse exécutive
 
-**La thèse produit en une phrase** : le revenu est une équation à trois variables (« Revenue has three variables: opportunities (or leads) × conversion rates × ACV » §7), et Monaco est construit comme la boucle fermée qui optimise les trois depuis un seul plan de données — parce qu'un produit étroit ne peut pas relier ce qui close en bas du funnel à ce qu'on cible en haut (§6, §8).
+**La thèse Monaco en une phrase**: le revenu est une équation (« opportunities × conversion rates × ACV » §7) et la plateforme est la boucle fermée qui optimise les trois variables depuis un seul plan de données (§6, §8).
 
-**Les quatre doctrines méthodologiques** qui structurent le produit :
-1. **Demand-first** (§20) : 9/10 founders diagnostiquent un problème de conversion alors que le bottleneck est la génération d'opportunités. Doubler les demos est plus facile qu'un lift de conversion de 50 %. Conséquence produit : le défaut du système doit pousser vers la demand gen, pas vers l'optimisation de conversion.
-2. **Founder-sender** (§17) : « Who sends the outbound is very important » — l'origination vient du founder, c'est « ingrained into the platform itself ». Conséquence : délégation d'identité + approbation, pas d'envoi générique.
-3. **Relevance, pas personnalisation** (§19) : les signaux marchent « because they're actually relevant » — le signal doit bénéficier au destinataire (job posting → on automatise ce rôle), l'anti-pattern étant la personnalisation cosmétique (« go Chiefs »). Conséquence : le signal est un déclencheur ET un contenu, avec citation vérifiable.
-4. **Anecdotes > attribution pour le brand** (§10) : « The real answer is: we don't [measure] » — mais Sam cite lui-même LA mesure qui compte : reply rates « same company, same product, same message — exponentially higher » après le launch. Conséquence : ne pas attribuer par contact, mais instrumenter l'uplift global et capturer les échos de marque.
+**Les quatre doctrines**: demand-first (§20 — 9/10 founders misdiagnostiquent conversion au lieu de demande), founder-sender (§17 — « ingrained into the platform itself »), relevance-not-personalization (§19 — le signal doit bénéficier au destinataire), anecdotes > attribution pour le brand (§10).
 
-**Ce que le transcript révèle de nouveau vs nos teardowns** (détail en §5 du doc) :
-- **GA mi-juillet 2026** — dans ~1 mois. Public beta = waitlist « metering who comes in » (§13).
-- **Series B levée** (~mai 2026), narrative « FDAE = THE big competitive advantage » (§21). Pas dans nos docs (qui s'arrêtaient à $35M seed+A).
-- **Insights agent revendiqué live** (§8) — la pièce la plus différenciante du discours, absente de nos teardowns UI.
-- **ACV implicite ~$25K** (§9, l'exemple « $25K ACV deal » donné comme leur deal type).
-- **Clients nommés** : Greptile, Judgment Labs, Parley (YC, legal immigration), Nowadays (AI event planning).
-- **Revenue majoritairement par référence** (§13) — « most of our revenue today comes from referrals ».
+**Verdict comparatif global** (détail feature par feature ci-dessous):
 
-**Verdict d'audit global** : la méthodologie est cohérente et la traduction produit est réelle (le transcript confirme la classification 6 étapes de notre teardown). Les deux failles structurelles que je documente en §4 : (a) **le piège statistique** — l'insights agent promet de la significativité statistique à des clients seed qui ont 20-50 opportunités par trimestre, ce qui est mathématiquement intenable sans tiers de confiance et correction multi-comparaisons ; les exemples fondateurs (Zenefits, Brex 4x) ont été découverts à des échelles de centaines d'employés ; (b) **l'aveu FDAE** — « you have to manage that agent — set it up, program it, check the messaging. We just do that for you » (§21) est un aveu que le produit seul ne tient pas sa promesse d'autonomie ; la marge en dépend (objection Series A admise).
+- **Là où Elevay est au niveau ou devant le discours**: le pipeline TAM→fit est plus honnête que ce que Sam décrit (coverage-aware scoring, hard gates explicables, approval queue + suppression ledger — rien de tout ça n'est revendiqué dans le transcript) ; la vérification d'URL des signaux cités (`signalUrlCache`, construite sur la spec MONACO-PARITY-01) ; l'apprentissage de lift par type de signal sur outcomes réels (`signalOutcomes`, seuil n≥10 sinon 1.0×) — c'est un embryon d'insights agent QUE NOUS AVONS et que le transcript ne détaille même pas ; la file d'approbation de drafts avec state machine versionnée ; le grounding evidence `{claim, quote}` post-call.
+- **Les 3 écarts structurants**: (1) **multi-canal LinkedIn** — « table stakes » dixit Sam (§18), chez nous adapter stub non branché, branche Unipile non mergée : c'est LE gap de reply rate ; (2) **insights de cohortes** — nous avons les briques (signalOutcomes, aePerformanceSnapshots, win-loss-engine) mais aucun moteur qui coupe persona × géo × verticale avec tiers de confiance, et nos /reports actuels font générer des « recommendations » par LLM sur agrégats SANS test statistique — nous sommes exposés au même reproche que je fais à Monaco ; (3) **diagnostic demand-vs-conversion** — la doctrine §20 est productisable trivialement chez nous et n'existe pas.
+- **Le quick win unique**: le détecteur de brand echo (F12) — nous capturons déjà tous les appels/emails avec extraction LLM post-call ; ajouter un champ au schéma d'extraction existant suffit. Personne ne l'a, pas même le discours de Monaco.
+
+**Faits compétitifs nouveaux**: GA Monaco mi-juillet 2026 (~1 mois) ; Series B levée ~mai 2026, narrative « FDAE = THE advantage » ; insights agent revendiqué live (jamais vu dans nos teardowns UI — à vérifier au GA) ; ACV implicite ~$25K (§9) vs Elevay ~$12K/an ; clients nommés : Greptile, Judgment Labs, Parley, Nowadays ; revenue majoritairement referrals ; public beta = waitlist « strike zone ».
 
 ---
 
-## 1. L'équation de revenu comme colonne vertébrale
+## 1. La carte: équation de revenu × état Elevay
 
-Lecture CRO : chaque feature se juge par la variable qu'elle bouge. C'est le critère de Sam lui-même (§7-8), je l'applique à son propre discours.
-
-| # | Feature | Variable principale | Variable secondaire | Statut dans le transcript |
-|---|---------|--------------------|--------------------|---------------------------|
-| F1 | TAM Builder agentique | Opportunités (volume adressable) | Coût/temps humain | Live (§2) |
-| F2 | Account Scoring | Conversion (qualité du ciblage) | Opportunités | Live (§2) |
-| F3 | Signal Overlay + timing | Opportunités (reply rate) | Conversion (moment) | Live (§2, §19) |
-| F4 | Buyer Finder (personas) | Conversion (bon interlocuteur) | Opportunités | Live (§2), persona-insight §8 |
-| F5 | Séquences multi-canal founder-sender | Opportunités (reply rate) | — | Live, « ingrained » (§17-18) |
-| F6 | Insights Agent | Conversion | Opportunités (re-ciblage) | Revendiqué live (§8) |
-| F7 | Routing rep-level | Conversion | — | Capacité décrite, pas démontrée (§8) |
-| F8 | Analytics outcome-first + diagnostic bottleneck | Les 3 (méta) | — | Doctrine forte, productisation implicite (§7, §20) |
-| F9 | Boucle fermée closed-won → ciblage | Conversion ET opportunités | ACV (segments) | Argument d'architecture (§6, §8) |
-| F10 | FDAE | Conversion + rétention (NRR) | COGS (marge) | Live, narrative Series B (§21) |
-| F11 | Launch playbook | Opportunités (brand → reply rate) | Conversion (crédibilité) | Méthodo servie aux clients (§13-14) |
-| F12 | Campagnes créatives / gifting / brand echo | Opportunités (reply rate uplift) | Conversion (crédibilité) | Méthodo, partiellement productisable (§10-11, §15) |
-
-Hiérarchie de séquencement qui découle de la doctrine demand-first (§20) : F1→F5 (générer) avant F6→F7 (optimiser la conversion). Sam est cohérent : son produit a commencé par la demand gen, et le routing rep-level — qui ne sert que des équipes multi-closers, pas son ICP founder-led actuel — est un pari upmarket (§5 « steak dinners with committees »), pas une feature pour son client d'aujourd'hui.
+| # | Feature (méthodo Sam) | Variable CRO | Statut transcript | État Elevay (réel, main) | Verdict |
+|---|---|---|---|---|---|
+| F1 | TAM Builder agentique | Opportunités | Live (§2) | Complet: build streaming + proposals queue + refresh cron | **Parité+** (manque: sample-gate, provenance par champ) |
+| F2 | Account Scoring | Conversion/effort | Live (§2) | Complet: blended fit + hard gates + mirror score + model bayésien parallèle | **Parité** (manque: exploration, boucle outcome→poids) |
+| F3 | Signal Overlay + timing | Opps + Conv | Live (§2, §19) | Riche: 6 types + custom + monitor 4h + URL cache + lift learning | **Parité** (manque: decay, re-verify au send, signal→personne) |
+| F4 | Buyer Finder personas | Conversion | Live (§2, §8) | Waterfall geo-routé + callProfile post-call + TitleBadge tiers | **Partiel** (manque: auto-discovery, actionabilité, cohortes persona) |
+| F5 | Séquences multi-canal founder-sender | Opportunités | Live, « ingrained » (§17-18) | Email complet (approval, warmup, windows); LinkedIn stub; phone producer sans consumer | **Le gap n°1**: mono-canal en prod |
+| F6 | Insights Agent | Conversion | Revendiqué live (§8) | Briques éparses (signalOutcomes, snapshots, win-loss) sans moteur de cohortes | **Absent en tant que système** |
+| F7 | Routing rep-level | Conversion | Capacité décrite (§8) | Collision awareness shippée (≠ routing); pas de routing | **Ne pas construire** (ICP founder-led) |
+| F8 | Équation + diagnostic bottleneck | Méta | Doctrine (§7, §20) | KPIs réels + 3 reports LLM; ni équation ni diagnostic | **Absent, productisation simple** |
+| F9 | Boucle closed-won → ciblage | Conv + Opps | Architecture (§6, §8) | signalOutcomes lift + Naive Bayes ≥10 deals (parallèle, ne touche pas l'ICP) | **Embryon réel, boucle non fermée** |
+| F10 | FDAE | Rétention/COGS | Live, narrative B (§21) | Martin = le FDAE (30h/client J0-60); admin app; pas de télémétrie d'interventions | **Modèle différent assumé** |
+| F11 | Launch playbook | Opportunités | Servi à la main (§13-14) | Rien | **Absent** (P3, petit, différenciant) |
+| F12 | Brand echo / campagnes | Opportunités | Méthodo (§10-11, §15) | Capture totale + extraction post-call déjà en place; pas de détecteur echo | **Quick win ~1 j** |
 
 ---
 
-## 2. Audit + specs par feature
-
-Format par feature : ce que Sam affirme (verbatim) → lecture CRO → audit PM (forces, angles morts, risques) → spec Kiro condensée (user story, critères EARS, design, edge cases, métriques, tasks).
+## 2. Audit + comparaison + comment, par feature
 
 ---
 
 ### F1. TAM Builder agentique (§2)
 
-**Ce que Sam affirme**
-- « There are specific sales workflows that AI and agents are just better than humans at — the things that are fully online. An example: building your TAM based off your ICP. »
-- Historiquement « a meaningful percentage » du temps SDR ; « The outreach was actually the easier part ».
-- « All of this can now be done in near-zero time. »
+**Méthodo Sam (verbatim)**: « building your TAM based off your ICP » ; « a meaningful percentage » du temps SDR historique ; « All of this can now be done in near-zero time. » Rien sur la précision, la fraîcheur, la dedup, la révision d'ICP.
 
-**Lecture CRO**
-Bouge le volume d'opportunités adressables et libère du temps humain pour le customer-facing (§3, §9). Le TAM est l'actif amont : toute la machine en hérite. Un TAM imprécis = des séquences pertinentes envoyées aux mauvaises sociétés = reply rates morts ET marque brûlée sur le vrai marché.
+**Lecture CRO**: l'actif amont — un TAM imprécis = séquences pertinentes envoyées aux mauvaises boîtes = reply rate mort ET marque brûlée.
 
-**Audit PM**
-- *Force* : le claim « fully online ⇒ agent supérieur » est bien délimité — Sam ne prétend pas que l'agent est meilleur partout (§3, §9), ce qui rend la thèse crédible.
-- *Angle mort 1 — l'ICP est une hypothèse, pas une donnée*. « You have an idea of what that list looks like » suppose un ICP connu. Pour une seed, l'ICP est faux au départ par définition. Le TAM Builder sans boucle de révision (F9) fige une erreur. Le transcript ne traite jamais la révision d'ICP.
-- *Angle mort 2 — aucune mention de qualité* : couverture des sources, déduplication, fraîcheur, taux d'erreur firmographique. « Near-zero time » dit le coût, pas la précision. Un PM doit fixer la barre des deux.
-- *Risque* : le filtrage silencieux — si une source ne couvre pas un critère (ex. business model PLG/SLG, rarement structuré), filtrer dessus exclut silencieusement des comptes valides. (Note interne : on a exactement ce problème documenté côté Apollo — search masque les firmographiques.)
+**Audit PM (Monaco)**: l'ICP d'une seed est une hypothèse, pas une donnée — aucun mécanisme de révision dans le discours ; « near-zero time » dit le coût, jamais la qualité ; risque de filtrage silencieux sur critères mal couverts.
 
-**Spec Kiro — TAM-BUILD**
+**Chez Elevay aujourd'hui — le réel**
 
-*User story* : en tant que founder, je décris mon ICP en langage naturel et j'obtiens une base de tous les comptes vendables, dont je peux vérifier la précision avant que quoi que ce soit ne parte en séquence.
+- **Modèle de données** (`db/schema/icp.ts`): `icps` (status draft/active/archived, priority, metadata `{uiState, sourcingFilters}`, soft-delete) ; `icp_criteria` (fieldKey, operator eq/in/gt/…/between, value jsonb, weight, isRequired) ; `icp_field_catalog` (source: apollo_search | apollo_enrich | custom_property | signal ; apolloParam pour le sourcing) ; `company_icp_fit` matrice (fitScore [0,1], matchedCriteria `{matched, unmatched, excludedBy, identityFit, signalFit, coverage}`, computedAt).
+- **Entrées de comptes**: (1) `/api/tam/build` — par ICP: `icpToStrategy()` déterministe critères→params Apollo ; par tenant: LLM génère 2-4 stratégies. Pipeline streaming max 6 concurrents (`lib/tam-stream/per-company.ts`): dedup domaine (Set mémoire + contrainte DB) → `enrichOrganization(domain)` → `waterfallEnrich` (gap-fill Crunchbase/Hunter) → `scoreCompanyWithModel` → INSERT → 5 signaux en parallèle (investor_overlap, funding_recent, funding_crunchbase, hiring_intent, yc_company) → HEAD-verify des sources. (2) CSV. (3) Inbound visiteur. (4) Cron `icp/source-tenant`: multi-sources (Apollo, Pappers, SIRENE/Zefix) → file de propositions au lieu d'insertion directe.
+- **File d'approbation TAM** (`lib/tam/proposals.ts`, `db/schema/tam.ts`): `tam_proposals` (kind add/refresh/exclude, dedupKey, payload, score, reviewedBy) ; `applyProposal()` ; `account_suppressions` = registre durable des exclusions (survit au hard-delete, réversible). Cron `tam-refresh-cron` 04:30 UTC, budget 25 propositions refresh/tenant/jour (stale = `lastEnrichedAt` > TTL). UI `/tam/review` prod-hidden depuis PR #160 (`lib/tam/entry-visibility.ts`) — les propositions S'ACCUMULENT en prod sans review.
+- **Fraîcheur**: `companies.lastEnrichedAt` + `sourceSystem` (apollo/csv/manual/inbound/inngest) — au niveau compte, PAS par champ.
+- **Estimation pré-build**: `/api/tam/estimate` (count Apollo) — informatif, non bloquant.
 
-*Critères d'acceptation (EARS)*
-1. WHEN l'utilisateur décrit son ICP en langage naturel, THE SYSTEM SHALL le traduire en critères structurés éditables (géo, effectif, verticale/sous-verticale, business model, signaux de stack) et afficher cette traduction pour validation explicite avant tout sourcing.
-2. WHEN le TAM est construit, THE SYSTEM SHALL exposer par compte la provenance et la date de fraîcheur de chaque champ firmographique.
-3. IF un critère de l'ICP n'est couvert par les sources que sur moins de X % des comptes candidats, THEN THE SYSTEM SHALL le déclarer « critère non fiable » et proposer de le traiter en scoring (F2) plutôt qu'en filtre dur — jamais de filtrage silencieux.
-4. WHEN le TAM initial est prêt, THE SYSTEM SHALL imposer une porte de validation : un échantillon aléatoire de 20 comptes présenté à l'utilisateur ; en dessous de 85 % jugés « dans la cible », le sourcing est re-paramétré au lieu d'activer les séquences.
-5. WHEN un compte est ajouté ou modifié post-construction (refresh), THE SYSTEM SHALL journaliser l'événement (le TAM est vivant, pas un export).
-6. IF deux sources divergent sur un champ, THEN THE SYSTEM SHALL garder les deux valeurs avec provenance et choisir selon une règle de priorité visible, pas écraser.
+**Critères de la spec — statut chez nous**
+1. ICP NL → critères structurés validés avant sourcing — **[OK]** (`/api/icps/infer` + éditeur CriterionList + importance Nice/Important/Must → weight/isRequired ; recompute diff « N regraded, X up, Y down »).
+2. Provenance + fraîcheur PAR CHAMP — **[ABSENT]** (compte-level seulement).
+3. Critère non couvert → jamais de filtre silencieux — **[PARTIEL]**: côté SCORING c'est mieux que la spec (coverage-aware: champ absent ne pénalise pas, plancher 0.6) ; côté SOURCING, `icpToStrategy` ignore silencieusement un critère sans `apolloParam` mappable.
+4. Porte d'échantillonnage 20 comptes avant activation des séquences — **[ABSENT]** (estimate informatif ; l'approval queue couvre le flux cron mais pas le build UI, et elle est prod-hidden).
+5. Journal des ajouts/refresh — **[OK]** (proposals + events).
+6. Divergence inter-sources conservée — **[PARTIEL]** (waterfall mergé, raw conservé dans l'event, pas en DB par champ).
 
-*Design (points clés)*
-- Pipeline : ICP NL → critères → sourcing multi-fournisseurs → enrichissement firmographique systématique post-sourcing (les APIs de recherche masquent souvent les firmographiques : enrichir par domaine après coup) → dédup par domaine + raison sociale → scoring (F2).
-- Fraîcheur tierée par score de compte (lié F2/F3) : comptes chauds re-crawlés souvent, queue de TAM rarement — c'est ce qui rend le « basically real time » de §2 économiquement tenable.
-- Échec partiel : un fournisseur down ⇒ le TAM se construit avec trous étiquetés, pas un échec global silencieux.
-
-*Edge cases* : ICP contradictoire (« startups ET 5000 employés ») ⇒ retour utilisateur, pas une moyenne ; marchés < 500 comptes (le TAM exhaustif change la stratégie : couverture 100 % + profondeur par compte) ; comptes hors sources (le user peut injecter une liste, qui suit le même pipeline d'enrichissement).
-
-*Métriques de succès (CRO)* : précision échantillonnée ≥ 85 % ; % de comptes avec ≥ 1 buyer actionnable (lié F4) ; time-to-first-list < 1 h ; % du TAM touché par séquence à 90 jours (un TAM construit mais pas travaillé = vanity).
-
-*Tasks (ordre)* : (1) parseur ICP NL→critères + UI de validation [verify : 10 ICP de test traduits correctement] ; (2) orchestrateur sourcing + enrichissement post-sourcing [verify : champs firmographiques non nuls > 90 %] ; (3) provenance + fraîcheur par champ [verify : visible sur fiche compte] ; (4) porte d'échantillonnage 20 comptes [verify : workflow bloquant testé] ; (5) refresh tieré + journal [verify : event log] ; (6) test E2E ICP→TAM→sample-gate.
+**Le comment chez nous**
+1. **Provenance par champ** (S): au point d'écriture unique de l'enrichissement (writer de `enrichOrganization` + `waterfallEnrich` dans `per-company.ts`), écrire `companies.properties.enrichmentMeta = {field: {source, fetchedAt}}` — JSONB, zéro migration. Surfaçage: tooltip sur la fiche compte (le pattern provenance existe déjà sur les cartes call-intel).
+2. **Critères non sourçables explicites** (S): `icpToStrategy()` retourne déjà la stratégie — lui faire retourner aussi `unmappedCriteria[]` ; UI `/settings/icp`: bandeau « 2 critères ne filtrent pas le sourcing, ils ne jouent qu'au scoring » + même info dans le stream `/api/tam/build`.
+3. **Sample-gate** (M): après un build ≥ N comptes, état `tenants.settings.tamValidation = {pending, sample: [20 ids aléatoires]}` ; bannière sur `/accounts` « valide 20 comptes avant d'activer les séquences » ; en dessous de 85% de « dans la cible », CTA retour éditeur ICP. Enforcement: `checkContactEligibility` (`lib/sequences/enrollment-eligibility.ts`) refuse l'enrollment d'un compte d'un TAM non validé — un seul point de code, déjà le chokepoint des gardes anti-ICP.
+4. **Décision produit à prendre**: la review TAM est prod-hidden (#160) pendant que le cron continue de proposer — soit on réactive l'entrée avec un compteur, soit on coupe le cron en prod ; l'état actuel (file qui grossit sans consommateur) viole notre propre règle « pas de données sans consommateur ».
 
 ---
 
 ### F2. Account Scoring (§2)
 
-**Ce que Sam affirme**
-- « Scoring your accounts, because not every company is created equal. » Exemples de priors : HQ à San Francisco, « sweet spot for employee count », business model sales-led vs product-led.
-- « Historically a very manual process. »
+**Méthodo Sam**: « not every company is created equal » — priors déclaratifs (SF, effectif, business model). Le transcript conflate priors déclarés et poids appris (§8).
 
-**Lecture CRO**
-Le scoring n'augmente pas le volume, il réalloue l'effort — donc il bouge la conversion par unité d'effort. C'est la variable cachée de l'équation : à capacité de demos constante (§20 « demand-rich environment »), le score décide quelles demos on prend.
+**Lecture CRO**: réalloue l'effort à capacité constante — le score décide quelles demos on prend.
 
-**Audit PM**
-- *Conflation à clarifier* : les exemples de Sam (SF, effectif, business model) sont des **priors déclaratifs** — des croyances du founder — pas des poids appris. Le transcript saute sans transition des priors (§2) aux insights appris (§8). Un produit honnête sépare les deux couches et étiquette laquelle parle.
-- *Risque 1 — boucle auto-réalisatrice* : on ne travaille que les hauts scores ⇒ seuls les hauts scores génèrent des outcomes ⇒ le score se confirme lui-même. Sans quota d'exploration, le système n'apprend jamais que son prior est faux.
-- *Risque 2 — score opaque* : un score caché que le founder ne peut pas contester détruit la confiance au premier désaccord (« pourquoi cette boîte que je connais est à 34 ? »).
+**Audit PM (Monaco)**: deux couches à séparer (déclaratif/appris) ; boucle auto-réalisatrice sans quota d'exploration ; score opaque = confiance détruite.
 
-**Spec Kiro — ACCT-SCORE**
+**Chez Elevay aujourd'hui — le réel**
 
-*User story* : en tant que founder, chaque compte porte un score de priorité dont je vois les raisons, qui démarre sur mes critères déclarés et n'évolue vers de l'appris que quand il y a assez de données pour le justifier.
+- **Moteur** (`lib/icp/criteria-engine.ts`): `computeBlendedFit()` — critères required = hard gate (fitScore 0 + `excludedBy` stocké) ; soft pondérés Σ(matched)/Σ(évaluables) ; split identity/signal ; **coverage-aware**: dénominateur = champs AVEC données, score = fitEvaluable × (0.6 + 0.4 × coverage) — un fit parfait sur données partielles plafonne à 0.6. Normalisation diacritiques/« & »→« and » (vécu Apollo « Île-de-France »).
+- **Recompute** (`inngest/icp-fit-recompute.ts` + `lib/icp/fit-recompute-core.ts`): batchs de 100, multi-ICP, primaire = premier ICP (par priority) avec fit ≥ 0.5 ; miroir `companies.score` = round(100 × fit primaire) ; grades A+→F (`lib/scoring/scoring.ts`).
+- **Explicabilité**: `matchedCriteria` (matched/unmatched/excludedBy/coverage) stocké par cellule — exposé dans le détail matrice, PAS sur les listes.
+- **Couche apprise**: `lib/scoring/company-model-trainer.ts` — Naive Bayes entraîné sur les deals fermés, **activé seulement à ≥ 10 closed deals** (sinon règles), via `scoreCompanyWithModel()`. PARALLÈLE: ne repondère jamais l'ICP.
+- **Score opérationnel**: `companies.priorityScore` (cron `signal-score-daily`) = lift signaux × fit ICP × accessibilité contact — c'est LE score de la call queue.
 
-*Critères d'acceptation (EARS)*
-1. WHEN un score est affiché, THE SYSTEM SHALL montrer les 3 facteurs dominants avec leurs valeurs (« HQ Suisse romande : +22 », « effectif 340 : +15 »).
-2. WHILE le tenant a moins de N closed-won (proposé : 30), THE SYSTEM SHALL maintenir le score en mode « déclaratif » étiqueté comme tel, sans pondération apprise.
-3. WHEN le mode appris s'active, THE SYSTEM SHALL versionner les pondérations et notifier le changement (« le score v3 privilégie désormais les 50-200 FTE : 12 closed-won sur 14 dans cette tranche »).
-4. THE SYSTEM SHALL réserver un quota d'exploration : E % (proposé : 15 %) du volume de séquences alloué à des comptes hors top-score, étiquetés « exploration », pour casser la boucle auto-réalisatrice.
-5. IF l'insights agent (F6) propose une mise à jour de pondération, THEN THE SYSTEM SHALL la soumettre à validation humaine avec l'évidence — jamais d'auto-application.
-6. WHEN l'utilisateur force un score (override), THE SYSTEM SHALL le respecter, le journaliser, et le confronter plus tard à l'outcome (apprentissage des overrides).
+**Critères de la spec — statut chez nous**
+1. 3 facteurs dominants visibles sur le score — **[PARTIEL]** (stocké, visible en détail matrice, pas en liste/tooltip).
+2. Mode déclaratif étiqueté sous n<30 closed-won — **[PARTIEL]**: le seuil existe (≥10 pour le modèle) mais RIEN n'étiquette quel mode parle ; on a même TROIS scores (fit ICP, score modèle, priorityScore) sans légende unifiée — risque de confusion réel.
+3. Versionnage des pondérations + notification — **[ABSENT]** (metadata snapshot, pas de versions).
+4. Quota d'exploration E% — **[ABSENT]** (la daily call list trie `contacts.score DESC` strict ; `signal-to-sequence` enrôle au seuil — double renforcement du biais).
+5. Proposition de repondération par l'insight, gate humain — **[ABSENT]** (le trainer est parallèle, muet sur l'ICP).
+6. Override journalisé confronté à l'outcome — **[ABSENT]**.
 
-*Design* : deux couches additives (déclaratif : poids issus de l'ICP validé F1 ; appris : poids issus de F6/F9 avec n suffisant) ; recalcul à chaque refresh TAM ; le score est un champ first-class consommé par F3 (fraîcheur de crawl), F5 (priorité de séquence) et le diagnostic F8.
-
-*Edge cases* : tenant mono-segment (le score discrimine peu ⇒ le dire, pas afficher une fausse granularité) ; données manquantes sur un facteur (neutre, pas pénalisant) ; deux ICP actifs (score par ICP, pas une moyenne).
-
-*Métriques* : lift de conversion top-quartile vs bottom-quartile (le score « marche » si l'écart est réel) ; % d'overrides utilisateurs (trop d'overrides = score faux ou mal expliqué) ; part d'exploration réellement envoyée.
-
-*Tasks* : (1) score déclaratif + facteurs visibles [verify : fiche compte] ; (2) seuil n + étiquette de mode [verify : tenant vierge reste déclaratif] ; (3) quota d'exploration dans l'allocateur de séquences [verify : 15 % ± 2 mesuré sur 4 semaines simulées] ; (4) versionnage + notification [verify : changelog] ; (5) E2E override→outcome.
+**Le comment chez nous**
+1. **Facteurs en surface** (S): tooltip du grade sur `/accounts` et fiche — lire `company_icp_fit.matchedCriteria` du primaire (déjà en DB, pure UI).
+2. **Légende des scores** (S): un composant unique « score provenance » qui dit lequel des trois parle et son mode (déclaratif/appris) ; règle: < 10 closed-won ⇒ étiquette « sur tes critères déclarés ».
+3. **Quota d'exploration** (M): dans `generateDailyCallList()` (`lib/voice/campaign.ts`) — réserver ceil(15%) des slots quotidiens à des contacts hors top-score (tirage pondéré sur le tier B/C), `callCampaignTargets.metadata.exploration = true` ; idem dans `signal-to-sequence` (1 enrollment sur 7 marqué exploration). La mesure tombe gratuitement: `signalOutcomes` et les enrollments portent déjà l'outcome — un simple GROUP BY exploration à 60 jours dit si le prior tient.
+4. **Boucle outcome → proposition de poids** (M, dépend F9): voir F9.3 — le diff profil-gagnant vs poids actifs atterrit comme proposition dans `/settings/icp`, jamais auto-appliqué.
 
 ---
 
 ### F3. Signal Overlay + intent timing (§2, §19)
 
-**Ce que Sam affirme**
-- « Then you overlay signals: are they visiting the website, hiring for a certain role? » ; « You can have an agent crawl every website in your entire database in basically real time. »
-- §19, la doctrine : « they work because they're actually relevant ». Exemples : job posting d'EA → « Saw this posting [hyperlink to the job posting]. Want to try us for one week, free? » ; Nowadays → crawl des blog posts d'offsite → « Saw your blog post — we can help you plan the next one. You're reaching the right person... and it's top of mind because they wrote a blog post about it. »
-- L'anti-pattern, verbatim : « "Saw you're from Kansas City, go Chiefs — are you thinking about finance workflow automation?" I'm actually more averse to that than to just telling me about the finance thing you build. »
+**Méthodo Sam**: « overlay signals: visiting the website, hiring for a certain role » ; « crawl every website in your entire database in basically real time » ; doctrine: « they work because they're actually relevant » avec citation vérifiable (« [hyperlink to the job posting] ») ; anti-pattern: « go Chiefs ».
 
-**Lecture CRO**
-Le signal bouge les deux premières variables à la fois : le reply rate (opportunités) parce que le message arrive au bon moment avec une raison réelle, et la conversion parce qu'on parle à la bonne personne (« the one who planned the thing ») d'un problème qu'elle vient d'exprimer. C'est la feature au meilleur ratio levier/coût du discours.
+**Lecture CRO**: bouge reply rate ET conversion — le meilleur ratio levier/coût du discours.
 
-**Audit PM**
-- *Force* : la doctrine §19 est un critère de qualité produit **testable** — « le signal bénéficie-t-il au destinataire ? » discrimine mécaniquement le signal utile (job posting = besoin exprimé) du signal cosmétique (ville, sport). Rare qu'un CEO donne un critère aussi opérationnalisable.
-- *Angle mort 1 — coût du « basically real time »* : crawler tout le TAM en continu est économiquement absurde. Implicite à expliciter : fraîcheur tierée par score (F2).
-- *Angle mort 2 — la péremption* : un job posting de 6 mois n'est plus un signal, c'est un fossile. Aucune mention de decay.
-- *Angle mort 3 — la vérifiabilité* : l'exemple de Sam inclut « [hyperlink to the job posting] » — le signal cité doit être vérifiable par le destinataire. Si l'URL est morte au moment de l'envoi, le message devient un mensonge détectable. Fail-closed obligatoire.
-- *Risque* : taxonomie ouverte (« crawl the internet for blog posts about a company kickoff » — Nowadays a défini SON signal). La vraie feature n'est pas une liste de signaux, c'est un **constructeur de signaux par ICP** ; sans garde-fous, l'utilisateur définit des signaux à 90 % de faux positifs et brûle son TAM.
+**Audit PM (Monaco)**: « basically real time » sur tout le TAM est économiquement intenable sans tiers de fraîcheur ; aucune mention de péremption ; la doctrine §19 est un critère de qualité testable — l'encoder en lint.
 
-**Spec Kiro — SIGNAL-OVERLAY**
+**Chez Elevay aujourd'hui — le réel**
 
-*User story* : en tant que founder, je définis les signaux d'intention propres à mon produit ; le système surveille mon TAM, déclenche l'outreach au bon moment et n'utilise jamais un signal qu'il ne peut pas citer.
+- **Types détectés** (`lib/scoring/signal-detectors.ts`): funding, funding_crunchbase, hiring (jobPostingIntent), tech_stack_change, leadership_change, investor_overlap — stockés dans `companies.properties` (tamSignals, jobPostingIntent, fundingLastCheckedAt…).
+- **Signaux custom** (`customSignals`): définition NL → LLM génère `plan {judgePrompt, keywords[], urlPatterns[]}` → backfill TAM-wide (cron `custom-signal-backfill`) → résultat `{value, reason, sources, confidence, computedAt}` par compte. Scopable par ICP. **Pas d'étape d'échantillonnage avant le backfill.**
+- **Surveillance**: `signal-monitor` toutes les 4h sur le top 50 (détecte les NOUVEAUX signaux, invalide les briefs périmés) ; `signal-score-daily` recalcule `priorityScore`.
+- **Apprentissage**: `signalOutcomes` (signalType × outcome won/lost) → multiplicateurs de lift par tenant, fallback 1.0× sous 10 outcomes — utilisés dans `scoreSignals()` (5 pts × multiplicateur, cap 20) et le seuil d'auto-enrollment.
+- **Citation vérifiable**: `signalUrlCache` (statuts sentinelles -1 timeout/-2 DNS/-3 malformé/-4 IP privée, outcome verified/unverified, TTL + cron d'éviction) — construit sur notre spec MONACO-PARITY-01. Vérifié à la GÉNÉRATION du draft (`personalizationSources` = citations `{kind, label, href, quote}`), **pas re-vérifié à l'envoi**.
+- **Vocal**: `isVoiceableSignal()` (`lib/call-mode/live-script.ts`) — 12 types prononçables / 8 internes interdits à l'oral ; `deriveOpeningReason()` choisit LA meilleure raison d'appel.
+- **Action**: `signal-to-sequence` auto-enrôle (top 3 contacts par seniorité) quand le multiplicateur appris passe le seuil tenant.
 
-*Critères d'acceptation (EARS)*
-1. WHEN un signal est utilisé dans un message, THE SYSTEM SHALL inclure la référence vérifiable (URL ou citation datée) et re-vérifier sa validité au moment de l'envoi ; IF la source n'est plus accessible, THEN le message SHALL être reformulé sans le signal ou mis en attente — jamais envoyé avec une citation morte.
-2. WHEN un signal dépasse son âge maximal (configurable par type ; proposé : job posting 30 j, blog post 60 j, levée 180 j — cf. la fenêtre Veuve Clicquot §15 « raised in the last six months »), THE SYSTEM SHALL le déclasser : il peut encore prioriser un compte, plus jamais être cité dans un message.
-3. WHEN l'utilisateur crée un signal personnalisé en langage naturel (« blog posts sur un kickoff »), THE SYSTEM SHALL générer la définition, l'exécuter sur un échantillon de 20 comptes, et présenter les hits pour calibration avant activation sur le TAM entier.
-4. IF un draft contient une personnalisation de type « personnel non pertinent » (sport, ville natale, alma mater sans lien avec l'offre), THEN THE SYSTEM SHALL la bloquer avec la raison — la doctrine §19 encodée en lint de draft.
-5. WHEN un signal se déclenche sur un compte, THE SYSTEM SHALL router vers la personne concernée par le signal (l'auteur du blog post, le hiring manager du posting) et pas seulement le persona par défaut (F4).
-6. THE SYSTEM SHALL échelonner la fraîcheur de surveillance selon le score du compte (tier chaud : quotidien ; tier froid : hebdomadaire+), et l'afficher.
+**Critères de la spec — statut chez nous**
+1. Référence vérifiable + re-vérification à l'envoi, fail-closed — **[PARTIEL]**: vérifié à la génération via cache ; le délai génération→approbation→envoi peut rendre l'URL morte au moment où le founder a déjà approuvé.
+2. Decay par type (hiring 30j, funding 180j…) — **[ABSENT]**: un jobPostingIntent détecté reste « vrai » indéfiniment dans properties ; `lib/coaching/freshness-check.ts` existe et N'EST PAS CÂBLÉ (dormant).
+3. Signal custom calibré sur 20 comptes avant TAM entier — **[ABSENT]** (backfill direct).
+4. Lint anti-personnalisation-cosmétique — **[PARTIEL]**: `evaluateSequenceQuality()` pénalise les clichés génériques (« I hope this finds you well », -0.15), pas la catégorie « personnel non pertinent » (sport/ville/alma mater), et rien n'est BLOQUANT (score-only, seuil 0.7 en preview).
+5. Signal → personne concernée (auteur du post, hiring manager) — **[ABSENT]** (signaux company-level ; enrollment = top 3 seniorité).
+6. Fraîcheur tierée par score — **[OK]** (monitor 4h top-50 + daily le reste — exactement le tiering que la spec demande).
 
-*Design* : taxonomie de base (hiring, publication de contenu, levée, visite web, changement de stack/techno) + signaux custom par tenant ; chaque signal stocké avec {type, source_url, extrait, detected_at, expires_at, account_id, person_id?} ; pipeline détection → scoring d'actionnabilité → éligibilité message (vérif URL à T-0 de l'envoi) ; le détecteur custom est une définition exécutable versionnée, pas un prompt jetable.
-*Lien méthodo (notre doctrine interne)* : LLM = étape contrainte fail-closed (extraction/classification du signal), jamais juge final de l'envoi.
-
-*Edge cases* : signal multiple sur le même compte (choisir LE plus actionnable, pas empiler — un message à un signal) ; signal détecté sur un compte déjà en séquence (insertion contextuelle vs collision de cadence) ; faux positif signalé par l'utilisateur (feedback → recalibration du détecteur).
-
-*Métriques* : reply rate des messages signal-déclenchés vs cold (l'écart EST la feature ; si < +50 % relatif, les signaux sont mal définis) ; précision des signaux custom (échantillonnée) ; % de signaux cités vérifiables à l'envoi = 100 % (invariant).
-
-*Tasks* : (1) modèle de données signal + taxonomie de base [verify : migration + insertion] ; (2) vérification de citation à l'envoi, fail-closed [verify : test URL morte ⇒ message retenu] ; (3) decay par type [verify : signal périmé non citable] ; (4) constructeur de signaux custom + calibration 20 comptes [verify : workflow E2E] ; (5) lint anti-personnalisation-cosmétique [verify : draft « go Chiefs » bloqué] ; (6) routing vers la personne du signal [verify : blog post → auteur].
+**Le comment chez nous**
+1. **Decay par type** (S): constantes `SIGNAL_TTL = {hiring: 30, funding: 180, tech_stack_change: 90, leadership_change: 120}` dans un helper `lib/signals/freshness.ts` (absorber le `freshness-check.ts` dormant) ; appliqué à TROIS points de lecture: `scoreSignals()` (un signal périmé ne score plus), `buildProspectContext()` (plus injecté dans les drafts), `deriveOpeningReason()` (plus prononcé en call). Données déjà datées (detectedAt/computedAt/fundingLastCheckedAt) — zéro migration.
+2. **Re-vérification à l'envoi** (S): dans `sequenceDraftToOutbound` (`inngest/sequence-draft-to-outbound.ts`), avant l'insert `outbound_emails`: si `personalizationSources[].href` existe → `signalUrlCache` re-check (le module et le cache existent) ; si invalid → draft repasse `pending_approval` avec `reviewReason = "source du signal expirée"` (le state machine versionné gère déjà ce retour sans course).
+3. **Calibration des signaux custom** (S): dans `custom-signal-backfill`, mode sample-first: exécuter le plan sur les 20 comptes top-fit, présenter les hits (UI settings signaux, elle existe), bouton « lancer sur tout le TAM » → backfill actuel inchangé. `backfilledAt` reste le marqueur d'état.
+4. **Lint bloquant** (S): nouvelle règle dans `evaluateSequenceQuality()` — catégorie `irrelevant_personal` (regex + LLM judge léger sur le draft), et passage de « pénalité » à « blocage » pour cette catégorie + re-génération automatique (la boucle evaluator-optimizer 2 itérations existe).
+5. **Signal → personne** (M): étendre le schéma de signal custom avec `personHint` (extrait quand `sources` contient un auteur/un titre de poste) ; `signal-to-sequence` matche `personHint` contre les contacts du compte avant le fallback top-seniorité. Pour hiring: le job posting contient le département — prioriser le contact du département.
 
 ---
 
 ### F4. Buyer Finder — personas et contacts (§2, §8)
 
-**Ce que Sam affirme**
-- « Then finding the buyers: this startup, we sell to the sales leader — who is it, what's their email? That used to be manual. »
-- L'insight Brex (§8) : « finance people converted at ~4x the rate of controllers » — découvert seulement quand quelqu'un a regardé, parce que « a rep would show up on a call and not note whether they were talking to a CFO, a VP Finance, an FP&A person, a controller ».
+**Méthodo Sam**: « finding the buyers — who is it, what's their email? » ; l'insight Brex « finance ~4x controllers », possible uniquement parce que le persona a fini par être tracké — « a rep would show up on a call and not note whether they were talking to a CFO… ».
 
-**Lecture CRO**
-Le bon interlocuteur est un multiplicateur de conversion (4x chez Brex) ET une condition d'opportunité (pas d'email = pas de touch). Le persona n'est pas une métadonnée : c'est la variable de ciblage la plus puissante que le transcript documente avec un chiffre.
+**Lecture CRO**: le bon interlocuteur = multiplicateur documenté (4x) ; la délivrabilité = l'oxygène, jamais mentionnée dans le transcript.
 
-**Audit PM**
-- *La leçon cachée de l'anecdote Brex* : l'insight 4x n'a été possible que parce que le persona a fini par être **tracké**. La feature amont de l'insights agent (F6), c'est la **capture automatique du persona sur chaque interaction** — sans saisie manuelle, puisque « it's not in any of their DNA » de noter ça (§8). Le transcript ne le dit jamais explicitement ; c'est pourtant la dépendance critique.
-- *Angle mort — la délivrabilité comme condition de survie* : « what's their email? » sans vérification = bounces = domaine grillé = TOUTE la machine s'arrête. Le transcript saute le sujet (à peine « domains that aren't your real domain » §17). Pour un CRO, la délivrabilité n'est pas une feature, c'est l'oxygène.
-- *Risque* : taxonomie de personas trop fine (FP&A vs VP Finance vs CFO) = cellules statistiques vides en aval (F6). La taxonomie doit être hiérarchique (famille → titre exact) pour agréger proprement.
+**Audit PM (Monaco)**: la dépendance cachée de l'insights agent est la capture AUTOMATIQUE du persona sur chaque interaction ; taxonomie hiérarchique obligatoire sinon cellules statistiques vides.
 
-**Spec Kiro — BUYER-FIND**
+**Chez Elevay aujourd'hui — le réel**
 
-*User story* : en tant que founder, chaque compte du TAM a son ou ses buyers identifiés avec un email vérifié et un persona classé, et chaque interaction enregistre automatiquement à quel persona j'ai réellement parlé.
+- **Waterfall contacts** (`lib/providers/contact-enrichment/waterfall.ts`): geo-routé (Kaspr/Lusha boostés FR/CH, Apollo p10 US) ; merge: email au rang de confiance le plus haut (verified > likely > unverified), téléphones en union E.164 taggés par provider, **saturation** (stop dès mobile + email utilisable) ; coût par provider tracké. FullEnrich = bulk async 100 par webhook. Dropcontact absent.
+- **Découverte de buyers**: `/api/accounts/[id]/suggested-contacts` — seniorités dérivées par REGEX du targetRoles NL du tenant (CEO/CTO→c_suite, VP, director…), Apollo searchPeople, top 10 « likely involved in purchasing decisions ». **Manuel** — rien ne tourne à l'entrée d'un compte.
+- **Persona stocké**: `contacts.title` (string Apollo) + seniorité Apollo (c_suite/founder/vp/director/manager/senior) ; UI: `lib/ui/title-style.ts` + TitleBadge par palier (PRs #187/#192, sur main) — JAMAIS de parsing du titre (règle maison).
+- **Persona capturé en interaction**: **OUI pour les calls** — `contacts.properties.callProfile {role, isDecisionMaker, disposition champion/supporter/neutral/detractor}` extrait post-call (+ `pendingCallProfile` en mode review). **NON pour les emails/meetings** (participants non classés).
+- **Intent comportemental**: `scoreBuyerIntent()` (`lib/scoring/buyer-intent.ts`) — 8 signaux depuis activities 90j (response_time, meeting_acceptance, question_density…), trend heating/stable/cooling, à la demande, non persisté.
+- **Protection délivrabilité**: `emailOptouts` (unsubscribe/bounce_hard/manual), `doNotCallList`, `connectedMailboxes` (bounceCount7d, replyCount7d, healthScore, dailyLimit 50, warmup 5/j) ; `/api/deliverability` seuils (bounce > 5% warn, spam > 0.1%, open < 15%). **Pas de gate dur pré-envoi à 2%** — des warnings.
+- **Compte non actionnable**: `companies.excludedReason` pour l'anti-ICP — pas pour « aucun buyer joignable ».
 
-*Critères d'acceptation (EARS)*
-1. WHEN un compte entre dans le TAM, THE SYSTEM SHALL tenter d'identifier ≥ 1 contact du persona cible avec email vérifié ; IF aucun contact actionnable, THEN le compte SHALL être étiqueté « non actionnable — raison » et exclu des séquences (pas d'envoi à l'aveugle).
-2. THE SYSTEM SHALL refuser d'envoyer à une adresse non vérifiée si le taux de bounce glissant du domaine expéditeur dépasse 2 % (protection de l'actif délivrabilité).
-3. WHEN une interaction est capturée (call, email, meeting), THE SYSTEM SHALL classifier le persona de chaque participant (famille + titre) depuis le titre déclaré et le contexte, sans saisie manuelle — c'est la donnée d'entrée de F6.
-4. THE SYSTEM SHALL maintenir une taxonomie hiérarchique de personas (famille → seniorité → titre exact) pour que F6 puisse agréger à la maille qui a du n.
-5. WHEN le persona cible déclaré diverge du persona qui convertit (signal F6), THE SYSTEM SHALL proposer la bascule des first touches (« §8 : we oriented all first touches toward finance personas ») avec l'évidence.
-6. IF un signal (F3) désigne une personne précise, THEN elle SHALL primer sur le persona par défaut du compte.
+**Critères de la spec — statut chez nous**
+1. ≥1 buyer vérifié à l'entrée du TAM, sinon étiquette « non actionnable » — **[ABSENT]** (découverte manuelle ; pas de statut d'actionnabilité).
+2. Refus d'envoi si bounce domaine > 2% — **[PARTIEL]** (health + warnings, pas de gate).
+3. Persona classé sur CHAQUE interaction sans saisie — **[PARTIEL]** (calls oui via callProfile ; emails/meetings non).
+4. Taxonomie hiérarchique famille→titre — **[OK de facto]** (seniorité Apollo stockée = la famille ; title = la feuille ; title-style la matérialise).
+5. Bascule des first touches si le persona qui convertit diverge — **[ABSENT]** (aucune analytics par persona — voir F6).
+6. La personne du signal prime sur le persona par défaut — **[ABSENT]** (cf. F3.5).
 
-*Design* : cascade de fournisseurs de contacts avec coût/qualité par étage et provenance stockée ; vérification email systématique pré-séquence ; classification persona = enum hiérarchique stocké (jamais de parsing à la volée dans l'UI — règle qu'on s'applique déjà) ; le persona effectif d'une interaction est extrait du transcript/des participants, recoupé avec le titre déclaré.
-
-*Edge cases* : multi-buyers (champion + economic buyer — tracker les deux rôles, le multi-threading triple les taux de close à l'échelle) ; titre ambigu (« Operations » ⇒ famille large, pas un pari) ; contact parti de la boîte (signal de churn de donnée ET signal d'opportunité chez son nouvel employeur).
-
-*Métriques* : % du TAM actionnable (buyer + email vérifié) — c'est LE chiffre de couverture amont ; bounce rate < 2 % (invariant) ; % d'interactions avec persona auto-classé ≥ 95 % (sinon F6 est aveugle).
-
-*Tasks* : (1) cascade contacts + vérification + provenance [verify : compte test → contact vérifié] ; (2) étiquette « non actionnable » + exclusion séquences [verify : pas d'envoi] ; (3) classification persona des interactions [verify : 20 transcripts classés, précision ≥ 90 %] ; (4) taxonomie hiérarchique [verify : agrégation famille] ; (5) E2E signal-personne > persona-défaut.
+**Le comment chez nous**
+1. **Auto-discovery à l'entrée** (M): dans `runPerCompanyPipeline` (`lib/tam-stream/per-company.ts`), après l'INSERT: émettre `company/find-buyers` ; nouveau job Inngest qui réutilise la logique de suggested-contacts (mêmes seniorités depuis targetRoles) + waterfall sur le top-1 ; écrire `companies.properties.actionability = {status: "ok" | "no_buyer" | "no_reachable_email", checkedAt}`. Budget: 1 reveal Apollo par compte au build — chiffrer avant d'activer par défaut (cap configurable, le pattern de caps bulk existe).
+2. **Gate bounce dur** (S): dans `emailSendWorker`: si `bounceCount7d / max(sent7d,1) > 0.02` → pause mailbox (status `paused` existe) + notification « Needs you » sur /home (la lane existe). Trois lignes au chokepoint déjà gardé par le test-mode guardrail.
+3. **Persona sur emails** (S): au sync inbound (`inngest/sync-functions.ts`), quand l'expéditeur matche un contact: snapshot `{title, seniority}` dans `activities.metadata.participantPersona` — c'est la donnée d'entrée des cohortes F6 (le call l'a déjà via callProfile).
+4. **Actionnabilité visible** (S): colonne/filtre sur `/accounts` (« 41 comptes sans buyer joignable ») — consomme le statut du point 1 ; sinon le statut ne sert à rien (règle: pas de champ sans consommateur).
 
 ---
 
-### F5. Séquences multi-canal + doctrine founder-sender (§17, §18)
+### F5. Séquences multi-canal + founder-sender (§17, §18)
 
-**Ce que Sam affirme**
-- « The opinions I'll express here are ingrained into the platform itself. » (la phrase la plus importante du transcript pour un PM : la méthodologie EST le produit)
-- « Who sends the outbound is very important... you want the origination to come from the founder. Founders get higher reply rates... It's founder-to-founder — not necessarily "I'm selling you something", even though it really is. »
-- Multi-canal : « The table stakes are LinkedIn and email. It's not one plus one equals two — it's one plus one equals four. You can say "following up from my message on LinkedIn"... You tie it all back together. » Téléphone en 3e canal selon l'industrie, gifting en 4e.
-- Anti-patterns : « not just spraying the universe with cold email through domains that aren't your real domain » ; le « just following up » a « reached diminishing returns. Everyone knows it's automated. »
-- Le levier créatif founder-only : l'exemple Parley — « I started Parley after watching my father... » — « content only a founder can articulate — and it leads to significantly higher reply rates. »
-- « Message and sequence structure really matter — how many touchpoints, how the message is structured. Nothing earth-shattering, but it's already set up for you. »
+**Méthodo Sam**: « Who sends the outbound is very important… the origination to come from the founder » — « ingrained into the platform itself » ; « The table stakes are LinkedIn and email. It's not one plus one equals two — it's one plus one equals four » ; téléphone 3e canal, gifting 4e ; anti « just following up » (« Everyone knows it's automated ») ; anti faux domaines ; l'asset founder-only: l'origin story (exemple Parley) ; « Nothing earth-shattering, but it's already set up for you. »
 
-**Lecture CRO**
-Tout converge sur le reply rate (opportunités). Le founder-sender est un multiplicateur gratuit en argent et coûteux en temps founder — donc le produit n'a de sens que si le coût en temps founder par message tend vers zéro (préparation automatique, approbation rapide), sinon il cannibalise le customer-facing time (§9).
+**Lecture CRO**: tout converge sur le reply rate ; le founder-sender n'a de sens que si le coût en temps founder par message tend vers zéro (sinon il cannibalise le customer-facing §9).
 
-**Audit PM**
-- *Force* : « already set up for you » = des défauts opinionés (structure de séquence, nombre de touches, espacement) plutôt qu'un éditeur vide. C'est le bon choix pour des founders non-vendeurs. (Cohérent avec les benchmarks : 4-7 touches optimal, 8+ triple les plaintes spam.)
-- *Tension non résolue — founder-sender vs scale* : la doctrine vaut pour le segment founder-led actuel. Sam le dit lui-même : « Over time you expand beyond founders sending the outbound. » La spec doit versionner la doctrine par stage (founder-led → premiers reps → équipe), pas la coder en dur.
-- *Risque opérationnel — l'intégrité cross-canal* : « following up from my message on LinkedIn » n'est légitime que si le message LinkedIn a été réellement délivré (invitation acceptée, message parti). Sinon le produit fait mentir le founder. C'est un état machine par canal avec confirmations de délivrance, pas un séquenceur naïf.
-- *Risque identité* : envoyer « en tant que » founder = délégation d'identité. Le founder doit voir et approuver ce qui part sous son nom, au moins au début — sinon premier message raté = confiance détruite et churn.
+**Audit PM (Monaco)**: « following up from my message on LinkedIn » exige la confirmation de délivrance du touch référencé — état machine par canal, pas un séquenceur naïf ; doctrine à versionner par stage (founder-led → équipe).
 
-**Spec Kiro — SEQ-MULTI**
+**Chez Elevay aujourd'hui — le réel**
 
-*User story* : en tant que founder, mes séquences partent de mon identité réelle (mon domaine, mon LinkedIn), multi-canal, avec des messages que j'aurais pu écrire, et je garde le contrôle de ce qui sort sous mon nom sans que ça me coûte plus de quelques minutes par jour.
+- **Pipeline email complet** (`db/schema/outbound.ts` + `inngest/`): `sequences` (createdBy = owner, icpId) → `sequence_steps` (stepType enum: email / linkedin_message / linkedin_invite / phone_task / sms / gift ; delayDays ; channelConfig) → `sequence_enrollments` (state machine, `nextStepAt NULL` = parqué) → cron 2 min `cronTriggerSequenceSteps` → **mode par défaut review-each**: `routeSequenceStepToDraft` crée `sequence_drafts` (pending_approval, version lock optimiste, personalizationSources, triggerReason) → approbation → `sequenceDraftToOutbound` → `outbound_emails` → `dispatchOutboundSmtp` (cron 2 min) / `emailSendWorker`.
+- **Identité**: `getOwnerMailbox(tenantId, createdBy)` (`lib/integrations/owner-mailbox.ts`) — l'expéditeur EST le créateur, boîtes personnelles (OAuth Gmail/Outlook via EmailEngine, ou IMAP/SMTP chiffré AES-256-GCM). Founder-sender DE FACTO (nos workspaces sont founder-led) — mais aucune doctrine par stage explicite.
+- **Hygiène d'envoi**: warmup (warmupDailyTarget 5/j, warmupEmails), dailyLimit 50/boîte, sentToday, fenêtres 08:00-18:00 + jours M-F, skip weekends, healthScore. **Test-mode guardrail** à 3 chokepoints — défaut code « on », **désarmé en prod par env depuis le 2026-06-10** (envois réels).
+- **Réponse → stop**: sync IMAP → `email/reply-received` → `processReply` → `pauseEnrollment("replied")` (terminal) ; classification des réponses (interested/meeting_request/objection_price/timing/competitor/authority/ooo/unsubscribe) + créneaux de meeting injectés step 3+.
+- **Génération**: `sequence-generator.ts` — contexte riche (`buildProspectContext`: news, signaux, tech stack, pain points, methodology, do-not list), budget 25-85 mots, anti-patterns pénalisés, variété inter-steps, evaluator-optimizer 2 itérations, **seuil 0.7 non bloquant**.
+- **Apprentissage du refus**: raison obligatoire 3-200 chars → `classifyRejection()` → `aggregateRejections()`/`dominantInsight()` → learner Inngest. Modes `approval-mode.ts`: review-each (défaut), batch-daily, auto-high-confidence — **le seuil 1.1 rend l'auto inatteignable aujourd'hui** (jamais auto, par design).
+- **Multi-canal**: LinkedIn = adapter STUB (`lib/sequence-dispatch/linkedin-adapter.ts`, « not implemented » sans `LINKEDIN_OUTREACH_PROVIDER` ; providers prévus expandi/phantombuster/unipile) ; `sequence_drafts` n'a PAS de colonne channel sur main (dérivé du stepType) ; spec complète dans `_specs/linkedin-multichannel/` (Unipile, HQ Paris, single-account MVP), branche non mergée. Phone: producteur câblé (`phone/task-queued`, expire le draft si pas de téléphone) — consommateur (branche voice-cold-call) non mergé. Gift: enum sans implémentation. **Aucune précondition cross-canal.**
+- **Collision**: shippé sur main — warning composer pre-send (#191) + timelines + pre-call (#184) + B8 brief (#194). **B10 pre-enroll MANQUE** (rien ne préviens à l'enrollment qu'un collègue travaille déjà le contact).
 
-*Critères d'acceptation (EARS)*
-1. WHEN un workspace est en stage « founder-led », THE SYSTEM SHALL définir le founder comme expéditeur par défaut de toute séquence et exiger son approbation explicite des N premiers messages (proposé : 20) avant de passer en auto-envoi par type de message.
-2. IF une étape email référence un touch d'un autre canal (« following up from LinkedIn »), THEN THE SYSTEM SHALL vérifier la délivrance effective de ce touch ; sinon, reformuler l'étape sans la référence.
-3. THE SYSTEM SHALL refuser la configuration d'envoi depuis un domaine qui n'est pas le domaine réel de l'entreprise (doctrine §17) et imposer des plafonds de volume par boîte (warmup progressif).
-4. WHEN une séquence est créée, THE SYSTEM SHALL proposer une structure par défaut (6-8 touches / 15 jours / email+LinkedIn entrelacés, téléphone optionnel selon l'industrie) éditable — jamais un canvas vide.
-5. IF un draft de relance est du type « just following up » sans valeur ajoutée nouvelle, THEN THE SYSTEM SHALL le rejeter et exiger un apport (nouveau signal, nouvelle ressource, nouvel angle) — l'anti-pattern §18 encodé.
-6. WHEN l'onboarding du workspace capture l'histoire d'origine du founder (« pourquoi j'ai créé X »), THE SYSTEM SHALL la proposer comme bloc de message là où elle est pertinente (l'asset Parley §17) — et nulle part ailleurs.
-7. WHEN le stage du workspace passe à « équipe de vente », THE SYSTEM SHALL proposer la transition d'expéditeur (reps en origination, founder en escalade) au lieu d'appliquer silencieusement l'ancienne doctrine.
+**Critères de la spec — statut chez nous**
+1. Founder expéditeur par défaut + approbation des N premiers — **[OK et plus strict]** (review-each par défaut, TOUT passe par le founder — trop strict à terme, cf. comment 4).
+2. Référence cross-canal conditionnée à la délivrance effective — **[ABSENT]** (sans objet tant que LinkedIn absent — les deux se livrent ensemble).
+3. Refus domaines jetables + caps volume + warmup — **[PARTIEL]** (caps + warmup + santé OK ; aucune validation du domaine à la connexion de la boîte).
+4. Structure par défaut proposée, jamais un canvas vide — **[OK]** (générateur + méthodologies + angles).
+5. Lint « just following up » avec exigence de valeur nouvelle — **[PARTIEL]** (anti-clichés pénalisés ; pas de règle « apport nouveau obligatoire », rien de bloquant).
+6. Origin story capturée et utilisée comme bloc — **[ABSENT]** (methodologies/angles existent, pas l'histoire du founder).
+7. Transition de doctrine au passage en équipe — **[ABSENT]** (sans objet immédiat, à poser le jour où un 2e closer arrive).
 
-*Design* : séquenceur à états par canal (chaque étape a des préconditions de délivrance) ; identité = boîtes réelles par utilisateur (jamais d'envoi cross-owner — règle qu'on s'applique déjà) ; file d'approbation founder avec apprentissage (après N approbations sans édition sur un type de message, proposer l'auto-envoi de CE type) ; cadence respectant la collision (un prospect, une conversation à la fois).
-
-*Edge cases* : invitation LinkedIn jamais acceptée (la séquence continue par email, sans référence croisée) ; réponse sur un canal pendant qu'une étape est queued sur l'autre (stop global immédiat de la séquence) ; founder en vacances avec file d'approbation pleine (escalade ou pause, jamais d'envoi non approuvé par défaut).
-
-*Métriques* : reply rate par canal et par combinaison (le « 1+1=4 » §18 doit se voir dans les données : reply rate multi-canal vs mono-canal sur cohortes comparables) ; temps founder par message approuvé (< 30 s en régime de croisière) ; % de messages édités avant approbation (proxy de qualité des drafts).
-
-*Tasks* : (1) état machine cross-canal + préconditions [verify : test étape dépendante retenue] ; (2) file d'approbation + apprentissage par type [verify : bascule auto après N] ; (3) garde-fous domaine réel + caps volume [verify : config domaine jetable rejetée] ; (4) templates par défaut + bloc origin-story [verify : séquence créée non vide] ; (5) lint « just following up » [verify : draft rejeté] ; (6) E2E réponse ⇒ stop multi-canal.
+**Le comment chez nous**
+1. **LinkedIn via Unipile — LE chantier** (L, spec déjà écrite): exécuter `_specs/linkedin-multichannel/` telle quelle: (a) migration additive `sequence_drafts.channel` (le rapport d'explo note le manque), (b) client Unipile + compte unique MVP, (c) consumer `linkedin_message`/`linkedin_invite` dans `decideDispatch()` (`lib/sequence-drafts/dispatch-decision.ts` route déjà `channel_routed_elsewhere`), (d) statut de délivrance dans `sequence_enrollments.metadata.touches[{channel, deliveredAt}]`, (e) la file d'approbation EXISTANTE absorbe les drafts LinkedIn sans travail (même state machine). Le « 1+1=4 » de Sam est mesurable chez nous dès la v1: reply rate des enrollments bi-canal vs mono-canal, requête sur outboundEmails × linkedinMessages.
+2. **Préconditions cross-canal** (S, avec 1): dans `routeSequenceStepToDraft`, si le template du step référence un autre canal → vérifier `touches[]` ; absent → variante du template sans la référence (le générateur reçoit un flag `crossRefAllowed: false`).
+3. **Règle valeur-nouvelle bloquante** (S): dans `evaluateSequenceQuality()`, pour step > 1: le draft doit contenir ≥1 élément absent des steps précédents (nouveau signal cité, nouvelle ressource, nouvel angle — comparaison des personalizationSources + entités du texte) ; sinon blocage + re-génération. C'est l'anti « just following up » de §18 rendu mécanique.
+4. **Approve-N-then-auto** (M): le mode `auto-high-confidence` existe, inatteignable (seuil 1.1). Le câbler: quand `aggregateRejections()` montre ≥20 approbations consécutives SANS édition sur un stepType donné, proposer au founder (bannière dans /sequences/review) de basculer CE stepType en auto — le seuil devient un fait appris, pas une constante. Réversible, journalisé.
+5. **Origin story** (S): champ `tenants.settings.founderStory` saisi dans le modal d'onboarding léger (consommateur immédiat: le générateur — règle onboarding respectée) ; `buildProspectContext()` l'injecte quand l'angle « founder-to-founder » est choisi par la méthodologie, jamais ailleurs (doctrine §17: contenu qu'un salesperson ne peut pas dire).
+6. **Validation domaine à la connexion** (S): à l'ajout d'une boîte (`connectedMailboxes`), vérifier MX du domaine + refuser les domaines lookalike du domaine principal du tenant (la doctrine §17 anti « domains that aren't your real domain ») ; warning si SPF/DMARC absents (simple lookup DNS).
+7. **B10 collision pre-enroll** (S, spec existante `_specs/collision-awareness/`): au POST `/api/sequences/[id]/enroll`, appeler `lib/collision/contact-touches` (existe sur main) et afficher le composant `contact-collision-notice` (existe, partagé en/fr) — c'est le dernier maillon actif manquant de la collision.
 
 ---
 
-### F6. Insights Agent (§8) — la pièce maîtresse, et le plus gros risque
+### F6. Insights Agent (§8) — la pièce maîtresse du discours, notre plus gros chantier structurant
 
-**Ce que Sam affirme**
-- « We have an insights agent, trained to cut data every possible way — buyer, location, vertical and sub-vertical, segment and sub-segment — and see when you reach statistically significant information worth surfacing to a customer. »
-- Les deux exemples fondateurs : Zenefits — « the thing influencing conversion rates more than anything was where the company was headquartered » ; Brex — « finance people converted at ~4x the rate of controllers ».
-- Le point décisif : « Then the next step is logical: we oriented all our sales resources around the states with the highest conversion rates; we oriented all first touches toward finance personas. » — l'insight ne vaut que par la réallocation qu'il déclenche.
-- Et l'étoile polaire : « What are the characteristics of companies that are closing, to apply back to targeting — not the characteristics of companies we can get a meeting with. »
+**Méthodo Sam**: « We have an insights agent, trained to cut data every possible way — buyer, location, vertical and sub-vertical, segment and sub-segment — and see when you reach statistically significant information worth surfacing. » Exemples fondateurs: Zenefits (géo), Brex (« finance ~4x controllers »). Et l'étoile polaire: « the characteristics of companies that are closing… not the characteristics of companies we can get a meeting with. »
 
-**Lecture CRO**
-C'est la feature de conversion par excellence — elle remplace « a BCG- or McKinsey-style analyst » et des années d'angle mort (« companies wouldn't realize these insights until they were a couple hundred employees »). Sa valeur est conditionnelle : insight → action appliquée → effet mesuré. Un insight non actionné est un rapport ; un insight faux actionné est une destruction de pipeline.
+**Lecture CRO**: l'insight ne vaut que par la réallocation qu'il déclenche (« we oriented all first touches toward finance personas ») et la mesure de son effet.
 
-**Audit PM — le piège statistique (risque produit n°1 du discours)**
-- Les deux exemples fondateurs ont été découverts **à l'échelle** (Zenefits et Brex à des centaines d'employés, des milliers d'opportunités). Le client Monaco est une seed/Series A avec 20-50 opportunités par trimestre. « Cut data every possible way » sur ce volume = problème de comparaisons multiples garanti : en coupant 50 dimensions sur 40 deals, on TROUVERA des écarts « significatifs » purement aléatoires. Un agent qui industrialise le p-hacking est pire que pas d'agent : il produit des insights faux, présentés avec l'autorité de la machine, qui déclenchent des réallocations destructrices.
-- « Statistically significant » est invoqué sans seuil, sans correction, sans taille de cellule minimale. C'est exactement le genre de claim qu'un PM doit transformer en garde-fous chiffrés ou refuser de shipper.
-- Confondeurs non mentionnés : SF-vs-reste corrèle avec taille, secteur, maturité — l'écart géographique de Zenefits avait une cause structurelle (réglementation assurance par État) que Sam connaissait par expertise métier, pas par la donnée seule. L'agent doit chercher la colinéarité avant de conclure.
-- La version honnête à petit n existe : proposer des **expériences** plutôt que des conclusions (« 7/9 vs 2/8 sur ce découpage — trop tôt pour conclure ; je route les 20 prochains first touches 50/50 pour tester »). C'est ce qui sépare une intelligence mesurée d'un générateur de plausible.
+**Audit PM (Monaco) — le piège statistique**: les exemples fondateurs viennent d'échelles 100x supérieures au client Monaco type (20-50 opps/trimestre). « Cut every possible way » sur 40 deals = p-hacking industrialisé: des écarts « significatifs » purement aléatoires, présentés avec l'autorité de la machine, déclenchant des réallocations destructrices. La version honnête à petit n: proposer des EXPÉRIENCES, pas des conclusions.
 
-**Spec Kiro — INSIGHTS-AGENT**
+**Chez Elevay aujourd'hui — le réel (les briques sans le moteur)**
 
-*User story* : en tant que founder, le système me dit ce qui distingue mes deals qui closent, avec un niveau de confiance honnête, me propose l'action qui en découle, et vérifie ensuite que l'action a eu l'effet promis.
+- **Ce qui apprend déjà des outcomes**: `signalOutcomes` (chaque close enregistre les signaux actifs dans la fenêtre → lift par type, fallback 1.0× sous n=10) — c'est un mini-insights-agent à UNE dimension (signal), avec seuil de n. Le Naive Bayes (`company-model-trainer.ts`, ≥10 deals) en est un autre, à boîte noire.
+- **Ce qui agrège**: `aePerformanceSnapshots` (par user × période: emails, meetings, deals, scores coaching par catégorie, trends improving/declining avec %) ; `coachingInsights` (par interaction) ; `contentVariants` (replyRate/positiveRate par variant de playbook × segment — de l'A/B MANUEL, tracké mais non automatisé).
+- **Ce qui « recommande »**: `/api/reports/generate` — pipeline/weekly/winloss: agrégats SQL → prompt LLM → `{title, sections, metrics, recommendations}`. **Aucun test statistique entre l'agrégat et la recommandation** — structurellement, c'est le « générateur de plausible » que je reproche au claim de Monaco, en moins ambitieux.
+- **Ce qui trace les choix**: `enrollmentStrategy` (playbookId, variantId, selectionScore, selectionReason, alternativesConsidered) — l'infrastructure d'EXPÉRIENCE est à moitié là: on sait déjà pourquoi chaque enrollment a pris quel chemin.
+- **Les dimensions disponibles en DB**: persona (callProfile.role + seniorité contact), géo + industry (companies), signal d'origine (signalOutcomes), canal (activities.channel), variant (contentVariants), origine du compte (sourceSystem). **Personne ne les croise.**
 
-*Critères d'acceptation (EARS)*
-1. WHEN l'agent détecte un écart de conversion entre cohortes, THE SYSTEM SHALL le classer en trois tiers : « observation » (n insuffisant), « hypothèse à tester » (signal présent, sous le seuil), « insight » (n par cellule ≥ seuil ET significatif après correction des comparaisons multiples) — et n'employer le mot « insight » que pour le tiers 3.
-2. IF un écart est en tiers « hypothèse », THEN THE SYSTEM SHALL proposer un plan d'expérience (allocation contrôlée des prochains first touches, durée, n cible) au lieu d'une conclusion.
-3. WHEN un insight est présenté, THE SYSTEM SHALL exposer l'évidence complète : le découpage, les n, les taux, l'intervalle, et les confondeurs vérifiés (colinéarité géo × taille × secteur).
-4. WHEN un insight est appliqué (réallocation de ciblage, bascule de persona, repondération de score), THE SYSTEM SHALL snapshoter la baseline et mesurer l'effet à J+30 et J+60 ; IF l'effet ne se confirme pas, THEN l'insight SHALL être révoqué visiblement et la réallocation proposée au retrait.
-5. THE SYSTEM SHALL calculer les insights sur les caractéristiques des deals **qui closent** (étoile polaire §8), et étiqueter séparément tout pattern qui ne prédit que la prise de meeting.
-6. WHEN aucune cellule n'atteint le seuil (cas nominal d'une seed), THE SYSTEM SHALL le dire explicitement (« pas encore assez de deals pour apprendre — voici les 2 hypothèses les plus prometteuses à tester ») plutôt que produire du bruit.
+**Critères de la spec — statut chez nous**
+1. Trois tiers observation/hypothèse/insight, « insight » réservé à n≥seuil + correction multi-comparaisons — **[ABSENT]** (signalOutcomes a UN seuil n≥10 sur UNE dimension — le germe du pattern, pas le système).
+2. Tiers « hypothèse » → plan d'expérience au lieu de conclusion — **[ABSENT]** (enrollmentStrategy pourrait porter l'allocation, rien ne la génère).
+3. Évidence complète (cut, n, taux, confondeurs) — **[PARTIEL]** (evidence {claim, quote} existe pour les FAITS extraits des calls — pas pour les patterns statistiques).
+4. Application → baseline snapshot → mesure J+30/J+60 → révocation — **[ABSENT]**.
+5. Insights sur les deals QUI CLOSENT, étiquetage séparé des patterns de meeting — **[ABSENT]**.
+6. Sous le seuil partout: le dire + proposer les 2 hypothèses les plus prometteuses — **[ABSENT]** (nos reports ne disent jamais « pas assez de données »).
 
-*Design* : moteur d'analyse sur le plan de données unifié (interactions + personas F4 + signaux F3 + outcomes pipeline) ; hiérarchie de découpages (famille de persona avant titre exact, région avant ville) pour maximiser le n par cellule ; correction de type Benjamini-Hochberg ou priors hiérarchiques ; registre des insights avec cycle de vie (proposé → testé → appliqué → confirmé/révoqué) ; chaque application est réversible et journalisée.
-*Lien méthodo interne* : c'est l'incarnation exacte de notre règle « intelligence grounded/validated/measured, LLM = étape contrainte » — ici le LLM rédige l'explication, les stats décident.
-
-*Edge cases* : tenant mono-segment (rien à comparer ⇒ le dire) ; saisonnalité (cohortes par période, pas tout-temps) ; insight contradictoire avec un override utilisateur (présenter le conflit, l'humain tranche) ; ACV très hétérogène (pondérer par revenu, pas par count — sinon l'agent optimise les petits deals faciles).
-
-*Métriques* : taux de confirmation à J+60 des insights appliqués (cible > 70 % — sinon les seuils sont trop laxistes) ; % de sorties en tiers honnête (« pas assez de données ») chez les tenants < 30 deals — devrait être majoritaire ; lift de conversion réalisé post-application (la seule métrique qui justifie la feature).
-
-*Tasks* : (1) plan de données analytique (cohortes, cellules, n) [verify : requêtes sur fixtures] ; (2) moteur de tiers + correction multi-comparaisons [verify : test sur données synthétiques sans effet réel ⇒ zéro « insight » émis] ; (3) générateur de plans d'expérience [verify : hypothèse ⇒ plan 50/50 cohérent] ; (4) cycle de vie + mesure J+30/J+60 + révocation [verify : E2E sur fixture avec effet planté] ; (5) UI évidence complète [verify : n, taux, confondeurs visibles] ; (6) eval suite : 15 cas (effets réels, effets nuls, confondeurs) — l'agent doit discriminer.
+**Le comment chez nous** (l'ordre est la moitié de la valeur)
+1. **Fondation cohortes** (M): cron quotidien (pattern `signal-score-daily`) qui matérialise une vue `deal_cohort_cells`: dims = {seniorityFamily (callProfile.role sinon seniorité contact), région (companies), industry, signalType d'origine (signalOutcomes), canal, sourceSystem} × mesures = {n, won, lost, valueWon (split projectAmount/platformArr — bookings ≠ ARR, règle maison)}. Hiérarchie de dims (famille avant titre, région avant ville) pour maximiser le n par cellule.
+2. **Moteur de tiers PUR** (M): `lib/insights/cohort-engine.ts` sans I/O (notre style: pur + tests): input cellules, output classement {observation | hypothèse | insight} — seuils v1: n≥15 par cellule ET correction Benjamini-Hochberg q<0.1 ; check de colinéarité (géo×taille×industry) avant de promouvoir. Suite d'évals 15 cas synthétiques (effet réel / nul / confondu) dans `lib/evals/suites/` (l'infra d'éval existe) — **le moteur doit sortir ZÉRO insight sur les jeux sans effet, c'est le test d'acceptation n°1**.
+3. **Plans d'expérience** (M): tiers hypothèse → générer une allocation contrôlée: « les 20 prochains first touches 50/50 persona A/B » — implémentée via `enrollmentStrategy` (le champ selectionReason porte « experiment:xyz ») et le picker de `signal-to-sequence`/suggested-contacts qui respecte l'allocation. La mesure retombe dans les cellules du point 1.
+4. **Cycle de vie + mesure** (M): table `insights` (cut, tiers, evidence jsonb, status proposed/testing/applied/confirmed/revoked, baselineSnapshot, appliedAt, measuredAt) + job J+30/J+60 qui compare et révoque visiblement. Application = propositions concrètes: repondération ICP (F2.4/F9.3), bascule persona des first touches (modifier le défaut de suggested-contacts), priorisation géo (poids dans priorityScore) — TOUJOURS via validation humaine.
+5. **Re-router les reports** (S): `/api/reports/generate` consomme le moteur: les « recommendations » LLM ne peuvent CITER que des cellules tiers insight/hypothèse, avec n et taux affichés ; sous le seuil partout: « pas encore assez de deals — voici les 2 hypothèses à tester ». Le LLM rédige, les stats décident — notre doctrine « intelligence, not a prompt » appliquée à nous-mêmes.
+6. **UI** (S): section « Ce qui distingue tes deals gagnés » sur /home ou /reports, chaque carte = cut + n + taux + intervalle + bouton « tester / appliquer ». Pas de nouveau pilier de nav (règle nav-IA).
 
 ---
 
-### F7. Routing rep-level outcome-based (§8)
+### F7. Routing rep-level (§8) — à NE PAS construire, et quoi faire à la place
 
-**Ce que Sam affirme**
-- « We had reps who sold far better to founders than to finance people... you get insights at the rep level... AI can then route the meeting to whoever has the highest probability of closing it. »
-- « You can gamify everything, all oriented around outcomes... And it's totally objective — not the sales leader favoring someone with more opportunities. It's all AI. »
-- En toile de fond, la position comp : « do you compensate an SDR on meetings booked — which they fully control — or on the revenue those meetings generate? I land on revenue. »
+**Méthodo Sam**: « AI can then route the meeting to whoever has the highest probability of closing it… It's totally objective — it's all AI. »
 
-**Lecture CRO**
-Pure conversion à demande constante : la même demo close plus si elle atterrit chez le bon rep. Mais pour l'ICP actuel de Monaco (founder-led, 0-3 vendeurs), la feature est vide — elle ne sert que le mouvement upmarket (§5). Et le routing détermine le revenu des reps : c'est une feature de comp autant que de conversion.
+**Audit PM (Monaco)**: « totally objective » masque le choix de la fonction objectif (close rate ? revenu ? équité ?) — décision de management, pas propriété de la machine ; cellules rep × segment encore plus vides que F6 ; boucle de verrouillage (le rep routé sur les founders ne reçoit plus que ça) ; décrit comme CAPACITÉ (« can then ») — pari upmarket, pas feature pour son ICP founder-led actuel.
 
-**Audit PM**
-- *Surclaim à dégonfler* : « totally objective — it's all AI » est faux au sens où la fonction objectif (probabilité de close ? revenu espéré ? LTV ? équité de distribution ?) est un choix de management encodé par le produit. L'objectivité revendiquée masque ce choix. Un PM doit l'exposer, pas le cacher.
-- *Le piège statistique au carré* : cellules rep × type d'opportunité — avec 5 reps et 6 segments, 30 cellules sur quelques dizaines de deals chacun au mieux. Encore plus vide que F6. Les seuils de F6 s'appliquent doublement.
-- *Boucle de verrouillage* : le rep routé sur les founders devient encore meilleur sur les founders (pratique) et n'apprend jamais le reste ; le nouveau rep n'a pas d'historique ⇒ il ne reçoit rien ⇒ il n'aura jamais d'historique. Quota d'exploration obligatoire, comme F2.
-- *Équité et contestabilité* : un routing qui affecte la paie doit être auditable (facteurs journalisés), contestable (override manager avec motif), et transparent pour les reps — sinon c'est un grief RH automatisé.
+**Chez Elevay aujourd'hui — le réel**: workspaces multi-users (admin/member/viewer, PR #110/#112), `aePerformanceSnapshots` par user (la matière première rep-level existe), `meeting-capacity-check` Inngest (existant, pas d'allocation), et la **collision awareness shippée sur main** (`lib/collision/` contact-touches/recent-touch + `/api/collision/*` + warnings pre-call #184, composer #191, timelines #186/#189, brief B8 #194) — qui est la réponse founder-led au même problème: deux humains sur le même prospect.
 
-**Spec Kiro — REP-ROUTE**
+**Verdict**: notre ICP = équipes 1-3, founder-led. Le gate de la spec (« IF < 3 closers THEN suggestion seulement ») rend la feature invisible pour 100% de nos tenants actuels. **Construire le routing aujourd'hui serait du travail pour un client qu'on n'a pas** — exactement le pari upmarket de Monaco, sans leur Series B.
 
-*User story* : en tant que sales leader, chaque meeting est proposé au rep qui a la meilleure probabilité de le closer, je vois pourquoi, je peux passer outre, et les nouveaux reps reçoivent de quoi faire leurs preuves.
-
-*Critères d'acceptation (EARS)*
-1. IF l'équipe compte moins de 3 closers OU moins de N meetings routés par segment (proposé : 20), THEN THE SYSTEM SHALL rester en mode « suggestion motivée » — jamais d'auto-assignation.
-2. WHEN un meeting est routé, THE SYSTEM SHALL journaliser les facteurs, le score de chaque rep candidat, et permettre l'override manager avec motif (piste d'audit complète).
-3. THE SYSTEM SHALL réserver un quota d'exploration par rep (chaque rep reçoit une part de segments hors de son profil historique) — anti-verrouillage et rampe des nouveaux.
-4. WHEN la fonction objectif est configurée (close rate, revenu espéré, charge équilibrée), THE SYSTEM SHALL l'afficher à l'équipe — le choix de management est explicite, pas enfoui.
-5. WHEN un pattern rep × segment atteint le tiers « insight » (mêmes seuils que F6), THE SYSTEM SHALL le présenter au sales leader avant de l'activer dans le routing.
-
-*Design* : consommateur direct de F6 (mêmes tiers de confiance, mêmes corrections) ; le routing est une politique versionnée ; gate produit : la feature n'apparaît qu'aux workspaces ≥ 3 closers (pour l'ICP founder-led actuel, elle est invisible — roadmap upmarket).
-
-*Edge cases* : rep surchargé (le meilleur closer ne peut pas tout prendre — contrainte de capacité dans l'objectif) ; congés/départs (redistribution sans casser les cohortes de mesure) ; deal multi-segment (règle de précédence visible).
-
-*Métriques* : lift de close rate des meetings routés vs baseline pré-routing (cohorté) ; taux d'override manager (> 30 % = le modèle ou la confiance est cassé) ; distribution de revenu par rep avant/après (le produit doit pouvoir prouver qu'il n'a pas concentré le pipeline).
-
-*Tasks* : (1) gate ≥ 3 closers [verify : invisible en dessous] ; (2) mode suggestion + journal facteurs [verify : audit trail] ; (3) quota d'exploration [verify : distribution mesurée] ; (4) config fonction objectif visible [verify : UI équipe] ; (5) E2E insight F6 → politique de routing → mesure.
+**Le comment chez nous (minimal, préparatoire)**
+1. **Finir B10 pre-enroll** (S — cf. F5.7): la vraie coordination d'équipe à notre stade, spec déjà écrite.
+2. **Hygiène d'attribution** (S): vérifier que `deals.ownerId` et `activities.userId` sont systématiquement posés par les writers (le journal deal de la branche courante le fait pour les events deal) — c'est la seule dette qui rendrait le routing impossible plus tard.
+3. **Rien d'autre.** Le jour où un tenant ≥3 closers existe, F6 fournira les cellules rep × segment avec les mêmes tiers de confiance.
 
 ---
 
-### F8. Analytics outcome-first + diagnostic demand-vs-conversion (§7, §20)
+### F8. Équation de revenu + diagnostic demand-vs-conversion (§7, §20)
 
-**Ce que Sam affirme**
-- « Revenue has three variables: opportunities (or leads) × conversion rates × ACV. »
-- Le misdiagnostic : « nine out of ten founders or early sales leaders misdiagnose the bottleneck as conversion rates » quand « the bottleneck... is demand gen: opportunity creation ». Le symptôme verbatim : le deal qui a « pushed » en fin de mois et qu'on sur-analyse — « The problem isn't that you didn't convert that one customer — it's that you didn't have five customers in play. »
-- La math : « you convert 10% of demos. Moving to 15%... is actually a 50% increase, and especially at scale that's hard. Versus: last month we had 10 demos; going to 20 — effectively doubling demos — is... far easier. »
-- La règle d'allocation : « if a channel is working for you in demand gen, double and triple down on it until you... can't take more demos », jusqu'au « demand-rich environment ».
+**Méthodo Sam**: « Revenue has three variables: opportunities × conversion rates × ACV » ; « nine out of ten… misdiagnose the bottleneck as conversion rates » quand c'est la demande ; le deal « pushed » sur-analysé — « it's that you didn't have five customers in play » ; +50% de conversion est dur, doubler les demos est faisable ; « double and triple down » sur un canal qui marche jusqu'au « demand-rich environment ».
 
-**Lecture CRO**
-C'est la méta-feature : le reporting qui dit OÙ porter l'effort. La doctrine de Sam est productisable telle quelle — le dashboard ne doit pas montrer des métriques, il doit rendre un **diagnostic** : « ton bottleneck est la demande » (ou la conversion, ou la capacité), avec le calcul visible.
+**Lecture CRO**: la méta-feature — le dashboard ne montre pas des métriques, il rend un DIAGNOSTIC avec le calcul visible. Le « 9/10 » est un prior par défaut intelligent: sur-investir la demande est l'erreur la moins coûteuse.
 
-**Audit PM**
-- *Force* : le « 9/10 » est une heuristique d'expérience, pas une donnée — mais comme **prior par défaut** c'est du design intelligent : en l'absence de preuve contraire, orienter vers la demand gen est l'erreur la moins coûteuse (sur-investir la demande fait du pipeline ; sur-optimiser la conversion sur 10 demos ne produit rien).
-- *Honnêteté à petit n, encore* : afficher « conversion 16,7 % » sur 6 opportunités est un mensonge de précision. Intervalles ou agrégats glissants obligatoires.
-- *La pièce manquante : le modèle de capacité*. « Until you can't take more demos » suppose de connaître la capacité de demos de l'équipe. C'est une donnée que le produit possède (calendriers, meetings capturés) — le « demand-rich environment » devient un état calculable : opportunités en jeu vs capacité × couverture cible.
-- *Comp sur le revenu* (§8) : si on comp les SDR/agents sur le revenu aval, les fenêtres d'attribution et le lag des deals doivent être cohortés — un reporting calendaire mensuel casse cette logique (le meeting de mars close en juin).
+**Chez Elevay aujourd'hui — le réel**
 
-**Spec Kiro — REV-EQUATION**
+- `/api/dashboard/summary`: activities hebdo + delta, enrollments, deals won, tasks dues, meetings — vrais COUNT SQL (règle « real counts » respectée).
+- `/reports` (prod-hidden de la nav, accessibles par URL): pipeline (open deals, stalled top-5 par updatedAt, valeur totale, win rate, vélocité), weekly, winloss — agrégats → LLM → recommendations (cf. F6.5 pour le problème).
+- Reply rate (`outboundEmails.repliedAt`), meeting rate (activities), win rate, vélocité — calculés, épars.
+- Deal split B2: `projectAmount` (one-time) + `platformArr` (récurrent annualisé) — l'ACV chez nous est BIMODAL par construction (`lib/deals/amount.ts#getDealAmountDisplay`).
+- **Rien** qui instancie l'équation, identifie le bottleneck, calcule une couverture vs objectif, ou modélise la capacité de demos. Pas d'objectif de revenu tenant. `meeting-capacity-check` existe sans consommateur d'allocation.
 
-*User story* : en tant que founder, j'ouvre le dashboard et je sais immédiatement laquelle des trois variables me bloque, ce que vaut marginalement chaque action (une demo de plus vs un point de conversion de plus), et si je suis en environnement demand-rich ou demand-constrained.
+**Critères de la spec — statut chez nous**
+1. Équation instanciée + bottleneck + sensibilités marginales — **[ABSENT]** (tous les inputs SQL existent).
+2. Couverture < K × objectif/ACV → état « demand-constrained » + recommandations orientées génération — **[ABSENT]** (pas d'objectif tenant stocké).
+3. Recadrage « deal pushed » par la couverture — **[ABSENT]**.
+4. n<15 → intervalles/agrégats glissants, jamais un % nu — **[ABSENT]** (win rate affiché brut quel que soit n).
+5. « Double down » sur canal à coût/opp stable — **[ABSENT]** (les données par canal existent: outboundEmails, calls, linkedinMessages à venir).
+6. Capacité de demos calculée — **[ABSENT]** (activities meeting_completed par semaine = la matière).
+7. Cohortes d'origination (meeting de mars → close de juin attribué à mars) — **[ABSENT]** (reports calendaires).
 
-*Critères d'acceptation (EARS)*
-1. WHEN le dashboard s'ouvre, THE SYSTEM SHALL afficher l'équation instanciée (opps × conversion × ACV = run-rate vs objectif) avec la variable bottleneck identifiée et la sensibilité marginale de chaque variable (« +1 demo/semaine = +X CHF de run-rate ; +5 pts de conversion = +Y »).
-2. IF les opportunités en jeu < K × (objectif mensuel / ACV) (couverture cible, K configurable, défaut 4-5), THEN THE SYSTEM SHALL déclarer l'état « demand-constrained » et orienter les recommandations vers la génération (doctrine §20), calcul visible.
-3. WHEN l'utilisateur sur-analyse un deal perdu isolé (symptôme §20), THE SYSTEM SHALL recadrer avec la couverture (« ce mois-ci tu avais 2 deals en jeu pour un objectif qui en demande 5 — le problème est en amont »).
-4. IF une cellule de calcul a n < 15, THEN THE SYSTEM SHALL afficher l'intervalle ou l'agrégat trimestriel glissant — jamais un pourcentage nu sur 6 deals.
-5. WHEN un canal de demand gen montre un coût par opportunité stable ou décroissant sur volume croissant, THE SYSTEM SHALL recommander le « double down » (§20) tant que la capacité de demos n'est pas saturée.
-6. THE SYSTEM SHALL calculer la capacité de demos (calendriers + historique) et afficher l'écart capacité vs demande — la définition opérationnelle du « demand-rich environment ».
-7. WHEN des métriques sont rapportées par cohorte d'origination (pour le comp au revenu §8), THE SYSTEM SHALL suivre chaque cohorte de meetings jusqu'au close, pas par mois calendaire.
-
-*Design* : trois variables calculées depuis le plan de données (pas de saisie) ; bottleneck = min de sensibilité marginale ajustée de la difficulté (le lift de conversion est pondéré « hard » par défaut, doctrine §20) ; états {demand-constrained, conversion-constrained, capacity-constrained} avec règles explicites ; tout chiffre cliquable vers les deals sous-jacents (citations, pas de boîte noire).
-
-*Edge cases* : ACV bimodal (deux produits ⇒ deux équations, pas une moyenne) ; mois à zéro deal (état « pas assez de données », pas division par zéro maquillée) ; pipeline importé d'un CRM précédent (cohortes marquées « héritées », exclues des sensibilités).
-
-*Métriques* : précision du diagnostic rétrospectif (sur les tenants historiques, le bottleneck déclaré à M aurait-il prédit le levier qui a marché à M+2 ?) ; adoption (le founder revient-il chaque semaine) ; % de recommandations suivies.
-
-*Tasks* : (1) calcul des 3 variables + drill-down [verify : chiffres = SQL direct] ; (2) sensibilités marginales + bottleneck [verify : fixtures aux 3 états] ; (3) modèle de capacité demos [verify : calendrier test] ; (4) règle de couverture K× + état demand-constrained [verify : seuils] ; (5) garde-fou petit n [verify : 6 deals ⇒ intervalle] ; (6) cohortes d'origination [verify : meeting mars → close juin attribué à mars].
+**Le comment chez nous**
+1. **Lib pure** (S): `lib/analytics/rev-equation.ts` — inputs {opps période, conversions, ACV split projet/ARR, objectif} → outputs {runRate, bottleneck, sensitivities, coverage, state demand/conversion/capacity-constrained}. **Deux équations, pas une**: projectAmount et platformArr séparés (bookings ≠ ARR — notre règle de revue), agrégeables en cash-in si le founder le demande.
+2. **Objectif tenant** (S): `tenants.settings.revenueGoal {monthly, currency}` — saisi dans le modal d'onboarding ou en réglage ; consommateur immédiat = ce diagnostic (règle onboarding: le champ naît avec son consommateur).
+3. **Capacité** (S): v1 = max glissant des meetings tenus/semaine (activities meeting_completed) ; le « demand-rich » devient: opps actives ≥ K × (objectif/ACV) ET demos planifiées < capacité. K défaut 4.
+4. **Surface** (M): une ligne de diagnostic dans le briefing Up Next de /home (le composant existe) — « Bottleneck: génération. 2 deals en jeu pour un objectif qui en demande 8. +1 demo/semaine vaut ~X CHF de run-rate » — + un onglet Equation dans /reports avec le détail cliquable vers les deals (citations, pas de boîte noire).
+5. **Anti petit n** (S): < 15 opps sur la période → basculer trimestre glissant + intervalle (même garde-fou que F6).
+6. **Cohortes d'origination** (M): à la création du deal, poser `deals.properties.origination = {kind: sequence|call_campaign|inbound|manual, id, at}` — la chaîne existe déjà en données (enrollmentId sur calls, threadId sur emails) ; le journal deal (branche courante) est l'endroit naturel pour l'écrire. Les rapports « par cohorte de meetings » suivent chaque cohorte jusqu'au close.
 
 ---
 
 ### F9. Boucle fermée closed-won → ciblage (§6, §8)
 
-**Ce que Sam affirme**
-- L'argument anti-point-solution : « if you're an outbound-only product, you have no insight into ACVs, what's converting, how customers perform over time, who we just closed, how to feed that data point back to the top of the funnel. With one data plane... there are real tailwinds. »
-- « What are the characteristics of companies that are closing, to apply back to targeting. »
+**Méthodo Sam**: l'argument anti-point-solution — « you have no insight into ACVs, what's converting… how to feed that data point back to the top of the funnel » ; « characteristics of companies that are closing, to apply back to targeting ».
 
-**Lecture CRO**
-C'est l'argument structurel de toute la plateforme : la boucle ferme l'équation sur elle-même (les closes d'aujourd'hui re-ciblent les opportunités de demain). C'est aussi la justification du breadth-first (§6) — sans le bas du funnel, le haut est aveugle.
+**Audit PM (Monaco)**: overfitting au petit n ; le profil gagnant des 10 premiers clients encode le RÉSEAU du founder (« most of our revenue today comes from referrals » §13), pas le marché — cohortes par origine obligatoires ; mise à jour d'ICP = décision stratégique, jamais auto.
 
-**Audit PM**
-- *Force* : architecturalement imparable contre les point solutions. C'est le moat de données, pas le moat de features.
-- *Risque — overfitting au petit n* : extraire un « profil gagnant » de 8 closed-won, c'est apprendre du bruit. La boucle doit hériter des tiers de confiance de F6, et à petit n produire un profil « indicatif » qui ajuste les marges du TAM, pas le redéfinit.
-- *Risque — la boucle optimise le passé* : si les 10 premiers clients sont venus du réseau du founder (référence §13 : « most of our revenue today comes from referrals »), le profil gagnant encode le réseau, pas le marché. Les cohortes d'origine doivent être séparées (référé vs outbound) avant d'apprendre.
-- *Garde-fou humain* : une mise à jour d'ICP est une décision stratégique. Proposer avec évidence, ne jamais auto-appliquer.
+**Chez Elevay aujourd'hui — le réel**
 
-**Spec Kiro — CLOSED-LOOP**
+- **La boucle existe pour UNE dimension**: `signalOutcomes` → multiplicateurs de lift par type de signal, consommés par `priorityScore` et le seuil d'auto-enrollment. C'est une vraie boucle outcome→ciblage, étroite et honnête (n≥10).
+- **La boucle parallèle muette**: Naive Bayes ≥10 deals (`scoreCompanyWithModel`) — apprend des outcomes, ne propose RIEN à l'ICP, n'explique rien.
+- **Les events existent**: `analyzeClosedDeal` (Inngest, sur won/lost) + `lib/analysis/win-loss-engine` + le journal deal (branche courante: deal_won/deal_lost avec triggeredBy) — les hooks de la boucle sont posés.
+- **Manquent**: extraction du vecteur de traits au close, profils win/loss versionnés, séparation referral/outbound, propositions de mise à jour ICP, lookalike sourcing.
 
-*User story* : en tant que founder, chaque deal gagné ou perdu affine le profil de qui je devrais cibler, le système me propose les mises à jour d'ICP/score avec les preuves, et je décide.
+**Critères de la spec — statut chez nous**
+1. Extraction du vecteur de traits au close — **[PARTIEL]** (analyzeClosedDeal tourne, n'agrège pas de profil).
+2. Proposition de repondération avec évidence, gate humain — **[ABSENT]**.
+3. Cohortes par origine (referral exclu de l'apprentissage outbound) — **[ABSENT]** (origination F8.6 = le prérequis).
+4. n<30 → propositions « indicatives », ajustements de marge seulement — **[ABSENT]** (mais le pattern de seuil existe 2 fois: signalOutcomes 10, trainer 10).
+5. Versionnage + mesure post-application — **[ABSENT]**.
+6. Lookalike sourcing depuis les won — **[ABSENT]**.
 
-*Critères d'acceptation (EARS)*
-1. WHEN un deal passe closed-won ou closed-lost, THE SYSTEM SHALL extraire son vecteur de traits (taille, géo, verticale, persona d'entrée, signal d'origine, canal, ACV, durée de cycle) et l'agréger aux profils win/loss.
-2. WHEN le profil gagnant diverge du scoring actif au-delà d'un seuil, THE SYSTEM SHALL proposer une mise à jour de pondération (F2) ou d'ICP (F1) avec l'évidence — validation humaine obligatoire.
-3. THE SYSTEM SHALL séparer les cohortes par origine (référé / outbound / inbound) et n'apprendre le ciblage outbound QUE des cohortes outbound — le réseau du founder n'est pas un signal de marché.
-4. IF n closed-won < 30, THEN les propositions SHALL être étiquetées « indicatives » et limitées à des ajustements de marge (élargir/resserrer un critère), jamais une redéfinition d'ICP.
-5. WHEN une mise à jour est appliquée, THE SYSTEM SHALL versionner l'ICP/score et mesurer l'effet sur les cohortes suivantes (même cycle de vie que F6).
-6. THE SYSTEM SHALL proposer du sourcing lookalike depuis les closed-won (« 12 comptes ressemblant à tes 5 meilleurs clients ») comme action directe de demand gen.
-
-*Design* : pipeline événementiel (deal stage change → extraction → agrégation) ; les profils win/loss sont des objets versionnés consultables ; intégration F1 (re-sourcing), F2 (repondération), F6 (mêmes seuils stat).
-
-*Edge cases* : closed-won « hors profil » spectaculaire (l'exception ne fait pas la règle — flagger, pas apprendre) ; churn précoce d'un closed-won (le profil gagnant doit décompter les bad fits a posteriori — « how customers perform over time » §6) ; deals importés sans traits complets.
-
-*Métriques* : précision prospective du profil (les comptes top-profil convertissent-ils mieux sur la cohorte SUIVANTE ?) ; % de propositions acceptées par le founder ; délai close → proposition.
-
-*Tasks* : (1) extraction de traits sur transition de stage [verify : event fixture] ; (2) profils win/loss versionnés + cohortes par origine [verify : référé exclu de l'apprentissage outbound] ; (3) moteur de propositions + gate humain [verify : jamais d'auto-apply] ; (4) lookalike sourcing [verify : E2E vers F1] ; (5) mesure post-application [verify : cohorte suivante].
+**Le comment chez nous**
+1. **Profil de traits au close** (S): étendre `analyzeClosedDeal`: écrire le vecteur {sizeRange, région, industry, seniorityFamily du champion (callProfile), signalType d'origine, canal, origination, acvSplit, cycleDays} dans `icps.metadata.outcomeProfile` (agrégat versionné: {asOf, n, traits}) — JSONB, zéro migration.
+2. **Cohortes d'origine** (S): dépend de F8.6 — le profil n'agrège que origination ∈ {sequence, call_campaign} pour l'apprentissage outbound ; les referrals/manuels sont affichés séparément (« tes 4 référés ne disent rien de ton outbound »).
+3. **Propositions ICP** (M): job qui diffe outcomeProfile vs `icp_criteria` (poids/valeurs) quand n≥30 ; sortie = carte de proposition dans `/settings/icp` (« tes 12 wins sont à 83% en 50-200 FTE ; ton critère effectif est 100-1000 — resserrer ? ») avec l'évidence ; bouton applique la modification de critère VIA l'éditeur normal (recompute event existant fait le reste). Sous 30: la carte existe en mode « indicatif », ne propose que des élargissements/resserrements de bornes.
+4. **Lookalike** (M): `profileToStrategy()` — l'inverse d'`icpToStrategy()` (même fichier `lib/icp/icp-to-tam.ts`): traits du outcomeProfile → params Apollo → passe par la file `tam_proposals` EXISTANTE (kind add, source « lookalike_won ») — l'approbation humaine est déjà construite. Bouton « source 20 comptes comme tes wins » sur la carte du point 3.
+5. **Mesure** (S): chaque proposition appliquée = une ligne `insights` (F6.4) — un seul cycle de vie pour toutes les boucles, pas trois systèmes.
 
 ---
 
-### F10. FDAE — Forward Deployed Account Executives (§21)
+### F10. FDAE (§21) — leur moat assumé, notre anti-modèle assumé
 
-**Ce que Sam affirme**
-- Deux jobs : « a complementary skill set... helping with messaging, multi-channel, what the message should say » + « our FDAEs deeply understand how Monaco and its agents operate. If you deploy a demand-gen agent... you have to manage that agent — set it up, program it, check the messaging. We just do that for you. »
-- « It's definitionally not possible for a founder to understand how Monaco works the way a full-time Monaco employee does. »
-- Trajectoire investisseurs : Series A — « the biggest objection was "how does this scale?" — the margins » ; Series B — « we hear this is THE big competitive advantage you have ».
+**Méthodo Sam**: « you have to manage that agent — set it up, program it, check the messaging. We just do that for you » ; « definitionally not possible for a founder to understand how Monaco works the way a full-time Monaco employee does » ; Series A: objection marges → Series B: « THE big competitive advantage ».
 
-**Lecture CRO**
-Le FDAE est un levier de conversion (messaging expert) et surtout de rétention/NRR (onboarding réussi = client qui reste) — au prix d'un COGS qui plafonne la marge. La métrique de survie du modèle : revenu par FDAE, et sa pente.
+**Audit PM (Monaco)**: l'aveu produit central du transcript — l'agent autonome ne l'est pas ; viable seulement si chaque release productise du travail FDAE (ratio workspaces/FDAE croissant), sinon l'objection de la Series A revient à l'échelle ; « definitionally not possible » est une fierté inversée — un produit illisible par son propre client.
 
-**Audit PM — l'aveu et ce qu'on en fait**
-- « You have to manage that agent — set it up, program it, check the messaging » est **l'aveu produit central du transcript** : l'agent autonome ne l'est pas. Monaco a choisi d'absorber cette complexité par des humains plutôt que de la résoudre par le produit — choix défendable (time-to-market, feedback loop) mais qui n'est viable que si chaque release productise du travail FDAE. Sinon le « competitive advantage » de la Series B redevient l'objection de marge de la Series A à l'échelle.
-- *Le FDAE est aussi un capteur* : il voit tous les workspaces — c'est le canal de feedback produit le plus dense de l'entreprise. Non-instrumenté, cette valeur s'évapore en Slack interne.
-- *Risque de dépendance client* : « definitionally not possible for a founder to understand » est une fierté inversée — si le client ne peut pas comprendre son propre outil, le produit a échoué en lisibilité. La cible : le FDAE configure, le client COMPREND ce qui a été configuré (transparence des actions).
-- *Cohérence avec §13* : « metering who comes in, waitlist for companies not right in the strike zone » — le FDAE ne scale que si l'admission filtre les clients qu'on peut rendre successful. La porte d'entrée fait partie du modèle de service.
+**Chez Elevay aujourd'hui — le réel**: le FDAE, c'est Martin (mémoire projet: ~30h/client J0-60, ~2h/mois ensuite, capacité 5-7 clients). Côté produit: `captureApprovals` (mode review), `autonomyConfig` (level copilot…, permissions par action, guardrails maxEmailsPerDay/neverContact/sendWindow/maxDailySpend), l'admin app séparée (`apps/admin`: evals, flywheel, scoring, sla, costs, pipeline…) — des instruments d'OPÉRATEUR sans télémétrie d'interventions ni vue cross-tenant de santé de setup.
 
-**Spec Kiro — FDAE-OPS (tooling interne + transparence client)**
+**Notre position doctrinale** (mémoires « AE stays human », « no human replacement narrative »): chez Monaco le FDAE est un moat à marges négatives assumé ; chez nous l'humain dans la boucle est le CLIENT (founder), pas un employé Elevay — l'opérateur (Martin) est un bootstrap à éliminer par le produit, pas un service à vendre. La conséquence pratique est la même que la spec interne Monaco: instrumenter le travail manuel de l'opérateur pour le productiser mécaniquement.
 
-*User story (interne)* : en tant que FDAE, j'opère N workspaces clients depuis une console unique, chaque action que je fais chez un client est visible par lui, et le temps que je passe par tâche est mesuré pour que le produit absorbe mes tâches répétitives.
-
-*Critères d'acceptation (EARS)*
-1. THE SYSTEM SHALL fournir une console multi-workspace aux FDAE avec actions auditées : tout changement effectué par un FDAE est journalisé et visible par le client (« Monaco a ajusté votre séquence X : raison »).
-2. WHEN un FDAE effectue le même type d'action manuelle ≥ X fois sur ≥ Y workspaces (proposé : 10 fois / 3 workspaces), THE SYSTEM SHALL créer une candidate à productisation avec le temps cumulé dépensé — le backlog produit se nourrit du travail FDAE mécaniquement, pas par anecdote.
-3. THE SYSTEM SHALL mesurer le temps FDAE par tâche et par workspace, et reporter le ratio workspaces/FDAE et son évolution par release — la métrique qui répond à l'objection Series A.
-4. WHEN un nouveau client est admis, THE SYSTEM SHALL vérifier les critères de strike zone (§13) ; IF hors zone, THEN waitlist motivée — l'admission protège le modèle de service.
-5. WHEN le FDAE configure un agent client (signaux, séquences, ciblage), THE SYSTEM SHALL générer l'explication lisible par le client de ce qui a été configuré et pourquoi — contre la dépendance opaque.
-
-*Design* : rôles et permissions dédiés (le FDAE n'est pas un admin client fantôme — accès séparé, audité) ; télémétrie de tâches (catégorisée : setup signal, retouche message, débogage délivrabilité...) ; pipeline candidate-à-productisation → backlog PM avec le coût annuel en heures FDAE comme score de priorité.
-
-*Métriques* : workspaces par FDAE (et pente par trimestre — c'est LE chiffre) ; temps médian d'onboarding ; % d'actions FDAE expliquées au client ; top 5 des tâches répétitives par coût (= top 5 du backlog).
-
-*Tasks* : (1) console multi-workspace + audit visible client [verify : le client voit l'action] ; (2) télémétrie de tâches [verify : catégories sur 2 semaines pilotes] ; (3) détecteur de répétition → candidates [verify : seuil déclenché sur fixture] ; (4) gate de strike zone à l'admission [verify : hors-zone ⇒ waitlist] ; (5) rapport ratio par release.
+**Le comment chez nous (léger, immédiat)**
+1. **Vue setup-health cross-tenant** (S, dans apps/admin): une page qui liste par tenant: ICP actif ?, mailbox connectée ?, séquence active ?, signaux custom ?, dernière activité — où l'opérateur doit intervenir, en un écran. Toutes les requêtes existent éparses.
+2. **Journal d'interventions opérateur** (S): chaque action manuelle de Martin chez un tenant = `activities` avec `activityType: "operator_action"` + catégorie — la liste des candidates à productisation devient `SELECT category, COUNT(*), SUM(durée)` — le ratchet de productisation de la spec Monaco, version solo-founder.
+3. **Strike zone**: notre équivalent existe par construction (onboarding contrôlé pré-GA) — formaliser des critères d'admission seulement quand l'inbound dépassera la capacité.
 
 ---
 
 ### F11. Launch playbook (§13, §14)
 
-**Ce que Sam affirme**
-- « You can launch a bunch of times. » (3 launches en 5 mois : public beta 11 février, Series B, GA mi-juillet)
-- Table stakes : vidéo produit + « a spreadsheet with four tabs — employees, investors, friends of the firm, customers. When you launch, you track and do outreach to each group, both the day before and day of. With employees, ask: who are the three to five most influential people in your network...? »
-- « 45 days before launch, assemble a launch committee — might be your whole five-person company... everyone brings two to three ideas... whiteboard everything, leave the room with the three or four best ideas, and execute them. » Budget par campagne, « the crazier the better ».
-- Sam le fait déjà en service : « I've done this with a few of our customers » (workshops chez Judgment Labs).
-- La preuve d'efficacité qu'il cite : reply rates « same company, same product, same message — exponentially higher » post-launch (§10).
+**Méthodo Sam**: « you can launch a bunch of times » (3 en 5 mois) ; table stakes: vidéo + spreadsheet 4 onglets (employees, investors, friends of the firm, customers) + outreach J-1/J0 ; « 45 days before launch, assemble a launch committee » + idées du weekend + whiteboard + 3-4 retenues avec budget caps ; la preuve par §10: reply rates « same company, same product, same message — exponentially higher » post-launch.
 
-**Lecture CRO**
-Le launch est un multiplicateur de reply rate (la marque précède le message) et de conversion (crédibilité §10). Pour l'ICP founder-led, c'est l'événement de demand gen le plus rentable de l'année — et il est actuellement servi à la main par le CEO de Monaco. Service à productiser.
+**Audit PM (Monaco)**: les 4 onglets sont des données que la plateforme POSSÈDE (customers, investisseurs, réseau) — le playbook dans un spreadsheet externe est une incohérence ; « we don't measure » (§10) puis il cite LA mesure qui compte (uplift à message constant) — productiser CETTE mesure, refuser l'attribution par contact.
 
-**Audit PM**
-- *L'asset caché* : les 4 onglets du spreadsheet (employees, investors, friends, customers) sont des données que la plateforme POSSÈDE déjà (le plan de données unifié §6 contient les customers, les investors sont dans le graphe relationnel du founder). Faire ce playbook dans un spreadsheet externe alors que le produit a les données est une incohérence que le PM doit résorber.
-- *La mesure réconciliée* : Sam dit « we don't measure » (§10) puis cite l'uplift de reply rate à message constant — qui EST une mesure, globale et honnête. Le produit doit mesurer exactement ça (marqueurs d'événements sur les séries temporelles outbound) et refuser l'attribution par contact (vouée à sous-estimer, doctrine §10).
-- *Limite* : la partie créative (« the crazier the better ») ne se productise pas — le produit orchestre le processus (comité, échéances, budget, listes, tracking), il ne remplace pas l'idée. Ne pas prétendre l'inverse.
+**Chez Elevay aujourd'hui — le réel**: rien. Confirmé par l'exploration (« Launch tooling: confirmed DOES NOT exist »). Données disponibles pour les listes: users du workspace (employees), deals won (customers) ; investisseurs du TENANT non structurés (les `intelligenceBriefs.investor_names` concernent les PROSPECTS) ; friends = inexistant. Les séries temporelles outbound existent (`/api/deliverability` par période, outboundEmails datés) — l'overlay d'événements manque.
 
-**Spec Kiro — LAUNCH-PLAY**
-
-*User story* : en tant que founder qui prépare un launch (produit, levée, GA), je déroule un playbook guidé à J-45 avec mes listes d'amplification construites depuis mes données, mes campagnes budgétées, et après coup je vois l'uplift réel sur mon outbound.
-
-*Critères d'acceptation (EARS)*
-1. WHEN un launch est créé avec une date, THE SYSTEM SHALL générer le rétro-planning (J-45 comité et idéation, J-30 assets, J-7 listes et outreach préparé, J-1/J0 exécution et tracking) avec les rituels décrits §14.
-2. THE SYSTEM SHALL construire les 4 listes d'amplification depuis le plan de données (employés du workspace, investisseurs, friends-of-the-firm, clients) et demander à chaque employé ses « 3-5 most influential people » pour peupler la liste friends (§14, verbatim productisé).
-3. WHEN le jour J arrive, THE SYSTEM SHALL générer les messages d'activation par liste (la veille et le jour même) en file d'approbation founder (F5).
-4. WHEN un événement de marque est enregistré (launch, flight de billboards, tournoi, campagne gifting), THE SYSTEM SHALL l'annoter sur les séries temporelles outbound (reply rate, meeting rate) et calculer l'uplift avant/après à séquence constante — sans jamais prétendre à l'attribution par contact (doctrine §10).
-5. WHEN une campagne est créée dans le launch, THE SYSTEM SHALL exiger un budget cap (§14) et un responsable.
-6. THE SYSTEM SHALL permettre de répliquer un launch passé comme template (« you can launch a bunch of times » — le 2e launch part du playbook du 1er).
-
-*Design* : objet launch {date, type, campagnes[], listes[], assets[], budget} ; intégration séquences (l'outreach de launch est une séquence comme une autre, founder-sender) ; marqueurs d'événements = table dédiée consommée par les charts outbound (F8).
-
-*Edge cases* : launch décalé (replanification en cascade) ; listes avec contacts en séquence active (collision : le message launch remplace le message froid, pas en plus) ; tenant sans investisseurs renseignés (la liste se construit, pas bloquante).
-
-*Métriques* : uplift de reply rate à J+30 post-launch vs J-30 (la mesure de Sam §10) ; % des listes activées le jour J ; nombre de launches par client par an (récurrence = rétention du playbook).
-
-*Tasks* : (1) objet launch + rétro-planning [verify : création E2E] ; (2) constructeur des 4 listes depuis les données [verify : listes peuplées sur fixture] ; (3) messages d'activation en file founder [verify : approbation] ; (4) marqueurs d'événements + uplift à message constant [verify : chart annoté] ; (5) templates de réplication.
+**Le comment chez nous** (P3 — petit et différenciant pour notre ICP founders early)
+1. **Marqueurs d'événements** (S): table `event_markers` (tenantId, date, type launch/campaign/press, label) + overlay sur les charts deliverability/reply existants + calcul d'uplift avant/après à séquence constante (même sequenceId, fenêtres ±30j) — c'est la moitié de la valeur pour 1 jour de travail, et ça sert F12 aussi.
+2. **Objet launch guidé** (M): table `launches` (date, type, listes jsonb, campagnes [{nom, budgetCap, owner}], rétro-planning J-45/J-30/J-7/J0 en tasks — la table `tasks` existe) ; listes pré-remplies: users (employees), deals won (customers), import manuel investors/friends v1 ; messages d'activation J-1/J0 = drafts dans la file d'approbation existante.
+3. **Pas de génération d'idées créatives**: le produit orchestre (échéances, budgets, listes, mesure), il ne remplace pas le comité du §14 — ne pas prétendre l'inverse.
 
 ---
 
-### F12. Campagnes créatives, gifting, brand echo (§10, §11, §15)
+### F12. Brand echo / campagnes créatives / gifting (§10, §11, §15)
 
-**Ce que Sam affirme**
-- Le rituel : « every single month, force yourself to come up with a creative idea. Meet as a group, whiteboard, vote on the best idea. » « The worst thing to do is nothing at all. »
-- L'allocation : « of all your marketing dollars, have a meaningful percentage — 30%, 50% — that directly benefits the target customer rather than a third-party advertiser. »
-- La barre du gift : « it's NOT the thought that counts... it can be negative value if it's some chachki. The bar is high: would you genuinely think this is cool? » Gifts sociaux et visibles : poker sets (~$100, ressortis aux poker nights), cadre Lego à l'entrée, Veuve Clicquot déclenché par une levée (« they'd raised in the last six months ») avec carte signée du CEO orientée équipe.
-- La mesure : « The anecdotes are more valuable than the data points — the things people regularly bring up to you. » Et l'échec assumé (restaurant Brex) : « you should be trying a bunch of stuff, and some of it won't work... take the learning, cross it out, move to the next thing. »
+**Méthodo Sam**: rituel mensuel d'idée créative ; 30-50% des dollars marketing « directly benefits the target customer » ; la barre du gift (« it's NOT the thought that counts », anti-chachki) ; gifts sociaux et visibles (poker sets, cadre Lego, Veuve Clicquot sur levée ≤6 mois avec carte du CEO) ; « The anecdotes are more valuable than the data points ».
 
-**Lecture CRO**
-Tout vise le reply rate futur (la marque qui précède) et la crédibilité en cycle (conversion). Le budget est borné par campagne — c'est du portfolio management : beaucoup d'essais bon marché, doubler sur ce qui résonne, mesuré aux anecdotes.
+**Audit PM (Monaco) — l'idée la plus exploitable du transcript**: « anecdotes > data » cache une spec — FAIRE des anecdotes une donnée. Monaco capture chaque interaction ; détecter les mentions de marque dans les interactions capturées = le registre d'anecdotes de Sam, automatisé. Personne ne fait ce lien dans le transcript.
 
-**Audit PM — l'idée la plus exploitable du transcript**
-- « The anecdotes are more valuable than the data points » est une provocation qui cache une spec : **faire des anecdotes une donnée**. Monaco capture déjà chaque interaction (calls, emails, meetings). Détecter les mentions de marque dans les interactions capturées (« j'ai vu vos billboards », « j'étais au tournoi ») = le registre d'anecdotes de Sam, automatisé, rattaché à la campagne. Personne dans le transcript ne fait ce lien — c'est pourtant la jonction naturelle des deux moitiés du produit (capture × brand).
-- Le ratio « bénéficie au client vs bénéficie à un tiers » (30-50 %) est calculable trivialement si chaque campagne classe ses dépenses. Métrique de discipline, coût nul.
-- Le gifting signal-déclenché (champagne sur levée ≤ 6 mois) est déjà dans la mécanique F3 — la levée est un signal avec fenêtre de péremption.
+**Chez Elevay aujourd'hui — le réel**: nous capturons TOUT — `calls.transcript` (diarisé), `transcriptChunks` (pgvector), emails (activities + rawContent), meetings (upload + notetaker). Le pipeline d'extraction post-call (`lib/voice/extraction-schema.ts` → calls-post-process) extrait DÉJÀ MEDDPICC + evidence {claim, quote} + **competitor mention**. `intelligenceBriefs.competitorDetected` côté prospect. Le pattern de citation (`citation-parser`, offsets) existe. **Manquent**: le champ brandEcho dans l'extraction, les objets campagne avec budget, le ratio bénéficiaire, le gifting déclenché (stepType `gift` dans l'enum, AUCUNE implémentation), les marqueurs d'événements (F11.1).
 
-**Spec Kiro — BRAND-ECHO**
+**Critères de la spec — statut chez nous**
+1. Mention de marque/campagne dans une interaction → tag « brand echo » + rattachement campagne — **[ABSENT, à 1 jour près]**: le point d'extraction LLM existe, il manque UN champ au schéma.
+2. Campagne avec budget cap + split « bénéficie au client vs à un tiers » + ratio trimestriel — **[ABSENT]** (aucun objet campagne marketing ; `autonomyConfig.maxDailySpend` est un garde-fou, pas un ledger).
+3. Rituel mensuel — **[ABSENT]** (la table tasks peut le porter).
+4. Gift déclenché par levée ≤180j — **[PARTIEL]**: le signal funding existe avec date ; le stepType gift existe ; aucun consumer.
+5. Échos négatifs tagués aussi — **[ABSENT]**.
+6. Vue portfolio dépense × echoes × uplift — **[ABSENT]** (dépend F11.1).
 
-*User story* : en tant que founder, je tiens mon portefeuille de campagnes créatives (rituel mensuel, budgets, essais/arrêts), le gifting se déclenche sur les bons signaux, et le système me remonte automatiquement chaque écho de marque entendu dans mes interactions.
-
-*Critères d'acceptation (EARS)*
-1. WHEN une interaction capturée contient une mention de campagne ou de marque (billboard, événement, gift, « on m'a parlé de vous »), THE SYSTEM SHALL la taguer « brand echo », la rattacher à la campagne si identifiable, et l'agréger dans le registre d'anecdotes (§10 productisé).
-2. WHEN une campagne est créée, THE SYSTEM SHALL exiger un budget cap et classer chaque ligne de dépense « bénéficie au client cible » vs « bénéficie à un tiers », et afficher le ratio trimestriel vs la cible configurable 30-50 % (§11).
-3. THE SYSTEM SHALL proposer le rituel mensuel (rappel, board d'idées, vote, décision) — léger, désactivable, mais par défaut actif (« the worst thing to do is nothing at all »).
-4. WHEN un signal de levée est détecté sur un compte cible (F3, fenêtre ≤ 180 j), THE SYSTEM SHALL proposer la campagne de félicitations (gift social + carte du founder) en file d'approbation.
-5. WHEN une campagne n'a généré aucun echo après sa fenêtre d'évaluation, THE SYSTEM SHALL proposer son arrêt (« cross it out ») — le portfolio s'élague.
-6. THE SYSTEM SHALL afficher par campagne : dépense, echoes, uplift outbound éventuel (marqueurs F11) — trois colonnes, pas un modèle d'attribution.
-
-*Design* : détecteur de brand echo = classification contrainte sur les interactions capturées (fail-closed : en cas de doute, pas de tag) ; registre d'anecdotes consultable avec verbatims sourcés (citation de l'interaction) ; campagnes = objets budgétés reliés aux marqueurs temporels F11.
-
-*Edge cases* : echo négatif (« vos emails me spamment ») — tagué aussi, c'est le signal le plus précieux ; mention d'un concurrent (registre séparé, intel) ; gift refusé/non livré (statut de campagne honnête).
-
-*Métriques* : echoes par campagne par dollar ; ratio bénéfice-client (vs cible) ; % de campagnes arrêtées après évaluation (un portfolio sain en tue — 0 % d'arrêt = personne ne regarde).
-
-*Tasks* : (1) détecteur brand echo sur interactions [verify : 20 transcripts test, précision ≥ 90 %, fail-closed] ; (2) objets campagne + classification des dépenses + ratio [verify : calcul] ; (3) rituel mensuel [verify : rappel + board] ; (4) gifting signal-déclenché [verify : E2E levée → proposition] ; (5) vue portfolio 3 colonnes.
+**Le comment chez nous**
+1. **Le détecteur** (S — le quick win du document): ajouter `brandEcho {mentioned: bool, kind: heard_of_us | saw_campaign | referral_mention | negative, quote}` à `lib/voice/extraction-schema.ts` — le post-call worker l'écrit dans `activities.metadata.brandEcho` (fail-closed: doute = pas de tag, notre règle LLM) ; même champ dans l'extraction inbound email existante (`enrichment/signals-extracted`). Vérité terrain immédiate: les transcripts Call Mode réels.
+2. **Registre d'anecdotes** (S): une section (dans /reports ou la fiche compte) listant les echoes avec verbatim sourcé (le pattern evidence/citation existe) — agrégés par mois et par kind. Les négatifs en premier.
+3. **Campagnes** (M): table `marketing_campaigns` (name, budgetCap, spendToClient, spendToThirdParty, startedAt, endedAt) + lien vers `event_markers` (F11.1) → la vue 3 colonnes {dépense, echoes, uplift} sans modèle d'attribution — la doctrine §10 encodée.
+4. **Gift sur levée** (S): consumer du signal funding ≤180j → tâche proposée dans la file (« Propose: félicitations + gift à X — levée Série A il y a 3 semaines ») avec draft de carte founder-signée (origin story F5.5 réutilisable) ; v1 = tâche manuelle, pas d'intégration Sendoso (le « comment » physique reste humain — cohérent avec la barre qualité du §15).
 
 ---
 
-## 3. Doctrines non productisées (audit méthodologique pur)
+## 3. Doctrines non productisées (audit méthodologique, inchangé v1)
 
-**§3, §9 — La primauté du temps customer-facing.** « There is no higher-ROI use of founder time... than being customer-facing. AI doesn't automate away meeting... customers. In fact, the inverse — AI enables you to spend more time customer-facing. » Et le garde-fou : « There's a risk you leverage AI too much and remove yourself from the incredibly high-ROI things. » → Principe produit transversal plutôt que feature : toute feature doit AUGMENTER le temps client net du founder. Une feature qui ajoute de l'admin founder viole la thèse du produit. (Métrique possible : heures rendues par semaine — mais c'est un principe de revue de spec, pas un dashboard.) Le critère in-person : « We're not getting on a plane to meet a New York founder for a $25K ACV deal » — la règle déplacement/ACV est explicite, et accessoirement révèle l'ACV type de Monaco.
+**§3/§9 Customer-facing primacy**: « no higher-ROI use of founder time… than being customer-facing » ; le garde-fou anti-sur-délégation (« There's a risk you leverage AI too much »). Principe de revue de spec transversal: toute feature doit augmenter le temps client NET du founder. Le critère déplacement/ACV (« not getting on a plane… for a $25K ACV deal ») révèle au passage l'ACV Monaco.
 
-**§12 — Design partners gratuits contre engagement.** « We didn't charge. Charging would have been friction against the thing we really wanted: feedback. We did, though, get people to commit that they would actually make this their platform of record — not use it alongside another tool. » L'échange est précis : gratuité contre exclusivité d'usage + feedback. Pas de produit là-dedans, mais une discipline de company building remarquablement formulée — la contrepartie n'est pas de l'argent, c'est du **signal non dilué** (un design partner qui garde son ancien outil ne teste rien).
+**§12 Design partners**: gratuits CONTRE engagement platform-of-record (« Charging would have been friction against the thing we really wanted: feedback ») — la contrepartie est du signal non dilué, pas de l'argent.
 
-**§13 — Le zero-to-100, conditionnel.** « This is probably the wrong approach for most companies. What enabled us: we didn't need to be known to acquire the initial customers. » L'honnêteté de la condition est notable : le launch shotgun exige un canal d'acquisition indépendant de la notoriété (réseau, outbound, YC batch pour Brex). Doctrine à deux états, pas une recette.
+**§13 Zero-to-100 conditionnel**: « probably the wrong approach for most companies » — exige un canal d'acquisition indépendant de la notoriété. Honnêteté notable.
 
-**§16 — Naming.** « It's not a social activity... I took ownership. » + critère .com + associations voulues (success, wealth). Aucune implication produit.
+**§16 Naming**: « not a social activity », le .com, les associations. Aucune implication produit.
 
-**§20 — Le premier client.** « There is no one better in the world at acquiring the first handful of customers than the founder. » Embaucher un vendeur pour trouver le client n°1 = « the wrong diagnosis and the wrong solution » (c'est un problème de PMF). Implication produit indirecte : Monaco cible explicitement le founder-led et son onboarding doit le présupposer — pas de « invitez votre SDR » au jour 1.
+**§20 Premier client**: « There is no one better in the world at acquiring the first handful of customers than the founder » — embaucher un vendeur pour le client n°1 = mauvais diagnostic (PMF). Notre onboarding founder-led le présuppose déjà.
 
 ---
 
 ## 4. Contradictions internes et risques systémiques (vue PM senior)
 
-1. **La mesure bifurquée.** Le même discours exige la significativité statistique (§8) et refuse la mesure (§10). La réconciliation existe mais Sam ne la formule pas : mesurer rigoureusement là où le système d'attribution est fiable (funnel interne, données propriétaires), proxy-mesurer le brand (uplift global à message constant, echoes), et refuser l'attribution par contact pour le brand parce qu'elle sous-estime structurellement (« so much information you don't have that your takeaways will guide you in the wrong direction »). Un produit qui n'encode pas cette frontière fera l'un des deux mensonges : sur-attribuer le brand ou sous-investir dedans.
-
-2. **Le piège du petit n — le risque produit n°1.** Toute la couche intelligence (F6, F7, F9) promet des insights statistiques à des clients dont le volume rend la statistique presque impossible. Les exemples fondateurs (Zenefits, Brex 4x) viennent d'échelles 100x supérieures à celles du client Monaco type. Sans tiers de confiance, corrections multi-comparaisons et bascule en mode « expérience proposée », l'insights agent est un générateur d'artefacts confiants — le pire produit possible, parce qu'il déclenche des réallocations réelles sur du bruit. C'est LE point où la promesse marketing et l'intégrité produit divergent.
-
-3. **Les boucles auto-réalisatrices.** Scoring (F2), routing (F7), closed-loop (F9) : trois systèmes qui concentrent l'effort sur ce qui a déjà marché et cessent donc d'apprendre. Le remède est le même partout (quotas d'exploration, cohortes séparées) et n'apparaît nulle part dans le discours. Mention spéciale : prioriser SF (§2, §17) puis « découvrir » que SF convertit mieux.
-
-4. **Founder-sender vs trajectoire upmarket.** La doctrine d'envoi (§17) sert l'ICP actuel ; la trajectoire revendiquée (§5, « steak dinners with committees ») la casse — un VP Sales enterprise n'envoie pas du founder-to-founder. La doctrine doit être versionnée par stage, sinon le produit contredira sa propre roadmap.
-
-5. **FDAE : l'avantage qui est un aveu.** §21 admet que l'agent exige une gestion experte que le client ne peut « définitionnellement » pas avoir. Modèle viable si et seulement si le ratio workspaces/FDAE monte à chaque release (productisation mécanique du travail FDAE, F10). Sinon, l'objection de marge de la Series A revient avec l'échelle — Sam rapporte lui-même que c'était LA question.
-
-6. **Breadth-first et la dette de cohérence.** « Part of our moat is the breadth of the platform from day one » (§6). Le coût jamais mentionné : N modules moyens plutôt qu'un excellent, et des coutures entre modules (nos audits internes sur Elevay documentent exactement ce mode de défaillance — seams, dead-ends). Le FDAE masque ces coutures chez Monaco — humains comme mortier entre les briques. Cohérent, mais c'est un coût de COGS récurrent, pas un moat.
-
-7. **« It's all AI, totally objective » (§8).** Le routing « objectif » encode une fonction objectif choisie par le management (close rate ? revenu ? équité ?). Revendiquer l'objectivité de la machine pour dissoudre une décision de management est exactement le réflexe qu'un produit sérieux doit refuser : exposer le choix, le rendre configurable et auditable.
+1. **La mesure bifurquée** — significativité statistique exigée (§8) ET refus de mesurer (§10), réconciliables seulement en encodant la frontière: stats là où l'attribution est fiable (funnel interne), proxy global pour le brand (uplift à message constant, echoes), jamais d'attribution par contact pour le brand.
+2. **Le piège du petit n — risque produit n°1** — toute la couche intelligence promet de la stat à des clients qui n'ont pas le volume. Sans tiers de confiance + corrections + bascule en mode expérience, l'insights agent est un générateur d'artefacts confiants. **Nous y sommes exposés aussi**: nos /reports génèrent des recommendations LLM sans test — F6.5 nous soigne avant de viser plus haut que Monaco.
+3. **Boucles auto-réalisatrices** — scoring/routing/closed-loop concentrent l'effort sur ce qui a marché et cessent d'apprendre. Remède uniforme: quotas d'exploration, cohortes par origine. Notre tri `score DESC` strict de la daily call list a exactement ce biais aujourd'hui (F2.3).
+4. **Founder-sender vs upmarket** — la doctrine d'envoi (§17) casse au stade « steak dinners » (§5). À versionner par stage. Chez nous: de facto founder-sender, doctrine à expliciter le jour du 2e closer.
+5. **FDAE: l'avantage-aveu** — viable si le ratio workspaces/FDAE monte à chaque release. Sam rapporte lui-même que la Series A a posé LA question. Notre modèle inverse (l'humain = le client) nous dispense du COGS mais pas de l'instrumentation (F10.2).
+6. **Breadth-first et dette de cohérence** — « part of our moat is the breadth » (§6) sans jamais traiter la profondeur. Les FDAE sont le mortier humain entre les briques. Nos propres audits (archipelago seams, 13/20 dead-ends) documentent ce mode de défaillance — nous savons exactement ce que ça coûte.
+7. **« It's all AI, totally objective » (§8)** — la fonction objectif du routing est un choix de management déguisé en propriété de la machine. Exposer, configurer, auditer.
 
 ---
 
-## 5. Faits compétitifs nouveaux + croisement avec nos teardowns
+## 5. Priorités Elevay issues de la comparaison
 
-**Confirmations.** Le transcript valide la classification 6 étapes de `_research/monaco-bilan-et-classification-2026-05-06.md` : Build TAM (§2) / Overlay Signals (§2, §19) / Execute Sequences (§17-18) / Capture Activity (implicite §8 — la classification persona suppose la capture) / Track Pipeline (§7) / Ask Monaco (§8 — l'insights agent en est la version proactive, plus avancée que le chat réactif observé dans nos teardowns UI). La doctrine « primarily inbound today » de nos docs devient « most of our revenue today comes from referrals » (§13) — cohérent.
+Classement par (levier CRO × écart réel × effort), doctrine demand-first appliquée à nous-mêmes — les 4 premiers bougent la GÉNÉRATION, conformément au §20:
 
-**Nouveautés vs nos docs.**
-| Fait | Source | Impact |
-|------|--------|--------|
-| GA mi-juillet 2026 (3e launch) | §13-14 | Timing : pression concurrentielle dans ~1 mois ; s'attendre à une vague de bruit (vidéo, campagnes, presse) |
-| Series B levée (~mai 2026) | §14, §21 | Nos docs s'arrêtaient à $35M (seed+A). Munitions en hausse |
-| Insights agent revendiqué live | §8 | La feature la plus différenciante du discours ; absente de nos teardowns UI (jamais vue à l'écran — claim à vérifier au GA) |
-| Routing rep-level | §8 | Décrit comme capacité (« AI can then route ») — probablement roadmap upmarket, pas live pour l'ICP founder-led |
-| ACV implicite ~$25K | §9 | Première indication de pricing (nos docs : pricing 404). Elevay $999/mois ≈ $12K/an : nous sommes ~2x moins chers |
-| Clients nommés : Greptile, Judgment Labs, Parley, Nowadays | §11, §14, §17, §19 | Tous des startups AI early — confirme le strike zone |
-| Public beta = waitlist filtrée (« strike zone ») | §13 | L'admission filtrée fait partie du modèle FDAE |
-| FDAE = narrative officielle de la Series B | §21 | Le service assumé comme moat — voir risque §4.5 |
+| Rang | Chantier | Features | Effort | Pourquoi maintenant |
+|---|---|---|---|---|
+| 1 | **LinkedIn multi-canal (Unipile)** | F5.1-2 | L (spec écrite) | « Table stakes » + « 1+1=4 » (§18) — le plus gros levier de reply rate ; tout le reste du pipeline (drafts, approbation, identité) l'absorbe sans travail |
+| 2 | **Intégrité des signaux**: decay + re-verify au send + lint cosmétique + calibration custom | F3.1-4 | S | Protège le levier signal existant ; 4 petits patchs sur des modules en place (freshness-check dormant, signalUrlCache, evaluateSequenceQuality, backfill) |
+| 3 | **Équation + diagnostic bottleneck** | F8.1-5 | M | La doctrine §20 productisée pour NOTRE ICP exact ; tous les inputs SQL existent ; consommateur du revenueGoal d'onboarding |
+| 4 | **Brand echo detector** | F12.1-2 | S (~1 j) | Unique sur le marché, infra d'extraction déjà en place, nourrit le récit « capture qui sert à quelque chose » |
+| 5 | **Auto-buyer discovery + actionabilité** | F4.1, F4.4 | M | % du TAM actionnable = la couverture amont ; aujourd'hui invisible |
+| 6 | **Origination cohorts + profil win/loss + propositions ICP + lookalike** | F8.6 + F9 | M | Ferme la boucle que Monaco revendique en architecture ; réutilise tam_proposals + analyzeClosedDeal |
+| 7 | **Moteur d'insights à tiers de confiance** | F6 | L | Le différenciateur long terme — la version HONNÊTE du claim de Sam ; commencer par F6.5 (re-router nos reports) qui nous soigne du même mal |
+| 8 | **Exploration quota + approve-N-then-auto + B10 + gates divers** | F2.3, F5.4, F5.7, F4.2 | S chacun | Hygiène: anti-verrouillage, montée en autonomie gagnée, dernière collision active |
+| 9 | **Launch playbook léger** | F11 | M | P3 différenciant pour founders early ; commencer par event_markers (1 j, sert aussi F12) |
+| — | **Routing rep-level** | F7 | — | **Ne pas construire** — gate ICP ; B10 + hygiène d'attribution suffisent |
 
-**Deltas chauds pour Elevay** (pointeurs ; mapping complet dans `_research/monaco-vs-elevay-mapping.md`) :
-- **Insights agent (F6)** : aucun équivalent chez nous — notre chat répond aux questions, rien ne coupe les cohortes proactivement ni ne propose de réallocations mesurées. C'est le delta le plus structurant du transcript. La version honnête (tiers de confiance, expériences à petit n) est précisément notre doctrine « intelligence, not a prompt » — nous sommes culturellement équipés pour la construire MIEUX que le claim de Sam.
-- **Diagnostic bottleneck demand-first (F8)** : rien chez nous ne dit au founder « ta variable bloquante est X ». Productisation simple, valeur immédiate pour notre ICP founder-led — et la doctrine 9/10 s'applique trait pour trait à nos clients.
-- **Brand echo (F12)** : nous capturons déjà les interactions (post-call qualification, transcripts) — le détecteur d'échos de marque est à notre portée et n'existe nulle part, pas même dans le discours de Monaco.
-- **Signal-timing (F3)** : partiellement couvert (signaux + call-campaign engine) ; les manques : decay par type, citation vérifiable fail-closed à l'envoi, constructeur de signaux custom calibré, lint anti-personnalisation-cosmétique.
-- **Founder-sender (F5)** : nos séquences sont déjà per-owner avec boîtes réelles ; il nous manque la doctrine par stage (founder par défaut en founder-led), la file d'approbation apprenante et l'intégrité cross-canal (préconditions de délivrance).
-- **Launch playbook (F11)** : inexistant chez nous ; pertinent pour notre ICP (founders early) ; différenciation possible vs Monaco qui le fait à la main.
+**Deux corrections internes que la comparaison impose** (indépendantes de Monaco):
+- La file `tam_proposals` accumule en prod sans consommateur depuis #160 (entrée cachée, crons actifs) — réactiver l'entrée ou couper les crons (F1.4).
+- Nos /reports font ce qu'on reproche au claim Monaco: des recommandations LLM sans fondement statistique (F6.5).
 
 ---
 
-*Document rédigé le 2026-06-11 depuis le transcript seul (+ références croisées à nos teardowns existants). Toute citation § renvoie aux sections du transcript dans `_research/raw/transcript-sam-blond-monaco-gtm.md`.*
+*v2 du 2026-06-11. Sources: transcript (`_research/raw/transcript-sam-blond-monaco-gtm.md`, §N = sections), 4 explorations code exhaustives réconciliées avec origin/main (collision #182-#194 et title-style #187/#192 présents sur main ; guardrail outbound: défaut code « on », désarmé par l'env prod depuis 2026-06-10). v1 (audit Monaco seul) dans l'historique git: `33f92406`.*
