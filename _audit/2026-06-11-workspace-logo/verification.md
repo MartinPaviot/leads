@@ -21,6 +21,8 @@ retries; every failure below traced to those windows, none to the feature.
 | 003 | settings-after-reload-persisted | After reload the sidebar still carries the versioned logo URL (SSR). Caveat: the preview block's own client fetch hit a network-flap 500 during this exact load and fell back to initials with an empty name field — degraded-network rendering, not a logo bug. 004 is the strong persistence proof. |
 | 004 | settings-logo-before-remove | 1h07 later, after a dev-server restart: name loaded, Replace logo + Remove present (logoUrl live), preview circle shows the gradient backdrop while the image bytes were still in flight — the graceful-loading behavior the gradient requirement was about |
 | 005 | settings-after-remove-initials-back | After remove: gradient initials bubble back (preview + sidebar), Upload logo button restored |
+| 006 | ui-click-upload-rendered | Post-merge follow-up: REAL "Upload logo" button click → file chooser → logo rendered over the gradient, name loaded, Replace/Remove present (healthiest full render of the series) |
+| 007 | ui-click-remove-initials-back | REAL "Remove" button click → preview + sidebar back to gradient initials |
 
 ## Programmatic assertions (passed 2026-06-11 ~10:34)
 
@@ -38,17 +40,19 @@ GET /api/settings/workspace → logoUrl versioned; persisted across reload.
 
 ## Remove path
 
-The UI Remove click could not be live-completed during the network-flap
-windows (the page's initial GET 500'd → no Remove button rendered). The
+During the network-flap windows the UI Remove click could not be
+live-completed (the page's initial GET 500'd → no Remove button rendered);
 removal was executed through the same authenticated endpoint the button
-calls (`PUT {"logoDataUrl": null}` from the browser context) and verified
-at the source:
+calls and verified at the source (`logo_len: 51030` → `null`).
 
-- DB before: `logo_len: 51030`, after: `logo_len: null`,
-  `logoUpdatedAt: 2026-06-11T09:44:09.706Z` (fresh stamp = the PUT ran).
-- Screenshot 005: initials bubble restored in preview + sidebar.
-- Remove semantics (null write, audit booleans, serving 404 fail-closed)
-  are covered by the 22 unit/API tests in `workspace-logo.test.ts` +
-  `workspace-logo-api.test.ts`.
+**Closed post-merge (same day, ~11:06Z), network stable:** the FULL UI
+cycle ran with real button clicks —
+
+- "Upload logo" click → native file chooser → PNG picked → PUT 200 →
+  sidebar bubble + preview both rendered the logo bytes (006).
+- "Remove" click → PUT 200 → both imgs detached, initials back (007).
+- Authenticated GET /api/settings/workspace/logo after removal →
+  **404 application/json** (fail-closed verified live, not just in tests).
+- DB after: `logo_len: null`, `logoUpdatedAt: 2026-06-11T11:06:50.768Z`.
 
 Live tenant left clean: no logo stored, name/domains untouched.
