@@ -545,11 +545,27 @@
    width so columns never shift, and the control stays focusable. */
 .ls-table th.check,
 .ls-table td.check {
-  /* Tight gutter: the hover-revealed boxes read as dead width at 36-40px.
-     One rule so Accounts, Contacts and DataTable stay identical. */
-  width: 26px;
-  padding-left: 8px;
-  padding-right: 4px;
+  /* Tight gutter, box dead-centered on both axes. One rule so Accounts,
+     Contacts and DataTable stay identical. The table over-constrains its
+     columns, so the symmetric padding (not width) is what actually sets
+     the rendered gutter: 3px + 12px box + 3px ≈ 19px. */
+  width: 20px;
+  padding: 0 3px;
+  text-align: center;
+  vertical-align: middle;
+}
+.ls-table :is(th.check, td.check) input[type="checkbox"] {
+  /* Block + auto margins: centering that doesn't depend on inline
+     baseline quirks; the cell's vertical-align centers the block. */
+  display: block;
+  margin: 0 auto;
+}
+.ls-table :is(th.check, td.check) > label {
+  /* Same treatment for the shared Checkbox's label wrapper (an empty
+     checkbox button has no baseline, which sank it ~4px when inline). */
+  display: block;
+  width: max-content;
+  margin: 0 auto;
 }
 .ls-table :is(th.check, td.check) button[role="checkbox"] {
   /* The shared Checkbox is 16px elsewhere; inside a selection gutter it
