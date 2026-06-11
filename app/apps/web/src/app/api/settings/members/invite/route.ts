@@ -145,5 +145,8 @@ export async function POST(req: Request) {
     },
     emailSent: sendResult.sent,
     emailError: sendResult.sent ? undefined : sendResult.reason,
+    // The shareable accept link. Surfaced so an admin can copy and send it
+    // directly (chat, etc.) instead of relying on email deliverability.
+    acceptUrl,
   }, { status: 201 });
 }

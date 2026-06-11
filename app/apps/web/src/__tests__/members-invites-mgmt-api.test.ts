@@ -206,4 +206,44 @@ describe("POST /api/settings/members/invites/[id] (resend)", () => {
       expect.objectContaining({ resendCount: 2 })
     );
   });
+
+  it("action 'link' returns a fresh acceptUrl, rotates token, no email/no count", async () => {
+    vi.mocked(getAuthContext).mockResolvedValue(authAdmin);
+    mockSelectOnce([
+      { id: "inv-1", status: "pending", resendCount: 1, role: "member", email: "bob@acme.com", expiresAt: new Date(), token: "x" },
+    ]);
+    mockSelectOnce([{ id: "t1", name: "Acme" }]); // tenant
+    mockSelectOnce([{ email: "alice@acme.com" }]); // inviter
+
+    const updateWhere = vi.fn().mockResolvedValue(undefined);
+    const setFn = vi.fn().mockReturnValue({ where: updateWhere });
+    vi.mocked(db.update).mockReturnValue({ set: setFn } as never);
+
+    const res = await mgmtMod.POST(mgmtReq("POST", { action: "link" }), idParam);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(typeof body.acceptUrl).toBe("string");
+    expect(body.acceptUrl).toContain("/accept-invite?token=");
+    // token rotated but resendCount NOT touched
+    expect(setFn).toHaveBeenCalledWith(expect.objectContaining({ token: expect.any(String) }));
+    expect(setFn).toHaveBeenCalledWith(expect.not.objectContaining({ resendCount: expect.anything() }));
+  });
+
+  it("action 'link' works even at the resend cap", async () => {
+    vi.mocked(getAuthContext).mockResolvedValue(authAdmin);
+    mockSelectOnce([
+      { id: "inv-1", status: "pending", resendCount: 3, role: "member", email: "bob@acme.com", expiresAt: new Date(), token: "x" },
+    ]);
+    mockSelectOnce([{ id: "t1", name: "Acme" }]); // tenant
+    mockSelectOnce([{ email: "alice@acme.com" }]); // inviter
+
+    const updateWhere = vi.fn().mockResolvedValue(undefined);
+    const setFn = vi.fn().mockReturnValue({ where: updateWhere });
+    vi.mocked(db.update).mockReturnValue({ set: setFn } as never);
+
+    const res = await mgmtMod.POST(mgmtReq("POST", { action: "link" }), idParam);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(typeof body.acceptUrl).toBe("string");
+  });
 });

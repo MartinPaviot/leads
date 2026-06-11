@@ -87,6 +87,33 @@ export default function MembersSettingsPage() {
     }
   }
 
+  // The accept link from the most recent invite, kept on screen with a Copy
+  // button so the admin can share it directly — a reliable path that doesn't
+  // depend on the invitation email landing in the recipient's inbox.
+  const [lastInvite, setLastInvite] = useState<{ email: string; url: string } | null>(null);
+
+  async function copyToClipboard(text: string): Promise<boolean> {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fallback for non-secure contexts / older browsers.
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        return ok;
+      } catch {
+        return false;
+      }
+    }
+  }
+
   async function handleInvite() {
     const email = inviteEmail.trim();
     if (!email) return;
@@ -97,6 +124,7 @@ export default function MembersSettingsPage() {
       emailSent?: boolean;
       emailError?: string;
       error?: string;
+      acceptUrl?: string;
     }>("/api/settings/members/invite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -111,6 +139,7 @@ export default function MembersSettingsPage() {
       } else {
         toast(`Invitation sent to ${data.invite.email}`, "success");
       }
+      if (data.acceptUrl) setLastInvite({ email: data.invite.email, url: data.acceptUrl });
       setInviteEmail("");
       setInviteRole("member");
       await loadInvites();
@@ -120,12 +149,37 @@ export default function MembersSettingsPage() {
   async function handleResend(id: string) {
     const { data, error: err } = await sfetch<{ emailSent?: boolean; emailError?: string }>(
       `/api/settings/members/invites/${id}`,
-      { method: "POST", errorMessage: "Failed to resend invitation" },
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "resend" }),
+        errorMessage: "Failed to resend invitation",
+      },
     );
     if (!err && data) {
       toast(data.emailSent ? "Invitation resent" : `Resend failed: ${data.emailError ?? "unknown"}`,
         data.emailSent ? "success" : "warning");
       await loadInvites();
+    }
+  }
+
+  // Copy a fresh accept link for a pending invite (rotates the token; the
+  // previously-shared link stops working). No email is sent.
+  async function handleCopyLink(id: string) {
+    const { data, error: err } = await sfetch<{ acceptUrl?: string }>(
+      `/api/settings/members/invites/${id}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "link" }),
+        errorMessage: "Failed to generate link",
+      },
+    );
+    if (!err && data?.acceptUrl) {
+      const ok = await copyToClipboard(data.acceptUrl);
+      const inv = invites.find((i) => i.id === id);
+      if (inv) setLastInvite({ email: inv.email, url: data.acceptUrl });
+      toast(ok ? "Invite link copied to clipboard" : "Link ready — copy it below", ok ? "success" : "warning");
     }
   }
 
@@ -238,6 +292,36 @@ export default function MembersSettingsPage() {
             </Button>
           </div>
           {error && <p className="mt-1.5 text-[12px]" style={{ color: "var(--color-error)" }}>{error}</p>}
+
+          {lastInvite && (
+            <div
+              className="mt-3 rounded-lg p-3"
+              style={{ background: "var(--color-bg-muted)", border: "1px solid var(--color-border-default)" }}
+            >
+              <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                Or share this invite link with <strong>{lastInvite.email}</strong> directly — it works even if the email lands in spam.
+              </p>
+              <div className="mt-1.5 flex items-center gap-2">
+                <input
+                  readOnly
+                  value={lastInvite.url}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="flex-1 rounded-md px-2 py-1.5 text-[12px]"
+                  style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)", color: "var(--color-text-primary)" }}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    const ok = await copyToClipboard(lastInvite.url);
+                    toast(ok ? "Invite link copied" : "Select the link and copy it", ok ? "success" : "warning");
+                  }}
+                >
+                  Copy link
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -271,6 +355,14 @@ export default function MembersSettingsPage() {
                       </div>
                       {canManage && (
                         <div className="flex gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCopyLink(inv.id)}
+                            title="Copy a fresh invite link to share directly"
+                          >
+                            Copy link
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"

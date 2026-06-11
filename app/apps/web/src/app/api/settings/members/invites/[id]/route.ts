@@ -31,12 +31,22 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   return Response.json({ success: true });
 }
 
-/** Resend an invite email (rotates the token so prior links stop working). Body: { action: "resend" } optional. */
+/**
+ * POST — refresh a pending invite's link.
+ *   action "resend" (default): rotate the token, email it, count it (cap 3).
+ *   action "link": rotate the token and RETURN the fresh accept URL without
+ *     sending an email or burning a resend — for "Copy link", so an admin can
+ *     share it directly (chat, etc.) when email deliverability is unreliable.
+ * Both rotate the token, so the previously-shared link stops working.
+ */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const authCtx = await getAuthContext();
   if (!authCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const adminCheck = requireAdmin(authCtx);
   if (adminCheck) return adminCheck;
+
+  const body = (await req.json().catch(() => ({}))) as { action?: unknown };
+  const linkOnly = body.action === "link";
 
   const { id } = await params;
   const [invite] = await db
@@ -52,7 +62,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (invite.status !== "pending") {
     return Response.json({ error: `Cannot resend ${invite.status} invite` }, { status: 400 });
   }
-  if (invite.resendCount >= MAX_RESENDS) {
+  if (!linkOnly && invite.resendCount >= MAX_RESENDS) {
     return Response.json({ error: `Resend limit reached (${MAX_RESENDS})` }, { status: 429 });
   }
 
@@ -75,8 +85,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // link ever leaked (shoulder-surfed an email, forwarded share), it
   // stops working as soon as the admin clicks "Resend".
   const { raw: rawToken, hash: tokenHash } = generateInviteToken();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    new URL(req.url).origin ||
+    "https://www.elevay.dev";
   const acceptUrl = `${appUrl}/accept-invite?token=${rawToken}`;
+
+  // Link-only: persist the rotated token and return the URL, no email/no count.
+  if (linkOnly) {
+    await db
+      .update(pendingInvites)
+      .set({ token: tokenHash, updatedAt: new Date() })
+      .where(eq(pendingInvites.id, id));
+    return Response.json({ success: true, acceptUrl });
+  }
 
   const sendResult = await sendInviteEmail({
     to: invite.email,
@@ -103,5 +125,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     emailSent: sendResult.sent,
     emailError: sendResult.sent ? undefined : sendResult.reason,
     resendCount: invite.resendCount + 1,
+    acceptUrl,
   });
 }
