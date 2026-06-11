@@ -37,6 +37,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import {
   computeAccessibility,
   computePriorityScore,
+  fitFromCompanyScore,
 } from "@/lib/scoring/priority-score";
 import { getSignalMultipliers } from "@/lib/scoring/signal-outcomes";
 import { logger } from "@/lib/observability/logger";
@@ -192,7 +193,9 @@ export const signalScoreDaily = inngest.createFunction(
           );
           const score = computePriorityScore({
             signalMultiplier,
-            fitScore: company.score,
+            // companies.score is 0-100 since Phase 0 — the formula
+            // wants the 0-1 fit (keeps priority in its ~[0, 2.5] band).
+            fitScore: fitFromCompanyScore(company.score),
             accessibility,
           });
           // Skip rows where the score is 0 AND there's nothing to

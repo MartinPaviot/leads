@@ -28,6 +28,11 @@ vi.mock("@/db/schema", () => ({
   tenants: { id: "id", name: "name", settings: "settings", domain: "domain", stripeCustomerId: "stripe_customer_id", subscriptionId: "subscription_id", plan: "plan", createdAt: "created_at", updatedAt: "updated_at", referralCode: "referral_code" },
   companies: { id: "id", tenantId: "tenantId" },
   activities: { id: "id", tenantId: "tenantId", entityType: "entityType", entityId: "entityId", occurredAt: "occurredAt", actorType: "actorType", sentiment: "sentiment" },
+  // R1.5: the route now reads the ICP fit matrix (joined to active icps)
+  // before falling back to the legacy flat-settings scorer.
+  companyIcpFit: { companyId: "company_id", icpId: "icp_id", tenantId: "tenant_id", fitScore: "fit_score" },
+  icps: { id: "id", priority: "priority", status: "status", deletedAt: "deleted_at" },
+  icpCriteria: { id: "id", icpId: "icp_id" },
 }));
 
 vi.mock("drizzle-orm", () => ({
@@ -35,6 +40,8 @@ vi.mock("drizzle-orm", () => ({
   and: vi.fn(),
   gte: vi.fn(),
   sql: vi.fn(),
+  isNull: vi.fn(),
+  inArray: vi.fn(),
 }));
 
 vi.mock("@/lib/infra/rate-limit", () => ({
@@ -125,6 +132,8 @@ describe("POST /api/score", () => {
     };
 
     // Mock db.select chains:
+    // 0) Matrix lookup (R1.5): .select().from(companyIcpFit).innerJoin(icps).where() -> []
+    //    (no cells -> the route falls back to the legacy flat-settings scorer)
     // 1) Company lookup: .select().from().where().limit(1) -> [mockCompany]
     // 2-6) Engagement queries: .select().from().where() -> [{count: 0}] or [{latest: null}]
     // The where() return must be both thenable (for engagement) and have .limit() (for company lookup)
@@ -134,7 +143,8 @@ describe("POST /api/score", () => {
       (promise as any).limit = vi.fn().mockResolvedValue([mockCompany]);
       return promise;
     });
-    const fromFn = vi.fn().mockReturnValue({ where: whereFn });
+    const innerJoinFn = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) });
+    const fromFn = vi.fn().mockReturnValue({ where: whereFn, innerJoin: innerJoinFn });
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 
     const updateWhereFn = vi.fn().mockResolvedValue([]);
@@ -161,7 +171,8 @@ describe("POST /api/score", () => {
 
     const limitFn = vi.fn().mockResolvedValue([]);
     const whereFn = vi.fn().mockReturnValue({ limit: limitFn });
-    const fromFn = vi.fn().mockReturnValue({ where: whereFn });
+    const innerJoinFn = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) });
+    const fromFn = vi.fn().mockReturnValue({ where: whereFn, innerJoin: innerJoinFn });
     vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
 
     const req = new Request("http://localhost/api/score", {

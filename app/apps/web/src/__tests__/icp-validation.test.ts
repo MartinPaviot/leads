@@ -38,10 +38,16 @@ describe("validateIcpInput — name / status / priority", () => {
     expect(validateIcpInput({ name: "X", status: "live" }, CATALOG).ok).toBe(false);
   });
 
-  it("accepts each valid status", () => {
+  it("accepts each valid status (active needs >= 1 criterion since Phase 0)", () => {
+    // R8.1 (_specs/icp-unification): an ACTIVE ICP with zero criteria is
+    // rejected — it matches nothing and accumulates as an inert shell.
+    const criterion = { fieldKey: "industry", operator: "in", value: ["SaaS"] };
     for (const s of ["draft", "active", "archived"]) {
-      expect(validateIcpInput({ name: "X", status: s }, CATALOG).ok).toBe(true);
+      const input =
+        s === "active" ? { name: "X", status: s, criteria: [criterion] } : { name: "X", status: s };
+      expect(validateIcpInput(input, CATALOG).ok).toBe(true);
     }
+    expect(validateIcpInput({ name: "X", status: "active" }, CATALOG).ok).toBe(false);
   });
 
   it("rejects negative / non-integer priority", () => {

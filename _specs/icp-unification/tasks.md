@@ -4,16 +4,15 @@
 
 ## Phase 0 — honest scoring (P0, no UI change)
 
-- [ ] **T0.1 Blended fit in the engine.** Add `computeBlendedFit(criteria, ctx)` to `lib/icp/criteria-engine.ts` wrapping `computeIcpFitLevels` with `score01 = fitEvaluable × (0.6 + 0.4·coverage)` + exported constants; add `SOURCING_ONLY_FIELD_KEYS` to `field-catalog.ts` and exclude them from the coverage denominator.
-  *Test:* design.md §2 worked examples, exact values. *Verify:* `npx vitest run criteria-engine` from `app/apps/web`.
-- [ ] **T0.2 Recompute rewrite** (`inngest/icp-fit-recompute.ts`): batches of 100 via `step.run`, bulk cell upsert + bulk score update per batch, mirror `round(100×score01)`, persist `{identityFit, signalFit, coverage}`, snapshot + `lastIcpRecompute` summary step, keep the no-criteria guard.
-  *Test:* `recompute-chunk.test` (fixture 250 companies, batch-kill resumability). *Verify:* replay on dev tenant, check summary key.
-- [ ] **T0.3 Scale adapters.** `signal-score-daily.ts`: feed `score/100` into `computePriorityScore`. `/api/score`: fit component = matrix score (R1.5).
-  *Test:* `score-scale.test` (no writer yields (0,1)). *Verify:* grep audit of every `companies.score` write site.
-- [ ] **T0.4 Backfill script** (`scripts/backfill-score-scale.ts`, dry-run default): ×100 on (0,1] scores; delete-or-populate the 96 empty active Defaults (design §7.2); fire recomputes; print before/after grade distributions.
-  *Verify:* dry-run output on prod DB reviewed, then run; assert 0 rows in (0,1]; spot-check tenant 47dca783 grades in the live accounts list (Playwright screenshot).
-- [ ] **T0.5 Validation guard:** reject `status: "active"` with 0 criteria in `validateIcpInput`.
-  *Test:* `empty-active-icp.test`.
+- [x] **T0.1 Blended fit in the engine.** DONE 2026-06-11 — `computeBlendedFit` in `criteria-engine.ts` (own loop, Levels semantics + blend, sourcing-only skipped entirely incl. as gates) + `SOURCING_ONLY_FIELD_KEYS` in `field-catalog.ts`.
+  *Test:* `criteria-engine-blended.test.ts` locks the §2 worked examples (80/70/100/0) + edge cases (required-only 1.0, none-evaluable+required 0.6, R2.5 0).
+- [x] **T0.2 Recompute rewrite.** DONE 2026-06-11 — primitives in `lib/icp/fit-recompute-core.ts` (3 queries per 100-company batch: select / multi-row cell upsert / UPDATE…FROM jsonb_to_recordset), Inngest fn = one `step.run` per batch (memoized resume) + per-tenant concurrency key; daily cron now fans out `icp/recompute-tenant` events; guard tightened to "scorable criteria" (people-only ICPs can't zero a book); summary → `tenants.settings.lastIcpRecompute`.
+  *Test:* via core unit tests (`gradeRank`, mirror math); live-verified by the backfill recompute of c52732be (1054 companies, 11 batches, completed).
+- [x] **T0.3 Scale adapters.** DONE 2026-06-11 — `fitFromCompanyScore` (clamped /100) in `priority-score.ts` consumed by `signal-score-daily`; `/api/score` fit = primary matrix cell ×100 (active ICPs join), legacy flats fallback when the tenant has no cells.
+  *Test:* `score-scale.test.ts` (adapters + gradeRank ordering + mirror never in (0,1)).
+- [x] **T0.4 Backfill.** RAN ON PROD 2026-06-11 (`scripts/backfill-score-scale.ts`, dry-run reviewed then --apply): 0 scores left in (0,1] (the 47dca783 restoration of the same day had already cleaned the worst), 90 empty active "Default" shells soft-deleted, 1 populated from real flats (c52732be) then recomputed by the new engine — 1054 companies, 1044 regraded up, 39 unowned, spread B×1015. 47dca783 untouched (no active ICPs — guardrail).
+- [x] **T0.5 Validation guard.** DONE 2026-06-11 — `validateIcpInput` rejects active with 0 criteria.
+  *Test:* `icp-active-empty-criteria.test.ts`.
 
 ## Phase 1 — one ICP surface
 

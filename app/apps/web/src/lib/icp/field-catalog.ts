@@ -211,6 +211,20 @@ export const STANDARD_FIELDS: FieldDefinition[] = [
   },
 ];
 
+/**
+ * Fields that can never be evaluated against a COMPANY context (people
+ * targeting + job-title search params — buildCompanyContext never
+ * produces these keys). The blended fit engine skips them so they
+ * neither dilute the score nor drag coverage down; they stay pure
+ * sourcing / people-search filters, and the editor labels them so
+ * (_specs/icp-unification R2.6 / R4.5).
+ */
+export const SOURCING_ONLY_FIELD_KEYS: ReadonlySet<string> = new Set([
+  "person_titles",
+  "person_seniorities",
+  "hiring_job_titles",
+]);
+
 /** Lookup a standard field by key. */
 export function getStandardField(
   fieldKey: string,

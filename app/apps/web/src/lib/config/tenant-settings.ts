@@ -263,6 +263,17 @@ export interface TenantSettings {
    *  Banner renders only for tenants whose legacy mode was "auto"
    *  (i.e. the migration tightened their approval rule). */
   ws1MigrationBannerDismissedAt?: string;
+  /** Summary of the last ICP fit recompute (Phase 0,
+   *  _specs/icp-unification R3.3) — written by the recompute's final
+   *  step, read by the ICP editor's diff-after-save poll. */
+  lastIcpRecompute?: {
+    at: string;
+    companies: number;
+    regradedUp: number;
+    regradedDown: number;
+    unowned: number;
+    icps: number;
+  };
 
   // ── WS-2 experiments (feature flags) ──
   /** Tenant-scoped feature flags. Flags follow the convention

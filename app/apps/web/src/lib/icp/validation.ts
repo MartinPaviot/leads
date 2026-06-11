@@ -205,6 +205,17 @@ export function validateIcpInput(
     });
   }
 
+  // An active ICP with no criteria matches nothing yet still occupies a
+  // priority slot — and the 2026-06-01 migration proved empty actives
+  // accumulate as inert shells (96 in prod). Keep it a draft until it
+  // has at least one criterion (_specs/icp-unification R8.1).
+  if (status === "active" && criteria.length === 0) {
+    return {
+      ok: false,
+      error: "An active ICP needs at least one criterion — save it as a draft until it has criteria",
+    };
+  }
+
   return {
     ok: true,
     value: { name, status: status as "draft" | "active" | "archived", priority, description, criteria },

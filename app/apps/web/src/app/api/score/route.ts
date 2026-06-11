@@ -1,10 +1,12 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
-import { companies, activities } from "@/db/schema";
-import { eq, and, gte, sql, isNull } from "drizzle-orm";
+import { companies, activities, companyIcpFit, icps } from "@/db/schema";
+import { eq, and, gte, sql, isNull, inArray } from "drizzle-orm";
 import { getTenantSettings, parseSizeRange } from "@/lib/config/tenant-settings";
 import { calculateFitScore, getGrade } from "@/lib/scoring/scoring";
+import { resolvePrimaryIcp, type IcpFitCell } from "@/lib/icp/criteria-engine";
+import { PRIMARY_FIT_THRESHOLD } from "@/lib/icp/fit-recompute-core";
 import { getSignalMultipliers } from "@/lib/scoring/signal-outcomes";
 import { scoreSignals } from "@/lib/scoring/score-with-signals";
 
@@ -139,6 +141,10 @@ export async function POST(req: Request) {
     if (!companyIds || !Array.isArray(companyIds)) {
       return Response.json({ error: "companyIds array required" }, { status: 400 });
     }
+    // Empty batch: nothing to score (and drizzle's inArray rejects []).
+    if (companyIds.length === 0) {
+      return Response.json({ success: true, scored: 0 });
+    }
 
     // Load typed tenant settings
     const settings = await getTenantSettings(authCtx.tenantId);
@@ -162,6 +168,35 @@ export async function POST(req: Request) {
       authCtx.tenantId,
     );
 
+    // R1.5 (_specs/icp-unification): when the tenant has active ICP
+    // profiles, the fit component is the profile matrix (mirrored
+    // 0-100), not the legacy flat-settings heuristic. One query for
+    // the whole batch; companies without cells fall back to legacy so
+    // manual rescore keeps working for matrix-less tenants.
+    const cellRows = await db
+      .select({
+        companyId: companyIcpFit.companyId,
+        icpId: companyIcpFit.icpId,
+        fitScore: companyIcpFit.fitScore,
+        priority: icps.priority,
+      })
+      .from(companyIcpFit)
+      .innerJoin(icps, eq(icps.id, companyIcpFit.icpId))
+      .where(
+        and(
+          eq(companyIcpFit.tenantId, authCtx.tenantId),
+          inArray(companyIcpFit.companyId, companyIds as string[]),
+          eq(icps.status, "active"),
+          isNull(icps.deletedAt),
+        ),
+      );
+    const matrixCells = new Map<string, IcpFitCell[]>();
+    for (const r of cellRows) {
+      const list = matrixCells.get(r.companyId) ?? [];
+      list.push({ icpId: r.icpId, priority: r.priority, fitScore: r.fitScore });
+      matrixCells.set(r.companyId, list);
+    }
+
     let scored = 0;
 
     for (const id of companyIds) {
@@ -176,8 +211,19 @@ export async function POST(req: Request) {
 
         const props = (company.properties || {}) as Record<string, unknown>;
 
-        // Calculate Fit score using real ICP from onboarding
-        const fit = calculateFitScore(company, props, icpFromSettings);
+        // Fit: profile matrix first (0-100 mirror of the primary ICP's
+        // blended fit), legacy flat-settings scorer when no cells.
+        const cellsForCompany = matrixCells.get(id) ?? [];
+        const primary = resolvePrimaryIcp(cellsForCompany, PRIMARY_FIT_THRESHOLD);
+        const fit =
+          cellsForCompany.length > 0
+            ? primary
+              ? {
+                  score: Math.round(100 * primary.fitScore),
+                  reasons: [`ICP profile fit: ${Math.round(100 * primary.fitScore)}/100`],
+                }
+              : { score: 0, reasons: ["No ICP profile fits at 50% or more"] }
+            : calculateFitScore(company, props, icpFromSettings);
 
         // Calculate Engagement score (from activities)
         const engagement = await calculateEngagementScore(authCtx.tenantId, id);

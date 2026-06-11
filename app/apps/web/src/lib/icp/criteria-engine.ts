@@ -16,7 +16,7 @@
  * unmatched required criterion zeroes the fit and records why.
  */
 
-import type { CriterionOperator } from "./field-catalog";
+import { SOURCING_ONLY_FIELD_KEYS, type CriterionOperator } from "./field-catalog";
 
 export type Criterion = {
   id: string;
@@ -313,6 +313,116 @@ export function computeIcpFitLevels(
     signalFit: sigTotal > 0 ? sigMatched / sigTotal : 0,
     coverage,
   };
+}
+
+// ── Blended coverage-aware fit (Phase 0, _specs/icp-unification R2) ──
+
+/** Confidence pricing of the blended score: a perfect fit on partial
+ *  data caps at COVERAGE_FLOOR; full coverage releases the rest. */
+export const COVERAGE_FLOOR = 0.6;
+export const COVERAGE_SPAN = 0.4;
+
+export type BlendedFit = {
+  /** The cell score persisted to company_icp_fit.fit_score — [0,1].
+   *  fitEvaluable × (COVERAGE_FLOOR + COVERAGE_SPAN × coverage). */
+  score01: number;
+  /** Σ(w·matched) / Σ(w evaluable) — fit over what we actually know. */
+  fitEvaluable: number;
+  identityFit: number;
+  signalFit: number;
+  /** Share of scorable soft weight that was evaluable, [0,1]. */
+  coverage: number;
+  matched: string[];
+  unmatched: string[];
+  excludedBy: string | null;
+};
+
+/**
+ * Phase-0 replacement for the penalizing computeIcpFit in the matrix
+ * recompute (_specs/icp-unification R2). Differences:
+ *   - a soft criterion whose field is ABSENT from the context leaves
+ *     the denominator (no data ≠ no fit) — computeIcpFitLevels
+ *     semantics;
+ *   - coverage prices the confidence in, so a clean registry company
+ *     is never zeroed again for lacking enrichment;
+ *   - sourcing-only fields (person_titles, person_seniorities,
+ *     hiring_job_titles — never present on a company context) are
+ *     ignored entirely: they neither gate, nor score, nor count in
+ *     coverage. They remain sourcing/people filters.
+ *
+ * Required semantics are unchanged from computeIcpFit: an unmatched
+ * required criterion zeroes the cell (a must-have we cannot verify is
+ * not a fit). Edge cases, locked by tests:
+ *   - only required criteria, all matched      → 1.0 (as today)
+ *   - soft criteria exist but none evaluable:
+ *       required present (and matched)         → COVERAGE_FLOOR
+ *       no required                            → 0 (R2.5)
+ *   - no scorable criteria at all              → 0
+ */
+export function computeBlendedFit(
+  criteria: Criterion[],
+  ctx: CompanyContext,
+  sourcingOnly: ReadonlySet<string> = SOURCING_ONLY_FIELD_KEYS,
+): BlendedFit {
+  const matched: string[] = [];
+  const unmatched: string[] = [];
+  let excludedBy: string | null = null;
+
+  let requiredCount = 0;
+  let softTotal = 0;
+  let softWithData = 0;
+  let softMatchedW = 0;
+  let idTotal = 0,
+    idMatched = 0;
+  let sigTotal = 0,
+    sigMatched = 0;
+  let scorable = 0;
+
+  for (const c of criteria) {
+    if (sourcingOnly.has(c.fieldKey)) continue;
+    scorable++;
+    const ok = evaluateCriterion(c, ctx);
+    if (ok) matched.push(c.id);
+    else unmatched.push(c.id);
+
+    if (c.isRequired) {
+      requiredCount++;
+      if (!ok && excludedBy === null) excludedBy = c.id;
+      continue;
+    }
+    softTotal += c.weight;
+    if (!hasData(ctx, c.fieldKey)) continue; // not enriched → not in the denominator
+    softWithData += c.weight;
+    if (ok) softMatchedW += c.weight;
+    if (IDENTITY_FIELD_KEYS.has(c.fieldKey)) {
+      idTotal += c.weight;
+      if (ok) idMatched += c.weight;
+    } else {
+      sigTotal += c.weight;
+      if (ok) sigMatched += c.weight;
+    }
+  }
+
+  const coverage = softTotal > 0 ? softWithData / softTotal : 1;
+  const identityFit = idTotal > 0 ? idMatched / idTotal : 0;
+  const signalFit = sigTotal > 0 ? sigMatched / sigTotal : 0;
+
+  if (excludedBy !== null) {
+    return { score01: 0, fitEvaluable: 0, identityFit: 0, signalFit: 0, coverage, matched, unmatched, excludedBy };
+  }
+  if (scorable === 0) {
+    return { score01: 0, fitEvaluable: 0, identityFit: 0, signalFit: 0, coverage, matched, unmatched, excludedBy: null };
+  }
+
+  const fitEvaluable =
+    softWithData > 0
+      ? softMatchedW / softWithData
+      : requiredCount > 0
+        ? 1 // every verifiable gate passed, nothing soft to grade
+        : 0; // nothing verifiable at all (R2.5)
+
+  const score01 = fitEvaluable * (COVERAGE_FLOOR + COVERAGE_SPAN * coverage);
+  return { score01, fitEvaluable, identityFit, signalFit, coverage, matched, unmatched, excludedBy: null };
 }
 
 // ── Primary-ICP resolution ─────────────────────────────────────────

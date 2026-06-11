@@ -33,6 +33,17 @@ export type PriorityInputs = {
 /** Neutral fit score when the ICP scorer hasn't run on a company yet. */
 export const NEUTRAL_FIT_SCORE = 0.5;
 
+/**
+ * companies.score is 0-100 (Phase 0, _specs/icp-unification R1); the
+ * priority formula wants the 0-1 fit. NULL passes through so the
+ * neutral default still applies downstream. Clamped because legacy
+ * writers may briefly leave out-of-band values mid-backfill.
+ */
+export function fitFromCompanyScore(score: number | null): number | null {
+  if (score === null) return null;
+  return Math.max(0, Math.min(1, score / 100));
+}
+
 export function computePriorityScore(i: PriorityInputs): number {
   const fit = i.fitScore ?? NEUTRAL_FIT_SCORE;
   return i.signalMultiplier * fit * i.accessibility;
