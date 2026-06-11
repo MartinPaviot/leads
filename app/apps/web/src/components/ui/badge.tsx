@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
 import { getGrade } from "@/lib/scoring/scoring";
 import { industryStyle } from "@/lib/ui/industry-style";
+import { seniorityStyle } from "@/lib/ui/title-style";
 
 type BadgeVariant = "success" | "warning" | "error" | "info" | "neutral";
 type BadgeSize = "sm" | "md";
@@ -150,6 +151,33 @@ export function IndustryBadge({ value, className = "" }: IndustryBadgeProps) {
     >
       <Icon size={11} strokeWidth={1.75} aria-hidden className="shrink-0" style={{ opacity: 0.85 }} />
       <span className="truncate">{value}</span>
+    </span>
+  );
+}
+
+/* ── Title Badge (seniority-tier icon + hue; tier from the stored Apollo
+      seniority enum, never parsed from the title text) ── */
+interface TitleBadgeProps {
+  title: string;
+  seniority?: string | null;
+  className?: string;
+}
+
+export function TitleBadge({ title, seniority, className = "" }: TitleBadgeProps) {
+  const s = seniorityStyle(seniority);
+  const Icon = s.icon;
+  return (
+    <span
+      className={`inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${className}`}
+      style={{
+        background: s.bg,
+        color: s.color,
+        border: `1px solid color-mix(in srgb, ${s.color} 25%, transparent)`,
+      }}
+      title={s.label ? `${title} — ${s.label}` : title}
+    >
+      {Icon && <Icon size={11} strokeWidth={1.75} aria-hidden className="shrink-0" style={{ opacity: 0.85 }} />}
+      <span className="truncate">{title}</span>
     </span>
   );
 }

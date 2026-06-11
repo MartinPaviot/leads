@@ -10,7 +10,7 @@ import { useCustomFields } from "@/hooks/use-custom-fields";
 import { getCustomFieldValue, formatFieldValue } from "@/lib/context/custom-fields";
 import { PageHeader, FilterBar } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
-import { Badge, PropertyBadge } from "@/components/ui/badge";
+import { Badge, TitleBadge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
@@ -904,10 +904,14 @@ export default function ContactsPage() {
                       {contact.email || "—"}
                     </td>
 
-                    {/* Title */}
+                    {/* Title -- seniority-tier icon + hue (from Apollo enrichment) */}
                     <td>
                       {contact.title ? (
-                        <PropertyBadge value={contact.title} className="max-w-[180px] truncate" />
+                        <TitleBadge
+                          title={contact.title}
+                          seniority={(contact.properties as Record<string, unknown> | null)?.seniority as string | undefined}
+                          className="max-w-[180px]"
+                        />
                       ) : <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>—</span>}
                     </td>
 
