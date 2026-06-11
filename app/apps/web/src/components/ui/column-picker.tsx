@@ -30,13 +30,24 @@ export function ColumnPicker({
   visible,
   onToggle,
   onReset,
+  open: openProp,
+  onOpenChange,
+  hideTrigger = false,
 }: {
   categories: PickerCategory[];
   visible: Set<string>;
   onToggle: (key: string) => void;
   onReset?: () => void;
+  /** Controlled open state — pass with `onOpenChange` when the panel is
+   * driven from elsewhere (e.g. the header More menu). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Hide the built-in trigger; the wrapper then only anchors the panel. */
+  hideTrigger?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [openInternal, setOpenInternal] = useState(false);
+  const open = openProp ?? openInternal;
+  const setOpen = onOpenChange ?? setOpenInternal;
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,7 +57,7 @@ export function ColumnPicker({
     }
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
+  }, [open, setOpen]);
 
   const grouped = useMemo(() => {
     const m = new Map<PickerCategory["group"], PickerCategory[]>();
@@ -62,25 +73,27 @@ export function ColumnPicker({
 
   return (
     <div ref={ref} className="relative inline-flex">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[12px] font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
-        style={{ borderColor: "var(--color-border-default)", color: "var(--color-text-secondary)" }}
-        title="Show or hide category columns"
-      >
-        <SlidersHorizontal size={13} />
-        Categories
-        {visibleCount > 0 && (
-          <span
-            className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold"
-            style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
-          >
-            {visibleCount}
-          </span>
-        )}
-      </button>
+      {!hideTrigger && (
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[12px] font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
+          style={{ borderColor: "var(--color-border-default)", color: "var(--color-text-secondary)" }}
+          title="Show or hide category columns"
+        >
+          <SlidersHorizontal size={13} />
+          Categories
+          {visibleCount > 0 && (
+            <span
+              className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold"
+              style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
+            >
+              {visibleCount}
+            </span>
+          )}
+        </button>
+      )}
 
       {open && (
         <div

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Building2, Search, Filter, Plus, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, Trash2, UserPlus, Ban, RotateCcw, Archive, type LucideIcon } from "lucide-react";
+import { Building2, Search, Filter, Plus, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, Trash2, UserPlus, Ban, RotateCcw, Archive, SlidersHorizontal, Layers, type LucideIcon } from "lucide-react";
 import { useTamStream } from "@/hooks/use-tam-stream";
 import { TamBuildProgress } from "@/components/tam-build-progress";
 import { SignalChip } from "@/components/signal-chip";
@@ -41,6 +41,7 @@ import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-
 import { EnrichMenu } from "@/components/ui/enrich-menu";
 import { useEnrichStream, type EnrichCellState } from "@/hooks/use-enrich-stream";
 import { ColumnPicker, type PickerCategory } from "@/components/ui/column-picker";
+import { MoreMenu } from "@/components/ui/more-menu";
 import { COLUMN_CATEGORIES, DEFAULT_VISIBLE_CATEGORY_KEYS, getColumnCategory } from "@/lib/accounts/column-categories";
 import { TAM_PROPOSALS_ENTRY_ENABLED } from "@/lib/tam/entry-visibility";
 import { deriveAccountTabCounts } from "@/lib/accounts/tab-counts";
@@ -191,6 +192,9 @@ export default function AccountsPage() {
   // Archive view toggle. true = show only soft-deleted (removed) accounts so
   // they can be reviewed and restored. Mutually exclusive with viewExcluded.
   const [viewDeleted, setViewDeleted] = useState(false);
+  // Categories column-picker panel — opened from the header More menu
+  // (the picker's own trigger is hidden there).
+  const [showCategoriesPanel, setShowCategoriesPanel] = useState(false);
   // Count of pending TAM proposals — drives the header entry point into
   // the review surface so the living-TAM loops are never a dead-end.
   const [proposalCount, setProposalCount] = useState(0);
@@ -1360,71 +1364,92 @@ export default function AccountsPage() {
       >
         {/* Per-account actions (Enrich, Score, Detect signals) live in the
             selection bar — they only make sense once accounts are checked.
-            The toolbar keeps only workspace-level actions. */}
-        {TAM_PROPOSALS_ENTRY_ENABLED && proposalCount > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            icon={<Sparkles size={13} />}
-            onClick={() => { window.location.href = "/tam/review"; }}
-            title="Review proposed TAM changes (add / refresh / exclude)"
-          >
-            Proposals ({proposalCount})
-          </Button>
-        )}
-        <Button
-          variant="outline"
-          size="sm"
-          icon={viewExcluded ? <RotateCcw size={13} /> : <Ban size={13} />}
-          onClick={() => { setSelectedRows(new Set()); setViewDeleted(false); setViewExcluded((v) => !v); }}
-          title={viewExcluded ? "Back to the active working set" : "Review accounts marked as not a fit"}
-        >
-          {viewExcluded ? "Back to active" : "Excluded"}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          icon={viewDeleted ? <RotateCcw size={13} /> : <Archive size={13} />}
-          onClick={() => { setSelectedRows(new Set()); setViewExcluded(false); setViewDeleted((v) => !v); }}
-          title={viewDeleted ? "Back to the active working set" : "Review removed accounts and restore them"}
-        >
-          {viewDeleted ? "Back to active" : "Archive"}
-        </Button>
+            Secondary workspace controls (views, pickers, setup, sourcing
+            config) group behind ONE "More" menu: five wide buttons burned
+            the header's width (founder request 2026-06-11). The sourcing
+            CTA and Create stay visible — they're the primaries, and "Find
+            more accounts" carries live build state a menu would hide. */}
+        <MoreMenu
+          label="More"
+          items={[
+            ...(TAM_PROPOSALS_ENTRY_ENABLED && proposalCount > 0
+              ? [{
+                  label: `Proposals (${proposalCount})`,
+                  icon: <Sparkles size={13} />,
+                  onClick: () => { window.location.href = "/tam/review"; },
+                }]
+              : []),
+            {
+              label: "Excluded",
+              icon: <Ban size={13} />,
+              checked: viewExcluded,
+              onClick: () => { setSelectedRows(new Set()); setViewDeleted(false); setViewExcluded((v) => !v); },
+            },
+            {
+              label: "Archive",
+              icon: <Archive size={13} />,
+              checked: viewDeleted,
+              onClick: () => { setSelectedRows(new Set()); setViewExcluded(false); setViewDeleted((v) => !v); },
+            },
+            {
+              label: "Categories",
+              icon: <SlidersHorizontal size={13} />,
+              divider: true,
+              onClick: () => setShowCategoriesPanel(true),
+            },
+            {
+              label: "Describe ICP",
+              icon: <Target size={13} />,
+              onClick: () => setShowPersona(true),
+            },
+            ...(sourceProfiles.length > 0
+              ? [{
+                  label: "Source from",
+                  hint: sourceIcpId === "all"
+                    ? "All profiles"
+                    : (sourceProfiles.find((p) => p.id === sourceIcpId)?.name ?? sourceProfiles[0]?.name ?? ""),
+                  icon: <Layers size={13} />,
+                  submenu: [
+                    ...(sourceProfiles.length > 1
+                      ? [{
+                          label: "All profiles",
+                          checked: sourceIcpId === "all",
+                          onClick: () => setSourceIcpId("all"),
+                        }]
+                      : []),
+                    ...sourceProfiles.map((p, i) => ({
+                      label: `${p.name}${i === 0 ? " (primary)" : ""}`,
+                      checked: sourceIcpId === p.id,
+                      onClick: () => setSourceIcpId(p.id),
+                    })),
+                  ],
+                }]
+              : []),
+          ]}
+        />
+        {/* Categories panel — controlled, anchored beside the More trigger;
+            opened by the menu item above, dismisses itself. */}
         <ColumnPicker
           categories={pickerCategories}
           visible={visibleCategories}
           onToggle={toggleCategory}
           onReset={resetCategories}
+          open={showCategoriesPanel}
+          onOpenChange={setShowCategoriesPanel}
+          hideTrigger
         />
-        <Button
-          variant="outline"
-          size="sm"
-          icon={<Target size={13} />}
-          onClick={() => setShowPersona(true)}
-        >
-          Describe ICP
-        </Button>
-        {sourceProfiles.length > 0 && (
-          <select
-            value={sourceIcpId ?? ""}
-            onChange={(e) => setSourceIcpId(e.target.value || null)}
-            title="Which ICP profile to source from"
-            className="h-8 rounded-md border px-2 text-[12px]"
-            style={{
-              borderColor: "var(--color-border-default)",
-              background: "var(--color-bg-card)",
-              color: "var(--color-text-secondary)",
-            }}
+        {/* Leaving a special view stays ONE visible click — never buried
+            in the menu. Renders only inside the Excluded/Archive views. */}
+        {(viewExcluded || viewDeleted) && (
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<RotateCcw size={13} />}
+            onClick={() => { setSelectedRows(new Set()); setViewExcluded(false); setViewDeleted(false); }}
+            title="Back to the active working set"
           >
-            {sourceProfiles.length > 1 && (
-              <option value="all">Source from: All profiles</option>
-            )}
-            {sourceProfiles.map((p, i) => (
-              <option key={p.id} value={p.id}>
-                Source from: {p.name}{i === 0 ? " (primary)" : ""}
-              </option>
-            ))}
-          </select>
+            Back to active
+          </Button>
         )}
         <Button
           variant="outline"
