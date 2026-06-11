@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { X, Send, ChevronDown, ChevronUp, Mail, Save, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { ContactCollisionNotice } from "@/components/collision/contact-collision-notice";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -356,6 +357,14 @@ export function EmailComposerPanel({ draft, onClose, onSent }: EmailComposerPane
             <X size={14} />
           </button>
         </div>
+
+        {/* Collision heads-up: a teammate already emailed/called this contact
+            recently (soft, non-blocking — informs, never gates Send). */}
+        {draft.contactId && (
+          <div className="px-4 pt-3">
+            <ContactCollisionNotice contactId={draft.contactId} />
+          </div>
+        )}
 
         {/* Email fields */}
         <EmailField
