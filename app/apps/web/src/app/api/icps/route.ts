@@ -39,7 +39,15 @@ export async function GET(req: Request) {
       // (both have their own id column) instead of the outer icps row —
       // making every count silently 0. Keep the qualifier hardcoded.
       criteriaCount: sql<number>`(SELECT count(*)::int FROM icp_criteria WHERE icp_criteria.icp_id = "icps"."id")`,
-      fitCount: sql<number>`(SELECT count(*)::int FROM company_icp_fit WHERE company_icp_fit.icp_id = "icps"."id" AND company_icp_fit.fit_score >= 0.5)`,
+      // Fit cells survive a company's soft-delete (the recompute only
+      // touches live rows), so the count must join companies and skip
+      // archived ones — otherwise "N companies fit" silently includes
+      // accounts the user just archived.
+      fitCount: sql<number>`(
+        SELECT count(*)::int FROM company_icp_fit f
+        JOIN companies c ON c.id = f.company_id AND c.deleted_at IS NULL
+        WHERE f.icp_id = "icps"."id" AND f.fit_score >= 0.5
+      )`,
     })
     .from(icps)
     .where(and(eq(icps.tenantId, authCtx.tenantId), showDeleted ? isNotNull(icps.deletedAt) : isNull(icps.deletedAt)))
