@@ -837,14 +837,21 @@ function ProfileEditor({
                   </div>
                 </Row>
                 <Row label="Geographies" importance={impOf("geographies")} onImportance={(v) => setImp("geographies", v)}>
-                  <CriterionList values={ui.geographies} onChange={(v) => setUi({ geographies: v })} options={GEOGRAPHIES} placeholder="Search geographies…" />
+                  <CriterionList
+                    values={ui.geographies}
+                    onChange={(v) => setUi({ geographies: v })}
+                    options={GEOGRAPHIES}
+                    allowFreeText
+                    placeholder="Search or type a region and press Enter — e.g. Vaud"
+                  />
                 </Row>
                 <Row label={<>Exclude<SourcingOnlyHint /></>}>
                   <CriterionList
                     values={draft.sourcingFilters.excludeGeographies}
                     onChange={(v) => onChange({ ...draft, sourcingFilters: { ...draft.sourcingFilters, excludeGeographies: v } })}
                     options={GEOGRAPHIES}
-                    placeholder="Search geographies to exclude…"
+                    allowFreeText
+                    placeholder="Search or type a region to exclude…"
                   />
                 </Row>
                 <Row label="Annual revenue (USD)" importance={impOf("revenue")} onImportance={(v) => setImp("revenue", v)}>

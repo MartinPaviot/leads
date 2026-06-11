@@ -79,4 +79,21 @@ describe("CriterionList — taxonomy mode", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("allowFreeText: Enter falls back to the raw text when no option matches (cantons…)", () => {
+    const onChange = vi.fn();
+    render(
+      <CriterionList
+        values={[]}
+        onChange={onChange}
+        options={OPTIONS}
+        allowFreeText
+        placeholder="Search…"
+      />,
+    );
+    const input = screen.getByPlaceholderText("Search…");
+    fireEvent.change(input, { target: { value: "Vaud" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledWith(["Vaud"]);
+  });
 });

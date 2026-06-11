@@ -26,6 +26,7 @@ export function CriterionList({
   onChange,
   placeholder,
   options,
+  allowFreeText,
   disabled,
 }: {
   values: string[];
@@ -33,6 +34,11 @@ export function CriterionList({
   placeholder: string;
   /** Taxonomy to search within; omit for free-text chips. */
   options?: readonly string[];
+  /** Taxonomy mode only: Enter also accepts text that matches no
+   *  option. Needed where the taxonomy is suggestions, not the
+   *  universe — e.g. geographies (Apollo takes any location string;
+   *  Swiss cantons / French regions are not in the list). */
+  allowFreeText?: boolean;
   disabled?: boolean;
 }) {
   const [input, setInput] = useState("");
@@ -80,8 +86,10 @@ export function CriterionList({
           if (e.key === "Enter" && input.trim()) {
             e.preventDefault();
             if (isTaxonomy) {
-              // Enter picks the top taxonomy match — never invents a label.
+              // Enter picks the top taxonomy match; with allowFreeText it
+              // falls back to the raw text (suggestions, not a universe).
               if (filtered.length > 0) add(filtered[0]);
+              else if (allowFreeText) add(input);
             } else {
               add(input);
             }
