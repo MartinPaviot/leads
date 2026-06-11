@@ -256,52 +256,69 @@ export async function POST(req: Request) {
         // (translated to Apollo params) instead of the LLM planner over
         // flat settings. We load it here so the signal context below
         // can reflect the ICP's firmographics too.
-        let icpStrategy: ReturnType<typeof icpToStrategy> = null;
+        // ICP mode can target ONE profile (`icpId`) or ALL listed profiles
+        // (`icpIds` — the accounts "Source from: All profiles" default), each
+        // becoming its own deterministic Apollo strategy. The downstream
+        // streamer already iterates an array of strategies, so "all" is just
+        // a longer array. Profiles with no Apollo-sourceable criteria are
+        // skipped (so one empty profile doesn't sink the whole run).
+        type IcpStrat = NonNullable<ReturnType<typeof icpToStrategy>>;
+        let icpStrategies: IcpStrat[] | null = null;
         let icpSignalIcp: ReturnType<typeof icpToSignalIcp> | null = null;
         let icpName: string | null = null;
-        if (body.icpId) {
-          const [icp] = await db
-            .select({ id: icps.id, name: icps.name, metadata: icps.metadata })
-            .from(icps)
-            .where(and(eq(icps.id, body.icpId), eq(icps.tenantId, authCtx.tenantId), isNull(icps.deletedAt)))
-            .limit(1);
-          if (!icp) {
-            send({
-              type: "error",
-              stage: "icp.load",
-              message: "ICP not found for this tenant",
-              recoverable: false,
-            });
-            return;
+        const requestedIcpIds: string[] =
+          Array.isArray(body.icpIds) && body.icpIds.length > 0
+            ? body.icpIds
+            : body.icpId
+              ? [body.icpId]
+              : [];
+        const multiIcp = requestedIcpIds.length > 1;
+        if (requestedIcpIds.length > 0) {
+          const built: IcpStrat[] = [];
+          const names: string[] = [];
+          for (const id of requestedIcpIds) {
+            const [icp] = await db
+              .select({ id: icps.id, name: icps.name, metadata: icps.metadata })
+              .from(icps)
+              .where(and(eq(icps.id, id), eq(icps.tenantId, authCtx.tenantId), isNull(icps.deletedAt)))
+              .limit(1);
+            if (!icp) continue;
+            const critRows = await db
+              .select()
+              .from(icpCriteria)
+              .where(eq(icpCriteria.icpId, icp.id));
+            const criteria: Criterion[] = critRows.map((r) => ({
+              id: r.id,
+              fieldKey: r.fieldKey,
+              operator: r.operator as Criterion["operator"],
+              value: r.value,
+              weight: r.weight,
+              isRequired: r.isRequired,
+            }));
+            const strat = icpToStrategy(
+              icp.name,
+              criteria,
+              icp.metadata as Record<string, unknown> | null,
+            );
+            if (!strat) continue;
+            built.push(strat);
+            names.push(icp.name);
+            // First sourceable profile drives the signal-scoring context.
+            if (!icpSignalIcp) icpSignalIcp = icpToSignalIcp(criteria);
           }
-          const critRows = await db
-            .select()
-            .from(icpCriteria)
-            .where(eq(icpCriteria.icpId, icp.id));
-          const criteria: Criterion[] = critRows.map((r) => ({
-            id: r.id,
-            fieldKey: r.fieldKey,
-            operator: r.operator as Criterion["operator"],
-            value: r.value,
-            weight: r.weight,
-            isRequired: r.isRequired,
-          }));
-          icpStrategy = icpToStrategy(
-            icp.name,
-            criteria,
-            icp.metadata as Record<string, unknown> | null,
-          );
-          if (!icpStrategy) {
+          if (built.length === 0) {
             send({
               type: "error",
               stage: "icp.translate",
-              message: `ICP "${icp.name}" has no Apollo-sourceable criteria (add industry / size / geo / tech / funding / hiring criteria).`,
+              message: multiIcp
+                ? "None of your ICP profiles have Apollo-sourceable criteria (add industry / size / geo / tech / funding / hiring criteria)."
+                : "That ICP has no Apollo-sourceable criteria, or it wasn't found.",
               recoverable: false,
             });
             return;
           }
-          icpSignalIcp = icpToSignalIcp(criteria);
-          icpName = icp.name;
+          icpStrategies = built;
+          icpName = names.length > 1 ? `All profiles (${names.length})` : names[0];
         }
 
         const signalCtx: SignalContext = {
@@ -324,11 +341,11 @@ export async function POST(req: Request) {
         console.log(`[tam-stream ${jobId.slice(0, 8)}] context loaded — existingDomains=${existingDomains.size} investors=${tenantInvestors.size} industries=${settings.targetIndustries?.length ?? 0}`);
 
         // ── Plan strategies ──
-        // ICP mode: a single deterministic strategy from the ICP's
-        // criteria — no LLM, we source exactly what the founder defined.
+        // ICP mode: one deterministic strategy per selected profile — no LLM,
+        // we source exactly what the founder defined.
         // Legacy mode: the LLM planner over the tenant's flat settings.
-        const strategies = icpStrategy
-          ? [icpStrategy]
+        const strategies = icpStrategies
+          ? icpStrategies
           : await planStrategies({
               model,
               tenantId: authCtx.tenantId,
@@ -375,7 +392,7 @@ export async function POST(req: Request) {
         // funding / exclude-geo / hiring) onto every LLM strategy, and
         // union the tenant keywords, so the same filters the user set are
         // honored here too. Single source of truth: flatFiltersToHardApollo.
-        const settingsHard = icpStrategy
+        const settingsHard = icpStrategies
           ? {}
           : flatFiltersToHardApollo({
               excludeGeographies: settings.excludeGeographies,
@@ -388,7 +405,7 @@ export async function POST(req: Request) {
               minJobOpenings: settings.minJobOpenings,
               hiringTitles: settings.hiringTitles,
             });
-        const settingsKeywords = icpStrategy ? [] : (settings.targetKeywords ?? []);
+        const settingsKeywords = icpStrategies ? [] : (settings.targetKeywords ?? []);
         const finalStrategies = applyHardFiltersToStrategies(
           effectiveStrategies,
           settingsHard,

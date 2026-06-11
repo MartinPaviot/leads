@@ -390,8 +390,10 @@ export default function AccountsPage() {
         const usable = ((data.icps ?? []) as Array<{ id: string; name: string; criteriaCount: number; status: string }>)
           .filter((i) => i.status === "active" && i.criteriaCount > 0);
         setSourceProfiles(usable);
-        // /api/icps orders by priority — first usable = rank 1.
-        setSourceIcpId((cur) => cur ?? usable[0]?.id ?? null);
+        // Default to "all" (source from EVERY profile) when there are 2+;
+        // with a single profile "all" is redundant so default to it directly.
+        // (/api/icps orders by priority; first usable = rank 1.)
+        setSourceIcpId((cur) => cur ?? (usable.length > 1 ? "all" : usable[0]?.id ?? null));
       })
       .catch(() => {});
   }, []);
@@ -409,10 +411,16 @@ export default function AccountsPage() {
     const hasOverrides = !!apolloOverrides.industries || !!apolloOverrides.geographies;
     await tamStream.start({
       targetCount: 300,
-      ...(sourceIcpId ? { icpId: sourceIcpId } : {}),
+      // "all" → source from every profile (send the full id list); a specific
+      // id → that one profile; neither → legacy tenant-wide planner.
+      ...(sourceIcpId === "all"
+        ? { icpIds: sourceProfiles.map((p) => p.id) }
+        : sourceIcpId
+          ? { icpId: sourceIcpId }
+          : {}),
       ...(hasOverrides ? { apolloOverrides } : {}),
     });
-  }, [tamStream, columnFilters, sourceIcpId]);
+  }, [tamStream, columnFilters, sourceIcpId, sourceProfiles]);
 
   // Single "popover open" selector shared across all signal chips in
   // the table. Ensures only one popover is open at a time and it
@@ -1408,6 +1416,9 @@ export default function AccountsPage() {
               color: "var(--color-text-secondary)",
             }}
           >
+            {sourceProfiles.length > 1 && (
+              <option value="all">Source from: All profiles</option>
+            )}
             {sourceProfiles.map((p, i) => (
               <option key={p.id} value={p.id}>
                 Source from: {p.name}{i === 0 ? " (primary)" : ""}

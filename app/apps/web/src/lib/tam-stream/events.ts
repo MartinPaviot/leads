@@ -259,6 +259,10 @@ export interface BuildRequest {
    * instead of the LLM planner over the tenant's flat settings. Absent
    * → legacy tenant-wide planner (unchanged). */
   icpId?: string;
+  /** "Source from: All profiles" — source from EVERY listed profile in one
+   * run (one strategy per profile; profiles with no Apollo-sourceable
+   * criteria are skipped). Takes precedence over `icpId` when non-empty. */
+  icpIds?: string[];
   /** UI-driven Apollo facet overrides from the accounts list's
    * sector/geography filters. When present, every sourcing strategy is
    * narrowed to these before hitting Apollo, so "Find more accounts"
