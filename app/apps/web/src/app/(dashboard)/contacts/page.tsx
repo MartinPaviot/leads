@@ -774,10 +774,10 @@ export default function ContactsPage() {
           )
         ) : (
           <>
-          <table className="ls-table">
+          <table className="ls-table" data-selecting={selectedRows.size > 0 ? "true" : undefined}>
             <thead>
               <tr>
-                <th style={{ width: 36 }}>
+                <th className="check" style={{ width: 36 }}>
                   <input
                     type="checkbox"
                     aria-label="Select all contacts"
@@ -858,7 +858,7 @@ export default function ContactsPage() {
                     onClick={() => router.push(`/contacts/${contact.id}`)}
                   >
                     {/* Selection checkbox */}
-                    <td style={{ width: 36 }} onClick={(e) => e.stopPropagation()}>
+                    <td className="check" style={{ width: 36 }} onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         aria-label={`Select ${[contact.firstName, contact.lastName].filter(Boolean).join(" ") || contact.email || contact.id}`}

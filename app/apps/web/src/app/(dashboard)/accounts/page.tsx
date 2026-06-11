@@ -1786,11 +1786,11 @@ export default function AccountsPage() {
           />
         ) : (
           <>
-          <table className="ls-table">
+          <table className="ls-table" data-selecting={selectedRows.size > 0 ? "true" : undefined}>
             <thead>
               <tr>
                 {/* Select-all checkbox */}
-                <th style={{ width: 36 }}>
+                <th className="check" style={{ width: 36 }}>
                   <input
                     type="checkbox"
                     aria-label="Select all accounts"
@@ -1879,9 +1879,10 @@ export default function AccountsPage() {
                   <React.Fragment key={account.id}>
                   <tr className="group" data-selected={selectedRows.has(account.id) ? "true" : undefined}>
                     {/* Row checkbox */}
-                    <td style={{ width: 36 }} onClick={(e) => e.stopPropagation()}>
+                    <td className="check" style={{ width: 36 }} onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
+                        aria-label={`Select ${account.name || account.domain || "account"}`}
                         checked={selectedRows.has(account.id)}
                         onChange={(e) => {
                           const next = new Set(selectedRows);

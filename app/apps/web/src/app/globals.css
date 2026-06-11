@@ -457,6 +457,29 @@
 .ls-table tbody tr:hover td.actions {
   opacity: 1;
 }
+/* Selection checkboxes — hidden at rest, revealed on row hover, keyboard
+   focus, when the row is checked, or while any selection is in progress
+   (table[data-selecting="true"]). Opt-in per table via the .check cell
+   class. Hide with opacity (never display/width): the gutter keeps its
+   width so columns never shift, and the control stays focusable. */
+.ls-table th.check > *,
+.ls-table td.check > * {
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.ls-table tbody tr:hover td.check > *,
+.ls-table thead tr:hover th.check > *,
+.ls-table tbody tr[data-selected="true"] td.check > *,
+.ls-table[data-selecting="true"] :is(th.check, td.check) > *,
+.ls-table :is(th.check, td.check):has(:focus-visible) > * {
+  opacity: 1;
+}
+/* Touch devices have no hover to discover the gutter — keep them visible. */
+@media (hover: none) {
+  .ls-table :is(th.check, td.check) > * {
+    opacity: 1;
+  }
+}
 
 /* ================================================================
    TOAST ANIMATION

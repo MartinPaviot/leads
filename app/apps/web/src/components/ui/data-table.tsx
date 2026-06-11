@@ -102,11 +102,14 @@ export function DataTable<T>({
 
   return (
     <div className="w-full overflow-x-auto">
-      <table className="ls-table">
+      <table
+        className="ls-table"
+        data-selecting={selectable && (selectedIds?.size ?? 0) > 0 ? "true" : undefined}
+      >
         <thead>
           <tr>
             {selectable && (
-              <th style={{ width: 40, padding: "8px" }}>
+              <th className="check" style={{ width: 40, padding: "8px" }}>
                 <Checkbox checked={!!allSelected} onChange={toggleAll} />
               </th>
             )}
@@ -138,7 +141,7 @@ export function DataTable<T>({
                 style={{ cursor: onRowClick ? "pointer" : undefined }}
               >
                 {selectable && (
-                  <td style={{ width: 40, padding: "0 8px" }} onClick={(e) => e.stopPropagation()}>
+                  <td className="check" style={{ width: 40, padding: "0 8px" }} onClick={(e) => e.stopPropagation()}>
                     <Checkbox checked={!!selected} onChange={() => toggleRow(id)} />
                   </td>
                 )}
