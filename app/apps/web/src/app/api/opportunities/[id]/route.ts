@@ -23,6 +23,7 @@ const updateDealSchema = z.object({
   closeDate: z.string().optional().nullable(),
   companyId: z.string().uuid().optional().nullable(),
   contactId: z.string().uuid().optional().nullable(),
+  ownerId: z.string().uuid().optional().nullable(),
 });
 
 export async function GET(
@@ -88,6 +89,9 @@ export async function GET(
       properties: deal.properties,
       companyName,
       companyId: deal.companyId,
+      // Owner (responsible member) so the detail page can show + reassign it.
+      ownerId: deal.ownerId,
+      ownerName: deal.ownerId ? (memberNames.get(deal.ownerId) ?? null) : null,
       // Y2 — expose updatedAt so the detail page can compute
       // age-in-stage and render a stall banner without a second fetch.
       updatedAt: deal.updatedAt?.toISOString() || null,
@@ -144,6 +148,7 @@ export async function PUT(
   }
   if (body.companyId !== undefined) updates.companyId = body.companyId;
   if (body.contactId !== undefined) updates.contactId = body.contactId;
+  if (body.ownerId !== undefined) updates.ownerId = body.ownerId || null;
 
   if (Object.keys(updates).length === 0) {
     return apiError("VALIDATION_ERROR", "No fields to update");

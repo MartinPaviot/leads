@@ -13,6 +13,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import { OwnerSelect } from "@/components/owner-select";
 import { DetailPageSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { EmailComposerPanel } from "@/components/email-composer-panel";
@@ -33,6 +34,8 @@ interface Deal {
   properties: Record<string, unknown> | null;
   companyName: string | null;
   companyId: string | null;
+  ownerId: string | null;
+  ownerName: string | null;
 }
 
 interface Activity {
@@ -321,6 +324,20 @@ export default function DealDetailPage() {
     }
   }
 
+  async function reassignOwner(ownerId: string | null) {
+    setDeal((prev) => (prev ? { ...prev, ownerId } : prev)); // optimistic
+    try {
+      const res = await fetch(`/api/opportunities/${dealId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ownerId }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+    } catch {
+      toast("Couldn't reassign the owner.", "error");
+    }
+  }
+
   if (loading) return <DetailPageSkeleton avatar="square" />;
   if (!deal) return <p className="p-6 text-sm text-red-400">Deal not found</p>;
 
@@ -352,6 +369,10 @@ export default function DealDetailPage() {
           <Badge variant={stageBadgeVariant[deal.stage] || "neutral"} size="md">
             {deal.stage.toUpperCase()}
           </Badge>
+          <div className="flex items-center gap-1.5 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+            <span>Owner</span>
+            <OwnerSelect value={deal.ownerId} onChange={reassignOwner} className="h-7" ariaLabel="Opportunity owner" />
+          </div>
           <div className="ml-auto">
             <Button
               variant="outline"

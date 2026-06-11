@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { Input, Select } from "@/components/ui/input";
 import { CompanyLogo } from "@/components/ui/company-logo";
+import { OwnerSelect } from "@/components/owner-select";
 import { KanbanColumnSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-delete-modal";
@@ -147,6 +148,7 @@ export default function OpportunitiesPage() {
   const [newName, setNewName] = useState("");
   const [newValue, setNewValue] = useState("");
   const [newCloseDate, setNewCloseDate] = useState("");
+  const [newOwnerId, setNewOwnerId] = useState<string | null>(null);
   const [newAccountId, setNewAccountId] = useState("");
   const [newContactId, setNewContactId] = useState("");
   const [creating, setCreating] = useState(false);
@@ -304,7 +306,7 @@ export default function OpportunitiesPage() {
   /* ── Actions ── */
 
   function openCreateForStage(stageId: string) {
-    setCreateStage(stageId); setNewName(""); setNewValue(""); setNewCloseDate("");
+    setCreateStage(stageId); setNewName(""); setNewValue(""); setNewCloseDate(""); setNewOwnerId(null);
     setNewAccountId(""); setNewContactId(""); setAccountSearch(""); setShowCreate(true);
   }
 
@@ -320,6 +322,7 @@ export default function OpportunitiesPage() {
           value: newValue ? parseInt(newValue) : undefined,
           companyId: newAccountId || undefined, contactId: newContactId || undefined,
           expectedCloseDate: newCloseDate || undefined,
+          ownerId: newOwnerId || undefined,
         }),
       });
       if (r.ok) {
@@ -975,6 +978,10 @@ export default function OpportunitiesPage() {
                   ))}
                 </select>
               </div>
+            </div>
+            <div>
+              <label className="text-[13px] font-medium mb-1 block" style={{ color: "var(--color-text-secondary)" }}>Owner</label>
+              <OwnerSelect value={newOwnerId} onChange={setNewOwnerId} defaultToSelf className="h-8 w-full" />
             </div>
           </form>
         </Modal>
