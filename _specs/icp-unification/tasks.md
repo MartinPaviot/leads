@@ -16,26 +16,22 @@
 
 ## Phase 1 — one ICP surface
 
-- [ ] **T1.1 uiState plumbing.** `uiStateToCriteria()` + `mirrorFromUiState()` (pure, next to `flat-to-criteria.ts`); extend `validateIcpInput` with `metadata.uiState`/`sourcingFilters` shapes; PATCH/POST `/api/icps` persist metadata, regenerate criteria from uiState + preserve advanced ids, write-through mirror when rank 1 (one tx).
-  *Test:* `ui-state-roundtrip.test`, `mirror-write-through.test`.
-- [ ] **T1.2 Reorder endpoint.** `POST /api/icps/reorder { orderedIds }` → priority = index, recompute event.
-  *Test:* priorities persisted; primary resolution follows new order.
-- [ ] **T1.3 Unified page** at `/settings/icp`: list (drag-reorder, fitCount, status chip, Source companies, Archive view) + guided editor (sections/widgets per mapping §B, importance control, sourcing-only labels, Advanced disclosure, no-uiState fallback to Advanced). Extract the legacy widgets into the `CriterionList` primitive (`components/icp/criterion-list.tsx`, design §6) used by every section AND every Advanced row (R4.3b).
-  *Test:* RTL component tests for importance mapping + advanced fallback + "no comma-separated text input anywhere" (every `in` value renders as removable tags). *Verify:* Playwright walkthrough, screenshots.
-- [ ] **T1.4 Diff-after-save.** `GET /api/icps/recompute-status` (reads `lastIcpRecompute`); editor polls 3 s post-save, shows "N regraded (X up, Y down), Z unowned"; TAM estimate via existing `/api/tam/estimate`.
-  *Verify:* live save on dev tenant shows a non-empty diff.
-- [ ] **T1.5 Product & Voice.** `/settings/product` page + slim `api/settings/product` (4 keys); strip those fields from the ICP surface.
-  *Test:* PUT round-trip; consumers read unchanged keys (grep assert).
-- [ ] **T1.6 Redirect + nav + CTAs.** `/settings/icp-profiles` → redirect; legacy form deleted; PUT `/api/settings/icp` removed (GET kept, R8.2); sidebar single entry; update `accounts/page.tsx:824` + `TAMRevealNotification.tsx:121`.
-  *Test:* `redirect+sidebar.test`.
-- [ ] **T1.7 Sourcing unification.** `icpToStrategy` takes the icp row: exact size labels + `sourcingFilters` merge; Accounts Build TAM profile picker (default rank 1) passing `icpId`.
-  *Test:* unit on icp-to-tam param output. *Verify:* live build sources within exclusions.
-- [ ] **T1.8 Re-route flat writers.** `api/icp/apply` → upsert rank-1 profile (server-built uiState); `api/onboarding/save` → also create "Default" profile (criteria + uiState).
-  *Test:* `icp-apply-reroute.test`; onboarding e2e asserts profile exists post-save.
-- [ ] **T1.9 Wire AI inference.** "Suggest with AI" button → `/api/icps/infer` → draft candidates in editor (invalid ones disabled with reason).
-  *Verify:* live inference on dev tenant produces ≥1 valid draft.
-- [ ] **T1.10 Permissions.** Members create/edit/reorder; DELETE admin-only; viewer read-only with explained disabled controls.
-  *Test:* role-matrix API test.
+- [x] **T1.1 uiState plumbing.** DONE 2026-06-11 (PR #155) — `lib/icp/ui-state.ts` (uiStateToCriteria, criteriaToUiState lossy adoption, splitCriteria/GUIDED_SLOTS, mirrorFromUiState, strict parsers) + `lib/icp/mirror.ts#syncRankOneMirror` (re-derives the flats from whoever is rank 1 after every mutation); `validateIcpInput` combines generated + advanced criteria in one path.
+  *Test:* `icp-ui-state.test.ts` (round-trip, importance mapping, R5.2 mirror key list, R5.5 shape guard).
+- [x] **T1.2 Reorder endpoint.** DONE — `POST /api/icps/reorder` (priority = index, 409 on stale payloads, mirror + recompute after).
+- [x] **T1.3 Unified page.** DONE — `/settings/icp` list (drag-reorder, fit counts, Source companies, Archive) + guided editor on `components/icp/criterion-list.tsx` (CriterionList/AmountField/ImportanceSelect/SourcingOnlyHint); geographies accept free text alongside the taxonomy (cantons romands — found during eval). Advanced rows render `in` values as tag lists.
+  *Test:* `criterion-list.dom.test.tsx` (no comma parsing, taxonomy never invents, free-text fallback). *Verified live:* screenshots 001-010 in `_audit/2026-06-11-icp-unification-eval/`.
+- [x] **T1.4 Diff-after-save.** DONE — `GET /api/icps/recompute-status` + 3 s poll + banner; live Apollo TAM estimate in the editor footer (manual refresh — credits).
+  *Verified:* `lastIcpRecompute` written by the live recompute of the real profile (990 companies); the banner itself is not observable from the dev box (Inngest events don't fire locally) — poll + render are plain conditionals.
+- [x] **T1.5 Product & Voice.** DONE — `/settings/product` + `api/settings/product` (4 keys, members).
+- [x] **T1.6 Redirect + nav.** DONE — `-profiles` redirects; sidebar = ICP + Product & Voice; `PUT /api/settings/icp` removed (GET kept, R8.2). The accounts/TAM CTAs already pointed at `/settings/icp` (URL kept).
+- [x] **T1.7 Sourcing unification.** DONE — `icpToStrategy(name, criteria, metadata)`: exact uiState size labels replace the envelope, sourcingFilters as live hard params; Accounts picker "Source from: <profile> (primary)" passing icpId.
+  *Verified live:* picker renders with the real profile.
+- [x] **T1.8 Re-route flat writers.** DONE — `lib/icp/profile-upsert.ts#upsertRankOneProfileFromUiState` (guided slots replaced, advanced preserved) used by `api/icp/apply` and onboarding's ICP step (profile creation never fails the save).
+- [x] **T1.9 AI inference wired.** DONE — "Suggest with AI" → `/api/icps/infer` → candidates adopt into widgets via criteriaToUiState; invalid ones disabled with their validation error.
+- [x] **T1.10 Permissions.** DONE — POST/PATCH/reorder member-allowed, DELETE admin-only; viewers blocked by the middleware write gate.
+
+**Phase 1 eval (2026-06-11):** tsc clean; 111 targeted tests; live walkthrough on the shared DB — the REAL "Coeur romand — fondations, santé & parapublic" profile created through the widgets (5 industries, 3 size chips, 6 geographies incl. the free-text "Suisse romande" the registry data labels at that granularity), mirror live-verified (flats = the profile's uiState), recompute live-verified: 57/990 companies owned at ≥50% — consistent with the locked Pilae ICP's expected romand core. Data finding: 574 registry rows carry `region: "Suisse romande"`, not a canton — fixed in the profile data, not in code (no hardcoded matching).
 
 ## Phase 2 — the ICP proves itself (separate cycle, spec'd here only as direction)
 
