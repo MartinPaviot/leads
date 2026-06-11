@@ -76,6 +76,8 @@ export interface CompanyBrainActivity {
   summary: string | null;
   entityType: string | null;
   entityId: string | null;
+  /** Member who performed the action (user activities only); null otherwise. */
+  actorName?: string | null;
 }
 
 export interface CompanyBrainMeeting {

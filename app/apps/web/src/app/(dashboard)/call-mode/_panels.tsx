@@ -104,6 +104,7 @@ export interface BrainActivity {
   direction: string | null;
   occurredAt: string;
   summary: string | null;
+  actorName?: string | null;
 }
 interface BrainCompany {
   id: string;
@@ -709,7 +710,7 @@ export function PreCallBrief({
                       {a.summary ?? a.type.replace(/_/g, " ")}
                     </p>
                     <p className="text-[11px] text-zinc-400">
-                      {a.direction ? `${a.direction} · ` : ""}{relTime(a.occurredAt)}
+                      {a.actorName ? `${a.actorName} · ` : ""}{a.direction ? `${a.direction} · ` : ""}{relTime(a.occurredAt)}
                     </p>
                   </div>
                 </li>

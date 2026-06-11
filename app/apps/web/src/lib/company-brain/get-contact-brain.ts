@@ -25,7 +25,9 @@ import {
   contacts as contactsTable,
   activities as activitiesTable,
   deals as dealsTable,
+  users as usersTable,
 } from "@/db/schema";
+import { resolveActorName } from "@/lib/collision/actor-name";
 import {
   getCompanyBrain as defaultGetCompanyBrain,
   type GetCompanyBrainDeps,
@@ -127,6 +129,8 @@ export async function getContactBrain(
       summary: activitiesTable.summary,
       entityType: activitiesTable.entityType,
       entityId: activitiesTable.entityId,
+      actorType: activitiesTable.actorType,
+      actorId: activitiesTable.actorId,
     })
     .from(activitiesTable)
     .where(
@@ -140,6 +144,30 @@ export async function getContactBrain(
     .orderBy(desc(activitiesTable.occurredAt))
     .limit(directActivityCap + 1);
 
+  // Member display names for nominative history ("Marie · call · 2d ago").
+  // Fail-safe: names are a nice-to-have, never fail the brain (which feeds the
+  // Call Mode brief) over them — on any error actorName is simply null.
+  let memberNames = new Map<string, string>();
+  try {
+    const memberRows = await dbi
+      .select({
+        id: usersTable.id,
+        email: usersTable.email,
+        firstName: usersTable.firstName,
+        lastName: usersTable.lastName,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.tenantId, opts.tenantId));
+    memberNames = new Map(
+      memberRows.map((m) => [
+        m.id,
+        [m.firstName, m.lastName].filter(Boolean).join(" ") || m.email || "",
+      ]),
+    );
+  } catch {
+    // names stay empty → actorName null everywhere (anonymous line)
+  }
+
   const directActivities: CompanyBrainActivity[] = directActivityRows
     .slice(0, directActivityCap)
     .map((r) => ({
@@ -150,6 +178,7 @@ export async function getContactBrain(
       summary: r.summary,
       entityType: r.entityType,
       entityId: r.entityId,
+      actorName: resolveActorName(r.actorType, r.actorId, memberNames),
     }));
 
   const directActivitiesTruncated =
