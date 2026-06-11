@@ -1,5 +1,9 @@
 import { Resend } from "resend";
 import { EMAIL_FROM, warnIfUnverifiedSender } from "./from";
+import { ELEVAY_LOGO_PNG_BASE64 } from "./elevay-logo";
+
+/** Content-ID for the inline logo attachment, referenced as cid: in the HTML. */
+const LOGO_CID = "elevay-logo";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
@@ -25,20 +29,19 @@ export async function sendInviteEmail(p: InviteEmailParams): Promise<{ sent: boo
   const subject = `${p.inviterName} invited you to join ${p.workspaceName} on Elevay`;
   const expiresStr = p.expiresAt.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   const safeUrl = escapeHtml(p.acceptUrl);
-  // The logo is a static asset on the CANONICAL prod domain — hardcode it,
-  // never derive it from the accept-link origin. Mail image proxies fetch
-  // anonymously and do NOT follow redirects, and the apex
-  // elevay.dev/logo-Elevay.png 307-redirects to www → the client renders a
-  // broken image (the blue "?"). www.elevay.dev serves the PNG directly (200).
-  // Email clients also block SVG <img>, which is why this is a raster /public/png.
-  const logoUrl = "https://www.elevay.dev/logo-Elevay.png";
+  // The logo is embedded INLINE (cid:) via a Resend attachment, not loaded
+  // from a URL. Hosted images get blocked by default in Outlook/Gmail for
+  // unknown senders (the blue "?" the recipient sees); an inline/embedded
+  // image is part of the message and renders without the recipient enabling
+  // external images. Email clients also can't render SVG, hence a raster PNG.
+  const logoSrc = `cid:${LOGO_CID}`;
   // Brand palette (matches the app's --gradient-shimmer + --color-accent):
   // teal #17C3B2 → blue #2C6BED → orange #FF7A3D, accent blue #2C6BED.
   const html = `<!doctype html>
 <html><body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#f4f4f5; padding: 24px; margin: 0;">
   <div style="max-width: 560px; margin: 0 auto;">
     <div style="padding: 4px 4px 18px;">
-      <img src="${logoUrl}" width="32" height="32" alt="Elevay" style="vertical-align: middle; border-radius: 8px; display: inline-block;" />
+      <img src="${logoSrc}" width="32" height="32" alt="Elevay" style="vertical-align: middle; border-radius: 8px; display: inline-block;" />
       <span style="font-size: 20px; font-weight: 800; letter-spacing: -0.6px; color:#2C6BED; vertical-align: middle; margin-left: 9px;">Elevay</span>
     </div>
     <div style="background:#ffffff; border-radius: 14px; border: 1px solid #e4e4e7; overflow: hidden;">
@@ -84,6 +87,17 @@ This invitation expires on ${expiresStr}.`;
       subject,
       html,
       text,
+      // Inline logo: setting contentId makes Resend send this as an inline
+      // attachment the HTML references via cid:, so it displays without the
+      // recipient enabling external images.
+      attachments: [
+        {
+          filename: "elevay-logo.png",
+          content: ELEVAY_LOGO_PNG_BASE64,
+          contentType: "image/png",
+          contentId: LOGO_CID,
+        },
+      ],
     });
     if (error) return { sent: false, reason: error.message };
     return { sent: true };
