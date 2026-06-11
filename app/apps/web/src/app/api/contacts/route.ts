@@ -110,7 +110,11 @@ export async function GET(req: Request) {
     const fName = url.searchParams.get("fName")?.trim();
     const fEmail = url.searchParams.get("fEmail")?.trim();
     const fTitle = url.searchParams.get("fTitle")?.trim();
+    // Exact title values picked from the header dropdown (distinct roles).
+    const fTitleIn = (url.searchParams.get("fTitleIn") || "").split(",").map((s) => s.trim()).filter(Boolean);
     const fCompany = (url.searchParams.get("fCompany") || "").split(",").map((s) => s.trim()).filter(Boolean);
+    // Company industries (the sector tabs send a family's industry strings).
+    const fIndustry = (url.searchParams.get("fIndustry") || "").split(",").map((s) => s.trim()).filter(Boolean);
     const fGrade = (url.searchParams.get("fGrade") || "").split(",").map((s) => s.trim()).filter(Boolean);
     const fLinkedin = url.searchParams.get("fLinkedin"); // "has" | "empty"
     const fPhone = url.searchParams.get("fPhone"); // "has" | "empty"
@@ -118,11 +122,23 @@ export async function GET(req: Request) {
     if (fName) conds.push(sql`(coalesce(${contacts.firstName}, '') || ' ' || coalesce(${contacts.lastName}, '')) ILIKE ${"%" + fName + "%"}`);
     if (fEmail) conds.push(sql`${contacts.email} ILIKE ${"%" + fEmail + "%"}`);
     if (fTitle) conds.push(sql`${contacts.title} ILIKE ${"%" + fTitle + "%"}`);
+    if (fTitleIn.length > 0) {
+      conds.push(sql`${contacts.title} = ANY(ARRAY[${sql.join(fTitleIn.map((t) => sql`${t}`), sql`, `)}]::text[])`);
+    }
     if (fCompany.length > 0) {
       conds.push(sql`${contacts.companyId} IN (
         SELECT id FROM companies
         WHERE tenant_id = ${authCtx.tenantId} AND deleted_at IS NULL
           AND name = ANY(ARRAY[${sql.join(fCompany.map((c) => sql`${c}`), sql`, `)}]::text[])
+      )`);
+    }
+    if (fIndustry.length > 0) {
+      // A contact's sector lives on its company — same self-contained,
+      // tenant-scoped subquery shape as fCompany.
+      conds.push(sql`${contacts.companyId} IN (
+        SELECT id FROM companies
+        WHERE tenant_id = ${authCtx.tenantId} AND deleted_at IS NULL
+          AND industry = ANY(ARRAY[${sql.join(fIndustry.map((i) => sql`${i}`), sql`, `)}]::text[])
       )`);
     }
     if (fGrade.length > 0) {
@@ -272,6 +288,44 @@ export async function GET(req: Request) {
       console.warn("Failed to fetch contact company options:", e);
     }
 
+    // Sector tab options — distinct company industries with the number of
+    // contacts in each, tenant-wide (the filter bar groups them into family
+    // pills client-side via the industry-style SSOT).
+    let industryOptions: Array<{ industry: string; count: number }> = [];
+    try {
+      const rows = await db.execute(sql`
+        SELECT co.industry AS industry, count(*)::int AS count
+        FROM contacts c
+        JOIN companies co ON co.id = c.company_id
+        WHERE c.tenant_id = ${authCtx.tenantId} AND c.deleted_at IS NULL
+          AND co.deleted_at IS NULL AND co.industry IS NOT NULL AND co.industry <> ''
+        GROUP BY co.industry
+        ORDER BY count DESC, industry ASC
+      `);
+      industryOptions = (rows as unknown as Array<{ industry: string; count: number }>)
+        .map((r) => ({ industry: r.industry, count: r.count }));
+    } catch (e) {
+      console.warn("Failed to fetch contact industry options:", e);
+    }
+
+    // Title filter options — distinct titles across ALL contacts, frequency-
+    // ordered so the common roles sit on top of the dropdown. Capped: the
+    // dropdown has its own search-within for the long tail.
+    let titleOptions: string[] = [];
+    try {
+      const rows = await db.execute(sql`
+        SELECT title FROM contacts
+        WHERE tenant_id = ${authCtx.tenantId} AND deleted_at IS NULL
+          AND title IS NOT NULL AND title <> ''
+        GROUP BY title
+        ORDER BY count(*) DESC, title ASC
+        LIMIT 60
+      `);
+      titleOptions = (rows as unknown as Array<{ title: string }>).map((r) => r.title);
+    } catch (e) {
+      console.warn("Failed to fetch contact title options:", e);
+    }
+
     // Canonical paginated shape (items + legacy `contacts`) plus server-sourced
     // filter options for the header dropdowns.
     const totalPages = Math.ceil(total / pageSize);
@@ -279,7 +333,7 @@ export async function GET(req: Request) {
       items: enrichedContacts,
       contacts: enrichedContacts,
       pagination: { page, pageSize, total, totalPages, hasMore: page * pageSize < total },
-      filterOptions: { companies: companyOptions },
+      filterOptions: { companies: companyOptions, industries: industryOptions, titles: titleOptions },
     });
   } catch (error) {
     console.error("Failed to fetch contacts:", error);

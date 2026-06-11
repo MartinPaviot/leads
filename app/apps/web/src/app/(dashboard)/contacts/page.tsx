@@ -21,6 +21,7 @@ import { applyFilters } from "@/lib/search/filters";
 import type { FilterCondition } from "@/lib/search/filters";
 import { ColumnFilter, isColumnFilterActive, type ColumnFilterKind, type ColumnFilterState } from "@/components/ui/column-filter";
 import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-delete-modal";
+import { industryStyle, FAMILY_LABELS, type IndustryFamily } from "@/lib/ui/industry-style";
 import { chunkedBulkCall } from "@/lib/infra/chunk-bulk";
 import { selectAllMatchingIds } from "@/lib/infra/select-all-matching";
 
@@ -112,6 +113,15 @@ export default function ContactsPage() {
   // just the loaded 50-row page. Company options also come from the server.
   const [debouncedColumnFilters, setDebouncedColumnFilters] = useState<Record<string, ColumnFilterState>>({});
   const [serverCompanyOptions, setServerCompanyOptions] = useState<string[]>([]);
+  // Distinct titles (frequency-ordered) across ALL contacts — the Title
+  // header filter offers them as clickable values instead of free text.
+  const [serverTitleOptions, setServerTitleOptions] = useState<string[]>([]);
+  // Distinct company industries (with contact counts) — feeds the sector tabs.
+  const [serverIndustryOptions, setServerIndustryOptions] = useState<Array<{ industry: string; count: number }>>([]);
+  // Active sector tab. Holds the family AND its industry strings, copied at
+  // click time, so the fetch serializer doesn't depend on the options array
+  // identity (replaced on every fetch — depending on it would loop the effect).
+  const [sectorTab, setSectorTab] = useState<{ family: IndustryFamily; industries: string[] } | null>(null);
   // Deletes — single row AND the checkbox selection — go through the cascade
   // modal (lets the user also delete the contacts' activities/notes/tasks in
   // one step). Everything is soft-delete, recoverable from Archive.
@@ -133,11 +143,14 @@ export default function ContactsPage() {
     const pres = (k: string) => cf[k]?.presence;
     if (txt("contact")) params.set("fName", txt("contact")!);
     if (txt("email")) params.set("fEmail", txt("email")!);
-    if (txt("title")) params.set("fTitle", txt("title")!);
+    if (vals("title").length) params.set("fTitleIn", vals("title").join(","));
     if (vals("companyName").length) params.set("fCompany", vals("companyName").join(","));
     if (vals("score").length) params.set("fGrade", vals("score").join(","));
     if (pres("linkedin")) params.set("fLinkedin", pres("linkedin")!);
     if (pres("phone")) params.set("fPhone", pres("phone")!);
+    // Sector tab -> the family's industry strings (server filters by the
+    // contact's company industry, same subquery shape as fCompany).
+    if (sectorTab) params.set("fIndustry", sectorTab.industries.join(","));
     // Smart-filter score threshold -> server (parity with accounts) so the
     // count reflects it; any residual non-score conditions stay client-side.
     for (const c of smartFilters) {
@@ -149,7 +162,7 @@ export default function ContactsPage() {
       else if (c.operator === "eq") { params.set("fScoreMin", String(n)); params.set("fScoreMax", String(n)); }
     }
     return params;
-  }, [viewDeleted, debouncedSearch, debouncedColumnFilters, smartFilters]);
+  }, [viewDeleted, debouncedSearch, debouncedColumnFilters, smartFilters, sectorTab]);
 
   /** Fetch one page of contacts.
    *  - page=1, append=false → initial load / filter change (replaces list)
@@ -170,6 +183,8 @@ export default function ContactsPage() {
         setCurrentPage(data.pagination?.page ?? page);
         setTotalContacts(data.pagination?.total ?? batch.length);
         if (data.filterOptions?.companies) setServerCompanyOptions(data.filterOptions.companies);
+        if (data.filterOptions?.titles) setServerTitleOptions(data.filterOptions.titles);
+        if (data.filterOptions?.industries) setServerIndustryOptions(data.filterOptions.industries);
       }
     } catch (e) {
       console.warn("contacts: list fetch failed", e);
@@ -194,6 +209,8 @@ export default function ContactsPage() {
         if (p === pagesToLoad) {
           setTotalContacts(data.pagination?.total ?? all.length);
           if (data.filterOptions?.companies) setServerCompanyOptions(data.filterOptions.companies);
+          if (data.filterOptions?.titles) setServerTitleOptions(data.filterOptions.titles);
+          if (data.filterOptions?.industries) setServerIndustryOptions(data.filterOptions.industries);
         }
       }
       setContacts(all);
@@ -560,7 +577,9 @@ export default function ContactsPage() {
     contact: { label: "Contact", kind: "text" },
     companyName: { label: "Company", kind: "enum" },
     email: { label: "Email", kind: "text" },
-    title: { label: "Title", kind: "text" },
+    // Titles are clickable values (frequency-ordered, server-sourced) — the
+    // user picks the precise roles instead of guessing a substring.
+    title: { label: "Title", kind: "enum" },
     linkedin: { label: "LinkedIn", kind: "presence" },
     phone: { label: "Phone", kind: "presence" },
     score: { label: "Score", kind: "enum" },
@@ -571,8 +590,25 @@ export default function ContactsPage() {
   // still filter on), and grades are a fixed scale.
   const columnOptions = useMemo<Record<string, string[]>>(() => ({
     companyName: serverCompanyOptions,
+    title: serverTitleOptions,
     score: ["A+", "A", "B", "C", "D", "F"],
-  }), [serverCompanyOptions]);
+  }), [serverCompanyOptions, serverTitleOptions]);
+
+  // Sector tabs — group the tenant's industries into the style families
+  // (lib/ui/industry-style SSOT) with contact counts; one pill per family
+  // present in the data, ordered by volume.
+  const sectorTabs = useMemo(() => {
+    const byFamily = new Map<IndustryFamily, { count: number; industries: string[] }>();
+    for (const { industry, count } of serverIndustryOptions) {
+      const fam = industryStyle(industry).family;
+      const cur = byFamily.get(fam) ?? { count: 0, industries: [] };
+      cur.count += count;
+      cur.industries.push(industry);
+      byFamily.set(fam, cur);
+    }
+    return Array.from(byFamily, ([family, v]) => ({ family, label: FAMILY_LABELS[family], count: v.count, industries: v.industries }))
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  }, [serverIndustryOptions]);
 
   // Column filters now run server-side (see fetchContacts -> /api/contacts), so
   // `contacts` is already the filtered + paginated set. Only the NL smart
@@ -667,14 +703,63 @@ export default function ContactsPage() {
       </PageHeader>
 
       <FilterBar>
-        {/* One intelligent search: type a name/email -> instant server search
-            (spans all contacts); press Enter -> natural-language smart filters. */}
-        <div className="flex-1">
+        {/* Sector tabs — All + one pill per industry family present in the
+            data (the contacts' companies), Accounts-style. Clicking filters
+            the list server-side to that family's industries. */}
+        <div className="flex items-center gap-0.5 overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setSectorTab(null)}
+            className="shrink-0 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
+            style={{
+              background: sectorTab === null ? "var(--color-accent-soft)" : "transparent",
+              color: sectorTab === null ? "var(--color-accent)" : "var(--color-text-tertiary)",
+            }}
+          >
+            All
+          </button>
+          {sectorTabs.map((t) => {
+            const active = sectorTab?.family === t.family;
+            return (
+              <button
+                key={t.family}
+                type="button"
+                onClick={() => setSectorTab(active ? null : { family: t.family, industries: t.industries })}
+                className="shrink-0 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
+                style={{
+                  background: active ? "var(--color-accent-soft)" : "transparent",
+                  color: active ? "var(--color-accent)" : "var(--color-text-tertiary)",
+                }}
+              >
+                {t.label} ({t.count})
+              </button>
+            );
+          })}
+        </div>
+        {(() => {
+          const activeKeys = Object.keys(columnFilters).filter((k) => isColumnFilterActive(columnFilters[k]));
+          if (activeKeys.length === 0) return null;
+          return (
+            <button
+              type="button"
+              onClick={() => setColumnFilters({})}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium transition-colors"
+              style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
+            >
+              <X size={12} />
+              {activeKeys.length} column filter{activeKeys.length === 1 ? "" : "s"} — clear
+            </button>
+          );
+        })()}
+        {/* One intelligent search, compact + right-aligned (parity with
+            Accounts): type a name/email -> instant server search (spans all
+            contacts); press Enter -> natural-language smart filters. */}
+        <div className="ml-auto w-80 shrink-0">
           <SmartSearchBar
             resourceType="contact"
             value={searchQuery}
             onChange={setSearchQuery}
-            placeholder="Search a name or email — or describe and press Enter (e.g. CTOs at fintech in Geneva)"
+            placeholder="Search contacts — or describe and press Enter (e.g. CTOs at fintech)"
             className="w-full"
             onFilters={(filters, meta) => {
               setSmartFilters(filters);
@@ -694,21 +779,6 @@ export default function ContactsPage() {
             onError={(msg) => toast(msg, "error")}
           />
         </div>
-        {(() => {
-          const activeKeys = Object.keys(columnFilters).filter((k) => isColumnFilterActive(columnFilters[k]));
-          if (activeKeys.length === 0) return null;
-          return (
-            <button
-              type="button"
-              onClick={() => setColumnFilters({})}
-              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium transition-colors"
-              style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
-            >
-              <X size={12} />
-              {activeKeys.length} column filter{activeKeys.length === 1 ? "" : "s"} — clear
-            </button>
-          );
-        })()}
       </FilterBar>
       <ActiveFiltersChips
         filters={smartFilters}

@@ -87,6 +87,24 @@ const FAMILY_TOKENS: Record<IndustryFamily, { color: string; bg: string }> = {
   media: { color: "var(--ind-media)", bg: "var(--ind-media-bg)" },
 };
 
+/** Human labels for the 14 sector families — UI display SSOT (chips, tabs). */
+export const FAMILY_LABELS: Record<IndustryFamily, string> = {
+  tech: "Tech",
+  services: "Services",
+  finance: "Finance",
+  health: "Health",
+  public: "Public sector",
+  nonprofit: "Non-profit",
+  education: "Education",
+  manufacturing: "Manufacturing",
+  energy: "Energy",
+  agrifood: "Agri-food",
+  transport: "Transport",
+  construction: "Construction",
+  consumer: "Consumer",
+  media: "Media",
+};
+
 /** Stable order for the hash fallback — appending families keeps old picks. */
 const FAMILY_ORDER: IndustryFamily[] = [
   "tech", "services", "finance", "health", "public", "nonprofit", "education",

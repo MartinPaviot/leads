@@ -18,7 +18,7 @@
  */
 
 import React, { useState } from "react";
-import { Sparkles, Loader2, X } from "lucide-react";
+import { Search, Loader2, X } from "lucide-react";
 import type { FilterCondition } from "@/lib/search/filters";
 
 export interface SmartSearchBarProps {
@@ -78,7 +78,7 @@ export function SmartSearchBar({
 
   return (
     <div className={`relative flex items-center ${className}`}>
-      <Sparkles
+      <Search
         size={13}
         aria-hidden="true"
         className="absolute left-2.5"
