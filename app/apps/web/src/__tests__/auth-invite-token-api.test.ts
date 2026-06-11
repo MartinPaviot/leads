@@ -22,6 +22,10 @@ vi.mock("@/db/schema", () => ({
     id: "id",
     name: "name",
   },
+  authUsers: {
+    id: "id",
+    email: "email",
+  },
 }));
 
 vi.mock("drizzle-orm", () => ({
@@ -95,9 +99,10 @@ describe("GET /api/auth/invite/[token]", () => {
     );
   });
 
-  it("200 + invite payload when valid", async () => {
+  it("200 + invite payload when valid (hasAccount false when no account)", async () => {
     mockSelect([inviteRow()]);
     mockSelect([{ name: "Acme Inc." }]);
+    mockSelect([]); // no auth user for this email → hasAccount false
 
     const res = await mod.GET(makeReq(), { params: Promise.resolve({ token: "x" }) });
     expect(res.status).toBe(200);
@@ -107,11 +112,24 @@ describe("GET /api/auth/invite/[token]", () => {
     expect(body.invite.role).toBe("member");
     expect(body.invite.workspace).toBe("Acme Inc.");
     expect(typeof body.invite.expiresAt).toBe("string");
+    expect(body.invite.hasAccount).toBe(false);
+  });
+
+  it("hasAccount true when the invited email already has an account", async () => {
+    mockSelect([inviteRow()]);
+    mockSelect([{ name: "Acme Inc." }]);
+    mockSelect([{ id: "auth-user-1" }]); // existing auth user
+
+    const res = await mod.GET(makeReq(), { params: Promise.resolve({ token: "x" }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.invite.hasAccount).toBe(true);
   });
 
   it("falls back to a generic workspace label when tenant lookup is empty", async () => {
     mockSelect([inviteRow()]);
     mockSelect([]); // no tenant row
+    mockSelect([]); // no auth user
 
     const res = await mod.GET(makeReq(), { params: Promise.resolve({ token: "x" }) });
     const body = await res.json();

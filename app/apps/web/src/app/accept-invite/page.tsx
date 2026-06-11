@@ -9,6 +9,8 @@ interface InviteInfo {
   role: string;
   workspace: string;
   expiresAt: string;
+  /** True if the invited email already has an account → offer sign-in first. */
+  hasAccount?: boolean;
 }
 
 function AcceptInviteInner() {
@@ -122,30 +124,66 @@ function AcceptInviteInner() {
           </div>
         )}
 
-        {state.kind === "valid" && (
-          <div className="text-center">
-            <h2 style={h2Style}>Join {state.invite.workspace}</h2>
-            <p style={pStyle}>
-              You&apos;ve been invited to <strong>{state.invite.workspace}</strong> as a{" "}
-              <strong>{state.invite.role}</strong>.
-            </p>
-            <p style={mutedStyle}>
-              Invitation sent to <strong>{state.invite.email}</strong>. Sign in with that
-              email — if you don&apos;t have an account yet, create one first.
-            </p>
-            <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
-              <button onClick={accept} style={primaryButtonStyle}>
-                Sign in &amp; accept
-              </button>
-              <a
-                href={`/sign-up?email=${encodeURIComponent(state.invite.email)}&invite=${encodeURIComponent(token)}`}
-                style={secondaryButtonStyle}
-              >
-                Create account
-              </a>
+        {state.kind === "valid" && (() => {
+          const inv = state.invite;
+          const signUpHref = `/sign-up?email=${encodeURIComponent(inv.email)}&invite=${encodeURIComponent(token)}`;
+          const known = inv.hasAccount === true;
+          const isNew = inv.hasAccount === false;
+          return (
+            <div className="text-center">
+              <h2 style={h2Style}>Join {inv.workspace}</h2>
+              <p style={pStyle}>
+                You&apos;ve been invited to <strong>{inv.workspace}</strong> as a{" "}
+                <strong>{inv.role}</strong>.
+              </p>
+              <p style={mutedStyle}>
+                Invitation for <strong>{inv.email}</strong>.{" "}
+                {known
+                  ? "Sign in with that email to accept."
+                  : isNew
+                    ? "Create your account to join."
+                    : "Sign in, or create an account if you don't have one yet."}
+              </p>
+
+              {known ? (
+                <div style={{ display: "flex", marginTop: 22 }}>
+                  <button onClick={accept} style={primaryButtonStyle}>
+                    Sign in &amp; accept
+                  </button>
+                </div>
+              ) : isNew ? (
+                <>
+                  <div style={{ display: "flex", marginTop: 22 }}>
+                    <a
+                      href={signUpHref}
+                      style={{
+                        ...primaryButtonStyle,
+                        textDecoration: "none",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      Create account
+                    </a>
+                  </div>
+                  <button onClick={accept} style={linkButtonStyle}>
+                    Already have an account? Sign in
+                  </button>
+                </>
+              ) : (
+                <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
+                  <button onClick={accept} style={primaryButtonStyle}>
+                    Sign in &amp; accept
+                  </button>
+                  <a href={signUpHref} style={secondaryButtonStyle}>
+                    Create account
+                  </a>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {state.kind === "accepting" && <Centered>Accepting invitation…</Centered>}
 
@@ -261,4 +299,14 @@ const secondaryButtonStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
+};
+
+const linkButtonStyle: React.CSSProperties = {
+  marginTop: 14,
+  background: "transparent",
+  border: "none",
+  color: "var(--color-text-secondary)",
+  fontSize: "0.8rem",
+  cursor: "pointer",
+  textDecoration: "underline",
 };
