@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /**
  * /settings/icp — THE ICP surface (Phase 1, _specs/icp-unification R4).
@@ -26,6 +26,8 @@ import { useToast } from "@/components/ui/toast";
 import {
   Plus, Trash2, Target, Radar, Archive, RotateCcw, GripVertical,
   ChevronDown, ChevronRight, ArrowLeft, Sparkles,
+  Factory, Users, MapPin, MapPinOff, Banknote, Cpu, Hash,
+  TrendingUp, Coins, Briefcase, UserCog, Contact,
 } from "lucide-react";
 import {
   CriterionList, AmountField, ImportanceSelect, SourcingOnlyHint,
@@ -805,10 +807,10 @@ function ProfileEditor({
             {draft.hasUiState ? (
               <>
                 <SectionTitle>Who they are</SectionTitle>
-                <Row label="Industries" importance={impOf("industries")} onImportance={(v) => setImp("industries", v)}>
+                <Row icon={<Factory size={13} />} label="Industries" importance={impOf("industries")} onImportance={(v) => setImp("industries", v)}>
                   <CriterionList values={ui.industries} onChange={(v) => setUi({ industries: v })} options={INDUSTRIES} placeholder="Search industries…" />
                 </Row>
-                <Row label="Company size" importance={impOf("companySizes")} onImportance={(v) => setImp("companySizes", v)}>
+                <Row icon={<Users size={13} />} label="Company size" importance={impOf("companySizes")} onImportance={(v) => setImp("companySizes", v)}>
                   <div className="flex flex-wrap gap-2">
                     {COMPANY_SIZES.map((size) => {
                       const selected = ui.companySizes.includes(size);
@@ -836,7 +838,7 @@ function ProfileEditor({
                     })}
                   </div>
                 </Row>
-                <Row label="Geographies" importance={impOf("geographies")} onImportance={(v) => setImp("geographies", v)}>
+                <Row icon={<MapPin size={13} />} label="Geographies" importance={impOf("geographies")} onImportance={(v) => setImp("geographies", v)}>
                   <CriterionList
                     values={ui.geographies}
                     onChange={(v) => setUi({ geographies: v })}
@@ -845,7 +847,7 @@ function ProfileEditor({
                     placeholder="Search or type a region and press Enter — e.g. Vaud"
                   />
                 </Row>
-                <Row label={<>Exclude<SourcingOnlyHint /></>}>
+                <Row icon={<MapPinOff size={13} />} label={<>Exclude<SourcingOnlyHint /></>}>
                   <CriterionList
                     values={draft.sourcingFilters.excludeGeographies}
                     onChange={(v) => onChange({ ...draft, sourcingFilters: { ...draft.sourcingFilters, excludeGeographies: v } })}
@@ -854,7 +856,7 @@ function ProfileEditor({
                     placeholder="Search or type a region to exclude…"
                   />
                 </Row>
-                <Row label="Annual revenue (USD)" importance={impOf("revenue")} onImportance={(v) => setImp("revenue", v)}>
+                <Row icon={<Banknote size={13} />} label="Annual revenue (USD)" importance={impOf("revenue")} onImportance={(v) => setImp("revenue", v)}>
                   <div className="flex items-center gap-2">
                     <AmountField value={ui.revenueMin} onChange={(v) => setUi({ revenueMin: v })} placeholder="$ Min" />
                     <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>to</span>
@@ -863,13 +865,13 @@ function ProfileEditor({
                 </Row>
 
                 <SectionTitle>What they use &amp; say</SectionTitle>
-                <Row label="Technologies" importance={impOf("technologies")} onImportance={(v) => setImp("technologies", v)}>
+                <Row icon={<Cpu size={13} />} label="Technologies" importance={impOf("technologies")} onImportance={(v) => setImp("technologies", v)}>
                   <CriterionList values={ui.technologies} onChange={(v) => setUi({ technologies: v })} placeholder="Type a technology and press Enter — e.g. WordPress" />
                 </Row>
-                <Row label="Keywords" importance={impOf("keywords")} onImportance={(v) => setImp("keywords", v)}>
+                <Row icon={<Hash size={13} />} label="Keywords" importance={impOf("keywords")} onImportance={(v) => setImp("keywords", v)}>
                   <CriterionList values={ui.keywords} onChange={(v) => setUi({ keywords: v })} placeholder="Type a keyword and press Enter — e.g. fondation" />
                 </Row>
-                <Row label={<>Recently funded<SourcingOnlyHint /></>}>
+                <Row icon={<TrendingUp size={13} />} label={<>Recently funded<SourcingOnlyHint /></>}>
                   <select
                     value={draft.sourcingFilters.fundingRecencyDays === null ? "" : String(draft.sourcingFilters.fundingRecencyDays)}
                     onChange={(e) =>
@@ -890,14 +892,14 @@ function ProfileEditor({
                     <option value="365">Last 12 months</option>
                   </select>
                 </Row>
-                <Row label="Total raised (USD)" importance={impOf("totalFunding")} onImportance={(v) => setImp("totalFunding", v)}>
+                <Row icon={<Coins size={13} />} label="Total raised (USD)" importance={impOf("totalFunding")} onImportance={(v) => setImp("totalFunding", v)}>
                   <div className="flex items-center gap-2">
                     <AmountField value={ui.totalFundingMin} onChange={(v) => setUi({ totalFundingMin: v })} placeholder="$ Min" />
                     <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>to</span>
                     <AmountField value={ui.totalFundingMax} onChange={(v) => setUi({ totalFundingMax: v })} placeholder="$ Max" />
                   </div>
                 </Row>
-                <Row label="Hiring" importance={impOf("hiring")} onImportance={(v) => setImp("hiring", v)}>
+                <Row icon={<Briefcase size={13} />} label="Hiring" importance={impOf("hiring")} onImportance={(v) => setImp("hiring", v)}>
                   <div className="space-y-2">
                     <AmountField value={ui.minJobOpenings} onChange={(v) => setUi({ minJobOpenings: v })} placeholder="Min active job postings — e.g. 1" />
                     <CriterionList values={ui.hiringTitles} onChange={(v) => setUi({ hiringTitles: v })} placeholder="Hiring for titles — type and press Enter" />
@@ -907,10 +909,10 @@ function ProfileEditor({
                 <SectionTitle hint="Finds contacts at matching companies — does not score companies">
                   Who to talk to
                 </SectionTitle>
-                <Row label="Seniorities">
+                <Row icon={<UserCog size={13} />} label="Seniorities">
                   <CriterionList values={ui.seniorities} onChange={(v) => setUi({ seniorities: v })} options={JOB_SENIORITIES} placeholder="Search seniorities…" />
                 </Row>
-                <Row label="Titles">
+                <Row icon={<Contact size={13} />} label="Titles">
                   <CriterionList values={ui.personTitles} onChange={(v) => setUi({ personTitles: v })} placeholder="Type a title and press Enter — e.g. CEO" />
                 </Row>
               </>
@@ -975,8 +977,11 @@ function SectionTitle({ children, hint }: { children: ReactNode; hint?: string }
 }
 
 function Row({
-  label, importance, onImportance, children,
+  icon, label, importance, onImportance, children,
 }: {
+  /** Category glyph, rendered flush-left so every row's icon column
+   *  lines up under the section title (R4.3 polish). */
+  icon?: ReactNode;
   label: ReactNode;
   importance?: Importance;
   onImportance?: (v: Importance) => void;
@@ -984,8 +989,16 @@ function Row({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="w-44 shrink-0 pt-2 text-[12px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
-        {label}
+      <div
+        className="flex w-44 shrink-0 items-start gap-2 pt-2 text-[12px] font-medium"
+        style={{ color: "var(--color-text-secondary)" }}
+      >
+        {icon && (
+          <span className="mt-[1px] flex shrink-0 items-center" style={{ color: "var(--color-text-tertiary)" }}>
+            {icon}
+          </span>
+        )}
+        <span className="min-w-0">{label}</span>
       </div>
       <div className="min-w-0 flex-1">{children}</div>
       {importance !== undefined && onImportance && (
