@@ -6,6 +6,10 @@
  * served to the browser through GET /api/settings/workspace/logo. The bytes
  * must never be inlined into SSR payloads or LLM prompts — pass around the
  * versioned URL from `workspaceLogoUrl()` instead.
+ *
+ * The validate/parse helpers are generic "small raster image data URL"
+ * rules and are reused by per-user profile photos (lib/users/avatar.ts) —
+ * if a third consumer appears, extract them to lib/images/.
  */
 
 /** Hard cap on the stored data URL length (chars). ~400k chars of base64 is

@@ -1,15 +1,18 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { SettingsHeader } from "@/components/ui/settings-header";
 import { Input, Select } from "@/components/ui/input";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Avatar } from "@/components/ui/avatar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
 import { useSafeFetch } from "@/lib/infra/use-safe-fetch";
 import { useCan } from "@/components/role-provider";
+import { processWorkspaceLogoFile, LOGO_FILE_ACCEPT } from "@/lib/logo/client-logo-file";
 
 function roleBadgeVariant(role: string) {
   return role === "admin" ? "warning" : role === "viewer" ? "neutral" : "info";
@@ -46,11 +49,52 @@ export default function MembersSettingsPage() {
 
   const sfetch = useSafeFetch();
   const { toast } = useToast();
+  const router = useRouter();
   // Managing members is admin-only (members:invite / members:manage).
   // Non-admins get a read-only roster: no invite box, roles shown as
   // badges, no resend/cancel. The server enforces this regardless.
   const canInvite = useCan("members:invite");
   const canManage = useCan("members:manage");
+
+  // Your own profile photo — self-service for every role (viewers too).
+  // Falls back to the gradient initials bubble when unset.
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [photoSaving, setPhotoSaving] = useState(false);
+
+  async function savePhoto(avatarDataUrl: string | null) {
+    setPhotoSaving(true);
+    const { data, error: err } = await sfetch<{ avatarUrl: string | null }>(
+      "/api/account/avatar",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatarDataUrl }),
+        errorMessage: "Failed to update photo",
+      },
+    );
+    setPhotoSaving(false);
+    if (err) return;
+    setMembers((prev) =>
+      prev.map((m) => (m.isSelf ? { ...m, avatarUrl: data?.avatarUrl ?? null } : m)),
+    );
+    // Re-render the server layout so the sidebar bubble updates now.
+    router.refresh();
+    toast(avatarDataUrl ? "Photo updated" : "Photo removed", "success");
+  }
+
+  async function onPhotoFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    try {
+      // Same canvas pipeline as the workspace logo — strips EXIF,
+      // rasterizes SVG, bounds the stored size to ≤256px.
+      const dataUrl = await processWorkspaceLogoFile(file);
+      await savePhoto(dataUrl);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to read the image", "warning");
+    }
+  }
 
   const loadInvites = useCallback(async () => {
     const { data } = await sfetch<{ invites: PendingInvite[] }>(
@@ -298,6 +342,16 @@ export default function MembersSettingsPage() {
         }
       />
 
+      {/* Hidden picker for your own profile photo (the "Add photo" /
+          "Change photo" action on your row below). */}
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept={LOGO_FILE_ACCEPT}
+        className="hidden"
+        onChange={onPhotoFilePicked}
+      />
+
       {canInvite && (
         <div>
           <div className="flex gap-2">
@@ -443,17 +497,7 @@ export default function MembersSettingsPage() {
               <CardBody>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                      style={{ background: "var(--color-accent)" }}
-                    >
-                      {member.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .toUpperCase()
-                        .slice(0, 2)}
-                    </div>
+                    <Avatar src={member.avatarUrl} name={member.name} size="md" />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="truncate text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
@@ -469,6 +513,24 @@ export default function MembersSettingsPage() {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
+                    {member.isSelf && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => photoInputRef.current?.click()}
+                          disabled={photoSaving}
+                          title="Shown next to your name in the sidebar and on this list"
+                        >
+                          {photoSaving ? "Saving..." : member.avatarUrl ? "Change photo" : "Add photo"}
+                        </Button>
+                        {member.avatarUrl && !photoSaving && (
+                          <Button variant="ghost" size="sm" onClick={() => savePhoto(null)}>
+                            Remove photo
+                          </Button>
+                        )}
+                      </>
+                    )}
                     {canManage ? (
                       <Select
                         value={member.role}

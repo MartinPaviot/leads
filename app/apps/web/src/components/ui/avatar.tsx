@@ -23,14 +23,15 @@ export function Avatar({ src, name = "?", size = "md", className = "" }: AvatarP
   if (src) {
     return (
       <>
-        {/* The brand gradient stays as the bubble background — transparent
-            logo areas show it through, so the icon keeps its identity.
+        {/* No backdrop behind a real image — an uploaded logo or photo
+            replaces the gradient bubble entirely (the gradient is the
+            no-image fallback, never a frame around an image).
             object-contain (not cover) so non-square logos aren't cropped;
-            identical rendering for the square photos OAuth providers give. */}
+            transparent areas show the surface behind, like any plain logo. */}
         <img
           src={src}
           alt={name}
-          className={`gradient-brand shrink-0 rounded-full object-contain ${className}`}
+          className={`shrink-0 rounded-full object-contain ${className}`}
           style={{ width: px, height: px }}
           onError={(e) => {
             const img = e.target as HTMLImageElement;
