@@ -191,6 +191,7 @@ export async function PUT(
   if (body.description !== undefined) updateData.description = body.description;
   if (body.score !== undefined) updateData.score = body.score;
   if (body.scoreReasons !== undefined) updateData.scoreReasons = body.scoreReasons;
+  if (body.ownerId !== undefined) updateData.ownerId = body.ownerId || null;
 
   if (Object.keys(updateData).length === 0) {
     return Response.json({ error: "No valid fields to update" }, { status: 400 });

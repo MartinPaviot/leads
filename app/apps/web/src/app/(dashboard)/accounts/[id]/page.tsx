@@ -12,6 +12,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Badge, IndustryBadge } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { DetailPageSkeleton } from "@/components/ui/skeleton";
+import { OwnerSelect } from "@/components/owner-select";
 import { useToast } from "@/components/ui/toast";
 import { displayScore } from "@/lib/util/ui-utils";
 
@@ -25,6 +26,7 @@ interface Account {
   description: string | null;
   score: number | null;
   scoreReasons: string[] | null;
+  ownerId: string | null;
   properties: Record<string, unknown> | null;
 }
 
@@ -76,6 +78,19 @@ export default function AccountDetailPage() {
     load();
   }, [accountId]);
 
+  async function reassignAccountOwner(ownerId: string | null) {
+    setAccount((prev) => (prev ? { ...prev, ownerId } : prev)); // optimistic
+    try {
+      await fetch(`/api/accounts/${accountId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ownerId }),
+      });
+    } catch {
+      /* optimistic; the select already reflects the choice */
+    }
+  }
+
   if (loading) return <DetailPageSkeleton avatar="square" />;
   if (!account) return <p className="p-6 text-sm text-red-400">Account not found</p>;
 
@@ -101,6 +116,10 @@ export default function AccountDetailPage() {
             <p className="text-sm text-[var(--color-text-secondary)]">
               {account.domain || "No domain"} {account.industry ? `· ${account.industry}` : ""}
             </p>
+          </div>
+          <div className="flex items-center gap-1.5 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+            <span>Owner</span>
+            <OwnerSelect value={account.ownerId} onChange={reassignAccountOwner} className="h-7" ariaLabel="Account owner" />
           </div>
           <Link
             href={`/accounts/${accountId}/brain`}

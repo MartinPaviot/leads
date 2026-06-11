@@ -68,6 +68,7 @@ export async function PUT(
       phone,
       companyId,
       linkedinUrl,
+      ownerId,
       additionalEmails,
       additionalCompanyIds,
     } = body;
@@ -105,6 +106,7 @@ export async function PUT(
     if (phone !== undefined) updates.phone = phone?.trim() || null;
     if (companyId !== undefined) updates.companyId = companyId || null;
     if (linkedinUrl !== undefined) updates.linkedinUrl = linkedinUrl?.trim() || null;
+    if (ownerId !== undefined) updates.ownerId = ownerId || null;
 
     const [updated] = await db
       .update(contacts)
