@@ -118,8 +118,9 @@ export async function generateSequence(
 /**
  * Evaluate the quality of a generated sequence against best practices.
  * Returns pass/fail with specific feedback for improvement.
+ * Exported for the lint test suite — the evaluator IS the spec.
  */
-async function evaluateSequenceQuality(
+export async function evaluateSequenceQuality(
   output: string,
   ctx: ProspectContext,
   methodology: Methodology,
@@ -155,6 +156,28 @@ async function evaluateSequenceQuality(
         if (pattern.test(step.body)) {
           issues.push(`Step ${step.stepNumber}: ${msg}`);
           score -= 0.15;
+        }
+      }
+
+      // §19 relevance lint (OUT-02): personal trivia is not
+      // personalization — "go Chiefs" makes recipients MORE averse
+      // than no personalization at all. Blocking (-0.4 forces a
+      // fail below the 0.7 pass bar → regeneration). Structural
+      // patterns only; the main enforcement is generative (cleaned
+      // angle map + prompt rules), this is the lexical net.
+      const irrelevantPersonal = [
+        { pattern: /\b(big |huge )?fan of (the |your )?[A-Z][\w-]+/, msg: "sports/team fandom reference" },
+        { pattern: /\b[Gg]o [A-Z][a-z]+s\b/, msg: "team chant ('go …s')" },
+        { pattern: /\bsaw (that )?you('re| are) from\b/i, msg: "hometown reference" },
+        { pattern: /\b(alma mater|fellow alum|went to the same (school|university|college))\b/i, msg: "alma mater reference" },
+      ];
+
+      for (const { pattern, msg } of irrelevantPersonal) {
+        if (pattern.test(step.body)) {
+          issues.push(
+            `Step ${step.stepNumber}: irrelevant personal reference (${msg}) — relevance comes from business signals, not trivia. Remove it entirely.`,
+          );
+          score -= 0.4;
         }
       }
 
@@ -265,6 +288,9 @@ CRITICAL RULES:
 - Body: plain text, no HTML formatting, no bullet points in the email itself
 - Each step must have a DIFFERENT angle — never repeat the same value prop
 - Reference specific facts: company name, tech stack, funding, industry — not generic placeholders
+- Personalization must be RELEVANT to the business problem: never reference sports teams, hometowns, alma maters, or personal trivia — if a fact doesn't change why this conversation is worth having, leave it out
+- Funding is never by itself a reason to reach out: only use what it IMPLIES (new stage, new priorities, budget cycle) or a congratulation that accompanies real value
+- Never present a static trait (e.g. being a YC company) as if it were news or a trigger
 - The tone is "${ctx.aiTone}" — match this throughout
 - Write in the language that matches the prospect's location (English for US/UK, French for France, etc.)
 - Study the golden examples above — match that level of specificity and conciseness`;

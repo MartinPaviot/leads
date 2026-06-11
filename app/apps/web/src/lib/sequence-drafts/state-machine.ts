@@ -35,7 +35,8 @@ export type DraftAction =
   | "reject"
   | "edit"
   | "expire"
-  | "mark_sent";
+  | "mark_sent"
+  | "recall";
 
 export interface TransitionResult {
   allowed: boolean;
@@ -111,6 +112,21 @@ export function canTransition(
         allowed: false,
         nextStatus: from,
         reason: `Only 'approved' drafts can be marked sent (was '${from}')`,
+      };
+
+    case "recall":
+      // System-side recall: a cited source died between approval and
+      // send (the dispatch bridge re-verifies personalization URLs at
+      // T-0). The draft returns to the founder's review queue with a
+      // reason instead of sending a dead citation. Idempotent on any
+      // other state, like `expire` — the bridge may race a resend.
+      if (from === "approved") {
+        return { allowed: true, nextStatus: "pending_approval" };
+      }
+      return {
+        allowed: false,
+        nextStatus: from,
+        reason: `Only 'approved' drafts can be recalled (was '${from}')`,
       };
   }
 }

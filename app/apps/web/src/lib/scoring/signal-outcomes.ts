@@ -27,7 +27,7 @@
 import { db } from "@/db";
 import { signalOutcomes, deals, companies } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
-import { SIGNAL_DETECTORS, listKnownSignalTypes as listShared } from "./signal-detectors";
+import { detectActiveSignals, listKnownSignalTypes as listShared } from "./signal-detectors";
 
 /** Minimum number of (won+lost) observations before we trust a multiplier. */
 const MIN_SAMPLE_SIZE = 10;
@@ -61,7 +61,7 @@ export async function recordDealOutcome(params: {
   const { tenantId, dealId, outcome } = params;
 
   const [deal] = await db
-    .select({ id: deals.id, companyId: deals.companyId })
+    .select({ id: deals.id, companyId: deals.companyId, createdAt: deals.createdAt })
     .from(deals)
     .where(and(eq(deals.id, dealId), eq(deals.tenantId, tenantId)))
     .limit(1);
@@ -76,11 +76,15 @@ export async function recordDealOutcome(params: {
 
   const props = (company.properties ?? {}) as Record<string, unknown>;
 
-  const detected: Array<{ signalType: string; firedAt: Date }> = [];
-  for (const [signalType, detector] of Object.entries(SIGNAL_DETECTORS)) {
-    const firedAt = detector(props);
-    if (firedAt) detected.push({ signalType, firedAt });
-  }
+  // Freshness is judged at the DEAL'S CREATION, not at close: a
+  // hiring signal (TTL 30d) that opened a 90-day cycle keeps its
+  // credit; a fossil that expired long before the deal started earns
+  // none. Signals that fired DURING the cycle pass trivially.
+  const attributionAsOf = deal.createdAt ?? new Date();
+  const detected = detectActiveSignals(props, attributionAsOf).map((s) => ({
+    signalType: s.type as string,
+    firedAt: s.firedAt,
+  }));
 
   if (detected.length === 0) return { recorded: 0, signalTypes: [] };
 
