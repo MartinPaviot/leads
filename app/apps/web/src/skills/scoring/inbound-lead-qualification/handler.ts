@@ -1,7 +1,11 @@
 import { db } from "@/db";
 import { contacts, companies } from "@/db/schema";
-import { eq, and, ne } from "drizzle-orm";
-import { scoreContact } from "@/lib/scoring/contact-scoring";
+import { eq, and, ne, isNull } from "drizzle-orm";
+import { loadActiveIcps } from "@/lib/icp/fit-recompute-core";
+import {
+  hasContactScorableCriteria,
+  scoreContactIcpBatch,
+} from "@/lib/scoring/contact-icp-fit";
 import { getGrade } from "@/lib/scoring/scoring";
 import { getSkillKnowledge } from "@/skills/skill-knowledge";
 import type { SkillRunOptions } from "@/skills/types";
@@ -33,18 +37,34 @@ function recommendAction(priority: "hot" | "warm" | "nurture" | "disqualified", 
   }
 }
 
+/**
+ * Same contract as lead-qualification: the score quoted to chat is the
+ * STORED ICP-fit score, refreshed through the shared lib — never a
+ * private legacy recomputation (_specs/title-persona-fit R8). The
+ * source-based priority boost stays a presentation-layer adjustment on
+ * top of the stored fit.
+ */
 export async function inboundLeadQualificationHandler(
   input: InboundLeadQualificationInput,
   options: SkillRunOptions,
 ): Promise<InboundLeadQualificationOutput> {
-  // Fetch the contact + retrieve knowledge in parallel
-  const [[contact], knowledgeBlock] = await Promise.all([
-    db
-      .select()
-      .from(contacts)
-      .where(and(eq(contacts.id, input.contactId), eq(contacts.tenantId, options.tenantId))),
+  const [activeIcps, knowledgeBlock] = await Promise.all([
+    loadActiveIcps(options.tenantId),
     getSkillKnowledge("inbound lead qualification ideal customer profile priority routing", options.tenantId),
   ]);
+
+  if (hasContactScorableCriteria(activeIcps)) {
+    await scoreContactIcpBatch(options.tenantId, [input.contactId], activeIcps);
+  }
+
+  const [contact] = await db
+    .select()
+    .from(contacts)
+    .where(and(
+      eq(contacts.id, input.contactId),
+      eq(contacts.tenantId, options.tenantId),
+      isNull(contacts.deletedAt),
+    ));
 
   if (!contact) throw new Error(`Contact ${input.contactId} not found`);
 
@@ -60,6 +80,7 @@ export async function inboundLeadQualificationHandler(
         eq(contacts.email, contact.email),
         eq(contacts.tenantId, options.tenantId),
         ne(contacts.id, input.contactId),
+        isNull(contacts.deletedAt),
       ))
       .limit(1);
 
@@ -69,12 +90,12 @@ export async function inboundLeadQualificationHandler(
     }
   }
 
-  // Score the contact
-  const result = await scoreContact(contact.id, options.tenantId, input.icpSettings);
-  const { grade } = getGrade(result.score);
+  const score = Math.round(contact.score ?? 0);
+  const { grade } = getGrade(score);
+  const reasons = Array.isArray(contact.scoreReasons) ? (contact.scoreReasons as string[]) : [];
 
   // Determine priority based on score + source
-  const priority = determinePriority(result.score, input.source);
+  const priority = determinePriority(score, input.source);
   const qualified = priority === "hot" || priority === "warm";
   const recommendedAction = recommendAction(priority, input.source);
 
@@ -84,7 +105,11 @@ export async function inboundLeadQualificationHandler(
     const [company] = await db
       .select({ name: companies.name })
       .from(companies)
-      .where(eq(companies.id, contact.companyId));
+      .where(and(
+        eq(companies.id, contact.companyId),
+        eq(companies.tenantId, options.tenantId),
+        isNull(companies.deletedAt),
+      ));
     companyName = company?.name ?? null;
   }
 
@@ -97,11 +122,11 @@ export async function inboundLeadQualificationHandler(
     contactName,
     companyName,
     source: input.source,
-    score: result.score,
+    score,
     grade,
     qualified,
     priority,
-    reasons: result.reasons,
+    reasons,
     recommendedAction,
     isDuplicate,
     existingContactId,

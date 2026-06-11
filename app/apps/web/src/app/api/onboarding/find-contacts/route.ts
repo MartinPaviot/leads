@@ -90,15 +90,12 @@ export async function POST(req: Request) {
     }
   }
 
-  // Qualify all created contacts
+  // Qualify all created contacts — scoring is the stored ICP-profile
+  // fit now; the skill no longer takes ad-hoc roles/industries.
   let qualifiedCount = 0;
   if (createdContactIds.length > 0) {
     const qualResult = await runSkill(leadQualificationSkill, {
       contactIds: createdContactIds,
-      icpSettings: {
-        targetRoles: targetRoles || undefined,
-        targetIndustries: settings.targetIndustries,
-      },
       minScoreThreshold: 40,
     }, { tenantId: authCtx.tenantId, dryRun: false });
 
