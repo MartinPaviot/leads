@@ -43,6 +43,7 @@ export async function loadConversationRows(tenantId: string) {
         id: outboundEmails.id,
         threadId: outboundEmails.threadId,
         contactId: outboundEmails.contactId,
+        mailboxId: outboundEmails.mailboxId,
         subject: outboundEmails.subject,
         bodyText: outboundEmails.bodyText,
         sentAt: outboundEmails.sentAt,

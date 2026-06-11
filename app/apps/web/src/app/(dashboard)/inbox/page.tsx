@@ -11,9 +11,11 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Inbox } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Inbox, Mail } from "lucide-react";
 import { PageHeader, FilterBar } from "@/components/ui/page-header";
 import { TableSkeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import { ConversationList } from "./_conversation-list";
 import { ConversationPane } from "./_conversation-pane";
@@ -34,7 +36,12 @@ const TABS: Tab[] = ["attention", "snoozed", "done", "handled", "outbound"];
 
 export default function InboxPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>("attention");
+  // The inbox is personal; false once a lane load confirms the user has no
+  // connected mailbox of their own. Defaults true to avoid flashing the
+  // connect card before the first response.
+  const [mailboxConnected, setMailboxConnected] = useState(true);
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
   const [counts, setCounts] = useState<LaneCounts>({ attention: 0, snoozed: 0, done: 0, handled: 0, outbound: 0 });
   const [loading, setLoading] = useState(true);
@@ -74,7 +81,9 @@ export default function InboxPage() {
           conversations: ConversationListItem[];
           counts: LaneCounts;
           pagination: { total: number };
+          mailboxConnected?: boolean;
         };
+        setMailboxConnected(data.mailboxConnected !== false);
         setCounts(data.counts);
         setTotal(data.pagination.total);
         setConversations((prev) => (append ? [...prev, ...data.conversations] : data.conversations));
@@ -235,7 +244,18 @@ export default function InboxPage() {
         </div>
       </FilterBar>
 
-      {tab === "outbound" ? (
+      {!mailboxConnected ? (
+        <div className="flex flex-1 items-center justify-center">
+          <EmptyState
+            icon={<Mail size={20} />}
+            title="Connect your mailbox"
+            description="Your inbox is personal — connect your own mailbox to read and reply to your conversations here. Other members can't see it, and you can't see theirs."
+            actionLabel="Connect mailbox"
+            onAction={() => router.push("/settings/mail-calendar")}
+            actionVariant="gradient"
+          />
+        </div>
+      ) : tab === "outbound" ? (
         <div className="flex-1 overflow-hidden">
           <OutboundTable />
         </div>

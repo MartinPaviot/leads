@@ -1,7 +1,8 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { outboundEmails, contacts, activities } from "@/db/schema";
-import { eq, and, isNotNull, desc, sql, isNull, inArray } from "drizzle-orm";
+import { eq, and, isNotNull, desc, sql, isNull, inArray, or } from "drizzle-orm";
+import { getInboxScope } from "@/lib/inbox/user-scope";
 
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();
@@ -14,6 +15,31 @@ export async function GET(req: Request) {
     const pageSize = 30;
     const offset = (page - 1) * pageSize;
 
+    // Personal inbox: a member only sees mail from their OWN connected mailbox,
+    // never the workspace owner's. No mailbox connected → nothing to show.
+    const scope = await getInboxScope(authCtx.tenantId, authCtx.userId);
+    if (!scope.hasMailbox) {
+      return Response.json({
+        emails: [],
+        counts: { total: 0, replied: 0, awaiting: 0, bounced: 0, inbound: 0 },
+        pagination: { page, pageSize, total: 0 },
+        mailboxConnected: false,
+      });
+    }
+    const mineOutbound = inArray(outboundEmails.mailboxId, [...scope.mailboxIds]);
+    // Inbound is attributed by recipient: the captured `metadata.to` contains
+    // one of the user's mailbox addresses. (% and _ escaped so an address can't
+    // act as a wildcard.)
+    const mineInbound =
+      scope.addresses.size > 0
+        ? or(
+            ...[...scope.addresses].map((a) => {
+              const esc = a.replace(/([\\%_])/g, "\\$1");
+              return sql`lower(${activities.metadata}->>'to') like ${"%" + esc + "%"} escape '\\'`;
+            }),
+          )!
+        : sql`false`;
+
     // Inbound count (email_received activities) — the other half of the
     // conversation. Always computed so the chip shows on every view.
     const [inboundCountRow] = await db
@@ -24,6 +50,7 @@ export async function GET(req: Request) {
           eq(activities.tenantId, authCtx.tenantId),
           eq(activities.activityType, "email_received"),
           isNull(activities.deletedAt),
+          mineInbound,
         ),
       );
     const inboundCount = Number(inboundCountRow?.count || 0);
@@ -37,7 +64,7 @@ export async function GET(req: Request) {
         bounced: sql<number>`count(*) filter (where ${outboundEmails.status} = 'bounced')`,
       })
       .from(outboundEmails)
-      .where(and(eq(outboundEmails.tenantId, authCtx.tenantId), isNotNull(outboundEmails.sentAt)));
+      .where(and(eq(outboundEmails.tenantId, authCtx.tenantId), isNotNull(outboundEmails.sentAt), mineOutbound));
 
     const countsPayload = {
       total: Number(counts?.total || 0),
@@ -66,6 +93,7 @@ export async function GET(req: Request) {
             eq(activities.tenantId, authCtx.tenantId),
             eq(activities.activityType, "email_received"),
             isNull(activities.deletedAt),
+            mineInbound,
           ),
         )
         .orderBy(desc(activities.occurredAt))
@@ -110,6 +138,7 @@ export async function GET(req: Request) {
         emails: inboundEmails,
         counts: countsPayload,
         pagination: { page, pageSize, total: inboundCount },
+        mailboxConnected: true,
       });
     }
 
@@ -117,6 +146,7 @@ export async function GET(req: Request) {
     let whereClause = and(
       eq(outboundEmails.tenantId, authCtx.tenantId),
       isNotNull(outboundEmails.sentAt),
+      mineOutbound,
     );
 
     if (filter === "replied") {
@@ -192,6 +222,7 @@ export async function GET(req: Request) {
         pageSize,
         total: Number(countResult[0]?.count || 0),
       },
+      mailboxConnected: true,
     });
   } catch (error) {
     console.error("Failed to fetch inbox:", error);
