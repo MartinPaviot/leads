@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { pendingInvites, tenants } from "@/db/schema";
+import { pendingInvites, tenants, authUsers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { hashInviteToken } from "@/lib/auth/invite-token";
 
@@ -47,6 +47,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
     .where(eq(tenants.id, invite.tenantId))
     .limit(1);
 
+  // Does the invited email already have an account? Lets the accept page
+  // offer the right primary action (sign in vs create account) instead of
+  // both. Safe to reveal here: the caller already holds the invite token
+  // for this exact address (the inviter chose it), so this isn't account
+  // enumeration — it's the same trust boundary as the rest of this endpoint.
+  const [account] = await db
+    .select({ id: authUsers.id })
+    .from(authUsers)
+    .where(eq(authUsers.email, invite.email.toLowerCase()))
+    .limit(1);
+
   return Response.json({
     valid: true,
     invite: {
@@ -54,6 +65,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
       role: invite.role,
       workspace: tenant?.name || "the workspace",
       expiresAt: invite.expiresAt.toISOString(),
+      hasAccount: !!account,
     },
   });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { SettingsHeader } from "@/components/ui/settings-header";
 import { Input, Select } from "@/components/ui/input";
@@ -91,26 +91,49 @@ export default function MembersSettingsPage() {
   // button so the admin can share it directly — a reliable path that doesn't
   // depend on the invitation email landing in the recipient's inbox.
   const [lastInvite, setLastInvite] = useState<{ email: string; url: string } | null>(null);
+  // When a link appears, select it so a single Ctrl/Cmd+C copies it even if the
+  // programmatic clipboard write was blocked (e.g. activation lapsed mid-fetch).
+  const linkInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (lastInvite && linkInputRef.current) {
+      linkInputRef.current.focus();
+      linkInputRef.current.select();
+    }
+  }, [lastInvite]);
 
   async function copyToClipboard(text: string): Promise<boolean> {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      // Fallback for non-secure contexts / older browsers.
+    // The async Clipboard API is the reliable path in a secure context: it
+    // resolves only on a real write. (It can still reject if the click's
+    // transient activation lapsed during the preceding fetch — then we fall
+    // back, and the link also stays visible in the panel for manual copy.)
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       try {
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        ta.style.position = "fixed";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.select();
-        const ok = document.execCommand("copy");
-        document.body.removeChild(ta);
-        return ok;
+        await navigator.clipboard.writeText(text);
+        return true;
       } catch {
-        return false;
+        /* fall through */
       }
+    }
+    // Legacy fallback. Use an OFF-SCREEN (not opacity:0) textarea: some
+    // browsers return true from execCommand without actually copying when the
+    // source element is opacity:0 — which is exactly how a stale clipboard got
+    // pasted after a "copied" toast.
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      ta.style.top = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
     }
   }
 
@@ -178,8 +201,13 @@ export default function MembersSettingsPage() {
     if (!err && data?.acceptUrl) {
       const ok = await copyToClipboard(data.acceptUrl);
       const inv = invites.find((i) => i.id === id);
+      // Show + auto-select the link (the effect selects it) so a manual
+      // Ctrl/Cmd+C works whenever the programmatic copy was blocked.
       if (inv) setLastInvite({ email: inv.email, url: data.acceptUrl });
-      toast(ok ? "Invite link copied to clipboard" : "Link ready — copy it below", ok ? "success" : "warning");
+      toast(
+        ok ? "Invite link copied to clipboard" : "Press Ctrl/Cmd+C to copy the selected link below",
+        ok ? "success" : "warning",
+      );
     }
   }
 
@@ -303,6 +331,7 @@ export default function MembersSettingsPage() {
               </p>
               <div className="mt-1.5 flex items-center gap-2">
                 <input
+                  ref={linkInputRef}
                   readOnly
                   value={lastInvite.url}
                   onFocus={(e) => e.currentTarget.select()}
@@ -314,7 +343,11 @@ export default function MembersSettingsPage() {
                   size="sm"
                   onClick={async () => {
                     const ok = await copyToClipboard(lastInvite.url);
-                    toast(ok ? "Invite link copied" : "Select the link and copy it", ok ? "success" : "warning");
+                    if (!ok && linkInputRef.current) {
+                      linkInputRef.current.focus();
+                      linkInputRef.current.select();
+                    }
+                    toast(ok ? "Invite link copied" : "Press Ctrl/Cmd+C to copy the selected link", ok ? "success" : "warning");
                   }}
                 >
                   Copy link
