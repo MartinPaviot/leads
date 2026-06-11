@@ -1,15 +1,17 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { ElevayMark } from "@/components/ui/elevay-mark";
 
 export function StreamingSkeleton() {
   return (
     <div className="mb-6">
+      {/* Brand mark instead of a generic spinner — the pulsing lines below
+          already carry the "working" signal (opacity-only, GPU-safe). */}
       <div
         className="mb-2 flex items-center gap-1.5 text-[12px]"
         style={{ color: "var(--color-text-tertiary)" }}
       >
-        <Loader2 size={13} className="animate-spin" style={{ color: "var(--color-accent)" }} />
+        <ElevayMark size={13} className="animate-pulse" />
         <span style={{ fontWeight: 500 }}>Elevay</span>
       </div>
       <div className="space-y-2.5">

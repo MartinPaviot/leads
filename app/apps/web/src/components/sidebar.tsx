@@ -57,8 +57,9 @@ interface SidebarProps {
   userInitials: string;
   userAvatarUrl?: string | null;
   tenantName?: string | null;
-  /** Versioned URL of the workspace logo (Settings → General). Replaces the
-   * workspace-initials bubble; a personal avatar photo still wins. */
+  /** Versioned URL of the workspace logo (Settings → General). Renders in
+   * the workspace slot at the TOP of the sidebar, next to the workspace
+   * name; gradient initials when absent. */
   tenantLogoUrl?: string | null;
   recentChats: Array<{ id: string; title: string | null }>;
   onSignOut: () => void;
@@ -116,8 +117,6 @@ function UserMenu({
   userName,
   userEmail,
   avatarUrl,
-  tenantName,
-  tenantLogoUrl,
   collapsed,
   theme,
   onToggleTheme,
@@ -128,8 +127,6 @@ function UserMenu({
   userName: string;
   userEmail?: string;
   avatarUrl?: string | null;
-  tenantName?: string | null;
-  tenantLogoUrl?: string | null;
   collapsed: boolean;
   theme: string;
   onToggleTheme: () => void;
@@ -148,11 +145,10 @@ function UserMenu({
     timeoutRef.current = setTimeout(() => setOpen(false), 200);
   }, []);
 
-  // Company initials for avatar fallback
-  const avatarName = tenantName || userName;
-  // The uploaded workspace logo takes the spot the initials bubble had;
-  // a personal avatar photo (when set) keeps precedence, as before.
-  const avatarSrc = avatarUrl || tenantLogoUrl || null;
+  // This bubble is the PERSON: their photo, else their initials. The
+  // workspace identity (logo + name) lives at the top of the sidebar.
+  const avatarName = userName;
+  const avatarSrc = avatarUrl || null;
 
   return (
     <div
@@ -312,7 +308,7 @@ export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tena
         borderRight: "1px solid var(--color-border-default)",
       }}
     >
-      {/* Logo + User header — matches page header height */}
+      {/* Workspace header — matches page header height */}
       <div
         className="flex shrink-0 items-center gap-2.5 px-3"
         style={{
@@ -322,13 +318,29 @@ export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tena
       >
         {!collapsed ? (
           <>
-            {/* Logo + text */}
-            <div className="flex items-center gap-2">
-              <img src="/logo-Elevay.svg" alt="Elevay" className="h-6 w-6" />
-              <span className="gradient-text text-[16px] font-bold tracking-tight">
-                Elevay
-              </span>
-            </div>
+            {/* Workspace identity — logo (or gradient initials) + name, the
+                slot Slack/Notion give the workspace. The Elevay brand keeps
+                sign-in, marketing, emails and the chat surfaces; it only
+                renders here as a graceful fallback when the tenant is
+                unknown (DB hiccup). */}
+            {tenantName ? (
+              <div className="flex min-w-0 items-center gap-2">
+                <Avatar src={tenantLogoUrl} name={tenantName} size="sm" />
+                <span
+                  className="truncate text-[14px] font-semibold tracking-tight"
+                  style={{ color: "var(--color-text-primary)" }}
+                >
+                  {tenantName}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <img src="/logo-Elevay.svg" alt="Elevay" className="h-6 w-6" />
+                <span className="gradient-text text-[16px] font-bold tracking-tight">
+                  Elevay
+                </span>
+              </div>
+            )}
             <div className="flex-1" />
             <button
               onClick={() => window.dispatchEvent(new CustomEvent("elevay:command-palette"))}
@@ -551,8 +563,6 @@ export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tena
         userName={userName}
         userEmail={userEmail}
         avatarUrl={userAvatarUrl}
-        tenantName={tenantName}
-        tenantLogoUrl={tenantLogoUrl}
         collapsed={collapsed}
         theme={theme}
         onToggleTheme={toggleTheme}

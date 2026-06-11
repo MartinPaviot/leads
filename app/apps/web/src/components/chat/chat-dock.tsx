@@ -9,6 +9,7 @@ import {
   Building2, User, TrendingUp, Calendar, List, Globe,
 } from "lucide-react";
 import { ChatMarkdown } from "@/components/chat-markdown";
+import { ElevayMark } from "@/components/ui/elevay-mark";
 import { ToolCallGroup, parseUiToolParts } from "@/components/tool-call-panel";
 import { useChatActionCards, MessageActionCards } from "@/components/chat/chat-action-cards";
 import { FollowUpPills, extractFollowUps } from "@/components/chat/follow-up-pills";
@@ -200,12 +201,12 @@ export function ChatDock() {
         className="fixed bottom-5 right-5 flex h-11 w-11 items-center justify-center rounded-full transition-transform hover:scale-105 active:scale-95"
         style={{
           zIndex: 45,
-          background: "var(--color-accent)",
-          color: "#fff",
+          background: "var(--color-bg-card)",
+          border: "1px solid var(--color-border-default)",
           boxShadow: "var(--shadow-panel, 0 8px 24px rgba(0,0,0,0.18))",
         }}
       >
-        <Compass size={20} />
+        <ElevayMark size={22} />
       </button>
     );
   }
@@ -232,7 +233,7 @@ export function ChatDock() {
           className="flex shrink-0 items-center gap-2 px-3 py-2.5"
           style={{ borderBottom: "1px solid var(--color-border-default)" }}
         >
-          <Compass size={15} style={{ color: "var(--color-accent)" }} />
+          <ElevayMark size={15} />
           <span className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
             Elevay
           </span>
@@ -288,10 +289,9 @@ export function ChatDock() {
                 style={{
                   background: "var(--color-bg-surface)",
                   border: "1px solid var(--color-border-default)",
-                  color: "var(--color-accent)",
                 }}
               >
-                <Compass size={20} />
+                <ElevayMark size={20} />
               </div>
               <p className="mt-3 text-[14px] font-medium" style={{ color: "var(--color-text-primary)" }}>
                 Ask about {surface.scopeNoun}
@@ -343,7 +343,7 @@ export function ChatDock() {
                 return (
                   <div key={message.id} className="group/msg mb-4 min-w-0">
                     <div className="mb-1.5 flex items-center gap-1.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-                      <Compass size={11} style={{ color: "var(--color-accent)" }} />
+                      <ElevayMark size={11} />
                       <span style={{ fontWeight: 500 }}>Elevay</span>
                     </div>
 

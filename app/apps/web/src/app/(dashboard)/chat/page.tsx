@@ -17,6 +17,7 @@ import { useUiDirectives, runUiDirective } from "@/components/chat/use-ui-direct
 import type { UiDirective } from "@/lib/chat/ui-directives";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { ElevayMark } from "@/components/ui/elevay-mark";
 import { Compass, Send, Mail, Check, Paperclip, Mic, MicOff, Loader2, Search, Target, AlertTriangle, ListChecks, Lightbulb, Sparkles, ArrowUpRight } from "lucide-react";
 import { trackEvent } from "@/components/posthog-provider";
 
@@ -479,10 +480,9 @@ export default function ChatPage() {
                 background: "var(--color-bg-card)",
                 border: "1px solid var(--color-border-default)",
                 boxShadow: "var(--shadow-card)",
-                color: "var(--color-accent)",
               }}
             >
-              <Compass size={26} />
+              <ElevayMark size={26} />
             </div>
             <h1
               className="mt-6 text-[30px] font-semibold"
@@ -571,7 +571,7 @@ export default function ChatPage() {
                     className="mb-2 flex items-center gap-1.5 text-[12px]"
                     style={{ color: "var(--color-text-tertiary)" }}
                   >
-                    <Compass size={13} style={{ color: "var(--color-accent)" }} />
+                    <ElevayMark size={13} />
                     <span style={{ fontWeight: 500 }}>Elevay</span>
                   </div>
 
