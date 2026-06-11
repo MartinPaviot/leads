@@ -42,6 +42,7 @@ import { EnrichMenu } from "@/components/ui/enrich-menu";
 import { useEnrichStream, type EnrichCellState } from "@/hooks/use-enrich-stream";
 import { ColumnPicker, type PickerCategory } from "@/components/ui/column-picker";
 import { COLUMN_CATEGORIES, DEFAULT_VISIBLE_CATEGORY_KEYS, getColumnCategory } from "@/lib/accounts/column-categories";
+import { TAM_PROPOSALS_ENTRY_ENABLED } from "@/lib/tam/entry-visibility";
 
 /** Firmographic-extra category columns (founded year, tech, funding,
  * keywords) — addable via the Categories picker, filled by the same
@@ -546,6 +547,7 @@ export default function AccountsPage() {
 
   // Pending TAM-proposal count for the header entry point.
   useEffect(() => {
+    if (!TAM_PROPOSALS_ENTRY_ENABLED) return;
     (async () => {
       try {
         const res = await fetch("/api/tam/proposals?status=pending&limit=1");
@@ -1346,7 +1348,7 @@ export default function AccountsPage() {
         {/* Per-account actions (Enrich, Score, Detect signals) live in the
             selection bar — they only make sense once accounts are checked.
             The toolbar keeps only workspace-level actions. */}
-        {proposalCount > 0 && (
+        {TAM_PROPOSALS_ENTRY_ENABLED && proposalCount > 0 && (
           <Button
             variant="outline"
             size="sm"
