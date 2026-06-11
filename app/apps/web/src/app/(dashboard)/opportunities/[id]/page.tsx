@@ -42,6 +42,8 @@ interface Activity {
   direction: string | null;
   summary: string | null;
   occurredAt: string;
+  /** Member who performed the action (user activities only); null otherwise. */
+  actorName?: string | null;
 }
 
 interface HealthData {
@@ -703,6 +705,11 @@ export default function DealDetailPage() {
                       <span className="text-xs font-medium text-[var(--color-text-secondary)] uppercase">
                         {activity.activityType.replace(/_/g, " ")}
                       </span>
+                      {activity.actorName && (
+                        <span className="text-[10px] text-[var(--color-text-tertiary)]">
+                          · {activity.actorName}
+                        </span>
+                      )}
                       <span className="text-[10px] text-[var(--color-text-tertiary)]">
                         {new Date(activity.occurredAt).toLocaleDateString("en-US", {
                           month: "short",
