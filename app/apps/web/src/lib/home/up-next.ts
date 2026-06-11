@@ -203,16 +203,6 @@ export function aggregateOpens(rows: OpenRow[]): Actualite[] {
   }));
 }
 
-/** Recent account/contact adds. A bulk import collapses into ONE grouped line
- *  per source system (≥ threshold rows); a trickle stays individual lines,
- *  each carrying its provenance. */
-export interface AddRow {
-  id: string;
-  name: string;
-  sourceSystem: string | null;
-  at: string | null;
-}
-
 /** Provenance in PRODUCT language only — provider names (Apollo, SIRENE,
  *  Pappers, Zefix...) are Elevay's plumbing and never reach the UI. Machine
  *  sourcing reads "sourced by Elevay"; unknown values show NOTHING rather
@@ -233,57 +223,50 @@ function sourceLabel(s: string | null): string | null {
   return SOURCE_LABEL[s.toLowerCase()] ?? null;
 }
 
-/** Real per-source totals from a COUNT query (key = lowercased sourceSystem,
- *  "" for null). The grouped line shows the REAL number — never a
- *  fetch-window artifact like "25+". */
-export interface AddCount {
+/** One import burst = one EVENT. The API reconstructs batches in SQL (same
+ *  source, gap > 30 min starts a new batch) so each line is a dated fact with
+ *  a count that never changes — not a rolling-window aggregate. `sampleIds`/
+ *  `sampleNames` carry up to 2 most-recent members so a small batch can render
+ *  as individual named lines. */
+export interface AddBatch {
+  sourceSystem: string | null;
   n: number;
+  /** ISO timestamp of the batch's most recent row. */
   newest: string | null;
+  sampleIds: string[];
+  sampleNames: string[];
 }
 
-export function groupAdds(
-  rows: AddRow[],
+export function mapAddBatches(
+  batches: AddBatch[],
   kind: "account" | "contact",
   threshold = 3,
-  counts?: Map<string, AddCount>,
 ): Actualite[] {
   const listHref = kind === "account" ? "/accounts" : "/contacts";
   const single = kind === "account" ? "account added" : "contact added";
-  const bySource = new Map<string, AddRow[]>();
-  for (const r of rows) {
-    if (isTestLabel(r.name)) continue;
-    const key = (r.sourceSystem ?? "").toLowerCase();
-    const list = bySource.get(key) ?? [];
-    list.push(r);
-    bySource.set(key, list);
-  }
   const out: Actualite[] = [];
-  for (const [key, list] of bySource) {
-    const real = counts?.get(key);
-    const n = real?.n ?? list.length;
-    if (n >= threshold) {
-      const newestFromRows = list.reduce<string | null>(
-        (m, r) => (r.at && (!m || r.at > m) ? r.at : m),
-        null,
-      );
+  for (const b of batches) {
+    const label = sourceLabel(b.sourceSystem);
+    if (b.n >= threshold) {
       out.push({
-        id: `${kind}-group:${key || "unknown"}:${list[0].id}`,
+        id: `${kind}-batch:${(b.sourceSystem ?? "unknown").toLowerCase()}:${b.sampleIds[0] ?? b.newest ?? "x"}`,
         kind,
-        title: `${n} ${kind === "account" ? "accounts" : "contacts"} added`,
-        detail: sourceLabel(list[0].sourceSystem),
-        at: real?.newest ?? newestFromRows,
+        title: `${b.n} ${kind === "account" ? "accounts" : "contacts"} added`,
+        detail: label,
+        at: b.newest,
         href: listHref,
       });
     } else {
-      for (const r of list) {
-        const src = sourceLabel(r.sourceSystem);
+      for (let i = 0; i < b.sampleIds.length; i++) {
+        const name = b.sampleNames[i];
+        if (!name || isTestLabel(name)) continue;
         out.push({
-          id: `${kind === "account" ? "company" : "contact"}:${r.id}`,
+          id: `${kind === "account" ? "company" : "contact"}:${b.sampleIds[i]}`,
           kind,
-          title: r.name,
-          detail: src ? `${single} · ${src}` : single,
-          at: r.at,
-          href: `${listHref}/${r.id}`,
+          title: name,
+          detail: label ? `${single} · ${label}` : single,
+          at: b.newest,
+          href: `${listHref}/${b.sampleIds[i]}`,
         });
       }
     }
