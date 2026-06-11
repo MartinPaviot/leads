@@ -70,6 +70,8 @@
 5. Journal des ajouts/refresh — **[OK]** (proposals + events).
 6. Divergence inter-sources conservée — **[PARTIEL]** (waterfall mergé, raw conservé dans l'event, pas en DB par champ).
 
+**Métrique de succès (CRO)**: précision TAM échantillonnée ≥ 85 % ; % du TAM touché par une séquence à 90 j (un TAM construit mais pas travaillé = vanity metric).
+
 **Le comment chez nous**
 1. **Provenance par champ** (S): au point d'écriture unique de l'enrichissement (writer de `enrichOrganization` + `waterfallEnrich` dans `per-company.ts`), écrire `companies.properties.enrichmentMeta = {field: {source, fetchedAt}}` — JSONB, zéro migration. Surfaçage: tooltip sur la fiche compte (le pattern provenance existe déjà sur les cartes call-intel).
 2. **Critères non sourçables explicites** (S): `icpToStrategy()` retourne déjà la stratégie — lui faire retourner aussi `unmappedCriteria[]` ; UI `/settings/icp`: bandeau « 2 critères ne filtrent pas le sourcing, ils ne jouent qu'au scoring » + même info dans le stream `/api/tam/build`.
@@ -101,6 +103,8 @@
 4. Quota d'exploration E% — **[ABSENT]** (la daily call list trie `contacts.score DESC` strict ; `signal-to-sequence` enrôle au seuil — double renforcement du biais).
 5. Proposition de repondération par l'insight, gate humain — **[ABSENT]** (le trainer est parallèle, muet sur l'ICP).
 6. Override journalisé confronté à l'outcome — **[ABSENT]**.
+
+**Métrique de succès (CRO)**: lift de conversion top-quartile vs bottom-quartile du score (l'écart EST la preuve que le score marche) ; % d'overrides utilisateurs (trop = score faux ou mal expliqué) ; part d'exploration réellement envoyée.
 
 **Le comment chez nous**
 1. **Facteurs en surface** (S): tooltip du grade sur `/accounts` et fiche — lire `company_icp_fit.matchedCriteria` du primaire (déjà en DB, pure UI).
@@ -136,6 +140,8 @@
 5. Signal → personne concernée (auteur du post, hiring manager) — **[ABSENT]** (signaux company-level ; enrollment = top 3 seniorité).
 6. Fraîcheur tierée par score — **[OK]** (monitor 4h top-50 + daily le reste — exactement le tiering que la spec demande).
 
+**Métrique de succès (CRO)**: reply rate des messages signal-déclenchés vs cold — si l'écart relatif < +50 %, les signaux sont mal définis ; 100 % des citations vérifiables au moment de l'envoi (invariant).
+
 **Le comment chez nous**
 1. **Decay par type** (S): constantes `SIGNAL_TTL = {hiring: 30, funding: 180, tech_stack_change: 90, leadership_change: 120}` dans un helper `lib/signals/freshness.ts` (absorber le `freshness-check.ts` dormant) ; appliqué à TROIS points de lecture: `scoreSignals()` (un signal périmé ne score plus), `buildProspectContext()` (plus injecté dans les drafts), `deriveOpeningReason()` (plus prononcé en call). Données déjà datées (detectedAt/computedAt/fundingLastCheckedAt) — zéro migration.
 2. **Re-vérification à l'envoi** (S): dans `sequenceDraftToOutbound` (`inngest/sequence-draft-to-outbound.ts`), avant l'insert `outbound_emails`: si `personalizationSources[].href` existe → `signalUrlCache` re-check (le module et le cache existent) ; si invalid → draft repasse `pending_approval` avec `reviewReason = "source du signal expirée"` (le state machine versionné gère déjà ce retour sans course).
@@ -170,6 +176,8 @@
 4. Taxonomie hiérarchique famille→titre — **[OK de facto]** (seniorité Apollo stockée = la famille ; title = la feuille ; title-style la matérialise).
 5. Bascule des first touches si le persona qui convertit diverge — **[ABSENT]** (aucune analytics par persona — voir F6).
 6. La personne du signal prime sur le persona par défaut — **[ABSENT]** (cf. F3.5).
+
+**Métrique de succès (CRO)**: % du TAM actionnable (≥ 1 buyer + email vérifié) — LE chiffre de couverture amont, invisible aujourd'hui ; bounce 7 j < 2 % par boîte (invariant) ; % d'interactions avec persona classé ≥ 95 % (sinon F6 reste aveugle).
 
 **Le comment chez nous**
 1. **Auto-discovery à l'entrée** (M): dans `runPerCompanyPipeline` (`lib/tam-stream/per-company.ts`), après l'INSERT: émettre `company/find-buyers` ; nouveau job Inngest qui réutilise la logique de suggested-contacts (mêmes seniorités depuis targetRoles) + waterfall sur le top-1 ; écrire `companies.properties.actionability = {status: "ok" | "no_buyer" | "no_reachable_email", checkedAt}`. Budget: 1 reveal Apollo par compte au build — chiffrer avant d'activer par défaut (cap configurable, le pattern de caps bulk existe).
@@ -207,6 +215,8 @@
 6. Origin story capturée et utilisée comme bloc — **[ABSENT]** (methodologies/angles existent, pas l'histoire du founder).
 7. Transition de doctrine au passage en équipe — **[ABSENT]** (sans objet immédiat, à poser le jour où un 2e closer arrive).
 
+**Métrique de succès (CRO)**: reply rate des enrollments bi-canal vs mono-canal sur cohortes comparables (le « 1+1=4 » du §18 doit se voir dans NOS données) ; temps founder par message approuvé < 30 s en régime de croisière ; % de drafts édités avant approbation (proxy de qualité de génération).
+
 **Le comment chez nous**
 1. **LinkedIn via Unipile — LE chantier** (L, spec déjà écrite): exécuter `_specs/linkedin-multichannel/` telle quelle: (a) migration additive `sequence_drafts.channel` (le rapport d'explo note le manque), (b) client Unipile + compte unique MVP, (c) consumer `linkedin_message`/`linkedin_invite` dans `decideDispatch()` (`lib/sequence-drafts/dispatch-decision.ts` route déjà `channel_routed_elsewhere`), (d) statut de délivrance dans `sequence_enrollments.metadata.touches[{channel, deliveredAt}]`, (e) la file d'approbation EXISTANTE absorbe les drafts LinkedIn sans travail (même state machine). Le « 1+1=4 » de Sam est mesurable chez nous dès la v1: reply rate des enrollments bi-canal vs mono-canal, requête sur outboundEmails × linkedinMessages.
 2. **Préconditions cross-canal** (S, avec 1): dans `routeSequenceStepToDraft`, si le template du step référence un autre canal → vérifier `touches[]` ; absent → variante du template sans la référence (le générateur reçoit un flag `crossRefAllowed: false`).
@@ -242,6 +252,8 @@
 5. Insights sur les deals QUI CLOSENT, étiquetage séparé des patterns de meeting — **[ABSENT]**.
 6. Sous le seuil partout: le dire + proposer les 2 hypothèses les plus prometteuses — **[ABSENT]** (nos reports ne disent jamais « pas assez de données »).
 
+**Métrique de succès (CRO)**: taux de confirmation à J+60 des insights appliqués > 70 % (sinon seuils trop laxistes) ; chez les tenants < 30 deals, la sortie majoritaire DOIT être « pas assez de données » (l'honnêteté se mesure) ; lift de conversion réalisé post-application — la seule métrique qui justifie la feature.
+
 **Le comment chez nous** (l'ordre est la moitié de la valeur)
 1. **Fondation cohortes** (M): cron quotidien (pattern `signal-score-daily`) qui matérialise une vue `deal_cohort_cells`: dims = {seniorityFamily (callProfile.role sinon seniorité contact), région (companies), industry, signalType d'origine (signalOutcomes), canal, sourceSystem} × mesures = {n, won, lost, valueWon (split projectAmount/platformArr — bookings ≠ ARR, règle maison)}. Hiérarchie de dims (famille avant titre, région avant ville) pour maximiser le n par cellule.
 2. **Moteur de tiers PUR** (M): `lib/insights/cohort-engine.ts` sans I/O (notre style: pur + tests): input cellules, output classement {observation | hypothèse | insight} — seuils v1: n≥15 par cellule ET correction Benjamini-Hochberg q<0.1 ; check de colinéarité (géo×taille×industry) avant de promouvoir. Suite d'évals 15 cas synthétiques (effet réel / nul / confondu) dans `lib/evals/suites/` (l'infra d'éval existe) — **le moteur doit sortir ZÉRO insight sur les jeux sans effet, c'est le test d'acceptation n°1**.
@@ -261,6 +273,8 @@
 **Chez Elevay aujourd'hui — le réel**: workspaces multi-users (admin/member/viewer, PR #110/#112), `aePerformanceSnapshots` par user (la matière première rep-level existe), `meeting-capacity-check` Inngest (existant, pas d'allocation), et la **collision awareness shippée sur main** (`lib/collision/` contact-touches/recent-touch + `/api/collision/*` + warnings pre-call #184, composer #191, timelines #186/#189, brief B8 #194) — qui est la réponse founder-led au même problème: deux humains sur le même prospect.
 
 **Verdict**: notre ICP = équipes 1-3, founder-led. Le gate de la spec (« IF < 3 closers THEN suggestion seulement ») rend la feature invisible pour 100% de nos tenants actuels. **Construire le routing aujourd'hui serait du travail pour un client qu'on n'a pas** — exactement le pari upmarket de Monaco, sans leur Series B.
+
+**Métrique de succès (CRO)**: 100 % des deals avec ownerId et 100 % des activities avec userId (l'hygiène d'attribution est la seule chose à mesurer tant qu'on ne construit pas).
 
 **Le comment chez nous (minimal, préparatoire)**
 1. **Finir B10 pre-enroll** (S — cf. F5.7): la vraie coordination d'équipe à notre stade, spec déjà écrite.
@@ -291,6 +305,8 @@
 5. « Double down » sur canal à coût/opp stable — **[ABSENT]** (les données par canal existent: outboundEmails, calls, linkedinMessages à venir).
 6. Capacité de demos calculée — **[ABSENT]** (activities meeting_completed par semaine = la matière).
 7. Cohortes d'origination (meeting de mars → close de juin attribué à mars) — **[ABSENT]** (reports calendaires).
+
+**Métrique de succès (CRO)**: précision rétrospective du diagnostic (le bottleneck déclaré au mois M prédit-il le levier qui a marché à M+2 ?) ; le founder revient-il sur le bloc chaque semaine (adoption = le diagnostic est utile, pas décoratif).
 
 **Le comment chez nous**
 1. **Lib pure** (S): `lib/analytics/rev-equation.ts` — inputs {opps période, conversions, ACV split projet/ARR, objectif} → outputs {runRate, bottleneck, sensitivities, coverage, state demand/conversion/capacity-constrained}. **Deux équations, pas une**: projectAmount et platformArr séparés (bookings ≠ ARR — notre règle de revue), agrégeables en cash-in si le founder le demande.
@@ -323,6 +339,8 @@
 5. Versionnage + mesure post-application — **[ABSENT]**.
 6. Lookalike sourcing depuis les won — **[ABSENT]**.
 
+**Métrique de succès (CRO)**: précision PROSPECTIVE du profil (les comptes top-profil convertissent-ils mieux sur la cohorte SUIVANTE, pas sur celle qui l'a engendré) ; % de propositions ICP acceptées par le founder ; délai close → proposition.
+
 **Le comment chez nous**
 1. **Profil de traits au close** (S): étendre `analyzeClosedDeal`: écrire le vecteur {sizeRange, région, industry, seniorityFamily du champion (callProfile), signalType d'origine, canal, origination, acvSplit, cycleDays} dans `icps.metadata.outcomeProfile` (agrégat versionné: {asOf, n, traits}) — JSONB, zéro migration.
 2. **Cohortes d'origine** (S): dépend de F8.6 — le profil n'agrège que origination ∈ {sequence, call_campaign} pour l'apprentissage outbound ; les referrals/manuels sont affichés séparément (« tes 4 référés ne disent rien de ton outbound »).
@@ -342,6 +360,8 @@
 
 **Notre position doctrinale** (mémoires « AE stays human », « no human replacement narrative »): chez Monaco le FDAE est un moat à marges négatives assumé ; chez nous l'humain dans la boucle est le CLIENT (founder), pas un employé Elevay — l'opérateur (Martin) est un bootstrap à éliminer par le produit, pas un service à vendre. La conséquence pratique est la même que la spec interne Monaco: instrumenter le travail manuel de l'opérateur pour le productiser mécaniquement.
 
+**Métrique de succès (CRO)**: heures opérateur par tenant par mois, pente descendante release après release (l'équivalent solo du ratio workspaces/FDAE) ; top 5 des interventions répétées = top 5 du backlog produit.
+
 **Le comment chez nous (léger, immédiat)**
 1. **Vue setup-health cross-tenant** (S, dans apps/admin): une page qui liste par tenant: ICP actif ?, mailbox connectée ?, séquence active ?, signaux custom ?, dernière activité — où l'opérateur doit intervenir, en un écran. Toutes les requêtes existent éparses.
 2. **Journal d'interventions opérateur** (S): chaque action manuelle de Martin chez un tenant = `activities` avec `activityType: "operator_action"` + catégorie — la liste des candidates à productisation devient `SELECT category, COUNT(*), SUM(durée)` — le ratchet de productisation de la spec Monaco, version solo-founder.
@@ -356,6 +376,8 @@
 **Audit PM (Monaco)**: les 4 onglets sont des données que la plateforme POSSÈDE (customers, investisseurs, réseau) — le playbook dans un spreadsheet externe est une incohérence ; « we don't measure » (§10) puis il cite LA mesure qui compte (uplift à message constant) — productiser CETTE mesure, refuser l'attribution par contact.
 
 **Chez Elevay aujourd'hui — le réel**: rien. Confirmé par l'exploration (« Launch tooling: confirmed DOES NOT exist »). Données disponibles pour les listes: users du workspace (employees), deals won (customers) ; investisseurs du TENANT non structurés (les `intelligenceBriefs.investor_names` concernent les PROSPECTS) ; friends = inexistant. Les séries temporelles outbound existent (`/api/deliverability` par période, outboundEmails datés) — l'overlay d'événements manque.
+
+**Métrique de succès (CRO)**: uplift de reply rate J+30 post-launch vs J-30 à séquence constante (la mesure que Sam cite lui-même au §10) ; launches par client par an (récurrence = le playbook retient).
 
 **Le comment chez nous** (P3 — petit et différenciant pour notre ICP founders early)
 1. **Marqueurs d'événements** (S): table `event_markers` (tenantId, date, type launch/campaign/press, label) + overlay sur les charts deliverability/reply existants + calcul d'uplift avant/après à séquence constante (même sequenceId, fenêtres ±30j) — c'est la moitié de la valeur pour 1 jour de travail, et ça sert F12 aussi.
@@ -379,6 +401,8 @@
 4. Gift déclenché par levée ≤180j — **[PARTIEL]**: le signal funding existe avec date ; le stepType gift existe ; aucun consumer.
 5. Échos négatifs tagués aussi — **[ABSENT]**.
 6. Vue portfolio dépense × echoes × uplift — **[ABSENT]** (dépend F11.1).
+
+**Métrique de succès (CRO)**: echoes par campagne par dollar dépensé ; ratio « bénéficie au client » vs cible 30-50 % (§11) ; % de campagnes arrêtées après leur fenêtre d'évaluation — un portfolio sain en tue (0 % d'arrêt = personne ne regarde).
 
 **Le comment chez nous**
 1. **Le détecteur** (S — le quick win du document): ajouter `brandEcho {mentioned: bool, kind: heard_of_us | saw_campaign | referral_mention | negative, quote}` à `lib/voice/extraction-schema.ts` — le post-call worker l'écrit dans `activities.metadata.brandEcho` (fail-closed: doute = pas de tag, notre règle LLM) ; même champ dans l'extraction inbound email existante (`enrichment/signals-extracted`). Vérité terrain immédiate: les transcripts Call Mode réels.
