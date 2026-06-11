@@ -155,23 +155,91 @@ function reduceEvent(state: EnrichStreamState, event: EnrichStreamEvent): Enrich
   }
 }
 
-export function useEnrichStream() {
-  const [state, dispatch] = useReducer(enrichReducer, initialEnrichStreamState);
-  const abortRef = useRef<AbortController | null>(null);
+/** Mirrors MAX_STREAM_COMPANIES in /api/enrich/stream — the server slices
+ * anything beyond this per request, so full coverage of a bigger run is
+ * built by chaining sequential batch requests. */
+export const ENRICH_STREAM_BATCH_SIZE = 100;
 
-  const start = useCallback(async (req: EnrichStreamRequest) => {
-    abortRef.current?.abort();
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    dispatch({ type: "start", total: req.companyIds.length });
+/**
+ * Drive one enrichment run of ANY size as a chain of batch-capped stream
+ * requests, reduced into a single continuous run:
+ *
+ * - ONE `start` with the full total; per-batch `hello` events are
+ *   re-echoed with the full id list so the reducer's total never snaps
+ *   to a batch size. `processed` accumulates across batches.
+ * - Per-batch `done` summaries are absorbed and summed; ONE synthetic
+ *   `done` goes out after the last batch, so the run terminates exactly
+ *   once with the aggregate summary.
+ * - A transport failure (fetch threw / non-2xx) stops the chain and
+ *   surfaces `stream_error` — the remaining batches would hit the same
+ *   wall, and partial progress is already in the reduced state.
+ * - An abort stops before the next batch fires.
+ *
+ * Exported for unit tests; `useEnrichStream` wires it to the reducer.
+ */
+export async function runEnrichStream(opts: {
+  req: EnrichStreamRequest;
+  dispatch: (action: EnrichStreamAction) => void;
+  signal: AbortSignal;
+  fetchImpl?: typeof fetch;
+  batchSize?: number;
+}): Promise<void> {
+  const { req, dispatch, signal, fetchImpl, batchSize = ENRICH_STREAM_BATCH_SIZE } = opts;
+  const doFetch = fetchImpl ?? fetch;
+  const allIds = req.companyIds;
+  dispatch({ type: "start", total: allIds.length });
+
+  const merged: EnrichStreamSummary = {
+    total: 0,
+    enriched: 0,
+    alreadyComplete: 0,
+    noData: 0,
+    failed: 0,
+    durationMs: 0,
+  };
+  let sawSummary = false;
+  const startedAt = Date.now();
+
+  const handleLine = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    let event: EnrichStreamEvent;
+    try {
+      event = JSON.parse(trimmed) as EnrichStreamEvent;
+    } catch {
+      console.warn("[enrich-stream] malformed line dropped:", trimmed);
+      return;
+    }
+    if (event.type === "hello") {
+      dispatch({ type: "event", event: { ...event, companyIds: allIds } });
+      return;
+    }
+    if (event.type === "done") {
+      sawSummary = true;
+      merged.total += event.summary.total;
+      merged.enriched += event.summary.enriched;
+      merged.alreadyComplete += event.summary.alreadyComplete;
+      merged.noData += event.summary.noData;
+      merged.failed += event.summary.failed;
+      return;
+    }
+    dispatch({ type: "event", event });
+  };
+
+  for (let i = 0; i < allIds.length; i += batchSize) {
+    if (signal.aborted) {
+      dispatch({ type: "cancel" });
+      return;
+    }
+    const batch = allIds.slice(i, i + batchSize);
 
     let res: Response;
     try {
-      res = await fetch("/api/enrich/stream", {
+      res = await doFetch("/api/enrich/stream", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(req),
-        signal: ctrl.signal,
+        body: JSON.stringify({ ...req, companyIds: batch }),
+        signal,
       });
     } catch (err) {
       if ((err as { name?: string })?.name === "AbortError") dispatch({ type: "cancel" });
@@ -194,29 +262,46 @@ export function useEnrichStream() {
         buffer += value;
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          try {
-            dispatch({ type: "event", event: JSON.parse(trimmed) as EnrichStreamEvent });
-          } catch {
-            console.warn("[enrich-stream] malformed line dropped:", trimmed);
-          }
-        }
+        for (const line of lines) handleLine(line);
       }
-      const tail = buffer.trim();
-      if (tail) {
-        try {
-          dispatch({ type: "event", event: JSON.parse(tail) as EnrichStreamEvent });
-        } catch {
-          console.warn("[enrich-stream] trailing line dropped:", tail);
-        }
-      }
-      dispatch({ type: "stream_closed" });
+      if (buffer.trim()) handleLine(buffer);
     } catch (err) {
       if ((err as { name?: string })?.name === "AbortError") dispatch({ type: "cancel" });
       else dispatch({ type: "stream_error", message: (err as Error).message });
+      return;
     }
+  }
+
+  if (signal.aborted) {
+    dispatch({ type: "cancel" });
+    return;
+  }
+  if (sawSummary) {
+    merged.durationMs = Date.now() - startedAt;
+    dispatch({ type: "event", event: { type: "done", summary: merged } });
+  }
+  // No batch produced a summary (server crashed before its `done`): the
+  // reducer's stream_closed terminates by the collected errors instead.
+  dispatch({ type: "stream_closed" });
+}
+
+export function useEnrichStream() {
+  const [state, dispatch] = useReducer(enrichReducer, initialEnrichStreamState);
+  const abortRef = useRef<AbortController | null>(null);
+  const runIdRef = useRef(0);
+
+  const start = useCallback(async (req: EnrichStreamRequest) => {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    // Run-scoped dispatch: a superseded run's abort rejection lands on a
+    // later microtask — without the guard its `cancel` would kill the run
+    // that replaced it.
+    const runId = ++runIdRef.current;
+    const scopedDispatch = (action: EnrichStreamAction) => {
+      if (runIdRef.current === runId) dispatch(action);
+    };
+    await runEnrichStream({ req, dispatch: scopedDispatch, signal: ctrl.signal });
   }, []);
 
   const cancel = useCallback(() => {

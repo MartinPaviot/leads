@@ -256,7 +256,7 @@ export default function AccountsPage() {
   // filled / already-present / not-found per cell.
   const runEnrich = useCallback(
     (criteria: string[], ids?: string[]) => {
-      let targetIds =
+      const targetIds =
         ids && ids.length > 0
           ? ids
           : accounts.filter((a) => !(a.industry && a.description)).map((a) => a.id);
@@ -264,18 +264,9 @@ export default function AccountsPage() {
         toast("No accounts need enrichment.", "info");
         return;
       }
-      // The stream endpoint processes at most 100 companies per run (it
-      // silently slices beyond that) — slice HERE and say so, so the live
-      // progress total matches what actually runs instead of lying about a
-      // select-all-sized selection.
-      const STREAM_CAP = 100; // mirrors MAX_STREAM_COMPANIES in /api/enrich/stream
-      if (targetIds.length > STREAM_CAP) {
-        toast(
-          `Enrichment runs ${STREAM_CAP} accounts per pass — starting the first ${STREAM_CAP} of ${targetIds.length}. Run Enrich again for the rest.`,
-          "info",
-        );
-        targetIds = targetIds.slice(0, STREAM_CAP);
-      }
+      // Any size — the hook chains batches of 100 (the endpoint's
+      // per-request cap) into one continuous run, so a select-all-sized
+      // selection enriches end to end with a single click.
       enrichStream.start({ companyIds: targetIds, criteria });
     },
     [accounts, enrichStream, toast],
@@ -648,6 +639,18 @@ export default function AccountsPage() {
       }
     }
   }, [enrichStream.terminated, enrichStream.summary, refetchLoadedAccounts, toast]);
+
+  // A transport failure mid-run (endpoint unreachable, rate-limited…)
+  // stops the batch chain — say where it stopped, and pull whatever DID
+  // land, instead of ending silently.
+  useEffect(() => {
+    if (enrichStream.terminated !== "error") return;
+    refetchLoadedAccounts();
+    toast(
+      `Enrichment stopped early — ${enrichStream.processed} of ${enrichStream.total} account${enrichStream.total === 1 ? "" : "s"} processed.`,
+      "warning",
+    );
+  }, [enrichStream.terminated, enrichStream.processed, enrichStream.total, refetchLoadedAccounts, toast]);
 
   // Fetch warm-intro paths in a single batched call once accounts
   // are loaded. Keeps the "Connected to" column off the critical
