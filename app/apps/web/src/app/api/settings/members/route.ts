@@ -2,7 +2,7 @@ import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { invalidateRoleCache } from "@/lib/auth/fresh-role";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { logAudit } from "@/lib/infra/audit-log";
 import { invalidateSessionGuard } from "@/lib/auth/session-guard";
 
@@ -11,6 +11,9 @@ export async function GET() {
   if (!authCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    // Only ACTIVE members. A revoked (deactivated) user is no longer a member:
+    // they can't authenticate and they drop off this list + count entirely.
+    // Re-inviting them restores access (see the invite route).
     const members = await db
       .select({
         id: users.id,
@@ -20,10 +23,9 @@ export async function GET() {
         role: users.role,
         avatarUrl: users.avatarUrl,
         createdAt: users.createdAt,
-        deactivatedAt: users.deactivatedAt,
       })
       .from(users)
-      .where(eq(users.tenantId, authCtx.tenantId));
+      .where(and(eq(users.tenantId, authCtx.tenantId), isNull(users.deactivatedAt)));
 
     return Response.json({
       members: members.map((m) => ({
@@ -33,7 +35,6 @@ export async function GET() {
         role: m.role || "member",
         avatarUrl: m.avatarUrl,
         createdAt: m.createdAt,
-        status: m.deactivatedAt ? "deactivated" : "active",
         // Lets the client hide the "remove access" action on the acting
         // admin's own row (the DELETE route also rejects self-removal).
         isSelf: m.id === authCtx.appUserId,

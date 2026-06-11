@@ -21,7 +21,6 @@ interface Member {
   email: string;
   role: string;
   avatarUrl: string | null;
-  status: "active" | "deactivated";
   isSelf: boolean;
 }
 
@@ -59,6 +58,14 @@ export default function MembersSettingsPage() {
       { silent: true },
     );
     if (data) setInvites(data.invites || []);
+  }, [sfetch]);
+
+  const refreshMembers = useCallback(async () => {
+    const { data } = await sfetch<{ members: Member[] }>(
+      "/api/settings/members",
+      { silent: true },
+    );
+    if (data) setMembers(data.members || []);
   }, [sfetch]);
 
   useEffect(() => {
@@ -148,6 +155,8 @@ export default function MembersSettingsPage() {
       emailError?: string;
       error?: string;
       acceptUrl?: string;
+      reactivated?: boolean;
+      member?: { email: string };
     }>("/api/settings/members/invite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -156,6 +165,15 @@ export default function MembersSettingsPage() {
     });
     setInviting(false);
     if (err) return;
+    // Re-inviting a previously-removed person restores their access in place —
+    // no email, they're a member again immediately.
+    if (data?.reactivated) {
+      toast(`${data.member?.email ?? email} re-added to the workspace`, "success");
+      setInviteEmail("");
+      setInviteRole("member");
+      await refreshMembers();
+      return;
+    }
     if (data?.invite) {
       if (data.emailSent === false) {
         toast(`Invite created but email failed: ${data.emailError ?? "unknown"}`, "warning");
@@ -241,11 +259,11 @@ export default function MembersSettingsPage() {
     }
   }
 
-  // Revoke a member's workspace access — deactivates them (DELETE
-  // /api/settings/members). Their account is NOT deleted: they lose
-  // access to this workspace's data + actions and their live sessions
-  // are revoked, but the row stays so access can be restored. Routed
-  // through ConfirmDialog so the member is named before the action.
+  // Revoke a member's workspace access. The DELETE deactivates them: login is
+  // blocked and live sessions are revoked, and they DROP OFF this list — they
+  // are no longer a member. Their account itself isn't deleted; re-inviting the
+  // same email restores access. Routed through ConfirmDialog so the member is
+  // named before the action.
   const [removeMember, setRemoveMember] = useState<{ id: string; name: string } | null>(null);
   const [removing, setRemoving] = useState(false);
 
@@ -262,21 +280,9 @@ export default function MembersSettingsPage() {
     const id = removeMember.id;
     setRemoveMember(null);
     if (!err) {
-      setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, status: "deactivated" } : m)));
-      toast("Access removed", "success");
-    }
-  }
-
-  async function handleRestore(memberId: string) {
-    const { error: err } = await sfetch("/api/settings/members", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ memberId, reactivate: true }),
-      errorMessage: "Failed to restore access",
-    });
-    if (!err) {
-      setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, status: "active" } : m)));
-      toast("Access restored", "success");
+      // Removed members are no longer members — drop them from the list.
+      setMembers((prev) => prev.filter((m) => m.id !== id));
+      toast("Member removed", "success");
     }
   }
 
@@ -432,13 +438,11 @@ export default function MembersSettingsPage() {
             ))}
           </div>
         ) : (
-          members.map((member) => {
-            const deactivated = member.status === "deactivated";
-            return (
+          members.map((member) => (
             <Card key={member.id}>
               <CardBody>
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3" style={deactivated ? { opacity: 0.55 } : undefined}>
+                  <div className="flex min-w-0 items-center gap-3">
                     <div
                       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
                       style={{ background: "var(--color-accent)" }}
@@ -458,9 +462,6 @@ export default function MembersSettingsPage() {
                         {member.isSelf && (
                           <Badge variant="neutral" size="sm">You</Badge>
                         )}
-                        {deactivated && (
-                          <Badge variant="error" size="sm">No access</Badge>
-                        )}
                       </div>
                       <p className="truncate text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
                         {member.email}
@@ -468,53 +469,37 @@ export default function MembersSettingsPage() {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
-                    {deactivated ? (
-                      <>
-                        <Badge variant={roleBadgeVariant(member.role)} size="sm">
-                          {member.role}
-                        </Badge>
-                        {canManage && !member.isSelf && (
-                          <Button variant="ghost" size="sm" onClick={() => handleRestore(member.id)}>
-                            Restore access
-                          </Button>
-                        )}
-                      </>
+                    {canManage ? (
+                      <Select
+                        value={member.role}
+                        onChange={(e) => handleRoleChange(member.id, e.target.value)}
+                        options={[
+                          { value: "member", label: "Member" },
+                          { value: "viewer", label: "Viewer" },
+                          { value: "admin", label: "Admin" },
+                        ]}
+                      />
                     ) : (
-                      <>
-                        {canManage ? (
-                          <Select
-                            value={member.role}
-                            onChange={(e) => handleRoleChange(member.id, e.target.value)}
-                            options={[
-                              { value: "member", label: "Member" },
-                              { value: "viewer", label: "Viewer" },
-                              { value: "admin", label: "Admin" },
-                            ]}
-                          />
-                        ) : (
-                          <Badge variant={roleBadgeVariant(member.role)} size="sm">
-                            {member.role}
-                          </Badge>
-                        )}
-                        {canManage && !member.isSelf && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setRemoveMember({ id: member.id, name: member.name })}
-                            title="Remove this member's access to the workspace"
-                            style={{ color: "var(--color-error)" }}
-                          >
-                            Remove access
-                          </Button>
-                        )}
-                      </>
+                      <Badge variant={roleBadgeVariant(member.role)} size="sm">
+                        {member.role}
+                      </Badge>
+                    )}
+                    {canManage && !member.isSelf && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setRemoveMember({ id: member.id, name: member.name })}
+                        title="Remove this member from the workspace"
+                        style={{ color: "var(--color-error)" }}
+                      >
+                        Remove
+                      </Button>
                     )}
                   </div>
                 </div>
               </CardBody>
             </Card>
-            );
-          })
+          ))
         )}
       </div>
 
@@ -536,10 +521,10 @@ export default function MembersSettingsPage() {
 
       <ConfirmDialog
         open={removeMember !== null}
-        title={removeMember ? `Remove ${removeMember.name}'s access?` : "Remove access?"}
-        description="They'll immediately lose access to this workspace's data and actions, and their active sessions are signed out. Their account isn't deleted — you can restore access anytime."
-        confirmLabel="Remove access"
-        cancelLabel="Keep access"
+        title={removeMember ? `Remove ${removeMember.name} from the workspace?` : "Remove member?"}
+        description="They'll immediately lose access to this workspace's data and actions, their active sessions are signed out, and they'll be removed from your members list. Their account isn't deleted — re-invite the same email to add them back."
+        confirmLabel="Remove member"
+        cancelLabel="Keep member"
         variant="destructive"
         onConfirm={confirmRemove}
         onCancel={() => setRemoveMember(null)}
