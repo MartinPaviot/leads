@@ -329,7 +329,7 @@ export function buildSkillsTools(ctx: ToolContext) {
     }),
 
     qualifyLeads: makeTool({
-      description: `Batch-qualify contacts against ICP: seniority, engagement, sentiment, fit scoring. Use when user asks "qualify these leads", "score my contacts", "which leads are worth pursuing?", "rank contacts by fit".`,
+      description: `Batch-qualify contacts against the ICP profiles (stored ICP-fit score: company criteria + persona match, refreshed before reading). Use when user asks "qualify these leads", "score my contacts", "which leads are worth pursuing?", "rank contacts by fit".`,
       inputSchema: z.object({
         contactIds: z.array(z.string()).describe("Contact IDs to qualify"),
         minScoreThreshold: z

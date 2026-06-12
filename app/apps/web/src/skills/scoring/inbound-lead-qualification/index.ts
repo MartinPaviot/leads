@@ -7,8 +7,8 @@ export const inboundLeadQualificationSkill: SkillDefinition = {
   name: "Inbound Lead Qualification",
   category: "scoring",
   description:
-    "Qualify an inbound lead: score against ICP, detect duplicates, determine priority (hot/warm/nurture/disqualified), and recommend next action. Source-aware: demo requests get priority boost.",
-  costEstimate: "Free (DB queries only)",
+    "Qualify an inbound lead: stored ICP-profile fit, duplicate detection, priority (hot/warm/nurture/disqualified), and a recommended next action. Source-aware: demo requests get a priority boost.",
+  costEstimate: "DB queries; small LLM cost on first run when ICP personas are configured (title resolution, cached)",
   inputSchema: inboundLeadQualificationInputSchema,
   outputSchema: inboundLeadQualificationOutputSchema,
   handler: inboundLeadQualificationHandler,

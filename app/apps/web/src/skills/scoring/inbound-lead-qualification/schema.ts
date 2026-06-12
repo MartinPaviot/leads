@@ -3,10 +3,8 @@ import { z } from "zod";
 export const inboundLeadQualificationInputSchema = z.object({
   contactId: z.string().describe("Elevay contact ID (newly created inbound lead)"),
   source: z.enum(["form", "demo_request", "trial", "content_download", "webinar", "chatbot", "referral", "unknown"]).default("unknown"),
-  icpSettings: z.object({
-    targetRoles: z.string().optional(),
-    targetIndustries: z.array(z.string()).optional(),
-  }).optional(),
+  // Scoring is the stored ICP-profile fit (Settings → ICP) — callers can
+  // no longer supply ad-hoc targetRoles/industries.
 });
 
 export type InboundLeadQualificationInput = z.infer<typeof inboundLeadQualificationInputSchema>;

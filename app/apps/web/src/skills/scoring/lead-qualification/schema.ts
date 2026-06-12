@@ -2,10 +2,9 @@ import { z } from "zod";
 
 export const leadQualificationInputSchema = z.object({
   contactIds: z.array(z.string()).min(1).max(100).describe("Elevay contact IDs to qualify"),
-  icpSettings: z.object({
-    targetRoles: z.string().optional().describe("Comma-separated target role keywords"),
-    targetIndustries: z.array(z.string()).optional(),
-  }).optional(),
+  // Scoring is the stored ICP-profile fit (Settings → ICP) — chat can
+  // no longer supply ad-hoc targetRoles/industries that disagree with
+  // the product's own scores.
   minScoreThreshold: z.number().min(0).max(100).default(40).describe("Minimum score to be considered qualified"),
 });
 
@@ -21,12 +20,6 @@ const qualifiedLeadSchema = z.object({
   grade: z.string(),
   qualified: z.boolean(),
   reasons: z.array(z.string()),
-  breakdown: z.object({
-    seniority: z.number(),
-    engagement: z.number(),
-    sentiment: z.number(),
-    icpFit: z.number(),
-  }),
 });
 
 export const leadQualificationOutputSchema = z.object({

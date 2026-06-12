@@ -56,8 +56,11 @@ function asArray(v: unknown): unknown[] {
  * compare equal, so funding stages, seniorities, etc. match regardless
  * of which formatting convention produced them. Applied uniformly to
  * eq / in / contains so the whole engine is separator-resilient.
+ * Exported as the ONE normalization truth — the title→persona resolver
+ * keys its cache and validates LLM output with the same function the
+ * engine compares with.
  */
-function norm(v: unknown): string {
+export function norm(v: unknown): string {
   return String(v)
     .trim()
     .toLowerCase()

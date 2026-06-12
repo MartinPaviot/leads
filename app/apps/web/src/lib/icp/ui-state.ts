@@ -179,8 +179,12 @@ export function uiStateToCriteria(ui: IcpUiState): Array<Omit<Criterion, "id"> &
     const { weight, isRequired } = toWeight(importanceOf(ui, "hiring"));
     out.push({ id: nextId("hiring_job_titles"), fieldKey: "hiring_job_titles", operator: "in", value: ui.hiringTitles, weight, isRequired });
   }
-  // People dimension — sourcing/people filters; the fit engine ignores
-  // them (SOURCING_ONLY_FIELD_KEYS), so weight/required are inert.
+  // People dimension — sourcing filters AND, since the contact ICP-fit
+  // scorer (lib/scoring/contact-icp-fit), scored soft criteria for
+  // CONTACTS: seniorities match the enriched Apollo enum, titles go
+  // through the cached title→persona resolver. The COMPANY fit engine
+  // still ignores them (SOURCING_ONLY_FIELD_KEYS). Soft weight-1 here
+  // on purpose: a persona miss should dent a contact's fit, not gate it.
   if (ui.seniorities.length > 0) {
     out.push({ id: nextId("person_seniorities"), fieldKey: "person_seniorities", operator: "in", value: senioritiesToApollo(ui.seniorities), weight: 1, isRequired: false });
   }
