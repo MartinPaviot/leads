@@ -430,7 +430,7 @@ export function ChatDock() {
             }}
             placeholder={`Ask about ${surface.scopeNoun}...`}
             rows={1}
-            className="w-full resize-none rounded-xl py-2.5 pl-3.5 pr-10 text-[13.5px] outline-none transition-all"
+            className="block w-full resize-none rounded-xl py-2.5 pl-3.5 pr-10 text-[13.5px] outline-none transition-all"
             style={{
               background: "var(--color-bg-surface)",
               color: "var(--color-text-primary)",
@@ -443,6 +443,9 @@ export function ChatDock() {
             onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-border-default)"; }}
             disabled={chat.status === "streaming"}
           />
+          {/* bottom-[18px] = pb-3 (12px) + (40px one-line field − 28px button)/2 —
+              centers the button on one line; needs the `block` textarea above
+              (inline-block would add a baseline gap and push it off-center). */}
           <button
             type="submit"
             disabled={!localInput.trim() || chat.status === "streaming"}
