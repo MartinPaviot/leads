@@ -1,7 +1,7 @@
 import type { DocStep } from "../types";
 
 /**
- * Phase: Run outbound (steps 7-11). The cadence that combines channels,
+ * Phase: Run outbound (steps 8-12). The cadence that combines channels,
  * one playbook per channel, and the brand layer that multiplies all of
  * them. Sources: outbound framework research (multi-million-send and
  * multi-million-dial datasets), founder cold-call playbook research, and
@@ -11,7 +11,7 @@ import type { DocStep } from "../types";
 export const runSteps: DocStep[] = [
   {
     slug: "design-the-cadence",
-    step: 7,
+    step: 8,
     phase: "Run outbound",
     title: "Design the cadence",
     description:
@@ -20,7 +20,7 @@ export const runSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "Channel strategy at the early stage is two decisions: which channel you lead with, and when you add the second. Lead with the channel where **you are credible and your buyer actually answers**. Then add the second sooner than feels comfortable: properly sequenced, channels do not add, they compound. Email plus social in the same sequence is not one plus one equals two; it is closer to four, because the touches reference each other (\"following up from my note on LinkedIn\") and the prospect assembles them into one persistent, real person. Phone is the third channel; gifting (Step 11) can be a fourth. One non-negotiable: real domains, your real name. Spraying the universe from lookalike domains is how reply rates reach zero.",
+          "Channel strategy at the early stage is two decisions: which channel you lead with, and when you add the second. Lead with the channel where **you are credible and your buyer actually answers**. Then add the second sooner than feels comfortable: properly sequenced, channels do not add, they compound. Email plus social in the same sequence is not one plus one equals two; it is closer to four, because the touches reference each other (\"following up from my note on LinkedIn\") and the prospect assembles them into one persistent, real person. Phone is the third channel; gifting (Step 12) can be a fourth. One non-negotiable: real domains, your real name. Spraying the universe from lookalike domains is how reply rates reach zero.",
       },
       { type: "h2", text: "What each channel returns" },
       {
@@ -99,7 +99,7 @@ export const runSteps: DocStep[] = [
   },
   {
     slug: "cold-email",
-    step: 8,
+    step: 9,
     phase: "Run outbound",
     title: "Cold email",
     description:
@@ -189,7 +189,7 @@ export const runSteps: DocStep[] = [
   },
   {
     slug: "cold-calling",
-    step: 9,
+    step: 10,
     phase: "Run outbound",
     title: "Cold calling",
     description:
@@ -296,7 +296,7 @@ export const runSteps: DocStep[] = [
           "**Disposition immediately.** \"Call me tomorrow\" becomes a scheduled task, not a memory.",
           "**No-answer cadence:** about 8 attempts spread over 2 weeks.",
           "**Document every new question word for word**, with the answer that worked. This FAQ is the asset that makes the hot exit possible and will one day train your first hires.",
-          "**Harvest the phrasing.** The words that made prospects react become your website and email copy (Step 2).",
+          "**Harvest the phrasing.** The words that made prospects react become your website and email copy (Step 3).",
           "**Weekly: relisten to your 3 best and 3 worst calls** and fix one lever at a time. One corrected lever can multiply booked meetings.",
         ],
       },
@@ -320,7 +320,7 @@ export const runSteps: DocStep[] = [
   },
   {
     slug: "linkedin-and-content",
-    step: 10,
+    step: 11,
     phase: "Run outbound",
     title: "LinkedIn and content",
     description:
@@ -370,6 +370,7 @@ export const runSteps: DocStep[] = [
         items: [
           "**2 to 5 posts a week, 30 minutes a day, cap it there.** Consistency beats brilliance.",
           "**Each post is one insight from your real prospect conversations**: the pattern you keep hearing, the mistake you keep seeing, the number that surprised you. Never generic thought leadership.",
+          "**Talk about the problem and the process, never your product.** The product shows up in the DMs that follow, not in the posts. The moment your feed reads like a brochure, the compounding stops.",
           "**Give until they ask.** Share the method openly; sell the implementation.",
           "**Engage before you connect.** A thoughtful comment on a tier A prospect's post days before your first touch changes how every later touch lands.",
         ],
@@ -395,7 +396,7 @@ export const runSteps: DocStep[] = [
   },
   {
     slug: "brand-gifts-launches",
-    step: 11,
+    step: 12,
     phase: "Run outbound",
     title: "Brand, gifts and launches",
     description:
@@ -432,7 +433,7 @@ export const runSteps: DocStep[] = [
         items: [
           "**It is NOT the thought that counts.** A logo t-shirt or a cheap trinket is negative value. The bar: would you, honestly, think this is cool?",
           "**Visible or social wins.** The best gifts either sit where the recipient sees them every day (a desk object, a framed piece) or get shared with the team (a great bottle on a fundraise: \"enjoy it with the team\"). Both keep working long after delivery.",
-          "**Tie it to a moment.** A congratulations gift on a fundraise lands as celebration, not solicitation: same signal discipline as Step 6.",
+          "**Tie it to a moment.** A congratulations gift on a fundraise lands as celebration, not solicitation: same signal discipline as Step 7.",
           "**The math is reasonable.** A genuinely good object at $100, sent to 100 perfectly targeted founders, is $10K: less than most ad experiments, and people remember who sent it.",
         ],
       },
@@ -440,7 +441,7 @@ export const runSteps: DocStep[] = [
         type: "example",
         title: "Example: an Elevay gifting play",
         lines: [
-          "Trigger: a tier A account announces a seed round (Step 6 signal, 180-day window).",
+          "Trigger: a tier A account announces a seed round (Step 7 signal, 180-day window).",
           "Gift: a genuinely good object a founder keeps on the desk, with a handwritten card from the founder of Elevay: congratulations first, no pitch, one line of origin story.",
           "Follow-up: ten days later, the cadence's first email references neither the gift nor a favor owed; it stands on the SDR-posting signal. The gift did its job already: the name is known when the email lands.",
         ],

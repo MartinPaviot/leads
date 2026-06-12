@@ -21,6 +21,7 @@ describe("method content registry", () => {
     const slugs = docSteps.map((s) => s.slug);
     for (const expected of [
       "operating-doctrine",
+      "the-road-to-one-million",
       "positioning-and-message",
       "define-your-icp",
       "size-the-funnel",

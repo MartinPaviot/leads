@@ -13,7 +13,7 @@ import { DocsShell } from "./_components/docs-shell";
 export const metadata: Metadata = {
   title: "The Method | Elevay",
   description:
-    "The Elevay method, step by step: the operating doctrine, building your TAM, running every outbound channel, and the learning loops that compound. With worked examples.",
+    "The Elevay method for going from zero to one million of revenue, founder-led: the doctrine, building your TAM, running every outbound channel, and the learning loops that compound. With worked examples.",
 };
 
 export default function DocsIndexPage() {
@@ -28,13 +28,15 @@ export default function DocsIndexPage() {
           The Method
         </p>
         <h1 className="mt-2 text-[34px] font-bold tracking-[-0.5px] text-gray-900">
-          How we run founder-led sales
+          From zero to one million, founder-led
         </h1>
         <p className="mt-3 max-w-[640px] text-[16px] leading-[1.7] text-gray-600">
-          One method, {docSteps.length} steps, read in order. The doctrine, the
-          market machine, the playbook for every outbound channel, and the
-          loops that make it compound. Every step ends with a worked example
-          and with what Elevay automates for you.
+          One method for one journey: the road from your first customer to your
+          first million of revenue, with the founder selling the whole way.
+          {" "}{docSteps.length} steps, read in order: the doctrine, the market
+          machine, the playbook for every outbound channel, and the loops that
+          make it compound. Every step ends with a worked example and with what
+          Elevay automates for you.
         </p>
 
         {groups.map((group, gi) => (
@@ -82,7 +84,8 @@ export default function DocsIndexPage() {
 
         <p className="mt-12 text-[13.5px] leading-[1.7] text-gray-500">
           Start at step 1. The method assumes nothing except that you are a
-          founder who has to sell what you build.
+          founder who has to sell what you build, and that the first million is
+          yours to close.
         </p>
       </main>
     </DocsShell>

@@ -1,7 +1,7 @@
 import type { DocStep } from "../types";
 
 /**
- * Phase: Learn and compound (steps 12-14). Reading the numbers honestly,
+ * Phase: Learn and compound (steps 13-15). Reading the numbers honestly,
  * keeping the TAM alive, feeding outcomes back into targeting, and the
  * transition out of founder-led sales. Sources: diagnostic waterfall
  * research, signal decay research, insights-honesty doctrine (statistical
@@ -10,7 +10,7 @@ import type { DocStep } from "../types";
 export const learnSteps: DocStep[] = [
   {
     slug: "measure-and-diagnose",
-    step: 12,
+    step: 13,
     phase: "Learn and compound",
     title: "Measure and diagnose",
     description:
@@ -40,7 +40,7 @@ export const learnSteps: DocStep[] = [
         title: "Example: reading an Elevay month",
         lines: [
           "1,200 sends, 96 percent delivered, 41 percent opened, 1.9 percent replied. Infrastructure and subjects are healthy; the break is at the reply layer.",
-          "Wrong fix: rewrite the adjectives and add a follow-up. Right fix: the reply layer is targeting or angle. The list audit (Step 5's 20-account sample) finds 7 of 20 accounts marginal-fit. The ICP gets a tightening pass, tier C is paused, and the angle is rebuilt on the strongest signal instead of the generic pain.",
+          "Wrong fix: rewrite the adjectives and add a follow-up. Right fix: the reply layer is targeting or angle. The list audit (Step 6's 20-account sample) finds 7 of 20 accounts marginal-fit. The ICP gets a tightening pass, tier C is paused, and the angle is rebuilt on the strongest signal instead of the generic pain.",
           "Three weeks later: 600 sends to the tightened list, 4.8 percent reply. Same product, same founder, one layer fixed.",
         ],
       },
@@ -81,7 +81,7 @@ export const learnSteps: DocStep[] = [
   },
   {
     slug: "keep-the-tam-alive",
-    step: 13,
+    step: 14,
     phase: "Learn and compound",
     title: "Keep the TAM alive",
     description:
@@ -112,7 +112,7 @@ export const learnSteps: DocStep[] = [
         title: "Example: a caught decay",
         lines: [
           "An Elevay tier B contact was sourced 8 months ago as \"Head of Operations\". The provider still says current; the freshness window has expired.",
-          "The brief stops asserting the title and shows \"role to confirm, sourced 8 months ago\". On the next call the founder opens by checking; the contact left 2 months earlier. One click flags the departure: the contact exits all lists, and the account shows a coverage gap that triggers re-discovery of the new operations lead, who arrives with a built-in opener: new in seat, 90-day window (Step 6).",
+          "The brief stops asserting the title and shows \"role to confirm, sourced 8 months ago\". On the next call the founder opens by checking; the contact left 2 months earlier. One click flags the departure: the contact exits all lists, and the account shows a coverage gap that triggers re-discovery of the new operations lead, who arrives with a built-in opener: new in seat, 90-day window (Step 7).",
         ],
       },
       { type: "h2", text: "Outcomes reshape the universe" },
@@ -121,7 +121,7 @@ export const learnSteps: DocStep[] = [
         items: [
           "**Score what closes, not what books.** The profile that matters is the characteristics of companies that **close**, applied back to targeting; companies that merely take meetings teach you about politeness, not about your market.",
           "**Signal lift.** Which signal types were live on the deals you won? Their weight in prioritization should reflect your outcomes, not a global default.",
-          "**Winning profile.** Size band, geography, industry, persona of the champion, origin channel: extracted at every close, accumulated into the picture that retunes Step 3.",
+          "**Winning profile.** Size band, geography, industry, persona of the champion, origin channel: extracted at every close, accumulated into the picture that retunes Step 4.",
           "**Referral quarantine.** Keep referral wins out of outbound learning. They encode your network, not your market, and they will overfit your ICP toward people who already liked you.",
         ],
       },
@@ -150,7 +150,7 @@ export const learnSteps: DocStep[] = [
   },
   {
     slug: "scale-beyond-yourself",
-    step: 14,
+    step: 15,
     phase: "Learn and compound",
     title: "Scale beyond yourself",
     description:
@@ -159,7 +159,7 @@ export const learnSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "Founder-led sales is a phase, not an identity. It ends well when the machine and the playbook outlive the founder's personal involvement, and badly when a hire is asked to replace judgment that was never written down. The transition is earned with evidence:",
+          "Founder-led sales is a phase, not an identity, and on the road of Step 2 its boundary sits around the million: the first full-cycle help arrives in the machine stage (roughly 25 customers in, when your capacity cap binds), and sales leadership only after the million is closed. The transition ends well when the machine and the playbook outlive the founder's personal involvement, and badly when a hire is asked to replace judgment that was never written down. It is earned with evidence:",
       },
       {
         type: "table",
@@ -182,10 +182,10 @@ export const learnSteps: DocStep[] = [
       {
         type: "ul",
         items: [
-          "**The FAQ, word for word** (Step 9 built it call by call): every question ever heard, with the answer that worked.",
+          "**The FAQ, word for word** (Step 10 built it call by call): every question ever heard, with the answer that worked.",
           "**The playbook by phase:** openers, peer-pain stories, the three exits, the objection table, in your customers' own words.",
-          "**The ICP and anti-persona with reasons** (Step 3), plus the winning profile so far (Step 13).",
-          "**The cadence and its rules** (Step 7): touches, channels, caps, response-time discipline.",
+          "**The ICP and anti-persona with reasons** (Step 4), plus the winning profile so far (Step 14).",
+          "**The cadence and its rules** (Step 8): touches, channels, caps, response-time discipline.",
         ],
       },
       {
@@ -200,7 +200,7 @@ export const learnSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "Even with a team, two things never delegate well: the accounts where founder-to-founder trust is the difference (Step 1), and the creative brand work that compounds across every channel (Step 11). The founder's calendar should lose the mechanics and keep the moments.",
+          "Even with a team, two things never delegate well: the accounts where founder-to-founder trust is the difference (Step 1), and the creative brand work that compounds across every channel (Step 12). The founder's calendar should lose the mechanics and keep the moments.",
       },
       {
         type: "p",

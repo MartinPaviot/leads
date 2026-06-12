@@ -21,7 +21,7 @@ export default function SettingsDocsIndexPage() {
     <div className="px-6">
       <SettingsHeader
         title="The Method"
-        subtitle={`How Elevay runs founder-led sales, in ${docSteps.length} ordered steps: doctrine, the market machine, every outbound channel, and the learning loops. Each step ends with a worked example.`}
+        subtitle={`From zero to one million of revenue, founder-led, in ${docSteps.length} ordered steps: doctrine, the road, the market machine, every outbound channel, and the learning loops. Each step ends with a worked example.`}
       />
 
       {groups.map((group, gi) => (

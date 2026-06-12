@@ -1,7 +1,7 @@
 import type { DocStep } from "../types";
 
 /**
- * Phase: Build the machine (steps 3-6). From ICP hypothesis to a scored,
+ * Phase: Build the machine (steps 4-7). From ICP hypothesis to a scored,
  * signal-aware account universe. Sources: competitor methodology research,
  * reverse pipeline math (multi-million-send benchmark datasets), founder
  * capacity literature, signal decay research.
@@ -9,7 +9,7 @@ import type { DocStep } from "../types";
 export const buildSteps: DocStep[] = [
   {
     slug: "define-your-icp",
-    step: 3,
+    step: 4,
     phase: "Build the machine",
     title: "Define your ICP",
     description:
@@ -26,7 +26,7 @@ export const buildSteps: DocStep[] = [
         items: [
           "**Firmographics.** Industry, headcount band, geography, business model. The boring filters do most of the work. Not every matching company is equal either: a headquarters city, an employee sweet spot, or sales-led versus product-led can change priority inside the ICP.",
           "**Context.** What must be true about how they operate: the team they run, the tools they depend on, the regulatory frame they live in.",
-          "**Triggers.** The moment that makes them buyable: a fundraise, a key hire, a tool up for replacement. Fit without a moment is patience; a moment without fit is noise. Triggers become signals in Step 6.",
+          "**Triggers.** The moment that makes them buyable: a fundraise, a key hire, a tool up for replacement. Fit without a moment is patience; a moment without fit is noise. Triggers become signals in Step 7.",
           "**Exclusions.** The anti-persona is as load-bearing as the persona: segments that look adjacent but churn, stall or cannot pay. Startups that never narrow their ICP pay for it later in churn.",
         ],
       },
@@ -47,7 +47,7 @@ export const buildSteps: DocStep[] = [
         rows: [
           ["Under 10 customers", "A simple 3-criteria hypothesis (industry, size, pain). No scoring. Learn fast."],
           ["10 to 50 customers", "Compare your best and worst 20 percent of customers. Extract the patterns. Light scoring."],
-          ["50+ customers", "Formal weighted scoring and tiering, refreshed from closed outcomes (Step 13)."],
+          ["50+ customers", "Formal weighted scoring and tiering, refreshed from closed outcomes (Step 14)."],
         ],
       },
       {
@@ -70,7 +70,7 @@ export const buildSteps: DocStep[] = [
   },
   {
     slug: "size-the-funnel",
-    step: 4,
+    step: 5,
     phase: "Build the machine",
     title: "Size the funnel",
     description:
@@ -110,7 +110,7 @@ export const buildSteps: DocStep[] = [
         lines: [
           "Goal: 20 new customers this year through outbound.",
           "At the median chain: 20 deals x ~700 contacts = ~14,000 contacted prospects. At 2 to 3 contacts per account, that is 5,000 to 7,000 accounts: more than the real universe of in-ICP startups in reach. The median chain is not good enough; the plan cannot be \"send more\".",
-          "At a signal-led chain (10 percent reply, the rest improving accordingly): roughly 200 to 250 contacts per deal, so ~5,000 contacts and **1,700 to 2,500 accounts**. That is a buildable TAM, and it sets the quality bar: this plan only works if Step 5 and Step 6 are done properly.",
+          "At a signal-led chain (10 percent reply, the rest improving accordingly): roughly 200 to 250 contacts per deal, so ~5,000 contacts and **1,700 to 2,500 accounts**. That is a buildable TAM, and it sets the quality bar: this plan only works if Step 6 and Step 7 are done properly.",
           "Sanity check the other way: 20 deals at ~22 percent proposal close needs ~90 proposals, ~130 qualified opportunities, ~300 held meetings: about 6 a week. Feasible for one founder, barely: which is the real constraint (below).",
         ],
       },
@@ -136,7 +136,7 @@ export const buildSteps: DocStep[] = [
   },
   {
     slug: "build-your-tam",
-    step: 5,
+    step: 6,
     phase: "Build the machine",
     title: "Build the TAM",
     description:
@@ -206,7 +206,7 @@ export const buildSteps: DocStep[] = [
   },
   {
     slug: "overlay-signals",
-    step: 6,
+    step: 7,
     phase: "Build the machine",
     title: "Overlay signals",
     description:

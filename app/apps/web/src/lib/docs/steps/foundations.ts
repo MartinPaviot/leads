@@ -1,8 +1,8 @@
 import type { DocStep } from "../types";
 
 /**
- * Phase: Foundations (steps 1-2). The doctrine the whole method hangs on,
- * then positioning and message work that happens before anyone is
+ * Phase: Foundations (steps 1-3): doctrine, the road to one million,. The doctrine the whole method hangs on,
+ * then positioning and message work before anyone is
  * contacted. Sources: the GTM research corpus, including the full
  * modern-GTM practitioner interview transcript (revenue equation,
  * demand-first diagnosis, founder time doctrine, origin-story messaging).
@@ -72,13 +72,123 @@ export const foundationSteps: DocStep[] = [
         type: "callout",
         title: "How to read this method",
         text:
-          "The steps are ordered: foundations, then building the machine (ICP, math, TAM, signals), then running outbound (cadence and one playbook per channel, plus the brand layer), then learning loops. Each step states the practice, shows a worked example with Elevay as the example company, and ends with what Elevay automates for you.",
+          "This method is written for one journey: **zero to your first million of revenue, founder-led the whole way**. The steps are ordered: foundations, then building the machine (ICP, math, TAM, signals), then running outbound (cadence and one playbook per channel, plus the brand layer), then learning loops. Each step states the practice, shows a worked example with Elevay as the example company, and ends with what Elevay automates for you. Step 2 maps the road and tells you which steps dominate at your stage.",
+      },
+    ],
+  },
+  {
+    slug: "the-road-to-one-million",
+    step: 2,
+    phase: "Foundations",
+    title: "The road to one million",
+    description:
+      "The whole journey from zero to 1M of revenue, founder-led: the customer math, the four stages, the revenue mix that shifts under you, and what never changes.",
+    blocks: [
+      {
+        type: "p",
+        text:
+          "One million in annual revenue is the milestone that proves a repeatable motion, and for a B2B product with real deal sizes it is reachable by **one founder plus the machine**, before any sales team exists. The classic failure on this road is hiring salespeople to escape selling: revenue that was never founder-proven does not transfer. This step maps the road so every later step can be read at the right intensity for where you are.",
+      },
+      { type: "h2", text: "The customer math: your deal size decides your motion" },
+      {
+        type: "p",
+        text:
+          "One million of annual recurring revenue is a customer count, and the count dictates how you sell:",
+      },
+      {
+        type: "table",
+        headers: ["Deal size (annual)", "Customers for 1M", "What that implies"],
+        rows: [
+          ["~5K", "~200", "Volume motion: outbound math is fragile (Step 1's failure mode), inbound and product must carry weight"],
+          ["~12K", "~84", "The founder-led sweet spot: outbound + referrals + content, one closing conversation at a time"],
+          ["~25K", "~40", "Fewer, deeper deals: multi-threading and discovery quality dominate"],
+          ["~50K+", "~20", "Named accounts: every deal is a campaign"],
+        ],
+      },
+      {
+        type: "p",
+        text:
+          "Run your own number before anything else: it sets your weekly prospect volume (Step 5), your cadence depth (Step 8), and how much of this road you can travel on outbound alone.",
+      },
+      { type: "h2", text: "The four stages of the road" },
+      {
+        type: "table",
+        headers: ["Stage", "Goal", "What you do", "What changes"],
+        rows: [
+          [
+            "First customers (0 to ~10 customers)",
+            "Proof someone pays",
+            "Founder-to-founder conversations, not sequences: list ~200 in one wedge, contact ~50 a week, 20 discovery calls, close the few with the sharpest pain",
+            "Founding-member pricing is fine (discounted, with direct access to you), free never is: paying is the commitment signal",
+          ],
+          [
+            "Repeatability (to ~25 customers)",
+            "A motion that works twice",
+            "Signal-based outbound becomes systematic (Steps 7 to 10); the referral engine starts; content cadence begins (Step 11)",
+            "You stop improvising: cadences, caps and the FAQ are written down as you go",
+          ],
+          [
+            "The machine (to ~60 customers)",
+            "Multiple sources at once",
+            "Outbound, referrals, inbound and partnerships all feed the same TAM; pricing normalizes (founding discounts end); annual plans lock churn",
+            "Your capacity cap (Step 5) binds: the first full-cycle hire onboards on the written method (Step 15)",
+          ],
+          [
+            "Compounding (to 1M and past)",
+            "Growth that does not need pushing",
+            "Referrals and inbound overtake outbound for the first time; partnerships open portfolios; the founder keeps strategic deals and the brand layer (Step 12)",
+            "The mix flips: cold outbound becomes the minority source it should be",
+          ],
+        ],
+      },
+      { type: "h2", text: "The revenue mix shifts under you" },
+      {
+        type: "p",
+        text:
+          "At the start, outbound is close to 100 percent of new revenue because nothing else exists yet. By the million, a healthy mix looks like roughly **25 percent outbound, 30 percent referrals, 25 percent inbound, 20 percent partnerships**. That shift is not outbound failing; it is outbound succeeding: every closed customer becomes a referral source, every learning becomes content, every case study opens a partnership. If cold outbound is still most of your revenue at the million, the compounding loops were never built.",
+      },
+      { type: "h3", text: "The referral engine: the highest-converting source you control" },
+      {
+        type: "ul",
+        items: [
+          "**Ask early and in person.** A week after a close, on a call, never by email: \"who do you know in the same situation?\" Two or three introductions per happy customer is normal.",
+          "**Warm introductions close at 30 to 40 percent.** Cold outbound closes well under 1 percent of contacts. One intro is worth roughly a hundred cold emails: budget your time accordingly.",
+          "**Make it effortless.** Come with 2 or 3 names you already suspect they know (your TAM tells you), and draft the introduction email for them.",
+          "**Referral wins stay out of ICP learning** (Step 14): they encode your network, not your market. They are revenue, not evidence.",
+        ],
+      },
+      {
+        type: "example",
+        title: "Example: Elevay's own road, staged",
+        lines: [
+          "**Math:** at a ~12K annual deal, 1M means ~84 customers. Working backward (Step 5), that is a 1,700 to 2,500 account TAM worked over the journey, never all at once.",
+          "**First customers:** 200 founders listed in one wedge (B2B founders hitting their first outbound push), 50 contacted a week founder-to-founder, 20 discovery calls, 5 founding members at a reduced but real price, each with direct access to the founder.",
+          "**Repeatability:** the SDR-posting and fundraise signals (Step 7) run systematically; every new customer is asked for introductions at day 7; 2 to 5 posts a week about the problem, never the product.",
+          "**The machine:** ~25 customers in, the founder's calendar saturates (Step 5's cap); the first full-cycle AE onboards by reading this method and listening to the 10 best captured calls; founding pricing ends; annual plans are proposed to the earliest customers.",
+          "**Compounding:** referral pipeline overtakes cold outbound for the first time; the founder keeps founder-to-founder deals, the brand layer, and the insight loops.",
+        ],
+      },
+      { type: "h2", text: "What never changes on this road" },
+      {
+        type: "ul",
+        items: [
+          "**The founder sells the entire way to the million.** Help arrives (Step 15), but origination, the key conversations and the judgment stay with you. Nobody buys the first hundred customers from a stranger.",
+          "**Demand-first stays true at every stage** (Step 1): each stall on this road is, by default, a not-enough-in-play problem before it is a conversion problem.",
+          "**Eat your own method.** Every step of this method applied to yourself is also your proof: the way you sell is the first demo of how you think.",
+          "**Learning velocity is the early KPI.** Before ~10 customers, count conversations and validated hypotheses, not pipeline value. Revenue follows the learning curve, never the reverse.",
+          "**Consistency beats intensity.** Fifty disciplined touches a week for six months beat a heroic month followed by silence: every loop in this method compounds only if it keeps turning.",
+        ],
+      },
+      {
+        type: "p",
+        text:
+          "In Elevay: the product is sized for exactly this road. The TAM, the daily list and the cadences carry one founder to the million without a sales team, and the same workspace then onboards the first hires on the method you already ran (Step 15).",
       },
     ],
   },
   {
     slug: "positioning-and-message",
-    step: 2,
+    step: 3,
     phase: "Foundations",
     title: "Positioning and message",
     description:
@@ -96,7 +206,7 @@ export const foundationSteps: DocStep[] = [
           "**Name the real alternatives.** What would your customers do if your product did not exist? Rarely a direct competitor: doing nothing, a spreadsheet, an intern, three tools glued together. You are positioned against these, not against the logo on the comparison page.",
           "**List your differentiated capabilities.** What you have that the alternatives do not. Features and attributes only; no benefits yet.",
           "**Translate to differentiated value.** For each capability, answer \"so what?\" for the customer. The benefit those features enable.",
-          "**Find the best-fit customer.** Who cares the **most** about that value? That answer is your wedge, and it should narrow your ICP (Step 3).",
+          "**Find the best-fit customer.** Who cares the **most** about that value? That answer is your wedge, and it should narrow your ICP (Step 4).",
           "**Name the category.** The context that makes your value obvious in one line. The frame changes everything about how the same product is understood.",
         ],
       },
@@ -144,7 +254,7 @@ export const foundationSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "Positioning is drafted at a desk but finished on calls. Harvest the exact phrasings that make prospects react (Step 9 makes this a routine) and promote them into your pillars and your website. Test messaging one variable at a time with real sample sizes (Step 12). And expect to revisit this step every time the ICP shifts: positioning, ICP and message move together or not at all.",
+          "Positioning is drafted at a desk but finished on calls. Harvest the exact phrasings that make prospects react (Step 10 makes this a routine) and promote them into your pillars and your website. Test messaging one variable at a time with real sample sizes (Step 13). And expect to revisit this step every time the ICP shifts: positioning, ICP and message move together or not at all.",
       },
       {
         type: "p",
