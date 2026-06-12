@@ -202,6 +202,12 @@ export const learnSteps: DocStep[] = [
         text:
           "Even with a team, two things never delegate well: the accounts where founder-to-founder trust is the difference (Step 1), and the creative brand work that compounds across every channel (Step 12). The founder's calendar should lose the mechanics and keep the moments.",
       },
+      { type: "h2", text: "What the million hands to the next phase" },
+      {
+        type: "p",
+        text:
+          "Scaling from one to one hundred million is a different book: segmentation, territories, a leadership layer, marketing as a system. This method does not pretend to cover it. What it guarantees is the only thing that phase actually requires from this one: the **validation ledger of Step 2, full and written down**. A proven wedge, a priced offer, a message that replies, channels with known cost per meeting, a funnel measured on your own data, customers who renew and refer, and a playbook that closes without you. Companies that arrive at the million with that ledger full scale on rails; companies that arrive with revenue but an empty ledger spend the next two years rediscovering this phase with a payroll attached.",
+      },
       {
         type: "p",
         text:

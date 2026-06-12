@@ -82,12 +82,17 @@ export const foundationSteps: DocStep[] = [
     phase: "Foundations",
     title: "The road to one million",
     description:
-      "The whole journey from zero to 1M of revenue, founder-led: the customer math, the four stages, the revenue mix that shifts under you, and what never changes.",
+      "Zero to 1M is the validation phase: the customer math, the four stages, the ledger of everything that must be tested and proven before scaling, and what never changes.",
     blocks: [
       {
         type: "p",
         text:
           "One million in annual revenue is the milestone that proves a repeatable motion, and for a B2B product with real deal sizes it is reachable by **one founder plus the machine**, before any sales team exists. The classic failure on this road is hiring salespeople to escape selling: revenue that was never founder-proven does not transfer. This step maps the road so every later step can be read at the right intensity for where you are.",
+      },
+      {
+        type: "p",
+        text:
+          "Hold one idea above all the others: **zero to one million is the validation phase, not a small version of the scale phase.** Going from one to one hundred million is multiplication: more people running the same motion, more budget on the same channels, more accounts in the same ICP. Multiplication amplifies whatever it is given, errors included. Scale an unvalidated ICP and you multiply churn; scale an unvalidated channel and you multiply cost per meeting; scale an unproven playbook and you multiply failed hires. So the job of this road is not just to reach a number; it is to leave the million with **every load-bearing assumption tested**, so the next two orders of magnitude are an execution problem instead of a discovery problem.",
       },
       { type: "h2", text: "The customer math: your deal size decides your motion" },
       {
@@ -140,6 +145,68 @@ export const foundationSteps: DocStep[] = [
             "The mix flips: cold outbound becomes the minority source it should be",
           ],
         ],
+      },
+      {
+        type: "p",
+        text:
+          "Read the stage exits as **validation gates, not revenue numbers**. Revenue without the validation behind it is borrowed: it will be repaid with interest at scale.",
+      },
+      { type: "h2", text: "The validation ledger: what the million must have proven" },
+      {
+        type: "p",
+        text:
+          "This is the work of the phase: a list of load-bearing assumptions, each with the test it must pass before you are allowed to multiply it. Validated means the evidence would survive Step 13's bars (real sample sizes, one variable at a time), not that it happened once.",
+      },
+      {
+        type: "table",
+        headers: ["What you are validating", "The test it must pass", "If it fails"],
+        rows: [
+          [
+            "The wedge and ICP",
+            "A majority of discovery calls recognize the pain unprompted (out of 20 calls, well over half resonate)",
+            "Pivot the wedge, never the volume. More outreach into a wrong wedge validates nothing.",
+          ],
+          [
+            "Willingness to pay",
+            "Customers pay a real price from day one; founding discounts are a launch tool with an end date, not the price",
+            "If \"too expensive\" dominates the first conversations, fix pricing or wedge before any scaling thought.",
+          ],
+          [
+            "The message",
+            "Reply rates clear the signal-led bar on 250+ sends per variant, and the phrases that close keep reappearing in calls",
+            "Change the angle, not the adjectives (Step 13). A message that needs explaining has failed the test.",
+          ],
+          [
+            "The channel mix",
+            "One or two channels produce predictable meetings at a known cost per meeting, for at least two consecutive months",
+            "Double down only on what repeats. A channel that worked once is an anecdote, not a channel.",
+          ],
+          [
+            "The funnel itself",
+            "Your own stage rates are data-dominated where volume allows (a reply rate stabilizes near a thousand sends; a close rate needs a couple of hundred proposals and may still be settling at 1M)",
+            "Keep planning with ranges where the data is thin (Step 5). Do not staff a plan built on a prior.",
+          ],
+          [
+            "Time-to-value and retention",
+            "A new customer sees first proof inside 30 days; early customers renew and expand; the early-warning signals stay quiet",
+            "If customers sign but see nothing in 30 days, churn explodes and referrals never start. Fix onboarding before selling harder: you are not ready to scale.",
+          ],
+          [
+            "The referral loop",
+            "Happy customers actually produce introductions when asked at day 7 and after value",
+            "Zero introductions is a value problem, not an asking problem. The product is not delivering visibly enough.",
+          ],
+          [
+            "The playbook's transferability",
+            "Someone who is not you closes with the written method (the two-AE test of Step 15)",
+            "If only the founder can sell it, you have a founder, not a motion. Write down what is missing and retest.",
+          ],
+        ],
+      },
+      {
+        type: "p",
+        text:
+          "Most of these cannot be validated in parallel from a standing start; the four stages exist to sequence them. First customers validates wedge and willingness to pay. Repeatability validates message and channel. The machine validates the funnel, retention and the referral loop. Compounding validates transferability. By the million, the ledger should be full, and everything in it written down (Step 15).",
       },
       { type: "h2", text: "The revenue mix shifts under you" },
       {
