@@ -32,3 +32,18 @@ _*.log
 .vercel/
 cloudflared.exe
 *.exe
+
+# ── Local dev / verification scratch — never commit ──────────────────
+# Throwaway verify + tally scripts (the `_`-prefix convention marks
+# disposable dev artifacts), plus the session-minting helper.
+_verify-*
+app/apps/web/scripts/_*
+app/apps/web/scripts/mint-session.mjs
+_inngest-sink.mjs
+# Internal audit notes + scratch backups.
+_audit/
+# Secrets minted for local verification (JWTs) — must never reach git.
+_jwt*.txt
+# Dev screenshot output + numbered root captures (NNN-name.png).
+app/apps/web/screenshots/
+/[0-9][0-9][0-9]-*.png
