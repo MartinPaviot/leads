@@ -47,7 +47,7 @@ export const buildSteps: DocStep[] = [
         rows: [
           ["Under 10 customers", "A simple 3-criteria hypothesis (industry, size, pain). No scoring. Learn fast."],
           ["10 to 50 customers", "Compare your best and worst 20 percent of customers. Extract the patterns. Light scoring."],
-          ["50+ customers", "Formal weighted scoring and tiering, refreshed from closed outcomes (Step 14)."],
+          ["50+ customers", "Formal weighted scoring and tiering, refreshed from closed outcomes (Step 18)."],
         ],
       },
       {

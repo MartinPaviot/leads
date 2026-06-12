@@ -1,8 +1,8 @@
 import type { DocStep } from "../types";
 
 /**
- * Phase: Foundations (steps 1-3): doctrine, the road to one million,. The doctrine the whole method hangs on,
- * then positioning and message work before anyone is
+ * Phase: Foundations (steps 1-3). The doctrine, the road to one million,
+ * and the positioning and message work that happen before anyone is
  * contacted. Sources: the GTM research corpus, including the full
  * modern-GTM practitioner interview transcript (revenue equation,
  * demand-first diagnosis, founder time doctrine, origin-story messaging).
@@ -72,7 +72,7 @@ export const foundationSteps: DocStep[] = [
         type: "callout",
         title: "How to read this method",
         text:
-          "This method is written for one journey: **zero to your first million of revenue, founder-led the whole way**. The steps are ordered: foundations, then building the machine (ICP, math, TAM, signals), then running outbound (cadence and one playbook per channel, plus the brand layer), then learning loops. Each step states the practice, shows a worked example with Elevay as the example company, and ends with what Elevay automates for you. Step 2 maps the road and tells you which steps dominate at your stage.",
+          "This method is written for one journey: **zero to your first million of revenue, founder-led the whole way**. The steps are ordered: foundations, then building the machine (ICP, math, TAM, signals), then running outbound (cadence and one playbook per channel, plus the brand layer), then winning the deal (discovery to signature, with the objections of every stage), then learning loops. Each step states the practice, shows a worked example with Elevay as the example company, and ends with what Elevay automates for you. Step 2 maps the road and tells you which steps dominate at your stage.",
       },
     ],
   },
@@ -136,7 +136,7 @@ export const foundationSteps: DocStep[] = [
             "The machine (to ~60 customers)",
             "Multiple sources at once",
             "Outbound, referrals, inbound and partnerships all feed the same TAM; pricing normalizes (founding discounts end); annual plans lock churn",
-            "Your capacity cap (Step 5) binds: the first full-cycle hire onboards on the written method (Step 15)",
+            "Your capacity cap (Step 5) binds: the first full-cycle hire onboards on the written method (Step 19)",
           ],
           [
             "Compounding (to 1M and past)",
@@ -155,7 +155,7 @@ export const foundationSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "This is the work of the phase: a list of load-bearing assumptions, each with the test it must pass before you are allowed to multiply it. Validated means the evidence would survive Step 13's bars (real sample sizes, one variable at a time), not that it happened once.",
+          "This is the work of the phase: a list of load-bearing assumptions, each with the test it must pass before you are allowed to multiply it. Validated means the evidence would survive Step 17's bars (real sample sizes, one variable at a time), not that it happened once.",
       },
       {
         type: "table",
@@ -174,7 +174,7 @@ export const foundationSteps: DocStep[] = [
           [
             "The message",
             "Reply rates clear the signal-led bar on 250+ sends per variant, and the phrases that close keep reappearing in calls",
-            "Change the angle, not the adjectives (Step 13). A message that needs explaining has failed the test.",
+            "Change the angle, not the adjectives (Step 17). A message that needs explaining has failed the test.",
           ],
           [
             "The channel mix",
@@ -198,7 +198,7 @@ export const foundationSteps: DocStep[] = [
           ],
           [
             "The playbook's transferability",
-            "Someone who is not you closes with the written method (the two-AE test of Step 15)",
+            "Someone who is not you closes with the written method (the two-AE test of Step 19)",
             "If only the founder can sell it, you have a founder, not a motion. Write down what is missing and retest.",
           ],
         ],
@@ -206,7 +206,7 @@ export const foundationSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "Most of these cannot be validated in parallel from a standing start; the four stages exist to sequence them. First customers validates wedge and willingness to pay. Repeatability validates message and channel. The machine validates the funnel, retention and the referral loop. Compounding validates transferability. By the million, the ledger should be full, and everything in it written down (Step 15).",
+          "Most of these cannot be validated in parallel from a standing start; the four stages exist to sequence them. First customers validates wedge and willingness to pay. Repeatability validates message and channel. The machine validates the funnel, retention and the referral loop. Compounding validates transferability. By the million, the ledger should be full, and everything in it written down (Step 19).",
       },
       { type: "h2", text: "The revenue mix shifts under you" },
       {
@@ -221,7 +221,7 @@ export const foundationSteps: DocStep[] = [
           "**Ask early and in person.** A week after a close, on a call, never by email: \"who do you know in the same situation?\" Two or three introductions per happy customer is normal.",
           "**Warm introductions close at 30 to 40 percent.** Cold outbound closes well under 1 percent of contacts. One intro is worth roughly a hundred cold emails: budget your time accordingly.",
           "**Make it effortless.** Come with 2 or 3 names you already suspect they know (your TAM tells you), and draft the introduction email for them.",
-          "**Referral wins stay out of ICP learning** (Step 14): they encode your network, not your market. They are revenue, not evidence.",
+          "**Referral wins stay out of ICP learning** (Step 18): they encode your network, not your market. They are revenue, not evidence.",
         ],
       },
       {
@@ -239,7 +239,7 @@ export const foundationSteps: DocStep[] = [
       {
         type: "ul",
         items: [
-          "**The founder sells the entire way to the million.** Help arrives (Step 15), but origination, the key conversations and the judgment stay with you. Nobody buys the first hundred customers from a stranger.",
+          "**The founder sells the entire way to the million.** Help arrives (Step 19), but origination, the key conversations and the judgment stay with you. Nobody buys the first hundred customers from a stranger.",
           "**Demand-first stays true at every stage** (Step 1): each stall on this road is, by default, a not-enough-in-play problem before it is a conversion problem.",
           "**Eat your own method.** Every step of this method applied to yourself is also your proof: the way you sell is the first demo of how you think.",
           "**Learning velocity is the early KPI.** Before ~10 customers, count conversations and validated hypotheses, not pipeline value. Revenue follows the learning curve, never the reverse.",
@@ -249,7 +249,7 @@ export const foundationSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "In Elevay: the product is sized for exactly this road. The TAM, the daily list and the cadences carry one founder to the million without a sales team, and the same workspace then onboards the first hires on the method you already ran (Step 15).",
+          "In Elevay: the product is sized for exactly this road. The TAM, the daily list and the cadences carry one founder to the million without a sales team, and the same workspace then onboards the first hires on the method you already ran (Step 19).",
       },
     ],
   },
@@ -321,7 +321,7 @@ export const foundationSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "Positioning is drafted at a desk but finished on calls. Harvest the exact phrasings that make prospects react (Step 10 makes this a routine) and promote them into your pillars and your website. Test messaging one variable at a time with real sample sizes (Step 13). And expect to revisit this step every time the ICP shifts: positioning, ICP and message move together or not at all.",
+          "Positioning is drafted at a desk but finished on calls. Harvest the exact phrasings that make prospects react (Step 10 makes this a routine) and promote them into your pillars and your website. Test messaging one variable at a time with real sample sizes (Step 17). And expect to revisit this step every time the ICP shifts: positioning, ICP and message move together or not at all.",
       },
       {
         type: "p",

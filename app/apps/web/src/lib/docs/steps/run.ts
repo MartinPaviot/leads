@@ -174,6 +174,24 @@ export const runSteps: DocStep[] = [
           "**End with a break-up.** \"I am closing your file; busy or priorities changed are both fine. May I close it?\" Loss aversion makes this the single highest-reply touch in most sequences.",
         ],
       },
+      { type: "h2", text: "Objections in the reply (the booking stage)" },
+      {
+        type: "p",
+        text:
+          "A reply with an objection is a live conversation, not a rejection. Answer within minutes (Step 8), keep it shorter than the original email, and always end on a question:",
+      },
+      {
+        type: "table",
+        headers: ["They reply", "You answer"],
+        rows: [
+          ["Not interested", "\"Understood, and thanks for answering at all. So I close the right file: already solved, handled internally, or just not now? One word is plenty.\""],
+          ["Send me more info", "\"Happy to send exactly the right thing rather than a brochure: is the question [dimension A] or [dimension B]? One line back and I will keep it to one page.\""],
+          ["We already use [tool]", "\"Good choice for [what it does well]. Most teams we help kept it and fixed [the adjacent gap]. Is [gap] solved for you too, honestly?\""],
+          ["What does it cost?", "\"[Exact price], most people land at [plan]. Whether it is worth it depends on [the one variable from their world]: what does [that] look like for you?\""],
+          ["Not the right person", "\"Thanks, that saves us both time. Who owns [the problem] so I stop guessing? Happy to mention you sent me or leave you out of it, your call.\""],
+          ["Timing is bad, try in Q3", "\"Noted for [month], in the calendar. One question so the Q3 email is worth opening: will [trigger they mentioned] still be the driver then?\""],
+        ],
+      },
       { type: "h2", text: "Testing without fooling yourself" },
       {
         type: "p",

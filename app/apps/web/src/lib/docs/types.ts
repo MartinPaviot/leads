@@ -26,6 +26,7 @@ export type DocPhase =
   | "Foundations"
   | "Build the machine"
   | "Run outbound"
+  | "Win the deal"
   | "Learn and compound";
 
 export interface DocStep {

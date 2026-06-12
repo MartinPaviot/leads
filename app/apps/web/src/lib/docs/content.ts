@@ -2,6 +2,7 @@ import type { DocBlock, DocPhase, DocStep } from "./types";
 import { foundationSteps } from "./steps/foundations";
 import { buildSteps } from "./steps/build";
 import { runSteps } from "./steps/run";
+import { closeSteps } from "./steps/close";
 import { learnSteps } from "./steps/learn";
 
 /** Display order of phases everywhere (index page, sidebars). */
@@ -9,6 +10,7 @@ export const DOC_PHASES: DocPhase[] = [
   "Foundations",
   "Build the machine",
   "Run outbound",
+  "Win the deal",
   "Learn and compound",
 ];
 
@@ -16,6 +18,7 @@ export const PHASE_TAGLINES: Record<DocPhase, string> = {
   Foundations: "The doctrine and the message work that everything else depends on.",
   "Build the machine": "From ICP hypothesis to a scored, signal-aware account universe.",
   "Run outbound": "The cadence, one playbook per channel, and the brand layer.",
+  "Win the deal": "From the first meeting to the signature: discovery, demo, proposal, closing, and the objections of every stage.",
   "Learn and compound": "Honest measurement, a living TAM, and scaling past yourself.",
 };
 
@@ -24,6 +27,7 @@ export const docSteps: DocStep[] = [
   ...foundationSteps,
   ...buildSteps,
   ...runSteps,
+  ...closeSteps,
   ...learnSteps,
 ].sort((a, b) => a.step - b.step);
 

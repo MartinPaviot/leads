@@ -1,7 +1,7 @@
 import type { DocStep } from "../types";
 
 /**
- * Phase: Learn and compound (steps 13-15). Reading the numbers honestly,
+ * Phase: Learn and compound (steps 17-19). Reading the numbers honestly,
  * keeping the TAM alive, feeding outcomes back into targeting, and the
  * transition out of founder-led sales. Sources: diagnostic waterfall
  * research, signal decay research, insights-honesty doctrine (statistical
@@ -10,7 +10,7 @@ import type { DocStep } from "../types";
 export const learnSteps: DocStep[] = [
   {
     slug: "measure-and-diagnose",
-    step: 13,
+    step: 17,
     phase: "Learn and compound",
     title: "Measure and diagnose",
     description:
@@ -81,7 +81,7 @@ export const learnSteps: DocStep[] = [
   },
   {
     slug: "keep-the-tam-alive",
-    step: 14,
+    step: 18,
     phase: "Learn and compound",
     title: "Keep the TAM alive",
     description:
@@ -150,7 +150,7 @@ export const learnSteps: DocStep[] = [
   },
   {
     slug: "scale-beyond-yourself",
-    step: 15,
+    step: 19,
     phase: "Learn and compound",
     title: "Scale beyond yourself",
     description:
@@ -184,7 +184,7 @@ export const learnSteps: DocStep[] = [
         items: [
           "**The FAQ, word for word** (Step 10 built it call by call): every question ever heard, with the answer that worked.",
           "**The playbook by phase:** openers, peer-pain stories, the three exits, the objection table, in your customers' own words.",
-          "**The ICP and anti-persona with reasons** (Step 4), plus the winning profile so far (Step 14).",
+          "**The ICP and anti-persona with reasons** (Step 4), plus the winning profile so far (Step 18).",
           "**The cadence and its rules** (Step 8): touches, channels, caps, response-time discipline.",
         ],
       },
