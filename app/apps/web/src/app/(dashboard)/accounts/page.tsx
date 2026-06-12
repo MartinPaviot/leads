@@ -176,6 +176,13 @@ export default function AccountsPage() {
   const [cascadeCounts, setCascadeCounts] = useState<CascadeOption[] | null>(null);
   const [cascadeBusy, setCascadeBusy] = useState(false);
   const [detectingSignals, setDetectingSignals] = useState(false);
+  // "Score all accounts" (header More menu): true from enqueue until the
+  // recompute summary lands (or the poll caps out), so the item can't
+  // double-fire while a tenant-wide run is in flight.
+  const [rescoringAll, setRescoringAll] = useState(false);
+  // Stops the recompute-status poll if the page unmounts mid-run.
+  const rescorePollStop = useRef(false);
+  useEffect(() => () => { rescorePollStop.current = true; }, []);
   const [searchQuery, setSearchQuery] = useState("");
   // Debounced search term pushed to the server. The accounts endpoint
   // resolves it to the matching industries via an LLM (intelligent, not a
@@ -753,6 +760,61 @@ export default function AccountsPage() {
       toast("Failed to score accounts.", "error");
       console.warn("accounts: bulk score selected failed", e);
     }
+  }
+
+  // "Score all accounts" (header More menu). Fires the same per-tenant
+  // Inngest recompute as the nightly cron / ICP save / TAM build, then
+  // polls the run summary (3 s cadence, 90 s cap — the ICP editor's
+  // diff-after-save pattern) and repaints the rows with the regrade diff.
+  async function rescoreAllAccounts() {
+    if (rescoringAll) return;
+    setRescoringAll(true);
+    rescorePollStop.current = false;
+    const since = new Date().toISOString();
+    try {
+      const res = await fetch("/api/icps/recompute", { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast(data.error ?? `Re-score failed (${res.status})`, "error");
+        setRescoringAll(false);
+        return;
+      }
+    } catch (e) {
+      toast("Re-score failed — network error.", "error");
+      console.warn("accounts: rescore-all enqueue failed", e);
+      setRescoringAll(false);
+      return;
+    }
+    toast("Scoring every account against your ICP profiles…", "info");
+
+    const deadline = Date.now() + 90_000;
+    const tick = async () => {
+      if (rescorePollStop.current) return;
+      try {
+        const res = await fetch("/api/icps/recompute-status");
+        if (res.ok) {
+          const data = (await res.json()) as {
+            lastIcpRecompute: { at: string; companies: number; regradedUp: number; regradedDown: number } | null;
+          };
+          const s = data.lastIcpRecompute;
+          if (s && s.at > since) {
+            setRescoringAll(false);
+            await refetchLoadedAccounts();
+            toast(`Scored ${s.companies} accounts — ${s.regradedUp} regraded up, ${s.regradedDown} down.`, "success");
+            return;
+          }
+        }
+      } catch {
+        // transient — keep polling until the deadline
+      }
+      if (Date.now() < deadline) setTimeout(tick, 3_000);
+      else {
+        setRescoringAll(false);
+        await refetchLoadedAccounts();
+        toast("Re-score is still running — scores keep updating in the background.", "info");
+      }
+    };
+    setTimeout(tick, 3_000);
   }
 
   async function detectSignals() {
@@ -1508,6 +1570,14 @@ export default function AccountsPage() {
                   ],
                 }]
               : []),
+            {
+              label: rescoringAll ? "Scoring accounts…" : "Score all accounts",
+              hint: "Recompute ICP fit for every account",
+              icon: <Gauge size={13} />,
+              divider: true,
+              disabled: rescoringAll,
+              onClick: () => { void rescoreAllAccounts(); },
+            },
           ]}
         />
         {/* Categories panel — controlled, anchored beside the More trigger;

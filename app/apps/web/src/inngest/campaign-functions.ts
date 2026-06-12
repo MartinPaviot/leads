@@ -11,8 +11,11 @@ import {
 } from "@/db/schema";
 import { and, eq, sql, gte, inArray, isNotNull } from "drizzle-orm";
 import { enrichOrganization, searchPeople, isApolloAvailable } from "@/lib/integrations/apollo-client";
-import { scoreContact } from "@/lib/scoring/contact-scoring";
-import { getTenantSettings, deriveTargetRoles } from "@/lib/config/tenant-settings";
+import { loadActiveIcps } from "@/lib/icp/fit-recompute-core";
+import {
+  hasContactScorableCriteria,
+  scoreContactIcpBatch,
+} from "@/lib/scoring/contact-icp-fit";
 import type { CampaignConfig } from "@/lib/config/campaign-types";
 import { buildProspectContext } from "@/lib/context/prospect-context";
 import { personalizeStepEmail } from "@/lib/agents/sequence-generator";
@@ -259,22 +262,16 @@ export const prepareCampaign = inngest.createFunction(
     });
 
     // ── Step D: Score contacts ──
+    // ICP-profile fit (same writer as /api/score-contacts and the sync
+    // job), replacing the legacy flat-settings composite so
+    // contacts.score keeps ONE meaning across all paths.
     await step.run("score-contacts", async () => {
-      const settings = await getTenantSettings(tenantId);
-      for (const contactId of discoveredContacts.contactIds) {
-        try {
-          const result = await scoreContact(contactId, tenantId, {
-            // BUG-WS0-008: derive targetRoles at read time
-            targetRoles: deriveTargetRoles(settings),
-            targetIndustries: settings.targetIndustries,
-          });
-          await db
-            .update(contacts)
-            .set({ score: result.score, scoreReasons: result.reasons })
-            .where(eq(contacts.id, contactId));
-        } catch {
-          // Non-critical
-        }
+      try {
+        const activeIcps = await loadActiveIcps(tenantId);
+        if (!hasContactScorableCriteria(activeIcps)) return;
+        await scoreContactIcpBatch(tenantId, discoveredContacts.contactIds, activeIcps);
+      } catch {
+        // Non-critical
       }
     });
 

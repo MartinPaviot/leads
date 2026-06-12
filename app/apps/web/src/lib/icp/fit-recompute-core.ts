@@ -38,6 +38,7 @@ export const PRIMARY_FIT_THRESHOLD = 0.5;
 
 export type ActiveIcp = {
   id: string;
+  name: string;
   priority: number;
   criteria: Criterion[];
 };
@@ -57,7 +58,7 @@ export type RecomputeSummary = BatchDiff & {
 /** Active, non-deleted ICPs with their criteria (one query each way). */
 export async function loadActiveIcps(tenantId: string): Promise<ActiveIcp[]> {
   const rows = await db
-    .select({ id: icps.id, priority: icps.priority })
+    .select({ id: icps.id, name: icps.name, priority: icps.priority })
     .from(icps)
     .where(and(eq(icps.tenantId, tenantId), eq(icps.status, "active"), isNull(icps.deletedAt)));
   if (rows.length === 0) return [];
@@ -80,7 +81,7 @@ export async function loadActiveIcps(tenantId: string): Promise<ActiveIcp[]> {
     });
     byIcp.set(r.icpId, list);
   }
-  return rows.map((r) => ({ id: r.id, priority: r.priority, criteria: byIcp.get(r.id) ?? [] }));
+  return rows.map((r) => ({ id: r.id, name: r.name, priority: r.priority, criteria: byIcp.get(r.id) ?? [] }));
 }
 
 /**

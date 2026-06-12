@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { BulkActionsBar } from "@/components/ui/bulk-actions-bar";
+import { MoreMenu } from "@/components/ui/more-menu";
 import { useToast } from "@/components/ui/toast";
 import { SmartSearchBar, ActiveFiltersChips } from "@/components/ui/smart-search-bar";
 import { applyFilters } from "@/lib/search/filters";
@@ -106,6 +107,9 @@ export default function ContactsPage() {
   // Archive view: true = show only soft-deleted contacts so they can be
   // reviewed and restored (parity with the Accounts archive).
   const [viewDeleted, setViewDeleted] = useState(false);
+  // "Score all contacts" (header More menu): true while the tenant-wide
+  // ICP-fit run is in flight, so the item can't double-fire.
+  const [scoringAll, setScoringAll] = useState(false);
   // Per-column header filters (Notion / Excel style), parity with Accounts.
   const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilterState>>({});
   const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null);
@@ -509,6 +513,35 @@ export default function ContactsPage() {
     router.push(`/contacts/merge?ids=${ids.join(",")}`);
   }
 
+  // "Score all contacts" (header More menu). One synchronous server-side
+  // run over every contact: ICP-profile fit (company criteria + person
+  // seniorities), same scale contract as accounts — score = 100 × the
+  // primary profile's fit. No client fan-out: a 20-id chunk storm would
+  // trip the rate limit on multi-thousand-contact tenants.
+  async function scoreAllContacts() {
+    if (scoringAll) return;
+    setScoringAll(true);
+    try {
+      const res = await fetch("/api/score-contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ all: true }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; scored?: number };
+      if (!res.ok) {
+        toast(data.error ?? `Scoring failed (${res.status})`, "error");
+        return;
+      }
+      await refetchLoadedContacts();
+      toast(`Scored ${data.scored ?? 0} contacts against your ICP profiles.`, "success");
+    } catch (e) {
+      toast("Scoring failed — network error.", "error");
+      console.warn("contacts: score-all failed", e);
+    } finally {
+      setScoringAll(false);
+    }
+  }
+
   // Deep async mobile/email enrichment via FullEnrich (EU-strong, finds
   // what the synchronous waterfall missed). Fires one bulk request;
   // contacts update as FullEnrich posts results to /api/webhooks/fullenrich.
@@ -658,13 +691,33 @@ export default function ContactsPage() {
       />
       <PageHeader icon={<Users size={16} />} title="Contacts" subtitle={`${totalContacts}`}>
         {/* Enrich lives in the selection bar — it only makes sense once
-            contacts are checked. The toolbar keeps workspace-level actions.
-            In the Archive view only the toggle back stays. */}
+            contacts are checked. Secondary controls (views, tenant-wide
+            actions) group behind the same More menu as Accounts.
+            "Find duplicates" is gone on purpose (founder rule
+            2026-06-11): duplicates must never exist in the first place —
+            dedup belongs upstream in the import/extract paths, and
+            merging a checked selection stays available in the bulk bar. */}
+        <MoreMenu
+          label="More"
+          items={[
+            {
+              label: "Archive",
+              icon: <Archive size={13} />,
+              checked: viewDeleted,
+              onClick: () => { setViewDeleted((v) => !v); setSelectedRows(new Set()); },
+            },
+            {
+              label: scoringAll ? "Scoring contacts…" : "Score all contacts",
+              hint: "Recompute ICP fit for every contact",
+              icon: <Gauge size={13} />,
+              divider: true,
+              disabled: scoringAll,
+              onClick: () => { void scoreAllContacts(); },
+            },
+          ]}
+        />
         {!viewDeleted && (
           <>
-            <Button variant="outline" size="sm" icon={<GitMerge size={12} />} onClick={() => router.push("/contacts/merge")}>
-              Find duplicates
-            </Button>
             <Button variant="outline" size="sm" icon={<Upload size={12} />} onClick={() => setShowSmartImport(true)} style={{ color: "var(--color-accent)" }}>
               Smart Import
             </Button>
@@ -677,15 +730,19 @@ export default function ContactsPage() {
             <Button variant="gradient" size="sm" icon={<Plus size={12} />} onClick={() => setShowCreate(true)}>Create contact</Button>
           </>
         )}
-        <Button
-          variant="outline"
-          size="sm"
-          icon={viewDeleted ? <RotateCcw size={13} /> : <Archive size={13} />}
-          onClick={() => { setViewDeleted((v) => !v); setSelectedRows(new Set()); }}
-          title={viewDeleted ? "Back to the active contacts" : "Review removed contacts and restore them"}
-        >
-          {viewDeleted ? "Back to active" : "Archive"}
-        </Button>
+        {/* Leaving the Archive view stays ONE visible click — never
+            buried in the menu (accounts convention). */}
+        {viewDeleted && (
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<RotateCcw size={13} />}
+            onClick={() => { setViewDeleted(false); setSelectedRows(new Set()); }}
+            title="Back to the active contacts"
+          >
+            Back to active
+          </Button>
+        )}
       </PageHeader>
 
       <FilterBar>

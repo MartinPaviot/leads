@@ -19,6 +19,8 @@ export interface MoreMenuItem {
   checked?: boolean;
   /** Render a divider above this item. */
   divider?: boolean;
+  /** Grey out and ignore clicks (e.g. while the item's action runs). */
+  disabled?: boolean;
   /** Secondary line under the label (e.g. the current source profile). */
   hint?: string;
   /** Drill-in choice list — replaces the menu body until Back/selection. */
@@ -133,7 +135,9 @@ export function MoreMenu({
                   type="button"
                   role="menuitem"
                   data-checked={item.checked || undefined}
+                  disabled={item.disabled}
                   onClick={() => {
+                    if (item.disabled) return;
                     if (item.submenu) {
                       setDrillIndex(i);
                       return;
@@ -141,7 +145,7 @@ export function MoreMenu({
                     item.onClick?.();
                     close();
                   }}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] transition-colors hover:bg-[var(--color-bg-hover)]"
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] transition-colors hover:bg-[var(--color-bg-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                   style={{ color: "var(--color-text-primary)" }}
                 >
                   <span className="shrink-0" style={{ color: "var(--color-text-tertiary)" }}>

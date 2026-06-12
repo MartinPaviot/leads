@@ -121,4 +121,19 @@ describe("MoreMenu", () => {
     openMenu();
     expect(screen.getByText("Coeur romand")).toBeTruthy();
   });
+
+  it("a disabled item ignores clicks and keeps the menu open", () => {
+    const onClick = vi.fn();
+    render(
+      <MoreMenu
+        items={[{ label: "Scoring accounts…", disabled: true, onClick }]}
+      />,
+    );
+    openMenu();
+    const item = screen.getByRole("menuitem", { name: /scoring accounts/i }) as HTMLButtonElement;
+    expect(item.disabled).toBe(true);
+    fireEvent.click(item);
+    expect(onClick).not.toHaveBeenCalled();
+    expect(screen.getByRole("menu")).toBeTruthy();
+  });
 });

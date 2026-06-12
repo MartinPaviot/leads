@@ -1,176 +1,137 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+/**
+ * POST /api/score-contacts — ICP-profile contact scoring (replaces the
+ * legacy flat-settings composite). Contracts under test:
+ *   - auth + rate-limit gates run before any work;
+ *   - bad body (neither contactIds nor all:true) is a 400;
+ *   - the contact-scoped guard surfaces "nothing scorable" as 422;
+ *   - { all: true } runs the tenant-wide path;
+ *   - { contactIds } runs the batch path with the loaded ICPs.
+ */
 
-vi.mock("@/auth", () => ({
-  auth: vi.fn(),
-}));
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: vi.fn(),
-  withAuthRLS: vi.fn(async (handler) => { const ctx = await (await import("@/lib/auth/auth-utils")).getAuthContext(); if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 }); return handler(ctx); }),
 }));
 
-vi.mock("@/db", () => ({
-  db: {
-    select: vi.fn(),
-    update: vi.fn(),
-  },
+vi.mock("@/lib/infra/rate-limit", () => ({
+  checkRateLimit: vi.fn(),
 }));
 
-vi.mock("@/db/schema", () => ({
-  distillationSamples: { id: "id", tenantId: "tenant_id", agentId: "agent_id", input: "input", output: "output", score: "score", createdAt: "created_at" },
-  actionOutcomes: { id: "id", tenantId: "tenant_id", actionId: "action_id", outcome: "outcome", createdAt: "created_at" },
-  signalOutcomes: { id: "id", tenantId: "tenant_id", signalId: "signal_id", outcome: "outcome", createdAt: "created_at" },
-  agentTraces: { id: "id", tenantId: "tenant_id", agentId: "agent_id", agentCategory: "agent_category", traceId: "trace_id", input: "input", output: "output", model: "model", status: "status", inputTokens: "input_tokens", outputTokens: "output_tokens", estimatedCost: "estimated_cost", latencyMs: "latency_ms", toolCalls: "tool_calls", toolCallsCount: "tool_calls_count", errorMessage: "error_message", evalScore: "eval_score", metadata: "metadata", createdAt: "created_at" },
-  trustEvents: { id: "id", tenantId: "tenant_id", eventType: "event_type", delta: "delta", reason: "reason", createdAt: "created_at" },
-  systemTrustScore: { id: "id", tenantId: "tenant_id", score: "score", components: "components", createdAt: "created_at" },
-  agentActions: { id: "id", tenantId: "tenant_id", agentId: "agent_id", actionType: "action_type", entityId: "entity_id", summary: "summary", approved: "approved", metadata: "metadata", createdAt: "created_at" },
-  knowledgeEntries: { id: "id", tenantId: "tenant_id", title: "title", content: "content", category: "category", metadata: "metadata", createdAt: "created_at" },
-  tenants: { id: "id", name: "name", settings: "settings", domain: "domain", stripeCustomerId: "stripe_customer_id", subscriptionId: "subscription_id", plan: "plan", createdAt: "created_at", updatedAt: "updated_at", referralCode: "referral_code" },
-  contacts: { id: "id", tenantId: "tenantId" },
-  companies: { id: "id", tenantId: "tenantId" },
-  activities: { id: "id", tenantId: "tenantId", entityType: "entityType", entityId: "entityId", occurredAt: "occurredAt" },
+vi.mock("@/lib/icp/fit-recompute-core", () => ({
+  loadActiveIcps: vi.fn(),
 }));
 
-vi.mock("ai", () => ({
-  generateObject: vi.fn(),
+vi.mock("@/lib/scoring/contact-icp-fit", () => ({
+  CONTACT_SCORE_BATCH_SIZE: 100,
+  hasContactScorableCriteria: vi.fn(),
+  scoreAllContactsIcp: vi.fn(),
+  scoreContactIcpBatch: vi.fn(),
 }));
 
-vi.mock("@/lib/ai-provider", () => ({
-  anthropic: vi.fn(() => "mock-anthropic-model"),
-}));
-
-vi.mock("@ai-sdk/openai", () => ({
-  openai: vi.fn(() => "mock-openai-model"),
-}));
-
-vi.mock("drizzle-orm", () => ({
-  and: vi.fn(),
-  eq: vi.fn(),
-  gte: vi.fn(),
-  sql: vi.fn(),
-  isNull: vi.fn(),
-}));
-
-vi.mock("@/lib/rate-limit", () => ({
-  checkRateLimit: vi.fn(() => null),
-}));
-
-vi.mock("@/lib/tenant-settings", () => ({
-  getTenantSettings: vi.fn(() => Promise.resolve({})),
-  parseRoleKeywords: vi.fn(() => []),
-}));
-
-vi.mock("@/lib/scoring", () => ({
-  calculateContactFitScore: vi.fn(() => ({ score: 40, grade: "C", reasons: ["Default score"] })),
-  getGrade: vi.fn((score: number) => {
-    if (score >= 90) return { grade: "A+", heat: "Burning", icon: "🔥", min: 90 };
-    if (score >= 80) return { grade: "A", heat: "Burning", icon: "🔥", min: 80 };
-    if (score >= 60) return { grade: "B", heat: "Warm", icon: "☀️", min: 60 };
-    if (score >= 40) return { grade: "C", heat: "Cool", icon: "", min: 40 };
-    if (score >= 20) return { grade: "D", heat: "Cold", icon: "", min: 20 };
-    return { grade: "F", heat: "Cold", icon: "", min: 0 };
-  }),
-}));
-
-process.env.ANTHROPIC_API_KEY = "test-key";
-
-import { auth } from "@/auth";
 import { getAuthContext } from "@/lib/auth/auth-utils";
-import { db } from "@/db";
-import { generateObject } from "ai";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
+import { loadActiveIcps } from "@/lib/icp/fit-recompute-core";
+import {
+  hasContactScorableCriteria,
+  scoreAllContactsIcp,
+  scoreContactIcpBatch,
+} from "@/lib/scoring/contact-icp-fit";
 
 const { POST } = await import("@/app/api/score-contacts/route");
+
+const AUTH_CTX = { userId: "u1", appUserId: "au1", tenantId: "t1", role: "admin" };
+const ICPS = [
+  {
+    id: "icp1",
+    name: "Coeur romand",
+    priority: 1,
+    criteria: [
+      { id: "c1", fieldKey: "industry", operator: "eq", value: "software", weight: 1, isRequired: false },
+    ],
+  },
+];
+
+function makeReq(body: unknown): Request {
+  return new Request("http://localhost/api/score-contacts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
 
 describe("POST /api/score-contacts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getAuthContext).mockResolvedValue(AUTH_CTX as never);
+    vi.mocked(checkRateLimit).mockResolvedValue(null);
+    vi.mocked(loadActiveIcps).mockResolvedValue(ICPS as never);
+    vi.mocked(hasContactScorableCriteria).mockReturnValue(true);
+    vi.mocked(scoreAllContactsIcp).mockResolvedValue({ scored: 42, total: 42 });
+    vi.mocked(scoreContactIcpBatch).mockResolvedValue({ scored: 2 });
   });
 
   it("returns 401 when not authenticated", async () => {
     vi.mocked(getAuthContext).mockResolvedValue(null);
-
-    const req = new Request("http://localhost/api/score-contacts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contactIds: ["1"] }),
-    });
-
-    const res = await POST(req);
+    const res = await POST(makeReq({ all: true }));
     expect(res.status).toBe(401);
+    expect(scoreAllContactsIcp).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when contactIds missing", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
+  it("returns the rate-limit response untouched when limited", async () => {
+    const limited = Response.json({ error: "Too many requests" }, { status: 429 });
+    vi.mocked(checkRateLimit).mockResolvedValue(limited);
+    const res = await POST(makeReq({ all: true }));
+    expect(res.status).toBe(429);
+    expect(checkRateLimit).toHaveBeenCalledWith("bulk", "u1");
+    expect(scoreAllContactsIcp).not.toHaveBeenCalled();
+  });
 
-    const req = new Request("http://localhost/api/score-contacts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
-
-    const res = await POST(req);
+  it("returns 400 when neither contactIds nor all:true is given", async () => {
+    const res = await POST(makeReq({}));
     expect(res.status).toBe(400);
+    expect(scoreAllContactsIcp).not.toHaveBeenCalled();
+    expect(scoreContactIcpBatch).not.toHaveBeenCalled();
   });
 
-  it("scores a contact successfully", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
+  it("returns 422 when no active ICP has contact-scorable criteria", async () => {
+    vi.mocked(hasContactScorableCriteria).mockReturnValue(false);
+    const res = await POST(makeReq({ all: true }));
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error).toMatch(/ICP/);
+    expect(scoreAllContactsIcp).not.toHaveBeenCalled();
+  });
 
-    const mockContact = {
-      id: "ct1",
-      firstName: "Sarah",
-      lastName: "Chen",
-      email: "sarah@meridian.com",
-      title: "CTO",
-      companyId: null,
-      properties: { seniority: "C-Suite", department: "Engineering" },
-    };
-
-    // Route does: 1) contact lookup with .where().limit(), 2) activity count with .where() (no limit)
-    // where() must return thenable (for activity count) AND have .limit() (for contact lookup)
-    const activityCountResult = [{ count: 0 }];
-    const whereFn = vi.fn().mockImplementation(() => {
-      const promise = Promise.resolve(activityCountResult);
-      (promise as any).limit = vi.fn().mockResolvedValue([mockContact]);
-      return promise;
-    });
-    const fromFn = vi.fn().mockReturnValue({ where: whereFn });
-    vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
-
-    const updateWhereFn = vi.fn().mockResolvedValue([]);
-    const updateSetFn = vi.fn().mockReturnValue({ where: updateWhereFn });
-    vi.mocked(db.update).mockReturnValue({ set: updateSetFn } as never);
-
-    const req = new Request("http://localhost/api/score-contacts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contactIds: ["ct1"] }),
-    });
-
-    const res = await POST(req);
-    const data = await res.json();
-
+  it("{ all: true } runs the tenant-wide path", async () => {
+    const res = await POST(makeReq({ all: true }));
     expect(res.status).toBe(200);
-    expect(data.success).toBe(true);
-    expect(data.scored).toBe(1);
+    expect(await res.json()).toMatchObject({ success: true, scored: 42, total: 42 });
+    expect(scoreAllContactsIcp).toHaveBeenCalledWith("t1", ICPS);
+    expect(scoreContactIcpBatch).not.toHaveBeenCalled();
   });
 
-  it("handles missing contacts gracefully", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" });
+  it("{ contactIds } runs the batch path with the loaded ICPs", async () => {
+    const res = await POST(makeReq({ contactIds: ["a", "b"] }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ success: true, scored: 2, total: 2 });
+    expect(scoreContactIcpBatch).toHaveBeenCalledWith("t1", ["a", "b"], ICPS);
+    expect(scoreAllContactsIcp).not.toHaveBeenCalled();
+  });
 
-    const limitFn = vi.fn().mockResolvedValue([]); // empty = not found
-    const whereFn = vi.fn().mockReturnValue({ limit: limitFn });
-    const fromFn = vi.fn().mockReturnValue({ where: whereFn });
-    vi.mocked(db.select).mockReturnValue({ from: fromFn } as never);
+  it("filters non-string ids out of contactIds", async () => {
+    const res = await POST(makeReq({ contactIds: ["a", 7, null, "b"] }));
+    expect(res.status).toBe(200);
+    expect(scoreContactIcpBatch).toHaveBeenCalledWith("t1", ["a", "b"], ICPS);
+  });
 
-    const req = new Request("http://localhost/api/score-contacts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contactIds: ["nonexistent"] }),
-    });
-
-    const res = await POST(req);
-    const data = await res.json();
-
-    expect(data.scored).toBe(0);
+  it("rejects oversized explicit id lists instead of truncating", async () => {
+    const ids = Array.from({ length: 501 }, (_, i) => `c${i}`);
+    const res = await POST(makeReq({ contactIds: ids }));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/all:true/);
+    expect(scoreContactIcpBatch).not.toHaveBeenCalled();
+    expect(scoreAllContactsIcp).not.toHaveBeenCalled();
   });
 });

@@ -11,6 +11,8 @@ import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/integrations/cale
 import { embedEntity, activityToText, contactToText, companyToText } from "@/lib/ai/embeddings";
 import { markNeedsReauth, clearSyncHealth, isNeedsReauth, isOAuthAuthError } from "@/lib/integrations/sync-health";
 import { getTenantSettings, backsyncRangeToDays, buildIgnoredDomains, shouldAutoCreateContact } from "@/lib/config/tenant-settings";
+import { loadActiveIcps } from "@/lib/icp/fit-recompute-core";
+import { hasContactScorableCriteria, scoreContactIcpBatch } from "@/lib/scoring/contact-icp-fit";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
@@ -495,15 +497,27 @@ export const syncEmails = inngest.createFunction(
       }
     }
 
-    // Auto-score contacts that had new activities
+    // Auto-score contacts that had new activities. Direct lib call: the
+    // old HTTP self-call to /api/score/contacts carried no session, so
+    // getAuthContext 401'd and every post-sync rescore was a silent
+    // dead-letter.
     if (createdActivities.length > 0) {
-      const contactIds = [...new Set(createdActivities.map(a => a.entityId).filter(Boolean))];
+      const contactIds = [
+        ...new Set(
+          createdActivities
+            .map((a) => a.entityId)
+            .filter((id): id is string => !!id && id !== "unknown"),
+        ),
+      ];
       if (contactIds.length > 0) {
-        fetch(`${process.env.AUTH_URL || "http://localhost:3000"}/api/score/contacts`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contactIds }),
-        }).catch((e) => console.warn("sync: enrich-contacts trigger failed (non-blocking)", e));
+        try {
+          const activeIcps = await loadActiveIcps(tenantId);
+          if (hasContactScorableCriteria(activeIcps)) {
+            await scoreContactIcpBatch(tenantId, contactIds, activeIcps);
+          }
+        } catch (e) {
+          console.warn("sync: contact ICP rescore failed (non-blocking)", e);
+        }
       }
     }
 

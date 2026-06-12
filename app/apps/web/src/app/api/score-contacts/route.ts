@@ -1,10 +1,38 @@
+/**
+ * POST /api/score-contacts — score contacts against the ICP profiles
+ * ("Score all contacts" in the contacts header More menu).
+ *
+ * Body: { contactIds: string[] } for a specific set, or { all: true }
+ * for the whole tenant. The tenant-wide run loops server-side in
+ * batches of 100 (pure SQL, synchronous) — a client fan-out of 20-id
+ * chunks would trip the per-user rate limit and take minutes.
+ *
+ * Replaces the legacy flat-settings composite (seniority keywords +
+ * targetRoles): contacts.score is now the 0-100 mirror of the primary
+ * ICP fit, computed by lib/scoring/contact-icp-fit with the same
+ * criteria engine as the company matrix. The sync + campaign jobs
+ * write through the same lib, so the column has ONE meaning.
+ */
+
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
-import { db } from "@/db";
-import { contacts, companies, activities } from "@/db/schema";
-import { eq, and, gte, sql, isNull } from "drizzle-orm";
-import { getTenantSettings, parseRoleKeywords } from "@/lib/config/tenant-settings";
-import { calculateContactFitScore, getGrade } from "@/lib/scoring/scoring";
+import { loadActiveIcps } from "@/lib/icp/fit-recompute-core";
+import {
+  hasContactScorableCriteria,
+  scoreAllContactsIcp,
+  scoreContactIcpBatch,
+  CONTACT_SCORE_BATCH_SIZE,
+} from "@/lib/scoring/contact-icp-fit";
+
+// Tenant-wide runs walk every contact in SQL batches; give the route
+// the same budget as the other long synchronous routes (tam/build,
+// enrich/stream) instead of the platform default.
+export const maxDuration = 300;
+
+/** Hard ceiling on an explicit id list (5 server batches). Larger sets
+ *  are REJECTED — never silently truncated — callers that want
+ *  everything send { all: true }. */
+const MAX_EXPLICIT_IDS = CONTACT_SCORE_BATCH_SIZE * 5;
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
@@ -12,112 +40,56 @@ export async function POST(req: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const rlResponse = await checkRateLimit("enrich", authCtx.userId);
+  const rlResponse = await checkRateLimit("bulk", authCtx.userId);
   if (rlResponse) return rlResponse;
 
   try {
-    const body = await req.json();
-    const { contactIds } = body;
+    const body = (await req.json().catch(() => ({}))) as {
+      contactIds?: unknown;
+      all?: unknown;
+    };
+    const all = body.all === true;
+    const contactIds = Array.isArray(body.contactIds)
+      ? (body.contactIds.filter((v): v is string => typeof v === "string") as string[])
+      : null;
 
-    if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
-      return Response.json({ error: "contactIds array required" }, { status: 400 });
+    if (!all && (!contactIds || contactIds.length === 0)) {
+      return Response.json(
+        { error: "contactIds array or all:true required" },
+        { status: 400 },
+      );
+    }
+    if (!all && contactIds && contactIds.length > MAX_EXPLICIT_IDS) {
+      return Response.json(
+        {
+          error: `Too many ids (${contactIds.length} > ${MAX_EXPLICIT_IDS}). Send all:true to score every contact.`,
+        },
+        { status: 400 },
+      );
     }
 
-    // Load typed tenant settings
-    const settings = await getTenantSettings(authCtx.tenantId);
-    const targetRoleKeywords = parseRoleKeywords(settings);
-
-    let scored = 0;
-
-    for (const id of contactIds.slice(0, 20)) {
-      try {
-        const [contact] = await db
-          .select()
-          .from(contacts)
-          .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
-          .limit(1);
-
-        if (!contact) continue;
-
-        const props = (contact.properties || {}) as Record<string, unknown>;
-
-        // Get company info if available
-        let company: Record<string, unknown> | null = null;
-        let companyProps: Record<string, unknown> | null = null;
-        if (contact.companyId) {
-          const [c] = await db
-            .select()
-            .from(companies)
-            .where(and(eq(companies.id, contact.companyId), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
-            .limit(1);
-          if (c) {
-            company = c as Record<string, unknown>;
-            companyProps = (c.properties || {}) as Record<string, unknown>;
-          }
-        }
-
-        // Calculate engagement boost from activities
-        let engagementBoost = 0;
-        const engagementReasons: string[] = [];
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-        const [activityCount] = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(activities)
-          .where(
-            and(
-              eq(activities.tenantId, authCtx.tenantId),
-              eq(activities.entityType, "contact"),
-              eq(activities.entityId, id),
-              gte(activities.occurredAt, thirtyDaysAgo),
-              isNull(activities.deletedAt)
-            )
-          );
-
-        const recentActivities = Number(activityCount?.count || 0);
-        if (recentActivities > 5) {
-          engagementBoost = 10;
-          engagementReasons.push(`${recentActivities} recent interactions`);
-        } else if (recentActivities > 0) {
-          engagementBoost = 5;
-        }
-
-        const fit = calculateContactFitScore(
-          contact as Record<string, unknown>,
-          props,
-          company,
-          targetRoleKeywords
-        );
-
-        const totalScore = Math.min(100, fit.score + engagementBoost);
-        const allReasons = [...fit.reasons, ...engagementReasons];
-
-        // Re-calculate grade with engagement using shared thresholds
-        const { grade } = getGrade(totalScore);
-
-        await db
-          .update(contacts)
-          .set({
-            score: totalScore,
-            scoreReasons: allReasons,
-            properties: {
-              ...props,
-              score_grade: grade,
-              scored_at: new Date().toISOString(),
-              scoring_method: "rule_based",
-            },
-            updatedAt: new Date(),
-          })
-          .where(and(eq(contacts.id, id), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));
-
-        scored++;
-      } catch (err) {
-        console.warn(`Failed to score contact ${id}:`, err);
-      }
+    // Same spirit as the company guard (R3.4), but contact-scoped:
+    // person_seniorities counts as scorable here. Tell the user what
+    // to fix instead of writing a tenant full of zeros.
+    const activeIcps = await loadActiveIcps(authCtx.tenantId);
+    if (!hasContactScorableCriteria(activeIcps)) {
+      return Response.json(
+        {
+          error:
+            "Nothing to score yet — add criteria to an active ICP profile in Settings → ICP first.",
+        },
+        { status: 422 },
+      );
     }
 
-    return Response.json({ success: true, scored });
+    if (all) {
+      const r = await scoreAllContactsIcp(authCtx.tenantId, activeIcps);
+      return Response.json({ success: true, scored: r.scored, total: r.total });
+    }
+
+    const ids = contactIds!;
+    const { scored } = await scoreContactIcpBatch(authCtx.tenantId, ids, activeIcps);
+    return Response.json({ success: true, scored, total: ids.length });
   } catch (error) {
     console.error("Contact scoring failed:", error);
     return Response.json({ error: "Contact scoring failed" }, { status: 500 });
