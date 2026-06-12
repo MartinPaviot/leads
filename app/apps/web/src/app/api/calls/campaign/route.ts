@@ -21,6 +21,7 @@ import {
   type GoalSpec,
 } from "@/lib/voice/campaign";
 import { getTenantSettings, hasUsableIcp } from "@/lib/config/tenant-settings";
+import { getRoleVerification } from "@/lib/contacts/role-status";
 import { inngest } from "@/inngest/client";
 
 /** Count contacts that can actually be dialed (have a phone). */
@@ -88,9 +89,10 @@ async function todayQueue(tenantId: string, ownerId: string) {
     dealValueWeight: 1,
     localTime: "",
     localTimezone: "",
-    // Honest freshness — when the title/company was last sourced, so the
-    // cockpit can show "poste à confirmer" instead of asserting it as fact.
     lastEnrichedAt: r.lastEnrichedAt ? r.lastEnrichedAt.toISOString() : null,
+    // Live LinkedIn verification result (null until the auto-check runs), so
+    // the fiche shows the verified role instead of an unverified title.
+    roleVerification: getRoleVerification(r.properties as Record<string, unknown>),
     latestSignal: r.lastOutcome
       ? { type: "call", label: `Attempt ${r.attemptCount} · ${r.lastOutcome}` }
       : null,

@@ -2,14 +2,17 @@
  * Honest role freshness — a prospect's title/company comes from a data
  * provider at source time and is never independently re-verified, so the
  * provider can be months behind reality (a contact who left in February
- * still reads "current" all spring). We never *assert* a role as a
- * verified fact: the UI shows when it was last sourced ("poste à confirmer")
- * and lets the rep mark a contact as having left the role, which excludes
- * them from call lists and strikes the title on the fiche.
+ * still reads "current" all spring). Instead of asking the rep to confirm,
+ * we verify the role ourselves against the live LinkedIn profile (Apify,
+ * just-in-time when the contact enters the call list) and store the result:
+ *   - confirmed → the fiche shows the verified role (no "à confirmer" label)
+ *   - left      → roleObsoleteAt is set, dropping them from call lists
+ * The rep can still mark "left the role" manually.
  *
  * Pure helpers only (no DB / no provider names) so they're unit-testable
- * and safe to import from both server and client. The "left the role" flag
- * lives in `contacts.properties.roleObsoleteAt` (jsonb, no migration).
+ * and safe to import from both server and client. State lives in
+ * `contacts.properties` (jsonb, no migration): `roleObsoleteAt` (left) and
+ * `roleVerification` (the cached LinkedIn check).
  */
 
 /** jsonb key under contacts.properties marking the stored role as stale. */
@@ -77,19 +80,59 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** jsonb key under contacts.properties holding the cached LinkedIn check. */
+export const ROLE_VERIFICATION_KEY = "roleVerification";
+
+export type RoleVerificationStatus = "confirmed" | "left";
+
+export interface RoleVerification {
+  /** ISO timestamp of the check. */
+  at: string;
+  status: RoleVerificationStatus;
+  /** Current title per LinkedIn (the verified truth), when known. */
+  title: string | null;
+  /** Current company per LinkedIn, when known. */
+  company: string | null;
+}
+
+/** Read the cached LinkedIn verification, or null if never verified. */
+export function getRoleVerification(properties: Props): RoleVerification | null {
+  if (!properties || typeof properties !== "object") return null;
+  const v = (properties as Record<string, unknown>)[ROLE_VERIFICATION_KEY];
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  if (o.status !== "confirmed" && o.status !== "left") return null;
+  if (typeof o.at !== "string") return null;
+  return {
+    at: o.at,
+    status: o.status,
+    title: typeof o.title === "string" ? o.title : null,
+    company: typeof o.company === "string" ? o.company : null,
+  };
+}
+
+/** Return a new properties object carrying the verification result (immutable). */
+export function withRoleVerification(
+  properties: Props,
+  v: RoleVerification,
+): Record<string, unknown> {
+  return { ...(properties ?? {}), [ROLE_VERIFICATION_KEY]: v };
+}
+
 /**
- * Short French freshness note for a sourced role. Never claims the role is
- * verified — it states recency and asks for confirmation.
- *   - never sourced → "poste non vérifié"
- *   - sourced       → "poste à confirmer · sourcé il y a 5 j"
+ * True when a verification exists and is younger than `ttlDays` — used to
+ * skip re-checking (and re-paying) a contact we verified recently.
  */
-export function roleFreshnessNote(
-  lastEnrichedAt: string | Date | null | undefined,
+export function isVerificationFresh(
+  properties: Props,
+  ttlDays: number,
   now: Date = new Date(),
-): string {
-  const rel = relativeFr(lastEnrichedAt, now);
-  if (!rel) return "poste non vérifié";
-  return `poste à confirmer · sourcé ${rel}`;
+): boolean {
+  const v = getRoleVerification(properties);
+  if (!v) return false;
+  const at = new Date(v.at).getTime();
+  if (!Number.isFinite(at)) return false;
+  return now.getTime() - at < ttlDays * 86_400_000;
 }
 
 /**

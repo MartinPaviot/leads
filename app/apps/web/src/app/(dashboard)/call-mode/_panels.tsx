@@ -48,6 +48,7 @@ import {
   Target,
   ChevronDown,
   ChevronRight,
+  BadgeCheck,
 } from "lucide-react";
 import { industryIcon } from "@/lib/ui/industry-style";
 import { Avatar } from "@/components/ui/avatar";
@@ -59,7 +60,7 @@ import {
 } from "@/lib/call-mode/prospect-brief-core";
 import { isVoiceableSignal, mergeTechStacks } from "@/lib/call-mode/live-script";
 import { countryFromTimezone } from "@/lib/call-mode/geo";
-import { roleFreshnessNote } from "@/lib/contacts/role-status";
+import { relativeFr, type RoleVerification } from "@/lib/contacts/role-status";
 import { pickReplaceableTools } from "@/lib/tech-detect/replaceable";
 import { scoreTranscriptLevers, DRILL_COPY } from "@/lib/voice/lever-scoring";
 import { CompanyLogo } from "@/components/ui/company-logo";
@@ -176,9 +177,10 @@ export interface BriefContext {
   dealValueWeight: number;
   localTime: string;
   localTimezone: string;
-  /** When the title/company was last sourced (ISO) — drives the honest
-   *  "poste à confirmer · sourcé il y a X" note (never asserted as fact). */
   lastEnrichedAt?: string | null;
+  /** Live LinkedIn verification of the role (null until the auto-check runs):
+   *  confirmed → show the verified role; left → handled upstream (dropped). */
+  roleVerification?: RoleVerification | null;
   latestSignal: { type: string; label: string } | null;
 }
 
@@ -504,6 +506,13 @@ export function PreCallBrief({
       setMarkingLeft(false);
     }
   }
+  // Live LinkedIn verification: when confirmed, the verified title is the
+  // truth to display (over the possibly-stale sourced title).
+  const verification = selected.roleVerification ?? null;
+  const displayTitle =
+    verification?.status === "confirmed" && verification.title
+      ? verification.title
+      : focal?.title ?? selected.title;
   const deals = brain?.ownedDeals ?? [];
   const activities = brain?.directActivities ?? [];
   const dossier = brain?.cachedDossier ?? null;
@@ -606,15 +615,25 @@ export function PreCallBrief({
             <div className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Autorité</div>
             <p className="truncate text-[13px] font-medium leading-snug text-zinc-800 dark:text-zinc-100">
               {authorityLabel}
-              {(focal?.title ?? selected.title) && (
-                <span className="font-normal text-zinc-500"> · {focal?.title ?? selected.title}</span>
+              {displayTitle && (
+                <span className="font-normal text-zinc-500"> · {displayTitle}</span>
               )}
             </p>
-            {/* Honest freshness — the title is sourced data, never re-verified,
-                so we state recency + offer a one-click "left the role" that
-                drops them from the list (don't waste a call on a stale title). */}
+            {/* We verify the role ourselves on LinkedIn (no "à confirmer"
+                label). Confirmed → a verified badge; left → the LinkedIn truth
+                (these are normally dropped from the list upstream). The manual
+                "a quitté ce poste" stays as an override. */}
             <div className="mt-0.5 flex items-center gap-2">
-              <span className="text-[10px] text-zinc-400">{roleFreshnessNote(selected.lastEnrichedAt)}</span>
+              {verification?.status === "confirmed" ? (
+                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400">
+                  <BadgeCheck className="h-3 w-3" />
+                  poste vérifié sur LinkedIn{verification.at ? ` · ${relativeFr(verification.at)}` : ""}
+                </span>
+              ) : verification?.status === "left" ? (
+                <span className="text-[10px] text-rose-600 dark:text-rose-400">
+                  a quitté ce poste{verification.company ? ` — désormais ${verification.title ? `${verification.title}, ` : ""}${verification.company} (LinkedIn)` : " (LinkedIn)"}
+                </span>
+              ) : null}
               <button
                 type="button"
                 onClick={markRoleObsolete}
