@@ -5,8 +5,7 @@ import { eq, desc, and, isNull } from "drizzle-orm";
 import { runSkill } from "@/skills/runner";
 import { companyContactFinderSkill } from "@/skills/enrichment/company-contact-finder";
 import { leadQualificationSkill } from "@/skills/scoring/lead-qualification";
-import { getTenantSettings, deriveTargetRoles } from "@/lib/config/tenant-settings";
-import { senioritiesToApollo } from "@/lib/config/icp-constants";
+import { getIcpPersonTargeting } from "@/lib/icp/person-targeting";
 
 /**
  * Find decision-makers at top TAM companies during onboarding.
@@ -19,15 +18,12 @@ export async function POST(req: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const settings = await getTenantSettings(authCtx.tenantId);
-  // BUG-WS0-008: derive targetRoles at read time instead of using stale persisted value
-  const targetRoles = deriveTargetRoles(settings);
-  const roleTitles = targetRoles.split(/[,;]/).map((r) => r.trim()).filter(Boolean);
-
-  // BUG-WS0-007: Use the user's actual seniority selection (stored as UI
-  // labels like "C-Suite", "VP", "Founder") converted to Apollo API format.
-  // Falls back to ["c_suite", "vp", "director"] when no selection exists.
-  const apolloSeniorities = senioritiesToApollo(settings.targetSeniorities || []);
+  // Person targeting = ICP profiles' person criteria, legacy fallback
+  // (covers the old BUG-WS0-007/008 read-time derivations too) — see
+  // lib/icp/person-targeting.
+  const targeting = await getIcpPersonTargeting(authCtx.tenantId);
+  const roleTitles = targeting.titles ?? [];
+  const apolloSeniorities = targeting.seniorities;
 
   // Get top 10 scored companies
   const topCompanies = await db

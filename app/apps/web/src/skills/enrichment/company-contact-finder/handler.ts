@@ -6,10 +6,18 @@ export async function companyContactFinderHandler(
   input: CompanyContactFinderInput,
   _options: SkillRunOptions,
 ): Promise<CompanyContactFinderOutput> {
+  // Titles rule when present (seniorities only if explicitly given —
+  // Apollo ANDs the two facets); without titles, keep the historical
+  // decision-maker default so an unfiltered domain search never happens.
+  const seniorities =
+    input.targetSeniorities ??
+    (input.targetTitles && input.targetTitles.length > 0
+      ? undefined
+      : ["c_suite", "vp", "director"]);
   const result = await searchPeople({
     q_organization_domains: input.companyDomain,
     person_titles: input.targetTitles,
-    person_seniorities: input.targetSeniorities,
+    person_seniorities: seniorities,
     per_page: input.maxResults,
   });
 

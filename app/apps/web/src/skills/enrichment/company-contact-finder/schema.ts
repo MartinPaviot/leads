@@ -3,7 +3,11 @@ import { z } from "zod";
 export const companyContactFinderInputSchema = z.object({
   companyDomain: z.string().describe("Company domain to search for decision-makers"),
   targetTitles: z.array(z.string()).optional().describe("Specific job titles to look for"),
-  targetSeniorities: z.array(z.string()).default(["c_suite", "vp", "director"]),
+  // No zod default: Apollo ANDs titles with seniorities, so a blanket
+  // c_suite/vp/director default silently EXCLUDED titled targets
+  // (IT Manager → "manager", Owner → "owner"). The handler applies the
+  // decision-maker default only when no titles are given.
+  targetSeniorities: z.array(z.string()).optional(),
   minResults: z.number().min(1).max(25).default(3),
   maxResults: z.number().min(1).max(50).default(10),
 });
