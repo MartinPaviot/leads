@@ -24,7 +24,14 @@ export default function KnowledgeSettingsPage() {
       const res = await fetch("/api/settings/knowledge");
       if (res.ok) {
         const data = await res.json();
-        setTopics(data.knowledge || []);
+        // API speaks `title`; this page's local shape is `topic`.
+        setTopics(
+          (data.knowledge || []).map((k: { id: string; title?: string; topic?: string; content?: string }) => ({
+            id: k.id,
+            topic: k.title ?? k.topic ?? "",
+            content: k.content ?? "",
+          })),
+        );
       }
     } catch {
       setError("Failed to load knowledge topics");
@@ -32,6 +39,40 @@ export default function KnowledgeSettingsPage() {
       setLoading(false);
     }
   }, []);
+
+  // Industrialised company intake — read the workspace's website and write
+  // the FDAE-style "Company — ..." sections (lib/knowledge/company-intake.ts).
+  const [generating, setGenerating] = useState(false);
+  const [genSummary, setGenSummary] = useState<string | null>(null);
+  const [genGaps, setGenGaps] = useState<Array<{ question: string; why: string }>>([]);
+
+  async function generateFromWebsite() {
+    setGenerating(true);
+    setError("");
+    setGenSummary(null);
+    setGenGaps([]);
+    try {
+      const res = await fetch("/api/settings/knowledge/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setError(data.error || "Website intake failed");
+      } else {
+        setGenSummary(
+          `Read ${data.pages.length} page${data.pages.length === 1 ? "" : "s"} — ${data.created} section${data.created === 1 ? "" : "s"} created, ${data.updated} updated, ${data.unchanged} unchanged.`,
+        );
+        setGenGaps((data.gaps || []).slice(0, 6));
+        await fetchTopics();
+      }
+    } catch {
+      setError("Website intake failed");
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   useEffect(() => {
     fetchTopics();
@@ -52,7 +93,7 @@ export default function KnowledgeSettingsPage() {
         const res = await fetch("/api/settings/knowledge", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ topic: topic.topic, content: topic.content }),
+          body: JSON.stringify({ title: topic.topic, content: topic.content }),
         });
         if (res.ok) {
           await fetchTopics();
@@ -63,7 +104,7 @@ export default function KnowledgeSettingsPage() {
         await fetch("/api/settings/knowledge", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: topic.id, topic: topic.topic, content: topic.content }),
+          body: JSON.stringify({ id: topic.id, title: topic.topic, content: topic.content }),
         });
       }
     } catch {
@@ -113,10 +154,34 @@ export default function KnowledgeSettingsPage() {
         subtitle="Give Elevay additional context on your business. This context will be included in AI requests for everyone in your organization."
       />
 
-      <Button variant="outline" size="md" onClick={addTopic}>
-        + Add knowledge
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="md" onClick={addTopic}>
+          + Add knowledge
+        </Button>
+        <Button variant="outline" size="md" onClick={generateFromWebsite} disabled={generating} loading={generating}>
+          {generating ? "Reading your website..." : "Generate from website"}
+        </Button>
+      </div>
       {error && <p className="mt-2 text-[12px]" style={{ color: "var(--color-error)" }}>{error}</p>}
+      {genSummary && (
+        <div className="mt-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-hover)] p-3">
+          <p className="text-[12px] text-[var(--color-text-secondary)]">{genSummary}</p>
+          {genGaps.length > 0 && (
+            <div className="mt-2">
+              <p className="text-[12px] font-medium text-[var(--color-text-primary)]">
+                What your website could not answer — worth adding by hand:
+              </p>
+              <ul className="mt-1 list-disc pl-5">
+                {genGaps.map((g, i) => (
+                  <li key={i} className="text-[12px] text-[var(--color-text-secondary)]" title={g.why}>
+                    {g.question}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="mt-4 space-y-4">
         {loading ? (
