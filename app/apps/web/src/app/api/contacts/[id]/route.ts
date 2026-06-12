@@ -6,6 +6,7 @@ import { eq, and, sql, isNull } from "drizzle-orm";
 import { logAudit } from "@/lib/infra/audit-log";
 import { suppressContacts } from "@/lib/accounts/suppression";
 import { cascadeSoftDeleteContact, CONTACT_CASCADE_TYPES, type ContactCascadeType } from "@/lib/contacts/cascade-delete";
+import { ROLE_OBSOLETE_KEY } from "@/lib/contacts/role-status";
 
 export async function GET(
   req: Request,
@@ -71,6 +72,7 @@ export async function PUT(
       ownerId,
       additionalEmails,
       additionalCompanyIds,
+      roleObsolete,
     } = body;
 
     // Merge properties: preserve existing properties, update multi-value fields
@@ -91,6 +93,17 @@ export async function PUT(
       updatedProps.additionalCompanyIds = Array.isArray(additionalCompanyIds)
         ? additionalCompanyIds.filter((cid: string) => cid && cid !== primaryCompany)
         : [];
+    }
+
+    // Honest freshness: mark/clear "left this role". Sets a jsonb timestamp
+    // that drops the contact from call lists and strikes the title on the
+    // fiche, without deleting the record (reversible, may have a new role).
+    if (roleObsolete !== undefined) {
+      if (roleObsolete) {
+        updatedProps[ROLE_OBSOLETE_KEY] = new Date().toISOString();
+      } else {
+        delete updatedProps[ROLE_OBSOLETE_KEY];
+      }
     }
 
     const updates: Record<string, unknown> = {

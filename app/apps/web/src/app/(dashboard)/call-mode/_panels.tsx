@@ -59,6 +59,7 @@ import {
 } from "@/lib/call-mode/prospect-brief-core";
 import { isVoiceableSignal, mergeTechStacks } from "@/lib/call-mode/live-script";
 import { countryFromTimezone } from "@/lib/call-mode/geo";
+import { roleFreshnessNote } from "@/lib/contacts/role-status";
 import { pickReplaceableTools } from "@/lib/tech-detect/replaceable";
 import { scoreTranscriptLevers, DRILL_COPY } from "@/lib/voice/lever-scoring";
 import { CompanyLogo } from "@/components/ui/company-logo";
@@ -175,6 +176,9 @@ export interface BriefContext {
   dealValueWeight: number;
   localTime: string;
   localTimezone: string;
+  /** When the title/company was last sourced (ISO) — drives the honest
+   *  "poste à confirmer · sourcé il y a X" note (never asserted as fact). */
+  lastEnrichedAt?: string | null;
   latestSignal: { type: string; label: string } | null;
 }
 
@@ -472,14 +476,34 @@ export function PreCallBrief({
   brainLoading,
   onEnrich,
   enriching,
+  onRoleObsolete,
 }: {
   selected: BriefContext;
   brain: ContactBrainJSON | null | undefined;
   brainLoading: boolean;
   onEnrich?: () => void;
   enriching?: boolean;
+  /** Called after the rep flags this contact as having left the role, so the
+   *  cockpit can drop them from the queue. */
+  onRoleObsolete?: (contactId: string) => void;
 }) {
   const focal = brain?.focalContact;
+  // Honest freshness: the title/company is sourced data, never re-verified, so
+  // we let the rep flag "a quitté ce poste" — removes them from the list.
+  const [markingLeft, setMarkingLeft] = useState(false);
+  async function markRoleObsolete() {
+    setMarkingLeft(true);
+    try {
+      await fetch(`/api/contacts/${selected.contactId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roleObsolete: true }),
+      });
+      onRoleObsolete?.(selected.contactId);
+    } catch {
+      setMarkingLeft(false);
+    }
+  }
   const deals = brain?.ownedDeals ?? [];
   const activities = brain?.directActivities ?? [];
   const dossier = brain?.cachedDossier ?? null;
@@ -586,6 +610,20 @@ export function PreCallBrief({
                 <span className="font-normal text-zinc-500"> · {focal?.title ?? selected.title}</span>
               )}
             </p>
+            {/* Honest freshness — the title is sourced data, never re-verified,
+                so we state recency + offer a one-click "left the role" that
+                drops them from the list (don't waste a call on a stale title). */}
+            <div className="mt-0.5 flex items-center gap-2">
+              <span className="text-[10px] text-zinc-400">{roleFreshnessNote(selected.lastEnrichedAt)}</span>
+              <button
+                type="button"
+                onClick={markRoleObsolete}
+                disabled={markingLeft}
+                className="text-[10px] font-medium text-zinc-400 underline-offset-2 transition-colors hover:text-rose-600 hover:underline disabled:opacity-50"
+              >
+                {markingLeft ? "…" : "a quitté ce poste"}
+              </button>
+            </div>
           </div>
           {focal?.intentTrend && <IntentTrend trend={focal.intentTrend} />}
         </div>

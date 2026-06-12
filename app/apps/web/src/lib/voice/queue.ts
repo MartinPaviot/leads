@@ -16,6 +16,7 @@ import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { batchDncCheck } from "./dnc";
 import { checkQuietHours, resolveTimezone } from "./quiet-hours";
 import { parseE164 } from "./number-selector";
+import { isRoleObsolete } from "@/lib/contacts/role-status";
 
 export interface QueueItem {
   contactId: string;
@@ -32,6 +33,8 @@ export interface QueueItem {
   localTimezone: string;
   inQuietHours: boolean;
   onDnc: boolean;
+  /** When the title/company was last sourced (ISO), for the freshness note. */
+  lastEnrichedAt: string | null;
   latestSignal: { type: string; label: string } | null;
 }
 
@@ -64,6 +67,7 @@ export async function buildQueue(
       title: contacts.title,
       phone: contacts.phone,
       score: contacts.score,
+      lastEnrichedAt: contacts.lastEnrichedAt,
       contactProperties: contacts.properties,
       companyName: companies.name,
       companyDomain: companies.domain,
@@ -120,6 +124,9 @@ export async function buildQueue(
     if (onDnc) continue;
 
     const cprops = (r.contactProperties as ContactProperties) ?? {};
+    // Honest freshness: a contact flagged as having left this role drops out
+    // of the queue (don't surface a stale title to dial).
+    if (isRoleObsolete(cprops)) continue;
     const coprops = (r.companyProperties as CompanyProperties) ?? {};
     const parsed = parseE164(r.phone);
     const tz = resolveTimezone(
@@ -159,6 +166,7 @@ export async function buildQueue(
       localTimezone: tz,
       inQuietHours: false,
       onDnc: false,
+      lastEnrichedAt: r.lastEnrichedAt ? r.lastEnrichedAt.toISOString() : null,
       latestSignal: cprops.latestSignal ?? null,
     });
 

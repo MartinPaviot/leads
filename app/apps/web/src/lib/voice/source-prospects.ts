@@ -13,7 +13,8 @@
 
 import { db } from "@/db";
 import { companies, contacts } from "@/db/schema";
-import { and, eq, isNull, inArray } from "drizzle-orm";
+import { and, eq, isNull, inArray, sql } from "drizzle-orm";
+import { normalizeTitle } from "@/lib/contacts/role-status";
 import {
   searchOrganizations,
   searchPeople,
@@ -170,6 +171,26 @@ export async function sourceProspectsForTenant(args: {
       : [];
     const seen = new Set(existingContacts.map((c) => c.email?.toLowerCase()).filter(Boolean));
 
+    // Dedup by Apollo person id too: the same person can come back under a
+    // new/changed email and would otherwise create a duplicate row (the
+    // Fabien Courvoisier x2 case). Seeds the seen-set from existing rows.
+    const apolloIds = people.map((p) => p.id).filter((id): id is string => !!id);
+    // Match either key: this lib writes `apolloId`, the enrichment/match path
+    // writes `apollo_id`. Coalescing both prevents cross-path duplicate rows.
+    const existingApollo = apolloIds.length
+      ? await db
+          .select({ apolloId: sql<string>`coalesce(${contacts.properties} ->> 'apolloId', ${contacts.properties} ->> 'apollo_id')` })
+          .from(contacts)
+          .where(
+            and(
+              eq(contacts.tenantId, tenantId),
+              isNull(contacts.deletedAt),
+              sql`coalesce(${contacts.properties} ->> 'apolloId', ${contacts.properties} ->> 'apollo_id') = ANY(${apolloIds})`,
+            ),
+          )
+      : [];
+    const seenApollo = new Set(existingApollo.map((r) => r.apolloId).filter(Boolean));
+
     const toInsert: (typeof contacts.$inferInsert)[] = [];
     for (const p of people) {
       const email = p.email?.trim().toLowerCase() || null;
@@ -178,13 +199,19 @@ export async function sourceProspectsForTenant(args: {
         if (seen.has(usableEmail)) continue;
         seen.add(usableEmail);
       }
+      if (p.id) {
+        if (seenApollo.has(p.id)) continue;
+        seenApollo.add(p.id);
+      }
       toInsert.push({
         tenantId,
         companyId,
         firstName: p.first_name?.trim() || null,
         lastName: p.last_name?.trim() || null,
         email: usableEmail,
-        title: p.title?.trim() || null,
+        // Strip a company name a provider glued onto the title
+        // ("Directeur Général Afiro" -> "Directeur Général").
+        title: normalizeTitle(p.title, org.name),
         phone: p.phone_numbers?.[0]?.raw_number || null,
         linkedinUrl: p.linkedin_url || null,
         properties: { source: "icp_sourcing", apolloId: p.id, seniority: p.seniority ?? null },

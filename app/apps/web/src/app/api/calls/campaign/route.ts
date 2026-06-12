@@ -88,6 +88,9 @@ async function todayQueue(tenantId: string, ownerId: string) {
     dealValueWeight: 1,
     localTime: "",
     localTimezone: "",
+    // Honest freshness — when the title/company was last sourced, so the
+    // cockpit can show "poste à confirmer" instead of asserting it as fact.
+    lastEnrichedAt: r.lastEnrichedAt ? r.lastEnrichedAt.toISOString() : null,
     latestSignal: r.lastOutcome
       ? { type: "call", label: `Attempt ${r.attemptCount} · ${r.lastOutcome}` }
       : null,

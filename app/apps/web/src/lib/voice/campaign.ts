@@ -26,6 +26,7 @@ import {
   doNotCallList,
 } from "@/db/schema";
 import { and, eq, lte, sql, desc, isNull, inArray } from "drizzle-orm";
+import { ROLE_OBSOLETE_KEY } from "@/lib/contacts/role-status";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
@@ -404,6 +405,9 @@ export async function getTodaysCallList(tenantId: string, now: Date = new Date()
     eq(callCampaignTargets.listedOn, today),
     inArray(callCampaignTargets.status, ["queued", "in_progress"]),
     isNull(contacts.deletedAt),
+    // Honest freshness: a contact the rep flagged as having left this role
+    // drops out of the dial list (don't waste a call on a stale title).
+    sql`(${contacts.properties} ->> ${ROLE_OBSOLETE_KEY}) IS NULL`,
   ];
   if (ownerId) where.push(eq(callCampaigns.ownerId, ownerId));
   return db
@@ -420,6 +424,7 @@ export async function getTodaysCallList(tenantId: string, now: Date = new Date()
       title: contacts.title,
       companyId: contacts.companyId,
       score: contacts.score,
+      lastEnrichedAt: contacts.lastEnrichedAt,
     })
     .from(callCampaignTargets)
     .innerJoin(contacts, eq(contacts.id, callCampaignTargets.contactId))

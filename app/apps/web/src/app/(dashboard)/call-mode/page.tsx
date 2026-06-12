@@ -69,6 +69,7 @@ interface QueueItem {
   dealValueWeight: number;
   localTime: string;
   localTimezone: string;
+  lastEnrichedAt?: string | null;
   latestSignal: { type: string; label: string } | null;
 }
 
@@ -1230,6 +1231,14 @@ export default function CallModePage() {
                     brainLoading={brainLoading}
                     onEnrich={() => handleEnrich(selected.contactId)}
                     enriching={enriching}
+                    onRoleObsolete={(contactId) => {
+                      const remaining = queue.filter((q) => q.contactId !== contactId);
+                      setQueue(remaining);
+                      if (selectedId === contactId) {
+                        setSelectedId(remaining[0]?.contactId ?? null);
+                      }
+                      toast("Contact retiré de la liste : poste signalé obsolète.", "success");
+                    }}
                   />
                   {/* Act on the prospect without leaving the cockpit: AI email + book the meeting. */}
                   <CallActions
