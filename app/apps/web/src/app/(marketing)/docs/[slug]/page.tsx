@@ -11,6 +11,7 @@ import {
 } from "@/lib/docs/content";
 import { DocBlocks } from "@/components/docs/doc-blocks";
 import { DocsShell } from "../_components/docs-shell";
+import { ScrollActiveStep } from "../_components/scroll-active-step";
 
 export async function generateMetadata({
   params,
@@ -43,9 +44,16 @@ export default async function DocStepPage({
   return (
     <DocsShell>
       <div className="mx-auto flex max-w-[1240px] gap-12 px-6 pb-24 pt-12">
-        {/* Method steps nav */}
+        {/* Method steps nav. With 19 steps the nav outgrows short viewports,
+            and a sticky element without internal overflow pins its top and
+            makes the bottom items unreachable. max-height + overflow-y keeps
+            every step reachable by scrolling inside the sidebar itself. */}
         <aside className="hidden w-[250px] shrink-0 lg:block">
-          <nav aria-label="Method steps" className="sticky top-[84px]">
+          <nav
+            aria-label="Method steps"
+            className="sticky top-[84px] max-h-[calc(100vh-100px)] overflow-y-auto overscroll-contain pb-8 pr-2"
+          >
+            <ScrollActiveStep />
             <Link
               href="/docs"
               className="text-[13px] font-semibold text-gray-500 transition-colors hover:text-gray-900"
