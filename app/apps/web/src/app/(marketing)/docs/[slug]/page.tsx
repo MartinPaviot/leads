@@ -3,7 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DOCS_PAGE_ENABLED } from "@/lib/docs/page-visibility";
 import {
-  docsByCategory,
+  docSteps,
+  docsByPhase,
   estimateReadMinutes,
   getAdjacentDocs,
   getDocBySlug,
@@ -17,15 +18,15 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const article = getDocBySlug(slug);
-  if (!article) return { title: "Documentation | Elevay" };
+  const step = getDocBySlug(slug);
+  if (!step) return { title: "The Method | Elevay" };
   return {
-    title: `${article.title} | Elevay Docs`,
-    description: article.description,
+    title: `Step ${step.step}: ${step.title} | Elevay Method`,
+    description: step.description,
   };
 }
 
-export default async function DocArticlePage({
+export default async function DocStepPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
@@ -33,44 +34,51 @@ export default async function DocArticlePage({
   if (!DOCS_PAGE_ENABLED) notFound();
 
   const { slug } = await params;
-  const article = getDocBySlug(slug);
-  if (!article) notFound();
+  const step = getDocBySlug(slug);
+  if (!step) notFound();
 
-  const groups = docsByCategory();
+  const groups = docsByPhase();
   const { prev, next } = getAdjacentDocs(slug);
 
   return (
     <DocsShell>
       <div className="mx-auto flex max-w-[1240px] gap-12 px-6 pb-24 pt-12">
-        {/* Docs nav */}
-        <aside className="hidden w-[230px] shrink-0 lg:block">
-          <nav aria-label="Documentation" className="sticky top-[84px]">
+        {/* Method steps nav */}
+        <aside className="hidden w-[250px] shrink-0 lg:block">
+          <nav aria-label="Method steps" className="sticky top-[84px]">
             <Link
               href="/docs"
               className="text-[13px] font-semibold text-gray-500 transition-colors hover:text-gray-900"
             >
-              All documentation
+              The Method
             </Link>
             {groups.map((group) => (
-              <div key={group.category} className="mt-6">
+              <div key={group.phase} className="mt-6">
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                  {group.category}
+                  {group.phase}
                 </p>
-                <ul className="space-y-1">
-                  {group.articles.map((a) => {
-                    const active = a.slug === article.slug;
+                <ul className="space-y-0.5">
+                  {group.steps.map((s) => {
+                    const active = s.slug === step.slug;
                     return (
-                      <li key={a.slug}>
+                      <li key={s.slug}>
                         <Link
-                          href={`/docs/${a.slug}`}
+                          href={`/docs/${s.slug}`}
                           aria-current={active ? "page" : undefined}
-                          className={`block rounded-md px-2.5 py-1.5 text-[13px] leading-snug transition-colors ${
+                          className={`flex items-baseline gap-2 rounded-md px-2.5 py-1.5 text-[13px] leading-snug transition-colors ${
                             active
                               ? "bg-gray-100 font-medium text-gray-900"
                               : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                           }`}
                         >
-                          {a.title}
+                          <span
+                            className={`shrink-0 text-[11.5px] font-semibold tabular-nums ${
+                              active ? "text-[#2C6BED]" : "text-gray-400"
+                            }`}
+                          >
+                            {s.step}.
+                          </span>
+                          {s.title}
                         </Link>
                       </li>
                     );
@@ -81,19 +89,18 @@ export default async function DocArticlePage({
           </nav>
         </aside>
 
-        {/* Article */}
+        {/* Step content */}
         <main className="min-w-0 max-w-[720px] flex-1">
           <p className="text-[12px] font-semibold uppercase tracking-wider text-gray-400">
-            {article.category} &middot; {estimateReadMinutes(article)} min read
+            Step {step.step} of {docSteps.length} &middot; {step.phase} &middot;{" "}
+            {estimateReadMinutes(step)} min read
           </p>
           <h1 className="mt-2 text-[30px] font-bold leading-[1.2] tracking-[-0.5px] text-gray-900">
-            {article.title}
+            {step.title}
           </h1>
-          <p className="mt-3 text-[16px] leading-[1.7] text-gray-600">
-            {article.description}
-          </p>
+          <p className="mt-3 text-[16px] leading-[1.7] text-gray-600">{step.description}</p>
           <hr className="my-7 border-gray-100" />
-          <DocBlocks blocks={article.blocks} tone="marketing" />
+          <DocBlocks blocks={step.blocks} tone="marketing" />
 
           <div className="mt-12 flex items-stretch justify-between gap-4 border-t border-gray-100 pt-6">
             {prev ? (
@@ -102,7 +109,7 @@ export default async function DocArticlePage({
                 className="group max-w-[48%] rounded-lg border border-gray-200 px-4 py-3 transition-colors hover:border-gray-300"
               >
                 <span className="text-[11px] font-medium uppercase tracking-wider text-gray-400">
-                  Previous
+                  Step {prev.step}
                 </span>
                 <span className="mt-0.5 block text-[13.5px] font-medium text-gray-700 group-hover:text-gray-900">
                   {prev.title}
@@ -117,7 +124,7 @@ export default async function DocArticlePage({
                 className="group max-w-[48%] rounded-lg border border-gray-200 px-4 py-3 text-right transition-colors hover:border-gray-300"
               >
                 <span className="text-[11px] font-medium uppercase tracking-wider text-gray-400">
-                  Next
+                  Step {next.step}
                 </span>
                 <span className="mt-0.5 block text-[13.5px] font-medium text-gray-700 group-hover:text-gray-900">
                   {next.title}

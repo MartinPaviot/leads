@@ -26,6 +26,8 @@ interface ToneKit {
   marker: { style?: CSSProperties };
   callout: { className: string; style?: CSSProperties };
   calloutTitle: { className: string; style?: CSSProperties };
+  example: { className: string; style?: CSSProperties };
+  exampleTitle: { className: string; style?: CSSProperties };
   tableWrap: { className: string; style?: CSSProperties };
   th: { className: string; style?: CSSProperties };
   td: { className: string; style?: CSSProperties };
@@ -41,6 +43,11 @@ const TONES: Record<DocTone, ToneKit> = {
     marker: { style: { color: "#9CA3AF" } },
     callout: { className: "my-6 rounded-xl border border-gray-200 bg-gray-50 px-5 py-4" },
     calloutTitle: { className: "mb-1 text-[13px] font-semibold uppercase tracking-wide text-gray-700" },
+    example: {
+      className: "my-6 rounded-xl px-5 py-4",
+      style: { background: "#F5F8FF", borderLeft: "3px solid #2C6BED" },
+    },
+    exampleTitle: { className: "mb-2 text-[13px] font-semibold uppercase tracking-wide", style: { color: "#2C6BED" } },
     tableWrap: { className: "my-5 overflow-x-auto rounded-xl border border-gray-200" },
     th: { className: "border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-left text-[12.5px] font-semibold text-gray-700" },
     td: { className: "border-b border-gray-100 px-4 py-2.5 align-top text-[13.5px] leading-[1.6] text-gray-600" },
@@ -74,6 +81,17 @@ const TONES: Record<DocTone, ToneKit> = {
     calloutTitle: {
       className: "mb-1 text-[11px] font-semibold uppercase tracking-wider",
       style: { color: "var(--color-text-tertiary)" },
+    },
+    example: {
+      className: "my-5 rounded-lg px-4 py-3.5",
+      style: {
+        background: "var(--color-accent-soft)",
+        borderLeft: "3px solid var(--color-accent)",
+      },
+    },
+    exampleTitle: {
+      className: "mb-2 text-[11px] font-semibold uppercase tracking-wider",
+      style: { color: "var(--color-accent)" },
     },
     tableWrap: {
       className: "my-4 overflow-x-auto rounded-lg",
@@ -165,6 +183,23 @@ export function DocBlocks({ blocks, tone }: { blocks: DocBlock[]; tone: DocTone 
                 <p className={`${kit.p.className} mb-0`} style={kit.p.style}>
                   <Inline text={block.text} tone={tone} />
                 </p>
+              </div>
+            );
+          case "example":
+            return (
+              <div key={i} className={kit.example.className} style={kit.example.style}>
+                <div className={kit.exampleTitle.className} style={kit.exampleTitle.style}>
+                  {block.title || "Example"}
+                </div>
+                {block.lines.map((line, j) => (
+                  <p
+                    key={j}
+                    className={`${kit.p.className} ${j === block.lines.length - 1 ? "mb-0" : "mb-2"}`}
+                    style={kit.p.style}
+                  >
+                    <Inline text={line} tone={tone} />
+                  </p>
+                ))}
               </div>
             );
           case "table":

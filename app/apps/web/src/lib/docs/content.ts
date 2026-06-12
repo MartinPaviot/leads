@@ -1,44 +1,52 @@
-import type { DocArticle, DocBlock, DocCategory } from "./types";
-import { methodArticles } from "./articles/method";
-import { tamArticles } from "./articles/tam";
-import { outboundArticles } from "./articles/outbound";
+import type { DocBlock, DocPhase, DocStep } from "./types";
+import { foundationSteps } from "./steps/foundations";
+import { buildSteps } from "./steps/build";
+import { runSteps } from "./steps/run";
+import { learnSteps } from "./steps/learn";
 
-/** Display order of categories everywhere (index pages, sidebars). */
-export const DOC_CATEGORIES: DocCategory[] = ["Method", "TAM", "Outbound"];
-
-export const CATEGORY_TAGLINES: Record<DocCategory, string> = {
-  Method: "How the engine works and the doctrines it enforces.",
-  TAM: "Your market as a finite, named, living asset.",
-  Outbound: "One playbook per channel, sized for founder-led sales.",
-};
-
-/** Canonical reading order: also drives prev/next navigation. */
-export const docArticles: DocArticle[] = [
-  ...methodArticles,
-  ...tamArticles,
-  ...outboundArticles,
+/** Display order of phases everywhere (index page, sidebars). */
+export const DOC_PHASES: DocPhase[] = [
+  "Foundations",
+  "Build the machine",
+  "Run outbound",
+  "Learn and compound",
 ];
 
-export function getDocBySlug(slug: string): DocArticle | undefined {
-  return docArticles.find((a) => a.slug === slug);
+export const PHASE_TAGLINES: Record<DocPhase, string> = {
+  Foundations: "The doctrine and the message work that everything else depends on.",
+  "Build the machine": "From ICP hypothesis to a scored, signal-aware account universe.",
+  "Run outbound": "The cadence, one playbook per channel, and the brand layer.",
+  "Learn and compound": "Honest measurement, a living TAM, and scaling past yourself.",
+};
+
+/** Canonical order of the method: sorted by step number. */
+export const docSteps: DocStep[] = [
+  ...foundationSteps,
+  ...buildSteps,
+  ...runSteps,
+  ...learnSteps,
+].sort((a, b) => a.step - b.step);
+
+export function getDocBySlug(slug: string): DocStep | undefined {
+  return docSteps.find((s) => s.slug === slug);
 }
 
-export function docsByCategory(): Array<{ category: DocCategory; articles: DocArticle[] }> {
-  return DOC_CATEGORIES.map((category) => ({
-    category,
-    articles: docArticles.filter((a) => a.category === category),
-  })).filter((g) => g.articles.length > 0);
+export function docsByPhase(): Array<{ phase: DocPhase; steps: DocStep[] }> {
+  return DOC_PHASES.map((phase) => ({
+    phase,
+    steps: docSteps.filter((s) => s.phase === phase),
+  })).filter((g) => g.steps.length > 0);
 }
 
 export function getAdjacentDocs(slug: string): {
-  prev: DocArticle | null;
-  next: DocArticle | null;
+  prev: DocStep | null;
+  next: DocStep | null;
 } {
-  const i = docArticles.findIndex((a) => a.slug === slug);
+  const i = docSteps.findIndex((s) => s.slug === slug);
   if (i === -1) return { prev: null, next: null };
   return {
-    prev: i > 0 ? docArticles[i - 1] : null,
-    next: i < docArticles.length - 1 ? docArticles[i + 1] : null,
+    prev: i > 0 ? docSteps[i - 1] : null,
+    next: i < docSteps.length - 1 ? docSteps[i + 1] : null,
   };
 }
 
@@ -54,22 +62,20 @@ export function collectBlockStrings(block: DocBlock): string[] {
       return [...block.items];
     case "callout":
       return block.title ? [block.title, block.text] : [block.text];
+    case "example":
+      return block.title ? [block.title, ...block.lines] : [...block.lines];
     case "table":
       return [...block.headers, ...block.rows.flat()];
   }
 }
 
-export function collectDocStrings(article: DocArticle): string[] {
-  return [
-    article.title,
-    article.description,
-    ...article.blocks.flatMap(collectBlockStrings),
-  ];
+export function collectDocStrings(step: DocStep): string[] {
+  return [step.title, step.description, ...step.blocks.flatMap(collectBlockStrings)];
 }
 
 /** Rough reading time at ~200 words/min, floored at 2 minutes. */
-export function estimateReadMinutes(article: DocArticle): number {
-  const words = collectDocStrings(article)
+export function estimateReadMinutes(step: DocStep): number {
+  const words = collectDocStrings(step)
     .join(" ")
     .split(/\s+/)
     .filter(Boolean).length;

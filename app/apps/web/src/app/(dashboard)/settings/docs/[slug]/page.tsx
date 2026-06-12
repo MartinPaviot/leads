@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { DOCS_PAGE_ENABLED } from "@/lib/docs/page-visibility";
 import {
+  docSteps,
   estimateReadMinutes,
   getAdjacentDocs,
   getDocBySlug,
@@ -17,11 +18,11 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const article = getDocBySlug(slug);
-  return { title: article ? `${article.title} | Elevay` : "Documentation | Elevay" };
+  const step = getDocBySlug(slug);
+  return { title: step ? `Step ${step.step}: ${step.title} | Elevay` : "The Method | Elevay" };
 }
 
-export default async function SettingsDocArticlePage({
+export default async function SettingsDocStepPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
@@ -29,8 +30,8 @@ export default async function SettingsDocArticlePage({
   if (!DOCS_PAGE_ENABLED) notFound();
 
   const { slug } = await params;
-  const article = getDocBySlug(slug);
-  if (!article) notFound();
+  const step = getDocBySlug(slug);
+  if (!step) notFound();
 
   const { prev, next } = getAdjacentDocs(slug);
 
@@ -41,15 +42,15 @@ export default async function SettingsDocArticlePage({
         className="mb-4 inline-flex items-center gap-1.5 text-[12.5px] font-medium transition-opacity hover:opacity-80"
         style={{ color: "var(--color-accent)" }}
       >
-        <ArrowLeft size={13} /> All documentation
+        <ArrowLeft size={13} /> The Method
       </Link>
 
       <SettingsHeader
-        title={article.title}
-        subtitle={`${article.category} · ${estimateReadMinutes(article)} min read`}
+        title={`${step.step}. ${step.title}`}
+        subtitle={`Step ${step.step} of ${docSteps.length} · ${step.phase} · ${estimateReadMinutes(step)} min read`}
       />
 
-      <DocBlocks blocks={article.blocks} tone="app" />
+      <DocBlocks blocks={step.blocks} tone="app" />
 
       <div
         className="mt-10 flex items-stretch justify-between gap-3 pt-5"
@@ -65,7 +66,7 @@ export default async function SettingsDocArticlePage({
               className="text-[10.5px] font-medium uppercase tracking-wider"
               style={{ color: "var(--color-text-tertiary)" }}
             >
-              Previous
+              Step {prev.step}
             </span>
             <span
               className="mt-0.5 block text-[12.5px] font-medium"
@@ -87,7 +88,7 @@ export default async function SettingsDocArticlePage({
               className="text-[10.5px] font-medium uppercase tracking-wider"
               style={{ color: "var(--color-text-tertiary)" }}
             >
-              Next
+              Step {next.step}
             </span>
             <span
               className="mt-0.5 block text-[12.5px] font-medium"

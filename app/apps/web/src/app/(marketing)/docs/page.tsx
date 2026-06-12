@@ -3,68 +3,87 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DOCS_PAGE_ENABLED } from "@/lib/docs/page-visibility";
 import {
-  CATEGORY_TAGLINES,
-  docsByCategory,
+  PHASE_TAGLINES,
+  docSteps,
+  docsByPhase,
   estimateReadMinutes,
 } from "@/lib/docs/content";
 import { DocsShell } from "./_components/docs-shell";
 
 export const metadata: Metadata = {
-  title: "Documentation | Elevay",
+  title: "The Method | Elevay",
   description:
-    "How Elevay works and the playbooks behind it: building and maintaining your TAM, and running every outbound channel as an early-stage founder.",
+    "The Elevay method, step by step: the operating doctrine, building your TAM, running every outbound channel, and the learning loops that compound. With worked examples.",
 };
 
 export default function DocsIndexPage() {
   if (!DOCS_PAGE_ENABLED) notFound();
 
-  const groups = docsByCategory();
+  const groups = docsByPhase();
 
   return (
     <DocsShell>
       <main className="mx-auto max-w-[860px] px-6 pb-24 pt-14">
         <p className="text-[13px] font-semibold uppercase tracking-wider text-gray-400">
-          Documentation
+          The Method
         </p>
         <h1 className="mt-2 text-[34px] font-bold tracking-[-0.5px] text-gray-900">
-          The method behind the machine
+          How we run founder-led sales
         </h1>
         <p className="mt-3 max-w-[640px] text-[16px] leading-[1.7] text-gray-600">
-          Elevay is a revenue engine with a methodology built in. These pages
-          document that methodology: what an operational TAM is and how to keep
-          it alive, and the playbook for every outbound channel, sized for
-          founder-led sales.
+          One method, {docSteps.length} steps, read in order. The doctrine, the
+          market machine, the playbook for every outbound channel, and the
+          loops that make it compound. Every step ends with a worked example
+          and with what Elevay automates for you.
         </p>
 
-        {groups.map((group) => (
-          <section key={group.category} className="mt-12">
-            <h2 className="text-[14px] font-semibold uppercase tracking-wider text-gray-500">
-              {group.category}
-            </h2>
-            <p className="mt-1 text-[14px] text-gray-500">
-              {CATEGORY_TAGLINES[group.category]}
-            </p>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              {group.articles.map((article) => (
+        {groups.map((group, gi) => (
+          <section key={group.phase} className="mt-12">
+            <div className="flex items-baseline gap-3">
+              <span className="text-[13px] font-semibold uppercase tracking-wider text-gray-400">
+                Phase {gi + 1}
+              </span>
+              <h2 className="text-[18px] font-semibold tracking-[-0.2px] text-gray-900">
+                {group.phase}
+              </h2>
+            </div>
+            <p className="mt-1 text-[14px] text-gray-500">{PHASE_TAGLINES[group.phase]}</p>
+            <div className="mt-4 overflow-hidden rounded-xl border border-gray-200">
+              {group.steps.map((step, i) => (
                 <Link
-                  key={article.slug}
-                  href={`/docs/${article.slug}`}
-                  className="group rounded-xl border border-gray-200 bg-white p-5 transition-all hover:border-gray-300 hover:shadow-[0_2px_12px_rgba(0,0,0,0.05)]"
+                  key={step.slug}
+                  href={`/docs/${step.slug}`}
+                  className={`group flex items-start gap-4 bg-white px-5 py-4 transition-colors hover:bg-gray-50 ${
+                    i > 0 ? "border-t border-gray-100" : ""
+                  }`}
                 >
-                  <h3 className="text-[16px] font-semibold text-gray-900 group-hover:text-[#2C6BED]">
-                    {article.title}
-                  </h3>
-                  <p className="mt-1.5 text-[13.5px] leading-[1.6] text-gray-600">
-                    {article.description}
-                  </p>
-                  <p className="mt-3 text-[12px] font-medium text-gray-400">
-                    {estimateReadMinutes(article)} min read
-                  </p>
+                  <span
+                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[12.5px] font-semibold text-white"
+                    style={{ background: "#2C6BED" }}
+                  >
+                    {step.step}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[15.5px] font-semibold text-gray-900 group-hover:text-[#2C6BED]">
+                      {step.title}
+                    </span>
+                    <span className="mt-0.5 block text-[13.5px] leading-[1.6] text-gray-600">
+                      {step.description}
+                    </span>
+                  </span>
+                  <span className="mt-1 shrink-0 text-[12px] font-medium text-gray-400">
+                    {estimateReadMinutes(step)} min
+                  </span>
                 </Link>
               ))}
             </div>
           </section>
         ))}
+
+        <p className="mt-12 text-[13.5px] leading-[1.7] text-gray-500">
+          Start at step 1. The method assumes nothing except that you are a
+          founder who has to sell what you build.
+        </p>
       </main>
     </DocsShell>
   );

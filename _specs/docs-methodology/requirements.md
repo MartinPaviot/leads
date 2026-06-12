@@ -10,11 +10,18 @@ product surface (embedded playbooks, forward-deployed methodology). We have
 
 ## User story
 
-As a founder using Elevay (or evaluating it from the landing page), I want a
-documentation section that teaches how the engine works and the playbooks
-behind it (what a TAM is for an early-stage startup, how to build it, how to
-keep it alive, and how to run each outbound channel), so that I use the
-product the way it is designed to be used.
+As a founder using Elevay (or evaluating it from the landing page), I want
+the company's full GTM knowledge presented as ONE method with ordered,
+numbered steps in a left sidebar (not blog-style articles), each step with
+concrete worked examples (Elevay itself as the example company), so that I
+can run founder-led sales the way the engine is designed to run it.
+
+REVISED 2026-06-12 after Martin's feedback mid-build: (1) not articles, a
+method with steps + examples, steps in a left sidebar; (2) integrate the
+full Sam Blond transcript insights at every step
+(_research/raw/transcript-sam-blond-monaco-gtm.md). Result: 14 steps in 4
+phases (Foundations / Build the machine / Run outbound / Learn and
+compound), every step carries at least one `example` block (test-enforced).
 
 ## Acceptance criteria
 
