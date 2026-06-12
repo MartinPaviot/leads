@@ -60,7 +60,7 @@ const TOOL_GROUP_MAP: Record<string, string> = {
   queryTasks: "query", whoami: "query", listWorkspaceMembers: "query",
   searchMeetings: "query", searchEmailsByMetadata: "query",
   runBasicReport: "query", getNoteBody: "query", getCallRecording: "query",
-  getCallList: "query",
+  getCallList: "query", proposeCallSprint: "query",
   getEmailContent: "query", semanticSearchNotes: "query",
   semanticSearchEmails: "query", semanticSearchCallRecordings: "query",
   getRecordsByIds: "query", listComments: "query", listCommentReplies: "query",
@@ -101,6 +101,7 @@ const TOOL_GROUP_MAP: Record<string, string> = {
   resendInvite: "action", addMailbox: "action",
   runAiAttribute: "action", deleteComment: "action",
   deleteSequenceStep: "action", mergeContacts: "action",
+  applyCallSprint: "action",
   // intelligence
   getDealCoaching: "intelligence", getAccountIntelligence: "intelligence",
   generateMeetingPrep: "intelligence", getMeetingNotes: "intelligence",

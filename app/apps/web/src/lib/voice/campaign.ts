@@ -31,6 +31,11 @@ import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
+import {
+  readSprintAudience,
+  sprintAudienceConditions,
+  type SprintAudience,
+} from "./call-sprint";
 
 /** Outcomes that END the cadence for a target (we reached a conclusion). */
 const OUTCOME_CONVERTED = new Set(["meeting_booked"]);
@@ -212,6 +217,12 @@ export interface UpdateCampaignArgs {
   windowDays?: number;
   listFrequency?: "daily" | "weekly";
   workingDays?: number[];
+  /**
+   * Call-sprint audience for the daily top-up (industries × personas,
+   * lib/voice/call-sprint.ts). `null` clears the sprint (list reverts to the
+   * whole ICP ranked by fit); omit to leave it untouched.
+   */
+  audience?: SprintAudience | null;
 }
 
 /**
@@ -258,6 +269,10 @@ export async function updateCallCampaign(args: UpdateCampaignArgs) {
   if (args.goal) nextFilter.goal = args.goal;
   if (args.listFrequency) nextFilter.listFrequency = args.listFrequency;
   if (Array.isArray(args.workingDays) && args.workingDays.length > 0) nextFilter.workingDays = args.workingDays;
+  if (args.audience !== undefined) {
+    if (args.audience === null) delete nextFilter.audience;
+    else nextFilter.audience = args.audience;
+  }
   patch.targetFilter = nextFilter;
 
   const [row] = await db
@@ -275,6 +290,8 @@ export interface DailyListResult {
   newlyAdded: number;
   listed: number;
   poolExhausted: boolean;
+  /** Active sprint label when the top-up was audience-filtered, else null. */
+  sprint: string | null;
 }
 
 /**
@@ -293,11 +310,15 @@ export async function generateDailyCallList(
     .where(eq(callCampaigns.id, campaignId))
     .limit(1);
   if (!campaign || campaign.status !== "active") {
-    return { campaignId, quota: 0, retriesDue: 0, newlyAdded: 0, listed: 0, poolExhausted: true };
+    return { campaignId, quota: 0, retriesDue: 0, newlyAdded: 0, listed: 0, poolExhausted: true, sprint: null };
   }
   const tenantId = campaign.tenantId;
   const quota = campaign.dailyQuota || 0;
   const today = dayStr(now);
+  // Sprint audience (lib/voice/call-sprint.ts): narrows the TOP-UP only.
+  // Retries due keep their committed cadence regardless of audience — a
+  // started conversation thread is never dropped because the sector changed.
+  const audience = readSprintAudience(campaign.targetFilter);
 
   // Already-listed-today targets (idempotency) count toward the quota.
   const alreadyListed = await db
@@ -360,6 +381,7 @@ export async function generateDailyCallList(
             WHERE cc.tenant_id = ${tenantId} AND cc.status = 'active'
           )`,
           sql`NOT EXISTS (SELECT 1 FROM do_not_call_list d WHERE d.phone_number = ${contacts.phone} AND (d.tenant_id = ${tenantId} OR d.tenant_id IS NULL))`,
+          ...(audience ? sprintAudienceConditions(audience) : []),
         ),
       )
       .orderBy(desc(contacts.score))
@@ -390,7 +412,28 @@ export async function generateDailyCallList(
     poolExhausted = candidates.length < topUp;
   }
 
-  return { campaignId, quota, retriesDue, newlyAdded, listed, poolExhausted };
+  return { campaignId, quota, retriesDue, newlyAdded, listed, poolExhausted, sprint: audience?.label ?? null };
+}
+
+/**
+ * The rep's OWN active campaign (most recent). Sprint writes deliberately
+ * target only the caller's campaign — never the shared/workspace one a
+ * member might be borrowing in the cockpit (that one belongs to its owner).
+ */
+export async function getOwnActiveCampaign(tenantId: string, ownerId: string) {
+  const [own] = await db
+    .select()
+    .from(callCampaigns)
+    .where(
+      and(
+        eq(callCampaigns.tenantId, tenantId),
+        eq(callCampaigns.ownerId, ownerId),
+        eq(callCampaigns.status, "active"),
+      ),
+    )
+    .orderBy(desc(callCampaigns.createdAt))
+    .limit(1);
+  return own ?? null;
 }
 
 /**
