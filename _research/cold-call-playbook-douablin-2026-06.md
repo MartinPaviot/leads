@@ -1,6 +1,6 @@
 # Playbook cold call — méthode Benjamin Douablin × meilleures références (v1 générique — 2026-06-12)
 
-**Statut : socle générique, volontairement non adapté.** Étape suivante (ensemble) : remplir les slots du §8 avec l'ICP Pilae et l'offre, puis réviser `pilae-call-playbook-icp-2026-06.md` à la lumière de ce socle.
+**Statut : notes thématiques (v1).** Formalisé par phases d'appel — régime fondateur assumé, enrichi du second transcript Douablin (vidéo SF) — dans **`cold-call-playbook-fondateur-2026-06.md`**, qui fait foi. Étape suivante (ensemble) : remplir les slots avec l'ICP Pilae et l'offre, puis réviser `pilae-call-playbook-icp-2026-06.md`.
 
 Sources :
 - **Primaire** : Benjamin Douablin — co-fondateur de FullEnrich (l'outil d'enrichissement déjà branché dans Elevay, PR #71), ex-CEO de SalesRamp où il a monté l'équipe SDR — invité du podcast Coldcast d'Augustin Tonnel, 52 min. Transcript intégral : `_research/raw/douablin-cold-call-transcript.md` (Deepgram nova-2, mp3 Downloads). Citations en [mm:ss].
