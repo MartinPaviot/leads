@@ -514,8 +514,9 @@ async function findSuggestedContacts(params: {
     {
       companyDomain: domain,
       targetTitles: targetTitles.length > 0 ? targetTitles : undefined,
-      targetSeniorities:
-        targetSeniorities.length > 0 ? targetSeniorities : ["c_suite", "vp", "director"],
+      // Pass through: the handler applies the decision-maker default
+      // ONLY when no titles are given (Apollo ANDs the facets).
+      targetSeniorities: targetSeniorities.length > 0 ? targetSeniorities : undefined,
       minResults: 1,
       maxResults: 3,
     },
@@ -532,7 +533,7 @@ async function findSuggestedContacts(params: {
     const [existing] = await db
       .select({ id: contactsTable.id })
       .from(contactsTable)
-      .where(eq(contactsTable.email, person.email))
+      .where(and(eq(contactsTable.tenantId, tenantId), eq(contactsTable.email, person.email)))
       .limit(1);
     if (existing) continue;
 

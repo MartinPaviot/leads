@@ -152,3 +152,56 @@ For EACH job title, return the subset of persona labels whose FUNCTION the title
   }
   return resolved;
 }
+
+/**
+ * Consensus resolution for DESTRUCTIVE decisions (archive/purge flows).
+ *
+ * A single pass flickers on borderline titles (~6% observed on the
+ * 2026-06-12 purge — compound titles like "Deputy Director & Head of
+ * Shared Services" flipped between runs). For decisions that delete
+ * data, run `passes` independent resolutions and take majorities:
+ *   - a PERSONA is kept only when ≥⌈passes/2⌉ passes returned it;
+ *   - a title is a confirmed NEGATIVE ([]) only when ≥⌈passes/2⌉
+ *     passes EXPLICITLY returned empty for it;
+ *   - a split verdict (passes disagree, no majority either way) stays
+ *     UNRESOLVED — and a destructive caller must treat unresolved as
+ *     "do not touch".
+ * Scoring keeps using the single-pass resolveTitles (non-destructive,
+ * cached, self-correcting on the next run).
+ */
+export async function resolveTitlesConsensus(
+  titles: string[],
+  vocab: string[],
+  tenantId: string,
+  passes = 3,
+): Promise<Map<string, string[]>> {
+  const runs: Array<Map<string, string[]>> = [];
+  for (let i = 0; i < passes; i++) {
+    runs.push(await resolveTitles(titles, vocab, tenantId));
+  }
+  const majority = Math.ceil(passes / 2);
+
+  const out = new Map<string, string[]>();
+  for (const t of new Set(titles.filter((x) => x.trim()).map((x) => norm(x)))) {
+    const answered = runs.filter((r) => r.has(t));
+    if (answered.length < majority) continue; // unresolved — never destructive
+
+    const counts = new Map<string, number>();
+    let explicitlyEmpty = 0;
+    for (const r of answered) {
+      const personas = r.get(t) ?? [];
+      if (personas.length === 0) explicitlyEmpty++;
+      for (const p of personas) counts.set(p, (counts.get(p) ?? 0) + 1);
+    }
+    const personas = [...counts.entries()]
+      .filter(([, n]) => n >= majority)
+      .map(([p]) => p);
+    if (personas.length > 0) {
+      out.set(t, personas);
+    } else if (explicitlyEmpty >= majority) {
+      out.set(t, []); // confirmed negative
+    }
+    // split verdict → stays unresolved (absent)
+  }
+  return out;
+}

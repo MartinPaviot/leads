@@ -3,22 +3,7 @@ import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { searchPeople, isApolloAvailable } from "@/lib/integrations/apollo-client";
-import { getTenantSettings, deriveTargetRoles } from "@/lib/config/tenant-settings";
-
-/** Derive Apollo seniority filters from targetRoles text (e.g. "VP Engineering, CTO") */
-function deriveSeniorities(targetRoles: string): string[] {
-  const lower = targetRoles.toLowerCase();
-  const seniorities = new Set<string>();
-
-  if (/\bceo\b|\bcto\b|\bcfo\b|\bcoo\b|\bcro\b|\bcmo\b|\bc-suite\b|\bchief\b/.test(lower)) seniorities.add("c_suite");
-  if (/\bfounder\b|\bco-founder\b|\bowner\b/.test(lower)) seniorities.add("founder");
-  if (/\bvp\b|\bvice president\b/.test(lower)) seniorities.add("vp");
-  if (/\bdirector\b|\bhead of\b/.test(lower)) seniorities.add("director");
-  if (/\bmanager\b/.test(lower)) seniorities.add("manager");
-  if (/\bsenior\b|\blead\b|\bprincipal\b/.test(lower)) seniorities.add("senior");
-
-  return seniorities.size > 0 ? Array.from(seniorities) : ["c_suite", "vp", "director", "founder"];
-}
+import { getIcpPersonTargeting } from "@/lib/icp/person-targeting";
 
 export async function GET(
   req: Request,
@@ -47,16 +32,15 @@ export async function GET(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Load tenant ICP for seniority targeting
-  const settings = await getTenantSettings(authCtx.tenantId);
-  // BUG-WS0-008: derive targetRoles at read time
-  const targetRoles = deriveTargetRoles(settings);
-  const seniorities = deriveSeniorities(targetRoles);
+  // Person targeting = ICP profiles' person criteria, legacy fallback
+  // (see lib/icp/person-targeting).
+  const targeting = await getIcpPersonTargeting(authCtx.tenantId);
+  const seniorities = targeting.seniorities;
 
   // Apollo-only — no LLM fallback for contact suggestions
   if (isApolloAvailable() && company.domain) {
     try {
-      const personTitles = targetRoles ? targetRoles.split(/[,;]/).map((r) => r.trim()).filter(Boolean) : undefined;
+      const personTitles = targeting.titles;
       const result = await searchPeople({
         q_organization_domains: company.domain,
         person_seniorities: seniorities,

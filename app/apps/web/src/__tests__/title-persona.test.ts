@@ -23,6 +23,7 @@ import {
   vocabHash,
   readCachedPersonas,
   resolveTitles,
+  resolveTitlesConsensus,
   TITLE_RESOLVE_BATCH,
 } from "@/lib/scoring/title-persona";
 import type { ActiveIcp } from "@/lib/icp/fit-recompute-core";
@@ -159,5 +160,69 @@ describe("resolveTitles", () => {
     expect((await resolveTitles([], ["CEO"], "t1")).size).toBe(0);
     expect((await resolveTitles(["CEO"], [], "t1")).size).toBe(0);
     expect(tracedGenerateObject).not.toHaveBeenCalled();
+  });
+});
+
+describe("resolveTitlesConsensus (destructive flows)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
+    vi.stubEnv("OPENAI_API_KEY", "");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("majority personas kept, flicker dropped, splits stay unresolved", async () => {
+    vi.mocked(tracedGenerateObject)
+      .mockResolvedValueOnce({
+        object: {
+          mappings: [
+            { title: "DG", personas: ["CEO"] },
+            { title: "Flaky", personas: ["CEO"] },
+            { title: "Junk", personas: [] },
+          ],
+        },
+      } as never)
+      .mockResolvedValueOnce({
+        object: {
+          mappings: [
+            { title: "DG", personas: ["CEO"] },
+            // Flaky not echoed this pass
+            { title: "Junk", personas: [] },
+          ],
+        },
+      } as never)
+      .mockResolvedValueOnce({
+        object: {
+          mappings: [
+            { title: "DG", personas: ["CEO", "Owner"] }, // Owner only 1/3
+            { title: "Flaky", personas: [] },
+            { title: "Junk", personas: [] },
+          ],
+        },
+      } as never);
+
+    const out = await resolveTitlesConsensus(
+      ["DG", "Flaky", "Junk", "Ghost"],
+      ["CEO", "Owner"],
+      "t1",
+    );
+
+    expect(tracedGenerateObject).toHaveBeenCalledTimes(3);
+    expect(out.get("dg")).toEqual(["CEO"]); // 3/3; Owner 1/3 dropped
+    expect(out.get("junk")).toEqual([]); // explicit empty 3/3 → confirmed negative
+    expect(out.has("flaky")).toBe(false); // 1×CEO / 1×[] split → do not touch
+    expect(out.has("ghost")).toBe(false); // never echoed → unresolved
+  });
+
+  it("a title answered by fewer than the majority of passes stays unresolved", async () => {
+    vi.mocked(tracedGenerateObject)
+      .mockResolvedValueOnce({ object: { mappings: [{ title: "Rare", personas: ["CEO"] }] } } as never)
+      .mockResolvedValueOnce({ object: { mappings: [] } } as never)
+      .mockResolvedValueOnce({ object: { mappings: [] } } as never);
+
+    const out = await resolveTitlesConsensus(["Rare"], ["CEO"], "t1");
+    expect(out.has("rare")).toBe(false);
   });
 });

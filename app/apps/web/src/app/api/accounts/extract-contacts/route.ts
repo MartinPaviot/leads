@@ -4,22 +4,8 @@ import { db } from "@/db";
 import { companies, contacts } from "@/db/schema";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { searchPeople, isApolloAvailable } from "@/lib/integrations/apollo-client";
-import { getTenantSettings, deriveTargetRoles } from "@/lib/config/tenant-settings";
+import { getIcpPersonTargeting } from "@/lib/icp/person-targeting";
 import { inngest } from "@/inngest/client";
-
-/** Derive Apollo seniority filters from targetRoles text (e.g. "VP Engineering, CTO").
- *  Mirrors the heuristic in /api/accounts/[id]/suggested-contacts. */
-function deriveSeniorities(targetRoles: string): string[] {
-  const lower = targetRoles.toLowerCase();
-  const seniorities = new Set<string>();
-  if (/\bceo\b|\bcto\b|\bcfo\b|\bcoo\b|\bcro\b|\bcmo\b|\bc-suite\b|\bchief\b/.test(lower)) seniorities.add("c_suite");
-  if (/\bfounder\b|\bco-founder\b|\bowner\b/.test(lower)) seniorities.add("founder");
-  if (/\bvp\b|\bvice president\b/.test(lower)) seniorities.add("vp");
-  if (/\bdirector\b|\bhead of\b/.test(lower)) seniorities.add("director");
-  if (/\bmanager\b/.test(lower)) seniorities.add("manager");
-  if (/\bsenior\b|\blead\b|\bprincipal\b/.test(lower)) seniorities.add("senior");
-  return seniorities.size > 0 ? Array.from(seniorities) : ["c_suite", "vp", "director", "founder"];
-}
 
 /**
  * Bulk-extract contacts for the selected accounts.
@@ -78,13 +64,12 @@ export async function POST(req: Request) {
       ),
     );
 
-  // ICP-driven targeting.
-  const settings = await getTenantSettings(authCtx.tenantId);
-  const targetRoles = deriveTargetRoles(settings);
-  const seniorities = deriveSeniorities(targetRoles);
-  const personTitles = targetRoles
-    ? targetRoles.split(/[,;]/).map((r) => r.trim()).filter(Boolean)
-    : undefined;
+  // Person targeting = the ICP profiles' person criteria (the same
+  // vocabulary the contact scorer matches against), legacy flats as
+  // fallback — see lib/icp/person-targeting.
+  const targeting = await getIcpPersonTargeting(authCtx.tenantId);
+  const seniorities = targeting.seniorities;
+  const personTitles = targeting.titles;
 
   const results: Array<{
     accountId: string;
