@@ -22,8 +22,8 @@ import {
   getTenantSettings,
   deriveTargetRoles,
   parseSizeRange,
-  parseRoleKeywords,
 } from "@/lib/config/tenant-settings";
+import { getIcpPersonTargeting } from "@/lib/icp/person-targeting";
 import { getTenantKnowledge, formatKnowledgeBlock } from "@/lib/knowledge/get-tenant-knowledge";
 import { sizesToApolloRanges } from "@/lib/config/icp-constants";
 import { runPerCompanyPipeline } from "@/lib/tam-stream/per-company";
@@ -333,10 +333,12 @@ export async function POST(req: Request) {
           companyModel: companyModel ?? null,
         };
 
-        const targetTitles = parseRoleKeywords(settings);
-        const targetSeniorities = mapSenioritiesForApollo(
-          settings.targetSeniorities ?? [],
-        );
+        // Person targeting for the per-company contact discovery = the
+        // ICP profiles' person criteria (legacy flats fallback) — the
+        // same vocabulary the contact scorer matches against.
+        const personTargeting = await getIcpPersonTargeting(authCtx.tenantId);
+        const targetTitles = personTargeting.titles ?? [];
+        const targetSeniorities = personTargeting.seniorities ?? [];
 
         console.log(`[tam-stream ${jobId.slice(0, 8)}] context loaded — existingDomains=${existingDomains.size} investors=${tenantInvestors.size} industries=${settings.targetIndustries?.length ?? 0}`);
 
@@ -693,19 +695,4 @@ function createLimiter(maxConcurrent: number) {
       next();
     });
   };
-}
-
-/** The Apollo people-search endpoint expects seniority slugs like
- * "c_suite", not the UI's "C-Suite". Apollo's slug convention is
- * lowercase snake_case; spaces and hyphens collapse to underscores. */
-function mapSenioritiesForApollo(labels: string[]): string[] {
-  return labels
-    .map((s) =>
-      s
-        .toLowerCase()
-        .replace(/-/g, "_")
-        .replace(/\s+/g, "_")
-        .replace(/[^a-z_]/g, ""),
-    )
-    .filter(Boolean);
 }

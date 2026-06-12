@@ -74,13 +74,26 @@ describe("getIcpPersonTargeting", () => {
     expect(t.seniorities).toEqual(expect.arrayContaining(["c_suite", "vp"]));
   });
 
-  it("sends NO facets when nothing is configured anywhere", async () => {
+  it("never goes unfiltered: nothing configured falls back to decision-maker seniorities", async () => {
     vi.mocked(loadActiveIcps).mockResolvedValue([] as never);
     vi.mocked(deriveTargetRoles).mockReturnValue("");
 
     const t = await getIcpPersonTargeting("t1");
     expect(t.source).toBe("legacy_settings");
     expect(t.titles).toBeUndefined();
-    expect(t.seniorities).toBeUndefined();
+    expect(t.seniorities).toEqual(["c_suite", "vp", "director", "founder"]);
+  });
+
+  it("legacy explicit seniority selection wins over the roles heuristic", async () => {
+    vi.mocked(loadActiveIcps).mockResolvedValue([] as never);
+    vi.mocked(deriveTargetRoles).mockReturnValue("CEO");
+    vi.mocked(getTenantSettings).mockResolvedValue({ targetSeniorities: ["Owner"] } as never);
+
+    const t = await getIcpPersonTargeting("t1");
+    expect(t.source).toBe("legacy_settings");
+    expect(t.titles).toEqual(["CEO"]);
+    // senioritiesToApollo (real) maps the UI label — NOT the regex guess
+    // that would have said c_suite for "CEO".
+    expect(t.seniorities).toEqual(["owner"]);
   });
 });

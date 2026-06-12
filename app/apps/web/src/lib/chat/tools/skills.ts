@@ -193,7 +193,10 @@ export function buildSkillsTools(ctx: ToolContext) {
           {
             companyDomain: input.companyDomain,
             targetTitles: input.targetTitles,
-            targetSeniorities: input.targetSeniorities ?? ["c_suite", "vp", "director"],
+            // Pass through: the skill handler defaults seniorities ONLY
+            // when no titles are given (Apollo ANDs the facets —
+            // materializing a default here excluded titled targets).
+            targetSeniorities: input.targetSeniorities,
           },
           { tenantId, dryRun: false }
         );

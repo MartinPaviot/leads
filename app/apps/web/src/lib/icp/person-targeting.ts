@@ -17,8 +17,10 @@
  * Legacy fallback (no person criteria on any active profile): the
  * flats mirror — titles from deriveTargetRoles, seniorities from the
  * user's explicit targetSeniorities selection, else the historical
- * keyword heuristic over the roles string. Kept so tenants without
- * profile personas keep sourcing exactly as before.
+ * keyword heuristic over the roles string. When NOTHING is configured
+ * anywhere, the decision-maker seniorities default applies: a people
+ * search must never run unfiltered (it would page through every
+ * employee and burn credits).
  */
 
 import { loadActiveIcps } from "@/lib/icp/fit-recompute-core";
@@ -98,6 +100,16 @@ export async function getIcpPersonTargeting(tenantId: string): Promise<PersonTar
     : targetRoles
       ? legacyDeriveSeniorities(targetRoles)
       : [];
+
+  // Never unfiltered: with no titles AND no seniorities from anywhere,
+  // keep the historical decision-maker net.
+  if (legacyTitles.length === 0 && legacySeniorities.length === 0) {
+    return {
+      titles: undefined,
+      seniorities: ["c_suite", "vp", "director", "founder"],
+      source: "legacy_settings",
+    };
+  }
 
   return {
     titles: legacyTitles.length > 0 ? legacyTitles : undefined,
