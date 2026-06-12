@@ -16,6 +16,7 @@ import {
 import { IntegrationsStrip, BuiltOnStrip, Logo, clogo } from "./_components/product-mockups";
 import { ProcessSteps } from "./_components/process-steps";
 import { HeroDemo } from "./_components/hero-demo";
+import { DOCS_PAGE_ENABLED } from "@/lib/docs/page-visibility";
 
 const CALENDLY_URL = "https://calendly.com/contact-elevay/30min";
 
@@ -278,6 +279,10 @@ export default function LandingPage() {
           <div className="hidden items-center gap-8 md:flex">
             <Link href="#product" className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900">Product</Link>
             <Link href="#how-it-works" className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900">How it works</Link>
+            {/* Dev-only until the docs ship publicly (lib/docs/page-visibility.ts) */}
+            {DOCS_PAGE_ENABLED && (
+              <Link href="/docs" className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900">Docs</Link>
+            )}
             <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900">Book a demo</a>
           </div>
           <div className="hidden items-center gap-4 md:flex">
@@ -328,6 +333,7 @@ export default function LandingPage() {
               {[
                 { href: "#product", label: "Product" },
                 { href: "#how-it-works", label: "How it works" },
+                ...(DOCS_PAGE_ENABLED ? [{ href: "/docs", label: "Docs" }] : []),
               ].map((l) => (
                 <Link
                   key={l.href}
@@ -626,6 +632,7 @@ export default function LandingPage() {
               {[
                 { label: "Product", href: "#product" },
                 { label: "How it works", href: "#how-it-works" },
+                ...(DOCS_PAGE_ENABLED ? [{ label: "Docs", href: "/docs" }] : []),
                 { label: "Book a demo", href: CALENDLY_URL, external: true },
                 { label: "Privacy", href: "/privacy" },
                 { label: "Terms", href: "/terms" },
