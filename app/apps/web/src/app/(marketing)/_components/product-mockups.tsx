@@ -18,7 +18,31 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { motion, useInView, useReducedMotion } from "framer-motion";
 import { Lock } from "lucide-react";
+
+/* Per-item entrance for the logo strips: each mark settles in with a tiny
+   stagger when the strip scrolls into view. Strand-proof like the page's
+   sections: instant when already on screen, hard-forced after a timeout. */
+function useStripReveal() {
+  const ref = useRef<HTMLDivElement>(null);
+  const reduced = useReducedMotion();
+  const inView = useInView(ref, { once: true, margin: "-60px 0px" });
+  const [live, setLive] = useState(false);
+  useEffect(() => { if (inView || reduced) setLive(true); }, [inView, reduced]);
+  useEffect(() => {
+    const el = ref.current;
+    if (el && el.getBoundingClientRect().top < window.innerHeight * 0.92) setLive(true);
+    const t = setTimeout(() => setLive(true), 4500);
+    return () => clearTimeout(t);
+  }, []);
+  return { ref, live, reduced: !!reduced };
+}
+
+const stripItemV = {
+  hidden: { opacity: 0, y: 10, scale: 0.96 },
+  visible: { opacity: 1, y: 0, scale: 1 },
+};
 
 // Full-colour real company logos via Google's favicon service — far more
 // reliable than icon.horse (which has DNS-failed before) and it returns a
@@ -201,15 +225,28 @@ export function IntegrationsStrip() {
     { src: "https://icon.horse/icon/teams.microsoft.com", l: "Teams" },
     { src: "https://cdn.simpleicons.org/googlecalendar", l: "Calendar" },
   ];
+  const { ref, live, reduced } = useStripReveal();
   return (
-    <div aria-hidden="true" className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
+    <motion.div
+      ref={ref}
+      aria-hidden="true"
+      className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4"
+      initial={reduced ? "visible" : "hidden"}
+      animate={live ? "visible" : "hidden"}
+      variants={{ visible: { transition: { staggerChildren: reduced ? 0 : 0.06 } } }}
+    >
       {items.map((i) => (
-        <div key={i.l} className="flex items-center gap-2">
+        <motion.div
+          key={i.l}
+          className="flex items-center gap-2 transition-transform duration-150 hover:-translate-y-0.5"
+          variants={stripItemV}
+          transition={{ type: "spring", stiffness: 300, damping: 24 }}
+        >
           <Logo src={i.src} name={i.l} size={24} rounded="rounded-md" bordered={false} />
           <span className="text-[13px] font-medium text-[#475569]">{i.l}</span>
-        </div>
+        </motion.div>
       ))}
-    </div>
+    </motion.div>
   );
 }
 
@@ -229,10 +266,18 @@ export function BuiltOnStrip() {
     { src: clogo("deepgram.com"), l: "Deepgram", w: "Transcription" },
     { src: clogo("recall.ai"), l: "Recall.ai", w: "Capture" },
   ];
+  const { ref, live, reduced } = useStripReveal();
   return (
-    <div aria-hidden="true" className="flex flex-wrap items-center justify-center gap-x-7 gap-y-5 sm:gap-x-10">
+    <motion.div
+      ref={ref}
+      aria-hidden="true"
+      className="flex flex-wrap items-center justify-center gap-x-7 gap-y-5 sm:gap-x-10"
+      initial={reduced ? "visible" : "hidden"}
+      animate={live ? "visible" : "hidden"}
+      variants={{ visible: { transition: { staggerChildren: reduced ? 0 : 0.06 } } }}
+    >
       {items.map((i) => (
-        <div key={i.l} className="group flex items-center gap-2.5">
+        <motion.div key={i.l} className="group flex items-center gap-2.5" variants={stripItemV} transition={{ type: "spring", stiffness: 300, damping: 24 }}>
           <span className="relative inline-flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md">
             <span style={{ fontSize: 12, fontWeight: 700, color: "#AEB4C0", letterSpacing: "-0.03em" }}>{i.l.charAt(0)}</span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -250,8 +295,8 @@ export function BuiltOnStrip() {
             <span className="text-[13.5px] font-semibold tracking-tight text-[#3A4252]">{i.l}</span>
             <span className="mt-[3px] text-[10.5px] font-medium uppercase tracking-wider text-[#AEB4C0]">{i.w}</span>
           </span>
-        </div>
+        </motion.div>
       ))}
-    </div>
+    </motion.div>
   );
 }

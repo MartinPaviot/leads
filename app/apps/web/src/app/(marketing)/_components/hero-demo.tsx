@@ -20,10 +20,12 @@
 import { useState, useEffect, useRef, type ReactElement } from "react";
 import { motion, AnimatePresence, LayoutGroup, useReducedMotion, useInView, type Variants } from "framer-motion";
 import {
-  Building2, Users, CircleDot, Inbox, Phone, Clock, BookOpen, Wand2, Zap,
-  Calendar, FileText, CheckSquare, BarChart3, Send, Compass, Bell, Reply,
+  Building2, Users, CircleDot, Inbox, Phone, Clock, BookOpen, Zap,
+  Calendar, FileText, Send, MessageSquare, Briefcase, ChevronsLeft,
   Check, Search, Sparkles, Target, Plus, Gauge, Radio, Mic,
-  TrendingUp, RefreshCw, DollarSign, AlertTriangle, type LucideIcon,
+  TrendingUp, RefreshCw, AlertTriangle, Mail, CalendarPlus,
+  Factory, Ruler, GitBranch, Code, Globe, Landmark, UserCheck, Palette,
+  type LucideIcon,
 } from "lucide-react";
 import { AppFrame, Avatar, Logo, ScaleToFit, clogo } from "./product-mockups";
 
@@ -62,9 +64,49 @@ function Typewriter({ text, start, speed = 24, delay = 0, caret = false }: { tex
   return <span>{text.slice(0, count)}{caret && count < text.length && <span className="ml-[1px] inline-block h-[1em] w-[1.5px] translate-y-[2px] animate-pulse" style={{ background: T.accent }} />}</span>;
 }
 
-function ScorePill({ score }: { score: number }) {
-  const t = score >= 90 ? { c: C.green, b: C.greenSoft } : score >= 80 ? { c: C.blue, b: C.blueSoft } : { c: C.amber, b: C.amberSoft };
-  return <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold tabular-nums" style={{ color: t.c, background: t.b }}>{score}</span>;
+/* Score → letter grade, the real accounts column (lib/scoring/scoring.ts:
+   90+ A+, 80+ A, 60+ B, 40+ C). */
+function GradePill({ score }: { score: number }) {
+  const grade = score >= 90 ? "A+" : score >= 80 ? "A" : score >= 60 ? "B" : "C";
+  const t = score >= 80 ? { c: C.green, b: C.greenSoft } : score >= 60 ? { c: C.blue, b: C.blueSoft } : { c: C.amber, b: C.amberSoft };
+  return <span className="inline-flex min-w-[20px] items-center justify-center rounded-full px-1 py-0.5 text-[9.5px] font-bold" style={{ color: t.c, background: t.b }}>{grade}</span>;
+}
+
+/* IndustryBadge, faithfully (components/ui/badge.tsx + lib/ui/industry-style):
+   icon + tinted pill, one hue per sector family. Colors are the real light
+   tokens from globals.css (hardcoded so the marketing page never inherits a
+   dashboard dark theme). */
+const IND: Record<string, { icon: LucideIcon; c: string }> = {
+  "computer software": { icon: Code, c: "#4F46E5" },
+  internet: { icon: Globe, c: "#4F46E5" },
+  design: { icon: Palette, c: "#2563EB" },
+  "human resources": { icon: UserCheck, c: "#2563EB" },
+  "financial services": { icon: Landmark, c: "#047857" },
+};
+
+function IndustryChip({ value }: { value: string }) {
+  const s = IND[value] ?? { icon: Factory, c: "#64748B" };
+  const Icon = s.icon;
+  return (
+    <span className="inline-flex max-w-[96px] items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-medium capitalize" style={{ color: s.c, background: `color-mix(in srgb, ${s.c} 9%, transparent)`, border: `1px solid color-mix(in srgb, ${s.c} 25%, transparent)` }}>
+      <Icon size={9} strokeWidth={1.75} className="shrink-0" style={{ opacity: 0.85 }} />
+      <span className="truncate">{value}</span>
+    </span>
+  );
+}
+
+/* Lifecycle stage chip — the real derived Stage column (new / opportunity /
+   customer / nurture, computed from deals at read time). */
+const STAGE_TONE: Record<string, { c: string; b: string }> = {
+  new: { c: "#64748B", b: "rgba(100,116,139,0.10)" },
+  opportunity: { c: "#2C6BED", b: "rgba(44,107,237,0.10)" },
+  customer: { c: "#047857", b: "rgba(4,120,87,0.10)" },
+  nurture: { c: "#B45309", b: "rgba(180,83,9,0.12)" },
+};
+
+function StageChip({ stage }: { stage: string }) {
+  const t = STAGE_TONE[stage] ?? STAGE_TONE.new;
+  return <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium capitalize" style={{ color: t.c, background: t.b }}>{stage}</span>;
 }
 
 /* PageHeader — mirrors components/ui/page-header.tsx */
@@ -100,22 +142,42 @@ const itemV: Variants = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 
 // should feel like the agent just produced something (extractions, answers).
 const popV: Variants = { hidden: { opacity: 0, y: 12, scale: 0.96 }, show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 260, damping: 22 } } };
 
-/* ── sidebar (mirrors the real app) ─────────────────────────────── */
+/* ── sidebar (mirrors components/sidebar.tsx — the REAL nav, 1:1) ──
+   Sections + items + Beta tags + the Chats block are exactly today's
+   navSections; the top slot is the workspace identity (tenant initials +
+   name + search/collapse affordances), the person lives at the bottom —
+   the same split the real app ships. */
 
 const navSections: { label?: string; items: { icon: LucideIcon; label: string }[] }[] = [
   { items: [{ icon: Clock, label: "Up next" }] },
-  { label: "AI", items: [{ icon: BookOpen, label: "Knowledge" }, { icon: Wand2, label: "Skills" }] },
-  { label: "CRM", items: [{ icon: Building2, label: "Accounts" }, { icon: Users, label: "Contacts" }, { icon: CircleDot, label: "Opportunities" }] },
+  { label: "CRM", items: [{ icon: Building2, label: "Accounts" }, { icon: Users, label: "Contacts" }, { icon: CircleDot, label: "Opportunities" }, { icon: Briefcase, label: "Proposals" }] },
   { label: "Engage", items: [{ icon: Inbox, label: "Inbox" }, { icon: Phone, label: "Call Mode" }, { icon: Zap, label: "Campaigns" }] },
-  { label: "Activity", items: [{ icon: Calendar, label: "Meetings" }, { icon: FileText, label: "Notes" }, { icon: CheckSquare, label: "Tasks" }, { icon: BarChart3, label: "Insights" }] },
+  { label: "Activity", items: [{ icon: Calendar, label: "Meetings" }] },
 ];
+
+// Routes that carry the Beta pill in the real sidebar (lib/beta-routes.ts).
+const BETA_NAV = new Set(["Call Mode", "Campaigns", "Proposals", "Meetings"]);
+
+function BetaPill() {
+  return (
+    <span className="ml-auto rounded px-[3px] py-px text-[6.5px] font-semibold uppercase tracking-wider" style={{ color: T.ter, border: `1px solid ${T.border}` }}>
+      Beta
+    </span>
+  );
+}
 
 function Sidebar({ active }: { active: string }) {
   return (
     <aside className="hidden w-[160px] shrink-0 flex-col border-r sm:flex" style={{ borderColor: T.soft, background: T.card }}>
-      <div className="flex h-[42px] shrink-0 items-center gap-1.5 border-b px-3" style={{ borderColor: T.soft }}>
-        <img src="/logo-Elevay.svg?v=2" alt="" className="h-5 w-5" />
-        <span className="text-[13px] font-bold" style={{ background: BRAND, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Elevay</span>
+      {/* Workspace identity — gradient initials tile (the real no-logo
+          fallback) + name; search + collapse sit right, like the app. */}
+      <div className="flex h-[42px] shrink-0 items-center gap-1.5 border-b px-2.5" style={{ borderColor: T.soft }}>
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[9px] font-bold text-white" style={{ background: BRAND }}>M</span>
+        <span className="truncate text-[12px] font-semibold tracking-tight" style={{ color: T.text }}>Meridian</span>
+        <span className="ml-auto flex shrink-0 items-center gap-1.5" style={{ color: T.ter }}>
+          <Search size={10} />
+          <ChevronsLeft size={10} />
+        </span>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden px-2 py-1.5">
         {navSections.map((s, si) => (
@@ -124,12 +186,25 @@ function Sidebar({ active }: { active: string }) {
             <div className="space-y-px">
               {s.items.map((n) => { const Icon = n.icon; const on = n.label === active; return (
                 <div key={n.label} data-nav={n.label} className="flex h-[20px] items-center gap-2 rounded-md px-2 text-[10.5px] font-medium transition-colors" style={{ color: on ? T.text : T.sec, background: on ? T.accentSoft : "transparent", boxShadow: on ? `inset 2px 0 0 0 ${T.accent}` : undefined }}>
-                  <Icon size={12} style={{ color: on ? T.accent : T.ter }} />{n.label}
+                  <Icon size={12} className="shrink-0" style={{ color: on ? T.accent : T.ter }} />
+                  <span className="truncate">{n.label}</span>
+                  {BETA_NAV.has(n.label) && <BetaPill />}
                 </div>
               ); })}
             </div>
           </div>
         ))}
+        {/* Chats — New chat + a recent thread, like the real sidebar */}
+        <div className="mt-1.5">
+          <div className="mb-0.5 px-2 text-[8.5px] font-semibold uppercase tracking-wider" style={{ color: "#B4B8C4" }}>Chats</div>
+          <div className="flex h-[20px] items-center gap-2 rounded-md px-2 text-[10.5px] font-medium" style={{ color: T.sec }}>
+            <Plus size={12} style={{ color: T.ter }} />New chat
+          </div>
+          <div className="flex h-[20px] items-center gap-2 rounded-md px-2 text-[10px]" style={{ color: T.ter }}>
+            <MessageSquare size={11} className="shrink-0" style={{ opacity: 0.6 }} />
+            <span className="truncate">Best accounts to call</span>
+          </div>
+        </div>
       </div>
       {/* Footer height is locked to the chat bar's (BAR_H) so their top
           borders form one continuous line across the shell. */}
@@ -170,35 +245,39 @@ function AccountsPhase({ reduced }: { reduced: boolean }) {
     raf = requestAnimationFrame(tick);
     return () => { cancelled = true; cancelAnimationFrame(raf); };
   }, [reduced, built]);
+  // The real table columns (accounts/page.tsx): Account · Industry · Size ·
+  // Stage · Score(grade). Industries are real Apollo taxonomy labels; stages
+  // line up with the Opportunities board (Linear/Supabase closed-won =
+  // customer, board deals = opportunity, the fresh TAM = new).
   const rows = [
-    { dom: "linear.app", n: "Linear", ind: "Dev tools", size: "180", s: 94, sig: ["Hiring", "YC"] },
-    { dom: "notion.so", n: "Notion", ind: "Productivity", size: "600", s: 89, sig: ["Funding"] },
-    { dom: "figma.com", n: "Figma", ind: "Design", size: "1200", s: 92, sig: ["Expanding"] },
-    { dom: "webflow.com", n: "Webflow", ind: "MarTech", size: "240", s: 85, sig: ["Hiring"] },
-    { dom: "vercel.com", n: "Vercel", ind: "Dev tools", size: "550", s: 88, sig: ["Funding", "Hiring"] },
-    { dom: "airtable.com", n: "Airtable", ind: "No-code", size: "140", s: 78, sig: ["Investor"] },
-    { dom: "supabase.com", n: "Supabase", ind: "Database", size: "120", s: 90, sig: ["YC", "Hiring"] },
-    { dom: "ramp.com", n: "Ramp", ind: "Fintech", size: "730", s: 86, sig: ["Expanding"] },
-    { dom: "retool.com", n: "Retool", ind: "Dev tools", size: "280", s: 81, sig: ["Funding"] },
-    { dom: "posthog.com", n: "PostHog", ind: "Analytics", size: "90", s: 79, sig: ["Open source"] },
-    { dom: "loom.com", n: "Loom", ind: "Video", size: "320", s: 76, sig: ["Hiring"] },
-    { dom: "intercom.com", n: "Intercom", ind: "Support", size: "950", s: 83, sig: ["Enterprise"] },
-    { dom: "mixpanel.com", n: "Mixpanel", ind: "Analytics", size: "330", s: 80, sig: ["Hiring"] },
-    { dom: "segment.com", n: "Segment", ind: "Data", size: "420", s: 84, sig: ["Expanding"] },
-    { dom: "amplitude.com", n: "Amplitude", ind: "Analytics", size: "680", s: 82, sig: ["Public"] },
-    { dom: "datadoghq.com", n: "Datadog", ind: "Observability", size: "5000", s: 87, sig: ["Enterprise"] },
-    { dom: "snowflake.com", n: "Snowflake", ind: "Data cloud", size: "7000", s: 75, sig: ["Enterprise"] },
-    { dom: "stripe.com", n: "Stripe", ind: "Fintech", size: "8000", s: 91, sig: ["Expanding"] },
-    { dom: "plaid.com", n: "Plaid", ind: "Fintech", size: "1200", s: 85, sig: ["Funding"] },
-    { dom: "brex.com", n: "Brex", ind: "Fintech", size: "1100", s: 83, sig: ["Hiring"] },
-    { dom: "mercury.com", n: "Mercury", ind: "Fintech", size: "700", s: 88, sig: ["Funding", "Hiring"] },
-    { dom: "gusto.com", n: "Gusto", ind: "HR tech", size: "2500", s: 77, sig: ["Expanding"] },
-    { dom: "rippling.com", n: "Rippling", ind: "HR tech", size: "3000", s: 86, sig: ["Funding"] },
-    { dom: "deel.com", n: "Deel", ind: "HR tech", size: "4000", s: 84, sig: ["Expanding"] },
-    { dom: "calendly.com", n: "Calendly", ind: "Productivity", size: "600", s: 79, sig: ["Hiring"] },
-    { dom: "miro.com", n: "Miro", ind: "Collaboration", size: "1800", s: 81, sig: ["Enterprise"] },
-    { dom: "asana.com", n: "Asana", ind: "PM", size: "1700", s: 76, sig: ["Public"] },
-    { dom: "clickup.com", n: "ClickUp", ind: "PM", size: "1000", s: 80, sig: ["Hiring"] },
+    { dom: "linear.app", n: "Linear", ind: "computer software", size: "180", s: 94, stage: "customer" },
+    { dom: "notion.so", n: "Notion", ind: "computer software", size: "600", s: 89, stage: "opportunity" },
+    { dom: "figma.com", n: "Figma", ind: "design", size: "1200", s: 92, stage: "opportunity" },
+    { dom: "webflow.com", n: "Webflow", ind: "internet", size: "240", s: 85, stage: "opportunity" },
+    { dom: "vercel.com", n: "Vercel", ind: "computer software", size: "550", s: 88, stage: "opportunity" },
+    { dom: "airtable.com", n: "Airtable", ind: "computer software", size: "140", s: 78, stage: "opportunity" },
+    { dom: "supabase.com", n: "Supabase", ind: "computer software", size: "120", s: 90, stage: "customer" },
+    { dom: "ramp.com", n: "Ramp", ind: "financial services", size: "730", s: 86, stage: "opportunity" },
+    { dom: "retool.com", n: "Retool", ind: "computer software", size: "280", s: 81, stage: "opportunity" },
+    { dom: "posthog.com", n: "PostHog", ind: "computer software", size: "90", s: 79, stage: "new" },
+    { dom: "loom.com", n: "Loom", ind: "internet", size: "320", s: 76, stage: "new" },
+    { dom: "intercom.com", n: "Intercom", ind: "computer software", size: "950", s: 83, stage: "new" },
+    { dom: "mixpanel.com", n: "Mixpanel", ind: "computer software", size: "330", s: 80, stage: "new" },
+    { dom: "segment.com", n: "Segment", ind: "computer software", size: "420", s: 84, stage: "new" },
+    { dom: "amplitude.com", n: "Amplitude", ind: "computer software", size: "680", s: 82, stage: "new" },
+    { dom: "datadoghq.com", n: "Datadog", ind: "computer software", size: "5000", s: 87, stage: "new" },
+    { dom: "snowflake.com", n: "Snowflake", ind: "computer software", size: "7000", s: 75, stage: "nurture" },
+    { dom: "stripe.com", n: "Stripe", ind: "financial services", size: "8000", s: 91, stage: "new" },
+    { dom: "plaid.com", n: "Plaid", ind: "financial services", size: "1200", s: 85, stage: "new" },
+    { dom: "brex.com", n: "Brex", ind: "financial services", size: "1100", s: 83, stage: "new" },
+    { dom: "mercury.com", n: "Mercury", ind: "financial services", size: "700", s: 88, stage: "new" },
+    { dom: "gusto.com", n: "Gusto", ind: "human resources", size: "2500", s: 77, stage: "new" },
+    { dom: "rippling.com", n: "Rippling", ind: "human resources", size: "3000", s: 86, stage: "new" },
+    { dom: "deel.com", n: "Deel", ind: "human resources", size: "4000", s: 84, stage: "new" },
+    { dom: "calendly.com", n: "Calendly", ind: "internet", size: "600", s: 79, stage: "new" },
+    { dom: "miro.com", n: "Miro", ind: "computer software", size: "1800", s: 81, stage: "new" },
+    { dom: "asana.com", n: "Asana", ind: "computer software", size: "1700", s: 76, stage: "nurture" },
+    { dom: "clickup.com", n: "ClickUp", ind: "computer software", size: "1000", s: 80, stage: "new" },
   ];
   return (
     <div className="flex h-full flex-col">
@@ -236,8 +315,10 @@ function AccountsPhase({ reduced }: { reduced: boolean }) {
         <table className="w-full" style={{ borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ color: T.ter }}>
-              {[{ l: "Account", i: Building2 }, { l: "Industry", i: null }, { l: "Size", i: null }, { l: "Score", i: Gauge }, { l: "Signals", i: Radio }].map((c) => (
-                <th key={c.l} className="sticky top-0 z-10 border-b px-2 py-1.5 text-left text-[8.5px] font-semibold uppercase tracking-wider" style={{ borderColor: T.border, background: T.page }}>
+              {/* Header icons match the real column headers (Building2,
+                  Factory, Ruler, GitBranch, Gauge). */}
+              {[{ l: "Account", i: Building2 }, { l: "Industry", i: Factory }, { l: "Size", i: Ruler }, { l: "Stage", i: GitBranch }, { l: "Score", i: Gauge }].map((c) => (
+                <th key={c.l} className="sticky top-0 z-10 border-b px-1.5 py-1.5 text-left text-[8.5px] font-semibold uppercase tracking-wider" style={{ borderColor: T.border, background: T.page }}>
                   <span className="flex items-center gap-1">{c.i && <c.i size={9} style={{ opacity: 0.6 }} />}{c.l}</span>
                 </th>
               ))}
@@ -246,21 +327,17 @@ function AccountsPhase({ reduced }: { reduced: boolean }) {
           <motion.tbody variants={listV} initial={reduced ? false : "hidden"} animate="show">
             {rows.map((r, i) => (
               <motion.tr key={r.n} variants={reduced ? undefined : itemV} style={{ borderBottom: `1px solid ${T.soft}` }}>
-                <td className="px-2 py-2">
-                  <span className="flex items-center gap-2">
+                <td className="px-1.5 py-2">
+                  <span className="flex items-center gap-1.5">
                     <motion.span className="h-1.5 w-1.5 shrink-0 rounded-full" initial={reduced ? false : { background: C.amber }} animate={{ background: C.green }} transition={{ delay: reduced ? 0 : 0.4 + i * 0.045, duration: 0.4 }} />
-                    <Logo src={clogo(r.dom)} size={20} />
-                    <span className="text-[11.5px] font-medium" style={{ color: T.text }}>{r.n}</span>
+                    <Logo src={clogo(r.dom)} size={18} />
+                    <span className="max-w-[64px] truncate text-[11px] font-medium" style={{ color: T.text }}>{r.n}</span>
                   </span>
                 </td>
-                <td className="px-2 py-2 text-[11px]" style={{ color: T.sec }}>{r.ind}</td>
-                <td className="px-2 py-2 text-[11px] tabular-nums" style={{ color: T.sec }}>{r.size}</td>
-                <td className="px-2 py-2"><ScorePill score={r.s} /></td>
-                <td className="px-2 py-2">
-                  <span className="flex gap-1">{r.sig.map((s) => (
-                    <span key={s} className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9.5px] font-medium" style={{ background: C.blueSoft, color: T.accent }}><Check size={8} />{s}</span>
-                  ))}</span>
-                </td>
+                <td className="px-1.5 py-2"><IndustryChip value={r.ind} /></td>
+                <td className="px-1.5 py-2 text-[10.5px] tabular-nums" style={{ color: T.sec }}>{r.size}</td>
+                <td className="px-1.5 py-2"><StageChip stage={r.stage} /></td>
+                <td className="px-1.5 py-2"><GradePill score={r.s} /></td>
               </motion.tr>
             ))}
           </motion.tbody>
@@ -275,54 +352,128 @@ function AccountsPhase({ reduced }: { reduced: boolean }) {
   );
 }
 
-/* ── phase 2 · Up next (priorities) ─────────────────────────────── */
+/* ── phase 2 · Up next (the founder's morning briefing) ─────────────
+   Faithful to components/up-next/up-next-view.tsx: greeting, KPI cards
+   (uppercase label / big value / delta), then Activity (a feed of real
+   events on brand-gradient chips) beside "Needs you" (genuine human work
+   only). Script: a fresh reply lands live — feed gains a row, the Replies
+   KPI ticks, and a matching Needs-you item springs in on top. */
+
+// The real Activity chip gradients (ACT_GRADIENT — linear only, GPU-safe).
+const ACT_GRAD: Record<string, string> = {
+  reply: "linear-gradient(135deg, #2C6BED 0%, #17C3B2 100%)",
+  call: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+  meeting_booked: "linear-gradient(135deg, #17C3B2 0%, #2C6BED 100%)",
+  account: "linear-gradient(135deg, #17C3B2 0%, #2C6BED 52%, #FF7A3D 100%)",
+};
 
 function UpNextPhase({ reduced }: { reduced: boolean }) {
-  // Script: a fresh signal fires and the day re-sorts itself — the account
-  // that just went warm (Linear viewed pricing) springs to the top.
   const [fired, setFired] = useState(reduced);
-  useEffect(() => { if (reduced) return; const t = setTimeout(() => setFired(true), 1900); return () => clearTimeout(t); }, [reduced]);
-  const julien = { id: "julien", icon: Reply, tint: C.blue, t: "Reply to Julien about pricing", b: { l: "high", c: C.amber, bg: C.amberSoft }, hot: false };
-  const seq = { id: "seq", icon: Send, tint: C.green, t: "Send sequence to 18 new ICP-1 accounts", b: { l: "ready", c: C.green, bg: C.greenSoft }, hot: false };
-  const linearCold = { id: "linear", icon: Bell, tint: C.red, t: "Re-engage Linear · 12 days silent", b: { l: "stalled", c: C.red, bg: C.redSoft }, hot: false };
-  const linearHot = { id: "linear", icon: TrendingUp, tint: T.accent, t: "Linear just posted 5 sales roles", b: { l: "now", c: T.accent, bg: C.blueSoft }, hot: true };
-  const priorities = fired ? [linearHot, julien, seq] : [julien, seq, linearCold];
+  useEffect(() => { if (reduced) return; const t = setTimeout(() => setFired(true), 2200); return () => clearTimeout(t); }, [reduced]);
+
+  const feedBase = [
+    { id: "meet", k: "meeting_booked", icon: CalendarPlus, t: "Meeting booked with Retool", d: "Alex Carter · Thu 10:00", at: "1h" },
+    { id: "call", k: "call", icon: Phone, t: "Call with Mercury · connected", d: "Outcome: callback Friday", at: "3h" },
+    { id: "acc", k: "account", icon: Building2, t: "12 accounts added", d: "sourced by Elevay · ICP-1", at: "5h" },
+  ];
+  const feed = fired
+    ? [{ id: "reply", k: "reply", icon: Mail, t: "Sarah Klein replied", d: "Re: pricing — Notion", at: "now" }, ...feedBase]
+    : feedBase;
+
+  type Todo = { icon: LucideIcon; c: string; t: string; d: string; hot?: boolean };
+  const todosBase: Todo[] = [
+    { icon: AlertTriangle, c: C.red, t: "Notion · $36K at risk", d: "12 days silent" },
+    { icon: Calendar, c: C.blue, t: "Demo with Figma", d: "Today 2:00 PM · prep ready" },
+  ];
+  const todos: Todo[] = fired
+    ? [{ icon: Mail, c: T.accent, t: "Reply to Sarah", d: "Re: pricing · draft ready", hot: true }, ...todosBase]
+    : todosBase;
+
+  const kpis = [
+    { l: "Pipeline", v: "$148K", delta: "+$12K" },
+    { l: "Accounts", v: "544", delta: "+18" },
+    { l: "Meetings", v: "4", sub: "this week" },
+    { l: "Replies", v: fired ? "9" : "8", delta: fired ? "+1" : undefined, hot: fired },
+  ];
+
   return (
     <div className="flex h-full flex-col">
       <PageHeaderBar icon={Clock} title="Up next" count="Wed, Jun 3" />
-      <div className="relative min-h-0 flex-1 overflow-y-auto px-4 py-3" style={{ background: T.page }}>
-        <div className="text-[14px] font-bold" style={{ color: T.text }}>Good morning, Martin</div>
-        <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border px-3.5 py-2.5" style={{ borderColor: T.border, background: T.card }}>
-          {[{ i: Building2, v: "544", l: "accounts" }, { i: Users, v: "312", l: "contacts" }, { i: DollarSign, v: "$148K", l: "pipeline" }, { i: TrendingUp, v: "9", l: "deals" }].map((s) => { const I = s.i; return (
-            <div key={s.l} className="flex items-center gap-1.5"><I size={12} style={{ color: T.ter }} /><span className="text-[13px] font-bold tabular-nums" style={{ color: T.text }}>{s.v}</span><span className="text-[11px]" style={{ color: T.ter }}>{s.l}</span></div>
-          ); })}
-        </div>
-        <div className="mb-1.5 mt-3 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>Your priorities today{fired && <motion.span initial={reduced ? false : { opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold normal-case tracking-normal" style={{ color: T.accent, background: C.blueSoft }}><Radio size={8} /> re-sorted by a live signal</motion.span>}</div>
-        <LayoutGroup>
-          <div className="space-y-1.5">
-            {priorities.map((r) => { const Icon = r.icon; return (
-              <motion.div key={r.id} layout={!reduced} layoutId={reduced ? undefined : r.id}
-                transition={{ layout: { type: "spring", stiffness: 340, damping: 30 } }}
-                className="relative flex items-center justify-between gap-2 rounded-lg border px-3 py-2"
-                style={{ borderColor: r.hot ? "rgba(44,107,237,0.5)" : T.border, background: T.card, boxShadow: r.hot ? "0 0 0 1px rgba(44,107,237,0.18)" : undefined }}>
-                {r.hot && !reduced && (
-                  <motion.span aria-hidden className="pointer-events-none absolute -inset-px rounded-lg" style={{ border: `1.5px solid ${T.accent}` }}
-                    initial={{ opacity: 0.8, scale: 1 }} animate={{ opacity: 0, scale: 1.06 }} transition={{ duration: 1, ease: "easeOut" }} />
-                )}
-                <span className="flex min-w-0 items-center gap-2"><Icon size={13} style={{ color: r.tint }} className="shrink-0" /><span className="truncate text-[11.5px] font-medium" style={{ color: T.text }}>{r.t}</span></span>
-                <span className="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ color: r.b.c, background: r.b.bg }}>{r.b.l}</span>
-              </motion.div>
-            ); })}
-          </div>
-        </LayoutGroup>
-        <div className="mb-1.5 mt-3 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}><AlertTriangle size={10} /> Deals at risk</div>
-        <div className="space-y-1.5">
-          {[{ dom: "notion.so", n: "Notion · Pro plan", v: "$36K", r: 78 }, { dom: "webflow.com", n: "Webflow · Team", v: "$22K", r: 41 }].map((d) => (
-            <div key={d.n} className="flex items-center justify-between rounded-lg border px-3 py-2" style={{ borderColor: T.border, background: T.card }}>
-              <span className="flex min-w-0 items-center gap-2"><Logo src={clogo(d.dom)} size={18} /><span className="truncate text-[11.5px] font-medium" style={{ color: T.text }}>{d.n}</span></span>
-              <div className="flex shrink-0 items-center gap-2"><span className="text-[11px] font-semibold" style={{ color: C.green }}>{d.v}</span><span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ color: d.r >= 70 ? C.red : C.amber, background: d.r >= 70 ? C.redSoft : C.amberSoft }}>{d.r}% risk</span></div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-3.5 py-3" style={{ background: T.page }}>
+        <div className="text-[14px] font-bold tracking-tight" style={{ color: T.text }}>Good morning, Martin</div>
+
+        {/* KPI strip */}
+        <div className="mt-2 grid grid-cols-4 gap-1.5">
+          {kpis.map((k) => (
+            <div key={k.l} className="rounded-lg border px-2 py-1.5 transition-colors" style={{ borderColor: k.hot ? "rgba(44,107,237,0.45)" : T.border, background: T.card }}>
+              <div className="truncate text-[7.5px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>{k.l}</div>
+              <div className="mt-0.5 flex items-baseline gap-1">
+                <span className="text-[13px] font-bold tabular-nums leading-none tracking-tight" style={{ color: T.text }}>{k.v}</span>
+                {k.delta && <span className="text-[8.5px] font-medium tabular-nums" style={{ color: C.green }}>{k.delta}</span>}
+                {k.sub && <span className="truncate text-[8px]" style={{ color: T.ter }}>{k.sub}</span>}
+              </div>
             </div>
           ))}
+        </div>
+
+        {/* Activity (wide) + Needs you — the real two-column briefing */}
+        <div className="mt-2.5 grid grid-cols-5 gap-2">
+          <div className="col-span-3 min-w-0">
+            <div className="mb-1 flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>
+              <TrendingUp size={9} /> Activity
+              {fired && (
+                <motion.span initial={reduced ? false : { opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} className="inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[8px] font-semibold normal-case tracking-normal" style={{ color: T.accent, background: C.blueSoft }}>
+                  <Radio size={7} /> live
+                </motion.span>
+              )}
+            </div>
+            <LayoutGroup>
+              <div className="overflow-hidden rounded-lg border" style={{ borderColor: T.border, background: T.card }}>
+                {feed.map((a, i) => { const Icon = a.icon; const isNew = a.id === "reply"; return (
+                  <motion.div key={a.id} layout={!reduced}
+                    initial={reduced || !isNew ? false : { opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ type: "spring", stiffness: 320, damping: 26 }}
+                    className={`flex items-center gap-2 px-2 py-[5px] ${i < feed.length - 1 ? "border-b" : ""}`} style={{ borderColor: T.soft }}>
+                    <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md" style={{ background: ACT_GRAD[a.k] }}><Icon size={9} color="#fff" /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[10px] font-medium leading-tight" style={{ color: T.text }}>{a.t}</span>
+                      <span className="block truncate text-[8.5px] leading-tight" style={{ color: T.ter }}>{a.d}</span>
+                    </span>
+                    <span className="shrink-0 text-[8px] font-medium tabular-nums" style={{ color: a.at === "now" ? T.accent : T.ter }}>{a.at}</span>
+                  </motion.div>
+                ); })}
+              </div>
+            </LayoutGroup>
+          </div>
+
+          <div className="col-span-2 min-w-0">
+            <div className="mb-1 flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>
+              Needs you
+              <span className="rounded-full px-1 text-[8px] font-bold tabular-nums" style={{ background: T.soft, color: T.sec }}>{todos.length}</span>
+            </div>
+            <LayoutGroup>
+              <div className="space-y-1.5">
+                {todos.map((td) => { const Icon = td.icon; return (
+                  <motion.div key={td.t} layout={!reduced}
+                    initial={reduced || !td.hot ? false : { opacity: 0, y: -8, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ type: "spring", stiffness: 320, damping: 24 }}
+                    className="relative rounded-lg border px-2 py-1.5" style={{ borderColor: td.hot ? "rgba(44,107,237,0.5)" : T.border, background: T.card }}>
+                    {td.hot && !reduced && (
+                      <motion.span aria-hidden className="pointer-events-none absolute -inset-px rounded-lg" style={{ border: `1.5px solid ${T.accent}` }}
+                        initial={{ opacity: 0.8, scale: 1 }} animate={{ opacity: 0, scale: 1.06 }} transition={{ duration: 1, ease: "easeOut" }} />
+                    )}
+                    <span className="flex items-center gap-1.5">
+                      <Icon size={10} className="shrink-0" style={{ color: td.c }} />
+                      <span className="truncate text-[10px] font-medium" style={{ color: T.text }}>{td.t}</span>
+                    </span>
+                    <span className="mt-0.5 block truncate pl-[16px] text-[8.5px]" style={{ color: T.ter }}>{td.d}</span>
+                  </motion.div>
+                ); })}
+              </div>
+            </LayoutGroup>
+          </div>
         </div>
       </div>
     </div>
@@ -583,7 +734,7 @@ function ChatPhase({ reduced }: { reduced: boolean }) {
   }, [reduced]);
   return (
     <div className="flex h-full flex-col">
-      <PageHeaderBar icon={Compass} title="Chat" count="Ask anything" />
+      <PageHeaderBar icon={MessageSquare} title="Chat" count="Ask anything" />
       <div className="min-h-0 flex-1 px-4 py-3.5" style={{ background: T.page }}>
         <div className="mx-auto max-w-[420px]">
           <div className="mb-4 flex justify-end">
@@ -601,7 +752,9 @@ function ChatPhase({ reduced }: { reduced: boolean }) {
             <motion.div variants={popV} initial={reduced ? false : "hidden"} animate="show">
               <p className="text-[12px] leading-relaxed" style={{ color: T.text }}><Typewriter text="Sarah said budget approval needs CFO sign-off, but she expects ~$40K is feasible this quarter." start={!reduced} speed={13} /></p>
               <motion.div className="mt-2.5 flex flex-wrap gap-1.5" initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: reduced ? 0 : 1.9 }}>
-                {[{ i: Phone, t: "Call · Notion demo · May 28" }, { i: Inbox, t: "Email · Re: pricing · May 30" }].map((c) => { const Icon = c.i; return (
+                {/* Citations: the exact sources — calls, emails, and the
+                    workspace knowledge base the chat is grounded on. */}
+                {[{ i: Phone, t: "Call · Notion demo · May 28" }, { i: Inbox, t: "Email · Re: pricing · May 30" }, { i: BookOpen, t: "Knowledge · Objection bank" }].map((c) => { const Icon = c.i; return (
                   <span key={c.t} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ border: "1px solid rgba(44,107,237,0.25)", background: C.blueSoft, color: T.accent }}><Icon size={9} /> {c.t}</span>
                 ); })}
               </motion.div>
@@ -634,7 +787,8 @@ function ChatBar({ phase, reduced }: { phase: number; reduced: boolean }) {
   return (
     <div className="flex h-[44px] shrink-0 items-center border-t px-4" style={{ borderColor: T.soft, background: T.card }}>
       <div className="relative mx-auto w-full max-w-md">
-        <Compass size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: T.ter }} />
+        {/* The Elevay mark — the agent's face in chat, like the real app */}
+        <img src="/logo-Elevay.svg?v=2" alt="" className="absolute left-3 top-1/2 h-[13px] w-[13px] -translate-y-1/2" />
         <div className="w-full truncate rounded-xl border py-2 pl-9 pr-9 text-[11px]" style={{ borderColor: asking ? "rgba(44,107,237,0.4)" : T.border, color: asking ? T.text : T.ter, background: T.card, boxShadow: "0 1px 2px rgba(26,26,46,0.05)" }}>
           {asking ? <Typewriter key={phase} text="What did Sarah say about budget last Thursday?" start={!reduced} speed={22} caret /> : "Show my best prospects, pipeline health, draft email…"}
         </div>

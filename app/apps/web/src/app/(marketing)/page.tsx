@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion, useInView } from "framer-motion";
 import {
   ChevronDown,
   ArrowRight,
@@ -28,6 +28,34 @@ const fadeInUp = {
   visible: { opacity: 1, y: 0 },
 };
 
+/**
+ * Scroll-triggered section reveal, made strand-proof. The naive version
+ * (whileInView alone) can leave whole sections at opacity:0 when the
+ * observer misfires (fast scroll, restored scroll position, anchor jump,
+ * odd intersection semantics), which historically broke this page. Three
+ * belts against that:
+ *   1. on mount, anything already at/above the viewport reveals instantly
+ *      (covers #anchor jumps and restored scroll positions),
+ *   2. the IntersectionObserver (`useInView`, once) reveals on approach,
+ *   3. a hard timeout forces visibility a few seconds in, no matter what.
+ * Below-the-fold sections therefore really animate when you reach them —
+ * on every visit — and can never stay invisible.
+ */
+function useReveal(margin: "-80px 0px" | "-40px 0px" = "-80px 0px") {
+  const ref = useRef<HTMLElement>(null);
+  const reduced = useReducedMotion();
+  const inView = useInView(ref, { once: true, margin });
+  const [live, setLive] = useState(false);
+  useEffect(() => { if (inView || reduced) setLive(true); }, [inView, reduced]);
+  useEffect(() => {
+    const el = ref.current;
+    if (el && el.getBoundingClientRect().top < window.innerHeight * 0.92) setLive(true);
+    const t = setTimeout(() => setLive(true), 4500);
+    return () => clearTimeout(t);
+  }, []);
+  return { ref, live, reduced: !!reduced };
+}
+
 function Section({
   children,
   className = "",
@@ -37,24 +65,16 @@ function Section({
   className?: string;
   id?: string;
 }) {
-  // Reveal on MOUNT, not on scroll. A scroll-gated reveal (useInView)
-  // can strand whole sections at opacity:0 when the observer never
-  // fires: full-page render, fast scroll, a restored scroll position,
-  // or a browser that evaluates intersection differently. That reads as
-  // a "broken / totally shifted" page with big blank gaps. Mount-based
-  // reveal can never leave content invisible; below-the-fold sections
-  // simply finish their fade off-screen and are just *there* when you
-  // reach them. (Also matches the skill's "don't animate everything".)
-  const reduced = useReducedMotion();
-
+  const { ref, live, reduced } = useReveal();
   return (
     <motion.section
+      ref={ref as React.Ref<HTMLElement>}
       id={id}
       className={className}
       initial={reduced ? "visible" : "hidden"}
-      animate="visible"
+      animate={live ? "visible" : "hidden"}
       variants={{
-        visible: { transition: { staggerChildren: reduced ? 0 : 0.06 } },
+        visible: { transition: { staggerChildren: reduced ? 0 : 0.07 } },
       }}
     >
       {children}
@@ -74,10 +94,34 @@ function Animate({
     <motion.div
       className={className}
       variants={fadeInUp}
-      transition={{ duration: reduced ? 0 : 0.4, ease: "easeOut" }}
+      transition={{ duration: reduced ? 0 : 0.45, ease: [0.22, 0.61, 0.36, 1] }}
     >
       {children}
     </motion.div>
+  );
+}
+
+/** Counts up when it scrolls into view (rAF, eased) — used for the hard
+ * numbers so they land instead of sitting there. */
+function AnimatedStat({ to, suffix = "", className = "", style }: { to: number; suffix?: string; className?: string; style?: React.CSSProperties }) {
+  const { ref, live, reduced } = useReveal("-40px 0px");
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!live) return;
+    if (reduced) { setN(to); return; }
+    let raf = 0; const t0 = performance.now(); const dur = 1100;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - t0) / dur);
+      setN(Math.round(to * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [live, reduced, to]);
+  return (
+    <span ref={ref as React.Ref<HTMLSpanElement>} className={className} style={style}>
+      {n}{suffix}
+    </span>
   );
 }
 
@@ -145,17 +189,20 @@ function FAQItem({ q, a }: { q: string; a: string }) {
           }`}
         />
       </button>
-      <div
+      {/* Real height animation (not a max-h guess): the panel glides open to
+          its true size. Kept mounted so aria-controls always resolves. */}
+      <motion.div
         id={panelId}
         role="region"
         aria-labelledby={buttonId}
-        hidden={!open}
-        className={`overflow-hidden transition-all duration-300 ${
-          open ? "max-h-96 pb-5" : "max-h-0"
-        }`}
+        aria-hidden={!open}
+        initial={false}
+        animate={{ height: open ? "auto" : 0, opacity: open ? 1 : 0 }}
+        transition={{ duration: 0.32, ease: [0.22, 0.61, 0.36, 1] }}
+        style={{ overflow: "hidden" }}
       >
-        <p className="text-[15px] leading-relaxed text-gray-600">{a}</p>
-      </div>
+        <p className="pb-5 text-[15px] leading-relaxed text-gray-600">{a}</p>
+      </motion.div>
     </div>
   );
 }
@@ -329,8 +376,8 @@ export default function LandingPage() {
           <Animate><p className="mx-auto mt-6 max-w-[620px] text-lg leading-relaxed text-gray-600">It builds your target list, tells you who to reach and when, drafts your outreach across email and calls, and captures every meeting in your CRM. You review and close.</p></Animate>
           <Animate>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-              <Link href="/sign-up" className="cursor-pointer rounded-lg px-6 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Build my target list</Link>
-              <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-700 transition-colors hover:border-gray-400">Book a demo <ArrowRight size={14} className="text-gray-400" /></a>
+              <Link href="/sign-up" className="cursor-pointer rounded-lg px-6 py-3 text-sm font-semibold text-white transition-[opacity,transform] duration-150 hover:-translate-y-0.5 hover:opacity-90 active:translate-y-0" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Build my target list</Link>
+              <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="group flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-700 transition-colors hover:border-gray-400">Book a demo <ArrowRight size={14} className="text-gray-400 transition-transform duration-150 group-hover:translate-x-0.5" /></a>
             </div>
           </Animate>
           <Animate><p className="mt-4 text-xs text-gray-500">Free 14-day trial on your own data · No credit card · Cancel anytime</p></Animate>
@@ -375,8 +422,17 @@ export default function LandingPage() {
               (Dr. James Oldroyd, MIT / InsideSales), the reason the
               "prioritize" step exists: timing is most of the win. */}
           <Animate>
-            <div className="mt-8 flex items-baseline gap-4 border-l-2 pl-5" style={{ borderColor: "#2C6BED" }}>
-              <span className="shrink-0 text-4xl font-bold tracking-tight text-gray-900 sm:text-[44px]">21&times;</span>
+            <div className="relative mt-8 flex items-baseline gap-4 pl-5">
+              {/* The accent rule draws itself in (scaleY, top origin) as the
+                  number counts up — the stat lands instead of sitting there. */}
+              <motion.span
+                aria-hidden
+                className="absolute bottom-0 left-0 top-0 w-[2px] rounded-full"
+                style={{ background: "#2C6BED", transformOrigin: "top" }}
+                variants={{ hidden: { scaleY: 0 }, visible: { scaleY: 1 } }}
+                transition={{ duration: 0.7, ease: [0.22, 0.61, 0.36, 1] }}
+              />
+              <span className="shrink-0 text-4xl font-bold tabular-nums tracking-tight text-gray-900 sm:text-[44px]"><AnimatedStat to={21} suffix="×" /></span>
               <p className="max-w-md text-[15px] leading-relaxed text-gray-600">more likely to qualify a lead you reach within five minutes than one you reach at thirty <span className="text-gray-400">(MIT / InsideSales)</span>. Elevay surfaces who&apos;s ready now, so you reach them in the window that still converts.</p>
             </div>
           </Animate>
@@ -436,7 +492,11 @@ export default function LandingPage() {
             </Animate>
             <Animate>
               <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-gray-100 pt-6 text-[13px] text-gray-500">
-                <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full" style={{ background: "#10B981" }} /> In early access, onboarding founders one at a time</span>
+                <span className="inline-flex items-center gap-1.5">
+                  {/* A live-status breath (opacity only, honors reduced motion) */}
+                  <span className="h-1.5 w-1.5 rounded-full motion-safe:animate-pulse" style={{ background: "#10B981" }} />
+                  In early access, onboarding founders one at a time
+                </span>
                 <span className="inline-flex items-center gap-1.5"><UserCheck size={14} className="text-gray-400" /> You talk to the founder, not a sales team</span>
               </div>
             </Animate>
@@ -457,15 +517,21 @@ export default function LandingPage() {
               { logos: ["11x.ai", "artisan.co", "aisdr.com"], kind: "AI SDRs", headline: "They act without you.", body: "Autonomous senders that blast generic messages under your name. The output is forgettable; the cost lands on your domain and your reputation." },
               { logos: ["apollo.io", "instantly.ai", "clay.com"], kind: "Tool stacks", headline: "Five tools, no memory.", body: "Prospecting here, sequences there, enrichment elsewhere. Each tool forgets what the others did, and you become the integration between them." },
             ].map((card) => (
-              <Animate key={card.kind}>
-                <div className="flex h-full flex-col rounded-xl border border-gray-200 bg-white p-8 transition-shadow duration-200 hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]">
+              <Animate key={card.kind} className="h-full">
+                {/* Hover lift is a transform (translateY) — composited, cheap,
+                    and it stays inside normal flow. */}
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  transition={{ type: "spring", stiffness: 320, damping: 24 }}
+                  className="flex h-full flex-col rounded-xl border border-gray-200 bg-white p-8 transition-shadow duration-200 hover:shadow-[0_8px_24px_rgba(0,0,0,0.07)]"
+                >
                   <div className="mb-4 flex items-center gap-1.5">
                     {card.logos.map((d) => <Logo key={d} src={clogo(d)} size={28} rounded="rounded-lg" />)}
                   </div>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">{card.kind}</p>
                   <h3 className="mt-2 text-base font-semibold text-gray-900">{card.headline}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-gray-600">{card.body}</p>
-                </div>
+                </motion.div>
               </Animate>
             ))}
           </div>
@@ -485,7 +551,7 @@ export default function LandingPage() {
               <h2 className="text-2xl font-bold tracking-tight text-gray-900">See Elevay on your own pipeline</h2>
               <p className="mx-auto mt-3 max-w-md text-[15px] text-gray-600">15 minutes. We&apos;ll connect your inbox live, build a target list from your ICP, and show you the priorities it surfaces.</p>
               <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-                <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="inline-flex cursor-pointer items-center gap-2 rounded-lg px-8 py-3.5 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: "#2C6BED" }}>Book a demo <ArrowRight size={14} /></a>
+                <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="group inline-flex cursor-pointer items-center gap-2 rounded-lg px-8 py-3.5 text-sm font-semibold text-white transition-[opacity,transform] duration-150 hover:-translate-y-0.5 hover:opacity-90 active:translate-y-0" style={{ background: "#2C6BED" }}>Book a demo <ArrowRight size={14} className="transition-transform duration-150 group-hover:translate-x-0.5" /></a>
                 <Link href="/sign-up" className="cursor-pointer text-sm font-semibold text-gray-600 transition-colors hover:text-gray-900">or try it yourself &rarr;</Link>
               </div>
             </div>
@@ -529,7 +595,7 @@ export default function LandingPage() {
             <Animate><p className="mt-4 text-lg text-gray-600">Free to start. Connected in 3 minutes.</p></Animate>
             <Animate>
               <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-                <Link href="/sign-up" className="inline-block cursor-pointer rounded-lg px-8 py-4 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Build my target list</Link>
+                <Link href="/sign-up" className="inline-block cursor-pointer rounded-lg px-8 py-4 text-sm font-semibold text-white transition-[opacity,transform] duration-150 hover:-translate-y-0.5 hover:opacity-90 active:translate-y-0" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Build my target list</Link>
                 <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="cursor-pointer text-sm font-semibold text-gray-600 transition-colors hover:text-gray-900">or book a demo &rarr;</a>
               </div>
             </Animate>
