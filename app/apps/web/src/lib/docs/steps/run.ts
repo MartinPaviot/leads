@@ -20,7 +20,18 @@ export const runSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "Channel strategy at the early stage is two decisions: which channel you lead with, and when you add the second. Lead with the channel where **you are credible and your buyer actually answers**. Then add the second sooner than feels comfortable: properly sequenced, channels do not add, they compound. Email plus social in the same sequence is not one plus one equals two; it is closer to four, because the touches reference each other (\"following up from my note on LinkedIn\") and the prospect assembles them into one persistent, real person. Phone is the third channel; gifting (Step 12) can be a fourth. One non-negotiable: real domains, your real name. Spraying the universe from lookalike domains is how reply rates reach zero.",
+          "First, remember what outbound buys you that no other motion does: **you choose your customers**. Inbound takes whoever shows up; outbound works the exact companies your TAM says you should win. And the buyers who matter most rarely come to you: a senior decision maker at a serious company does not fill in demo forms. If you want that customer, you go get them, which is why even self-serve products keep running outbound toward the segment that will never sign itself up.",
+      },
+      {
+        type: "p",
+        text:
+          "Channel strategy at the early stage is then two decisions: which channel you lead with, and when you add the second. Lead with the channel where **you are credible and your buyer actually answers**. Then add the second sooner than feels comfortable: properly sequenced, channels do not add, they compound. Email plus social in the same sequence is not one plus one equals two; it is closer to four, because the touches reference each other (\"following up from my note on LinkedIn\") and the prospect assembles them into one persistent, real person. Phone is the third channel; gifting (Step 12) can be a fourth. One non-negotiable: real domains, your real name. Spraying the universe from lookalike domains is how reply rates reach zero.",
+      },
+      {
+        type: "callout",
+        title: "The 2026 edge",
+        text:
+          "Outbound is not dead; it molts. It went from door-knocking to phone to handwritten email to sequencers, and each wave died of its own success: a tactic stops working the day everyone copies it. The 2026 version: inboxes are flooded with machine-written mail, templated AI campaigns lose more than half their reply rate within 18 months as buyers pattern-match them, and domains running full-volume AI burn their reputation in a quarter. What compounds instead of decaying: real signals, a recognized name, the founder's own voice, and the channels automation cannot fake, starting with a human on the phone. The only durable AI arrangement is the one this method assumes: the machine drafts and researches, a human judges and signs. And expect this paragraph itself to age: when a tactic here stops working, re-derive from the doctrine (Step 1), not from nostalgia.",
       },
       { type: "h2", text: "What each channel returns" },
       {
@@ -216,7 +227,7 @@ export const runSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "The phone is the highest-bandwidth feedback instrument an early-stage founder has. Nobody answers a cold email to explain why you are wrong; on a call they tell you, and that explorable negative feedback is the rarest data in the company. Twenty calls into one segment is a market answer. It is also the least crowded channel, precisely because it is emotionally hard.",
+          "\"Cold calling is dead\" is the worst advice in circulation, and it is given exclusively by people who do not dial. In 2026 it is more alive than it has been in a decade: the inbox is where AI fights AI, and the phone is where a human being stands out. The phone is also the highest-bandwidth feedback instrument an early-stage founder has. Nobody answers a cold email to explain why you are wrong; on a call they tell you, and that explorable negative feedback is the rarest data in the company. **Twenty calls into one segment is a market answer**: the same answer a month of landing-page iterations and ad spend buys, for the price of an afternoon. It is also the least crowded channel, precisely because it is emotionally hard: for every thousand founders posting, five are dialing, and the five are talking directly to their market.",
       },
       { type: "h2", text: "The founder posture" },
       {
@@ -238,7 +249,8 @@ export const runSteps: DocStep[] = [
           "**One segment hypothesis per session.** The session exists to validate it; never mix sectors in one block.",
           "**Batch immersion beats per-prospect research.** 30 to 60 minutes on the sector before a block of 50 to 100 calls; with auto-generated briefs the per-call context costs nothing extra.",
           "**A recurring block, non-negotiable.** Same slot every week, hours long. Regularity beats heroic one-offs.",
-          "**Reread your FAQ before dialing**, and keep one script per target visible even once memorized: lived, not recited, like an actor with a text.",
+          "**Reread your FAQ before dialing**, and keep one script per target visible even once memorized: lived, not recited, like an actor with a text. The script is a method, not a monument: new target or new feature means re-deriving it, never stretching one generic script across every audience.",
+          "**Do not wait to be ready.** The first hundred meetings need a phone, a printed list and a paper script; operators who own every tool in the category still revert to exactly that. Perfection comes from dialing, not before it. Do not overkill the subject.",
         ],
       },
       { type: "h2", text: "The call in five phases" },
@@ -274,7 +286,7 @@ export const runSteps: DocStep[] = [
       {
         type: "ul",
         items: [
-          "**(a) Extend hot.** It bites hard, they have time, the account is clearly in target: keep going 10 to 15 minutes. For a simple self-serve offer that can mean a proposal the same hour; for an implementation-heavy offer it means a hot pre-diagnosis (tools in place, volumes, deadlines, who decides) so the real meeting starts half-filled. Condition: you can answer every question instantly. \"I need to check with my CTO\" is the signal to switch to (b).",
+          "**(a) Extend hot.** It bites hard, they have time, the account is clearly in target: keep going 10 to 15 minutes. People who say they have two minutes sometimes have thirty. For a simple self-serve offer that can mean a proposal the same hour; for an implementation-heavy offer it means a hot pre-diagnosis (tools in place, volumes, deadlines, who decides) so the real meeting starts half-filled. Condition: you can answer every question instantly. \"I need to check with my CTO\" is the signal to switch to (b).",
           "**(b) Book the meeting.** It bites but the moment is short or a decider is missing: a 45-minute meeting with an announced deliverable. Give enough to want it, never enough to make it unnecessary.",
           "**(c) Collect and exit.** Nothing bites: one last learning question, thanks, door open. The call still paid for itself.",
         ],
@@ -307,6 +319,12 @@ export const runSteps: DocStep[] = [
           ["Is this a cold call?", "\"Yes. Thirty seconds and you decide. Deal?\""],
         ],
       },
+      { type: "h2", text: "More than pipeline: what founder dials produce" },
+      {
+        type: "p",
+        text:
+          "A founder's cold calls compound beyond revenue, and the by-products are not anecdotes; plan for them. Senior operators **like** being called by a founder: it casts them as the experienced peer, and helping feels good at that altitude. Founders have had early customers ask to join the advisory board, make angel checks, and open their networks, all originating from a cold dial. Every call also feeds the market map (who uses what, what broke, what they pay) and the messaging loop: the phrases that made prospects lean in become the website (Step 3). Track these side-products like pipeline; over a year they are worth as much.",
+      },
       { type: "h2", text: "After the call: two minutes, then next" },
       {
         type: "ul",
@@ -332,7 +350,7 @@ export const runSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "In Elevay: the day's list is built from score and live signals, every prospect comes with a grounded brief and call script, you dial from the product, and the transcript, qualification facts and disposition are captured automatically, with the cadence scheduling the next attempt.",
+          "In Elevay: the day's list is built from score and live signals, every prospect comes with a grounded brief and call script, you dial from the product, and the transcript, qualification facts and disposition are captured automatically, with the cadence scheduling the next attempt. The point is the oldest waste in the trade: unassisted calling teams lose five hours of an eight-hour day to research and data entry. Those five hours are what the machine gives back to the conversation.",
       },
     ],
   },
@@ -423,7 +441,7 @@ export const runSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "Outbound efficacy is not independent of brand. The same company, same product, same message gets exponentially higher reply rates once the target market has heard of you: name recognition converts cold outreach into warm. That is why brand work belongs in an outbound method, and why the founders who skip it pay for it in reply rates.",
+          "Outbound efficacy is not independent of brand. The same company, same product, same message gets exponentially higher reply rates once the target market has heard of you: name recognition converts cold outreach into warm. And the effect does not stop at the reply: a name people have seen carries inherent credibility into every demo and every negotiation, which moves close rates too. That is why brand work belongs in an outbound method, and why the founders who skip it pay for it twice.",
       },
       { type: "h2", text: "Anecdotes beat attribution" },
       {
@@ -472,6 +490,7 @@ export const runSteps: DocStep[] = [
           "**45 days out, assemble a launch committee** (your whole company, if that is five people). Everyone brings two or three ideas, the crazier the better, budget caps per campaign. Whiteboard, pick the best three or four, execute.",
           "**Distribution matters as much as content.** A launch video or post without a distribution plan is a tree falling in a forest. Build the spreadsheet with four tabs: employees, investors, friends of the company, customers. Outreach to each group the day before and the day of. Ask every employee: who are the three to five most influential people in your network?",
           "**Concentrate, do not dribble.** Going from unknown to visible all at once (\"suddenly I see them everywhere\") beats spreading the same budget over nine months. The concentrated version creates the moment people talk about.",
+          "**Opportunism is a budget multiplier.** Excess inventory exists everywhere: the ad space, trucks or screens nobody booked this week go for a fraction of list price to whoever asks. The founders who get famous cheaply are the ones who ask.",
           "**Know your phase.** Design partners (private, feedback-first), then a metered public beta (waitlist, only the customers you can make successful), then general availability. Each phase transition is a launch.",
         ],
       },

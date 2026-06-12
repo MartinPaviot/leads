@@ -65,6 +65,15 @@ export const closeSteps: DocStep[] = [
           "**The next meeting in the calendar, accepted, with the missing stakeholder invited.** Deals with a defined next step at every stage close at roughly 2.4x the rate of deals without. \"I will send some times\" is how momentum dies.",
         ],
       },
+      { type: "h2", text: "Fewer meetings, the right people, deciders first" },
+      {
+        type: "ul",
+        items: [
+          "**Companies shoot themselves in the foot by inflating cycles**: two discovery calls, then a demo, then another demo, usually because the right people were never in the same room and every absence costs an extra meeting. Compress: enough of the right people around the table on fewer meetings beats a longer ritual.",
+          "**Talk to deciders first**, then route to operational teams, not the reverse. Climbing up from the team to the budget owner adds weeks and a translation layer; descending from the decider adds an endorsement.",
+          "**Respect what a bad meeting costs.** A held meeting consumes about two hours of seller time (preparation, the hour, the follow-up); booking unqualified prospects to feel productive is how calendars fill while pipelines starve. The discipline of this step is what makes Step 14 worth running.",
+        ],
+      },
       { type: "h2", text: "The qualification decision" },
       {
         type: "table",

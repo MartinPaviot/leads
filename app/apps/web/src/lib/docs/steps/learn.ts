@@ -54,6 +54,12 @@ export const learnSteps: DocStep[] = [
           "**Stale pipeline majority:** when most open pipeline value sits in deals past 1.5 to 2 times the median time-in-stage, redirect effort from new prospects to reviving or closing what exists. Late-stage deals decay fastest: a stalled negotiation is existential, a slow discovery is tolerable.",
         ],
       },
+      { type: "h2", text: "Before you blame the message" },
+      {
+        type: "p",
+        text:
+          "A bad month triggers self-flagellation (\"maybe the value proposition is wrong\") faster than it triggers measurement. Check two things first. **Activity**: results follow activity with a lag, and a quiet pipeline usually traces to two quiet weeks of inputs before it says anything about the offer. **The market's calendar**: budget seasons, fiscal year-ends, school holidays and summer move meeting rates in ways that have nothing to do with your message. Mature operators know their market's calendar to the millimeter (this month has two public holidays and most buyers are mid-budget-cycle); founders flying blind remake their positioning over what was actually August. Only after activity and calendar are ruled out does the waterfall verdict stand.",
+      },
       { type: "h2", text: "Testing without fooling yourself" },
       {
         type: "p",
@@ -186,7 +192,14 @@ export const learnSteps: DocStep[] = [
           "**The playbook by phase:** openers, peer-pain stories, the three exits, the objection table, in your customers' own words.",
           "**The ICP and anti-persona with reasons** (Step 4), plus the winning profile so far (Step 18).",
           "**The cadence and its rules** (Step 8): touches, channels, caps, response-time discipline.",
+          "**And a date for its next revision.** A playbook is never static: every quarter brings a new feature, a new vertical, a sharper phrase from the field. Re-derive the scripts with the same method each time rather than letting one aging script stretch across audiences it was never written for.",
         ],
+      },
+      { type: "h2", text: "Keeping the first hires alive" },
+      {
+        type: "p",
+        text:
+          "Dialing and closing is emotionally hard work (Step 10), and your first hires will not have a founder's equity to carry them through the bad weeks. Three cheap disciplines hold a small team together: **celebrate loudly** (the bell on a closed deal exists because recognition drives sellers at least as hard as money); **reward personally** (a gift chosen for the person, worth a hundred, beats a generic bonus worth two: it proves you know them); and **make the best teach** (the rep booking the most meetings sharing exactly how, in the weekly best-and-worst-calls ritual, lifts the team and retains the star). And the hardest one: a toxic top performer poisons a small team faster than a missed quarter; part ways even when the number argues otherwise.",
       },
       {
         type: "example",

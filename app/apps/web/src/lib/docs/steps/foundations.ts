@@ -304,6 +304,12 @@ export const foundationSteps: DocStep[] = [
           "**Variants by funnel stage.** Early touches educate about the problem, middle touches agitate the cost of it, late touches differentiate and de-risk.",
         ],
       },
+      {
+        type: "callout",
+        title: "On naming, while you are here",
+        text:
+          "If the name is not settled yet: naming is not a social activity. Like naming a child, the founders decide and do not poll the room, because everyone has an opinion and committees converge on beige. Optimize for two things: the associations you want the brand to carry, and an ownable domain you can eventually get. A memorable word you can build stories around beats an accurate description of the product.",
+      },
       { type: "h2", text: "The origin story: the founder-only asset" },
       {
         type: "p",
