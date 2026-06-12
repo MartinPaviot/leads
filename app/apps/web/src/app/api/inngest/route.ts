@@ -12,6 +12,7 @@ import { processOutboundEmails, sendSingleEmail, cronDailyMailboxReset } from "@
 import { cronTriggerSequenceSteps } from "@/inngest/sequence-cron";
 import { dailyCallListGeneration } from "@/inngest/call-campaign-cron";
 import { sourceProspectsFromIcp } from "@/inngest/call-campaign-source";
+import { verifyCallListRoles } from "@/inngest/linkedin-role-verify";
 import { cronFailureToEvalCases, cronFlywheelCycle, runAgentFlywheel, asyncOnlineEval } from "@/inngest/eval-functions";
 import { prepareCampaign } from "@/inngest/campaign-functions";
 import { handleReplyIntelligently } from "@/inngest/reply-handler";
@@ -108,6 +109,7 @@ export const { GET, POST, PUT } = serve({
     cronTriggerSequenceSteps,
     dailyCallListGeneration,
     sourceProspectsFromIcp,
+    verifyCallListRoles,
     // P0-1 sequence-draft queue : routes events to draft / direct
     routeSequenceStepToDraft,
     cronExpireSequenceDrafts,

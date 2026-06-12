@@ -292,6 +292,9 @@ export interface DailyListResult {
   poolExhausted: boolean;
   /** Active sprint label when the top-up was audience-filtered, else null. */
   sprint: string | null;
+  /** Contacts on today's list — the caller fires LinkedIn role verification
+   *  for these (kept here so this lib stays free of Inngest/side effects). */
+  listedContactIds: string[];
 }
 
 /**
@@ -310,7 +313,7 @@ export async function generateDailyCallList(
     .where(eq(callCampaigns.id, campaignId))
     .limit(1);
   if (!campaign || campaign.status !== "active") {
-    return { campaignId, quota: 0, retriesDue: 0, newlyAdded: 0, listed: 0, poolExhausted: true, sprint: null };
+    return { campaignId, quota: 0, retriesDue: 0, newlyAdded: 0, listed: 0, poolExhausted: true, sprint: null, listedContactIds: [] };
   }
   const tenantId = campaign.tenantId;
   const quota = campaign.dailyQuota || 0;
@@ -412,7 +415,20 @@ export async function generateDailyCallList(
     poolExhausted = candidates.length < topUp;
   }
 
-  return { campaignId, quota, retriesDue, newlyAdded, listed, poolExhausted, sprint: audience?.label ?? null };
+  // Today's list, for the caller's LinkedIn role verification.
+  const listedRows = await db
+    .select({ contactId: callCampaignTargets.contactId })
+    .from(callCampaignTargets)
+    .where(
+      and(
+        eq(callCampaignTargets.campaignId, campaignId),
+        eq(callCampaignTargets.listedOn, today),
+        inArray(callCampaignTargets.status, ["queued", "in_progress"]),
+      ),
+    );
+  const listedContactIds = [...new Set(listedRows.map((r) => r.contactId))];
+
+  return { campaignId, quota, retriesDue, newlyAdded, listed, poolExhausted, sprint: audience?.label ?? null, listedContactIds };
 }
 
 /**
@@ -468,6 +484,7 @@ export async function getTodaysCallList(tenantId: string, now: Date = new Date()
       companyId: contacts.companyId,
       score: contacts.score,
       lastEnrichedAt: contacts.lastEnrichedAt,
+      properties: contacts.properties,
     })
     .from(callCampaignTargets)
     .innerJoin(contacts, eq(contacts.id, callCampaignTargets.contactId))

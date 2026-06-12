@@ -21,7 +21,20 @@ import {
   type GoalSpec,
 } from "@/lib/voice/campaign";
 import { getTenantSettings, hasUsableIcp } from "@/lib/config/tenant-settings";
+import { getRoleVerification } from "@/lib/contacts/role-status";
 import { inngest } from "@/inngest/client";
+
+/**
+ * Kick off LinkedIn role verification for the freshly-built list so a rep
+ * who sets up Call Mode mid-day doesn't wait for the next cron. Best-effort
+ * and gated in the worker (no-op without APIFY_TOKEN); never blocks the route.
+ */
+async function fireRoleVerification(tenantId: string, contactIds: string[]) {
+  if (contactIds.length === 0) return;
+  await inngest
+    .send({ name: "call-list/verify-roles", data: { tenantId, contactIds } })
+    .catch(() => {});
+}
 
 /** Count contacts that can actually be dialed (have a phone). */
 async function callableCount(tenantId: string): Promise<number> {
@@ -88,9 +101,10 @@ async function todayQueue(tenantId: string, ownerId: string) {
     dealValueWeight: 1,
     localTime: "",
     localTimezone: "",
-    // Honest freshness — when the title/company was last sourced, so the
-    // cockpit can show "poste à confirmer" instead of asserting it as fact.
     lastEnrichedAt: r.lastEnrichedAt ? r.lastEnrichedAt.toISOString() : null,
+    // Live LinkedIn verification result (null until the auto-check runs), so
+    // the fiche shows the verified role instead of an unverified title.
+    roleVerification: getRoleVerification(r.properties as Record<string, unknown>),
     latestSignal: r.lastOutcome
       ? { type: "call", label: `Attempt ${r.attemptCount} · ${r.lastOutcome}` }
       : null,
@@ -195,7 +209,8 @@ export async function POST(req: Request) {
         workingDays: Array.isArray(body.workingDays) && body.workingDays.length > 0 ? body.workingDays : [1, 2, 3, 4, 5],
       },
     });
-    await generateDailyCallList(campaign.id);
+    const gen = await generateDailyCallList(campaign.id);
+    await fireRoleVerification(authCtx.tenantId, gen.listedContactIds);
     const calls = await todayQueue(authCtx.tenantId, campaign.ownerId ?? authCtx.appUserId);
     const { callableTotal, hasIcp, needsSourcing, sourcing } = await listStatus(authCtx.tenantId, campaign.dailyQuota ?? 0);
 
@@ -241,7 +256,8 @@ export async function PATCH(req: Request) {
       return Response.json({ error: "Campaign not found." }, { status: 404 });
     }
 
-    await generateDailyCallList(campaign.id);
+    const gen = await generateDailyCallList(campaign.id);
+    await fireRoleVerification(authCtx.tenantId, gen.listedContactIds);
     const calls = await todayQueue(authCtx.tenantId, active.ownerId ?? authCtx.appUserId);
     const { callableTotal, hasIcp, needsSourcing, sourcing } = await listStatus(authCtx.tenantId, campaign.dailyQuota ?? 0);
 

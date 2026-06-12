@@ -61,6 +61,14 @@ export const dailyCallListGeneration = inngest.createFunction(
       const res = await step.run(`gen-${c.id}`, async () => generateDailyCallList(c.id));
       listed += res.listed;
       added += res.newlyAdded;
+      // Auto-verify today's roles on LinkedIn (gated on APIFY_TOKEN in the
+      // worker; TTL-cached so recent checks aren't re-paid).
+      if (res.listedContactIds.length > 0) {
+        await step.sendEvent(`verify-${c.id}`, {
+          name: "call-list/verify-roles",
+          data: { tenantId: c.tenantId, contactIds: res.listedContactIds },
+        });
+      }
     }
 
     return { campaigns: active.length, generated: ran, listed, newlyAdded: added };

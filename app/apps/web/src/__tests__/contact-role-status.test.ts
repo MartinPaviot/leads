@@ -5,9 +5,13 @@ import {
   withRoleObsolete,
   withoutRoleObsolete,
   normalizeTitle,
-  roleFreshnessNote,
   relativeFr,
+  getRoleVerification,
+  withRoleVerification,
+  isVerificationFresh,
   ROLE_OBSOLETE_KEY,
+  ROLE_VERIFICATION_KEY,
+  type RoleVerification,
 } from "@/lib/contacts/role-status";
 
 describe("role obsolete flag", () => {
@@ -71,16 +75,32 @@ describe("normalizeTitle", () => {
   });
 });
 
-describe("freshness note", () => {
+describe("role verification cache", () => {
   const now = new Date("2026-06-12T12:00:00Z");
   const daysAgo = (n: number) => new Date(now.getTime() - n * 86_400_000).toISOString();
 
-  it("flags a never-sourced role", () => {
-    expect(roleFreshnessNote(null, now)).toBe("poste non vérifié");
+  it("reads back a stored verification, ignoring malformed shapes", () => {
+    expect(getRoleVerification(null)).toBeNull();
+    expect(getRoleVerification({})).toBeNull();
+    expect(getRoleVerification({ [ROLE_VERIFICATION_KEY]: { status: "bogus", at: "x" } })).toBeNull();
+    const v: RoleVerification = { at: daysAgo(1), status: "confirmed", title: "DG", company: "Afiro" };
+    expect(getRoleVerification({ [ROLE_VERIFICATION_KEY]: v })).toEqual(v);
   });
 
-  it("asks for confirmation with recency", () => {
-    expect(roleFreshnessNote(daysAgo(5), now)).toBe("poste à confirmer · sourcé il y a 5 j");
+  it("stores immutably, preserving other keys", () => {
+    const props = { source: "icp_sourcing" };
+    const v: RoleVerification = { at: daysAgo(0), status: "left", title: "CEO", company: "NewCo" };
+    const next = withRoleVerification(props, v);
+    expect(next).toEqual({ source: "icp_sourcing", [ROLE_VERIFICATION_KEY]: v });
+    expect(props).not.toHaveProperty(ROLE_VERIFICATION_KEY);
+  });
+
+  it("treats a recent check as fresh and an old one as stale", () => {
+    const fresh = withRoleVerification({}, { at: daysAgo(3), status: "confirmed", title: null, company: null });
+    const stale = withRoleVerification({}, { at: daysAgo(30), status: "confirmed", title: null, company: null });
+    expect(isVerificationFresh(fresh, 14, now)).toBe(true);
+    expect(isVerificationFresh(stale, 14, now)).toBe(false);
+    expect(isVerificationFresh({}, 14, now)).toBe(false);
   });
 
   it("relativeFr scales by magnitude", () => {

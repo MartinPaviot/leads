@@ -55,6 +55,7 @@ import { isVoiceableSignal, mergeTechStacks } from "@/lib/call-mode/live-script"
 import { speakableGeo } from "@/lib/call-mode/geo";
 import { pickReplaceableTools } from "@/lib/tech-detect/replaceable";
 import type { ScriptContext } from "@/lib/voice/script-context";
+import type { RoleVerification } from "@/lib/contacts/role-status";
 import { CallActions } from "./_call-actions";
 
 interface QueueItem {
@@ -71,6 +72,7 @@ interface QueueItem {
   localTime: string;
   localTimezone: string;
   lastEnrichedAt?: string | null;
+  roleVerification?: RoleVerification | null;
   latestSignal: { type: string; label: string } | null;
 }
 
