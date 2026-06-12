@@ -20,7 +20,7 @@
 
 import { db } from "@/db";
 import { companies, contacts } from "@/db/schema";
-import { and, eq, isNull, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, isNull, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { anthropic } from "@/lib/ai/ai-provider";
@@ -30,33 +30,10 @@ import { personaVocabulary } from "@/lib/scoring/title-persona";
 import { loadActiveIcps } from "@/lib/icp/fit-recompute-core";
 import { norm } from "@/lib/icp/criteria-engine";
 
-export interface SprintAudience {
-  /** Human label echoed in chat/UI ("les DG des EMS romands"). */
-  label: string;
-  /** Verbatim companies.industry labels (subset of the tenant's real ones). */
-  industries: string[];
-  /** Verbatim persona labels (subset of the active ICPs' person_titles). */
-  personas: string[];
-}
-
-/**
- * Validate a campaign targetFilter's `audience` into a usable SprintAudience.
- * Null when absent, malformed, or empty on BOTH facets — an empty audience
- * must mean "no sprint" (whole ICP), never silently "match everyone".
- */
-export function readSprintAudience(targetFilter: unknown): SprintAudience | null {
-  if (!targetFilter || typeof targetFilter !== "object") return null;
-  const raw = (targetFilter as Record<string, unknown>).audience;
-  if (!raw || typeof raw !== "object") return null;
-  const a = raw as Record<string, unknown>;
-  const strs = (v: unknown) =>
-    Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => x.trim()))] : [];
-  const industries = strs(a.industries);
-  const personas = strs(a.personas);
-  if (industries.length === 0 && personas.length === 0) return null;
-  const label = typeof a.label === "string" && a.label.trim() ? a.label.trim() : "sprint";
-  return { label, industries, personas };
-}
+// Pure slice (type + targetFilter parser) lives in ./sprint-audience so the
+// cockpit chip (client) shares the SSOT without pulling in db imports.
+import { readSprintAudience, type SprintAudience } from "./sprint-audience";
+export { readSprintAudience, type SprintAudience };
 
 /**
  * The SQL conditions an audience adds to a query whose FROM is the drizzle
@@ -257,6 +234,31 @@ export async function validateSprintLabels(
     ];
   }
   return out;
+}
+
+/**
+ * The sprint contacts the enrichment wave should target: in the audience,
+ * live, and missing a phone — highest ICP fit first. Capped (FullEnrich
+ * bulk takes 100 max; Lusha-class daily quotas are the real ceiling).
+ */
+export async function listSprintContactsMissingPhone(
+  tenantId: string,
+  audience: SprintAudience,
+  limit = 50,
+): Promise<Array<{ id: string }>> {
+  return db
+    .select({ id: contacts.id })
+    .from(contacts)
+    .where(
+      and(
+        eq(contacts.tenantId, tenantId),
+        isNull(contacts.deletedAt),
+        sql`(${contacts.phone} IS NULL OR ${contacts.phone} = '')`,
+        ...sprintAudienceConditions(audience),
+      ),
+    )
+    .orderBy(desc(contacts.score))
+    .limit(Math.min(100, Math.max(1, limit)));
 }
 
 export interface SprintCounts {

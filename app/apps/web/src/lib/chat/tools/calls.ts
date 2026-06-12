@@ -6,6 +6,8 @@ import {
   resolveSprintAudience,
   countSprintAudience,
   validateSprintLabels,
+  readSprintAudience,
+  listSprintContactsMissingPhone,
   type SprintAudience,
 } from "@/lib/voice/call-sprint";
 import {
@@ -13,6 +15,7 @@ import {
   updateCallCampaign,
   generateDailyCallList,
 } from "@/lib/voice/campaign";
+import { enqueueFullEnrichForContacts } from "@/lib/integrations/fullenrich-enqueue";
 
 /**
  * Call Mode tools. Read side: the prioritised cold-call queue the Call Mode
@@ -163,6 +166,65 @@ export function buildCallTools(ctx: ToolContext) {
             `Sprint « ${audience.label} » appliqué à la campagne « ${campaign.name} ». Liste du jour : ${gen.listed} (${gen.retriesDue} rappels dus + ${gen.newlyAdded} nouveaux de la cible).` +
             shortfall,
           ...navigateDirective("/call-mode", "Voir la liste du sprint"),
+        };
+      },
+    }),
+
+    enrichCallSprint: makeTool({
+      description:
+        `Launch the phone-enrichment wave for the ACTIVE call sprint: takes the sprint-audience contacts that have NO phone number (highest ICP fit first, cap 100) and fires the FullEnrich bulk pass (async — mobiles land on the contacts via webhook, typically within minutes). Use when the user says "lance l'enrichissement du sprint", "trouve les numéros de la cible", or after applyCallSprint reported 0 callable. Honest by design: reports requested/skipped, or the exact reason nothing was launched.`,
+      inputSchema: z.object({
+        limit: z
+          .number()
+          .optional()
+          .describe("Max contacts to enrich in this wave (default 50, cap 100 — provider daily quotas are the real ceiling)"),
+      }),
+      execute: async (input) => {
+        const campaign = await getOwnActiveCampaign(tenantId, ctx.authCtx.appUserId);
+        if (!campaign) {
+          return {
+            launched: false,
+            error: "no_active_campaign",
+            message: "Aucune campagne d'appels active à ton nom — crée d'abord l'objectif dans Call Mode.",
+          };
+        }
+        const audience = readSprintAudience(campaign.targetFilter);
+        if (!audience) {
+          return {
+            launched: false,
+            error: "no_sprint",
+            message: "Aucun sprint actif sur ta campagne — lance d'abord proposeCallSprint puis applyCallSprint.",
+          };
+        }
+        const missing = await listSprintContactsMissingPhone(tenantId, audience, input.limit ?? 50);
+        if (missing.length === 0) {
+          return {
+            launched: false,
+            error: "nothing_to_enrich",
+            sprint: audience.label,
+            message: "Tous les contacts de la cible ont déjà un numéro (ou la cible est vide).",
+          };
+        }
+        const baseUrl =
+          process.env.FULLENRICH_CALLBACK_BASE_URL ||
+          process.env.NEXT_PUBLIC_APP_URL ||
+          "https://www.elevay.dev";
+        const result = await enqueueFullEnrichForContacts({
+          tenantId,
+          contactIds: missing.map((m) => m.id),
+          baseUrl,
+        });
+        if (!result.ok) {
+          return { launched: false, error: result.code, sprint: audience.label, message: result.error };
+        }
+        return {
+          launched: true,
+          async: true,
+          sprint: audience.label,
+          requested: result.requested,
+          skipped: result.skipped,
+          message:
+            `Vague d'enrichissement lancée pour le sprint « ${audience.label} » : ${result.requested} contact${result.requested === 1 ? "" : "s"} demandé${result.requested === 1 ? "" : "s"} (${result.skipped} sans identité suffisante). Les mobiles arrivent sur les fiches via webhook — relancer applyCallSprint ensuite pour regénérer la liste.`,
         };
       },
     }),

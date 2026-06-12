@@ -49,6 +49,7 @@ import {
 import { CallModeOnboarding } from "./_onboarding";
 import { EditCampaignModal } from "./_edit-campaign-modal";
 import { CampaignFunnelBar } from "./_funnel-bar";
+import { readSprintAudience } from "@/lib/voice/sprint-audience";
 import { CallScriptPanel } from "./_call-script";
 import { isVoiceableSignal, mergeTechStacks } from "@/lib/call-mode/live-script";
 import { speakableGeo } from "@/lib/call-mode/geo";
@@ -885,6 +886,9 @@ export default function CallModePage() {
     const i = filteredQueue.findIndex((q) => q.contactId === selectedId);
     return i >= 0 ? filteredQueue[i + 1] ?? null : filteredQueue[0] ?? null;
   })();
+  // Active call sprint (chat: proposeCallSprint/applyCallSprint) — the daily
+  // top-up only draws from this audience, so the rep must SEE it's narrowed.
+  const sprint = campaign ? readSprintAudience(campaign.targetFilter) : null;
 
   return (
     <CallModeShell
@@ -892,6 +896,20 @@ export default function CallModePage() {
       headerAction={
         !inCall ? (
           <div className="flex items-center gap-2">
+            {sprint && (
+              <span
+                className="inline-flex max-w-[240px] items-center rounded-full border border-border bg-muted px-2.5 py-1 text-xs text-muted-foreground"
+                title={[
+                  sprint.industries.length > 0 ? `Industries: ${sprint.industries.join(", ")}` : null,
+                  sprint.personas.length > 0 ? `Personas: ${sprint.personas.join(", ")}` : null,
+                  "Daily top-up draws from this audience only (set via chat).",
+                ]
+                  .filter(Boolean)
+                  .join("\n")}
+              >
+                <span className="truncate">Sprint: {sprint.label}</span>
+              </span>
+            )}
             {config && config.pool.length > 0 && (
               <FromNumberPicker
                 pool={config.pool}

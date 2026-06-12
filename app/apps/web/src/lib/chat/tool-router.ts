@@ -140,6 +140,7 @@ const TOOL_GROUPS: Record<string, string> = {
   deleteSequenceStep: "action",
   mergeContacts: "action",
   applyCallSprint: "action",
+  enrichCallSprint: "action",
 
   // intelligence (intelligence.ts)
   getDealCoaching: "intelligence",

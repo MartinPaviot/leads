@@ -101,7 +101,7 @@ const TOOL_GROUP_MAP: Record<string, string> = {
   resendInvite: "action", addMailbox: "action",
   runAiAttribute: "action", deleteComment: "action",
   deleteSequenceStep: "action", mergeContacts: "action",
-  applyCallSprint: "action",
+  applyCallSprint: "action", enrichCallSprint: "action",
   // intelligence
   getDealCoaching: "intelligence", getAccountIntelligence: "intelligence",
   generateMeetingPrep: "intelligence", getMeetingNotes: "intelligence",

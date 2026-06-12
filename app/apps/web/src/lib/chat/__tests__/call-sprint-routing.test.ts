@@ -14,6 +14,7 @@ const STUB = {
   getCallList: {},
   proposeCallSprint: {},
   applyCallSprint: {},
+  enrichCallSprint: {},
   draftEmail: {},
 } as Record<string, unknown>;
 
@@ -23,9 +24,10 @@ function reachableTools(msg: string): Record<string, unknown> {
 }
 
 describe("call sprint — group membership", () => {
-  it("maps the pair to the right groups in the router", () => {
+  it("maps the trio to the right groups in the router", () => {
     expect(getToolGroup("proposeCallSprint")).toBe("query");
     expect(getToolGroup("applyCallSprint")).toBe("action");
+    expect(getToolGroup("enrichCallSprint")).toBe("action");
   });
 });
 
