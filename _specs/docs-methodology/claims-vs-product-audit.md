@@ -15,8 +15,17 @@
   step 14, MAP step 15, decay-clock+loop step 16, cohort engine step 17)
   réécrites "on the build path"; corps méthodo = cible inchangée.
 
-**Restant (non construit, M-features à prioriser par Martin):** #1 équation/
-forecast, #2 moteur de cohortes (+ /reports qui fait l'anti-pattern), #5 recap
+- **#1 équation/forecast — MOTEUR + API FAITS** (commit 475ae57e).
+  `lib/analytics/rev-equation.ts` (pur: chaîne déterministe + range CV
+  delta-method, jamais un point nu ; bottleneck capacity>demand/conversion ;
+  priors benchmark sous 20 essais, sinon taux observés ; confidence
+  prior/data-dominated) + `GET /api/analytics/forecast` (tenant-scoped,
+  comptes réels 90j, split project/platform, goal depuis settings). 11 tests.
+  Vérifié live (tenant vide → prior-dominated honnête, CV 103%). RESTE: la
+  surface UI (/home + /reports) et le stockage du revenueGoal (réglage).
+
+**Restant (non construit, M-features à prioriser par Martin):** #1 surface UI
+forecast + revenueGoal, #2 moteur de cohortes (+ /reports qui fait l'anti-pattern), #5 recap
 draft, #6 MAP/decay clocks, #7 capacité daily list, #8 origination, #9
 actionnabilité buyer + sample-gate, #11 LinkedIn/Unipile, #13 réactivité
 événementielle, #14 re-verify à l'envoi, #15 gate bounce dur.

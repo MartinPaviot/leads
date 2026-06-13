@@ -130,7 +130,7 @@ export const buildSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "In Elevay: the funnel numbers are real, not estimated (sends, replies, meetings and deals are counted from actual events). Turning them into a live forecast with confidence ranges, and pacing the daily list to your meeting capacity, is on the build path; today the reverse math on this page is a planning tool you apply to those real counts.",
+          "In Elevay: the funnel numbers are real, not estimated, and the forecast engine turns them into a run-rate with a confidence range and a bottleneck read (demand vs conversion vs capacity) from your own counts, never a single flattering number. Surfacing that read in the product, and pacing the daily list to your meeting capacity, is the remaining step.",
       },
     ],
   },
