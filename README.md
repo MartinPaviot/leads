@@ -299,4 +299,4 @@ A few load-bearing rules enforced across the codebase (see `CLAUDE.md` for the f
 
 ## License
 
-Proprietary — © 2026 Elevay. All rights reserved. This repository is private and not licensed for redistribution or use outside the organization.
+Proprietary — © 2026 Elevay. All rights reserved. The source is published for reference only; it is not licensed for reuse, redistribution, or modification.
