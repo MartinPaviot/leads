@@ -104,7 +104,7 @@ export const runSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "In Elevay: cadences run multi-channel with caps, windows and warm-up enforced, every touch logged automatically, replies detected and classified, sequences stopped on reply, and the day's work sized to your real meeting capacity.",
+          "In Elevay: email cadences run with caps, windows and warm-up enforced, every touch logged automatically, replies detected and classified, and sequences stopped on reply. Running calls and social inside the same cadence (today calls run as their own campaign and the social channel is in integration), and pacing the day to your real meeting capacity, are on the build path.",
       },
     ],
   },

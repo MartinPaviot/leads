@@ -183,7 +183,7 @@ export const closeSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "In Elevay: the demo meeting is captured like every other interaction, the cofounder's concern and the agreed pilot become deal facts with sources, and the recap draft is prepared from the transcript for your approval.",
+          "In Elevay: the demo meeting is captured like every other interaction, and the cofounder's concern and the agreed pilot become deal facts with sources. Turning that transcript into a ready-to-send recap draft is on the build path; today the recap is yours to write from the captured notes.",
       },
     ],
   },
@@ -248,7 +248,7 @@ export const closeSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "In Elevay: the proposal draws on what is already captured (the discovery numbers, the stakeholders, the critical event), the plan's dates become tracked deal steps, and the deal carries its decision date so silence becomes visible instead of ambient.",
+          "In Elevay: the proposal draws on what is already captured (the discovery numbers, the stakeholders, the critical event). Tracking the mutual action plan's dates as deal steps, so a slipped date becomes visible instead of ambient, is on the build path.",
       },
     ],
   },
@@ -345,7 +345,7 @@ export const closeSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "In Elevay: the deal carries its decision date, its stakeholders and its open commitments from the captured record; stalled deals surface before they fade (quiet days against the stage's decay clock), and the loss reason you log feeds the targeting loop (Step 18) so the next hundred prospects inherit the lesson.",
+          "In Elevay: the deal's stakeholders and open commitments live in the captured record, and the loss reason you log is retained. Surfacing a stall before it fades (a decay clock per stage) and feeding the winning and losing profiles back into targeting are on the build path; today an embryo of that loop exists (which signal types accompanied your wins), and Step 18 is where it grows.",
       },
     ],
   },

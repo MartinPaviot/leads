@@ -81,7 +81,7 @@ export const learnSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "In Elevay: the waterfall is measured from real events (sends, replies, meetings, dispositions), never self-reported activity. Thresholds fire as warnings before damage compounds, and cohort patterns are surfaced with their sample sizes attached: as insights when the numbers carry them, as experiments to run when they do not.",
+          "In Elevay: the waterfall is measured from real events (sends, replies, meetings, dispositions), never self-reported activity. The cohort-insight engine this step describes (cutting deals by persona, region and signal behind a real significance bar) is the standard the product is being built to; until it ships, read any aggregate recommendation with its sample size in mind, because at early-stage volume most splits are noise rather than signal.",
       },
     ],
   },

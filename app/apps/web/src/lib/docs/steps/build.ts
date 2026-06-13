@@ -130,7 +130,7 @@ export const buildSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "In Elevay: the math runs continuously on your real funnel. Targets translate into required coverage per tier, capacity is part of the daily list size, and where your data is too thin the product says so instead of inventing a number.",
+          "In Elevay: the funnel numbers are real, not estimated (sends, replies, meetings and deals are counted from actual events). Turning them into a live forecast with confidence ranges, and pacing the daily list to your meeting capacity, is on the build path; today the reverse math on this page is a planning tool you apply to those real counts.",
       },
     ],
   },
