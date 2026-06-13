@@ -36,13 +36,15 @@ export function DocsShell({ children }: { children: React.ReactNode }) {
             <Link href="/sign-in" className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900">
               Log in
             </Link>
-            <Link
-              href="/sign-up"
+            <a
+              href="https://calendly.com/contact-elevay/30min"
+              target="_blank"
+              rel="noopener noreferrer"
               className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
               style={{ background: "#2C6BED" }}
             >
-              Try free
-            </Link>
+              Book a demo
+            </a>
           </div>
         </div>
       </nav>
