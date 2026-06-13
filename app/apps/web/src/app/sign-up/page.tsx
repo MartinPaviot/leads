@@ -8,6 +8,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { AuthSubmitButton } from "@/components/ui/auth-submit-button";
 import { BodyScrollUnlock } from "@/components/auth/body-scroll-unlock";
 import { signIn, auth } from "@/auth";
+import { validateInviteToken } from "@/lib/auth/invite-validate";
 import {
   sanitizeCallbackUrl,
   isNextControlFlowError,
@@ -70,7 +71,6 @@ export default async function SignUpPage({
       ? "Something went wrong. Please try again."
       : null;
   const inviteToken = (params.invite || "").trim();
-  const presetEmail = (params.email || "").trim();
   const callbackUrl = sanitizeCallbackUrl(params.callbackUrl);
 
   // S3: if already authed, go straight to the intended destination.
@@ -78,6 +78,17 @@ export default async function SignUpPage({
   if (session?.user) {
     redirect(inviteToken ? `/accept-invite?token=${inviteToken}` : callbackUrl);
   }
+
+  // Invitation-only: account creation requires a valid, still-open invite.
+  // There is no public self-serve sign-up — a visitor without a real
+  // invitation is sent to the marketing page (book a demo / log in).
+  const inviteCheck = await validateInviteToken(inviteToken);
+  if (!inviteCheck.valid) {
+    redirect("/");
+  }
+  // The invited address is authoritative; the email field below is locked to
+  // it so a valid invite can only ever create the account it was issued for.
+  const invitedEmail = inviteCheck.invite.email;
 
   // After successful credentials sign-up we auto-sign-in (S1) and land the
   // user directly on their destination. The invite flow still needs the
@@ -99,6 +110,13 @@ export default async function SignUpPage({
     const callbackFromForm = sanitizeCallbackUrl(
       (formData.get("callbackUrl") as string) || undefined
     );
+
+    // Invitation-only (defense in depth): the page only renders with a valid
+    // invite, but a crafted POST must not bypass the gate either.
+    const inviteOk = await validateInviteToken(inviteFromForm);
+    if (!inviteOk.valid) {
+      redirect("/");
+    }
 
     if (!email || !password || !name) {
       const q = inviteFromForm ? `&invite=${encodeURIComponent(inviteFromForm)}` : "";
@@ -124,6 +142,12 @@ export default async function SignUpPage({
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+
+    // The invite is bound to one address — a valid token can't mint an account
+    // for a different email than it was issued for.
+    if (normalizedEmail !== inviteOk.invite.email.toLowerCase()) {
+      redirect("/");
+    }
 
     const [existing] = await db
       .select()
@@ -358,8 +382,8 @@ export default async function SignUpPage({
               border: "1px solid var(--color-accent, #6366f1)",
             }}
           >
-            You&apos;re creating an account to accept a workspace invitation. Use the invited
-            email address.
+            You&apos;re creating an account to join a workspace you were invited to. Your
+            email is set from the invitation.
           </div>
         )}
 
@@ -397,15 +421,17 @@ export default async function SignUpPage({
               name="email"
               type="email"
               required
+              readOnly
               autoComplete="email"
-              defaultValue={presetEmail}
+              defaultValue={invitedEmail}
               placeholder="you@company.com"
               aria-invalid={fieldError?.field === "email" || missingFields || undefined}
               aria-describedby={fieldError?.field === "email" ? "signup-email-error" : undefined}
               className="auth-input mt-1.5 w-full rounded-lg px-3 py-2 text-[13px] outline-none transition-colors"
               style={{
-                background: "var(--color-bg-page)",
-                color: "var(--color-text-primary)",
+                background: "var(--color-bg-muted, var(--color-bg-page))",
+                color: "var(--color-text-secondary)",
+                cursor: "not-allowed",
                 border:
                   fieldError?.field === "email" || missingFields
                     ? "1px solid rgba(220,38,38,0.55)"

@@ -1,45 +1,26 @@
 import { db } from "@/db";
-import { pendingInvites, tenants, authUsers } from "@/db/schema";
+import { tenants, authUsers } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { hashInviteToken } from "@/lib/auth/invite-token";
+import { validateInviteToken } from "@/lib/auth/invite-validate";
 
 /**
  * Public endpoint — no auth required. Validates an invite token and returns
  * enough info for the accept-invite page to render. The token IS the auth.
  *
  * H5: `pending_invites.token` stores a SHA-256 hash of the real token;
- * we hash the URL-provided token and look it up that way.
+ * validateInviteToken hashes the URL-provided token and looks it up that way.
+ * (Same validation the sign-up gate uses — one source of truth.)
  */
 export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  if (!token) return Response.json({ valid: false, reason: "missing_token" }, { status: 400 });
 
-  const tokenHash = hashInviteToken(token);
-  const [invite] = await db
-    .select({
-      id: pendingInvites.id,
-      tenantId: pendingInvites.tenantId,
-      email: pendingInvites.email,
-      role: pendingInvites.role,
-      status: pendingInvites.status,
-      expiresAt: pendingInvites.expiresAt,
-    })
-    .from(pendingInvites)
-    .where(eq(pendingInvites.token, tokenHash))
-    .limit(1);
-
-  if (!invite) return Response.json({ valid: false, reason: "not_found" }, { status: 404 });
-  if (invite.status !== "pending") {
-    return Response.json({ valid: false, reason: invite.status }, { status: 410 });
+  const result = await validateInviteToken(token);
+  if (!result.valid) {
+    const status =
+      result.reason === "missing_token" ? 400 : result.reason === "not_found" ? 404 : 410;
+    return Response.json({ valid: false, reason: result.reason }, { status });
   }
-  if (invite.expiresAt.getTime() < Date.now()) {
-    // Mark expired so /invites list stops showing it
-    await db
-      .update(pendingInvites)
-      .set({ status: "expired", updatedAt: new Date() })
-      .where(eq(pendingInvites.id, invite.id));
-    return Response.json({ valid: false, reason: "expired" }, { status: 410 });
-  }
+  const invite = result.invite;
 
   const [tenant] = await db
     .select({ name: tenants.name })
