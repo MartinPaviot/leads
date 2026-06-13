@@ -18,3 +18,5 @@ export * from "./schema/voice";
 export * from "./schema/icp";
 export * from "./schema/proposals";
 export * from "./schema/tam";
+// Dormant infra (gated off in prod) — see _specs/CONNECTION-GRAPH.
+export * from "./schema/connection-graph";
