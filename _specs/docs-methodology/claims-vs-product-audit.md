@@ -1,5 +1,29 @@
 # Audit: les claims de The Method vs le produit réel (2026-06-12)
 
+## RÉSOLUTION (mise à jour 2026-06-13)
+
+- **#4 TTL signaux — FAIT** (commit 9e547675). `lib/signals/freshness.ts`
+  (SSOT, TTL table = step 7), câblé aux 4 vrais points de lecture: daily
+  `bestMultiplierForCompany` (le point que l'audit avait raté), `scoreSignals`,
+  `buildProspectContext` (drafts), `deriveOpeningReason` (calls). Attribution
+  intacte. 26 tests + régressions. Step 7 "shelf life enforced" = VRAI.
+- **#10 review TAM en prod — FAIT** (commit dcb6347d). Entrée déjà count-gated
+  → gate passé à `true`, zéro bruit file vide, /tam/review (approve/reject réel)
+  intact. Steps 5/18 "approval queue / les décisions viennent à toi" = VRAI.
+- **Honnêteté doc — FAIT** (commit f14e87d6). Les 6 lignes "In Elevay" qui
+  affirmaient des capacités absentes (forecast/ranges/capacity step 5+8, recap
+  step 14, MAP step 15, decay-clock+loop step 16, cohort engine step 17)
+  réécrites "on the build path"; corps méthodo = cible inchangée.
+
+**Restant (non construit, M-features à prioriser par Martin):** #1 équation/
+forecast, #2 moteur de cohortes (+ /reports qui fait l'anti-pattern), #5 recap
+draft, #6 MAP/decay clocks, #7 capacité daily list, #8 origination, #9
+actionnabilité buyer + sample-gate, #11 LinkedIn/Unipile, #13 réactivité
+événementielle, #14 re-verify à l'envoi, #15 gate bounce dur.
+
+---
+
+
 Méthode: chaque claim "In Elevay" des 19 étapes + les promesses implicites du
 corps des étapes, vérifiés contre le code (greps du jour sur src/) et l'audit
 Sam-Blond-vs-code du 2026-06-11 (4 explorations, réconcilié origin/main),
