@@ -81,7 +81,7 @@ export const learnSteps: DocStep[] = [
       {
         type: "p",
         text:
-          "In Elevay: the waterfall is measured from real events (sends, replies, meetings, dispositions), never self-reported activity. The cohort-insight engine this step describes (cutting deals by persona, region and signal behind a real significance bar) is the standard the product is being built to; until it ships, read any aggregate recommendation with its sample size in mind, because at early-stage volume most splits are noise rather than signal.",
+          "In Elevay: the waterfall is measured from real events (sends, replies, meetings, dispositions), never self-reported activity. The cohort engine this step describes is built: it cuts closed deals by persona and industry, tests each segment against the rest with an exact test, corrects for testing many cuts, and refuses to call anything an insight on thin or no-effect data (a no-effect set yields zero insights, by design). Surfacing it in the reports view, and retiring the older untested recommendations there, is the remaining step.",
       },
     ],
   },

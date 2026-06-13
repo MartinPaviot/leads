@@ -24,8 +24,18 @@
   Vérifié live (tenant vide → prior-dominated honnête, CV 103%). RESTE: la
   surface UI (/home + /reports) et le stockage du revenueGoal (réglage).
 
-**Restant (non construit, M-features à prioriser par Martin):** #1 surface UI
-forecast + revenueGoal, #2 moteur de cohortes (+ /reports qui fait l'anti-pattern), #5 recap
+- **#2 moteur de cohortes — MOTEUR + API FAITS** (commit 0d7939bf).
+  `lib/insights/cohort-engine.ts` (pur, 14 tests): Fisher exact (hypergéo,
+  log-gamma) PAS le z-test (qui sur-déclare à petit n), Benjamini-Hochberg
+  (insight = q<0.10), 3 tiers observation/hypothèse/insight, plancher dur
+  <20 deals. TEST PHARE vert: zéro insight sur du bruit ; cohorte 4/4 jamais
+  promue ; vrai effet x3 bien dimensionné → insight. `GET /api/analytics/
+  cohorts` (cuts industry + persona, baseline leave-one-out par dimension).
+  Vérifié live (0 deals → plancher honnête). RESTE: surface /reports + retirer
+  l'anti-pattern LLM-recs qui y vit encore.
+
+**Restant (non construit, M-features à prioriser par Martin):** surfaces UI
+(forecast /home, cohortes + retrait anti-pattern /reports) + revenueGoal storage (+ /reports qui fait l'anti-pattern), #5 recap
 draft, #6 MAP/decay clocks, #7 capacité daily list, #8 origination, #9
 actionnabilité buyer + sample-gate, #11 LinkedIn/Unipile, #13 réactivité
 événementielle, #14 re-verify à l'envoi, #15 gate bounce dur.
