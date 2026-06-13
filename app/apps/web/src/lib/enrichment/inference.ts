@@ -7,7 +7,7 @@
  *
  * Used as a first layer before expensive LLM extraction or paid API calls.
  *
- * Coverage (cf. SOURCES_ANALYSIS.md §6.3 Module 3):
+ * Coverage (cf. _research/SOURCES_ANALYSIS.md §6.3 Module 3):
  *   - field 5  — title freshness check vs Apollo
  *   - field 7  — department from title/signature
  *   - field 8  — linkedinUrl guess + validate

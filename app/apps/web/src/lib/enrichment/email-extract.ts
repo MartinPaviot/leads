@@ -6,7 +6,7 @@
  * competitors, next steps, budget/value hints, etc. Caller persists the
  * result to activity.sentiment / activity.intent / activity.metadata.
  *
- * Coverage (cf. SOURCES_ANALYSIS.md §6.3 Module 1):
+ * Coverage (cf. _research/SOURCES_ANALYSIS.md §6.3 Module 1):
  *   - field 29 — sentiment
  *   - field 31 — intent (partial, via subject/body cues)
  *   - field 32 — objections
