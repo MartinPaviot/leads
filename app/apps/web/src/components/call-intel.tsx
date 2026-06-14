@@ -155,6 +155,7 @@ export function MeddpiccScorecard({ properties, entityId }: { properties: Props;
     live: (properties?.meddic ?? null) as Meddic | null,
     pending: (properties?.pendingMeddic ?? null) as Meddic | null,
   });
+  const [view, setView] = useState<"meddpicc" | "bant">("meddpicc");
   if (!meddic) return null;
 
   const evidenceSrc = usingPending ? properties?.pendingEvidence : properties?.evidence;
@@ -170,13 +171,25 @@ export function MeddpiccScorecard({ properties, entityId }: { properties: Props;
     { label: "Competition", value: joinOrNull(meddic.competition), action: "surface the alternatives, including the status quo" },
   ];
 
-  const filled = dims.filter((d) => d.value).length;
-  const gaps = dims.filter((d) => !d.value);
+  // BANT is a re-projection of the SAME captured data (no separate extraction):
+  // Budget/Timeline from the deal's buying signals, Authority/Need from MEDDPICC.
+  const bs = (properties?.buyingSignals ?? properties?.extractedIntel ?? {}) as Record<string, unknown>;
+  const bantDims: { label: string; value: string | null; action: string }[] = [
+    { label: "Budget", value: asString(bs.budget), action: "confirm the budget and who owns it" },
+    { label: "Authority", value: asString(meddic.economicBuyer), action: "reach the person who signs" },
+    { label: "Need", value: asString(meddic.identifiedPain) ?? joinOrNull(bs.painPoints), action: "pin the core need driving the change" },
+    { label: "Timeline", value: asString(bs.timeline), action: "establish a decision date" },
+  ];
+  const activeDims = view === "bant" ? bantDims : dims;
+
+  const filled = activeDims.filter((d) => d.value).length;
+  const gaps = activeDims.filter((d) => !d.value);
   const nextSteps = gaps.slice(0, 2).map((d) => d.action);
   const capturedOn = shortDate(meddic.updatedAt);
 
+  const ratio = activeDims.length ? filled / activeDims.length : 0;
   const coverageColor =
-    filled >= 5 ? "var(--color-success)" : filled >= 3 ? "var(--color-warning)" : "var(--color-error)";
+    ratio >= 0.7 ? "var(--color-success)" : ratio >= 0.4 ? "var(--color-warning)" : "var(--color-error)";
 
   const validEvidence = evidence
     .filter((e) => e && typeof e.claim === "string" && typeof e.quote === "string" && e.quote.trim())
@@ -187,17 +200,37 @@ export function MeddpiccScorecard({ properties, entityId }: { properties: Props;
       <CardBody>
         {showBanner && <PendingBar busy={busy} onAct={act} />}
         <div className="mb-3 flex items-center gap-2">
-          <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Qualification · MEDDPICC</p>
+          <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)]">
+            Qualification · {view === "bant" ? "BANT" : "MEDDPICC"}
+          </p>
+          <div
+            className="inline-flex rounded-md p-0.5"
+            style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}
+          >
+            {(["meddpicc", "bant"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
+                style={{
+                  background: view === v ? "var(--color-accent)" : "transparent",
+                  color: view === v ? "#fff" : "var(--color-text-tertiary)",
+                }}
+              >
+                {v === "bant" ? "BANT" : "MEDDPICC"}
+              </button>
+            ))}
+          </div>
           <span
             className="ml-auto inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
             style={{ background: "var(--color-bg-page)", color: coverageColor, border: `1px solid ${coverageColor}` }}
           >
-            {filled}/{dims.length} qualified
+            {filled}/{activeDims.length} qualified
           </span>
         </div>
 
         <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-          {dims.map((d) => (
+          {activeDims.map((d) => (
             <div key={d.label} className="flex items-start gap-2">
               {d.value ? (
                 <CheckCircle2 size={13} className="mt-0.5 shrink-0" style={{ color: "var(--color-success)" }} />
