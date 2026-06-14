@@ -12,6 +12,7 @@ function scopeOf(addresses: string[], mailboxIds: string[] = []): InboxScope {
     hasMailbox: addresses.length > 0 || mailboxIds.length > 0,
     addresses: new Set(addresses.map((a) => a.toLowerCase())),
     mailboxIds: new Set(mailboxIds),
+    mailboxes: [],
   };
 }
 

@@ -5,7 +5,7 @@
  * snippet, reason line. Bodies live in the reading pane.
  */
 
-import { Inbox, CheckCircle2, AlarmClock, Bot } from "lucide-react";
+import { Inbox, CheckCircle2, AlarmClock, Bot, Mail } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { timeAgo } from "./_time-ago";
@@ -46,6 +46,7 @@ export function ConversationList({
   hasMore,
   loadingMore,
   onLoadMore,
+  showMailbox = false,
 }: {
   lane: InboxLane;
   conversations: ConversationListItem[];
@@ -54,6 +55,8 @@ export function ConversationList({
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
+  /** Show the "received on X" chip — true in the "All inboxes" view. */
+  showMailbox?: boolean;
 }) {
   if (conversations.length === 0) {
     return (
@@ -106,9 +109,19 @@ export function ConversationList({
                   aria-hidden
                 />
               )}
-              <span className="truncate text-[11px] font-medium" style={{ color: lane === "handled" ? "var(--color-text-tertiary)" : "var(--color-accent)" }}>
+              <span className="min-w-0 truncate text-[11px] font-medium" style={{ color: lane === "handled" ? "var(--color-text-tertiary)" : "var(--color-accent)" }}>
                 {c.reason}
               </span>
+              {showMailbox && c.mailboxLabel && (
+                <span
+                  className="ml-auto flex shrink-0 items-center gap-1 text-[10px]"
+                  style={{ color: "var(--color-text-tertiary)" }}
+                  title={c.mailboxAddress ?? c.mailboxLabel}
+                >
+                  <Mail size={10} className="shrink-0" />
+                  <span className="max-w-[110px] truncate">{c.mailboxLabel}</span>
+                </span>
+              )}
             </div>
           </button>
         );

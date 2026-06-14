@@ -79,6 +79,8 @@ import { postProcessCall } from "@/inngest/calls-post-process";
 // tam-lifecycle — living-TAM loops (propose into the approval queue)
 import { tamRefreshDaily } from "@/inngest/tam-refresh-cron";
 import { sourceIcpToProposals } from "@/inngest/icp-source";
+// unified-inbox — pull Instantly Unibox replies into each tenant's inbox
+import { cronInstantlyUnibox } from "@/inngest/instantly-unibox-cron";
 
 // Register task executors so Inngest runner can dispatch by type
 import("@/lib/import/agentic-executor").then((m) => m.registerImportExecutor()).catch(() => {});
@@ -95,6 +97,7 @@ export const { GET, POST, PUT } = serve({
     onGoogleOAuthConnected,
     onMicrosoftOAuthConnected,
     cronSyncEmails,
+    cronInstantlyUnibox,
     dispatchOutboundSmtp,
     aiAutoFill,
     executeWorkflow,

@@ -7,6 +7,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
+import { InstantlyMailboxes } from "./_instantly-mailboxes";
 // (VoiceSection uses Card, Button, Input, useToast above — useCallback +
 // useEffect + useState are already imported for the parent page.)
 
@@ -137,6 +138,65 @@ export default function SendingInfrastructurePage() {
     } catch (err) {
       console.warn("sending-infra: disconnect failed", err);
       toast("Couldn't disconnect", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Pull every mailbox on the connected Instantly workspace into this user's
+  // unified inbox (Settings → ... → Inbox rail). Idempotent — re-running only
+  // adds boxes not yet imported.
+  async function runInstantlyImport() {
+    setSaving(true);
+    try {
+      const res = await fetch(
+        "/api/settings/sending-infra/providers/instantly/import",
+        { method: "POST" },
+      );
+      const data = (await res.json().catch(() => ({}))) as {
+        imported?: number;
+        total?: number;
+        error?: string;
+      };
+      if (!res.ok) {
+        toast(data.error ?? "Import failed", "error");
+        return;
+      }
+      toast(
+        `Imported ${data.imported ?? 0} new of ${data.total ?? 0} Instantly mailboxes`,
+        "success",
+      );
+    } catch (err) {
+      console.warn("sending-infra: instantly import failed", err);
+      toast("Couldn't import from Instantly", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Pull the Instantly Unibox (replies) into the inbox now. The 15-min cron
+  // runs the same path; this is the on-demand trigger.
+  async function runInstantlyUniboxSync() {
+    setSaving(true);
+    try {
+      const res = await fetch(
+        "/api/settings/sending-infra/providers/instantly/sync",
+        { method: "POST" },
+      );
+      const data = (await res.json().catch(() => ({}))) as {
+        inserted?: number;
+        inbound?: number;
+        error?: string;
+      };
+      if (!res.ok) {
+        toast(data.error ?? "Sync failed", "error");
+        return;
+      }
+      const n = data.inserted ?? 0;
+      toast(`Synced — ${n} new repl${n === 1 ? "y" : "ies"} pulled into the inbox`, "success");
+    } catch (err) {
+      console.warn("sending-infra: instantly unibox sync failed", err);
+      toast("Couldn't sync the Instantly inbox", "error");
     } finally {
       setSaving(false);
     }
@@ -273,6 +333,21 @@ export default function SendingInfrastructurePage() {
                   </span>
                   <Button
                     size="sm"
+                    onClick={() => void runInstantlyImport()}
+                    disabled={saving}
+                  >
+                    Import mailboxes
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void runInstantlyUniboxSync()}
+                    disabled={saving}
+                  >
+                    Sync inbox
+                  </Button>
+                  <Button
+                    size="sm"
                     variant="outline"
                     onClick={() => void disconnectInstantly()}
                     disabled={saving}
@@ -307,6 +382,9 @@ export default function SendingInfrastructurePage() {
                 </div>
               )}
             </div>
+
+            {/* Assign imported Instantly boxes to reps (one shared workspace). */}
+            {payload?.providers.instantly.connected && <InstantlyMailboxes />}
           </CardBody>
         </Card>
 

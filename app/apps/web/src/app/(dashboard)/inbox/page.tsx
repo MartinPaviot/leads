@@ -20,7 +20,8 @@ import { useToast } from "@/components/ui/toast";
 import { ConversationList } from "./_conversation-list";
 import { ConversationPane } from "./_conversation-pane";
 import { OutboundTable } from "./_outbound-table";
-import type { ConversationListItem, InboxLane, LaneCounts } from "./_types";
+import { MailboxRail } from "./_mailbox-rail";
+import type { ConversationListItem, InboxLane, LaneCounts, MailboxSummary } from "./_types";
 
 type Tab = InboxLane | "outbound";
 
@@ -42,6 +43,10 @@ export default function InboxPage() {
   // connected mailbox of their own. Defaults true to avoid flashing the
   // connect card before the first response.
   const [mailboxConnected, setMailboxConnected] = useState(true);
+  // Unified inbox: the user's connected mailboxes + which one is focused
+  // (null = "All inboxes"). The rail only renders when there are 2+.
+  const [mailboxes, setMailboxes] = useState<MailboxSummary[]>([]);
+  const [selectedMailbox, setSelectedMailbox] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
   const [counts, setCounts] = useState<LaneCounts>({ attention: 0, snoozed: 0, done: 0, handled: 0, outbound: 0 });
   const [loading, setLoading] = useState(true);
@@ -75,15 +80,19 @@ export default function InboxPage() {
       else setLoading(true);
       try {
         if (pendingTriage.current) await pendingTriage.current.catch(() => {});
-        const res = await fetch(`/api/inbox/conversations?lane=${lane}&page=${pageNum}`);
+        const mailboxQuery = selectedMailbox ? `&mailbox=${encodeURIComponent(selectedMailbox)}` : "";
+        const res = await fetch(`/api/inbox/conversations?lane=${lane}&page=${pageNum}${mailboxQuery}`);
         if (!res.ok) throw new Error(`${res.status}`);
         const data = (await res.json()) as {
           conversations: ConversationListItem[];
           counts: LaneCounts;
           pagination: { total: number };
           mailboxConnected?: boolean;
+          mailboxes?: MailboxSummary[];
+          selectedMailbox?: string | null;
         };
         setMailboxConnected(data.mailboxConnected !== false);
+        if (data.mailboxes) setMailboxes(data.mailboxes);
         setCounts(data.counts);
         setTotal(data.pagination.total);
         setConversations((prev) => (append ? [...prev, ...data.conversations] : data.conversations));
@@ -94,7 +103,7 @@ export default function InboxPage() {
         setLoadingMore(false);
       }
     },
-    [toast],
+    [toast, selectedMailbox],
   );
 
   useEffect(() => {
@@ -261,6 +270,13 @@ export default function InboxPage() {
         </div>
       ) : (
         <div className="flex flex-1 overflow-hidden">
+          {mailboxes.length >= 2 && (
+            <MailboxRail
+              mailboxes={mailboxes}
+              selected={selectedMailbox}
+              onSelect={setSelectedMailbox}
+            />
+          )}
           <div
             ref={listRef}
             className="w-[360px] shrink-0 overflow-y-auto border-r"
@@ -281,6 +297,7 @@ export default function InboxPage() {
                   setPage(next);
                   void loadLane(tab, next, true);
                 }}
+                showMailbox={selectedMailbox === null}
               />
             )}
           </div>
