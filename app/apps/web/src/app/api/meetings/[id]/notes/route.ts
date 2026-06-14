@@ -1,7 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { activities, tasks } from "@/db/schema";
-import { eq, and, inArray, isNull } from "drizzle-orm";
+import { activities, tasks, deals, contacts, companies, coachingInsights } from "@/db/schema";
+import { eq, and, inArray, isNull, desc } from "drizzle-orm";
 import { logger } from "@/lib/observability/logger";
 import { z } from "zod";
 
@@ -60,6 +60,85 @@ export async function GET(
     followUpDraft = { subject: "", body: rawDraft };
   }
 
+  // ── CRM intelligence linked to this meeting ──────────────────────────────
+  // A recorded meeting feeds the same qualification spine a call does. Resolve
+  // the linked deal / company / contact so the page can render the MEDDPICC
+  // scorecard, account intel and contact profile (with Approve/Dismiss in
+  // review mode) — the very same call-intel components, fed from the meeting.
+  const contactId =
+    activity.entityType === "contact" && activity.entityId && activity.entityId !== "unknown"
+      ? activity.entityId
+      : null;
+
+  let contactRow: { id: string; companyId: string | null; properties: unknown } | null = null;
+  if (contactId) {
+    const [c] = await db
+      .select({ id: contacts.id, companyId: contacts.companyId, properties: contacts.properties })
+      .from(contacts)
+      .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
+      .limit(1);
+    contactRow = c ?? null;
+  }
+
+  // Deal: the one stamped on the meeting (meta.dealId) wins; else the most
+  // recent open deal for the contact's company (read-only — never created here).
+  const OPEN_STAGES = ["lead", "qualification", "demo", "trial", "proposal", "negotiation"] as const;
+  let dealRow: { id: string; companyId: string | null; properties: unknown } | null = null;
+  const stampedDealId = typeof meta.dealId === "string" ? meta.dealId : null;
+  if (stampedDealId) {
+    const [d] = await db
+      .select({ id: deals.id, companyId: deals.companyId, properties: deals.properties })
+      .from(deals)
+      .where(and(eq(deals.id, stampedDealId), eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)))
+      .limit(1);
+    dealRow = d ?? null;
+  }
+  if (!dealRow && contactRow?.companyId) {
+    const [d] = await db
+      .select({ id: deals.id, companyId: deals.companyId, properties: deals.properties })
+      .from(deals)
+      .where(and(
+        eq(deals.tenantId, authCtx.tenantId),
+        eq(deals.companyId, contactRow.companyId),
+        isNull(deals.deletedAt),
+        inArray(deals.stage, [...OPEN_STAGES]),
+      ))
+      .orderBy(desc(deals.updatedAt))
+      .limit(1);
+    dealRow = d ?? null;
+  }
+
+  const linkedCompanyId = dealRow?.companyId ?? contactRow?.companyId ?? null;
+  let companyRow: { id: string; properties: unknown } | null = null;
+  if (linkedCompanyId) {
+    const [co] = await db
+      .select({ id: companies.id, properties: companies.properties })
+      .from(companies)
+      .where(and(eq(companies.id, linkedCompanyId), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
+      .limit(1);
+    companyRow = co ?? null;
+  }
+
+  // Post-meeting coaching debrief — the row scoreInteraction wrote for THIS
+  // meeting activity (orphaned until now). Newest post_interaction wins.
+  const [coachingRow] = await db
+    .select({
+      score: coachingInsights.score,
+      category: coachingInsights.category,
+      summary: coachingInsights.summary,
+      detail: coachingInsights.detail,
+      suggestion: coachingInsights.suggestion,
+      createdAt: coachingInsights.createdAt,
+    })
+    .from(coachingInsights)
+    .where(and(
+      eq(coachingInsights.tenantId, authCtx.tenantId),
+      eq(coachingInsights.activityId, id),
+      eq(coachingInsights.insightType, "post_interaction"),
+    ))
+    .orderBy(desc(coachingInsights.createdAt))
+    .limit(1);
+
   return Response.json({
     meeting: {
       id: activity.id,
@@ -88,6 +167,22 @@ export async function GET(
     followUpSentAt: meta.followUpSentAt || null,
     tasks: linkedTasks,
     matchedContacts: meta.matchedContacts || [],
+    // Qualification + intel surfaced on the meeting record (Claap parity).
+    crm: {
+      deal: dealRow ? { id: dealRow.id, properties: (dealRow.properties ?? {}) as Record<string, unknown> } : null,
+      company: companyRow ? { id: companyRow.id, properties: (companyRow.properties ?? {}) as Record<string, unknown> } : null,
+      contact: contactRow ? { id: contactRow.id, properties: (contactRow.properties ?? {}) as Record<string, unknown> } : null,
+    },
+    coaching: coachingRow
+      ? {
+          score: coachingRow.score,
+          category: coachingRow.category,
+          summary: coachingRow.summary,
+          detail: coachingRow.detail,
+          suggestion: coachingRow.suggestion,
+          createdAt: coachingRow.createdAt,
+        }
+      : null,
   });
 }
 
