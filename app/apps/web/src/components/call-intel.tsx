@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
+import { QUALIFICATION_EXTRAS_ENABLED } from "@/lib/settings/qualification-extras-visibility";
 
 type Props = Record<string, unknown> | null | undefined;
 type EntityType = "deal" | "company" | "contact";
@@ -212,24 +213,28 @@ export function MeddpiccScorecard({ properties, entityId }: { properties: Props;
           <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)]">
             Qualification · {view === "bant" ? "BANT" : view === "spin" ? "SPIN" : "MEDDPICC"}
           </p>
-          <div
-            className="inline-flex rounded-md p-0.5"
-            style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}
-          >
-            {(["meddpicc", "bant", "spin"] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
-                style={{
-                  background: view === v ? "var(--color-accent)" : "transparent",
-                  color: view === v ? "#fff" : "var(--color-text-tertiary)",
-                }}
-              >
-                {v === "bant" ? "BANT" : v === "spin" ? "SPIN" : "MEDDPICC"}
-              </button>
-            ))}
-          </div>
+          {/* BANT/SPIN lens picker — prod-hidden (founder-led doesn't need the
+              framework toggle; MEDDPICC stays the single view). Logic kept. */}
+          {QUALIFICATION_EXTRAS_ENABLED && (
+            <div
+              className="inline-flex rounded-md p-0.5"
+              style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}
+            >
+              {(["meddpicc", "bant", "spin"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
+                  style={{
+                    background: view === v ? "var(--color-accent)" : "transparent",
+                    color: view === v ? "#fff" : "var(--color-text-tertiary)",
+                  }}
+                >
+                  {v === "bant" ? "BANT" : v === "spin" ? "SPIN" : "MEDDPICC"}
+                </button>
+              ))}
+            </div>
+          )}
           <span
             className="ml-auto inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
             style={{ background: "var(--color-bg-page)", color: coverageColor, border: `1px solid ${coverageColor}` }}

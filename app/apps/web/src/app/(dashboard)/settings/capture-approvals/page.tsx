@@ -14,6 +14,7 @@ import { SettingsHeader } from "@/components/ui/settings-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import { Check, X, Mail, Calendar, Phone, Inbox } from "lucide-react";
+import { QUALIFICATION_EXTRAS_ENABLED } from "@/lib/settings/qualification-extras-visibility";
 
 type Approval = {
   id: string;
@@ -187,7 +188,9 @@ export default function CaptureApprovalsPage() {
           className="inline-flex shrink-0 rounded-md p-0.5"
           style={{ background: "var(--color-bg-hover)", border: "1px solid var(--color-border-default)" }}
         >
-          {(["auto", "review", "hybrid"] as const).map((m) => {
+          {/* 'hybrid' (per-field) is prod-hidden — auto/review is enough for a
+              founder-led workspace. getFieldApprovalMode logic is untouched. */}
+          {(QUALIFICATION_EXTRAS_ENABLED ? (["auto", "review", "hybrid"] as const) : (["auto", "review"] as const)).map((m) => {
             const active = mode === m;
             return (
               <button
@@ -208,7 +211,7 @@ export default function CaptureApprovalsPage() {
         </div>
       </div>
 
-      {mode === "hybrid" && (
+      {QUALIFICATION_EXTRAS_ENABLED && mode === "hybrid" && (
         <div
           className="mb-5 rounded-lg border p-4"
           style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
