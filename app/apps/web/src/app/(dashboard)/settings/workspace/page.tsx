@@ -170,7 +170,7 @@ export default function WorkspaceSettingsPage() {
             Shown in the sidebar instead of the workspace initials. PNG, JPEG, WebP or SVG.
           </p>
           <div className="mt-2 flex items-center gap-3">
-            <Avatar src={logoUrl} name={name || "Workspace"} size="lg" />
+            <Avatar src={logoUrl} name={name || "Workspace"} size="lg" shape="square" />
             <input
               ref={logoInputRef}
               type="file"
