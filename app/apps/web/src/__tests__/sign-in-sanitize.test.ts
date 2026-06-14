@@ -39,7 +39,7 @@ describe("SIGN_IN_ERROR_COPY + SIGN_IN_REASON_COPY", () => {
     expect(SIGN_IN_ERROR_COPY.CredentialsSignin).toMatch(/incorrect/i);
     expect(SIGN_IN_ERROR_COPY.OAuthAccountNotLinked).toMatch(/another sign-in/i);
     expect(SIGN_IN_ERROR_COPY.OAuthCallback).toMatch(/try again/i);
-    expect(SIGN_IN_ERROR_COPY.AccessDenied).toMatch(/access/i);
+    expect(SIGN_IN_ERROR_COPY.AccessDenied).toMatch(/invitation-only/i);
   });
 
   it("covers password-reset and session-expired reasons", () => {
@@ -109,7 +109,7 @@ describe("resolveSignInErrorCopy", () => {
 
   it("returns the friendly copy for known codes", () => {
     expect(resolveSignInErrorCopy("CredentialsSignin")).toMatch(/incorrect/i);
-    expect(resolveSignInErrorCopy("AccessDenied")).toMatch(/access/i);
+    expect(resolveSignInErrorCopy("AccessDenied")).toMatch(/invitation-only/i);
   });
 
   it("falls back to the Default copy for unknown / future codes", () => {
