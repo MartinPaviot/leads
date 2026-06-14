@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { LiveExtraction } from "@/components/live-extraction";
 import { MeddpiccScorecard, AccountCallIntel, ContactCallProfile } from "@/components/call-intel";
+import { MeetingRecorder } from "./_meeting-recorder";
 import { useToast } from "@/components/ui/toast";
 
 interface MeetingNotes {
@@ -980,6 +981,10 @@ export default function MeetingDetailPage() {
         /* Upload Zone for past meetings */
         <div className="space-y-4">
           <h2 className="text-sm font-medium text-gray-900 dark:text-gray-100">Add Meeting Notes</h2>
+
+          {/* Record in-browser — feeds the same audio → Whisper → notes → CRM
+              pipeline as a file upload, for in-person meetings with no bot. */}
+          <MeetingRecorder onRecorded={(file) => handleFileUpload(file)} disabled={uploading} />
 
           {/* Drag & Drop */}
           <div
