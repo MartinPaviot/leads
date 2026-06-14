@@ -155,7 +155,7 @@ export function MeddpiccScorecard({ properties, entityId }: { properties: Props;
     live: (properties?.meddic ?? null) as Meddic | null,
     pending: (properties?.pendingMeddic ?? null) as Meddic | null,
   });
-  const [view, setView] = useState<"meddpicc" | "bant">("meddpicc");
+  const [view, setView] = useState<"meddpicc" | "bant" | "spin">("meddpicc");
   if (!meddic) return null;
 
   const evidenceSrc = usingPending ? properties?.pendingEvidence : properties?.evidence;
@@ -180,7 +180,16 @@ export function MeddpiccScorecard({ properties, entityId }: { properties: Props;
     { label: "Need", value: asString(meddic.identifiedPain) ?? joinOrNull(bs.painPoints), action: "pin the core need driving the change" },
     { label: "Timeline", value: asString(bs.timeline), action: "establish a decision date" },
   ];
-  const activeDims = view === "bant" ? bantDims : dims;
+  // SPIN — another lens on the same discovery: Situation from the current state,
+  // Problem from the pain, Implication from the quantified metric, Need-payoff from
+  // the agreed next value. A re-projection, no separate extraction.
+  const spinDims: { label: string; value: string | null; action: string }[] = [
+    { label: "Situation", value: joinOrNull(bs.currentStack), action: "map their current setup and process" },
+    { label: "Problem", value: asString(meddic.identifiedPain) ?? joinOrNull(bs.painPoints), action: "surface the core difficulty they feel" },
+    { label: "Implication", value: asString(meddic.metrics), action: "quantify the cost of leaving it unsolved" },
+    { label: "Need-payoff", value: joinOrNull(bs.nextSteps), action: "get them to articulate the value of solving it" },
+  ];
+  const activeDims = view === "bant" ? bantDims : view === "spin" ? spinDims : dims;
 
   const filled = activeDims.filter((d) => d.value).length;
   const gaps = activeDims.filter((d) => !d.value);
@@ -201,13 +210,13 @@ export function MeddpiccScorecard({ properties, entityId }: { properties: Props;
         {showBanner && <PendingBar busy={busy} onAct={act} />}
         <div className="mb-3 flex items-center gap-2">
           <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)]">
-            Qualification · {view === "bant" ? "BANT" : "MEDDPICC"}
+            Qualification · {view === "bant" ? "BANT" : view === "spin" ? "SPIN" : "MEDDPICC"}
           </p>
           <div
             className="inline-flex rounded-md p-0.5"
             style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}
           >
-            {(["meddpicc", "bant"] as const).map((v) => (
+            {(["meddpicc", "bant", "spin"] as const).map((v) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
@@ -217,7 +226,7 @@ export function MeddpiccScorecard({ properties, entityId }: { properties: Props;
                   color: view === v ? "#fff" : "var(--color-text-tertiary)",
                 }}
               >
-                {v === "bant" ? "BANT" : "MEDDPICC"}
+                {v === "bant" ? "BANT" : v === "spin" ? "SPIN" : "MEDDPICC"}
               </button>
             ))}
           </div>

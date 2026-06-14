@@ -94,6 +94,9 @@ export interface MeetingQualificationWrites {
   evidence: Array<{ claim: string; quote: string }>;
   callIntel: Record<string, unknown> | null;
   callProfile: Record<string, unknown> | null;
+  /** Buying signals written LIVE on the deal (ungated, like the call path) so the
+   *  BANT / SPIN lenses populate for meeting-sourced deals. */
+  buyingSignals: Record<string, unknown> | null;
 }
 
 /**
@@ -110,6 +113,10 @@ export function buildMeetingQualificationWrites(
   const competitors = Array.isArray(bs.competitors) ? bs.competitors : [];
   const initiatives = Array.isArray(bs.initiatives) ? bs.initiatives : [];
   const teamSize = bs.teamSize ?? null;
+  const painPoints = Array.isArray(bs.painPoints) ? bs.painPoints : [];
+  const nextSteps = Array.isArray(bs.nextSteps) ? bs.nextSteps : [];
+  const budget = bs.budget ?? null;
+  const timeline = bs.timeline ?? null;
 
   const meddic = notes.meddic
     ? {
@@ -131,7 +138,12 @@ export function buildMeetingQualificationWrites(
     ? { ...notes.contactProfile, updatedFromMeetingId: stamp.meetingId, updatedAt: stamp.at }
     : null;
 
-  return { meddic, evidence, callIntel, callProfile };
+  const buyingSignals =
+    budget || timeline || painPoints.length || nextSteps.length || stack.length || competitors.length || teamSize || initiatives.length
+      ? { budget, timeline, painPoints, nextSteps, competitors, teamSize, currentStack: stack, initiatives, updatedFromMeetingId: stamp.meetingId, updatedAt: stamp.at }
+      : null;
+
+  return { meddic, evidence, callIntel, callProfile, buyingSignals };
 }
 
 // ── Writer ──────────────────────────────────────────────────────────────────
@@ -190,8 +202,9 @@ export async function applyMeetingQualificationToCrm(
     targets,
   };
 
-  // Deal — MEDDPICC + evidence
-  if (targets.dealId && (writes.meddic || writes.evidence.length > 0)) {
+  // Deal — MEDDPICC + evidence (review-gated) + buying signals (live, like the
+  // call path, so the BANT / SPIN lenses populate for meeting-sourced deals).
+  if (targets.dealId && (writes.meddic || writes.evidence.length > 0 || writes.buyingSignals)) {
     const [deal] = await db
       .select({ properties: deals.properties })
       .from(deals)
@@ -201,6 +214,7 @@ export async function applyMeetingQualificationToCrm(
       const next = { ...((deal.properties as Record<string, unknown>) || {}) };
       if (writes.meddic) next[mKey] = writes.meddic;
       if (writes.evidence.length > 0) next[eKey] = writes.evidence;
+      if (writes.buyingSignals) next.buyingSignals = writes.buyingSignals;
       await db
         .update(deals)
         .set({ properties: next, updatedAt: occurredAt })
