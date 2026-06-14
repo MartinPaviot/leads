@@ -9,39 +9,37 @@ vi.mock("@/db", () => ({
   },
 }));
 
-vi.mock("@/db/schema", () => ({
-  trustEvents: { id: "id", tenantId: "tenant_id", eventType: "event_type", delta: "delta", reason: "reason", createdAt: "created_at" },
-  systemTrustScore: { id: "id", tenantId: "tenant_id", score: "score", components: "components", createdAt: "created_at" },
-  agentActions: { id: "id", tenantId: "tenant_id", agentId: "agent_id", actionType: "action_type", entityId: "entity_id", summary: "summary", approved: "approved", metadata: "metadata", createdAt: "created_at" },
-  knowledgeEntries: { id: "id", tenantId: "tenant_id", title: "title", content: "content", category: "category", metadata: "metadata", createdAt: "created_at" },
-  tenants: { id: "id", name: "name", settings: "settings", domain: "domain", stripeCustomerId: "stripe_customer_id", subscriptionId: "subscription_id", plan: "plan", createdAt: "created_at", updatedAt: "updated_at", referralCode: "referral_code" },
-  outboundEmails: {
-    id: "id",
-    threadId: "threadId",
-    messageId: "messageId",
-    status: "status",
-    bouncedAt: "bouncedAt",
-    bounceType: "bounceType",
-    errorMessage: "errorMessage",
-    repliedAt: "repliedAt",
-    replySnippet: "replySnippet",
-    tenantId: "tenantId",
-    toAddress: "toAddress",
-    mailboxId: "mailboxId",
-    updatedAt: "updatedAt",
-    contactId: "contactId",
-  },
-  connectedMailboxes: {
-    id: "id",
-    bounceCount7d: "bounceCount7d",
-    updatedAt: "updatedAt",
-  },
-  emailOptouts: {
-    tenantId: "tenantId",
-    emailAddress: "emailAddress",
-    reason: "reason",
-  },
-}));
+vi.mock("@/db/schema", () => {
+  // The webhook route's capture pipeline imports a growing set of schema tables
+  // (activities, contacts, companies, deals, ...). Keep the columns the
+  // bounce/reply assertions rely on explicit, and return a generic table
+  // placeholder for any OTHER table the code imports so this mock never goes
+  // stale again (the prior hand-list broke CI when `activities` was added).
+  const known: Record<string, Record<string, string>> = {
+    trustEvents: { id: "id", tenantId: "tenant_id", eventType: "event_type", delta: "delta", reason: "reason", createdAt: "created_at" },
+    systemTrustScore: { id: "id", tenantId: "tenant_id", score: "score", components: "components", createdAt: "created_at" },
+    agentActions: { id: "id", tenantId: "tenant_id", agentId: "agent_id", actionType: "action_type", entityId: "entity_id", summary: "summary", approved: "approved", metadata: "metadata", createdAt: "created_at" },
+    knowledgeEntries: { id: "id", tenantId: "tenant_id", title: "title", content: "content", category: "category", metadata: "metadata", createdAt: "created_at" },
+    tenants: { id: "id", name: "name", settings: "settings", domain: "domain", stripeCustomerId: "stripe_customer_id", subscriptionId: "subscription_id", plan: "plan", createdAt: "created_at", updatedAt: "updated_at", referralCode: "referral_code" },
+    outboundEmails: {
+      id: "id", threadId: "threadId", messageId: "messageId", status: "status",
+      bouncedAt: "bouncedAt", bounceType: "bounceType", errorMessage: "errorMessage",
+      repliedAt: "repliedAt", replySnippet: "replySnippet", tenantId: "tenantId",
+      toAddress: "toAddress", mailboxId: "mailboxId", updatedAt: "updatedAt", contactId: "contactId",
+    },
+    connectedMailboxes: { id: "id", bounceCount7d: "bounceCount7d", updatedAt: "updatedAt" },
+    emailOptouts: { tenantId: "tenantId", emailAddress: "emailAddress", reason: "reason" },
+  };
+  // A column accessor: returns the property name for any column read on a table.
+  const genericTable = () =>
+    new Proxy({}, { get: (_t, col) => (typeof col === "string" ? col : undefined) });
+  return new Proxy(known, {
+    get: (target, prop) => {
+      if (typeof prop !== "string" || prop === "__esModule" || prop === "default") return undefined;
+      return prop in target ? (target as Record<string, unknown>)[prop] : genericTable();
+    },
+  });
+});
 
 vi.mock("drizzle-orm", () => ({
   eq: vi.fn(),
