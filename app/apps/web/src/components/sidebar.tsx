@@ -325,7 +325,7 @@ export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tena
                 unknown (DB hiccup). */}
             {tenantName ? (
               <div className="flex min-w-0 items-center gap-2">
-                <Avatar src={tenantLogoUrl} name={tenantName} size="sm" />
+                <Avatar src={tenantLogoUrl} name={tenantName} size="sm" shape="square" />
                 <span
                   className="truncate text-[14px] font-semibold tracking-tight"
                   style={{ color: "var(--color-text-primary)" }}
