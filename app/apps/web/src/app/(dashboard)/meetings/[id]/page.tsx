@@ -213,6 +213,9 @@ export default function MeetingDetailPage() {
   // M2 — send follow-up.
   const [sendingFollowUp, setSendingFollowUp] = useState(false);
 
+  // Share the summary to Slack (reuses the workspace Slack webhook).
+  const [sharingSlack, setSharingSlack] = useState(false);
+
   const fetchMeeting = useCallback(async () => {
     try {
       const res = await fetch(`/api/meetings/${meetingId}/notes`);
@@ -404,6 +407,23 @@ export default function MeetingDetailPage() {
       toast("Failed to send follow-up — network error.", "error");
     } finally {
       setSendingFollowUp(false);
+    }
+  }
+
+  async function shareToSlack() {
+    setSharingSlack(true);
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}/share-slack`, { method: "POST" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast((body as { error?: string }).error || "Couldn't share to Slack.", "error");
+        return;
+      }
+      toast("Shared to Slack.", "success");
+    } catch {
+      toast("Couldn't share to Slack — network error.", "error");
+    } finally {
+      setSharingSlack(false);
     }
   }
 
@@ -616,6 +636,11 @@ export default function MeetingDetailPage() {
                   <ExternalLink className="h-4 w-4 mr-1" /> Join
                 </Button>
               </a>
+            )}
+            {notes && (
+              <Button variant="outline" size="sm" onClick={shareToSlack} disabled={sharingSlack} loading={sharingSlack}>
+                <Send className="mr-1 h-4 w-4" /> Share to Slack
+              </Button>
             )}
             {notes && <SentimentBadge sentiment={notes.sentiment} />}
           </div>
