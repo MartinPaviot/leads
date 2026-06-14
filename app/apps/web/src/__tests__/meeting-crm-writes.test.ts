@@ -74,6 +74,14 @@ describe("buildMeetingQualificationWrites", () => {
       disposition: "champion",
       updatedFromMeetingId: "meeting-1",
     });
+    // Buying signals written live on the deal so BANT/SPIN populate.
+    expect(w.buyingSignals).toMatchObject({
+      currentStack: ["Salesforce", "Outreach"],
+      competitors: ["Gong"],
+      teamSize: "12 reps",
+      initiatives: ["CRM migration in Q3"],
+      updatedFromMeetingId: "meeting-1",
+    });
   });
 
   it("is defensive against legacy notes missing the qualification fields", () => {
@@ -109,6 +117,7 @@ describe("buildMeetingQualificationWrites", () => {
   it("yields no account intel when nothing about the org was said", () => {
     const w = buildMeetingQualificationWrites({ buyingSignals: buyingSignals() }, STAMP);
     expect(w.callIntel).toBeNull();
+    expect(w.buyingSignals).toBeNull();
   });
 
   it("caps evidence at 12 quotes", () => {
