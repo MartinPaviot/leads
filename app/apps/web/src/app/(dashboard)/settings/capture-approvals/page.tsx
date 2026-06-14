@@ -30,12 +30,21 @@ const KIND_ICON: Record<string, typeof Mail> = {
   call: Phone,
 };
 
+// The four auto-filled CRM facts hybrid mode can gate independently.
+const HYBRID_FIELDS: { key: string; label: string; hint: string }[] = [
+  { key: "meddic", label: "Qualification (MEDDPICC)", hint: "metrics, economic buyer, decision process…" },
+  { key: "callIntel", label: "Account intel", hint: "stack in place, alternatives, triggers" },
+  { key: "callProfile", label: "Contact profile", hint: "role, decision-maker, disposition" },
+  { key: "evidence", label: "Evidence quotes", hint: "the verbatim lines that ground each claim" },
+];
+
 export default function CaptureApprovalsPage() {
   const { toast } = useToast();
   const [list, setList] = useState<Approval[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<Record<string, boolean>>({});
-  const [mode, setMode] = useState<"auto" | "review">("auto");
+  const [mode, setMode] = useState<"auto" | "review" | "hybrid">("auto");
+  const [fieldModes, setFieldModes] = useState<Record<string, "auto" | "review">>({});
   const [modeSaving, setModeSaving] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -45,7 +54,8 @@ export default function CaptureApprovalsPage() {
       if (res.ok) {
         const data = await res.json();
         setList(data.approvals ?? []);
-        if (data.mode === "review" || data.mode === "auto") setMode(data.mode);
+        if (data.mode === "review" || data.mode === "auto" || data.mode === "hybrid") setMode(data.mode);
+        if (data.fieldModes && typeof data.fieldModes === "object") setFieldModes(data.fieldModes);
       } else toast("Failed to load approvals", "error");
     } catch {
       toast("Failed to load approvals", "error");
@@ -59,7 +69,7 @@ export default function CaptureApprovalsPage() {
   }, [refresh]);
 
   const changeMode = useCallback(
-    async (next: "auto" | "review") => {
+    async (next: "auto" | "review" | "hybrid") => {
       if (next === mode || modeSaving) return;
       setModeSaving(true);
       const prev = mode;
@@ -77,7 +87,9 @@ export default function CaptureApprovalsPage() {
           toast(
             next === "review"
               ? "Review mode on — new captures wait here for approval."
-              : "Auto mode on — captures enter the CRM directly.",
+              : next === "hybrid"
+                ? "Hybrid mode on — set per-field rules below."
+                : "Auto mode on — captures enter the CRM directly.",
             "success",
           );
         }
@@ -89,6 +101,33 @@ export default function CaptureApprovalsPage() {
       }
     },
     [mode, modeSaving, toast],
+  );
+
+  const changeFieldMode = useCallback(
+    async (field: string, next: "auto" | "review") => {
+      if (modeSaving) return;
+      const prev = fieldModes;
+      const optimistic = { ...fieldModes, [field]: next };
+      setFieldModes(optimistic); // optimistic
+      setModeSaving(true);
+      try {
+        const res = await fetch("/api/capture-approvals", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "hybrid", fieldModes: optimistic }),
+        });
+        if (!res.ok) {
+          setFieldModes(prev);
+          toast("Couldn't update the field rule", "error");
+        }
+      } catch {
+        setFieldModes(prev);
+        toast("Couldn't update the field rule", "error");
+      } finally {
+        setModeSaving(false);
+      }
+    },
+    [fieldModes, modeSaving, toast],
   );
 
   const act = useCallback(
@@ -148,7 +187,7 @@ export default function CaptureApprovalsPage() {
           className="inline-flex shrink-0 rounded-md p-0.5"
           style={{ background: "var(--color-bg-hover)", border: "1px solid var(--color-border-default)" }}
         >
-          {(["auto", "review"] as const).map((m) => {
+          {(["auto", "review", "hybrid"] as const).map((m) => {
             const active = mode === m;
             return (
               <button
@@ -168,6 +207,56 @@ export default function CaptureApprovalsPage() {
           })}
         </div>
       </div>
+
+      {mode === "hybrid" && (
+        <div
+          className="mb-5 rounded-lg border p-4"
+          style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
+        >
+          <p className="text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+            Per-field rules
+          </p>
+          <p className="mt-0.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+            Choose which auto-filled fields sync straight to the CRM and which wait for your approval on each record.
+          </p>
+          <div className="mt-3 space-y-2">
+            {HYBRID_FIELDS.map((f) => {
+              const fm = fieldModes[f.key] ?? "auto";
+              return (
+                <div key={f.key} className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{f.label}</p>
+                    <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>{f.hint}</p>
+                  </div>
+                  <div
+                    className="inline-flex shrink-0 rounded-md p-0.5"
+                    style={{ background: "var(--color-bg-hover)", border: "1px solid var(--color-border-default)" }}
+                  >
+                    {(["auto", "review"] as const).map((v) => {
+                      const active = fm === v;
+                      return (
+                        <button
+                          key={v}
+                          onClick={() => changeFieldMode(f.key, v)}
+                          disabled={modeSaving}
+                          className="rounded px-2.5 py-0.5 text-[11px] font-medium capitalize"
+                          style={{
+                            background: active ? "var(--color-accent)" : "transparent",
+                            color: active ? "#fff" : "var(--color-text-secondary)",
+                            opacity: modeSaving ? 0.6 : 1,
+                          }}
+                        >
+                          {v}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div>
         {loading && list.length === 0 && (

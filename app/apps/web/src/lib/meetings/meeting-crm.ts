@@ -18,7 +18,7 @@
 import { db } from "@/db";
 import { deals, companies, contacts, tenants } from "@/db/schema";
 import { and, eq, isNull, inArray, desc } from "drizzle-orm";
-import { getCaptureApprovalMode } from "@/lib/capture/approval";
+import { getCaptureApprovalMode, getFieldApprovalMode, type CaptureApprovalMode } from "@/lib/capture/approval";
 import type { MeetingNotes } from "./notes-schema";
 
 const OPEN_STAGES = ["lead", "qualification", "demo", "trial", "proposal", "negotiation"] as const;
@@ -148,7 +148,7 @@ export interface ApplyMeetingQualificationArgs {
 }
 
 export interface ApplyMeetingQualificationResult {
-  mode: "auto" | "review";
+  mode: CaptureApprovalMode;
   dealWritten: boolean;
   companyWritten: boolean;
   contactWritten: boolean;
@@ -171,18 +171,19 @@ export async function applyMeetingQualificationToCrm(
     .from(tenants)
     .where(eq(tenants.id, tenantId))
     .limit(1);
-  const reviewMode =
-    getCaptureApprovalMode(tenantRow?.settings as Record<string, unknown> | null) === "review";
-  const mKey = reviewMode ? "pendingMeddic" : "meddic";
-  const eKey = reviewMode ? "pendingEvidence" : "evidence";
-  const ciKey = reviewMode ? "pendingCallIntel" : "callIntel";
-  const cpKey = reviewMode ? "pendingCallProfile" : "callProfile";
+  const settings = tenantRow?.settings as Record<string, unknown> | null;
+  // Per-field auto/review (Claap's hybrid workflow): each fact follows its own
+  // mode, so review can wait on MEDDPICC while account intel syncs live.
+  const mKey = getFieldApprovalMode(settings, "meddic") === "review" ? "pendingMeddic" : "meddic";
+  const eKey = getFieldApprovalMode(settings, "evidence") === "review" ? "pendingEvidence" : "evidence";
+  const ciKey = getFieldApprovalMode(settings, "callIntel") === "review" ? "pendingCallIntel" : "callIntel";
+  const cpKey = getFieldApprovalMode(settings, "callProfile") === "review" ? "pendingCallProfile" : "callProfile";
 
   const targets = await resolveMeetingCrmTargets(tenantId, { dealId: args.dealId, contactId: args.contactId });
   const writes = buildMeetingQualificationWrites(notes, { meetingId, at: occurredAt.toISOString() });
 
   const result: ApplyMeetingQualificationResult = {
-    mode: reviewMode ? "review" : "auto",
+    mode: getCaptureApprovalMode(settings),
     dealWritten: false,
     companyWritten: false,
     contactWritten: false,
