@@ -140,8 +140,8 @@ export default function CaptureApprovalsPage() {
           </p>
           <p className="mt-0.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
             {mode === "review"
-              ? "New captures wait here for your approval before entering the CRM."
-              : "New captures enter the CRM automatically."}
+              ? "New captures — and the fields auto-filled from calls & meetings (qualification, account intel) — wait for your approval before they reach the CRM."
+              : "Captures and the fields auto-filled from calls & meetings enter the CRM automatically."}
           </p>
         </div>
         <div
