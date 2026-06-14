@@ -52,6 +52,11 @@ export default auth((req) => {
     // The page reads the invite (public GET /api/auth/invite/[token]) and
     // handles sign-in itself, preserving the token as the callbackUrl.
     "/accept-invite",
+    // Shared beta-access link (/join?code=…). Reachable WITHOUT a session — a
+    // beta tester is logged out when they click the founder's link. It
+    // validates the code, drops the signed beta cookie, and forwards to
+    // /sign-up. Without this the session gate would bounce it to /sign-in.
+    "/join",
     // Password reset must be reachable WITHOUT a session — the user is
     // logged out by definition. /forgot-password (request a link) +
     // /reset-password (consume the emailed token). Without these the

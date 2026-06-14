@@ -9,6 +9,7 @@ import { AuthSubmitButton } from "@/components/ui/auth-submit-button";
 import { BodyScrollUnlock } from "@/components/auth/body-scroll-unlock";
 import { signIn, auth } from "@/auth";
 import { validateInviteToken } from "@/lib/auth/invite-validate";
+import { hasBetaAccess } from "@/lib/auth/beta-access";
 import {
   sanitizeCallbackUrl,
   isNextControlFlowError,
@@ -79,23 +80,25 @@ export default async function SignUpPage({
     redirect(inviteToken ? `/accept-invite?token=${inviteToken}` : callbackUrl);
   }
 
-  // Invitation-only: account creation requires a valid, still-open invite.
-  // There is no public self-serve sign-up — a visitor without a real
-  // invitation is sent to the marketing page (book a demo / log in).
+  // Account creation requires EITHER a valid, still-open invite OR a valid
+  // beta-access cookie (the founder's shared /join?code=… link — see
+  // beta-access.ts). A visitor with neither is sent to the marketing page
+  // (book a demo / log in); there is still no fully-public self-serve sign-up.
   const inviteCheck = await validateInviteToken(inviteToken);
-  if (!inviteCheck.valid) {
+  const betaAccess = await hasBetaAccess();
+  if (!inviteCheck.valid && !betaAccess) {
     redirect("/");
   }
-  // The invited address is authoritative; the email field below is locked to
-  // it so a valid invite can only ever create the account it was issued for.
-  const invitedEmail = inviteCheck.invite.email;
+  // With an invite, the invited address is authoritative and the email field
+  // is locked to it. In beta mode there's no invite, so the email is editable
+  // and the tester self-provisions their own workspace.
+  const invitedEmail = inviteCheck.valid ? inviteCheck.invite.email : "";
+  const lockEmail = inviteCheck.valid;
 
   // After successful credentials sign-up we auto-sign-in (S1) and land the
   // user directly on their destination. The invite flow still needs the
-  // `/accept-invite` hop so the tenant swap happens server-side.
-  const postSignupRedirect = inviteToken
-    ? `/accept-invite?token=${inviteToken}`
-    : callbackUrl;
+  // `/accept-invite` hop so the tenant swap happens server-side; beta mode has
+  // no invite, so it goes straight to the normal destination.
   const oauthRedirectTo = inviteToken
     ? `/accept-invite?token=${inviteToken}`
     : callbackUrl;
@@ -111,10 +114,12 @@ export default async function SignUpPage({
       (formData.get("callbackUrl") as string) || undefined
     );
 
-    // Invitation-only (defense in depth): the page only renders with a valid
-    // invite, but a crafted POST must not bypass the gate either.
+    // Account-creation gate (defense in depth — the page only renders with a
+    // valid invite or beta cookie, but a crafted POST must not bypass it):
+    // a valid invite OR a valid beta-access cookie.
     const inviteOk = await validateInviteToken(inviteFromForm);
-    if (!inviteOk.valid) {
+    const betaOk = await hasBetaAccess();
+    if (!inviteOk.valid && !betaOk) {
       redirect("/");
     }
 
@@ -144,8 +149,9 @@ export default async function SignUpPage({
     const normalizedEmail = email.toLowerCase().trim();
 
     // The invite is bound to one address — a valid token can't mint an account
-    // for a different email than it was issued for.
-    if (normalizedEmail !== inviteOk.invite.email.toLowerCase()) {
+    // for a different email than it was issued for. Beta mode has no invite, so
+    // the tester chooses their own email.
+    if (inviteOk.valid && normalizedEmail !== inviteOk.invite.email.toLowerCase()) {
       redirect("/");
     }
 
@@ -207,7 +213,7 @@ export default async function SignUpPage({
     // Invite flows skip the inbox screen — the invitee accepted
     // explicitly so they're already trusted; verifying email later via
     // the soft gate is fine.
-    const postRedirect = inviteFromForm
+    const postRedirect = inviteOk.valid
       ? `/accept-invite?token=${inviteFromForm}`
       : `/verify-email-sent?next=${encodeURIComponent(callbackFromForm)}`;
     await signIn("credentials", {
@@ -387,6 +393,20 @@ export default async function SignUpPage({
           </div>
         )}
 
+        {!inviteToken && betaAccess && (
+          <div
+            className="rounded-lg px-3 py-2 text-[12px]"
+            style={{
+              background: "var(--color-accent-soft, rgba(99,102,241,0.08))",
+              color: "var(--color-text-secondary)",
+              border: "1px solid var(--color-accent, #6366f1)",
+            }}
+          >
+            You&apos;re joining the Elevay beta. Create your account and we&apos;ll set up
+            your own workspace.
+          </div>
+        )}
+
         <form action={handleSignUp} className="space-y-2.5">
           {inviteToken && <input type="hidden" name="invite" value={inviteToken} />}
           <div>
@@ -421,7 +441,7 @@ export default async function SignUpPage({
               name="email"
               type="email"
               required
-              readOnly
+              readOnly={lockEmail}
               autoComplete="email"
               defaultValue={invitedEmail}
               placeholder="you@company.com"
@@ -429,9 +449,13 @@ export default async function SignUpPage({
               aria-describedby={fieldError?.field === "email" ? "signup-email-error" : undefined}
               className="auth-input mt-1.5 w-full rounded-lg px-3 py-2 text-[13px] outline-none transition-colors"
               style={{
-                background: "var(--color-bg-muted, var(--color-bg-page))",
-                color: "var(--color-text-secondary)",
-                cursor: "not-allowed",
+                background: lockEmail
+                  ? "var(--color-bg-muted, var(--color-bg-page))"
+                  : "var(--color-bg-page)",
+                color: lockEmail
+                  ? "var(--color-text-secondary)"
+                  : "var(--color-text-primary)",
+                cursor: lockEmail ? "not-allowed" : "text",
                 border:
                   fieldError?.field === "email" || missingFields
                     ? "1px solid rgba(220,38,38,0.55)"

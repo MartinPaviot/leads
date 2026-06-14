@@ -299,20 +299,11 @@ export default async function SignInPage({
           <AuthSubmitButton label="Sign in" busyLabel="Signing in…" />
         </form>
 
-        <p className="text-center text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-          Don&apos;t have an account?{" "}
-          <a
-            href={
-              callbackUrl === "/home"
-                ? "/sign-up"
-                : `/sign-up?callbackUrl=${encodeURIComponent(callbackUrl)}`
-            }
-            className="font-medium hover:underline"
-            style={{ color: "var(--color-accent)" }}
-          >
-            Sign up
-          </a>
-        </p>
+        {/* No "Sign up" link: account creation is invitation-only — a bare
+            /sign-up (no invite token) just redirects back to "/", so the link
+            was a dead end. Invited users arrive via the emailed
+            /sign-up?invite=TOKEN link; OAuth first-login self-provisions a
+            tenant. Non-customers convert via the marketing page's demo CTA. */}
 
         <p className="text-center text-[10px] leading-relaxed" style={{ color: "var(--color-text-tertiary)" }}>
           By signing in, you agree to our{" "}

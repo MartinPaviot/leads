@@ -23,6 +23,9 @@ import {
   getLockoutStatus,
   recordFailedSignIn,
 } from "./lib/auth/auth-lockout";
+import { isOAuthSignInAllowed } from "./lib/auth/oauth-account-gate";
+import { SELF_SERVE_SIGNUP_ENABLED } from "./lib/auth/self-serve-signup";
+import { hasBetaAccess } from "./lib/auth/beta-access";
 
 /**
  * A fixed bcrypt hash at the project's current cost factor, used purely
@@ -131,10 +134,26 @@ async function resolveUserTenant(authUserId: string, email: string) {
     };
   }
 
-  // First login, no invite — create tenant + user. The tenant creator is the
-  // founder: they get the admin role explicitly (the column default is
-  // "member", which would lock the founder out of every admin-gated
-  // surface — billing, members, settings, number purchase).
+  // First login with neither an existing app user nor a matching invite.
+  // PROD-HIDDEN (see self-serve-signup.ts): in production self-serve sign-up
+  // is disabled, so we refuse to mint a solo tenant here — UNLESS the request
+  // carries a valid beta-access cookie (the founder's shared /join?code=… link,
+  // see beta-access.ts), in which case the tester self-provisions their own
+  // workspace. The OAuth `signIn` gate already applies the same rule before the
+  // adapter creates a user; this is the matching server-side backstop for any
+  // other first-login path. Fail loud rather than silently create a workspace.
+  // (Bootstrapping a fresh production deployment therefore means seeding the
+  // first admin row directly, or using a beta link.)
+  if (!SELF_SERVE_SIGNUP_ENABLED && !(await hasBetaAccess())) {
+    throw new Error(
+      "Invitation-only: self-serve sign-up is disabled in this environment."
+    );
+  }
+
+  // Self-serve enabled (non-production / restorable): original behavior. The
+  // tenant creator is the founder: they get the admin role explicitly (the
+  // column default is "member", which would lock the founder out of every
+  // admin-gated surface — billing, members, settings, number purchase).
   //
   // Both inserts run in ONE withTenantTx pinned to the new tenant id:
   // atomic (no orphan tenant row if the user insert fails) and the
@@ -410,6 +429,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     updateAge: 60 * 60,
   },
   callbacks: {
+    // Invitation-only gate. Credentials sign-up is already invite-gated at
+    // /sign-up (and `authorize` only ever returns an existing auth user), so
+    // self-provisioning could previously still happen one way: an OAuth first
+    // login with no invite spun up a fresh solo tenant in `resolveUserTenant`.
+    // We close that here — OAuth is allowed only for an existing account or an
+    // open invitation. Returning false raises AccessDenied BEFORE the adapter
+    // writes any row, so no orphan auth_user / tenant is created. Non-OAuth
+    // providers pass through untouched.
+    async signIn({ user, account, profile }) {
+      if (
+        account?.provider !== "google" &&
+        account?.provider !== "microsoft-entra-id"
+      ) {
+        return true;
+      }
+      // Beta testers who arrived via /join?code=… carry a signed cookie that
+      // re-opens self-serve sign-up — let them through (they self-provision a
+      // workspace downstream). Everyone else is invitation-only.
+      if (await hasBetaAccess()) return true;
+      const email =
+        user?.email ?? (profile?.email as string | undefined) ?? null;
+      return isOAuthSignInAllowed(email);
+    },
     async jwt({ token, user, account }) {
       if (user && user.id && user.email) {
         token.id = user.id;

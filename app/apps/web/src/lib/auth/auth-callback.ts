@@ -71,7 +71,11 @@ export const SIGN_IN_ERROR_COPY: Record<string, string> = {
     "We couldn't create your account by email. Please try again.",
 
   // --- access control ---
-  AccessDenied: "You don't have access to this workspace.",
+  // Raised by the OAuth invitation-only gate (callbacks.signIn) when someone
+  // tries Google/Microsoft with an email that has no account and no open
+  // invite. Neutral (doesn't confirm whether the email exists) and actionable.
+  AccessDenied:
+    "Elevay is invitation-only — there's no account for this email yet. Ask your workspace admin to invite you, then sign in.",
 
   // --- callback / session / CSRF ---
   CallbackRouteError:
