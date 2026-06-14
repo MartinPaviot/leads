@@ -14,36 +14,7 @@ import { logger } from "@/lib/observability/logger";
 import { llmCall } from "@/lib/ai/llm-call";
 import { recordCapturedActivity, getCaptureApprovalMode } from "@/lib/capture/approval";
 import { inngest } from "@/inngest/client";
-
-const meetingNotesSchema = z.object({
-  summary: z.string().describe("2-3 sentence meeting summary"),
-  keyPoints: z.array(z.string()).describe("Key discussion points"),
-  actionItems: z.array(
-    z.object({
-      owner: z.string().describe("Person responsible"),
-      task: z.string().describe("Action item description"),
-      deadline: z.string().nullable().describe("Deadline if mentioned"),
-    })
-  ),
-  decisions: z.array(z.string()).describe("Decisions made during the meeting"),
-  participants: z.array(
-    z.object({
-      name: z.string(),
-      role: z.string().nullable(),
-    })
-  ),
-  buyingSignals: z.object({
-    budget: z.string().nullable().describe("Budget mentions or constraints"),
-    timeline: z.string().nullable().describe("Decision timeline mentioned"),
-    currentStack: z.array(z.string()).describe("Current tools/vendors mentioned"),
-    painPoints: z.array(z.string()).describe("Pain points or challenges mentioned"),
-    objections: z.array(z.string()).describe("Objections raised"),
-    nextSteps: z.array(z.string()).describe("Agreed next steps"),
-    competitors: z.array(z.string()).describe("Competitor names mentioned"),
-    teamSize: z.string().nullable().describe("Team size if mentioned"),
-  }),
-  sentiment: z.enum(["positive", "neutral", "negative"]).describe("Overall meeting sentiment"),
-});
+import { meetingNotesSchema, buildMeetingNotesPrompt } from "@/lib/meetings/notes-schema";
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
@@ -82,20 +53,11 @@ export async function POST(req: Request) {
       args: [{
         model,
         schema: meetingNotesSchema,
-        prompt: `Analyze this meeting transcript and extract structured notes.
-
-MEETING: ${meetingTitle || "Untitled Meeting"}
-DATE: ${meetingDate || "Unknown"}
-
-TRANSCRIPT:
-${transcript.slice(0, 15000)}
-
-RULES:
-- Extract ONLY information explicitly stated in the transcript
-- Do NOT invent or assume any information not in the transcript
-- For buying signals, only include if explicitly mentioned
-- Set fields to null/empty if not discussed
-- Be specific with action items — include who and what`,
+        prompt: buildMeetingNotesPrompt({
+          transcript: transcript.slice(0, 15000),
+          meetingTitle,
+          meetingDate,
+        }),
         providerOptions: {
           anthropic: { cacheControl: { type: "ephemeral" } },
         },

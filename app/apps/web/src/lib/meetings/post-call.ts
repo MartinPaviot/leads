@@ -6,6 +6,8 @@ import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { autofillDealFromIntelligence } from "@/lib/deals/deal-autofill";
 import type { ThreadIntelligence, BuyingSignal } from "@/lib/emails/email-intelligence";
+import { applyMeetingQualificationToCrm } from "./meeting-crm";
+import type { MeetingNotes } from "./notes-schema";
 
 export interface PostCallResult {
   success: boolean;
@@ -196,6 +198,28 @@ export async function processPostCall(opts: PostCallOptions): Promise<PostCallRe
       } catch (err) {
         console.warn("post-call: deal autofill failed", err);
       }
+    }
+  }
+
+  // 2c. Meeting qualification → CRM (MEDDPICC + account intel + contact profile)
+  // through the review seam, on the SAME property keys the call path writes, so
+  // the call-intel surfaces on the meeting fiche populate from the meeting
+  // itself — not just from prior calls. Non-fatal; never blocks the pipeline.
+  if (updateDeal) {
+    try {
+      await applyMeetingQualificationToCrm({
+        tenantId,
+        meetingId: activity.id,
+        notes: notes as MeetingNotes,
+        occurredAt: activity.occurredAt ?? new Date(),
+        dealId: meta.dealId || opts.dealId || null,
+        contactId:
+          activity.entityType === "contact" && activity.entityId !== "unknown"
+            ? activity.entityId
+            : null,
+      });
+    } catch (err) {
+      console.warn("post-call: meeting qualification write failed", err);
     }
   }
 

@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { activities, tasks, deals, contacts, companies, coachingInsights } from "@/db/schema";
 import { eq, and, inArray, isNull, desc } from "drizzle-orm";
 import { logger } from "@/lib/observability/logger";
+import { resolveMeetingCrmTargets } from "@/lib/meetings/meeting-crm";
 import { z } from "zod";
 
 export async function GET(
@@ -61,62 +62,43 @@ export async function GET(
   }
 
   // ── CRM intelligence linked to this meeting ──────────────────────────────
-  // A recorded meeting feeds the same qualification spine a call does. Resolve
-  // the linked deal / company / contact so the page can render the MEDDPICC
-  // scorecard, account intel and contact profile (with Approve/Dismiss in
-  // review mode) — the very same call-intel components, fed from the meeting.
-  const contactId =
-    activity.entityType === "contact" && activity.entityId && activity.entityId !== "unknown"
-      ? activity.entityId
-      : null;
+  // Resolve the same deal / company / contact the meeting writer targets
+  // (lib/meetings/meeting-crm.ts) so the page shows exactly what was written —
+  // the MEDDPICC scorecard, account intel and contact profile (with
+  // Approve/Dismiss in review mode), the very same call-intel components.
+  const targets = await resolveMeetingCrmTargets(authCtx.tenantId, {
+    dealId: typeof meta.dealId === "string" ? meta.dealId : null,
+    contactId: activity.entityType === "contact" ? activity.entityId : null,
+  });
 
-  let contactRow: { id: string; companyId: string | null; properties: unknown } | null = null;
-  if (contactId) {
-    const [c] = await db
-      .select({ id: contacts.id, companyId: contacts.companyId, properties: contacts.properties })
-      .from(contacts)
-      .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
-      .limit(1);
-    contactRow = c ?? null;
-  }
-
-  // Deal: the one stamped on the meeting (meta.dealId) wins; else the most
-  // recent open deal for the contact's company (read-only — never created here).
-  const OPEN_STAGES = ["lead", "qualification", "demo", "trial", "proposal", "negotiation"] as const;
-  let dealRow: { id: string; companyId: string | null; properties: unknown } | null = null;
-  const stampedDealId = typeof meta.dealId === "string" ? meta.dealId : null;
-  if (stampedDealId) {
-    const [d] = await db
-      .select({ id: deals.id, companyId: deals.companyId, properties: deals.properties })
+  let dealRow: { id: string; properties: Record<string, unknown> } | null = null;
+  if (targets.dealId) {
+    const [row] = await db
+      .select({ id: deals.id, properties: deals.properties })
       .from(deals)
-      .where(and(eq(deals.id, stampedDealId), eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)))
+      .where(and(eq(deals.id, targets.dealId), eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)))
       .limit(1);
-    dealRow = d ?? null;
-  }
-  if (!dealRow && contactRow?.companyId) {
-    const [d] = await db
-      .select({ id: deals.id, companyId: deals.companyId, properties: deals.properties })
-      .from(deals)
-      .where(and(
-        eq(deals.tenantId, authCtx.tenantId),
-        eq(deals.companyId, contactRow.companyId),
-        isNull(deals.deletedAt),
-        inArray(deals.stage, [...OPEN_STAGES]),
-      ))
-      .orderBy(desc(deals.updatedAt))
-      .limit(1);
-    dealRow = d ?? null;
+    dealRow = row ? { id: row.id, properties: (row.properties ?? {}) as Record<string, unknown> } : null;
   }
 
-  const linkedCompanyId = dealRow?.companyId ?? contactRow?.companyId ?? null;
-  let companyRow: { id: string; properties: unknown } | null = null;
-  if (linkedCompanyId) {
-    const [co] = await db
+  let companyRow: { id: string; properties: Record<string, unknown> } | null = null;
+  if (targets.companyId) {
+    const [row] = await db
       .select({ id: companies.id, properties: companies.properties })
       .from(companies)
-      .where(and(eq(companies.id, linkedCompanyId), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
+      .where(and(eq(companies.id, targets.companyId), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
       .limit(1);
-    companyRow = co ?? null;
+    companyRow = row ? { id: row.id, properties: (row.properties ?? {}) as Record<string, unknown> } : null;
+  }
+
+  let contactRow: { id: string; properties: Record<string, unknown> } | null = null;
+  if (targets.contactId) {
+    const [row] = await db
+      .select({ id: contacts.id, properties: contacts.properties })
+      .from(contacts)
+      .where(and(eq(contacts.id, targets.contactId), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
+      .limit(1);
+    contactRow = row ? { id: row.id, properties: (row.properties ?? {}) as Record<string, unknown> } : null;
   }
 
   // Post-meeting coaching debrief — the row scoreInteraction wrote for THIS
@@ -169,9 +151,9 @@ export async function GET(
     matchedContacts: meta.matchedContacts || [],
     // Qualification + intel surfaced on the meeting record (Claap parity).
     crm: {
-      deal: dealRow ? { id: dealRow.id, properties: (dealRow.properties ?? {}) as Record<string, unknown> } : null,
-      company: companyRow ? { id: companyRow.id, properties: (companyRow.properties ?? {}) as Record<string, unknown> } : null,
-      contact: contactRow ? { id: contactRow.id, properties: (contactRow.properties ?? {}) as Record<string, unknown> } : null,
+      deal: dealRow,
+      company: companyRow,
+      contact: contactRow,
     },
     coaching: coachingRow
       ? {

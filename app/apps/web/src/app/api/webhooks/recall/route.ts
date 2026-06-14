@@ -5,6 +5,7 @@ import { getBotStatus, getBotTranscript, transcriptToText, mapBotStatus } from "
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { z } from "zod";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { meetingNotesSchema, buildMeetingNotesPrompt } from "@/lib/meetings/notes-schema";
 
 /**
  * Verify a Recall.ai webhook signature.
@@ -58,40 +59,6 @@ function verifyRecallSignature(req: Request, rawBody: string): boolean {
   }
   return false;
 }
-
-/* ------------------------------------------------------------------ */
-/*  Schema (same as process-transcript/route.ts)                       */
-/* ------------------------------------------------------------------ */
-
-const meetingNotesSchema = z.object({
-  summary: z.string().describe("2-3 sentence meeting summary"),
-  keyPoints: z.array(z.string()).describe("Key discussion points"),
-  actionItems: z.array(
-    z.object({
-      owner: z.string().describe("Person responsible"),
-      task: z.string().describe("Action item description"),
-      deadline: z.string().nullable().describe("Deadline if mentioned"),
-    })
-  ),
-  decisions: z.array(z.string()).describe("Decisions made during the meeting"),
-  participants: z.array(
-    z.object({
-      name: z.string(),
-      role: z.string().nullable(),
-    })
-  ),
-  buyingSignals: z.object({
-    budget: z.string().nullable(),
-    timeline: z.string().nullable(),
-    currentStack: z.array(z.string()),
-    painPoints: z.array(z.string()),
-    objections: z.array(z.string()),
-    nextSteps: z.array(z.string()),
-    competitors: z.array(z.string()),
-    teamSize: z.string().nullable(),
-  }),
-  sentiment: z.enum(["positive", "neutral", "negative"]),
-});
 
 /* ------------------------------------------------------------------ */
 /*  Webhook handler                                                    */
@@ -264,20 +231,11 @@ async function processTranscriptFromBot(
   const { object: rawNotes } = await tracedGenerateObject({
     model,
     schema: meetingNotesSchema,
-    prompt: `Analyze this meeting transcript and extract structured notes.
-
-MEETING: ${meetingTitle}
-DATE: ${meetingDate}
-
-TRANSCRIPT:
-${transcriptText.slice(0, 15000)}
-
-RULES:
-- Extract ONLY information explicitly stated in the transcript
-- Do NOT invent or assume any information not in the transcript
-- For buying signals, only include if explicitly mentioned
-- Set fields to null/empty if not discussed
-- Be specific with action items — include who and what`,
+    prompt: buildMeetingNotesPrompt({
+      transcript: transcriptText.slice(0, 15000),
+      meetingTitle,
+      meetingDate,
+    }),
     _trace: { agentId: "recall-transcript-processing", tenantId },
   });
   const notes = rawNotes as z.infer<typeof meetingNotesSchema>;
