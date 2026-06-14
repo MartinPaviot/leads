@@ -3,6 +3,7 @@ import { notifications, notificationPreferences, users } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { Resend } from "resend";
 import { EMAIL_FROM } from "./from";
+import { renderBrandedEmail, getBrandedEmailAttachments, escapeHtml } from "./email-shell";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -70,11 +71,20 @@ export async function sendNotification(params: SendNotificationParams) {
         .limit(1);
 
       if (user?.email) {
+        const { html, text } = buildEmailParts(
+          title,
+          body || "",
+          type,
+          entityType,
+          entityId
+        );
         const { error } = await resend.emails.send({
           from: EMAIL_FROM,
           to: [user.email],
           subject: title,
-          html: buildEmailHtml(title, body || "", type, entityType, entityId),
+          html,
+          text,
+          attachments: getBrandedEmailAttachments(),
         });
 
         if (error) {
@@ -138,13 +148,13 @@ export async function sendNotification(params: SendNotificationParams) {
   return { inApp: shouldInApp, emailSent };
 }
 
-function buildEmailHtml(
+function buildEmailParts(
   title: string,
   body: string,
   type: string,
   entityType?: string,
   entityId?: string
-): string {
+): { html: string; text: string } {
   const appUrl = process.env.NEXTAUTH_URL || "https://www.elevay.dev";
   let ctaUrl = appUrl;
   if (entityType && entityId) {
@@ -158,50 +168,20 @@ function buildEmailHtml(
     ctaUrl = `${appUrl}/${path}/${entityId}`;
   }
 
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-</head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 16px;">
-    <tr>
-      <td align="center">
-        <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;">
-          <tr>
-            <td style="background:#09090b;padding:20px 24px;">
-              <span style="color:#ffffff;font-size:16px;font-weight:600;">Elevay</span>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:24px;">
-              <h2 style="margin:0 0 12px;font-size:18px;color:#09090b;">${escapeHtml(title)}</h2>
-              <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#52525b;">${escapeHtml(body)}</p>
-              <a href="${ctaUrl}" style="display:inline-block;background:#6366f1;color:#ffffff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500;">
-                View in Elevay
-              </a>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:16px 24px;border-top:1px solid #e4e4e7;">
-              <p style="margin:0;font-size:12px;color:#a1a1aa;">
-                You're receiving this because you have ${type.replace(/_/g, " ")} notifications enabled.
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
-}
+  // Same branded shell as every other no-reply email (invite, verify, etc.).
+  const html = renderBrandedEmail({
+    preheader: body || title,
+    heading: title,
+    bodyHtml: body
+      ? `<p style="margin: 0 0 12px; color:#3f3f46; font-size: 15px; line-height: 1.6;">${escapeHtml(body)}</p>`
+      : "",
+    button: { label: "View in Elevay", url: ctaUrl },
+    footnoteHtml: `You're receiving this because you have ${escapeHtml(
+      type.replace(/_/g, " ")
+    )} notifications enabled.`,
+  });
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  const text = `${title}${body ? `\n\n${body}` : ""}\n\nView in Elevay: ${ctaUrl}`;
+
+  return { html, text };
 }

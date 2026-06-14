@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { logger } from "@/lib/observability/logger";
 import { EMAIL_FROM } from "./from";
+import { renderBrandedEmail, getBrandedEmailAttachments, escapeHtml } from "./email-shell";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -29,18 +30,16 @@ export async function sendPasswordChangedEmail(
     ? `This reset was requested from IP <strong>${escapeHtml(ip)}</strong>.`
     : `This reset was requested from your browser session.`;
 
-  const html = `<!doctype html>
-<html><body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#f4f4f5; padding: 24px; margin: 0;">
-  <div style="max-width: 560px; margin: 0 auto; background:#ffffff; border-radius: 12px; padding: 32px; border: 1px solid #e4e4e7;">
-    <h1 style="margin: 0 0 16px; font-size: 20px; color:#18181b;">Your password has been changed</h1>
-    <p style="margin: 0 0 12px; color:#3f3f46; font-size: 15px; line-height: 1.6;">
+  const html = renderBrandedEmail({
+    preheader: "Your Elevay account password was just changed.",
+    heading: "Your password has been changed",
+    bodyHtml: `<p style="margin: 0 0 12px; color:#3f3f46; font-size: 15px; line-height: 1.6;">
       Your Elevay account password was just reset. ${ipLine}
     </p>
     <p style="margin: 16px 0 0; color:#71717a; font-size: 13px; line-height: 1.6;">
       If this wasn't you, reply to this email immediately so we can lock the account — an attacker may have access to your inbox.
-    </p>
-  </div>
-</body></html>`;
+    </p>`,
+  });
 
   const text = `Your Elevay password has been changed.
 
@@ -53,6 +52,7 @@ If this wasn't you, reply to this email immediately so we can lock the account.`
       subject,
       html,
       text,
+      attachments: getBrandedEmailAttachments(),
     });
     if (error) {
       logger.error("password-changed email: resend returned error", {
@@ -68,13 +68,4 @@ If this wasn't you, reply to this email immediately so we can lock the account.`
       reason: e instanceof Error ? e.message : "Unknown send error",
     };
   }
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }

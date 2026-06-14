@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { logger } from "@/lib/observability/logger";
 import { EMAIL_FROM } from "./from";
+import { renderBrandedEmail, getBrandedEmailAttachments } from "./email-shell";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -29,27 +30,17 @@ export async function sendPasswordResetEmail(
 
   const resetUrl = `${APP_URL}/reset-password?token=${encodeURIComponent(token)}`;
   const subject = "Reset your Elevay password";
-  const html = `<!doctype html>
-<html><body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#f4f4f5; padding: 24px; margin: 0;">
-  <div style="max-width: 560px; margin: 0 auto; background:#ffffff; border-radius: 12px; padding: 32px; border: 1px solid #e4e4e7;">
-    <h1 style="margin: 0 0 16px; font-size: 20px; color:#18181b;">Reset your Elevay password</h1>
-    <p style="margin: 0 0 12px; color:#3f3f46; font-size: 15px; line-height: 1.6;">
+  const html = renderBrandedEmail({
+    preheader: "Reset your Elevay password — the link is valid for 1 hour.",
+    heading: "Reset your Elevay password",
+    bodyHtml: `<p style="margin: 0 0 12px; color:#3f3f46; font-size: 15px; line-height: 1.6;">
       We received a request to reset the password for this account. Click the button below to choose a new one — the link is valid for 1 hour.
-    </p>
-    <p style="margin: 24px 0;">
-      <a href="${resetUrl}" style="display:inline-block; background:#6366f1; color:#ffffff; text-decoration:none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 14px;">
-        Reset password
-      </a>
-    </p>
-    <p style="margin: 16px 0 0; color:#71717a; font-size: 13px; line-height: 1.5;">
-      Or paste this link in your browser:<br />
-      <span style="color:#6366f1; word-break: break-all;">${resetUrl}</span>
-    </p>
-    <p style="margin: 24px 0 0; color:#a1a1aa; font-size: 12px;">
-      If you didn't request a password reset you can safely ignore this email — your current password will stay unchanged.
-    </p>
-  </div>
-</body></html>`;
+    </p>`,
+    button: { label: "Reset password", url: resetUrl },
+    fallback: { text: "reset your password here" },
+    footnoteHtml:
+      "If you didn't request a password reset you can safely ignore this email — your current password will stay unchanged.",
+  });
 
   const text = `Reset your Elevay password.
 
@@ -66,6 +57,7 @@ If you didn't request a password reset you can safely ignore this email.`;
       subject,
       html,
       text,
+      attachments: getBrandedEmailAttachments(),
     });
     if (error) {
       logger.error("password-reset email: resend returned error", {
