@@ -19,7 +19,9 @@ import { motion, useInView, useReducedMotion } from "framer-motion";
 import { AppFrame, ScaleToFit } from "./product-mockups";
 import { CallModeDemo } from "./call-mode-demo";
 import { CampaignsDemo } from "./campaigns-demo";
-import { RealAccounts, RealOpportunities, RealMeetings } from "./real-surfaces";
+import { AccountsDemo } from "./accounts-demo";
+import { MeetingsDemo } from "./meetings-demo";
+import { OpportunitiesDemo } from "./opportunities-demo";
 
 // `h` = the natural content height shown in the shot (before scaling); the rest
 // of the page is clipped with a fade, so each shot ends cleanly on a few rows.
@@ -28,8 +30,7 @@ const steps: { label: string; headline: string; body: string; Real?: ComponentTy
     label: "Find demand",
     headline: "Your target list builds itself",
     body: "Describe your ICP once. Elevay searches a live B2B database, builds your target account list, and scores every account against it, no CSV imports and no manual research.",
-    Real: RealAccounts,
-    h: 680,
+    Demo: AccountsDemo,
   },
   {
     label: "Engage",
@@ -47,15 +48,13 @@ const steps: { label: string; headline: string; body: string; Real?: ComponentTy
     label: "Capture",
     headline: "Every meeting captured for you",
     body: "A bot joins your Meet, Zoom, and Teams calls, transcribes them, and pulls out the action items and buying signals, ready for you to review.",
-    Real: RealMeetings,
-    h: 640,
+    Demo: MeetingsDemo,
   },
   {
     label: "Capture",
     headline: "Your CRM fills itself",
     body: "Values update, fields populate, and the next stage is suggested for you, straight from your calls and emails, so the pipeline reflects reality without manual logging.",
-    Real: RealOpportunities,
-    h: 680,
+    Demo: OpportunitiesDemo,
   },
 ];
 
