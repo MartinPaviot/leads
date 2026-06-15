@@ -61,6 +61,7 @@ import type { ScriptContext } from "@/lib/voice/script-context";
 import type { RoleVerification } from "@/lib/contacts/role-status";
 import { CallActions } from "./_call-actions";
 import { ReachabilityInfo } from "./_reachability-info";
+import { ReachabilitySummary } from "./_reachability-summary";
 
 interface QueueItem {
   contactId: string;
@@ -1160,6 +1161,7 @@ export default function CallModePage() {
             </a>
           </div>
         )}
+        {filteredQueue.length > 0 && <ReachabilitySummary items={filteredQueue} />}
         <div className="flex-1 overflow-y-auto">
           {filteredQueue.length === 0 ? (
             activeSector && activeSector.counts.callable === 0 ? (
@@ -1227,6 +1229,7 @@ export default function CallModePage() {
                     </div>
                     <span className="flex shrink-0 items-center gap-1.5">
                       <ReachabilityInfo
+                        contactId={item.contactId}
                         phone={item.phone}
                         accessibilityScore={item.accessibilityScore}
                         roleVerification={item.roleVerification}

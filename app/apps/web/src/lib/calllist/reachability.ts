@@ -136,3 +136,28 @@ export function computeReachability(input: ReachabilityInput): Reachability {
 export function reachStateLabel(state: ReachState): string {
   return state === "joignable" ? "Joignable" : state === "a_verifier" ? "À vérifier" : "Sans mobile";
 }
+
+export interface ReachabilitySummary {
+  total: number;
+  joignable: number;
+  aVerifier: number;
+  sansMobile: number;
+}
+
+/** Aggregate the reachability of a whole call list (for the list-header
+ *  glance). Pure — counts by resolved state. */
+export function summarizeReachability(items: ReachabilityInput[]): ReachabilitySummary {
+  const s: ReachabilitySummary = { total: items.length, joignable: 0, aVerifier: 0, sansMobile: 0 };
+  for (const it of items) {
+    const st = computeReachability(it).state;
+    if (st === "joignable") s.joignable++;
+    else if (st === "a_verifier") s.aVerifier++;
+    else s.sansMobile++;
+  }
+  return s;
+}
+
+/** True when the row has no usable number — the "find a mobile" target set. */
+export function lacksMobile(input: { phone?: string | null }): boolean {
+  return !phoneGeo(input.phone).hasNumber;
+}

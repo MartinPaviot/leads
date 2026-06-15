@@ -20,6 +20,7 @@ import {
   type ReachabilityInput,
   type ReachTone,
 } from "@/lib/calllist/reachability";
+import { requestFindMobile } from "./_find-mobile";
 
 const DOT: Record<ReachTone, string> = {
   good: "var(--color-success, #10b981)",
@@ -27,11 +28,21 @@ const DOT: Record<ReachTone, string> = {
   muted: "#a1a1aa",
 };
 
-export function ReachabilityInfo(props: ReachabilityInput & { delay?: number }) {
-  const { delay = 120, ...input } = props;
+export function ReachabilityInfo(props: ReachabilityInput & { contactId?: string; delay?: number }) {
+  const { delay = 120, contactId, ...input } = props;
   const [open, setOpen] = useState(false);
+  const [find, setFind] = useState<"idle" | "pending" | "done" | "error">("idle");
   const t = useRef<ReturnType<typeof setTimeout>>(undefined);
   const { state, facts } = computeReachability(input);
+
+  async function trouver(e: React.MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!contactId || find === "pending" || find === "done") return;
+    setFind("pending");
+    const r = await requestFindMobile([contactId]);
+    setFind(r.ok ? "done" : "error");
+  }
 
   // Icon tint hints at the state without shouting: amber when something wants
   // a look, neutral otherwise.
@@ -81,6 +92,28 @@ export function ReachabilityInfo(props: ReachabilityInput & { delay?: number }) 
               </li>
             ))}
           </ul>
+          {/* Action only when there's no number to call. A span (role=button),
+              not a <button>, because this lives inside the row's <button>. */}
+          {contactId && state === "sans_mobile" && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={trouver}
+              className={`mt-2 block w-full rounded border px-2 py-1 text-center text-[11px] font-medium transition ${
+                find === "idle"
+                  ? "cursor-pointer border-zinc-200 text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  : "border-transparent text-zinc-400"
+              }`}
+            >
+              {find === "idle"
+                ? "Trouver le mobile"
+                : find === "pending"
+                  ? "Recherche…"
+                  : find === "done"
+                    ? "Demandé · résultat sous peu"
+                    : "Échec — réessayer"}
+            </span>
+          )}
         </div>
       )}
     </span>

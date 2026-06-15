@@ -3,6 +3,8 @@ import {
   phoneGeo,
   computeReachability,
   reachStateLabel,
+  summarizeReachability,
+  lacksMobile,
 } from "@/lib/calllist/reachability";
 
 const NOW = new Date("2026-06-15T12:00:00Z");
@@ -90,5 +92,25 @@ describe("computeReachability", () => {
     expect(reachStateLabel("joignable")).toBe("Joignable");
     expect(reachStateLabel("a_verifier")).toBe("À vérifier");
     expect(reachStateLabel("sans_mobile")).toBe("Sans mobile");
+  });
+});
+
+describe("summarizeReachability + lacksMobile", () => {
+  const items = [
+    { phone: "+41 79 658 97 85", accessibilityScore: 0.9 }, // joignable
+    { phone: "+41 22 555 00 00", accessibilityScore: 0.3 }, // a_verifier (standard)
+    { phone: "+33 6 49 11 99 21" },                          // a_verifier (foreign)
+    { phone: null },                                          // sans_mobile
+    { phone: "" },                                            // sans_mobile
+  ];
+  it("counts by resolved state", () => {
+    expect(summarizeReachability(items)).toEqual({ total: 5, joignable: 1, aVerifier: 2, sansMobile: 2 });
+  });
+  it("empty list is all zeros", () => {
+    expect(summarizeReachability([])).toEqual({ total: 0, joignable: 0, aVerifier: 0, sansMobile: 0 });
+  });
+  it("lacksMobile flags exactly the numberless rows", () => {
+    expect(items.filter(lacksMobile)).toHaveLength(2);
+    expect(lacksMobile({ phone: "+41 79 658 97 85" })).toBe(false);
   });
 });
