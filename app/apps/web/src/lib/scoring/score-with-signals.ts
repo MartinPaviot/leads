@@ -8,6 +8,7 @@
  */
 
 import { detectActiveSignals, type SignalType } from "./signal-detectors";
+import { isSignalFresh } from "@/lib/signals/freshness";
 
 /** Points a single fired signal contributes at neutral multiplier 1×. */
 const BASE_BONUS_PER_SIGNAL = 5;
@@ -32,8 +33,13 @@ export interface SignalBonus {
 export function scoreSignals(
   companyProps: Record<string, unknown>,
   multipliers: Record<string, number>,
+  now: Date = new Date(),
 ): SignalBonus {
-  const active = detectActiveSignals(companyProps);
+  // A signal past its shelf life no longer boosts priority — an expired
+  // signal is no reason to call a company today (lib/signals/freshness.ts).
+  const active = detectActiveSignals(companyProps).filter((s) =>
+    isSignalFresh(s.type, s.firedAt, now),
+  );
   if (active.length === 0) {
     return { bonus: 0, contributions: [], reasons: [] };
   }

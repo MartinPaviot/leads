@@ -40,6 +40,7 @@ import {
   fitFromCompanyScore,
 } from "@/lib/scoring/priority-score";
 import { getSignalMultipliers } from "@/lib/scoring/signal-outcomes";
+import { isSignalFresh } from "@/lib/signals/freshness";
 import { logger } from "@/lib/observability/logger";
 
 type CompanyRow = {
@@ -69,15 +70,20 @@ type ContactRow = {
 export function bestMultiplierForCompany(
   properties: unknown,
   multipliers: Record<string, number>,
+  now: Date = new Date(),
 ): number {
   const props = (properties as Record<string, unknown> | null) ?? {};
   const signals = Array.isArray(props.signals)
-    ? (props.signals as Array<{ type?: unknown }>)
+    ? (props.signals as Array<{ type?: unknown; detectedAt?: unknown }>)
     : [];
   if (signals.length === 0) return 1;
   let best = 1;
   for (const s of signals) {
     if (typeof s?.type !== "string") continue;
+    // A signal past its shelf life no longer lifts the daily priority score
+    // (lib/signals/freshness.ts). Entries with no detectedAt are kept.
+    const detectedAt = typeof s.detectedAt === "string" ? s.detectedAt : null;
+    if (!isSignalFresh(s.type, detectedAt, now)) continue;
     const mult = multipliers[s.type];
     if (typeof mult === "number" && mult > best) best = mult;
   }

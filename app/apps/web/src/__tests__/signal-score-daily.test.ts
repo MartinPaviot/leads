@@ -70,6 +70,26 @@ describe("bestMultiplierForCompany", () => {
     ).toBe(1.4);
   });
 
+  it("ignores a signal past its shelf life — an expired trigger does not lift priority", () => {
+    const stale = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(); // 60d > hiring 30d
+    expect(
+      bestMultiplierForCompany(
+        { signals: [{ type: "hiring", detectedAt: stale }] },
+        multipliers,
+      ),
+    ).toBe(1); // expired → no lift, back to neutral floor
+  });
+
+  it("still lifts for a fresh dated signal", () => {
+    const fresh = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+    expect(
+      bestMultiplierForCompany(
+        { signals: [{ type: "hiring", detectedAt: fresh }] },
+        multipliers,
+      ),
+    ).toBe(1.4);
+  });
+
   it("floors at 1.0 — a sub-baseline signal does not drag below neutral", () => {
     // tech_stack_change has 0.7 in the table; result should still
     // be 1 (the floor) rather than 0.7 — we never penalise a company

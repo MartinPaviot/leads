@@ -61,6 +61,23 @@ describe("scoreSignals", () => {
     expect(out.contributions).toHaveLength(5);
   });
 
+  it("ignores a signal past its shelf life — an expired trigger scores nothing", () => {
+    const stale = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(); // 60d
+    const props = {
+      jobPostingIntent: { signalStrength: "high", detectedAt: stale }, // hiring TTL 30d → expired
+    };
+    expect(scoreSignals(props, { hiring: 2 }).bonus).toBe(0);
+    // Fresh again → it scores.
+    const fresh = { jobPostingIntent: { signalStrength: "high", detectedAt: new Date().toISOString() } };
+    expect(scoreSignals(fresh, { hiring: 2 }).bonus).toBeGreaterThan(0);
+  });
+
+  it("keeps a structural signal (shared investors) regardless of age", () => {
+    const old = new Date(Date.now() - 900 * 24 * 60 * 60 * 1000).toISOString();
+    const props = { investorOverlap: { commonInvestors: ["Founders Fund"], scannedAt: old } };
+    expect(scoreSignals(props, { investor_overlap: 1 }).bonus).toBe(5);
+  });
+
   it("floors a negative multiplier at 0 — a buggy multiplier can't take points away", () => {
     const props = {
       latest_funding_stage: "seed",
