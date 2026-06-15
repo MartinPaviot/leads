@@ -829,8 +829,26 @@ export default function ChatPage() {
             </div>
           ))}
 
-          {/* Streaming skeleton */}
-          {chat.status === "streaming" && <StreamingSkeleton />}
+          {/* Thinking indicator — show it from the moment the request is
+              submitted until the assistant emits visible text. This fills the
+              gap the old `=== "streaming"` check missed (status is "submitted"
+              between send and the first token, so nothing showed), and also the
+              pre-first-token streaming window (e.g. while tools run). Once text
+              streams, the text itself is the cue, so the skeleton hides. */}
+          {(() => {
+            const last = chat.messages[chat.messages.length - 1];
+            const assistantText =
+              last?.role === "assistant"
+                ? last.parts
+                    .filter((p) => p.type === "text")
+                    .map((p) => ("text" in p ? p.text : ""))
+                    .join("")
+                : "";
+            const thinking =
+              (chat.status === "submitted" || chat.status === "streaming") &&
+              assistantText.trim() === "";
+            return thinking ? <StreamingSkeleton /> : null;
+          })()}
 
           <div ref={messagesEndRef} />
         </div>

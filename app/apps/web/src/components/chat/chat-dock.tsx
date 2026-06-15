@@ -382,7 +382,24 @@ export function ChatDock() {
                   </div>
                 );
               })}
-              {chat.status === "streaming" && <StreamingSkeleton />}
+              {/* Thinking indicator from submit until the assistant emits
+                  visible text — fills the "submitted" gap (nothing showed
+                  before the first token) and the pre-first-token window; hides
+                  once text streams. */}
+              {(() => {
+                const last = chat.messages[chat.messages.length - 1];
+                const assistantText =
+                  last?.role === "assistant"
+                    ? last.parts
+                        .filter((p) => p.type === "text")
+                        .map((p) => ("text" in p ? p.text : ""))
+                        .join("")
+                    : "";
+                const thinking =
+                  (chat.status === "submitted" || chat.status === "streaming") &&
+                  assistantText.trim() === "";
+                return thinking ? <StreamingSkeleton /> : null;
+              })()}
             </>
           )}
           <div ref={messagesEndRef} />
