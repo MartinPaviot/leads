@@ -65,6 +65,11 @@ export default auth((req) => {
     "/forgot-password",
     "/reset-password",
     "/landing",
+    // Methodology docs linked from the landing page. Reachable without a
+    // session like the rest of the marketing site; the pages themselves
+    // 404 in production builds (lib/docs/page-visibility.ts), so listing
+    // them here only matters on dev until the docs ship publicly.
+    "/docs",
     "/terms",
     "/privacy",
     "/sub-processors",
