@@ -24,4 +24,12 @@ describe("resolveConferencing — Visio / Meet / Teams / Zoom", () => {
     expect(resolveConferencing("sovereign", "microsoft", true)).toBe("sovereign");
     expect(resolveConferencing("sovereign", "caldav", true)).toBe("sovereign");
   });
+
+  it("SMTP-only mailboxes (Zimbra…) get sovereign, or Zoom when configured", () => {
+    expect(resolveConferencing("sovereign", "smtp", false)).toBe("sovereign");
+    expect(resolveConferencing("teams", "smtp", false)).toBe("sovereign");
+    expect(resolveConferencing("google_meet", "smtp", false)).toBe("sovereign");
+    expect(resolveConferencing("zoom", "smtp", true)).toBe("zoom");
+    expect(resolveConferencing("zoom", "smtp", false)).toBe("sovereign");
+  });
 });
