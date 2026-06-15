@@ -5,6 +5,19 @@ recommended model **A2a + A4** (D0); T0 gates that. Tests run with
 `regression.sh`. No commit until acceptance criteria + regression pass (CLAUDE.md
 Phase 5). Branch `feat/call-lists`.
 
+## Implementation status (2026-06-15)
+
+T0 confirmed (A2a). **T1–T8 + T6 DONE** and committed on `feat/call-lists`
+(spec + 8 feature commits). tsc 0 errors throughout; **38 unit tests green**
+(call-sprint 14, call-lists 5, dead-number 6, queue-sort 7, _list-selector
+render 6). **T9**: regression green + component-render proof done; the only
+open item is the **browser/end-to-end live-verify**, which needs either the
+local mock-fetch rig or a **preview deploy on the Pilae tenant** (the latter
+creates `call_lists` on the prod DB via `ensureVoiceTables` — additive/idempotent
+but a prod DDL, so it is Martin's go). The `call_lists` migration is written
+(0076 + ensure) but **not applied to prod**. Per-list sort persistence
+(`call_lists.sort`) and the empty-state "enrich" button are noted extensions.
+
 ## T0 — Confirm D0 (blocking, no code)
 - Confirm with Martin: model A2a (one global objective + named lists) vs A2b
   (one campaign per list); storage `call_lists` table vs `targetFilter.lists[]`.
