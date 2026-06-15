@@ -14,38 +14,34 @@ import { useEffect, useRef, useState, type ComponentType } from "react";
 import { motion, useInView, useReducedMotion } from "framer-motion";
 import { AppFrame, ScaleToFit } from "./product-mockups";
 import { CallModeDemo } from "./call-mode-demo";
-import {
-  AccountsPhase,
-  UpNextPhase,
-  CampaignsPhase,
-  MeetingsPhase,
-  OpportunitiesPhase,
-  ChatPhase,
-} from "./hero-demo";
+import { RealUpNext, RealAccounts, RealOpportunities, RealChat, RealCampaigns, RealMeetings } from "./real-surfaces";
 
 type Phase = ComponentType<{ reduced: boolean }>;
 
-const steps: { label: string; headline: string; body: string; Phase?: Phase; h?: number; wide?: boolean }[] = [
+const steps: { label: string; headline: string; body: string; Phase?: Phase; Real?: ComponentType; h?: number; wide?: boolean }[] = [
   {
     label: "Find demand",
     headline: "Your target list builds itself",
     body: "Describe your ICP once. Elevay searches a live B2B database, builds your target account list, and scores every account against it, no CSV imports and no manual research.",
-    Phase: AccountsPhase,
+    Real: RealAccounts,
     h: 540,
+    wide: true,
   },
   {
     label: "Find demand",
     headline: "Open on who is ready now",
     body: "Replies, opens, booked meetings, and deal moves land in one morning briefing, next to the short list of what genuinely needs a human. You open the day knowing exactly where to spend it.",
-    Phase: UpNextPhase,
-    h: 330,
+    Real: RealUpNext,
+    h: 360,
+    wide: true,
   },
   {
     label: "Engage",
     headline: "Outreach drafted from real context",
     body: "Multi-touch sequences drafted from each account's signals and notes, never from a template with a first name in it. Nothing leaves your domain until you approve it.",
-    Phase: CampaignsPhase,
-    h: 444,
+    Real: RealCampaigns,
+    h: 460,
+    wide: true,
   },
   {
     label: "Engage",
@@ -57,22 +53,25 @@ const steps: { label: string; headline: string; body: string; Phase?: Phase; h?:
     label: "Capture",
     headline: "Every meeting captured for you",
     body: "A bot joins your Meet, Zoom, and Teams calls, transcribes them, and pulls out the action items and buying signals, ready for you to review.",
-    Phase: MeetingsPhase,
-    h: 490,
+    Real: RealMeetings,
+    h: 520,
+    wide: true,
   },
   {
     label: "Capture",
     headline: "Your CRM fills itself",
     body: "Values update, fields populate, and the next stage is suggested for you, straight from your calls and emails, so the pipeline reflects reality without manual logging.",
-    Phase: OpportunitiesPhase,
-    h: 318,
+    Real: RealOpportunities,
+    h: 520,
+    wide: true,
   },
   {
     label: "Operate",
     headline: "Ask your pipeline anything",
     body: "Query in plain language and get an answer in seconds, each one cited to the exact call, email, or knowledge entry it came from.",
-    Phase: ChatPhase,
-    h: 228,
+    Real: RealChat,
+    h: 420,
+    wide: true,
   },
 ];
 
@@ -206,7 +205,30 @@ export function ProcessSteps() {
             <div key={s.headline}>
               <StepHeading i={i} label={s.label} headline={s.headline} body={s.body} />
               <RevealOnView className="mt-8 max-w-[1100px]">
-                {() => <CallModeDemo />}
+                {(live, reduced) => {
+                  const Real = s.Real;
+                  const P = s.Phase;
+                  if (Real) return (
+                    <ScaleToFit designWidth={1100}>
+                      <AppFrame>
+                        <div style={{ height: s.h ?? 520 }} className="overflow-hidden">
+                          <Real />
+                        </div>
+                      </AppFrame>
+                    </ScaleToFit>
+                  );
+                  return P ? (
+                    <ScaleToFit designWidth={1100}>
+                      <AppFrame>
+                        <div style={{ height: s.h ?? 520 }} className="overflow-hidden bg-[#FAFAFA]">
+                          {live ? <P key="live" reduced={reduced} /> : <P key="static" reduced />}
+                        </div>
+                      </AppFrame>
+                    </ScaleToFit>
+                  ) : (
+                    <CallModeDemo />
+                  );
+                }}
               </RevealOnView>
             </div>
           );
