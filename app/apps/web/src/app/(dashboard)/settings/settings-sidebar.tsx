@@ -30,6 +30,7 @@ import {
   Radio,
   Inbox,
   Package,
+  Send,
 } from "lucide-react";
 import { BILLING_PAGE_ENABLED } from "@/lib/billing/page-visibility";
 import { EVALS_PAGE_ENABLED, MCP_PAGE_ENABLED } from "@/lib/settings/admin-tools-visibility";
@@ -68,6 +69,7 @@ const settingsNav: NavSection[] = [
       { label: "ICP", href: "/settings/icp", icon: Target },
       { label: "Product & Voice", href: "/settings/product", icon: Package },
       { label: "Mail & Calendar", href: "/settings/mail-calendar", icon: Mail },
+      { label: "Sending infrastructure", href: "/settings/sending-infrastructure", icon: Send },
       { label: "Capture approvals", href: "/settings/capture-approvals", icon: Inbox },
       { label: "Members", href: "/settings/members", icon: Users },
       { label: "Knowledge", href: "/settings/knowledge", icon: BookOpen },
