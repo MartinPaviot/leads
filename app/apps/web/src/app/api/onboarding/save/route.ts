@@ -19,6 +19,33 @@ export async function POST(req: Request) {
   const data = await req.json();
   const updates: Partial<TenantSettings> = {};
 
+  // Targeting helpers — shared by the icp flat-write block and the rank-1
+  // profile upsert below. `icpHasAnyTargeting` gates BOTH so they stay
+  // consistent: an empty/partial confirm must not write empty flats over a
+  // populated ICP, because `hasUsableIcp` reads the flats and the onboarding
+  // gate keys off it — clearing them would re-trigger the modal. The
+  // reconnected card always sends the tenant's loaded values, so a normal
+  // confirm lands here with real targeting.
+  const strs = (v: unknown) =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "") : [];
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const icpHasAnyTargeting =
+    data.step === "icp" &&
+    (strs(data.industries).length > 0 ||
+      strs(data.companySizes).length > 0 ||
+      strs(data.geographies).length > 0 ||
+      strs(data.targetSeniorities).length > 0 ||
+      strs(data.targetDepartments).length > 0 ||
+      strs(data.keywords).length > 0 ||
+      strs(data.technologies).length > 0 ||
+      strs(data.hiringTitles).length > 0 ||
+      num(data.revenueMin) !== null ||
+      num(data.revenueMax) !== null ||
+      num(data.totalFundingMin) !== null ||
+      num(data.totalFundingMax) !== null ||
+      num(data.minJobOpenings) !== null ||
+      num(data.fundingRecencyDays) !== null);
+
   // Persist the step the user is currently viewing so we can re-open the
   // wizard in the same spot after a reload. `currentStep` arrives either
   // on its own (pure position update, `step === "_current"`) or piggy-backed
@@ -87,29 +114,37 @@ export async function POST(req: Request) {
   }
 
   if (data.step === "icp") {
-    updates.targetIndustries = data.industries;
-    updates.targetCompanySizes = data.companySizes;
-    updates.targetSeniorities = data.targetSeniorities;
-    updates.targetDepartments = data.targetDepartments;
-    // BUG-WS0-008: targetRoles is now always derived at read time from
-    // targetSeniorities + targetDepartments via deriveTargetRoles() in
-    // tenant-settings.ts. We no longer persist it here — that was the
-    // source of the desync (editing seniorities/departments on the ICP
-    // settings page did not re-derive targetRoles).
-    updates.targetGeographies = data.geographies;
-    // Full Apollo filter surface (see ConfirmationCardTargeting). Each
-    // field is optional; only persist when present so partial saves
-    // (e.g. the v1 wizard, which sends none of these) don't wipe them.
-    if (data.keywords !== undefined) updates.targetKeywords = data.keywords;
-    if (data.technologies !== undefined) updates.targetTechnologies = data.technologies;
-    if (data.excludeGeographies !== undefined) updates.excludeGeographies = data.excludeGeographies;
-    if (data.hiringTitles !== undefined) updates.hiringTitles = data.hiringTitles;
-    if (data.revenueMin !== undefined && data.revenueMin !== null) updates.targetRevenueMin = data.revenueMin;
-    if (data.revenueMax !== undefined && data.revenueMax !== null) updates.targetRevenueMax = data.revenueMax;
-    if (data.totalFundingMin !== undefined && data.totalFundingMin !== null) updates.totalFundingMin = data.totalFundingMin;
-    if (data.totalFundingMax !== undefined && data.totalFundingMax !== null) updates.totalFundingMax = data.totalFundingMax;
-    if (data.fundingRecencyDays !== undefined && data.fundingRecencyDays !== null) updates.fundingRecencyDays = data.fundingRecencyDays;
-    if (data.minJobOpenings !== undefined && data.minJobOpenings !== null) updates.minJobOpenings = data.minJobOpenings;
+    // Targeting flats — written only when the payload actually carries
+    // targeting (see icpHasAnyTargeting). Within that, each field is
+    // guarded so a partial payload doesn't clear an unrelated field. An
+    // explicit clear of a single field (alongside other targeting) is
+    // honored; a wholesale empty payload is a no-op so the ICP survives.
+    if (icpHasAnyTargeting) {
+      if (data.industries !== undefined) updates.targetIndustries = data.industries;
+      if (data.companySizes !== undefined) updates.targetCompanySizes = data.companySizes;
+      if (data.targetSeniorities !== undefined) updates.targetSeniorities = data.targetSeniorities;
+      if (data.targetDepartments !== undefined) updates.targetDepartments = data.targetDepartments;
+      // BUG-WS0-008: targetRoles is now always derived at read time from
+      // targetSeniorities + targetDepartments via deriveTargetRoles() in
+      // tenant-settings.ts. We no longer persist it here — that was the
+      // source of the desync (editing seniorities/departments on the ICP
+      // settings page did not re-derive targetRoles).
+      if (data.geographies !== undefined) updates.targetGeographies = data.geographies;
+      // Full Apollo filter surface (see ConfirmationCardTargeting). Each
+      // field is optional; only persist when present so partial saves
+      // don't wipe them.
+      if (data.keywords !== undefined) updates.targetKeywords = data.keywords;
+      if (data.technologies !== undefined) updates.targetTechnologies = data.technologies;
+      if (data.excludeGeographies !== undefined) updates.excludeGeographies = data.excludeGeographies;
+      if (data.hiringTitles !== undefined) updates.hiringTitles = data.hiringTitles;
+      if (data.revenueMin !== undefined && data.revenueMin !== null) updates.targetRevenueMin = data.revenueMin;
+      if (data.revenueMax !== undefined && data.revenueMax !== null) updates.targetRevenueMax = data.revenueMax;
+      if (data.totalFundingMin !== undefined && data.totalFundingMin !== null) updates.totalFundingMin = data.totalFundingMin;
+      if (data.totalFundingMax !== undefined && data.totalFundingMax !== null) updates.totalFundingMax = data.totalFundingMax;
+      if (data.fundingRecencyDays !== undefined && data.fundingRecencyDays !== null) updates.fundingRecencyDays = data.fundingRecencyDays;
+      if (data.minJobOpenings !== undefined && data.minJobOpenings !== null) updates.minJobOpenings = data.minJobOpenings;
+    }
+    // aiTone is identity, not targeting — always honored when provided.
     if (data.aiTone) updates.aiTone = data.aiTone;
   }
 
@@ -150,43 +185,46 @@ export async function POST(req: Request) {
   // source of truth from day 1. The helper re-mirrors the flats from
   // the same uiState (idempotent with the updates written above).
   if (data.step === "icp") {
-    const strs = (v: unknown) =>
-      Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "") : [];
-    const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
-    try {
-      await upsertRankOneProfileFromUiState({
-        tenantId: authCtx.tenantId,
-        appUserId: authCtx.appUserId,
-        name: "Default",
-        uiState: {
-          ...EMPTY_UI_STATE,
-          importance: {},
-          industries: strs(data.industries),
-          companySizes: strs(data.companySizes),
-          geographies: strs(data.geographies),
-          seniorities: strs(data.targetSeniorities),
-          keywords: strs(data.keywords),
-          technologies: strs(data.technologies),
-          hiringTitles: strs(data.hiringTitles),
-          revenueMin: num(data.revenueMin),
-          revenueMax: num(data.revenueMax),
-          totalFundingMin: num(data.totalFundingMin),
-          totalFundingMax: num(data.totalFundingMax),
-          minJobOpenings: num(data.minJobOpenings),
-        },
-        sourcingFilters: {
-          excludeGeographies: strs(data.excludeGeographies),
-          fundingRecencyDays: num(data.fundingRecencyDays),
-        },
-      });
-    } catch (err) {
-      // Never fail the onboarding save over the profile — the flats are
-      // already written; the profile can be (re)created from
-      // /settings/icp later.
-      logger.error("onboarding.icp_profile_upsert_failed", {
-        tenantId: authCtx.tenantId,
-        err: err instanceof Error ? err.message : String(err),
-      });
+    // Same anti-wipe gate as the flats above: upsertRankOneProfileFromUiState
+    // REPLACES the guided-slot criteria, so an all-empty uiState would strip a
+    // populated profile. icpHasAnyTargeting keeps the profile and the flats
+    // consistent.
+    if (icpHasAnyTargeting) {
+      try {
+        await upsertRankOneProfileFromUiState({
+          tenantId: authCtx.tenantId,
+          appUserId: authCtx.appUserId,
+          name: "Default",
+          uiState: {
+            ...EMPTY_UI_STATE,
+            importance: {},
+            industries: strs(data.industries),
+            companySizes: strs(data.companySizes),
+            geographies: strs(data.geographies),
+            seniorities: strs(data.targetSeniorities),
+            keywords: strs(data.keywords),
+            technologies: strs(data.technologies),
+            hiringTitles: strs(data.hiringTitles),
+            revenueMin: num(data.revenueMin),
+            revenueMax: num(data.revenueMax),
+            totalFundingMin: num(data.totalFundingMin),
+            totalFundingMax: num(data.totalFundingMax),
+            minJobOpenings: num(data.minJobOpenings),
+          },
+          sourcingFilters: {
+            excludeGeographies: strs(data.excludeGeographies),
+            fundingRecencyDays: num(data.fundingRecencyDays),
+          },
+        });
+      } catch (err) {
+        // Never fail the onboarding save over the profile — the flats are
+        // already written; the profile can be (re)created from
+        // /settings/icp later.
+        logger.error("onboarding.icp_profile_upsert_failed", {
+          tenantId: authCtx.tenantId,
+          err: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
   }
 
