@@ -185,7 +185,10 @@ export function ProcessSteps() {
           return (
             <div key={s.headline}>
               <StepHeading i={i} label={s.label} headline={s.headline} body={s.body} />
-              <RevealOnView className="mt-8 max-w-[1100px]">
+              {/* Full container width so the cockpit aligns to the same left AND
+                  right margins as every other step (was max-w-[1100px] left-
+                  aligned -> a dead gap on the right that broke the rhythm). */}
+              <RevealOnView className="mt-8">
                 {() => <CallModeDemo />}
               </RevealOnView>
             </div>
