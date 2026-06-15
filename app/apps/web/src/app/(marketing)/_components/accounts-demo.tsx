@@ -65,7 +65,7 @@ export function AccountsDemo() {
     <div ref={ref}>
       <ScaleToFit designWidth={1080}>
         <AppFrame url="app.elevay.com/accounts">
-          <div className="flex flex-col" style={{ height: 440, background: T.page }}>
+          <div className="flex flex-col" style={{ height: 485, background: T.page }}>
             {/* header */}
             <div className="flex items-center justify-between border-b px-5 py-3.5" style={{ borderColor: T.border, background: T.card }}>
               <div>
