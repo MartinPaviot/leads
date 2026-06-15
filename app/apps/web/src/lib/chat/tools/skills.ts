@@ -307,10 +307,16 @@ export function buildSkillsTools(ctx: ToolContext) {
     }),
 
     prepSalesCall: makeTool({
-      description: `Deep pre-call preparation: person insights, company intel, competitive landscape, call strategy, opening hook, discovery questions, objection handlers. Use when user asks "prep for call with X", "call strategy for X", "how to approach this meeting".`,
+      description: `Deep pre-call preparation, specialized to the moment of the deal — a discovery brief differs from a demo, proposal, or close brief. The moment is inferred automatically from the deal; pass momentHint ONLY if the user states which call it is. Use when user asks "prep for call with X", "call strategy for X", "how to approach this meeting".`,
       inputSchema: z.object({
         contactId: z.string().describe("Contact ID for the call"),
-        dealId: z.string().optional().describe("Associated deal ID"),
+        dealId: z.string().optional().describe("Associated deal ID — the moment is derived from its stage"),
+        momentHint: z
+          .string()
+          .optional()
+          .describe(
+            "Only when the user says which call it is (e.g. 'discovery', 'demo', 'proposal', 'negotiation', 'close'); otherwise leave empty and the moment is inferred from the deal",
+          ),
         callType: z
           .enum(["discovery", "demo", "follow_up", "negotiation", "close"])
           .optional(),
@@ -323,6 +329,7 @@ export function buildSkillsTools(ctx: ToolContext) {
           {
             contactId: input.contactId,
             dealId: input.dealId,
+            momentHint: input.momentHint,
             callType: input.callType ?? "discovery",
           },
           { tenantId, dryRun: false }
