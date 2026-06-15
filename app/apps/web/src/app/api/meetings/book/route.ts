@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { contacts, activities, tenants } from "@/db/schema";
 import { eq, and, gte, isNull, lt, sql } from "drizzle-orm";
-import { createCalendarEvent } from "@/lib/integrations/meeting-booking";
+import { bookSovereignMeeting, CalendarNotConnectedError } from "@/lib/integrations/calendar-write";
 import { apiError } from "@/lib/infra/api-errors";
 import {
   DEEP_DIVE_METADATA_KEY,
@@ -111,17 +111,29 @@ export async function POST(req: Request) {
       }
     }
 
-    // Create calendar event
-    const event = await createCalendarEvent(authCtx.userId, {
-      contactEmail: contact.email,
-      contactName,
-      startTime: new Date(startTime),
-      durationMinutes: durationMinutes || 30,
-      title: title || `Meeting with ${contactName}`,
-    });
-
-    if (!event) {
-      return Response.json({ error: "Failed to create calendar event — is Google Calendar connected?" }, { status: 500 });
+    // Create the calendar event on whichever calendar the user connected
+    // (CalDAV / Microsoft / Google), carrying a sovereign open-source visio
+    // link — never a Google Meet / Teams room. See calendar-write.ts.
+    let booking;
+    try {
+      booking = await bookSovereignMeeting({
+        userId: authCtx.userId,
+        tenantId: authCtx.tenantId,
+        contactEmail: contact.email,
+        contactName,
+        startTime: new Date(startTime),
+        durationMinutes: durationMinutes || 30,
+        title: title || `Rendez-vous avec ${contactName}`,
+        roomPrefix: "rdv",
+      });
+    } catch (err) {
+      if (err instanceof CalendarNotConnectedError) {
+        return apiError(
+          "VALIDATION_ERROR",
+          "Aucun agenda connecté. Connecte Google, Microsoft ou une boîte CalDAV dans Réglages → Mail & Calendar pour planifier une visio.",
+        );
+      }
+      throw err;
     }
 
     // Log activity. metadata.meetingType is read by the B7 weekly cron
@@ -136,10 +148,13 @@ export async function POST(req: Request) {
       activityType: "meeting_scheduled",
       channel: "meeting",
       direction: "outbound",
-      summary: `Meeting booked: ${title || `Meeting with ${contactName}`}`,
+      summary: `Meeting booked: ${title || `Rendez-vous avec ${contactName}`}`,
       metadata: {
-        eventId: event.eventId,
-        meetLink: event.meetLink,
+        eventId: booking.eventId,
+        joinUrl: booking.joinUrl,
+        // Back-compat: older readers keyed on `meetLink`.
+        meetLink: booking.joinUrl,
+        calendarProvider: booking.provider,
         startTime,
         durationMinutes: durationMinutes || 30,
         meetingType,
@@ -149,9 +164,11 @@ export async function POST(req: Request) {
 
     return Response.json({
       booked: true,
-      eventId: event.eventId,
-      meetLink: event.meetLink,
-      calendarLink: event.htmlLink,
+      eventId: booking.eventId,
+      joinUrl: booking.joinUrl,
+      meetLink: booking.joinUrl,
+      calendarLink: booking.calendarLink,
+      provider: booking.provider,
     });
   } catch (error: any) {
     console.error("Meeting booking failed:", error);

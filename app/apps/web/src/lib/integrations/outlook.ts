@@ -67,7 +67,9 @@ async function getAccessToken(userId: string): Promise<string | null> {
         client_secret: process.env.MICROSOFT_CLIENT_SECRET!,
         refresh_token: refreshToken,
         grant_type: "refresh_token",
-        scope: "openid email profile offline_access Mail.Read Calendars.Read",
+        // Mirror auth.ts: Calendars.ReadWrite so a refreshed token can also
+        // create events (sovereign visio booking), not just read.
+        scope: "openid email profile offline_access Mail.Read Calendars.ReadWrite",
       }),
     });
 

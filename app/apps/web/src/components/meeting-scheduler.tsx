@@ -36,6 +36,21 @@ export function MeetingSchedulerCard({
   const [duration, setDuration] = useState(45);
   const [title, setTitle] = useState("");
   const [booking, setBooking] = useState(false);
+  // Once booked, show the sovereign visio link (the gap before: the API
+  // returned it but the cockpit never surfaced it).
+  const [booked, setBooked] = useState<{ joinUrl: string | null } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function copyLink() {
+    if (!booked?.joinUrl) return;
+    try {
+      await navigator.clipboard.writeText(booked.joinUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard blocked — the link is still selectable in the field */
+    }
+  }
 
   async function bookMeeting() {
     if (!when) {
@@ -60,15 +75,21 @@ export function MeetingSchedulerCard({
           title: title.trim() || undefined,
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as { booked?: boolean; meetLink?: string; error?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        booked?: boolean;
+        joinUrl?: string;
+        meetLink?: string;
+        error?: string;
+      };
       if (!res.ok || !data.booked) {
         toast(data.error ?? "Couldn't book the meeting.", "error");
         return;
       }
-      toast(`Meeting booked with ${firstName || "the prospect"}.`, "success");
+      toast(`Visio planifiée avec ${firstName || "le prospect"}.`, "success");
       setTitle("");
       onBooked?.();
-      onClose();
+      // Stay open and reveal the join link instead of closing immediately.
+      setBooked({ joinUrl: data.joinUrl ?? data.meetLink ?? null });
     } catch {
       toast("Network error while booking.", "error");
     } finally {
@@ -83,13 +104,38 @@ export function MeetingSchedulerCard({
     >
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
-          Schedule a discovery meeting
+          {booked ? "Visio planifiée" : "Schedule a discovery meeting"}
         </span>
         <button onClick={onClose} aria-label="Close" style={{ color: "var(--color-text-tertiary)" }}>
           <X size={13} />
         </button>
       </div>
 
+      {booked ? (
+        <div className="space-y-2">
+          <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+            Invitation envoyée à {firstName || "le prospect"} avec le lien de visio souveraine.
+          </p>
+          {booked.joinUrl && (
+            <div className="flex items-center gap-1.5">
+              <input
+                readOnly
+                value={booked.joinUrl}
+                onFocus={(e) => e.currentTarget.select()}
+                className="min-w-0 flex-1 rounded-md px-2 py-1 text-[12px] outline-none"
+                style={{ background: "var(--color-bg-page)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
+              />
+              <Button size="sm" variant="outline" onClick={copyLink}>
+                {copied ? "Copié" : "Copier"}
+              </Button>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button size="sm" onClick={onClose}>Terminé</Button>
+          </div>
+        </div>
+      ) : (
+      <>
       <label className="block text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
         When
         <input
@@ -133,8 +179,10 @@ export function MeetingSchedulerCard({
         </Button>
       </div>
       <p className="mt-1.5 text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
-        Adds the event to your connected calendar and invites the contact.
+        Ajoute l&apos;événement à votre agenda connecté avec un lien de visio souveraine, et invite le contact.
       </p>
+      </>
+      )}
     </div>
   );
 }

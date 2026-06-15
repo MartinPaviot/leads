@@ -241,8 +241,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             allowDangerousEmailAccountLinking: false,
             authorization: {
               params: {
+                // calendar.events (write) is what lets us create the booked
+                // meeting; calendar.readonly stays for freebusy/slot lookup.
                 scope:
-                  "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly",
+                  "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events",
                 access_type: "offline",
                 prompt: "consent",
               },
@@ -260,7 +262,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             allowDangerousEmailAccountLinking: false,
             authorization: {
               params: {
-                scope: "openid email profile offline_access Mail.Read Calendars.Read",
+                // Calendars.ReadWrite (up from .Read) lets us create the
+                // booked meeting via Graph. Existing connections must reconnect
+                // once to grant write.
+                scope: "openid email profile offline_access Mail.Read Calendars.ReadWrite",
               },
             },
           }),

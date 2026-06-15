@@ -143,63 +143,10 @@ export function formatSlotsForEmail(slots: AvailableSlot[], count: number = 3): 
 }
 
 /**
- * Create a Google Calendar event with a Meet link and invite the contact.
+ * (Removed) `createCalendarEvent` used to create a Google Calendar event with a
+ * Google Meet conference. Booking now goes through `bookSovereignMeeting`
+ * (calendar-write.ts): it writes to whichever calendar the user connected
+ * (CalDAV / Microsoft / Google) and injects an open-source Jitsi visio link.
+ * A Google Meet / Teams room would contradict Elevay's sovereign + open-source
+ * positioning, so that path was deliberately retired.
  */
-export async function createCalendarEvent(
-  userId: string,
-  params: {
-    contactEmail: string;
-    contactName: string;
-    startTime: Date;
-    durationMinutes?: number;
-    title?: string;
-    description?: string;
-  }
-): Promise<{
-  eventId: string;
-  meetLink: string | null;
-  htmlLink: string | null;
-} | null> {
-  const calendar = await getCalendarClient(userId);
-  if (!calendar) return null;
-
-  const {
-    contactEmail,
-    contactName,
-    startTime,
-    durationMinutes = 30,
-    title,
-    description,
-  } = params;
-
-  const endTime = new Date(startTime);
-  endTime.setMinutes(endTime.getMinutes() + durationMinutes);
-
-  const event = await calendar.events.insert({
-    calendarId: "primary",
-    conferenceDataVersion: 1,
-    requestBody: {
-      summary: title || `Meeting with ${contactName}`,
-      description: description || `Scheduled via Elevay`,
-      start: { dateTime: startTime.toISOString() },
-      end: { dateTime: endTime.toISOString() },
-      attendees: [{ email: contactEmail, displayName: contactName }],
-      conferenceData: {
-        createRequest: {
-          requestId: `elevay-${Date.now()}`,
-          conferenceSolutionKey: { type: "hangoutsMeet" },
-        },
-      },
-    },
-  });
-
-  const meetLink = event.data.conferenceData?.entryPoints?.find(
-    (ep) => ep.entryPointType === "video"
-  )?.uri || event.data.hangoutLink || null;
-
-  return {
-    eventId: event.data.id || "",
-    meetLink,
-    htmlLink: event.data.htmlLink || null,
-  };
-}
