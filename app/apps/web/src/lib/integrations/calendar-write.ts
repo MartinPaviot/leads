@@ -1,15 +1,18 @@
 /**
- * Sovereign calendar write — books a meeting on whichever calendar the user
- * connected (CalDAV, Microsoft, or Google) and injects an open-source visio
- * link (Jitsi, see video-meeting.ts) into the event's standard fields
- * (location + description + URL). We never create a Google Meet / Teams room:
- * those proprietary US conferencing widgets would contradict Elevay's
- * sovereign + open-source positioning. The prospect still gets a first-class
- * calendar invite with a one-click join link, exactly like a native meeting.
+ * Calendar write — books a meeting on whichever calendar the user connected
+ * (CalDAV, Microsoft, or Google).
  *
- * Resolution order favours the most sovereign backend first (CalDAV), then the
- * user's OAuth calendar. In practice a user has exactly one connected, so the
- * order only matters when several coexist.
+ * Two conferencing modes:
+ *  - "sovereign" (DEFAULT): inject an open-source Jitsi visio link (see
+ *    video-meeting.ts) into the event's standard fields. The prospect's call
+ *    runs on our own EU/CH host — coherent with Elevay's sovereign + open-source
+ *    positioning, and recordable by self-hosted Jibri.
+ *  - "native" (opt-in, "si besoin"): create the calendar's own conference —
+ *    Google Meet for Google, Microsoft Teams for Microsoft — for the prospect
+ *    who insists on Teams/Meet. Not available on CalDAV (no native
+ *    conferencing) → falls back to sovereign there.
+ *
+ * Resolution order: CalDAV -> Microsoft -> Google. In practice a user has one.
  */
 
 import { db } from "@/db";
@@ -25,6 +28,7 @@ import { sendViaSmtp } from "./smtp-send";
 import { createSovereignMeeting } from "./video-meeting";
 
 export type CalendarProvider = "google" | "microsoft" | "caldav";
+export type Conferencing = "sovereign" | "native";
 
 export class CalendarNotConnectedError extends Error {
   constructor() {
@@ -35,16 +39,17 @@ export class CalendarNotConnectedError extends Error {
 
 export interface BookResult {
   provider: CalendarProvider;
+  /** What was actually used (native falls back to sovereign on CalDAV). */
+  conferencing: Conferencing;
   eventId: string;
   joinUrl: string;
   calendarLink: string | null;
-  /** The Jitsi room name — persisted on the activity so the sovereign
-   *  recording webhook can correlate a finalized recording to this meeting. */
-  roomName: string;
+  /** The Jitsi room name for sovereign visios (so the recording webhook can
+   *  correlate); null for native Teams/Meet meetings (recorded via Recall). */
+  roomName: string | null;
 }
 
-/** What a per-provider writer returns; bookSovereignMeeting adds `roomName`. */
-type WriteResult = Omit<BookResult, "roomName">;
+type WriteResult = Omit<BookResult, "roomName" | "conferencing">;
 
 interface EventCore {
   contactEmail: string;
@@ -52,10 +57,19 @@ interface EventCore {
   startTime: Date;
   durationMinutes: number;
   title: string;
-  joinUrl: string;
 }
 
-/** Human-readable description + HTML body, carrying the sovereign join link. */
+/** Native conferencing (Teams/Meet) only exists on Google/Microsoft. */
+export function resolveConferencing(
+  requested: Conferencing,
+  provider: CalendarProvider,
+): Conferencing {
+  if (requested === "native" && (provider === "google" || provider === "microsoft")) {
+    return "native";
+  }
+  return "sovereign";
+}
+
 function descriptionText(joinUrl: string): string {
   return `Rejoindre la visio : ${joinUrl}`;
 }
@@ -80,7 +94,10 @@ export async function bookSovereignMeeting(opts: {
   title: string;
   /** Room-name prefix (e.g. tenant slug "pilae"). */
   roomPrefix?: string;
+  /** "sovereign" (default) = Jitsi; "native" = Google Meet / Teams. */
+  conferencing?: Conferencing;
 }): Promise<BookResult> {
+  const requested = opts.conferencing ?? "sovereign";
   const meeting = createSovereignMeeting({ prefix: opts.roomPrefix ?? "elevay" });
   const core: EventCore = {
     contactEmail: opts.contactEmail,
@@ -88,104 +105,166 @@ export async function bookSovereignMeeting(opts: {
     startTime: opts.startTime,
     durationMinutes: opts.durationMinutes,
     title: opts.title,
-    joinUrl: meeting.joinUrl,
   };
 
-  const written = await writeToConnectedCalendar(opts, core, meeting.roomName);
-  return { ...written, roomName: meeting.roomName };
-}
-
-/** Resolve the user's calendar backend (CalDAV -> Microsoft -> Google) and write. */
-async function writeToConnectedCalendar(
-  opts: { userId: string; tenantId: string },
-  core: EventCore,
-  roomName: string,
-): Promise<WriteResult> {
+  // CalDAV: no native conferencing → always sovereign Jitsi.
   const caldav = await findCalDavMailbox(opts.userId, opts.tenantId);
-  if (caldav) return writeCalDavEvent(caldav, core, roomName);
+  if (caldav) {
+    const w = await writeCalDavEvent(caldav, core, meeting.joinUrl, meeting.roomName);
+    return { ...w, conferencing: "sovereign", roomName: meeting.roomName };
+  }
 
   const msToken = await getMicrosoftAccessToken(opts.userId);
-  if (msToken) return writeMicrosoftEvent(msToken, core);
+  if (msToken) {
+    const conf = resolveConferencing(requested, "microsoft");
+    const w = await writeMicrosoftEvent(
+      msToken,
+      core,
+      conf === "native" ? { native: true } : { native: false, link: meeting.joinUrl },
+    );
+    return { ...w, conferencing: conf, roomName: conf === "sovereign" ? meeting.roomName : null };
+  }
 
   const google = await getCalendarClient(opts.userId);
-  if (google) return writeGoogleEvent(google, core);
+  if (google) {
+    const conf = resolveConferencing(requested, "google");
+    const w = await writeGoogleEvent(
+      google,
+      core,
+      conf === "native" ? { native: true } : { native: false, link: meeting.joinUrl },
+    );
+    return { ...w, conferencing: conf, roomName: conf === "sovereign" ? meeting.roomName : null };
+  }
 
   throw new CalendarNotConnectedError();
 }
 
+/** Sovereign: inject the provided Jitsi link. Native: let the provider mint its own. */
+type WriteOpts = { native: true } | { native: false; link: string };
+
 /* ------------------------------------------------------------------ */
-/*  Google                                                             */
+/*  Google (sovereign Jitsi link, or native Google Meet)              */
 /* ------------------------------------------------------------------ */
 
 async function writeGoogleEvent(
   calendar: calendar_v3.Calendar,
   core: EventCore,
+  wopts: WriteOpts,
 ): Promise<WriteResult> {
   const end = new Date(core.startTime.getTime() + core.durationMinutes * 60_000);
+  const start = { dateTime: core.startTime.toISOString() };
+  const endTime = { dateTime: end.toISOString() };
+  const attendees = [{ email: core.contactEmail, displayName: core.contactName }];
+
+  if (wopts.native) {
+    const event = await calendar.events.insert({
+      calendarId: "primary",
+      sendUpdates: "all",
+      conferenceDataVersion: 1,
+      requestBody: {
+        summary: core.title,
+        start,
+        end: endTime,
+        attendees,
+        conferenceData: {
+          createRequest: {
+            requestId: `elevay-${Date.now()}`,
+            conferenceSolutionKey: { type: "hangoutsMeet" },
+          },
+        },
+      },
+    });
+    const meetLink =
+      event.data.conferenceData?.entryPoints?.find((ep) => ep.entryPointType === "video")?.uri ||
+      event.data.hangoutLink ||
+      "";
+    return {
+      provider: "google",
+      eventId: event.data.id || "",
+      joinUrl: meetLink,
+      calendarLink: event.data.htmlLink || null,
+    };
+  }
+
   const event = await calendar.events.insert({
     calendarId: "primary",
-    sendUpdates: "all", // Google emails the invite to the attendee
+    sendUpdates: "all",
     requestBody: {
       summary: core.title,
-      description: descriptionText(core.joinUrl),
-      location: core.joinUrl,
-      start: { dateTime: core.startTime.toISOString() },
-      end: { dateTime: end.toISOString() },
-      attendees: [{ email: core.contactEmail, displayName: core.contactName }],
+      description: descriptionText(wopts.link),
+      location: wopts.link,
+      start,
+      end: endTime,
+      attendees,
     },
   });
   return {
     provider: "google",
     eventId: event.data.id || "",
-    joinUrl: core.joinUrl,
+    joinUrl: wopts.link,
     calendarLink: event.data.htmlLink || null,
   };
 }
 
 /* ------------------------------------------------------------------ */
-/*  Microsoft Graph                                                    */
+/*  Microsoft Graph (sovereign Jitsi link, or native Teams)           */
 /* ------------------------------------------------------------------ */
 
-async function writeMicrosoftEvent(token: string, core: EventCore): Promise<WriteResult> {
+async function writeMicrosoftEvent(
+  token: string,
+  core: EventCore,
+  wopts: WriteOpts,
+): Promise<WriteResult> {
   const end = new Date(core.startTime.getTime() + core.durationMinutes * 60_000);
+  const base: Record<string, unknown> = {
+    subject: core.title,
+    // Naive UTC datetime + explicit timeZone is Graph's expected shape.
+    start: { dateTime: core.startTime.toISOString().replace("Z", ""), timeZone: "UTC" },
+    end: { dateTime: end.toISOString().replace("Z", ""), timeZone: "UTC" },
+    attendees: [
+      { emailAddress: { address: core.contactEmail, name: core.contactName }, type: "required" },
+    ],
+  };
+
+  const requestBody = wopts.native
+    ? {
+        ...base,
+        body: { contentType: "HTML", content: `<p>${escapeHtml(core.title)}</p>` },
+        isOnlineMeeting: true,
+        onlineMeetingProvider: "teamsForBusiness",
+      }
+    : {
+        ...base,
+        body: { contentType: "HTML", content: htmlBody(core.title, wopts.link) },
+        location: { displayName: wopts.link },
+      };
+
   const res = await fetch("https://graph.microsoft.com/v1.0/me/events", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      subject: core.title,
-      body: { contentType: "HTML", content: htmlBody(core.title, core.joinUrl) },
-      // Naive UTC datetime + explicit timeZone is Graph's expected shape.
-      start: { dateTime: core.startTime.toISOString().replace("Z", ""), timeZone: "UTC" },
-      end: { dateTime: end.toISOString().replace("Z", ""), timeZone: "UTC" },
-      location: { displayName: core.joinUrl },
-      attendees: [
-        {
-          emailAddress: { address: core.contactEmail, name: core.contactName },
-          type: "required",
-        },
-      ],
-      // Deliberately NOT isOnlineMeeting: that would mint a Teams meeting.
-    }),
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(requestBody),
   });
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     throw new Error(`Microsoft Graph event create failed ${res.status}: ${detail}`);
   }
-  const data = (await res.json()) as { id?: string; webLink?: string };
+  const data = (await res.json()) as {
+    id?: string;
+    webLink?: string;
+    onlineMeeting?: { joinUrl?: string } | null;
+  };
+  const joinUrl = wopts.native ? data.onlineMeeting?.joinUrl || "" : wopts.link;
   return {
     provider: "microsoft",
     eventId: data.id || "",
-    joinUrl: core.joinUrl,
+    joinUrl,
     calendarLink: data.webLink || null,
   };
 }
 
 /* ------------------------------------------------------------------ */
-/*  CalDAV (Infomaniak / Zimbra / any RFC 4791 server)                 */
+/*  CalDAV (Infomaniak / Zimbra / any RFC 4791 server) — sovereign     */
 /* ------------------------------------------------------------------ */
 
 interface CalDavBox {
@@ -197,11 +276,6 @@ interface CalDavBox {
   displayName: string | null;
 }
 
-/**
- * Find a CalDAV-capable custom mailbox for the user. Mailboxes are personal
- * (per-user); we prefer the caller's own, falling back to any in the tenant
- * for legacy rows whose userId wasn't backfilled.
- */
 async function findCalDavMailbox(
   userId: string,
   tenantId: string,
@@ -240,6 +314,7 @@ async function findCalDavMailbox(
 async function writeCalDavEvent(
   box: CalDavBox,
   core: EventCore,
+  link: string,
   roomName: string,
 ): Promise<WriteResult> {
   const end = new Date(core.startTime.getTime() + core.durationMinutes * 60_000);
@@ -249,15 +324,14 @@ async function writeCalDavEvent(
     start: core.startTime,
     end,
     summary: core.title,
-    description: descriptionText(core.joinUrl),
-    location: core.joinUrl,
-    url: core.joinUrl,
+    description: descriptionText(link),
+    location: link,
+    url: link,
     organizer: { email: box.email, name: box.displayName },
     attendees: [{ email: core.contactEmail, name: core.contactName }],
     method: "REQUEST",
   });
 
-  // PUT the event into the user's CalDAV collection.
   const origin = new URL(box.calendarUrl).origin + "/";
   const client = await createDAVClient({
     serverUrl: origin,
@@ -271,9 +345,7 @@ async function writeCalDavEvent(
     iCalString: ics,
   });
 
-  // CalDAV does not notify the attendee — send the invitation ourselves from
-  // the user's own mailbox (sovereign path). A failed email must not undo the
-  // booking: the event is already on the calendar.
+  // CalDAV does not notify the attendee — send the invitation ourselves.
   if (box.smtpHost) {
     try {
       await sendViaSmtp(
@@ -287,7 +359,7 @@ async function writeCalDavEvent(
         {
           to: core.contactEmail,
           subject: core.title,
-          html: htmlBody(core.title, core.joinUrl),
+          html: htmlBody(core.title, link),
           icsInvite: { method: "REQUEST", content: ics, filename: "invite.ics" },
         },
       );
@@ -296,5 +368,5 @@ async function writeCalDavEvent(
     }
   }
 
-  return { provider: "caldav", eventId: uid, joinUrl: core.joinUrl, calendarLink: null };
+  return { provider: "caldav", eventId: uid, joinUrl: link, calendarLink: null };
 }

@@ -483,6 +483,12 @@ RULES:
           .describe("ISO datetime string for the meeting start (e.g. 2026-04-20T15:00:00Z)"),
         durationMinutes: z.number().optional().describe("Duration in minutes (default 30)"),
         title: z.string().optional().describe("Meeting title (default 'Meeting with <contact>')"),
+        conferencing: z
+          .enum(["sovereign", "native"])
+          .optional()
+          .describe(
+            "'sovereign' (default) = open-source Jitsi visio on our host; 'native' = Google Meet (Google) or Teams (Microsoft) when the prospect needs it",
+          ),
       }),
       execute: async (input) => {
         const { bookSovereignMeeting, CalendarNotConnectedError } = await import(
@@ -512,6 +518,7 @@ RULES:
             durationMinutes: input.durationMinutes || 30,
             title: input.title || `Rendez-vous avec ${contactName}`,
             roomPrefix: "rdv",
+            conferencing: input.conferencing,
           });
         } catch (err) {
           if (err instanceof CalendarNotConnectedError) {
@@ -538,6 +545,7 @@ RULES:
             joinUrl: booking.joinUrl,
             meetLink: booking.joinUrl,
             calendarProvider: booking.provider,
+            conferencing: booking.conferencing,
             roomName: booking.roomName,
             startTime: input.startTime,
             durationMinutes: input.durationMinutes || 30,
@@ -551,6 +559,7 @@ RULES:
             meetLink: booking.joinUrl,
             calendarLink: booking.calendarLink,
             provider: booking.provider,
+            conferencing: booking.conferencing,
             contactName,
             contactEmail: contact.email,
             startTime: input.startTime,

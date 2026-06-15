@@ -36,9 +36,12 @@ export function MeetingSchedulerCard({
   const [duration, setDuration] = useState(45);
   const [title, setTitle] = useState("");
   const [booking, setBooking] = useState(false);
-  // Once booked, show the sovereign visio link (the gap before: the API
-  // returned it but the cockpit never surfaced it).
-  const [booked, setBooked] = useState<{ joinUrl: string | null } | null>(null);
+  // Sovereign Jitsi by default; "native" = Google Meet / Teams when the
+  // prospect needs it (the backend picks per the connected calendar).
+  const [conferencing, setConferencing] = useState<"sovereign" | "native">("sovereign");
+  // Once booked, surface the join link (the API returned it but the cockpit
+  // never showed it before).
+  const [booked, setBooked] = useState<{ joinUrl: string | null; conferencing: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
   async function copyLink() {
@@ -73,12 +76,14 @@ export function MeetingSchedulerCard({
           durationMinutes: duration,
           meetingType: "qualification",
           title: title.trim() || undefined,
+          conferencing,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         booked?: boolean;
         joinUrl?: string;
         meetLink?: string;
+        conferencing?: string;
         error?: string;
       };
       if (!res.ok || !data.booked) {
@@ -89,7 +94,10 @@ export function MeetingSchedulerCard({
       setTitle("");
       onBooked?.();
       // Stay open and reveal the join link instead of closing immediately.
-      setBooked({ joinUrl: data.joinUrl ?? data.meetLink ?? null });
+      setBooked({
+        joinUrl: data.joinUrl ?? data.meetLink ?? null,
+        conferencing: data.conferencing ?? conferencing,
+      });
     } catch {
       toast("Network error while booking.", "error");
     } finally {
@@ -114,7 +122,8 @@ export function MeetingSchedulerCard({
       {booked ? (
         <div className="space-y-2">
           <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-            Invitation envoyée à {firstName || "le prospect"} avec le lien de visio souveraine.
+            Invitation envoyée à {firstName || "le prospect"} avec le lien de visio
+            {booked.conferencing === "native" ? "." : " souveraine."}
           </p>
           {booked.joinUrl && (
             <div className="flex items-center gap-1.5">
@@ -165,6 +174,28 @@ export function MeetingSchedulerCard({
         ))}
       </div>
 
+      <div className="mt-2 flex items-center gap-1.5">
+        <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>Visio</span>
+        {([
+          { key: "sovereign", label: "Souveraine" },
+          { key: "native", label: "Teams / Meet" },
+        ] as const).map((opt) => (
+          <button
+            key={opt.key}
+            type="button"
+            onClick={() => setConferencing(opt.key)}
+            className="rounded-md px-2 py-0.5 text-[12px] transition-colors"
+            style={
+              conferencing === opt.key
+                ? { background: "var(--color-accent)", color: "#fff" }
+                : { background: "var(--color-bg-page)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border-default)" }
+            }
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
@@ -179,7 +210,9 @@ export function MeetingSchedulerCard({
         </Button>
       </div>
       <p className="mt-1.5 text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
-        Ajoute l&apos;événement à votre agenda connecté avec un lien de visio souveraine, et invite le contact.
+        {conferencing === "native"
+          ? "Crée une réunion Teams (Outlook) ou Google Meet (Gmail) selon votre agenda connecté, et invite le contact."
+          : "Ajoute l'événement à votre agenda connecté avec un lien de visio souveraine, et invite le contact."}
       </p>
       </>
       )}

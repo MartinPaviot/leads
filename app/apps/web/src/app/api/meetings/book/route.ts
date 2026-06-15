@@ -31,6 +31,9 @@ const bookMeetingSchema = z.object({
   // The dashboard badge will surface the saturation regardless, so the
   // goulot stays visible after override.
   override: z.boolean().optional().default(false),
+  // Default sovereign Jitsi; "native" creates Google Meet (Google) or Teams
+  // (Microsoft) when the prospect needs it. Falls back to sovereign on CalDAV.
+  conferencing: z.enum(["sovereign", "native"]).optional().default("sovereign"),
 });
 
 export async function POST(req: Request) {
@@ -47,7 +50,7 @@ export async function POST(req: Request) {
         issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
       });
     }
-    const { contactId, startTime, durationMinutes, title, meetingType, override } = parsed.data;
+    const { contactId, startTime, durationMinutes, title, meetingType, override, conferencing } = parsed.data;
 
     // Fetch contact (exclude soft-deleted)
     const [contact] = await db
@@ -125,6 +128,7 @@ export async function POST(req: Request) {
         durationMinutes: durationMinutes || 30,
         title: title || `Rendez-vous avec ${contactName}`,
         roomPrefix: "rdv",
+        conferencing,
       });
     } catch (err) {
       if (err instanceof CalendarNotConnectedError) {
@@ -155,7 +159,9 @@ export async function POST(req: Request) {
         // Back-compat: older readers keyed on `meetLink`.
         meetLink: booking.joinUrl,
         calendarProvider: booking.provider,
-        // Correlates the sovereign recording webhook back to this meeting.
+        conferencing: booking.conferencing,
+        // Correlates the sovereign recording webhook back to this meeting
+        // (null for native Teams/Meet meetings).
         roomName: booking.roomName,
         startTime,
         durationMinutes: durationMinutes || 30,
@@ -171,6 +177,7 @@ export async function POST(req: Request) {
       meetLink: booking.joinUrl,
       calendarLink: booking.calendarLink,
       provider: booking.provider,
+      conferencing: booking.conferencing,
     });
   } catch (error: any) {
     console.error("Meeting booking failed:", error);
