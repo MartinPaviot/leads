@@ -43,6 +43,12 @@ export interface FullEnrichItem {
   linkedinUrl?: string;
 }
 
+/** What to look up. REQUIRED by the API (per data[] item). A mobile costs
+ *  10 credits, a deliverable work email 1, a personal email 3 — charged
+ *  only on success. Default = mobile + work email (the "Find mobile" promise). */
+export type FullEnrichField = "contact.phones" | "contact.work_emails" | "contact.personal_emails";
+export const DEFAULT_ENRICH_FIELDS: FullEnrichField[] = ["contact.phones", "contact.work_emails"];
+
 /**
  * Fire one bulk enrichment (up to 100 contacts). Results arrive later on
  * `webhookUrl`, one `data[]` row per contact, each carrying back its
@@ -52,16 +58,21 @@ export async function requestFullEnrichBulk(p: {
   items: FullEnrichItem[];
   webhookUrl: string;
   name?: string;
+  /** Per-item lookup targets. Defaults to mobile + work email. */
+  enrichFields?: FullEnrichField[];
 }): Promise<{ id: string | null }> {
   const key = process.env.FULLENRICH_API_KEY;
   if (!key) throw new Error("FULLENRICH_API_KEY not set");
 
+  const enrichFields = p.enrichFields?.length ? p.enrichFields : DEFAULT_ENRICH_FIELDS;
   const data = p.items.slice(0, 100).map((it) => ({
     first_name: it.firstName,
     last_name: it.lastName,
     domain: it.domain,
     company_name: it.companyName,
     linkedin_url: it.linkedinUrl,
+    // REQUIRED by the API — without it the request is rejected.
+    enrich_fields: enrichFields,
     // Echoed back verbatim in the webhook — our correlation key. Values
     // MUST be strings (FullEnrich rejects numbers).
     custom: { crm_contact_id: it.contactId },
@@ -86,7 +97,12 @@ export async function requestFullEnrichBulk(p: {
     throw new Error(`FullEnrich ${res.status}: ${t.slice(0, 200)}`);
   }
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  return { id: typeof json.id === "string" ? json.id : null };
+  // POST returns `enrichment_id`; the webhook/GET payload uses `id`. Accept both.
+  const id =
+    (typeof json.enrichment_id === "string" && json.enrichment_id) ||
+    (typeof json.id === "string" && json.id) ||
+    null;
+  return { id };
 }
 
 export interface FullEnrichParsedContact {
@@ -127,7 +143,7 @@ function pickEmail(ci: Record<string, unknown>): { email: string | null; status:
       const obj = e as Record<string, unknown>;
       const email = str(obj.email);
       const status = String(obj.status ?? "").toUpperCase();
-      if (!email || status === "INVALID") continue;
+      if (!email || status.startsWith("INVALID")) continue;
       return { email, status: /(DELIVERABLE|HIGH_PROBABILITY)/.test(status) ? "verified" : "likely" };
     }
   }
