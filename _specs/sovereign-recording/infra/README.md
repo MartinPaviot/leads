@@ -7,6 +7,18 @@ Goal: the prospect's voice never leaves CH/EU infrastructure you control.
 Pipeline: **Jitsi room → Jibri (records) → finalize.sh → /api/webhooks/jibri →
 Whisper (self-host) → applyTranscript (existing intel).**
 
+## Quick start (one script)
+On a fresh EU/CH VM (Debian/Ubuntu + Docker), from this `infra/` folder:
+```bash
+sudo bash setup.sh visio.pilae.ch you@pilae.ch
+```
+It does host prep (snd-aloop), fetches the pinned official `docker-jitsi-meet`,
+enables TLS + recording + Jibri, drops in `disableDeepLinking`, installs the
+finalize hook with a generated `JIBRI_WEBHOOK_SECRET`, starts Jitsi+Jibri, and
+brings up Whisper. It then prints the exact app env vars. **Only two things stay
+manual** (credentials/physical, see below): pointing DNS, and the upload step in
+`finalize.sh`.
+
 ## Prerequisites (host)
 - A CH/EU VM you control (Infomaniak, Exoscale, Hetzner-EU…).
 - DNS: `visio.pilae.ch` → that VM (matches `VIDEO_MEET_BASE_URL`).
