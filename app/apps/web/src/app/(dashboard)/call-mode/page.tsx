@@ -60,6 +60,7 @@ import { pickReplaceableTools } from "@/lib/tech-detect/replaceable";
 import type { ScriptContext } from "@/lib/voice/script-context";
 import type { RoleVerification } from "@/lib/contacts/role-status";
 import { CallActions } from "./_call-actions";
+import { ReachabilityInfo } from "./_reachability-info";
 
 interface QueueItem {
   contactId: string;
@@ -1224,7 +1225,15 @@ export default function CallModePage() {
                         </div>
                       </div>
                     </div>
-                    {scorePct > 0 && <Badge className="shrink-0">{scorePct}</Badge>}
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <ReachabilityInfo
+                        phone={item.phone}
+                        accessibilityScore={item.accessibilityScore}
+                        roleVerification={item.roleVerification}
+                        lastEnrichedAt={item.lastEnrichedAt}
+                      />
+                      {scorePct > 0 && <Badge className="shrink-0">{scorePct}</Badge>}
+                    </span>
                   </div>
                   {hasMeta && (
                     <div className="mt-1.5 flex items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
