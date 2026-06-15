@@ -262,10 +262,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             allowDangerousEmailAccountLinking: false,
             authorization: {
               params: {
-                // Calendars.ReadWrite (up from .Read) lets us create the
-                // booked meeting via Graph. Existing connections must reconnect
-                // once to grant write.
+                // Calendars.ReadWrite (up from .Read) lets us create the booked
+                // meeting via Graph. prompt=consent FORCES the Microsoft consent
+                // screen so the new write scope is actually granted — without it
+                // Azure silently reuses the old read-only grant and the refresh
+                // fails with AADSTS70000 (requested scope never consented).
                 scope: "openid email profile offline_access Mail.Read Calendars.ReadWrite",
+                prompt: "consent",
               },
             },
           }),
