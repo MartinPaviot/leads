@@ -15,7 +15,9 @@
  */
 
 import { useState } from "react";
-import { Plus, Check, Loader2, CalendarClock, Layers, X } from "lucide-react";
+import { Plus, Check, Loader2, CalendarClock, Layers, X, ArrowDownUp } from "lucide-react";
+import { ACTIVE_SORT_KEYS } from "@/lib/voice/queue-sort";
+import type { CallListSort } from "@/lib/voice/call-lists";
 
 export interface SystemListEntry {
   id: "today" | "callbacks_due" | "new";
@@ -47,6 +49,9 @@ export function CallListSelector(props: {
   onActivateSector: (id: string) => void;
   onActivateAll: () => void;
   onCreate: (phrase: string) => Promise<void> | void;
+  /** Session-level queue sort applied to the current view. */
+  sortKey: CallListSort;
+  onSortChange: (sort: CallListSort) => void;
   creating: boolean;
 }) {
   const {
@@ -57,6 +62,8 @@ export function CallListSelector(props: {
     onActivateSector,
     onActivateAll,
     onCreate,
+    sortKey,
+    onSortChange,
     creating,
   } = props;
   const [adding, setAdding] = useState(false);
@@ -150,6 +157,25 @@ export function CallListSelector(props: {
           busy={busySectorId === "all"}
           onClick={onActivateAll}
         />
+      </div>
+
+      {/* Trier — applies to the current view (session-level, persisted). */}
+      <SectionLabel icon={<ArrowDownUp size={11} />} text="Trier" />
+      <div className="mt-1 flex flex-wrap gap-1">
+        {ACTIVE_SORT_KEYS.map((s) => (
+          <button
+            key={s.key}
+            type="button"
+            onClick={() => onSortChange(s.key)}
+            className={`rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+              sortKey === s.key
+                ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                : "border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-900"
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
       </div>
     </div>
   );

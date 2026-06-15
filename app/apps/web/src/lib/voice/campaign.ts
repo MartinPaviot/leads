@@ -487,6 +487,7 @@ export async function getTodaysCallList(tenantId: string, now: Date = new Date()
       contactId: callCampaignTargets.contactId,
       status: callCampaignTargets.status,
       attemptCount: callCampaignTargets.attemptCount,
+      nextAttemptAt: callCampaignTargets.nextAttemptAt,
       lastOutcome: callCampaignTargets.lastOutcome,
       firstName: contacts.firstName,
       lastName: contacts.lastName,

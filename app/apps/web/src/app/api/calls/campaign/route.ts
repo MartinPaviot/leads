@@ -102,6 +102,7 @@ async function todayQueue(tenantId: string, ownerId: string) {
     // Attempts so far — lets the cockpit partition the day's list into the
     // "Callbacks due" (>0) vs "New to call" (=0) by-day system views (T5).
     attemptCount: r.attemptCount ?? 0,
+    nextAttemptAt: r.nextAttemptAt ? r.nextAttemptAt.toISOString() : null,
     localTime: "",
     localTimezone: "",
     lastEnrichedAt: r.lastEnrichedAt ? r.lastEnrichedAt.toISOString() : null,

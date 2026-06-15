@@ -52,6 +52,8 @@ import { CampaignFunnelBar } from "./_funnel-bar";
 import { readSprintAudience } from "@/lib/voice/sprint-audience";
 import { CallScriptPanel } from "./_call-script";
 import { CallListSelector, type CallListsData, type SystemListEntry } from "./_list-selector";
+import { sortQueueItems } from "@/lib/voice/queue-sort";
+import { type CallListSort } from "@/lib/voice/call-lists";
 import { isVoiceableSignal, mergeTechStacks } from "@/lib/call-mode/live-script";
 import { speakableGeo } from "@/lib/call-mode/geo";
 import { pickReplaceableTools } from "@/lib/tech-detect/replaceable";
@@ -72,6 +74,8 @@ interface QueueItem {
   dealValueWeight: number;
   /** Attempts so far (campaign queue) — drives the by-day system views. */
   attemptCount?: number;
+  /** Next scheduled attempt (campaign queue) — drives the oldest-callback sort. */
+  nextAttemptAt?: string | null;
   localTime: string;
   localTimezone: string;
   lastEnrichedAt?: string | null;
@@ -279,6 +283,13 @@ export default function CallModePage() {
   const [listsData, setListsData] = useState<CallListsData | null>(null);
   const [busySectorId, setBusySectorId] = useState<string | null>(null);
   const [creatingList, setCreatingList] = useState(false);
+  // Queue sort (session-level, persisted). Per-list persistence (call_lists.sort)
+  // is a noted extension; today the rep's choice applies to the current view.
+  const [sortKey, setSortKey] = useState<CallListSort>(() => {
+    if (typeof window === "undefined") return "fit";
+    const v = window.localStorage.getItem("elevay.callmode.sort");
+    return v === "oldest_callback" || v === "fewest_attempts" ? v : "fit";
+  });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [softphone, setSoftphone] = useState<SoftphoneState>({ kind: "idle" });
   const [transcript, setTranscript] = useState<TranscriptChunk[]>([]);
@@ -483,14 +494,14 @@ export default function CallModePage() {
   // The by-day system view is a pure client filter over the loaded queue:
   // Callbacks due = attempted before (>0), New = never attempted (=0), Today = all.
   const filteredQueue = useMemo(() => {
-    if (selectedSystemId === "callbacks_due") {
-      return queue.filter((q) => (q.attemptCount ?? 0) > 0);
-    }
-    if (selectedSystemId === "new") {
-      return queue.filter((q) => (q.attemptCount ?? 0) === 0);
-    }
-    return queue;
-  }, [queue, selectedSystemId]);
+    const base =
+      selectedSystemId === "callbacks_due"
+        ? queue.filter((q) => (q.attemptCount ?? 0) > 0)
+        : selectedSystemId === "new"
+          ? queue.filter((q) => (q.attemptCount ?? 0) === 0)
+          : queue;
+    return sortQueueItems(base, sortKey);
+  }, [queue, selectedSystemId, sortKey]);
 
   // Live by-day counts derived from the loaded queue (FR labels), so the
   // selector stays in sync as dispositions remove rows — the sector counts
@@ -878,6 +889,12 @@ export default function CallModePage() {
     if (typeof window !== "undefined") window.localStorage.setItem("elevay.callmode.systemView", id);
   }, []);
 
+  // Queue sort (session-level, persisted). Pure client re-order via sortQueueItems.
+  const handleSortChange = useCallback((s: CallListSort) => {
+    setSortKey(s);
+    if (typeof window !== "undefined") window.localStorage.setItem("elevay.callmode.sort", s);
+  }, []);
+
   // Activate a sector list → the server regenerates the top-up from its segment.
   const handleActivateSector = useCallback(
     async (id: string) => {
@@ -1113,10 +1130,12 @@ export default function CallModePage() {
             data={{ ...listsData, system: liveSystemLists }}
             selectedSystemId={selectedSystemId}
             busySectorId={busySectorId}
+            sortKey={sortKey}
             onSelectSystem={handleSelectSystem}
             onActivateSector={handleActivateSector}
             onActivateAll={handleActivateAll}
             onCreate={handleCreateList}
+            onSortChange={handleSortChange}
             creating={creatingList}
           />
         ) : (
