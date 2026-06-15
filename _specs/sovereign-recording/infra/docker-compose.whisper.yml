@@ -1,0 +1,39 @@
+# Self-hosted, OpenAI-compatible Whisper (the sovereign STT endpoint).
+#
+# faster-whisper-server exposes POST /v1/audio/transcriptions, the exact shape
+# the app's transcribe.ts already calls. Point the app at it:
+#   WHISPER_BASE_URL=https://whisper.pilae.ch/v1
+#   WHISPER_MODEL=Systran/faster-whisper-large-v3   (or a smaller/faster model)
+#
+# Run on your CH/EU box. A GPU image (`-cuda`) speeds long calls; the `-cpu`
+# image works for low volume. Put it behind your reverse proxy (TLS) so the
+# Next app can reach it as https://whisper.pilae.ch.
+#
+# NOTE: Jitsi + Jibri come from the official `docker-jitsi-meet` release (enable
+# the `jibri` profile, set config.disableDeepLinking=true, and mount
+# infra/finalize.sh as JIBRI_FINALIZE_RECORDING_SCRIPT_PATH). That stack is
+# large and host-specific (needs the snd-aloop kernel module) — don't fork it
+# here; layer our two specifics (disableDeepLinking + finalize.sh) onto it.
+
+services:
+  whisper:
+    # CPU build; swap to fedirz/faster-whisper-server:latest-cuda with a GPU.
+    image: fedirz/faster-whisper-server:latest-cpu
+    restart: unless-stopped
+    environment:
+      # Preload the model so the first call isn't a cold download.
+      WHISPER__MODEL: Systran/faster-whisper-large-v3
+      WHISPER__INFERENCE_DEVICE: cpu
+    volumes:
+      - whisper-models:/root/.cache/huggingface
+    ports:
+      - "127.0.0.1:8000:8000" # bind localhost; expose via your TLS reverse proxy
+    # Healthcheck so your proxy / orchestrator knows when it's ready.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  whisper-models:
