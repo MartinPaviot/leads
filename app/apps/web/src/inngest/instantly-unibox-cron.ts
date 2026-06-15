@@ -17,7 +17,8 @@ export const cronInstantlyUnibox = inngest.createFunction(
     id: "cron-instantly-unibox",
     name: "Cron: Sync Instantly Unibox",
     retries: 1,
-    triggers: [{ cron: "*/15 * * * *" }],
+    // Reply pull every 30 min (backstop) — acceptable for inbox surfacing.
+    triggers: [{ cron: "*/30 * * * *" }],
   },
   async ({ step }) => {
     // Tenants that have imported Instantly boxes.
