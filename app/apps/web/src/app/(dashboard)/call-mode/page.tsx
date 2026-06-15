@@ -508,6 +508,14 @@ export default function CallModePage() {
     [queue],
   );
 
+  // The active sector list (if any) — drives the honest empty state when its
+  // audience has zero callable contacts (T8), distinct from a list emptied by
+  // today's calls.
+  const activeSector = useMemo(
+    () => listsData?.sector.find((l) => l.id === listsData?.activeListId) ?? null,
+    [listsData],
+  );
+
   // Last script context the panel reported — stamped on the call at dial time
   // so outcomes can be segmented by script variant (ref: no re-renders).
   const scriptCtxRef = useRef<ScriptContext | null>(null);
@@ -1134,9 +1142,28 @@ export default function CallModePage() {
         )}
         <div className="flex-1 overflow-y-auto">
           {filteredQueue.length === 0 ? (
-            <div className="p-6 text-sm text-zinc-500">
-              Queue is empty. Import or enrich contacts to get started.
-            </div>
+            activeSector && activeSector.counts.callable === 0 ? (
+              // Honest empty state for a sector list whose audience has no
+              // callable contact — show the real counts, never a blank screen.
+              <div className="p-6 text-[13px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+                <p className="font-medium text-zinc-700 dark:text-zinc-300">
+                  « {activeSector.name} » n&apos;a aucun contact appelable.
+                </p>
+                <p className="mt-1.5">
+                  Cible : {activeSector.counts.total} contact
+                  {activeSector.counts.total === 1 ? "" : "s"}, dont{" "}
+                  {activeSector.counts.withPhone} avec un numéro.
+                </p>
+                <p className="mt-1.5">
+                  Élargis le secteur, ou enrichis cette audience pour obtenir des numéros,
+                  puis réactive la liste.
+                </p>
+              </div>
+            ) : (
+              <div className="p-6 text-sm text-zinc-500">
+                Queue is empty. Import or enrich contacts to get started.
+              </div>
+            )
           ) : (
             filteredQueue.map((item) => {
               const active = item.contactId === selectedId;
