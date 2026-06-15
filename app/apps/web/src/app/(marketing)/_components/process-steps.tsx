@@ -18,7 +18,7 @@ import { useEffect, useRef, useState, type ComponentType } from "react";
 import { motion, useInView, useReducedMotion } from "framer-motion";
 import { AppFrame, ScaleToFit } from "./product-mockups";
 import { CallModeDemo } from "./call-mode-demo";
-import { RealUpNext, RealAccounts, RealOpportunities, RealChat, RealCampaigns, RealMeetings } from "./real-surfaces";
+import { RealAccounts, RealOpportunities, RealCampaigns, RealMeetings } from "./real-surfaces";
 
 // `h` = the natural content height shown in the shot (before scaling); the rest
 // of the page is clipped with a fade, so each shot ends cleanly on a few rows.
@@ -29,13 +29,6 @@ const steps: { label: string; headline: string; body: string; Real?: ComponentTy
     body: "Describe your ICP once. Elevay searches a live B2B database, builds your target account list, and scores every account against it, no CSV imports and no manual research.",
     Real: RealAccounts,
     h: 680,
-  },
-  {
-    label: "Find demand",
-    headline: "Open on who is ready now",
-    body: "Replies, opens, booked meetings, and deal moves land in one morning briefing, next to the short list of what genuinely needs a human. You open the day knowing exactly where to spend it.",
-    Real: RealUpNext,
-    h: 640,
   },
   {
     label: "Engage",
@@ -63,13 +56,6 @@ const steps: { label: string; headline: string; body: string; Real?: ComponentTy
     body: "Values update, fields populate, and the next stage is suggested for you, straight from your calls and emails, so the pipeline reflects reality without manual logging.",
     Real: RealOpportunities,
     h: 680,
-  },
-  {
-    label: "Operate",
-    headline: "Ask your pipeline anything",
-    body: "Query in plain language and get an answer in seconds, each one cited to the exact call, email, or knowledge entry it came from.",
-    Real: RealChat,
-    h: 560,
   },
 ];
 
