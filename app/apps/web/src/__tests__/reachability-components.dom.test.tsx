@@ -73,7 +73,8 @@ describe("ReachabilitySummary (list header)", () => {
     const { getByText } = render(<ReachabilitySummary items={items} />);
     fireEvent.click(getByText(/Trouver 1 mobile/));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    const calls = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
+    const body = JSON.parse(calls[0][1].body as string);
     expect(body.contactIds).toEqual(["c"]); // only the null-phone row
   });
 });
