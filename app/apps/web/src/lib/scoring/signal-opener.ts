@@ -19,17 +19,52 @@ import {
 
 /** A company's fired TAM signals (companies.properties.tamSignals). */
 export interface TamSignalBundle {
-  [key: string]: { value?: boolean; reason?: string; confidence?: string } | null | undefined;
+  [key: string]:
+    | { value?: boolean; reason?: string; confidence?: string; computedAt?: string }
+    | null
+    | undefined;
 }
 
-/** TAM signal key → SIGNAL_ANGLES taxonomy key. */
+/**
+ * TAM signal key → SIGNAL_ANGLES taxonomy key.
+ *
+ * Deliberately absent: `yc_company`. Being a YC company is a static
+ * TRAIT — it belongs in ICP criteria, not in outreach angles. The old
+ * `yc_company → "news"` mapping generated "Read about this…" copy
+ * about something that never happened. `investor_overlap` gets its
+ * own warm-path angle instead of impersonating a funding event.
+ */
 const TAM_SIGNAL_TO_ANGLE: Record<string, string> = {
   funding_recent: "funding",
   funding_crunchbase: "funding",
-  investor_overlap: "funding",
+  investor_overlap: "common_investor",
   hiring_intent: "hiring",
-  yc_company: "news",
 };
+
+/**
+ * Freshness windows for TAM-signal payloads used as outreach angles
+ * (mirrors SIGNAL_TTL_DAYS in signal-detectors.ts — TAM keys differ
+ * from detector keys, hence the local map). `null` = standing fact.
+ * Legacy payloads without `computedAt` are kept: retro-purging every
+ * pre-dating TAM at once would silently blank existing openers; all
+ * new builds stamp `computedAt`.
+ */
+const TAM_SIGNAL_TTL_DAYS: Record<string, number | null> = {
+  funding_recent: 180,
+  funding_crunchbase: 180,
+  hiring_intent: 30,
+  investor_overlap: null,
+};
+
+const DAY_MS = 86_400_000;
+
+function isTamPayloadFresh(key: string, computedAt: string | undefined, asOf: Date): boolean {
+  const ttl = TAM_SIGNAL_TTL_DAYS[key];
+  if (ttl === null || ttl === undefined) return true;
+  if (!computedAt) return true; // legacy tolerance — see map comment
+  const t = new Date(computedAt).getTime();
+  return t >= asOf.getTime() - ttl * DAY_MS; // NaN fails closed
+}
 
 function confidenceToRelevance(c: string | undefined): "high" | "medium" | "low" {
   const s = (c ?? "").toLowerCase();
@@ -38,9 +73,12 @@ function confidenceToRelevance(c: string | undefined): "high" | "medium" | "low"
   return "low";
 }
 
-/** Flatten a fired-signal bundle into the shape pickBestSignal expects. */
+/** Flatten a fired-signal bundle into the shape pickBestSignal expects.
+ * Stale payloads (computedAt beyond the type's TTL) are dropped — a
+ * fossil is not a reason to write. */
 export function tamSignalsToAngleSignals(
   bundle: TamSignalBundle | null | undefined,
+  asOf: Date = new Date(),
 ): Array<{ type: string; relevance: "high" | "medium" | "low"; title: string; description: string; dataSource?: string }> {
   if (!bundle) return [];
   const out: Array<{ type: string; relevance: "high" | "medium" | "low"; title: string; description: string }> = [];
@@ -48,6 +86,7 @@ export function tamSignalsToAngleSignals(
     if (!sig || sig.value !== true) continue;
     const angleType = TAM_SIGNAL_TO_ANGLE[key];
     if (!angleType) continue;
+    if (!isTamPayloadFresh(key, sig.computedAt, asOf)) continue;
     out.push({
       type: angleType,
       relevance: confidenceToRelevance(sig.confidence),

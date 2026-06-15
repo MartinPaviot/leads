@@ -193,6 +193,18 @@ export const SIGNAL_ANGLES: Record<string, SignalAngle> = {
     businessImplication: "Company news signals strategic priorities. Aligning with those priorities makes outreach relevant.",
     questionSeed: "With {newsEvent}, how is that impacting your approach to {area}?",
   },
+  // Warm path, not intent: a shared investor is a standing fact about
+  // the relationship, never "news". The template states the overlap
+  // factually and avoids any mid-sentence variable so an unfilled
+  // field can't fabricate a claim (the old investor_overlap→funding
+  // mapping produced "With your recent raise…" for companies that
+  // never raised).
+  common_investor: {
+    signalType: "common_investor",
+    angleTemplate: "We're backed by the same investor as {company} — that overlap usually means we're working on the same class of problems.",
+    businessImplication: "A shared investor is a warm path: common diligence, common context, and a mutual intro is one message away.",
+    questionSeed: "Worth comparing notes on {area}?",
+  },
 };
 
 /** Pick the strongest signal from an array (highest relevance, prefer funding/hiring). */
@@ -202,6 +214,7 @@ export function pickBestSignal(
   if (!signals || signals.length === 0) return null;
 
   const priority: Record<string, number> = {
+    common_investor: 11, // warm path beats every cold angle
     funding: 10,
     hiring: 9,
     leadership_change: 8,

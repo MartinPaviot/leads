@@ -10,12 +10,63 @@ describe("tamSignalsToAngleSignals", () => {
       funding_recent: { value: true, confidence: "high", reason: "Raised 4mo ago" },
       hiring_intent: { value: true, confidence: "medium", reason: "12 open roles" },
       investor_overlap: { value: false },
-      yc_company: { value: true, confidence: "low", reason: "S23" },
       unknown_signal: { value: true },
     });
     const types = out.map((s) => s.type).sort();
-    expect(types).toEqual(["funding", "hiring", "news"]);
+    expect(types).toEqual(["funding", "hiring"]);
     expect(out.find((s) => s.title === "funding_recent")?.relevance).toBe("high");
+  });
+
+  it("never maps yc_company — a static trait is not an outreach moment (§19)", () => {
+    const out = tamSignalsToAngleSignals({
+      yc_company: { value: true, confidence: "high", reason: "S23" },
+    });
+    expect(out).toEqual([]);
+  });
+
+  it("maps investor_overlap to its own warm-path angle, never funding", () => {
+    const out = tamSignalsToAngleSignals({
+      investor_overlap: { value: true, confidence: "high", reason: "Backed by Founders Fund too" },
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0].type).toBe("common_investor");
+  });
+
+  it("drops a stale payload (computedAt beyond the type's TTL)", () => {
+    const asOf = new Date("2026-06-12T00:00:00Z");
+    const out = tamSignalsToAngleSignals(
+      {
+        // hiring TTL is 30 days — 90 days old is a fossil.
+        hiring_intent: { value: true, confidence: "high", computedAt: "2026-03-14T00:00:00Z" },
+        // funding TTL is 180 days — 90 days old is still fresh.
+        funding_recent: { value: true, confidence: "high", computedAt: "2026-03-14T00:00:00Z" },
+      },
+      asOf,
+    );
+    expect(out.map((s) => s.type)).toEqual(["funding"]);
+  });
+
+  it("keeps a legacy payload without computedAt (no retroactive purge)", () => {
+    const out = tamSignalsToAngleSignals({
+      hiring_intent: { value: true, confidence: "medium", reason: "legacy row" },
+    });
+    expect(out.map((s) => s.type)).toEqual(["hiring"]);
+  });
+
+  it("warm path has no TTL — an old investor_overlap stays usable", () => {
+    const asOf = new Date("2026-06-12T00:00:00Z");
+    const out = tamSignalsToAngleSignals(
+      { investor_overlap: { value: true, confidence: "high", computedAt: "2025-01-01T00:00:00Z" } },
+      asOf,
+    );
+    expect(out.map((s) => s.type)).toEqual(["common_investor"]);
+  });
+
+  it("fails closed on an unparsable computedAt for TTL'd types", () => {
+    const out = tamSignalsToAngleSignals({
+      hiring_intent: { value: true, confidence: "high", computedAt: "not-a-date" },
+    });
+    expect(out).toEqual([]);
   });
 });
 
@@ -35,6 +86,22 @@ describe("generateOpener", () => {
     expect(r.opener).toContain("$12M Series A");
     expect(r.opener).toContain("on-call alert fatigue");
     expect(r.opener).not.toContain("{"); // no leftover placeholders
+  });
+
+  it("prefers the warm path over every cold angle (common_investor > funding)", () => {
+    const r = generateOpener({
+      companyName: "Acme",
+      seniority: "c-suite",
+      signals: tamSignalsToAngleSignals({
+        funding_recent: { value: true, confidence: "high" },
+        investor_overlap: { value: true, confidence: "high", reason: "Shared seed investor" },
+      }),
+    });
+    expect(r.angle).toBe("common_investor");
+    expect(r.opener).toContain("Acme");
+    expect(r.opener).not.toMatch(/\{[a-z]+\}/i);
+    // The warm-path template must never fabricate a raise.
+    expect(r.opener.toLowerCase()).not.toContain("raise");
   });
 
   it("prefers funding over hiring (priority + relevance)", () => {
