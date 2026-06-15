@@ -6,12 +6,14 @@ const {
   updateMock,
   recordEventMock,
   loggerWarnMock,
+  sendMock,
 } = vi.hoisted(() => ({
   insertReturningMock: vi.fn(),
   selectMock: vi.fn(),
   updateMock: vi.fn(),
   recordEventMock: vi.fn(),
   loggerWarnMock: vi.fn(),
+  sendMock: vi.fn(),
 }));
 
 vi.mock("@/db", () => ({
@@ -57,12 +59,16 @@ vi.mock("@/lib/guardrails/trust-score", () => ({
   recordAutonomyEvent: (input: unknown) => recordEventMock(input),
 }));
 
+vi.mock("@/inngest/client", () => ({
+  inngest: { send: (...a: unknown[]) => sendMock(...a) },
+}));
+
 vi.mock("@/lib/logger", () => {
   const logger = { warn: loggerWarnMock, info: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return { default: logger, logger };
 });
 
-const { recordAgentAction, reverseAgentAction } = await import(
+const { recordAgentAction, reverseAgentAction, approveAgentAction } = await import(
   "@/lib/agents/agent-actions"
 );
 
@@ -72,6 +78,8 @@ beforeEach(() => {
   updateMock.mockReset();
   recordEventMock.mockReset();
   loggerWarnMock.mockReset();
+  sendMock.mockReset();
+  sendMock.mockResolvedValue(undefined);
 });
 
 describe("recordAgentAction", () => {
@@ -84,6 +92,8 @@ describe("recordAgentAction", () => {
       payload: { name: "Alice" },
     });
     expect(id).toBe("a1");
+    // Immediate 'executed' write never dispatches — no event.
+    expect(sendMock).not.toHaveBeenCalled();
   });
 
   it("schedules send when graceMs > 0", async () => {
@@ -96,6 +106,69 @@ describe("recordAgentAction", () => {
       graceMs: 60_000,
     });
     expect(id).toBe("a2");
+    // Due-able grace send fires the event-driven dispatcher.
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "agent/action.scheduled",
+        data: expect.objectContaining({ actionId: "a2", tenantId: "t1" }),
+      }),
+    );
+  });
+
+  it("does not dispatch an awaiting-approval row (no execution time yet)", async () => {
+    insertReturningMock.mockResolvedValue([{ id: "a3" }]);
+    const { id } = await recordAgentAction({
+      tenantId: "t1",
+      userId: "u1",
+      actionType: "email-send",
+      payload: { to: "x@y.com" },
+      awaitingApproval: true,
+    });
+    expect(id).toBe("a3");
+    // Waits for approveAgentAction to stamp a time — no event yet.
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("approveAgentAction", () => {
+  function stubSelect(rows: unknown[]) {
+    selectMock.mockReturnValue({
+      from: () => ({
+        where: () => ({
+          limit: async () => rows,
+        }),
+      }),
+    });
+  }
+
+  it("stamps the time and fires the dispatch event", async () => {
+    stubSelect([{ id: "a1", status: "scheduled", reversedAt: null }]);
+    updateMock.mockResolvedValue(undefined);
+    recordEventMock.mockResolvedValue(null);
+
+    const r = await approveAgentAction({
+      actionId: "a1",
+      approvedByUserId: "u1",
+      tenantId: "t1",
+    });
+    expect(r.status).toBe("approved");
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "agent/action.scheduled",
+        data: expect.objectContaining({ actionId: "a1", tenantId: "t1" }),
+      }),
+    );
+  });
+
+  it("does not fire an event when the row is already executed", async () => {
+    stubSelect([{ id: "a1", status: "executed", reversedAt: null }]);
+    const r = await approveAgentAction({
+      actionId: "a1",
+      approvedByUserId: "u1",
+      tenantId: "t1",
+    });
+    expect(r.status).toBe("too-late");
+    expect(sendMock).not.toHaveBeenCalled();
   });
 });
 

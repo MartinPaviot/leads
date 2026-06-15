@@ -104,7 +104,9 @@ export const cronCalendarSync = inngest.createFunction(
     id: "cron-calendar-sync",
     name: "Background Calendar Sync (Google + Microsoft)",
     retries: 1,
-    triggers: [{ cron: "*/15 * * * *" }],
+    // Backstop reconciliation every 30 min — meetings are scheduled ahead,
+    // so the catch-up sweep doesn't need a tight interval.
+    triggers: [{ cron: "*/30 * * * *" }],
   },
   async ({ step }) => {
     // Find all users with OAuth accounts

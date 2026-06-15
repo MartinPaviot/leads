@@ -320,6 +320,13 @@ export const sequenceDraftToOutbound = inngest.createFunction(
         .where(eq(sequenceDrafts.id, draftId));
     });
 
+    // Wake the senders immediately instead of waiting for the 15-minute cron.
+    // This is the human-approval path, so latency matters most here.
+    await step.sendEvent("wake-outbound-sender", {
+      name: "outbound/queued",
+      data: { tenantId },
+    });
+
     return {
       dispatched: true,
       draftId,

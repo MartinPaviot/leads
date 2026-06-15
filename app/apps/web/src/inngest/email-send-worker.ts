@@ -6,7 +6,7 @@ import {
   activities,
   emailOptouts,
 } from "@/db/schema";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql, inArray, notExists } from "drizzle-orm";
 import { Resend } from "resend";
 import { buildUnsubscribeUrl } from "@/lib/emails/unsubscribe-token";
 import { signTrackingId } from "@/lib/emails/tracking-token";
@@ -95,8 +95,14 @@ function buildComplianceFooter(unsubUrl: string, companyName?: string): string {
 }
 
 /**
- * Cron: process queued outbound emails every 2 minutes.
- * Picks up emails with status=queued, resolves sender mailbox, sends via Resend.
+ * Sender (Resend/API path). Drains queued outbound_emails for tenants WITHOUT
+ * an active custom-SMTP mailbox (those route to dispatchOutboundSmtp — the two
+ * senders are transport-disjoint so they never contend for a row). Triggered
+ * by the `outbound/queued` event (immediacy) plus a 15-minute cron — the cron
+ * is the pacing backstop that re-drives rows held by the send-window or skipped
+ * for the daily limit, which no event can re-fire. Claims rows atomically
+ * (queued -> sending) so a concurrent run can't double-send. All pacing (warmup
+ * ramp, bounce throttle, round-robin, send-window, daily limit) is unchanged.
  */
 export const processOutboundEmails = inngest.createFunction(
   {
@@ -106,16 +112,35 @@ export const processOutboundEmails = inngest.createFunction(
     onFailure: async ({ error }) => {
       console.error("[DEAD LETTER] process-outbound-emails failed:", error.message);
     },
-    triggers: [{ cron: "*/2 * * * *" }],
+    triggers: [{ event: "outbound/queued" }, { cron: "*/15 * * * *" }],
     concurrency: [{ limit: 1 }], // Only one instance at a time
   },
   async ({ step }) => {
-    // Step 1: Fetch queued emails (batch of 20)
+    // Step 1: Fetch queued emails (batch of 20). Route by transport: skip
+    // rows for tenants that have an active custom-SMTP mailbox — those are
+    // dispatchOutboundSmtp's. Without this, both senders contend for the same
+    // row (double-send, or a spurious Resend failure on an SMTP-only tenant).
     const queuedEmails = await step.run("fetch-queued", async () => {
       return db
         .select()
         .from(outboundEmails)
-        .where(eq(outboundEmails.status, "queued"))
+        .where(
+          and(
+            eq(outboundEmails.status, "queued"),
+            notExists(
+              db
+                .select({ one: sql`1` })
+                .from(connectedMailboxes)
+                .where(
+                  and(
+                    eq(connectedMailboxes.tenantId, outboundEmails.tenantId),
+                    eq(connectedMailboxes.provider, "smtp_custom"),
+                    eq(connectedMailboxes.status, "active"),
+                  ),
+                ),
+            ),
+          ),
+        )
         .orderBy(outboundEmails.queuedAt)
         .limit(20);
     });
@@ -172,14 +197,21 @@ export const processOutboundEmails = inngest.createFunction(
       return { processed: queuedEmails.length, sent: 0, failed: queuedEmails.length };
     }
 
-    // Step 2: Mark remaining as "sending" to prevent duplicate processing
-    await step.run("mark-sending", async () => {
+    // Step 2: Atomically claim 'queued' -> 'sending'. Conditional on
+    // status='queued' so a concurrent invocation can't grab the same row —
+    // only the rows we actually flip are ours to send (returning() tells us
+    // which). Previously unconditional, which could re-send a row left
+    // 'sending' by an earlier crashed run.
+    const claimedIds = await step.run("mark-sending", async () => {
       const ids = sendableEmails.map((e) => e.id);
-      await db
+      const rows = await db
         .update(outboundEmails)
         .set({ status: "sending", updatedAt: new Date() })
-        .where(inArray(outboundEmails.id, ids));
+        .where(and(inArray(outboundEmails.id, ids), eq(outboundEmails.status, "queued")))
+        .returning({ id: outboundEmails.id });
+      return rows.map((r) => r.id);
     });
+    const claimedSet = new Set<string>(claimedIds as string[]);
 
     // Step 3: Load mailbox info for sender resolution
     const mailboxMap = await step.run("load-mailboxes", async () => {
@@ -252,6 +284,9 @@ export const processOutboundEmails = inngest.createFunction(
       : 0;
 
     for (const email of sendableEmails) {
+      // Skip rows another sender/invocation claimed (or that were no longer
+      // 'queued' at claim time). We only send what we atomically own.
+      if (!claimedSet.has(email.id)) continue;
       await step.run(`send-${email.id}`, async () => {
         // TEST-MODE GUARDRAIL — never let a campaign reach a real prospect
         // while test mode is on. Fail the row with a clear reason instead of
