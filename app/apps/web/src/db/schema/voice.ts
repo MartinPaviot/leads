@@ -265,6 +265,42 @@ export const callCampaignTargets = pgTable(
   ],
 );
 
+// === CALL LISTS (sector segments selectable in "To call now") ===
+//
+// A named, persisted SEGMENT (the lib/voice/sprint-audience SprintAudience
+// shape: industries × personas × the R4 facets) the rep picks at the top of
+// the cockpit's "To call now" column. The ACTIVE list's segment is mirrored
+// onto callCampaigns.targetFilter.audience so the daily top-up draws from it
+// (model A2a, _specs/call-lists). System "by-day" lists (Today / Callbacks
+// due / New) are DERIVED from target state and are NEVER stored here. One
+// global campaign per rep owns the quota + cadence; lists are views over its
+// already-gated candidate pool.
+export const callLists = pgTable(
+  "call_lists",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    campaignId: text("campaign_id")
+      .references(() => callCampaigns.id, { onDelete: "cascade" })
+      .notNull(),
+    ownerId: text("owner_id").references(() => users.id),
+    name: text("name").notNull(),
+    // 'sector' today; system by-day lists are derived, never persisted.
+    kind: text("kind").notNull().default("sector"),
+    // The per-list segment (SprintAudience shape).
+    segment: jsonb("segment").notNull().default({}),
+    // One R5 sort key: fit | intent | accessibility | deal_value |
+    // oldest_callback | fewest_attempts | local_time.
+    sort: text("sort").notNull().default("fit"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [
+    index("call_lists_tenant_campaign_idx").on(t.tenantId, t.campaignId),
+    index("call_lists_owner_idx").on(t.tenantId, t.ownerId),
+  ],
+);
+
 // Monthly usage counter per tenant — drives the 4000 min/seat cap.
 // Stored as a separate table (rather than computed via SUM over calls)
 // so the cap check at /api/calls/start is O(1).
