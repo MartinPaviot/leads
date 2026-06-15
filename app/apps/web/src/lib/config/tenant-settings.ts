@@ -45,6 +45,16 @@ export interface TenantSettings {
   aiTone?: string;
   primaryChallenge?: string;
 
+  // ── Revenue goal (forecast) ──
+  /**
+   * Revenue target, same unit as deal ACV (project + platform summed).
+   * Consumed by GET /api/analytics/forecast to compute goal coverage and name
+   * the binding bottleneck (demand vs conversion vs capacity). Absent or 0 →
+   * the forecast falls back to the demand-first prior and says so honestly.
+   * `amount` is a tolerated legacy alias for `monthly` on the read path.
+   */
+  revenueGoal?: { monthly?: number; amount?: number; updatedAt?: string };
+
   /**
    * The user's own cap-table investors (funds, angels, accelerators).
    * Used by the `investor-overlap` signal to flag target accounts that

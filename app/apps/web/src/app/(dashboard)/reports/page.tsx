@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { FileBarChart, TrendingUp, CalendarDays, Trophy, Loader2, Copy, Check, Clock, ClipboardCopy, Timer } from "lucide-react";
+import { RevenueForecast } from "./_revenue-forecast";
+import { CohortInsights } from "./_cohort-insights";
 
 interface ReportData {
   title: string;
@@ -240,6 +242,20 @@ export default function ReportsPage() {
       />
 
       <div className="flex-1 overflow-y-auto px-4 py-6">
+        {/* Always-on pipeline intelligence — honest forecast + cohorts,
+            computed from real data (no AI generation, no waiting). */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <RevenueForecast />
+          <CohortInsights />
+        </div>
+
+        {/* On-demand AI reports */}
+        <h2
+          className="mt-8 mb-3 text-[12px] font-semibold uppercase tracking-wider"
+          style={{ color: "var(--color-text-tertiary)" }}
+        >
+          Generate a report
+        </h2>
         {/* Report type cards */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {reportTypes.map((rt) => {
