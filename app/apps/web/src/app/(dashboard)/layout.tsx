@@ -96,7 +96,12 @@ export default async function DashboardLayout({
 
             {/* Main content */}
             <main className="flex flex-1 flex-col overflow-hidden" style={{ background: "var(--color-bg-page)" }}>
-              <div className="flex-1 overflow-auto">{children}</div>
+              {/* min-h-0 lets this flex child shrink below its content so it
+                  actually scrolls — without it, min-height:auto makes it grow
+                  and the parent's overflow-hidden clips the page (no scroll on
+                  any long page, e.g. the TAM list). This is the root scroll
+                  container for every dashboard page. */}
+              <div className="min-h-0 flex-1 overflow-auto">{children}</div>
               <PersistentChatBar />
               <PostHogIdentify
                 userId={session.user.id}

@@ -1812,8 +1812,11 @@ export default function AccountsPage() {
         </form>
       </Modal>
 
-      {/* Table */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-auto">
+      {/* Table — min-h-0 lets this flex child shrink below its content so the
+          overflow-auto actually scrolls the long account list (the classic
+          flexbox trap: without it, flex items keep min-height:auto and the
+          list overflows instead of scrolling). */}
+      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-auto">
         {loading ? (
           <TableSkeleton
             rows={8}

@@ -13,6 +13,8 @@ import { calls } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { validateTwilioSignature } from "@/lib/voice/twilio-signature";
 import { recordCallMinutes } from "@/lib/voice/usage-cap";
+import { recordCallOutcomeForCampaigns } from "@/lib/voice/campaign";
+import { isDeadNumberErrorCode, isTerminalCallStatus } from "@/lib/voice/dead-number";
 import { logger } from "@/lib/observability/logger";
 
 export async function POST(req: Request) {
@@ -43,6 +45,8 @@ export async function POST(req: Request) {
     .select({
       id: calls.id,
       tenantId: calls.tenantId,
+      contactId: calls.contactId,
+      userId: calls.userId,
       connectedAt: calls.connectedAt,
       endedAt: calls.endedAt,
     })
@@ -64,13 +68,30 @@ export async function POST(req: Request) {
       .where(eq(calls.id, row.id));
   }
 
-  if (status === "completed" && !row.endedAt) {
+  if (isTerminalCallStatus(status) && !row.endedAt) {
     const durationSec = Number(params.CallDuration ?? 0);
     await db
       .update(calls)
       .set({ endedAt: new Date(), durationSec })
       .where(eq(calls.id, row.id));
     await recordCallMinutes(row.tenantId, durationSec, params.AnsweredBy === "human");
+
+    // Dead-number auto-detection (T7): an unambiguous invalid-number ErrorCode
+    // terminates the cadence (wrong_number → exhausted) so the contact never
+    // returns to a future list. A later manual disposition is then a no-op (the
+    // target is already terminal) — no double-count. Anything else (busy /
+    // no-answer / plain failed / SIP 404) is left to the normal miss path so a
+    // good contact is never wrongly killed (R8.4: uncertain → NRP).
+    if (isDeadNumberErrorCode(params.ErrorCode)) {
+      await db.update(calls).set({ outcome: "wrong_number" }).where(eq(calls.id, row.id));
+      await recordCallOutcomeForCampaigns({
+        tenantId: row.tenantId,
+        contactId: row.contactId,
+        outcome: "wrong_number",
+        occurredAt: new Date(),
+        ownerId: row.userId,
+      }).catch(() => {});
+    }
   }
 
   return new Response("OK", { status: 200 });

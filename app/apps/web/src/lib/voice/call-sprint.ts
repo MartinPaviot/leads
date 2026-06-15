@@ -70,6 +70,35 @@ export function sprintAudienceConditions(audience: SprintAudience): SQL[] {
       sql`("contacts"."properties" -> 'title_personas' -> 'p') ?| ARRAY[${labels}]::text[]`,
     );
   }
+  // R4.4 — buying-signal facet: contacts.properties.latestSignal.type ∈ signals.
+  if (audience.signals && audience.signals.length > 0) {
+    const vals = sql.join(audience.signals.map((s) => sql`${s}`), sql`, `);
+    conds.push(sql`("contacts"."properties" -> 'latestSignal' ->> 'type') IN (${vals})`);
+  }
+  // R4.14 — phone-type facet: contacts.properties.phoneType ∈ phoneType.
+  if (audience.phoneType && audience.phoneType.length > 0) {
+    const vals = sql.join(audience.phoneType.map((s) => sql`${s}`), sql`, `);
+    conds.push(sql`("contacts"."properties" ->> 'phoneType') IN (${vals})`);
+  }
+  // R4.13 — ICP fit floor.
+  if (typeof audience.fitMin === "number") {
+    conds.push(sql`"contacts"."score" >= ${audience.fitMin}`);
+  }
+  // R4.12 — sourcing freshness: enriched within the last N days.
+  if (typeof audience.freshnessDays === "number") {
+    conds.push(sql`"contacts"."last_enriched_at" >= now() - (${audience.freshnessDays} * interval '1 day')`);
+  }
+  // R4.6 — has a live linked deal worth >= dealValueMin. Literal-qualified
+  // "contacts"."id" so the correlated subquery binds to the OUTER contacts row
+  // (a ${contacts.id} interpolation would render unqualified — silent-zero).
+  if (typeof audience.dealValueMin === "number") {
+    conds.push(sql`EXISTS (
+      SELECT 1 FROM deals d
+      WHERE d.contact_id = "contacts"."id"
+        AND d.deleted_at IS NULL
+        AND d.value >= ${audience.dealValueMin}
+    )`);
+  }
   return conds;
 }
 
