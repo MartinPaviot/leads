@@ -79,7 +79,7 @@ export function CampaignsDemo() {
     <div ref={ref}>
       <ScaleToFit designWidth={1080}>
         <AppFrame url="app.elevay.com/campaigns">
-          <div className="grid grid-cols-[300px_1fr]" style={{ height: 560, background: T.page }}>
+          <div className="grid grid-cols-[300px_1fr]" style={{ height: 470, background: T.page }}>
             {/* ── Left rail: the sequence skeleton being built ── */}
             <div className="flex flex-col gap-3 border-r p-4" style={{ borderColor: T.border, background: T.card }}>
               <div className="flex items-center gap-2">

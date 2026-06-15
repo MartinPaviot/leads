@@ -24,6 +24,7 @@ const ACCOUNTS = [
   { dom: "linear.app", name: "Linear", ind: "Project management", score: 81 },
   { dom: "loom.com", name: "Loom", ind: "Async video", score: 77 },
   { dom: "vercel.com", name: "Vercel", ind: "Cloud platform", score: 73 },
+  { dom: "airtable.com", name: "Airtable", ind: "No-code platform", score: 71 },
 ];
 const TARGET_COUNT = 247;
 const CYCLE_MS = 9500;
@@ -64,7 +65,7 @@ export function AccountsDemo() {
     <div ref={ref}>
       <ScaleToFit designWidth={1080}>
         <AppFrame url="app.elevay.com/accounts">
-          <div className="flex flex-col" style={{ height: 560, background: T.page }}>
+          <div className="flex flex-col" style={{ height: 440, background: T.page }}>
             {/* header */}
             <div className="flex items-center justify-between border-b px-5 py-3.5" style={{ borderColor: T.border, background: T.card }}>
               <div>

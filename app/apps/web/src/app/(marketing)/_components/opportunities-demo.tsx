@@ -56,7 +56,7 @@ export function OpportunitiesDemo() {
     <div ref={ref}>
       <ScaleToFit designWidth={1080}>
         <AppFrame url="app.elevay.com/opportunities">
-          <div className="flex flex-col p-6" style={{ height: 560, background: T.page }}>
+          <div className="flex flex-col p-6" style={{ height: 420, background: T.page }}>
             <div className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: showNext ? GREEN : T.accent }}>
               {showNext ? <Check size={13} /> : <Sparkles size={13} className={reduced ? "" : "animate-pulse"} />}
               {showNext ? "Updated from your call with Mercury" : "Updating from your last call…"}
