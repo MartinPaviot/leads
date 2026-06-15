@@ -31,6 +31,13 @@ export interface InboxScope {
   addresses: Set<string>;
   /** connected_mailboxes.id values the user owns in this tenant. */
   mailboxIds: Set<string>;
+  /**
+   * The user's own mailboxes as {id,address,label} — feeds the per-mailbox
+   * navigation + attribution of the unified inbox (lib/inbox/mailbox-attribution).
+   * Structurally a `MailboxRef[]`; kept as an inline shape here to avoid a
+   * circular import (mailbox-attribution imports `headerAddresses` from here).
+   */
+  mailboxes: { id: string; address: string; label: string }[];
 }
 
 /** Resolve the signed-in user's own mailbox addresses + ids in this tenant. */
@@ -38,19 +45,25 @@ export async function getInboxScope(
   tenantId: string,
   authUserId: string | null | undefined,
 ): Promise<InboxScope> {
-  if (!authUserId) return { hasMailbox: false, addresses: new Set(), mailboxIds: new Set() };
+  if (!authUserId) return { hasMailbox: false, addresses: new Set(), mailboxIds: new Set(), mailboxes: [] };
   const rows = await db
-    .select({ id: connectedMailboxes.id, emailAddress: connectedMailboxes.emailAddress })
+    .select({
+      id: connectedMailboxes.id,
+      emailAddress: connectedMailboxes.emailAddress,
+      displayName: connectedMailboxes.displayName,
+    })
     .from(connectedMailboxes)
     .where(and(eq(connectedMailboxes.tenantId, tenantId), eq(connectedMailboxes.userId, authUserId)));
   const addresses = new Set<string>();
   const mailboxIds = new Set<string>();
+  const mailboxes: { id: string; address: string; label: string }[] = [];
   for (const r of rows) {
     if (r.id) mailboxIds.add(r.id);
     const a = r.emailAddress?.toLowerCase().trim();
     if (a) addresses.add(a);
+    if (r.id && a) mailboxes.push({ id: r.id, address: a, label: r.displayName?.trim() || a });
   }
-  return { hasMailbox: rows.length > 0, addresses, mailboxIds };
+  return { hasMailbox: rows.length > 0, addresses, mailboxIds, mailboxes };
 }
 
 /**

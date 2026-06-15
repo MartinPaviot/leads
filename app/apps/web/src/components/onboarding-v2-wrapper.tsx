@@ -65,10 +65,11 @@ export function OnboardingV2Wrapper({
     let cancelled = false;
     (async () => {
       try {
-        const [workspaceRes, sendingRes, budgetRes] = await Promise.all([
+        const [workspaceRes, sendingRes, budgetRes, statusRes] = await Promise.all([
           fetch("/api/settings/workspace"),
           fetch("/api/settings/sending-infra"),
           fetch("/api/settings/llm-budget"),
+          fetch("/api/onboarding/status"),
         ]);
         if (cancelled) return;
 
@@ -93,6 +94,22 @@ export function OnboardingV2Wrapper({
               status?: { capUsd?: number };
             })
           : {};
+        // The config the tenant already has. The card seeds from this so it
+        // confirms real values instead of a blank "here's what I picked up",
+        // and a no-edit confirm re-sends them rather than wiping the ICP.
+        const existing = statusRes.ok
+          ? ((await statusRes.json()) as {
+              companyDomain?: string;
+              productDescription?: string;
+              aiTone?: string;
+              targeting?: Partial<ConfirmationCardTargeting>;
+            })
+          : {};
+        const existingTargeting = existing.targeting ?? {};
+        const cardTone =
+          (["Formal", "Direct", "Casual"] as const).find(
+            (t) => t.toLowerCase() === (existing.aiTone ?? "").toLowerCase(),
+          ) ?? "Direct";
 
         const emailDomain = userEmail?.split("@")[1] ?? "";
         const inferredDomain =
@@ -105,10 +122,10 @@ export function OnboardingV2Wrapper({
           inferred: {
             fullName: userName ?? "",
             companyName: workspace.name ?? "",
-            domain: inferredDomain,
-            productDescription: "",
+            domain: existing.companyDomain || inferredDomain,
+            productDescription: existing.productDescription ?? "",
             suggestedTone: null,
-            aiTone: "Direct",
+            aiTone: cardTone,
             language: navigator.language.split("-")[0] ?? "en",
             timezone:
               Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC",
@@ -116,21 +133,21 @@ export function OnboardingV2Wrapper({
             lowConfidenceFields: [],
           },
           targeting: {
-            industries: [],
-            keywords: [],
-            companySizes: [],
-            revenueMin: null,
-            revenueMax: null,
-            technologies: [],
-            geographies: [],
-            excludeGeographies: [],
-            fundingRecencyDays: null,
-            totalFundingMin: null,
-            totalFundingMax: null,
-            minJobOpenings: null,
-            hiringTitles: [],
-            targetSeniorities: [],
-            targetDepartments: [],
+            industries: existingTargeting.industries ?? [],
+            keywords: existingTargeting.keywords ?? [],
+            companySizes: existingTargeting.companySizes ?? [],
+            revenueMin: existingTargeting.revenueMin ?? null,
+            revenueMax: existingTargeting.revenueMax ?? null,
+            technologies: existingTargeting.technologies ?? [],
+            geographies: existingTargeting.geographies ?? [],
+            excludeGeographies: existingTargeting.excludeGeographies ?? [],
+            fundingRecencyDays: existingTargeting.fundingRecencyDays ?? null,
+            totalFundingMin: existingTargeting.totalFundingMin ?? null,
+            totalFundingMax: existingTargeting.totalFundingMax ?? null,
+            minJobOpenings: existingTargeting.minJobOpenings ?? null,
+            hiringTitles: existingTargeting.hiringTitles ?? [],
+            targetSeniorities: existingTargeting.targetSeniorities ?? [],
+            targetDepartments: existingTargeting.targetDepartments ?? [],
           },
           guardrails: {
             approvalMode: workspace.agentApprovalMode ?? "review-each",
@@ -167,53 +184,55 @@ export function OnboardingV2Wrapper({
       identity: ConfirmationCardInferred;
       targeting: ConfirmationCardTargeting;
     }) => {
-      // Persist identity + targeting via existing save endpoints.
-      // The v1 wizard uses a multi-call pattern; we collapse to two
-      // save calls so the server sees a coherent "welcome" +
-      // "product" + "icp" snapshot.
-      await fetch("/api/onboarding/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          step: "welcome",
-          fullName: next.identity.fullName,
-          companyName: next.identity.companyName,
-          domain: next.identity.domain,
-          role: "Founder",
-        }),
+      // Persist identity + targeting via the existing save endpoints, as a
+      // coherent "welcome" + "product" + "icp" snapshot. Each save is checked
+      // for an ok response and throws otherwise: a silent network failure must
+      // NOT fall through to onComplete (which redirects as if onboarded) while
+      // leaving onboardingCompleted unwritten — that was the source of the
+      // "modal keeps coming back" loop. A throw surfaces the retry toast in
+      // OnboardingConfirmationCard and keeps the user on the card.
+      const save = async (body: Record<string, unknown>) => {
+        const res = await fetch("/api/onboarding/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          throw new Error(`onboarding save (${body.step}) failed: ${res.status}`);
+        }
+      };
+
+      await save({
+        step: "welcome",
+        fullName: next.identity.fullName,
+        companyName: next.identity.companyName,
+        domain: next.identity.domain,
+        role: "Founder",
       });
-      await fetch("/api/onboarding/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          step: "product",
-          productDesc: next.identity.productDescription,
-          salesMotion: "Founder-led sales",
-          challenge: "Finding leads",
-        }),
+      await save({
+        step: "product",
+        productDesc: next.identity.productDescription,
+        salesMotion: "Founder-led sales",
+        challenge: "Finding leads",
       });
-      await fetch("/api/onboarding/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          step: "icp",
-          industries: next.targeting.industries,
-          keywords: next.targeting.keywords,
-          companySizes: next.targeting.companySizes,
-          geographies: next.targeting.geographies,
-          excludeGeographies: next.targeting.excludeGeographies,
-          technologies: next.targeting.technologies,
-          revenueMin: next.targeting.revenueMin,
-          revenueMax: next.targeting.revenueMax,
-          fundingRecencyDays: next.targeting.fundingRecencyDays,
-          totalFundingMin: next.targeting.totalFundingMin,
-          totalFundingMax: next.targeting.totalFundingMax,
-          minJobOpenings: next.targeting.minJobOpenings,
-          hiringTitles: next.targeting.hiringTitles,
-          targetSeniorities: next.targeting.targetSeniorities,
-          targetDepartments: next.targeting.targetDepartments,
-          aiTone: next.identity.aiTone,
-        }),
+      await save({
+        step: "icp",
+        industries: next.targeting.industries,
+        keywords: next.targeting.keywords,
+        companySizes: next.targeting.companySizes,
+        geographies: next.targeting.geographies,
+        excludeGeographies: next.targeting.excludeGeographies,
+        technologies: next.targeting.technologies,
+        revenueMin: next.targeting.revenueMin,
+        revenueMax: next.targeting.revenueMax,
+        fundingRecencyDays: next.targeting.fundingRecencyDays,
+        totalFundingMin: next.targeting.totalFundingMin,
+        totalFundingMax: next.targeting.totalFundingMax,
+        minJobOpenings: next.targeting.minJobOpenings,
+        hiringTitles: next.targeting.hiringTitles,
+        targetSeniorities: next.targeting.targetSeniorities,
+        targetDepartments: next.targeting.targetDepartments,
+        aiTone: next.identity.aiTone,
       });
 
       // WS-4 — fire TAM build fire-and-forget. The user lands on the
@@ -245,15 +264,8 @@ export function OnboardingV2Wrapper({
 
       // Mark onboarding complete. Synchronous — the user should land
       // on the dashboard as the onboarded state, not the onboarding
-      // state.
-      await fetch("/api/onboarding/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          step: "complete",
-          onboardingCompleted: true,
-        }),
-      });
+      // state. If this fails we throw (above) and never call onComplete.
+      await save({ step: "complete", onboardingCompleted: true });
 
       onComplete();
     },

@@ -139,8 +139,12 @@ export async function POST(req: Request) {
       mode: "payment",
       customer: stripeCustomerId,
       line_items: [lineItem as never],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/onboarding-v3?founder_led=success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/onboarding-v3?founder_led=canceled`,
+      // The onboarding-v3 entry page was removed in the onboarding cleanup;
+      // land back on the home briefing. This billing route is currently
+      // orphaned (its only callers lived in the removed 7-phase flow) but is
+      // kept as a re-wireable revenue path — see onboarding cleanup notes.
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/?founder_led=success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/?founder_led=canceled`,
       metadata: { tenantId, kind: "founder-led" },
       payment_intent_data: {
         metadata: { tenantId, kind: "founder-led" },

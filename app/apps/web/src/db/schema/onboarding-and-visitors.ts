@@ -30,6 +30,10 @@ import {
 } from "drizzle-orm/pg-core";
 
 // ── onboarding_progress ──────────────────────────────────────
+// NOTE: retained for the admin velocity tile (/api/admin/onboarding-velocity)
+// and historical rows only. The 7-phase wizard that populated this table was
+// removed in the onboarding cleanup — no live code writes it any more. Safe to
+// drop in a future migration once the admin tile is retired.
 export const onboardingProgress = pgTable(
   "onboarding_progress",
   {
@@ -45,15 +49,14 @@ export const onboardingProgress = pgTable(
       .$type<number[]>()
       .notNull()
       .default([]),
-    /** Per-phase user input — keyed by phase number (1..7). Schema
-     *  varies per phase; validated by `lib/onboarding/phase-validators.ts`
-     *  before write. */
+    /** Per-phase user input — keyed by phase number (1..7). Historical:
+     *  written by the removed 7-phase onboarding flow. */
     phaseData: jsonb("phase_data")
       .$type<Record<string, unknown>>()
       .notNull()
       .default({}),
     /** Hard-gate state: each gate flag is "pending" | "pass" | "fail".
-     *  See lib/onboarding/checklist.ts for the canonical list. */
+     *  Historical — written by the removed 7-phase onboarding flow. */
     checklistState: jsonb("checklist_state")
       .$type<Record<string, "pending" | "pass" | "fail">>()
       .notNull()

@@ -304,6 +304,11 @@
   }
 }
 
+/* Hide scrollbars within a subtree — the landing's scaled product shots show
+   the whole UI at once and must never reveal a scrollbar (H or V). */
+.no-scrollbars, .no-scrollbars * { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbars::-webkit-scrollbar, .no-scrollbars *::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
 /* ================================================================
    SUBTLE GRID BACKGROUND — main content area only
    ================================================================ */

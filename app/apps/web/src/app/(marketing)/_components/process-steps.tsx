@@ -1,51 +1,48 @@
 "use client";
 
 /**
- * The workflow as a fluid, numbered sequence (Monaco-style): each step
- * names the stage, says in plain words what you can do there, and shows
- * the REAL, animated Elevay surface for it — the same faithful product
- * pages from the hero, each replayed when its step scrolls into view.
- * Visuals alternate left/right down the page; the cold-call cockpit is
- * the one full-width step (a three-column surface can't read at half
- * width).
+ * The workflow as a fluid, numbered sequence (Monaco-style): each step names
+ * the stage, says in plain words what you can do there, and shows the REAL
+ * Elevay surface for it. Visuals alternate left/right down the page so it reads
+ * with rhythm, not as a linear stack.
+ *
+ * Each surface is a `RealShot`: the real product component is rendered at its
+ * natural desktop width (1280) and the whole window is SCALED to fit its column
+ * (transform — GPU-cheap), clipped to a tasteful height with hidden scrollbars
+ * and a soft bottom fade. So the prospect sees the ENTIRE UI at a glance — never
+ * a horizontal or vertical scrollbar inside a shot. The cold-call cockpit is the
+ * one full-width step (a three-column surface can't read at half width).
  */
 
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { motion, useInView, useReducedMotion } from "framer-motion";
 import { AppFrame, ScaleToFit } from "./product-mockups";
 import { CallModeDemo } from "./call-mode-demo";
-import {
-  AccountsPhase,
-  UpNextPhase,
-  CampaignsPhase,
-  MeetingsPhase,
-  OpportunitiesPhase,
-  ChatPhase,
-} from "./hero-demo";
+import { RealUpNext, RealAccounts, RealOpportunities, RealChat, RealCampaigns, RealMeetings } from "./real-surfaces";
 
-type Phase = ComponentType<{ reduced: boolean }>;
-
-const steps: { label: string; headline: string; body: string; Phase?: Phase; h?: number; wide?: boolean }[] = [
+// `h` = the natural content height shown in the shot (before scaling); the rest
+// of the page is clipped with a fade, so each shot ends cleanly on a few rows.
+const steps: { label: string; headline: string; body: string; Real?: ComponentType; h?: number; wide?: boolean }[] = [
   {
     label: "Find demand",
     headline: "Your target list builds itself",
     body: "Describe your ICP once. Elevay searches a live B2B database, builds your target account list, and scores every account against it, no CSV imports and no manual research.",
-    Phase: AccountsPhase,
-    h: 540,
+    Real: RealAccounts,
+    h: 680,
   },
   {
     label: "Find demand",
     headline: "Open on who is ready now",
     body: "Replies, opens, booked meetings, and deal moves land in one morning briefing, next to the short list of what genuinely needs a human. You open the day knowing exactly where to spend it.",
-    Phase: UpNextPhase,
-    h: 330,
+    Real: RealUpNext,
+    h: 640,
   },
   {
     label: "Engage",
     headline: "Outreach drafted from real context",
     body: "Multi-touch sequences drafted from each account's signals and notes, never from a template with a first name in it. Nothing leaves your domain until you approve it.",
-    Phase: CampaignsPhase,
-    h: 444,
+    Real: RealCampaigns,
+    h: 600,
   },
   {
     label: "Engage",
@@ -57,46 +54,37 @@ const steps: { label: string; headline: string; body: string; Phase?: Phase; h?:
     label: "Capture",
     headline: "Every meeting captured for you",
     body: "A bot joins your Meet, Zoom, and Teams calls, transcribes them, and pulls out the action items and buying signals, ready for you to review.",
-    Phase: MeetingsPhase,
-    h: 490,
+    Real: RealMeetings,
+    h: 640,
   },
   {
     label: "Capture",
     headline: "Your CRM fills itself",
     body: "Values update, fields populate, and the next stage is suggested for you, straight from your calls and emails, so the pipeline reflects reality without manual logging.",
-    Phase: OpportunitiesPhase,
-    h: 318,
+    Real: RealOpportunities,
+    h: 680,
   },
   {
     label: "Operate",
     headline: "Ask your pipeline anything",
     body: "Query in plain language and get an answer in seconds, each one cited to the exact call, email, or knowledge entry it came from.",
-    Phase: ChatPhase,
-    h: 228,
+    Real: RealChat,
+    h: 560,
   },
 ];
 
 /**
- * The one entrance every product surface shares: it fades, lifts, and settles
- * (scale 0.97 -> 1) into place when it reaches the viewport — once. Strand-proof
- * like the page sections (a hard timeout forces it visible if the observer ever
- * misfires) and off under reduced-motion. Exposes `live` via render-prop so the
- * surface can also start its own scripted animation the moment it settles.
- *
- * Used by BOTH the half-width Phase surfaces (AnimatedSurface) and the
- * full-width Call Mode cockpit, so every step enters identically — no surface
- * "just appears" while its neighbours glide in.
+ * The one entrance every surface shares: it fades, lifts and settles into place
+ * when it reaches the viewport — once. Strand-proof (a hard timeout forces it
+ * visible if the observer ever misfires) and off under reduced-motion.
  */
-function RevealOnView({ children, className = "" }: { children: (live: boolean, reduced: boolean) => React.ReactNode; className?: string }) {
+function RevealOnView({ children, className = "" }: { children: () => React.ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion() ?? false;
   const inView = useInView(ref, { margin: "-80px 0px" });
   const [live, setLive] = useState(false);
   useEffect(() => { if (inView) setLive(true); }, [inView]);
-  useEffect(() => {
-    const t = setTimeout(() => setLive(true), 6000);
-    return () => clearTimeout(t);
-  }, []);
+  useEffect(() => { const t = setTimeout(() => setLive(true), 6000); return () => clearTimeout(t); }, []);
   return (
     <motion.div
       ref={ref}
@@ -105,25 +93,27 @@ function RevealOnView({ children, className = "" }: { children: (live: boolean, 
       animate={live ? { opacity: 1, y: 0, scale: 1 } : undefined}
       transition={{ duration: reduced ? 0 : 0.6, ease: [0.22, 0.61, 0.36, 1] }}
     >
-      {children(live, reduced)}
+      {children()}
     </motion.div>
   );
 }
 
 /**
- * A faithful product page that fades and settles into place as its step
- * reaches the viewport, then plays its own intro animation once. Each frame is
- * sized to its scene so it fits in one view — no inner scroll, no auto-pan
- * (a long list like the TAM is the one exception).
+ * A real product surface shown as a crisp, fully-visible app window: rendered at
+ * its natural desktop width (1280) then scaled to the column, clipped to `h`
+ * with hidden scrollbars + a soft bottom fade. Whole UI at a glance, zero
+ * scrollbars. Floats on a layered shadow for depth.
  */
-function AnimatedSurface({ Phase, h }: { Phase: Phase; h: number }) {
+function RealShot({ Real, h }: { Real: ComponentType; h: number }) {
   return (
     <RevealOnView>
-      {(live, reduced) => (
-        <ScaleToFit designWidth={460}>
+      {() => (
+        <ScaleToFit designWidth={1280}>
           <AppFrame>
-            <div style={{ height: h }} className="overflow-hidden bg-[#FAFAFA]">
-              {live ? <Phase key="live" reduced={reduced} /> : <Phase key="static" reduced />}
+            <div className="no-scrollbars relative overflow-hidden" style={{ height: h, background: "var(--color-bg-page)" }}>
+              <Real />
+              {/* soft fade so the clipped bottom reads as intentional, not cut off */}
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16" style={{ background: "linear-gradient(to bottom, rgba(250,250,250,0), #FAFAFA)" }} />
             </div>
           </AppFrame>
         </ScaleToFit>
@@ -134,7 +124,7 @@ function AnimatedSurface({ Phase, h }: { Phase: Phase; h: number }) {
 
 /** Step number + stage label — the badge fills with the accent when its step
  * enters the viewport, so progress reads as you scroll. */
-function StepHeading({ i, label, headline, body, centered }: { i: number; label: string; headline: string; body: string; centered?: boolean }) {
+function StepHeading({ i, label, headline, body }: { i: number; label: string; headline: string; body: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion() ?? false;
   const inView = useInView(ref, { once: true, margin: "-120px 0px" });
@@ -143,8 +133,8 @@ function StepHeading({ i, label, headline, body, centered }: { i: number; label:
   useEffect(() => { const t = setTimeout(() => setLive(true), 6000); return () => clearTimeout(t); }, []);
 
   return (
-    <div ref={ref} className={centered ? "mx-auto max-w-2xl text-center" : ""}>
-      <div className={`flex items-center gap-3 ${centered ? "justify-center" : ""}`}>
+    <div ref={ref}>
+      <div className="flex items-center gap-3">
         <motion.span
           className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-white text-[13px] font-bold tabular-nums"
           style={{ borderColor: "#E5E7EF", boxShadow: "0 2px 6px rgba(26,26,46,0.06)" }}
@@ -152,8 +142,6 @@ function StepHeading({ i, label, headline, body, centered }: { i: number; label:
           animate={live ? { scale: [1, 1.12, 1] } : undefined}
           transition={{ duration: reduced ? 0 : 0.45, ease: "easeOut" }}
         >
-          {/* The fill — a disc scaling up behind the number (transform only,
-              and it never exceeds the badge's own clip) */}
           <motion.span
             aria-hidden
             className="absolute inset-0 rounded-full"
@@ -175,7 +163,7 @@ function StepHeading({ i, label, headline, body, centered }: { i: number; label:
         {headline}
       </motion.h3>
       <motion.p
-        className={`mt-3 text-[15px] leading-relaxed text-gray-600 ${centered ? "" : "max-w-md"}`}
+        className="mt-3 max-w-md text-[15px] leading-relaxed text-gray-600"
         initial={reduced ? false : { opacity: 0, y: 14 }}
         animate={live ? { opacity: 1, y: 0 } : undefined}
         transition={{ duration: 0.45, ease: "easeOut", delay: reduced ? 0 : 0.16 }}
@@ -187,21 +175,13 @@ function StepHeading({ i, label, headline, body, centered }: { i: number; label:
 }
 
 export function ProcessSteps() {
-  // Numbering skips nothing: the wide cockpit step keeps its place in the
-  // sequence, it just spans full width (a 3-column cockpit can't read at half
-  // width). Its heading is left-aligned and its frame fades-and-settles in on
-  // the SAME entrance as every other surface — so it's a member of the
-  // sequence, not an outlier.
+  // Real surfaces alternate left/right for rhythm; the cold-call cockpit is the
+  // single full-width feature (a 3-column cockpit can't read at half width).
   let visualIdx = 0;
   return (
-    <div className="space-y-16 md:space-y-24">
+    <div className="space-y-20 md:space-y-28">
       {steps.map((s, i) => {
         if (s.wide) {
-          // The heading shares the same left edge (x) as every other step
-          // heading (no inset); the cockpit is left-aligned right under it at
-          // its natural ~1100px width (wider gets sparse in the centre). A
-          // deliberate full-width feature, anchored to the column — not a
-          // centred outlier.
           return (
             <div key={s.headline}>
               <StepHeading i={i} label={s.label} headline={s.headline} body={s.body} />
@@ -213,14 +193,14 @@ export function ProcessSteps() {
         }
         const flip = visualIdx % 2 === 1;
         visualIdx += 1;
-        const Phase = s.Phase as Phase;
+        const Real = s.Real as ComponentType;
         return (
-          <div key={s.headline} className="grid grid-cols-1 items-center gap-8 lg:grid-cols-2 lg:gap-16">
+          <div key={s.headline} className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
             <div className={`min-w-0 ${flip ? "lg:order-2" : ""}`}>
               <StepHeading i={i} label={s.label} headline={s.headline} body={s.body} />
             </div>
             <div className={`min-w-0 ${flip ? "lg:order-1" : ""}`}>
-              <AnimatedSurface Phase={Phase} h={s.h ?? 400} />
+              <RealShot Real={Real} h={s.h ?? 620} />
             </div>
           </div>
         );

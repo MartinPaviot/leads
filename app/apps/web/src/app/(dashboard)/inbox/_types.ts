@@ -1,5 +1,14 @@
 export type InboxLane = "attention" | "snoozed" | "done" | "handled";
 
+/** One of the user's connected mailboxes, for the unified-inbox rail. */
+export interface MailboxSummary {
+  id: string;
+  address: string;
+  label: string;
+  /** Conversations needing attention in this box (its own backlog). */
+  attention: number;
+}
+
 export interface ConversationListItem {
   key: string;
   lane: InboxLane;
@@ -15,6 +24,12 @@ export interface ConversationListItem {
   lastMessageAt: string | null;
   messageCount: number;
   hasIntelligence: boolean;
+  // Which of the user's connected mailboxes this conversation belongs to.
+  // Null when it can't be attributed (e.g. legacy rows). Drives the
+  // per-mailbox filter + the "received on X" chip in the unified inbox.
+  mailboxId: string | null;
+  mailboxAddress: string | null;
+  mailboxLabel: string | null;
 }
 
 export interface ConversationMessage {

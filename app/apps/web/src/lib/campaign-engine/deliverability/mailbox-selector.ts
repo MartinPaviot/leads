@@ -31,6 +31,10 @@ export async function selectBestMailbox(context: SelectionContext): Promise<Mail
     );
 
   const eligible = mailboxes.filter((m) => {
+    // External-managed mailboxes (Instantly) send through their own API, not
+    // our per-box SMTP rotation — never pick one as an SMTP send-from (they
+    // carry no host/credentials here).
+    if (m.provider === "instantly") return false;
     if (m.status !== "active" && m.status !== "warming_up") return false;
     if ((m.healthScore || 100) < 50) return false;
 
@@ -122,7 +126,11 @@ export async function getTenantSendingCapacity(tenantId: string): Promise<{
     .from(connectedMailboxes)
     .where(eq(connectedMailboxes.tenantId, tenantId));
 
-  const active = mailboxes.filter((m) => m.status === "active" || m.status === "warming_up");
+  // Exclude external-managed (Instantly) boxes — they aren't part of the SMTP
+  // sending capacity (they send via their own API).
+  const active = mailboxes.filter(
+    (m) => m.provider !== "instantly" && (m.status === "active" || m.status === "warming_up"),
+  );
   const healthy = active.filter((m) => (m.healthScore || 100) >= 50);
 
   let totalCapacity = 0;

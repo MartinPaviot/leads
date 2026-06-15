@@ -108,6 +108,120 @@ export async function testInstantlyConnection(
 }
 
 /**
+ * List ALL sending accounts (mailboxes) on the connected Instantly workspace,
+ * paginating through the v2 cursor (`starting_after` → `next_starting_after`).
+ * Returns the raw account objects so the importer can map them defensively —
+ * the exact field set is confirmed against the first live response.
+ *
+ * One key = the whole workspace's mailboxes, so a user with 50 Instantly boxes
+ * imports all of them without re-entering a single credential.
+ */
+export async function listInstantlyAccounts(
+  options: InstantlyClientOptions,
+): Promise<{
+  ok: boolean;
+  status: number;
+  accounts: Record<string, unknown>[];
+  errorMessage?: string;
+}> {
+  const base = options.baseUrl ?? DEFAULT_BASE_URL;
+  const accounts: Record<string, unknown>[] = [];
+  let startingAfter: string | undefined;
+  const LIMIT = 100;
+
+  // Hard page cap (100 × 100 = 10k accounts) so a malformed `next` cursor can
+  // never loop forever.
+  for (let pageGuard = 0; pageGuard < 100; pageGuard++) {
+    const url = new URL(`${base}/api/v2/accounts`);
+    url.searchParams.set("limit", String(LIMIT));
+    if (startingAfter) url.searchParams.set("starting_after", startingAfter);
+
+    let res: Response;
+    try {
+      res = await fetchWithTimeout(
+        url.toString(),
+        { method: "GET", headers: buildHeaders(options.apiKey) },
+        TIMEOUT_MS,
+      );
+    } catch (err) {
+      return {
+        ok: false,
+        status: 0,
+        accounts,
+        errorMessage: err instanceof Error ? err.message : "unknown fetch error",
+      };
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      return { ok: false, status: res.status, accounts, errorMessage: body.slice(0, 300) || `HTTP ${res.status}` };
+    }
+
+    const data = (await res.json().catch(() => ({}))) as {
+      items?: unknown[];
+      accounts?: unknown[];
+      next_starting_after?: string;
+    };
+    const items = (data.items ?? data.accounts ?? []) as Record<string, unknown>[];
+    accounts.push(...items);
+
+    const next = data.next_starting_after;
+    if (!next || items.length === 0) break;
+    startingAfter = next;
+  }
+
+  return { ok: true, status: 200, accounts };
+}
+
+/**
+ * List Unibox emails (campaign sends, replies, manual) on the connected
+ * workspace, paginating the v2 cursor. Returns raw email objects so the
+ * ingestion can detect inbound replies + map them defensively — the exact
+ * field set is confirmed against the first live response.
+ */
+export async function listInstantlyEmails(
+  options: InstantlyClientOptions & { startingAfter?: string; limit?: number },
+): Promise<{
+  ok: boolean;
+  status: number;
+  emails: Record<string, unknown>[];
+  nextStartingAfter?: string;
+  errorMessage?: string;
+}> {
+  const base = options.baseUrl ?? DEFAULT_BASE_URL;
+  const limit = options.limit ?? 100;
+  const url = new URL(`${base}/api/v2/emails`);
+  url.searchParams.set("limit", String(limit));
+  if (options.startingAfter) url.searchParams.set("starting_after", options.startingAfter);
+
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      url.toString(),
+      { method: "GET", headers: buildHeaders(options.apiKey) },
+      TIMEOUT_MS,
+    );
+  } catch (err) {
+    return {
+      ok: false,
+      status: 0,
+      emails: [],
+      errorMessage: err instanceof Error ? err.message : "unknown fetch error",
+    };
+  }
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    return { ok: false, status: res.status, emails: [], errorMessage: body.slice(0, 300) || `HTTP ${res.status}` };
+  }
+  const data = (await res.json().catch(() => ({}))) as {
+    items?: unknown[];
+    emails?: unknown[];
+    next_starting_after?: string;
+  };
+  const emails = (data.items ?? data.emails ?? []) as Record<string, unknown>[];
+  return { ok: true, status: 200, emails, nextStartingAfter: data.next_starting_after };
+}
+
+/**
  * Dispatch a single email through Instantly. Not yet wired into
  * `email-send-worker.ts` — that integration ships when Martin has
  * verified the connection flow end-to-end with a live Hypergrowth

@@ -1,7 +1,7 @@
 import { inngest } from "./client";
 import { db } from "@/db";
 import { activities, authAccounts, authUsers, users, tenants } from "@/db/schema";
-import { eq, and, sql, gte, lte } from "drizzle-orm";
+import { eq, and, sql, gte, lte, isNull, desc } from "drizzle-orm";
 import { fetchMicrosoftMeetings } from "@/lib/integrations/calendar-microsoft";
 import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/integrations/calendar";
 import { fetchCalDavMeetingsForTenant, tenantsWithCalDav } from "@/lib/integrations/caldav-sync";
@@ -381,21 +381,80 @@ export const generateMeetingPrep = inngest.createFunction(
       tenantId,
     });
 
+    // Specialize the prep to the MOMENT of the deal (computed, not configured):
+    // a discovery brief differs from a demo, proposal, or close brief. Keep the
+    // rich Company Brain context above and add the moment's Method doctrine.
+    const { deals } = await import("@/db/schema");
+    const { deriveMoment } = await import("@/lib/motion/moment");
+    const { getStepDoctrine } = await import("@/lib/motion/doctrine");
+
+    // Best available deal for this meeting: a directly linked deal, else the
+    // most recently touched open deal at any attendee's company.
+    let dealStage: string | null = null;
+    let dealOverride: string | null = null;
+    if (activity.entityType === "deal" && activity.entityId) {
+      const [d] = await db
+        .select({ stage: deals.stage, properties: deals.properties })
+        .from(deals)
+        .where(and(eq(deals.id, activity.entityId), eq(deals.tenantId, tenantId)))
+        .limit(1);
+      if (d) {
+        dealStage = d.stage;
+        const p = (d.properties ?? {}) as Record<string, unknown>;
+        if (typeof p.momentOverride === "string") dealOverride = p.momentOverride;
+      }
+    } else if (companyIds.size > 0) {
+      const [d] = await db
+        .select({ stage: deals.stage, properties: deals.properties })
+        .from(deals)
+        .where(
+          and(
+            eq(deals.tenantId, tenantId),
+            sql`${deals.companyId} = ANY(${Array.from(companyIds)})`,
+            isNull(deals.deletedAt),
+            sql`${deals.stage} NOT IN ('won','lost')`,
+          ),
+        )
+        .orderBy(desc(deals.updatedAt))
+        .limit(1);
+      if (d) {
+        dealStage = d.stage;
+        const p = (d.properties ?? {}) as Record<string, unknown>;
+        if (typeof p.momentOverride === "string") dealOverride = p.momentOverride;
+      }
+    }
+
+    // No deal stage → fall back to the calendar/booking meetingType signal.
+    const meetingTypeMoment: Record<string, "discovery" | "demo"> = {
+      intro: "discovery",
+      qualification: "discovery",
+      follow_up: "discovery",
+      deep_dive: "demo",
+    };
+    const moment = dealStage
+      ? deriveMoment({ override: dealOverride, hasDeal: true, dealStage }).moment
+      : (meetingTypeMoment[(meta.meetingType as string) ?? ""] ?? "discovery");
+
+    const { rubric } = getStepDoctrine(moment);
+    const doctrineBlock = rubric
+      ? `\n## Method doctrine for a ${moment.replace("_", " ")} meeting (apply these rules to THIS account; do not restate them)\n${rubric}\n`
+      : "";
+
     const { text: prepDoc } = await tracedGenerateText({
       model,
-      prompt: `Generate a concise meeting prep document for an upcoming sales meeting.
+      prompt: `Generate a concise, tactical prep document for an upcoming ${moment.replace("_", " ")} meeting. Specialize it to this moment: a discovery diagnoses and quantifies the gap, a demo proves the gap closes against named pains, a proposal/close drives the decision.
 
 ${context}
-
-Include:
+${doctrineBlock}
+Tailor every section to a ${moment.replace("_", " ")} meeting:
 1. Account snapshot (what we know about the company/contact)
 2. Key attendees and their roles
 3. Recent interaction summary
-4. Suggested talking points
-5. Questions to ask
-6. Potential objections and responses
+4. The specific play for this moment (apply the doctrine above to THIS account)
+5. Questions or talking points that fit this moment
+6. Likely objections for this moment, with responses
 
-Keep it actionable and under 500 words.`,
+Ground everything in the data above; never invent a fact (write "unknown" if needed). Keep it actionable and under 500 words.`,
       _trace: { agentId: "generate-meeting-prep", tenantId },
     });
 
@@ -403,7 +462,7 @@ Keep it actionable and under 500 words.`,
     await db
       .update(activities)
       .set({
-        metadata: { ...meta, prepDocument: prepDoc, prepGeneratedAt: new Date().toISOString() },
+        metadata: { ...meta, prepDocument: prepDoc, prepMoment: moment, prepGeneratedAt: new Date().toISOString() },
       })
       .where(eq(activities.id, activityId));
 
