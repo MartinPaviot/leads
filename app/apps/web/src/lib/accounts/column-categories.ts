@@ -111,7 +111,8 @@ export const UNAVAILABLE_CATEGORY_KEYS: ReadonlySet<string> = new Set(
 );
 
 /** True unless the category is catalogued-but-not-connected. Unknown
- * keys are available — defensive against stale clients. */
+ * (dynamic) keys are available — they only exist because their column is
+ * already on the page. */
 export function isCategoryAvailable(key: string): boolean {
   return !UNAVAILABLE_CATEGORY_KEYS.has(key);
 }
@@ -125,4 +126,72 @@ export function enrichCriteriaForCategories(keys: Iterable<string>): string[] {
     if (c?.kind === "enrich") out.push(c.refKey);
   }
   return out;
+}
+
+// ── Picker model: built-ins + always-on dynamic columns ──────────────
+//
+// The accounts table also renders three *always-on* column families that
+// aren't built-ins: user-defined custom signals, data-derived signal-type
+// columns, and custom fields. They were absent from the Categories picker,
+// so a column already on the page couldn't be unchecked. These helpers
+// fold them into the picker: built-ins stay opt-IN (shown only when added),
+// the dynamic columns are opt-OUT (shown unless explicitly hidden), and the
+// picker checkbox reflects the column's true on-screen state either way.
+
+/** Stable, collision-free picker keys for the opt-out dynamic columns
+ * (distinct from the built-in `signal:`/`extra:` namespaces). */
+export const customSignalKey = (id: string) => `custom-signal:${id}`;
+export const signalTypeKey = (type: string) => `signal-type:${type}`;
+export const customFieldKey = (id: string) => `custom-field:${id}`;
+
+/** A built-in category is opt-in; anything else is an always-on dynamic
+ * column toggled via the hidden set. */
+export function isDynamicCategoryKey(key: string): boolean {
+  return !BY_KEY.has(key);
+}
+
+export type PickerGroup = CategoryGroup | "custom";
+
+/** Shape the ColumnPicker consumes (structurally `PickerCategory`). */
+export interface PickerCategoryShape {
+  key: string;
+  label: string;
+  group: PickerGroup;
+  source: string;
+  /** False = catalogued but not connected yet (greyed-out, unselectable).
+   * Omitted/true for live built-ins and all dynamic columns. */
+  available?: boolean;
+}
+
+export interface DynamicCategoryColumns {
+  customSignals: ReadonlyArray<{ id: string; name: string }>;
+  signalTypes: ReadonlyArray<string>;
+  customFields: ReadonlyArray<{ id: string; name: string }>;
+}
+
+/**
+ * Build the full picker list (built-ins + dynamic columns) and the unified
+ * "visible" set the checkboxes read from.
+ *  - built-ins: visible iff their key is in `visible` (opt-in)
+ *  - dynamic columns: visible unless their key is in `hidden` (opt-out)
+ * So every column actually on the page renders checked, and unchecking one
+ * either removes it from `visible` (built-in) or adds it to `hidden`.
+ */
+export function buildPickerModel(input: {
+  visible: ReadonlySet<string>;
+  hidden: ReadonlySet<string>;
+  dynamic: DynamicCategoryColumns;
+}): { categories: PickerCategoryShape[]; visible: Set<string> } {
+  const { visible, hidden, dynamic } = input;
+  const categories: PickerCategoryShape[] = [
+    ...COLUMN_CATEGORIES.map((c) => ({ key: c.key, label: c.label, group: c.group, source: c.source, available: c.available })),
+    ...dynamic.customSignals.map((c) => ({ key: customSignalKey(c.id), label: c.name, group: "signal" as const, source: "Custom signal" })),
+    ...dynamic.signalTypes.map((t) => ({ key: signalTypeKey(t), label: t.replace(/_/g, " "), group: "signal" as const, source: "Detected signal" })),
+    ...dynamic.customFields.map((f) => ({ key: customFieldKey(f.id), label: f.name, group: "custom" as const, source: "Custom field" })),
+  ];
+  const visibleNow = new Set<string>(visible);
+  for (const c of dynamic.customSignals) { const k = customSignalKey(c.id); if (!hidden.has(k)) visibleNow.add(k); }
+  for (const t of dynamic.signalTypes) { const k = signalTypeKey(t); if (!hidden.has(k)) visibleNow.add(k); }
+  for (const f of dynamic.customFields) { const k = customFieldKey(f.id); if (!hidden.has(k)) visibleNow.add(k); }
+  return { categories, visible: visibleNow };
 }

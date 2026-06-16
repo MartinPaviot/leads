@@ -41,9 +41,9 @@ import { ColumnFilter, isColumnFilterActive, type ColumnFilterKind, type ColumnF
 import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-delete-modal";
 import { EnrichMenu } from "@/components/ui/enrich-menu";
 import { useEnrichStream, type EnrichCellState } from "@/hooks/use-enrich-stream";
-import { ColumnPicker, type PickerCategory } from "@/components/ui/column-picker";
+import { ColumnPicker } from "@/components/ui/column-picker";
 import { MoreMenu } from "@/components/ui/more-menu";
-import { COLUMN_CATEGORIES, DEFAULT_VISIBLE_CATEGORY_KEYS, getColumnCategory, isCategoryAvailable } from "@/lib/accounts/column-categories";
+import { COLUMN_CATEGORIES, DEFAULT_VISIBLE_CATEGORY_KEYS, getColumnCategory, buildPickerModel, isDynamicCategoryKey, isCategoryAvailable, customSignalKey, signalTypeKey, customFieldKey } from "@/lib/accounts/column-categories";
 import { TAM_PROPOSALS_ENTRY_ENABLED } from "@/lib/tam/entry-visibility";
 import { deriveAccountTabCounts } from "@/lib/accounts/tab-counts";
 
@@ -52,6 +52,10 @@ import { deriveAccountTabCounts } from "@/lib/accounts/tab-counts";
  * enrichment criteria they map to. */
 const EXTRA_COLUMNS = COLUMN_CATEGORIES.filter((c) => c.group === "firmographic");
 const CATEGORIES_STORAGE_KEY = "accounts:visibleCategories:v1";
+// Opt-OUT companion to CATEGORIES_STORAGE_KEY: keys of always-on category
+// columns (custom signals / detected signal types / custom fields) the user
+// has hidden via the picker. Empty = the legacy behaviour (all shown).
+const HIDDEN_CATEGORIES_STORAGE_KEY = "accounts:hiddenCategories:v1";
 
 /** Whether an account already holds a firmographic-extra criterion's
  * value — used both to render the cell and to scope auto-fetch on add. */
@@ -318,22 +322,49 @@ export default function AccountsPage() {
   };
 
   // ── Category columns (show/hide via the Categories picker) ──
-  // Built-in signals + firmographic extras are opt-in columns; custom
-  // signals/fields stay always-visible. Choice persists per browser.
+  // Two visibility models meet in the one picker:
+  //  - built-in signals + firmographic extras are opt-IN (`visibleCategories`,
+  //    default off) — adding one also fetches its data;
+  //  - always-on columns (custom signals / detected signal types / custom
+  //    fields) are opt-OUT (`hiddenCategories`, default shown) so a column
+  //    already on the page shows checked and can be unchecked to hide it.
+  // Both choices persist per browser.
   const [visibleCategories, setVisibleCategories] = useState<Set<string>>(
     () => new Set(DEFAULT_VISIBLE_CATEGORY_KEYS),
   );
+  const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(() => new Set());
   useEffect(() => {
     try {
       const raw = localStorage.getItem(CATEGORIES_STORAGE_KEY);
       // Drop any catalogued-but-not-connected keys a previous build may
       // have persisted, so an unavailable column can't resurrect itself.
       if (raw) setVisibleCategories(new Set((JSON.parse(raw) as string[]).filter(isCategoryAvailable)));
+      const rawHidden = localStorage.getItem(HIDDEN_CATEGORIES_STORAGE_KEY);
+      if (rawHidden) setHiddenCategories(new Set(JSON.parse(rawHidden) as string[]));
     } catch {
       /* localStorage unavailable — keep defaults */
     }
   }, []);
+  // Opt-out toggle for an always-on dynamic column: flip its hidden flag.
+  const toggleHiddenCategory = useCallback((key: string) => {
+    setHiddenCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem(HIDDEN_CATEGORIES_STORAGE_KEY, JSON.stringify([...next]));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
   const toggleCategory = useCallback((key: string) => {
+    // Always-on dynamic columns hide/show via the opt-out set — no fetch.
+    if (isDynamicCategoryKey(key)) {
+      toggleHiddenCategory(key);
+      return;
+    }
     // Catalogued-but-not-connected (e.g. Crunchbase): the picker disables
     // the row, but guard here too so it can never be added programmatically.
     if (!isCategoryAvailable(key)) return;
@@ -366,19 +397,17 @@ export default function AccountsPage() {
     } else if (cat.kind === "signal") {
       detectSignals();
     }
-  }, [visibleCategories, accounts, runEnrich, detectSignals, toast]);
+  }, [visibleCategories, accounts, runEnrich, detectSignals, toast, toggleHiddenCategory]);
   const resetCategories = useCallback(() => {
     setVisibleCategories(new Set(DEFAULT_VISIBLE_CATEGORY_KEYS));
+    setHiddenCategories(new Set());
     try {
       localStorage.removeItem(CATEGORIES_STORAGE_KEY);
+      localStorage.removeItem(HIDDEN_CATEGORIES_STORAGE_KEY);
     } catch {
       /* ignore */
     }
   }, []);
-  const pickerCategories = useMemo<PickerCategory[]>(
-    () => COLUMN_CATEGORIES.map((c) => ({ key: c.key, label: c.label, group: c.group, source: c.source, available: c.available })),
-    [],
-  );
 
   /** Render a firmographic-extra cell (founded year / tech / funding /
    * keywords) from `properties`, wrapped in the live enrichment overlay
@@ -1456,6 +1485,23 @@ export default function AccountsPage() {
     new Set(accounts.flatMap((a) => getSignals(a).map((s) => s.type)))
   ).slice(0, 5); // Cap at 5 signal columns to avoid table overflow
 
+  // Picker model — built-ins + the always-on dynamic columns (custom signals,
+  // detected signal types, custom fields), with every column currently on the
+  // page shown as checked. Defined here so the dynamic lists are in scope.
+  const { categories: pickerCategories, visible: pickerVisible } = useMemo(
+    () =>
+      buildPickerModel({
+        visible: visibleCategories,
+        hidden: hiddenCategories,
+        dynamic: {
+          customSignals: customSignals.map((c) => ({ id: c.id, name: c.name })),
+          signalTypes: signalTypeColumns,
+          customFields: customFields.map((f) => ({ id: f.id, name: f.name })),
+        },
+      }),
+    [visibleCategories, hiddenCategories, customSignals, signalTypeColumns, customFields],
+  );
+
   function accountHasSignalType(account: Account, signalType: string): Signal | null {
     return getSignals(account).find((s) => s.type === signalType) || null;
   }
@@ -1600,7 +1646,7 @@ export default function AccountsPage() {
             opened by the menu item above, dismisses itself. */}
         <ColumnPicker
           categories={pickerCategories}
-          visible={visibleCategories}
+          visible={pickerVisible}
           onToggle={toggleCategory}
           onReset={resetCategories}
           open={showCategoriesPanel}
@@ -1872,7 +1918,7 @@ export default function AccountsPage() {
           <TableSkeleton
             rows={8}
             // +4 for built-in TAM signals + N for custom signals.
-            cols={9 + DEFAULT_SIGNALS.filter((s) => visibleCategories.has(`signal:${s.key}`)).length + EXTRA_COLUMNS.filter((c) => visibleCategories.has(c.key)).length + customSignals.length + signalTypeColumns.length + customFields.length}
+            cols={9 + DEFAULT_SIGNALS.filter((s) => visibleCategories.has(`signal:${s.key}`)).length + EXTRA_COLUMNS.filter((c) => visibleCategories.has(c.key)).length + customSignals.filter((c) => !hiddenCategories.has(customSignalKey(c.id))).length + signalTypeColumns.filter((t) => !hiddenCategories.has(signalTypeKey(t))).length + customFields.filter((f) => !hiddenCategories.has(customFieldKey(f.id))).length}
           />
         ) : mergedAccounts.length === 0 ? (
           debouncedSearch ? (
@@ -1962,13 +2008,15 @@ export default function AccountsPage() {
                     .map((c) => ({ label: c.label, icon: null as LucideIcon | null })),
                   // User-defined custom signals. Each appears as its
                   // own column; names truncated to 16 chars in the
-                  // header to keep row widths predictable.
-                  ...customSignals.map((c) => ({
+                  // header to keep row widths predictable. These + the
+                  // signal-type and custom-field columns below are shown
+                  // unless the user hid them via the Categories picker.
+                  ...customSignals.filter((c) => !hiddenCategories.has(customSignalKey(c.id))).map((c) => ({
                     label: c.name.length > 16 ? `${c.name.slice(0, 15)}…` : c.name,
                     icon: Radio as LucideIcon,
                   })),
-                  ...signalTypeColumns.map((t) => ({ label: t.replace(/_/g, " "), icon: Radio as LucideIcon })),
-                  ...customFields.map((f) => ({ label: f.name, icon: null as LucideIcon | null })),
+                  ...signalTypeColumns.filter((t) => !hiddenCategories.has(signalTypeKey(t))).map((t) => ({ label: t.replace(/_/g, " "), icon: Radio as LucideIcon })),
+                  ...customFields.filter((f) => !hiddenCategories.has(customFieldKey(f.id))).map((f) => ({ label: f.name, icon: null as LucideIcon | null })),
                   { label: "", icon: null },
                 ] as Array<{ label: string; icon: LucideIcon | null; filterKey?: string }>).map((col, i) => {
                   const fcfg = col.filterKey ? FILTER_COLUMNS[col.filterKey] : undefined;
@@ -2337,7 +2385,7 @@ export default function AccountsPage() {
                     {/* User-defined custom signals — one chip per
                         active signal, reads from
                         `properties.customSignals[signalId]`. */}
-                    {customSignals.map((custom) => {
+                    {customSignals.filter((custom) => !hiddenCategories.has(customSignalKey(custom.id))).map((custom) => {
                       const payload = getCustomSignalPayload(
                         account,
                         custom.id,
@@ -2362,7 +2410,7 @@ export default function AccountsPage() {
                     })}
 
                     {/* G27: Individual signal type columns */}
-                    {signalTypeColumns.map((sigType) => {
+                    {signalTypeColumns.filter((sigType) => !hiddenCategories.has(signalTypeKey(sigType))).map((sigType) => {
                       const signal = accountHasSignalType(account, sigType);
                       const popoverId = `${account.id}-sig-${sigType}`;
                       return (
@@ -2445,7 +2493,7 @@ export default function AccountsPage() {
                     })}
 
                     {/* Custom fields from data model */}
-                    {customFields.map((field) => (
+                    {customFields.filter((field) => !hiddenCategories.has(customFieldKey(field.id))).map((field) => (
                       <td key={field.id}>
                         {renderCustomFieldCell(account, field)}
                       </td>

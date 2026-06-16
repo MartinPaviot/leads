@@ -5,6 +5,7 @@ import {
   getColumnCategory,
   enrichCriteriaForCategories,
   isCategoryAvailable,
+  buildPickerModel,
 } from "@/lib/accounts/column-categories";
 
 describe("column categories catalog", () => {
@@ -61,7 +62,7 @@ describe("column categories catalog", () => {
     }
     expect(isCategoryAvailable("signal:funding_crunchbase")).toBe(false);
     expect(isCategoryAvailable("signal:funding_recent")).toBe(true);
-    // Unknown keys are available — defensive against stale clients.
+    // Unknown (dynamic) keys are available — their column is already shown.
     expect(isCategoryAvailable("custom-signal:anything")).toBe(true);
   });
 
@@ -70,5 +71,24 @@ describe("column categories catalog", () => {
     for (const c of COLUMN_CATEGORIES) {
       expect(c.source, `${c.key} leaks a provider: "${c.source}"`).not.toMatch(provider);
     }
+  });
+
+  it("buildPickerModel threads availability: Crunchbase greyed, dynamics live", () => {
+    const { categories } = buildPickerModel({
+      visible: new Set<string>(),
+      hidden: new Set<string>(),
+      dynamic: {
+        customSignals: [{ id: "s1", name: "Press mention" }],
+        signalTypes: ["news_event"],
+        customFields: [{ id: "f1", name: "Account note" }],
+      },
+    });
+    const byKey = new Map(categories.map((c) => [c.key, c]));
+    expect(byKey.get("signal:funding_crunchbase")?.available).toBe(false);
+    expect(byKey.get("signal:funding_recent")?.available).toBe(true);
+    // Dynamic columns are always selectable (availability omitted/true).
+    expect(byKey.get("custom-signal:s1")?.available).not.toBe(false);
+    expect(byKey.get("signal-type:news_event")?.available).not.toBe(false);
+    expect(byKey.get("custom-field:f1")?.available).not.toBe(false);
   });
 });

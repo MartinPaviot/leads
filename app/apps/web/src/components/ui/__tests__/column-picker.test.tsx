@@ -81,4 +81,25 @@ describe("ColumnPicker controlled mode", () => {
     fireEvent.click(row);
     expect(onToggle).not.toHaveBeenCalled();
   });
+
+  it("shows a column already on the page as checked and reports a click to uncheck it", () => {
+    const onToggle = vi.fn();
+    render(
+      <ColumnPicker
+        categories={[
+          { key: "custom-field:f1", label: "Account tier", group: "custom", source: "Custom field" },
+        ]}
+        visible={new Set(["custom-field:f1"])}
+        onToggle={onToggle}
+        open
+        onOpenChange={vi.fn()}
+        hideTrigger
+      />,
+    );
+    const row = screen.getByRole("button", { name: /account tier/i });
+    // The checkmark icon is the "this column is on" affordance.
+    expect(row.querySelector("svg")).toBeTruthy();
+    fireEvent.click(row);
+    expect(onToggle).toHaveBeenCalledWith("custom-field:f1");
+  });
 });
