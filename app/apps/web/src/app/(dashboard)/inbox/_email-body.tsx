@@ -6,6 +6,7 @@ import { sanitizeEmailHtml } from "@/lib/inbox/sanitize-email";
 import { applyEmailPrivacy } from "@/lib/inbox/email-privacy";
 import { foldQuotedReply } from "@/lib/inbox/email-fold";
 import { linkifyPlainText } from "@/lib/inbox/linkify";
+import { dirOf } from "@/lib/inbox/text-direction";
 
 /**
  * Renders one email message body with fidelity, privacy and safety (INBOX-R01 +
@@ -56,6 +57,7 @@ export function EmailBody({ html, text }: { html: string | null; text: string })
           // Color is owned by the `.email-body` rule so dark mode can swap to a
           // light "paper" (INBOX-R08); inline color would override that.
           style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
+          dir="auto" // per-element RTL/LTR from the content (INBOX-R10)
           // Allowlist-sanitized by sanitizeEmailHtml, then privacy-filtered above.
           dangerouslySetInnerHTML={{ __html: fold.visibleHtml }}
         />
@@ -81,6 +83,7 @@ export function EmailBody({ html, text }: { html: string | null; text: string })
               wordBreak: "break-word",
               overflowWrap: "anywhere",
             }}
+            dir="auto"
             dangerouslySetInnerHTML={{ __html: fold.trimmedHtml }}
           />
         )}
@@ -108,6 +111,7 @@ export function EmailBody({ html, text }: { html: string | null; text: string })
     <div
       className="whitespace-pre-wrap text-[13px] leading-relaxed"
       style={{ color: "var(--color-text-primary)", wordBreak: "break-word", overflowWrap: "anywhere" }}
+      dir={dirOf(text)}
     >
       {linkifyPlainText(text).map((seg, i) =>
         seg.type === "link" ? (

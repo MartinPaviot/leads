@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { timeAgo } from "./_time-ago";
 import { reasonTooltip, type ConversationListItem, type InboxLane } from "./_types";
+import { dirOf } from "@/lib/inbox/text-direction";
 
 const EMPTY_COPY: Record<InboxLane, { title: string; description: string }> = {
   attention: {
@@ -97,7 +98,7 @@ export function ConversationList({
               {c.subject}
             </div>
             {c.snippet && (
-              <div className="mt-0.5 truncate text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+              <div className="mt-0.5 truncate text-[11px]" style={{ color: "var(--color-text-tertiary)" }} dir={dirOf(c.snippet)}>
                 {c.snippet}
               </div>
             )}
