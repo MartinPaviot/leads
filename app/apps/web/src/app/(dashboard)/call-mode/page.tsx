@@ -1473,6 +1473,7 @@ export default function CallModePage() {
             <div className="p-3">
               <CallScriptPanel
                 contactName={selected.contactName}
+                companyName={selected.companyName}
                 contactId={selected.contactId}
                 defaultSector={brain?.companyBrain?.company?.industry}
                 defaultGeo={speakableGeo(brain?.companyBrain?.company?.location, selected.localTimezone)}

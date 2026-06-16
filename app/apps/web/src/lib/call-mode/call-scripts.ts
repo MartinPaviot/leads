@@ -200,7 +200,7 @@ const SECTOR_SCRIPTS: Array<{
   {
     key: "education",
     segment: "mure",
-    match: ["education", "école", "ecole", "enseignement", "school", "scolaire", "universit", "hes", "haute école", "training", "formation"],
+    match: ["education", "école", "ecole", "haute école", "enseignement", "school", "scolaire", "universit", "facult", "hes", "hep", "heg", "college", "colleges", "collège", "académie", "academy", "gymnase", "lycée", "business school", "graduate", "conservatoire", "training", "formation"],
     line: "les hautes écoles et écoles privées romandes : l'IA en interne — les étudiants l'utilisent déjà partout, avec des données sensibles derrière.",
     qualifiers: [
       "qui gère l'IT (une personne, un prestataire) ?",
@@ -281,13 +281,22 @@ export function peerLeadFor(_sector?: string | null): string {
   return BASCULE;
 }
 
-/** Pick the best script for a company's sector. Substring match on the
- * sector/industry label; falls back to a generic (mature) script. */
+// Precedence: org-TYPE (school / federation / foundation) wins over TOPIC
+// (santé / public). A "haute école de santé" is a SCHOOL, not an EMS — so the
+// classification text (ideally NAME + industry) is matched in THIS order, not
+// array order. Apollo's industry is unreliable (a health school tagged
+// "hospital & health care"); the company name disambiguates.
+const MATCH_ORDER = ["it", "education", "international", "fondations", "sante", "parapublic", "conseil", "low-tech"];
+
+/** Pick the best script for a company. Pass the NAME + industry (the name wins
+ * via MATCH_ORDER). Substring match, accent/case-insensitive; falls back to a
+ * generic (mature) script. */
 export function pickCallScript(sector: string | null | undefined): CallScript {
   const s = norm(sector ?? "");
   if (s) {
-    for (const entry of SECTOR_SCRIPTS) {
-      if (entry.match.some((m) => s.includes(norm(m)))) {
+    for (const key of MATCH_ORDER) {
+      const entry = SECTOR_SCRIPTS.find((e) => e.key === key);
+      if (entry && entry.match.some((m) => s.includes(norm(m)))) {
         return {
           key: entry.key,
           segment: entry.segment,

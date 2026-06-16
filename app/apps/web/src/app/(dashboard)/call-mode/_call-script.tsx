@@ -22,6 +22,7 @@ import { useToast } from "@/components/ui/toast";
 
 export function CallScriptPanel({
   contactName,
+  companyName,
   contactId,
   defaultSector,
   defaultGeo,
@@ -31,6 +32,9 @@ export function CallScriptPanel({
   onContext,
 }: {
   contactName?: string | null;
+  /** The account name — disambiguates the sector (a "Haute école de santé" is
+   *  a SCHOOL, not an EMS, even when Apollo tags it "hospital & health care"). */
+  companyName?: string | null;
   /** Focal prospect id — lets Régénérer ground the draft on THIS prospect's
    *  server-side evidence (cited fail-closed). */
   contactId?: string | null;
@@ -53,7 +57,7 @@ export function CallScriptPanel({
   const [sector, setSector] = useState(defaultSector ?? "");
   const [geo, setGeo] = useState(defaultGeo ?? "");
   const [checked, setChecked] = useState<Set<number>>(new Set());
-  const [fields, setFields] = useState<ScriptFields>(() => defaultScriptFields(defaultSector));
+  const [fields, setFields] = useState<ScriptFields>(() => defaultScriptFields([companyName, defaultSector].filter(Boolean).join(" ")));
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ScriptFields | null>(null);
@@ -68,7 +72,7 @@ export function CallScriptPanel({
   useEffect(() => {
     let cancelled = false;
     const t = setTimeout(() => {
-      fetch(`/api/calls/script?sector=${encodeURIComponent(sector)}`)
+      fetch(`/api/calls/script?sector=${encodeURIComponent(sector)}&name=${encodeURIComponent(companyName ?? "")}`)
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
           if (cancelled || !d?.script) return;
@@ -84,7 +88,7 @@ export function CallScriptPanel({
         .finally(() => !cancelled && setLoading(false));
     }, 300);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [sector]);
+  }, [sector, companyName]);
 
   // Auto-fill the sector AND the geography from the selected account once the
   // brain loads (it arrives async, per contact), and re-sync on prospect
@@ -97,7 +101,7 @@ export function CallScriptPanel({
   // opener is identity + the prospect's sector tied to our subject (no tool in
   // the opener — the tool only floats the matched enjeu downstream).
   const reason = deriveOpeningReason(reasonInput ?? {});
-  const openerLine = useMemo(() => lineFor(sector), [sector]);
+  const openerLine = useMemo(() => lineFor([companyName, sector].filter(Boolean).join(" ")), [companyName, sector]);
   // Identity + sector↔subject + permission opener.
   const opener = useMemo(
     () => interpolateOpener(fields.opener, { name: contactName, sector, geo, line: openerLine }),
