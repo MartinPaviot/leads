@@ -22,6 +22,7 @@ import {
   classifyInboundRelationship,
   type RelationshipVerdict,
 } from "./relationship-classifier";
+import { withLeadRelationship } from "./lead-status";
 
 export interface HotInboundConfirmation {
   /** false only when the classifier is confident the sender is NOT a lead. */
@@ -40,6 +41,7 @@ export async function confirmHotInboundIsLead(opts: {
       email: contacts.email,
       title: contacts.title,
       companyId: contacts.companyId,
+      properties: contacts.properties,
     })
     .from(contacts)
     .where(
@@ -106,6 +108,29 @@ export async function confirmHotInboundIsLead(opts: {
     icpSummary,
     tenantId,
   });
+
+  // Persist the LLM verdict so warm-leads + hot-inbounds can honour it without
+  // re-running the model (tranche 3). Best-effort, never blocks the gate.
+  if (verdict) {
+    try {
+      const properties = withLeadRelationship(
+        (contact.properties as Record<string, unknown> | null) ?? null,
+        {
+          isInboundLead: verdict.isInboundLead,
+          relationshipToUs: verdict.relationshipToUs,
+          intent: verdict.intent,
+          reason: verdict.reason,
+          at: new Date().toISOString(),
+        },
+      );
+      await db
+        .update(contacts)
+        .set({ properties })
+        .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, tenantId)));
+    } catch (err) {
+      console.warn("persist lead relationship failed:", err);
+    }
+  }
 
   // Only a confident negative suppresses the lead (fail-open on null).
   return { isLead: verdict?.isInboundLead !== false, verdict };

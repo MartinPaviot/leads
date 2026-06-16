@@ -12,6 +12,8 @@
  * See _specs/inbox-triage/design.md.
  */
 
+import { classifyInboundSender } from "@/lib/inbound/lead-classification";
+
 export interface InboundRow {
   id: string;
   threadId: string | null;
@@ -252,11 +254,23 @@ export function buildConversations(input: {
       }
     }
 
+    // An automated/role sender (noreply@, notifications@, newsletter@…) never
+    // needs a human reply, so it must never sit in the "attention" lane — not
+    // in the Inbox, nor in the dashboard "Needs you" which reads this lane.
+    // Treat it as handled. See _specs/inbound-lead-recognition/.
+    const lastInboundFrom = String((lastInbound?.metadata as Record<string, unknown> | null)?.from ?? "");
+    const inboundIsAutomated =
+      !!lastInbound && classifyInboundSender({ fromHeader: lastInboundFrom }).isMachineSent;
+
     let lane: Lane;
     let handledNote: string | null = null;
-    if (handledLabel || (g.inbound.length === 0 && bounced)) {
+    if (handledLabel || inboundIsAutomated || (g.inbound.length === 0 && bounced)) {
       lane = "handled";
-      handledNote = HANDLED_NOTES[handledLabel ?? "bounced"] ?? HANDLED_NOTES.bounced;
+      handledNote = handledLabel
+        ? HANDLED_NOTES[handledLabel] ?? HANDLED_NOTES.bounced
+        : inboundIsAutomated
+          ? "Automated sender — no reply needed"
+          : HANDLED_NOTES.bounced;
     } else if (triageState === "done") {
       lane = "done";
     } else if (triageState === "snoozed") {
