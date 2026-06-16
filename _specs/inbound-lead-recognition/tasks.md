@@ -27,23 +27,23 @@
       `source: "inbound_email"` so sourced/imported contacts never masquerade as
       inbound hot leads. Fail-open.
 
-## Tranche 3 — correction loop + UI + backfill (next)
+## Tranche 3 — correction loop + UI (this sprint)
 
-- [ ] Persist `isInboundLead` (the relationship verdict) onto
-      `metadata.leadClassification` / contact, and have `rankWarmLeads` +
-      `hot-inbounds` read it (today the verdict only gates the notification).
-- [ ] "Not a lead" / "This is a lead" control on `HotInboundsWidget` &
-      `WarmLeadPrompt`; the "why" reason line.
-- [ ] Persist corrections; inject as few-shot into stage 2; per-domain
-      short-circuit.
+- [x] Persist the relationship verdict onto `contacts.properties.leadRelationship`
+      (relationship-check.ts) and have `rankWarmLeads` + `hot-inbounds` READ it —
+      the LLM verdict now hides a contact, not just gates the notification.
+- [x] "Not a lead" control on `WarmLeadPrompt` & `HotInboundsWidget` →
+      `POST /api/contacts/:id/lead-feedback` → `contacts.properties.leadFeedback`,
+      read by both surfaces. Human override beats the LLM + deterministic stages.
+      SSOT pure helper `lib/inbound/lead-status.ts` (isExcludedAsLead precedence).
+      57 tests green (helper truth table + endpoint + warm-leads exclusion).
+
+## Tranche 4 — learning + backfill (next)
+
+- [ ] Surface the "why" reason line in a review view (the verdict reason is
+      already stored on `leadRelationship`).
+- [ ] Persist corrections as few-shot into the relationship stage; per-domain
+      short-circuit so a judged domain never re-surfaces.
 - [ ] One-time reclassify sweep over already-captured activities/contacts
       (script, like `_rolefix.mjs`).
-
-## Tranche 3 — correction loop + UI + backfill (next)
-
-- [ ] "Not a lead" / "This is a lead" control on `HotInboundsWidget` &
-      `WarmLeadPrompt`; the "why" reason line.
-- [ ] Persist corrections; inject as few-shot into stage 2; per-domain
-      short-circuit.
-- [ ] One-time reclassify sweep over already-captured activities/contacts
-      (script, like `_rolefix.mjs`).
+- [ ] DOM tests for the two widgets' "Not a lead" interaction.

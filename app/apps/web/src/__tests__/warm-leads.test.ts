@@ -294,6 +294,61 @@ describe("rankWarmLeads", () => {
     expect(leads[0].contactId).toBe("cold-inbound-icp");
   });
 
+  it("excludes a contact the user marked 'not a lead' (human override, tranche 3)", async () => {
+    getSettingsMock.mockResolvedValue({});
+    const now = Date.now();
+    setRows([
+      {
+        // would normally qualify (human address, two-way, recent inbound)…
+        contactId: "marked-not-lead",
+        firstName: "Marked",
+        lastName: "Notlead",
+        email: "real.human@romandco.ch",
+        title: null,
+        companyId: "c1",
+        properties: { leadFeedback: { isLead: false, at: "2026-06-16T00:00:00Z" } },
+        companyName: "Romand Co",
+        companyDomain: "romandco.ch",
+        industry: null,
+        activityCount: 4,
+        lastActivityAt: new Date(now - 86_400_000),
+        inboundCount: 2,
+        outboundCount: 2,
+        lastSummary: "Re: hello",
+      },
+    ]);
+    const leads = await rankWarmLeads("t1");
+    expect(leads).toEqual([]); // …but the human verdict hides it
+  });
+
+  it("excludes a contact the LLM ruled not-a-lead (persisted relationship verdict)", async () => {
+    getSettingsMock.mockResolvedValue({});
+    const now = Date.now();
+    setRows([
+      {
+        contactId: "llm-vendor",
+        firstName: "Vendor",
+        lastName: "Person",
+        email: "person@some-vendor.com",
+        title: null,
+        companyId: "c2",
+        properties: {
+          leadRelationship: { isInboundLead: false, relationshipToUs: "vendor", reason: "Vendor we pay.", at: "2026-06-16T00:00:00Z" },
+        },
+        companyName: "Some Vendor",
+        companyDomain: "some-vendor.com",
+        industry: null,
+        activityCount: 3,
+        lastActivityAt: new Date(now - 86_400_000),
+        inboundCount: 2,
+        outboundCount: 2,
+        lastSummary: "Your subscription",
+      },
+    ]);
+    const leads = await rankWarmLeads("t1");
+    expect(leads).toEqual([]);
+  });
+
   it("caches results for 5 minutes within the same tenant", async () => {
     getSettingsMock.mockResolvedValue({});
     const now = Date.now();

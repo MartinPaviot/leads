@@ -23,6 +23,7 @@ import { db } from "@/db";
 import { notifications, contacts, companies } from "@/db/schema";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { getAuthContext } from "@/lib/auth/auth-utils";
+import { isExcludedAsLead } from "@/lib/inbound/lead-status";
 
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();
@@ -86,7 +87,11 @@ export async function GET(req: Request) {
     .orderBy(desc(notifications.createdAt))
     .limit(limit);
 
-  const items = rows.map((r) => {
+  const items = rows
+    // Hide contacts the user marked "not a lead" or the relationship classifier
+    // ruled a vendor/recruiter (tranche 3 — see lib/inbound/lead-status.ts).
+    .filter((r) => !isExcludedAsLead(r.contactProperties as Record<string, unknown> | null))
+    .map((r) => {
     const props = (r.contactProperties as Record<string, unknown> | null) ?? {};
     return {
       notificationId: r.notificationId,

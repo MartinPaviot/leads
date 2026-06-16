@@ -116,6 +116,28 @@ export function WarmLeadPrompt() {
     [toast],
   );
 
+  const markNotALead = useCallback(
+    async (lead: WarmLead) => {
+      // Optimistic: drop the card immediately. The human's verdict overrides
+      // every upstream stage (see lib/inbound/lead-status.ts).
+      setLeads((prev) => prev.filter((l) => l.contactId !== lead.contactId));
+      try {
+        const res = await fetch(`/api/contacts/${lead.contactId}/lead-feedback`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isLead: false }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        toast(`Removed ${lead.name} — not a lead`, "success");
+      } catch (err) {
+        console.warn("warm-lead: mark not-a-lead failed", err);
+        setLeads((prev) => [lead, ...prev]); // restore on failure
+        toast("Couldn't update — retry?", "error");
+      }
+    },
+    [toast],
+  );
+
   if (loading) {
     return (
       <Card>
@@ -176,9 +198,19 @@ export function WarmLeadPrompt() {
                     )}
                   </div>
                   {!isDraft && !isLoading && (
-                    <Button size="sm" onClick={() => void draft(lead)}>
-                      Draft follow-up
-                    </Button>
+                    <div className="flex flex-col items-end gap-1">
+                      <Button size="sm" onClick={() => void draft(lead)}>
+                        Draft follow-up
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => void markNotALead(lead)}
+                        className="text-[10px] hover:underline"
+                        style={{ color: "var(--color-text-tertiary)" }}
+                      >
+                        Not a lead
+                      </button>
+                    </div>
                   )}
                   {isLoading && (
                     <span className="inline-flex items-center gap-1 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>

@@ -32,6 +32,7 @@ import { activities, contacts, companies } from "@/db/schema";
 import { and, eq, gte, isNotNull, sql } from "drizzle-orm";
 import { getTenantSettings, buildIgnoredDomains } from "@/lib/config/tenant-settings";
 import { classifyInboundSender } from "@/lib/inbound/lead-classification";
+import { isExcludedAsLead } from "@/lib/inbound/lead-status";
 
 export interface WarmLead {
   contactId: string;
@@ -89,6 +90,7 @@ export async function rankWarmLeads(
       email: contacts.email,
       title: contacts.title,
       companyId: contacts.companyId,
+      properties: contacts.properties,
       companyName: companies.name,
       companyDomain: companies.domain,
       industry: companies.industry,
@@ -116,6 +118,7 @@ export async function rankWarmLeads(
       contacts.email,
       contacts.title,
       contacts.companyId,
+      contacts.properties,
       companies.name,
       companies.domain,
       companies.industry,
@@ -128,6 +131,10 @@ export async function rankWarmLeads(
     if (!r.email) continue;
     const emailDomain = r.email.split("@")[1]?.toLowerCase() ?? "";
     if (ignored.has(emailDomain)) continue;
+    // Human-in-the-loop / LLM verdict (tranche 3): the user marked this "not a
+    // lead", or the relationship classifier ruled it a vendor/recruiter. Human
+    // override wins — see lib/inbound/lead-status.ts.
+    if (isExcludedAsLead(r.properties as Record<string, unknown> | null)) continue;
     // Must have at least one inbound activity — otherwise it's a cold
     // contact the user hasn't actually talked to.
     if ((r.inboundCount ?? 0) < 1) continue;
