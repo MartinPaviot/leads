@@ -31,6 +31,7 @@ export interface AccountListFilters {
   industries: string[];
   geographies: string[]; // matches properties.country
   regions: string[]; // matches properties.state (canton / region / state)
+  families: string[]; // sector family keys (resolved to industries via the LLM classifier)
   sizes: string[];
   revenues: string[];
   stages: string[]; // matches the EFFECTIVE stage (manual override > deal-derived > "new")
@@ -81,6 +82,7 @@ export function parseAccountListFilters(params: URLSearchParams): AccountListFil
     industries: csv(params.get("fIndustry")),
     geographies: csv(params.get("fGeography")),
     regions: csv(params.get("fRegion")),
+    families: csv(params.get("fFamily")),
     sizes: csv(params.get("fSize")),
     revenues: csv(params.get("fRevenue")),
     stages: csv(params.get("fStage")),
@@ -104,6 +106,7 @@ export function hasActiveAccountFilters(f: AccountListFilters): boolean {
     f.industries.length > 0 ||
     f.geographies.length > 0 ||
     f.regions.length > 0 ||
+    f.families.length > 0 ||
     f.sizes.length > 0 ||
     f.revenues.length > 0 ||
     f.stages.length > 0 ||

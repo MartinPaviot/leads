@@ -7,6 +7,7 @@ import { parseExcludedMode, parseAccountListFilters, GRADE_RANGES } from "@/lib/
 import { EFFECTIVE_LIFECYCLE_STAGE_SQL } from "@/lib/accounts/lifecycle-stage";
 import { lastInteractionUnionSql } from "@/lib/accounts/last-interaction";
 import { accountContactReachSql, accountRecencyBucketSql } from "@/lib/accounts/account-segments";
+import { classifyIndustryFamilies, familiesToIndustries } from "@/lib/search/industry-family";
 import { inngest } from "@/inngest/client";
 import { apiError } from "@/lib/infra/api-errors";
 import { paginatedResponse } from "@/lib/infra/api-response";
@@ -123,6 +124,18 @@ export async function GET(req: Request) {
     if (f.domain) refineConds.push(ilike(companies.domain, `%${f.domain}%`));
     if (f.scoreMin != null) refineConds.push(gte(companies.score, f.scoreMin));
     if (f.scoreMax != null) refineConds.push(lte(companies.score, f.scoreMax));
+    // Sector family → resolve to the tenant's industries via the LLM classifier
+    // (cached), then filter on those industries. Empty resolution = match none.
+    if (f.families.length) {
+      const indRows = await db
+        .selectDistinct({ industry: companies.industry })
+        .from(companies)
+        .where(and(eq(companies.tenantId, authCtx.tenantId), deletedPredicate));
+      const industries = indRows.map((r) => r.industry).filter((x): x is string => !!x);
+      const famMap = await classifyIndustryFamilies(industries, authCtx.tenantId);
+      const inds = familiesToIndustries(famMap, f.families);
+      refineConds.push(inds.length ? sql`${companies.industry} = ANY(${anyArr(inds)})` : sql`false`);
+    }
 
     // The tab (all/tam/manual) is the one filter held OUT of the tab counts:
     // each badge shows how the current refinement splits across sources, so it

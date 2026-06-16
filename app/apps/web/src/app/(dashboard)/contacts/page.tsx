@@ -118,8 +118,12 @@ export default function ContactsPage() {
   const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilterState>>({});
   const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null);
   // Dedicated "Filtres" panel — houses the segment filters with no column home
-  // (recency, seniority, …). Reads/writes the same `columnFilters` state.
+  // (recency, seniority, region, sector family). Reads/writes `columnFilters`.
   const [showFilters, setShowFilters] = useState(false);
+  // Sector-family facet (LLM-classified) — fetched lazily when the panel opens,
+  // so the multi-second classification never blocks the contacts list.
+  const [familyFacet, setFamilyFacet] = useState<Array<{ key: string; label: string; count: number }> | null>(null);
+  const [familyLoading, setFamilyLoading] = useState(false);
   // Column filters run server-side (debounced) so they span ALL contacts, not
   // just the loaded 50-row page. Company options also come from the server.
   const [debouncedColumnFilters, setDebouncedColumnFilters] = useState<Record<string, ColumnFilterState>>({});
@@ -164,6 +168,7 @@ export default function ContactsPage() {
     if (vals("seniority").length) params.set("fSeniority", vals("seniority").join(","));
     if (vals("recency").length) params.set("fRecency", vals("recency").join(","));
     if (vals("region").length) params.set("fRegion", vals("region").join(","));
+    if (vals("family").length) params.set("fFamily", vals("family").join(","));
     // Industry column filter -> the contact's company industry (server-side,
     // same subquery shape as fCompany).
     if (vals("industry").length) params.set("fIndustry", vals("industry").join(","));
@@ -681,7 +686,16 @@ export default function ContactsPage() {
     const regionOpts = Object.keys(regionCounts)
       .sort((a, b) => (regionCounts[b] ?? 0) - (regionCounts[a] ?? 0))
       .map((v) => ({ value: v, label: v }));
+    const famList = familyFacet ?? [];
+    const familyOpts = famList.map((f) => ({ value: f.key, label: f.label }));
+    const familyCountsObj = Object.fromEntries(famList.map((f) => [f.key, f.count]));
     return [
+      {
+        title: "Secteur",
+        filters: [
+          { key: "family", label: "Famille sectorielle", options: familyOpts, counts: familyCountsObj, hint: familyLoading ? "Classement des secteurs…" : "Regroupe les industries en familles (santé, public, non-profit…)" },
+        ],
+      },
       {
         title: "Géographie",
         filters: [
@@ -707,8 +721,19 @@ export default function ContactsPage() {
         ],
       },
     ];
-  }, [columnOptions, serverFilterCounts]);
+  }, [columnOptions, serverFilterCounts, familyFacet, familyLoading]);
   const panelActive = panelActiveCount(filterSections, columnFilters);
+
+  // Lazy-load the sector-family facet the first time the Filtres panel opens.
+  useEffect(() => {
+    if (!showFilters || familyFacet !== null || familyLoading) return;
+    setFamilyLoading(true);
+    fetch("/api/industry-families?entity=contact")
+      .then((r) => (r.ok ? r.json() : { families: [] }))
+      .then((d) => setFamilyFacet(d.families ?? []))
+      .catch(() => setFamilyFacet([]))
+      .finally(() => setFamilyLoading(false));
+  }, [showFilters, familyFacet, familyLoading]);
 
   // Column filters now run server-side (see fetchContacts -> /api/contacts), so
   // `contacts` is already the filtered + paginated set. Only the NL smart

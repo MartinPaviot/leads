@@ -10,6 +10,7 @@ import { checkPlanLimit } from "@/lib/billing/plan-limits";
 import { apiError } from "@/lib/infra/api-errors";
 import { phoneRegionKeySql } from "@/lib/contacts/phone-region";
 import { recencyBucketSql } from "@/lib/contacts/recency";
+import { classifyIndustryFamilies, familiesToIndustries } from "@/lib/search/industry-family";
 import { z } from "zod";
 
 const createContactSchema = z.object({
@@ -132,6 +133,8 @@ export async function GET(req: Request) {
     // Region / canton — the contact's company state (properties.state), e.g.
     // Geneva / Vaud / Valais. Same self-contained company subquery as fIndustry.
     const fRegion = (url.searchParams.get("fRegion") || "").split(",").map((s) => s.trim()).filter(Boolean);
+    // Sector family — resolved to the company industries via the LLM classifier.
+    const fFamily = (url.searchParams.get("fFamily") || "").split(",").map((s) => s.trim()).filter(Boolean);
 
     if (fName) conds.push(sql`(coalesce(${contacts.firstName}, '') || ' ' || coalesce(${contacts.lastName}, '')) ILIKE ${"%" + fName + "%"}`);
     if (fEmail) conds.push(sql`${contacts.email} ILIKE ${"%" + fEmail + "%"}`);
@@ -193,6 +196,24 @@ export async function GET(req: Request) {
         WHERE tenant_id = ${authCtx.tenantId} AND deleted_at IS NULL
           AND btrim(properties->>'state') = ANY(ARRAY[${sql.join(fRegion.map((r) => sql`${r}`), sql`, `)}]::text[])
       )`);
+    }
+    if (fFamily.length > 0) {
+      const indRows = await db
+        .selectDistinct({ industry: companies.industry })
+        .from(companies)
+        .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)));
+      const industries = indRows.map((r) => r.industry).filter((x): x is string => !!x);
+      const famMap = await classifyIndustryFamilies(industries, authCtx.tenantId);
+      const inds = familiesToIndustries(famMap, fFamily);
+      conds.push(
+        inds.length > 0
+          ? sql`${contacts.companyId} IN (
+              SELECT id FROM companies
+              WHERE tenant_id = ${authCtx.tenantId} AND deleted_at IS NULL
+                AND industry = ANY(ARRAY[${sql.join(inds.map((i) => sql`${i}`), sql`, `)}]::text[])
+            )`
+          : sql`false`,
+      );
     }
 
     // Smart-filter score threshold (e.g. "high fit" -> score >= 70), applied
@@ -469,6 +490,7 @@ export async function GET(req: Request) {
     } catch (e) {
       console.warn("Failed to fetch contact region counts:", e);
     }
+
 
     // Canonical paginated shape (items + legacy `contacts`) plus server-sourced
     // filter options for the header dropdowns.

@@ -184,8 +184,12 @@ export default function AccountsPage() {
   const [serverCounts, setServerCounts] = useState<{ total: number; tam: number; manual: number; unenriched: number } | null>(null);
   const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null);
   // Dedicated "Filtres" panel — segment cuts with no column home (contact
-  // reach, engagement recency). Reads/writes the same columnFilters state.
+  // reach, engagement recency, sector family, region). Reads/writes columnFilters.
   const [showFilters, setShowFilters] = useState(false);
+  // Sector-family facet (LLM-classified) — fetched lazily when the panel first
+  // opens, so the multi-second classification never blocks the accounts list.
+  const [familyFacet, setFamilyFacet] = useState<Array<{ key: string; label: string; count: number }> | null>(null);
+  const [familyLoading, setFamilyLoading] = useState(false);
   // Bulk contact extraction (Apollo) + delete flows.
   const [extractingContacts, setExtractingContacts] = useState(false);
   // Accounts the sourcing-preview modal is open for (null = closed).
@@ -530,8 +534,8 @@ export default function AccountsPage() {
     const ENUM_PARAM: Record<string, string> = {
       industry: "fIndustry", geography: "fGeography", size: "fSize",
       revenue: "fRevenue", stage: "fStage", score: "fGrade",
-      // Filters panel (no column home): contact reach + recency + region.
-      contactReach: "fContactReach", recency: "fRecency", region: "fRegion",
+      // Filters panel (no column home): contact reach + recency + region + sector family.
+      contactReach: "fContactReach", recency: "fRecency", region: "fRegion", family: "fFamily",
     };
     const TEXT_PARAM: Record<string, string> = { name: "fName", domain: "fDomain" };
     for (const [key, fst] of Object.entries(debouncedColumnFilters)) {
@@ -582,7 +586,16 @@ export default function AccountsPage() {
     const regionOpts = Object.keys(regionCounts)
       .sort((a, b) => (regionCounts[b] ?? 0) - (regionCounts[a] ?? 0))
       .map((v) => ({ value: v, label: v }));
+    const famList = familyFacet ?? [];
+    const familyOpts = famList.map((f) => ({ value: f.key, label: f.label }));
+    const familyCountsObj = Object.fromEntries(famList.map((f) => [f.key, f.count]));
     return [
+      {
+        title: "Secteur",
+        filters: [
+          { key: "family", label: "Famille sectorielle", options: familyOpts, counts: familyCountsObj, hint: familyLoading ? "Classement des secteurs…" : "Regroupe les industries en familles (santé, public, non-profit…)" },
+        ],
+      },
       {
         title: "Géographie",
         filters: [
@@ -602,8 +615,19 @@ export default function AccountsPage() {
         ],
       },
     ];
-  }, [serverFacetCounts]);
+  }, [serverFacetCounts, familyFacet, familyLoading]);
   const panelActive = panelActiveCount(filterSections, columnFilters);
+
+  // Lazy-load the sector-family facet the first time the Filtres panel opens.
+  useEffect(() => {
+    if (!showFilters || familyFacet !== null || familyLoading) return;
+    setFamilyLoading(true);
+    fetch("/api/industry-families?entity=account")
+      .then((r) => (r.ok ? r.json() : { families: [] }))
+      .then((d) => setFamilyFacet(d.families ?? []))
+      .catch(() => setFamilyFacet([]))
+      .finally(() => setFamilyLoading(false));
+  }, [showFilters, familyFacet, familyLoading]);
 
   /** Fetch a single page of accounts.
    *  - page=1, append=false → initial load (replaces list)
