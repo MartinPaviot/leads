@@ -28,13 +28,20 @@ import {
 const WINDOW_DAYS = 30;
 
 /**
- * Allow only an IANA-shaped zone name or UTC. The tz comes from the browser
+ * Resolve to a real IANA zone or UTC. The tz comes from the browser
  * (Intl … resolvedOptions().timeZone) and is interpolated into AT TIME ZONE,
- * where a bad value would make Postgres throw — so anything unexpected → UTC.
+ * where a bad value makes Postgres throw — so we validate against the actual
+ * IANA database via Intl (not just the string shape: a syntactically valid but
+ * non-existent zone like "Mars/Phobos" must not reach the SQL), and normalise
+ * to the canonical name. Anything unresolvable → UTC.
  */
 function safeTz(raw: string | null): string {
-  if (!raw || raw === "UTC") return "UTC";
-  return /^[A-Za-z][A-Za-z0-9_+-]*\/[A-Za-z0-9_+\-/]+$/.test(raw) ? raw : "UTC";
+  if (!raw) return "UTC";
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: raw }).resolvedOptions().timeZone;
+  } catch {
+    return "UTC";
+  }
 }
 
 export async function GET(req: Request) {
