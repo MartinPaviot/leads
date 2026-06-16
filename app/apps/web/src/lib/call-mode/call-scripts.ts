@@ -1,121 +1,147 @@
 /**
- * Permission-based call scripts, keyed by sector. Martin's methodology
- * (locked 2026-06-08): the cold call is short (2-3 min) and its only job is
- * to earn a YES to a ~45-min deep-dive. Flow:
- *   1. Opener = a real permission gate: "Bonjour {name}, [rep], co-fondateur
- *      de Pilae. Vous avez 2 min ?" — no pitch, no listed problems.
- *   2. On "oui", present ONE sector enjeu at a time as a hypothesis and let
- *      the prospect validate it ("est-ce un sujet chez vous ?"). Iterate up
- *      to 3 until one lands; stop at the first that lands and react to it.
- *   3. Validate 2-3 qualifying points (light, in `guidance`).
- *   4. Propose the meeting with day/time options.
- * Talk to decision-makers first; being redirected to the métier/IT teams is
- * a win (ask for the intro), not a failure.
+ * Permission-based call scripts, keyed by sector — Douablin-faithful flow,
+ * adapted to Martin's intent (no phone discovery; the call's only job is to
+ * book the meeting). FINAL model (validated on paper before shipping):
+ *   1. Opener = minimal identity ("une startup lausannoise") + the PROSPECT'S
+ *      SECTOR tied to our subject ({line}) + a permission ask ("ça vous
+ *      convient ?"). No self-pitch, never tell the buyer he overpays.
+ *   2. After the OK, a half-sentence bascule (IA interne / automatisations open
+ *      source, hébergées en Suisse, à l'usage), then ONE enjeu at a time in
+ *      RÉCIT-PAIR (a quoted peer voice, never frontal) followed by a two-door
+ *      validation — stop at the first that lands. Two variants by maturity:
+ *      "terrain" (IA par la bande / licences pour tous / données hors-CH) and
+ *      "orga mûre" (retard IA / facture SaaS / souveraineté).
+ *   3. As soon as one lands, propose the ~45 min-1h video meeting with two
+ *      concrete time windows.
+ * Talk to decision-makers first; being redirected to the métier/IT teams is a
+ * win (ask for the intro), not a failure.
  *
  * Content is prospect-facing → French (Suisse romande; English for the
- * international Geneva federations). These are EDITABLE defaults — the rep
- * name in the opener and the per-sector wording are the founder's to refine,
- * and the tenant layer (`tenant-script.ts`) regenerates them from the
- * tenant's product + ICP via LLM. Kept pure so it unit-tests + renders
- * without I/O.
+ * international Geneva federations). These are EDITABLE defaults — the tenant
+ * layer (`tenant-script.ts`) regenerates them from the tenant's product + ICP
+ * via LLM. Kept pure so it unit-tests + renders without I/O.
  */
 
 export interface CallScript {
   /** Catalog key this script matched (or "generic"). */
   key: string;
-  /** 1-3 sector enjeux the prospect validates ONE AT A TIME. */
+  /** Maturity segment driving the enjeu variant. */
+  segment: "terrain" | "mure";
+  /** The 3 core enjeux, validated ONE AT A TIME (récit-pair + two-door, baked
+   *  into each string so the validation travels with the enjeu). */
   problems: string[];
-  /** 2-3 quick points to validate (light qualification, not discovery). */
+  /** 2-3 quick points to validate (light qualification, in guidance). */
   qualifiers: string[];
+  /** Sector ↔ subject line for the opener ("Je me concentre en ce moment sur …"). */
+  line: string;
   /** Optional sector-specific reminder appended to in-call guidance. */
   note?: string;
-  /** The ~45-min deep-dive ask, fired once an enjeu lands. */
+  /** The ~45 min-1h video deep-dive ask, fired once an enjeu lands. */
   bookingAsk: string;
 }
 
 export interface ResolvedScript extends CallScript {
   sectorLabel: string;
   geoLabel: string;
-  /** The permission-based opener, {name} interpolated. */
+  /** Identity + sector↔subject + permission opener, {name}/{line} interpolated. */
   opener: string;
-  /** The validation question asked after each enjeu. */
+  /** The half-sentence bascule said right after the OK (shown above the enjeux). */
+  peerLead: string;
+  /** Kept for shape compatibility; the validation now travels inside each enjeu
+   *  (two-door), so this is empty by default. */
   permissionCheck: string;
   /** In-call guidance (not read aloud): principles + qualifiers + "non" branch. */
   guidance: string[];
 }
 
 /**
- * Editable default opener template. Permission gate only — no listed problems.
- * {name} is interpolated at render; the rep name ("Martin Paviot") is editable.
+ * Editable default opener — minimal identity + {line} (the prospect's sector
+ * tied to our subject) + permission. {name}/{line} interpolate per call; a
+ * tokenless saved opener simply renders as-is (regenerate to pick the slots up).
  */
 export const DEFAULT_OPENER =
-  "Bonjour {name}, Martin Paviot, co-fondateur de Pilae. Est-ce que vous avez deux minutes ?";
+  "Bonjour {name}, Martin Paviot, cofondateur de Pilae, une startup lausannoise. Je me concentre en ce moment sur {line} Je vous appelle pas pour vous dérouler un pitch, juste voir en deux minutes si c'est un sujet chez vous. Ça vous convient ?";
 
-/** Asked after EACH enjeu hypothesis (one at a time), not after a list. */
-export const PERMISSION_CHECK =
-  "Est-ce que c'est un sujet chez vous en ce moment ?";
+/** The half-sentence said right after the OK (the bascule), then the rule:
+ *  one enjeu at a time, stop at the first that lands. Shown above the enjeux. */
+export const BASCULE =
+  "Si oui — en deux mots : on installe une IA interne ou des automatisations en open source, hébergées en Suisse, facturées à l'usage, pas une licence par tête. Puis un seul sujet à la fois, on s'arrête au premier qui vous parle :";
 
-export const BOOKING_ASK =
-  "Très bien. Honnêtement, dans ce cas je pense qu'on a intérêt à se rencontrer : je viendrais avec une première lecture de ce que vous pourriez remplacer et l'écart de coût, et on aurait le temps d'approfondir — comptez 45 minutes. Vous seriez disponible plutôt en début ou en fin de semaine prochaine ? Rien à préparer de votre côté.";
+/** No separate validation line — each enjeu carries its own two-door check. */
+export const PERMISSION_CHECK = "";
+
+/** Generic sector↔subject line (after "Je me concentre en ce moment sur …"). */
+export const GENERIC_LINE =
+  "les entreprises romandes de votre secteur : l'IA en interne et l'automatisation, sans dépendre des outils américains et en gardant la main sur les coûts.";
+
+/** Return the sector↔subject line for the opener (no tool sharpening — the
+ *  opener stays pure; tool detection only floats the matched enjeu, downstream). */
+export function lineFor(sector?: string | null): string {
+  return pickCallScript(sector).line;
+}
+
+// ── The enjeux, by maturity segment (récit-pair quote → two-door validation).
+//    Shared across sectors of the same segment so they read as a real peer
+//    voice, not a per-sector rewrite. NO {tool} placeholder: the 3 angles
+//    always show; the detected tool only floats the matched one (planProblems).
+
+/** "orga mûre" — IT, conseil, recherche, enseignement sup, international. */
+export const ENJEUX_MURE = [
+  `« Beaucoup nous disent : "On sait que l'IA va compter, on en parle en comité depuis un moment… mais entre les POC qui ne passent jamais en prod et le flou sur par où commencer, on a l'impression de prendre du retard pendant que d'autres avancent." »  →  « Vous êtes plutôt dans cette situation, ou vous avez déjà des projets IA en production ? »`,
+  `« On entend aussi : "à chaque renouvellement les licences SaaS augmentent, on empile les outils américains, et le jour où on veut faire de l'IA dessus les coûts explosent — sans qu'on ait la main." »  →  « Sur vos postes logiciels, vous maîtrisez la trajectoire de coût, ou ça vous échappe un peu ? »`,
+  `« Et de plus en plus : "nos données, nos modèles tournent chez des hyperscalers hors de Suisse — entre la conformité, les clients qui posent la question et le géopolitique, on se demande où sont vraiment nos données et qui peut y accéder." »  →  « C'est déjà remonté chez vous — un client, un juriste, le conseil — ou pas encore ? »`,
+];
+
+/** "terrain" — fondations, santé/soin, social, parapublic/administration. */
+export const ENJEUX_TERRAIN = [
+  `« Beaucoup nous disent : "nos équipes se sont mises à ChatGPT chacun dans son coin — courriers, comptes-rendus, demandes — et personne n'a vraiment posé de cadre sur ce qui sort." »  →  « Chez vous, c'est déjà le cas, ou vos équipes n'y sont pas encore ? »`,
+  `« On entend aussi : "on paie une licence Microsoft pour chaque collaborateur — y compris ceux qui, sur le terrain, n'ouvrent presque jamais un ordinateur — et à chaque renouvellement ça monte, sans qu'on ait la main." »  →  « Sur vos licences, vous maîtrisez la trajectoire, ou ça vous échappe un peu ? »`,
+  `« Et de plus en plus : "nos données — donateurs, résidents, administrés — sont chez Microsoft ou Google, donc hors de Suisse ; entre la nLPD et le conseil, on se demande où elles sont vraiment et qui peut y accéder." »  →  « C'est déjà remonté chez vous — conseil, juriste, protection des données — ou pas encore ? »`,
+];
+
+const enjeuxFor = (segment: "terrain" | "mure"): string[] =>
+  segment === "terrain" ? [...ENJEUX_TERRAIN] : [...ENJEUX_MURE];
 
 /** Read-aloud response when the prospect says no — natural, autonomy-first
- * (acknowledge, one calibrated question, graceful exit), never a pushy rebuttal.
- * Persisted inside `guidance` (tagged) so it survives without a schema change. */
+ *  (acknowledge, one calibrated question, graceful exit), never a pushy rebuttal.
+ *  Persisted inside `guidance` (tagged) so it survives without a schema change. */
 export const DEFAULT_NO_RESPONSE =
-  "Aucun souci, c'est vous qui voyez. Juste pour comprendre — c'est le timing, ou le sujet ne vous parle pas du tout ? Si c'est le timing, je vous recontacte dans quelques mois ; sinon je ne vous embête pas, et merci d'avoir pris l'appel.";
+  "Aucun souci, c'est vous qui voyez. Juste pour comprendre — c'est le timing, ou ce n'est pas un sujet pour vous en ce moment ? Si c'est le timing, je vous recontacte ; sinon je ne vous embête pas, et merci d'avoir pris l'appel.";
 
 /** Marker prefixing the "no" response inside the guidance array. */
 export const NO_RESPONSE_TAG = "[NON]";
 
-/** Global, permission-based in-call principles (per-sector qualifiers + the
- * "non" branch are composed in on top — see composeGuidance). */
+/** Global in-call principles — final model (sector↔subject opener, récit-pair,
+ *  two-door, ton suisse). Per-sector qualifiers + the "non" branch compose on top. */
 export const GUIDANCE = [
-  "Appel court (2-3 min) : le seul objectif est un OUI pour un rendez-vous d'approfondissement (~45 min).",
-  "Permission-based : « vous avez 2 min ? », puis un enjeu à la fois — on ne pitche pas, on ne liste pas les problèmes.",
-  "Présenter les enjeux UN PAR UN comme une hypothèse à valider ; s'arrêter au premier qui fait mouche et y rester (réagir, pas cocher une case).",
+  "Appel court (2-3 min) : le seul but est un OUI pour une visio d'approfondissement (45 min-1h). Pas de découverte au téléphone.",
+  "Ouvrir sur l'identité minimale (« startup lausannoise ») + le secteur du prospect relié à notre sujet, puis demander la permission (« ça vous convient ? »). Aucun pitch produit dans l'accroche.",
+  "Un seul enjeu à la fois, en récit-pair (citer un pair, jamais accuser le prospect), puis valider à deux portes ; s'arrêter au premier qui fait mouche.",
+  "Dès qu'un enjeu mouche, proposer la visio avec deux fenêtres horaires précises (créneau guidé, pas une demande ouverte).",
   "Décideur d'abord — s'il redirige vers l'IT ou le métier, c'est gagné (demander l'intro).",
-  "Ne jamais revendiquer une certification que Pilae n'a pas ; dire le vrai : hébergement Suisse/UE, réversibilité, hors Cloud Act.",
+  "Ton suisse : sobre, factuel, modeste. Pas de chiffre balancé au téléphone. On propose, on ne fait jamais la leçon (« vous payez trop cher / vous êtes en retard » est interdit).",
+  "Ne jamais revendiquer une certification que Pilae n'a pas : open source opéré, hébergé en Suisse, réversible, hors Cloud Act.",
 ];
 
-// Sector enjeux + qualifiers. Keys are matched against the company's
-// sector/industry string (accent/case-insensitive substring). Defaults for
-// the Pilae ICP (romand mid-orgs: fondations / santé / parapublic / low-tech,
-// trigger = SaaS remplaçable ; offre = open-source opéré, souverain, moins cher).
-//
-// {tool} convention: ONE enjeu per sector carries the {tool} placeholder. At
-// display time (planProblems) it is interpolated with the prospect's detected
-// REPLACEABLE tool and floated first ("Détecté chez eux") — or hidden entirely
-// when no tool is detected, so a raw placeholder is never read aloud.
+export const BOOKING_ASK =
+  "Très bien — dans ce cas, je pense qu'on a intérêt à se voir. Vous seriez disponible pour une visio de 45 minutes à 1h, plutôt lundi entre 14h et 18h, ou jeudi entre 9h et 12h ? Je viendrais avec une première lecture de ce que vous pourriez remplacer et l'écart de coût — rien à préparer de votre côté.";
+
+// Sector → segment + sector↔subject line + qualifiers. Keys match the company's
+// sector/industry string (accent/case-insensitive substring). Enjeux come from
+// the segment (shared), so the peer voice stays consistent.
 const SECTOR_SCRIPTS: Array<{
   key: string;
+  segment: "terrain" | "mure";
   match: string[];
-  problems: string[];
+  line: string;
   qualifiers: string[];
   note?: string;
 }> = [
   {
-    key: "fondations",
-    match: ["fondation", "foundation", "association", "ong", "non-profit", "nonprofit", "philanthrop", "federation", "fédération"],
-    problems: [
-      "le budget logiciels rogne sur des moyens qui devraient aller à la mission",
-      "vos données donateurs ou bénéficiaires vivent sur des outils américains dont vous ne maîtrisez pas l'hébergement",
-      "des abonnements comme {tool}, accumulés au fil du temps, qu'on pourrait remplacer à l'identique pour bien moins cher",
-    ],
-    qualifiers: [
-      "combien d'outils en abonnement aujourd'hui ?",
-      "qui gère l'IT (interne, prestataire, ou personne) ?",
-      "une échéance de contrat bientôt ?",
-    ],
-    note: "Fédération internationale / Genève : faire l'appel en anglais si l'interlocuteur est anglophone. Fondation donatrice : insister sur la confidentialité des données donateurs.",
-  },
-  {
     key: "sante",
+    segment: "terrain",
     match: ["sant", "health", "medical", "médic", "clinique", "hopital", "hôpital", "ems", "soin"],
-    problems: [
-      "vos données résidents ou patients transitent par des outils du quotidien hébergés aux États-Unis, au moment où la nLPD se durcit",
-      "vous payez {tool} et d'autres logiciels dont la facture grimpe à chaque renouvellement",
-      "peu de ressources internes pour remplacer un outil vieillissant sans risquer de tout casser",
-    ],
+    line: "les EMS et institutions de soin romands : leur permettre d'utiliser l'IA en interne sans que les données des résidents partent à l'étranger.",
     qualifiers: [
       "géré en interne ou par un prestataire IT ?",
       "un budget logiciels annuel qui compte ?",
@@ -124,13 +150,22 @@ const SECTOR_SCRIPTS: Array<{
     note: "Honnêteté : « conforme » ≠ « souverain » (Cloud Act), ne pas dramatiser. S'ils sont déjà hébergés en Suisse en propre, le reconnaître et lâcher.",
   },
   {
-    key: "parapublic",
-    match: ["parapublic", "public", "administration", "commune", "canton", "collectivit", "état", "etat"],
-    problems: [
-      "des systèmes comme {tool}, coûteux à maintenir et difficiles à faire évoluer",
-      "des données publiques ou citoyens hébergées hors de Suisse, alors que la pression à la souveraineté monte",
-      "une pression à digitaliser sans équipe projet dédiée en interne",
+    key: "fondations",
+    segment: "terrain",
+    match: ["fondation", "foundation", "stiftung", "association", "ong", "ngo", "non-profit", "nonprofit", "philanthrop", "social", "caritas"],
+    line: "les fondations et institutions sociales romandes : utiliser l'IA et automatiser l'administratif tout en gardant les données donateurs et bénéficiaires en Suisse.",
+    qualifiers: [
+      "combien d'outils en abonnement aujourd'hui ?",
+      "qui gère l'IT (interne, prestataire, ou personne) ?",
+      "une échéance de contrat bientôt ?",
     ],
+    note: "Fondation donatrice : insister sur la confidentialité des données donateurs. Décideur = secrétaire général / directeur, pas le président (souvent bénévole).",
+  },
+  {
+    key: "parapublic",
+    segment: "terrain",
+    match: ["parapublic", "public", "administration", "commune", "canton", "collectivit", "état", "etat", "municipal", "ville de"],
+    line: "les administrations et le parapublic romand : l'IA en interne et la souveraineté des données citoyens.",
     qualifiers: [
       "géré en interne ou par un prestataire ?",
       "un budget logiciels / licences annuel qui compte ?",
@@ -138,13 +173,58 @@ const SECTOR_SCRIPTS: Array<{
     ],
   },
   {
-    key: "low-tech",
-    match: ["industrie", "manufact", "construction", "btp", "logistique", "négoce", "negoce", "retail", "commerce"],
-    problems: [
-      "un outil comme {tool} en place, qui ne suit plus vos besoins mais que c'est lourd de remplacer",
-      "des données dispersées entre plusieurs outils qui ne se parlent pas",
-      "une facture logicielle qui grimpe à chaque renouvellement sans que personne ne pilote",
+    key: "international",
+    segment: "mure",
+    match: ["international", "intergouvernement", "nations unies", "united nations", "federation", "fédération", "federación"],
+    line: "les organisations internationales basées en Suisse romande : l'IA souveraine — données sensibles et mandat de neutralité.",
+    qualifiers: [
+      "la décision IT se prend ici ou au siège ?",
+      "qui gère l'IT en interne ?",
+      "des contraintes de neutralité ou de souveraineté formalisées ?",
     ],
+    note: "Souvent en anglais. Décideur = secrétaire général / directeur, pas le président (souvent bénévole). ONU/OIG = vente longue (ICT centralisée, appels d'offres).",
+  },
+  {
+    // Before "education" so "Information technology" hits IT (else education's
+    // "formation" token greedily matches "inFORMATION").
+    key: "it",
+    segment: "mure",
+    match: ["information technology", "informatique", "it services", "it & services", "software", "logiciel", "saas", "cybersecur", "cloud"],
+    line: "les sociétés IT romandes : la souveraineté — vos clients demandent du suisse, et on peut le leur offrir opéré, en marque blanche.",
+    qualifiers: [
+      "vos clients demandent-ils déjà de l'hébergement suisse ?",
+      "vous revendez / opérez pour des clients ?",
+      "qui gère l'infra en interne ?",
+    ],
+  },
+  {
+    key: "education",
+    segment: "mure",
+    match: ["education", "école", "ecole", "enseignement", "school", "scolaire", "universit", "hes", "haute école", "training", "formation"],
+    line: "les hautes écoles et écoles privées romandes : l'IA en interne — les étudiants l'utilisent déjà partout, avec des données sensibles derrière.",
+    qualifiers: [
+      "qui gère l'IT (une personne, un prestataire) ?",
+      "un budget licences annuel qui compte ?",
+      "une rentrée ou une échéance qui approche ?",
+    ],
+    note: "Écoles privées / internationales : la confidentialité vis-à-vis des familles pèse autant que le coût.",
+  },
+  {
+    key: "conseil",
+    segment: "mure",
+    match: ["conseil", "consult", "advisory", "cabinet", "audit"],
+    line: "les cabinets de conseil romands : l'IA et l'automatisation — le temps gagné se refacture, mais les dossiers clients restent confidentiels.",
+    qualifiers: [
+      "combien d'outils en abonnement ?",
+      "qui gère l'IT en interne ?",
+      "des données clients sensibles à protéger ?",
+    ],
+  },
+  {
+    key: "low-tech",
+    segment: "mure",
+    match: ["industrie", "manufact", "construction", "btp", "logistique", "négoce", "negoce", "retail", "commerce", "machinery"],
+    line: "les PME industrielles et de terrain romandes : l'IA en interne et l'automatisation, sans dépendre des outils américains et en gardant la main sur les coûts.",
     qualifiers: [
       "combien d'outils en abonnement ?",
       "qui gère l'IT en interne ?",
@@ -153,11 +233,7 @@ const SECTOR_SCRIPTS: Array<{
   },
 ];
 
-export const GENERIC_PROBLEMS = [
-  "des outils comme {tool} en place, qui ne suivent plus vos besoins mais qu'il est lourd de remplacer",
-  "des données et processus éclatés entre plusieurs systèmes qui ne communiquent pas",
-  "une facture logicielle qui grimpe à chaque renouvellement",
-];
+export const GENERIC_PROBLEMS = [...ENJEUX_MURE];
 
 const GENERIC_QUALIFIERS = [
   "combien d'outils en abonnement ?",
@@ -173,19 +249,18 @@ function norm(s: string): string {
 }
 
 /** Compose the in-call guidance: global principles + this sector's qualifiers
- * + the "non" branch for the 2-min ask + any sector note. */
+ * + the "non" branch + any sector note. */
 function composeGuidance(base: CallScript): string[] {
   return [
     `${NO_RESPONSE_TAG} ${DEFAULT_NO_RESPONSE}`,
     ...GUIDANCE,
-    `À qualifier (2-3 points) : ${base.qualifiers.join(" · ")}.`,
+    `À qualifier si besoin (sans en faire une découverte) : ${base.qualifiers.join(" · ")}.`,
     ...(base.note ? [base.note] : []),
   ];
 }
 
 /** Split persisted guidance into the read-aloud "no" response (the tagged
- * entry) and the rest (in-call tips), so the cockpit can surface a dedicated
- * "Si le prospect dit non" block without a dedicated DB column. */
+ * entry) and the rest (in-call tips). */
 export function splitGuidance(guidance: string[]): { noResponse: string; tips: string[] } {
   const idx = guidance.findIndex((g) => g.startsWith(NO_RESPONSE_TAG));
   if (idx === -1) return { noResponse: "", tips: guidance };
@@ -195,15 +270,19 @@ export function splitGuidance(guidance: string[]): { noResponse: string; tips: s
   };
 }
 
-/** Re-encode an edited "no" response into the guidance array (tagged, first),
- * preserving the other tips. Empty input drops the tagged entry. */
+/** Re-encode an edited "no" response into the guidance array (tagged, first). */
 export function withNoResponse(tips: string[], noResponse: string): string[] {
   const clean = tips.filter((g) => !g.startsWith(NO_RESPONSE_TAG));
   return noResponse.trim() ? [`${NO_RESPONSE_TAG} ${noResponse.trim()}`, ...clean] : clean;
 }
 
+/** Bascule lead shown above the enjeux (sector-agnostic — the demi-phrase). */
+export function peerLeadFor(_sector?: string | null): string {
+  return BASCULE;
+}
+
 /** Pick the best script for a company's sector. Substring match on the
- * sector/industry label; falls back to a generic permission script. */
+ * sector/industry label; falls back to a generic (mature) script. */
 export function pickCallScript(sector: string | null | undefined): CallScript {
   const s = norm(sector ?? "");
   if (s) {
@@ -211,23 +290,35 @@ export function pickCallScript(sector: string | null | undefined): CallScript {
       if (entry.match.some((m) => s.includes(norm(m)))) {
         return {
           key: entry.key,
-          problems: entry.problems,
+          segment: entry.segment,
+          problems: enjeuxFor(entry.segment),
           qualifiers: entry.qualifiers,
+          line: entry.line,
           note: entry.note,
           bookingAsk: BOOKING_ASK,
         };
       }
     }
   }
-  return { key: "generic", problems: GENERIC_PROBLEMS, qualifiers: GENERIC_QUALIFIERS, bookingAsk: BOOKING_ASK };
+  return {
+    key: "generic",
+    segment: "mure",
+    problems: GENERIC_PROBLEMS,
+    qualifiers: GENERIC_QUALIFIERS,
+    line: GENERIC_LINE,
+    bookingAsk: BOOKING_ASK,
+  };
 }
 
-/** Resolve a script for a live call: build the permission-based opener (name
- * interpolated) + the per-enjeu validation question + composed guidance. */
+/** Resolve a script for a live call: build the identity + sector↔subject +
+ * permission opener (name + line interpolated) + bascule lead + composed
+ * guidance. `tool` is accepted for signature stability but no longer alters the
+ * opener (it only floats the matched enjeu downstream, via planProblems). */
 export function resolveCallScript(input: {
   sector?: string | null;
   geo?: string | null;
   contactName?: string | null;
+  tool?: string | null;
 }): ResolvedScript {
   const base = pickCallScript(input.sector);
   const sectorLabel = (input.sector ?? "votre secteur").trim() || "votre secteur";
@@ -236,12 +327,14 @@ export function resolveCallScript(input: {
     name: input.contactName,
     sector: input.sector,
     geo: input.geo,
+    line: base.line,
   });
   return {
     ...base,
     sectorLabel,
     geoLabel,
     opener,
+    peerLead: peerLeadFor(sectorLabel),
     permissionCheck: PERMISSION_CHECK,
     guidance: composeGuidance(base),
   };
@@ -268,18 +361,26 @@ export function defaultScriptFields(sector?: string | null): ScriptFields {
   };
 }
 
-/** Interpolate {name}/{sector}/{geo} into an opener template (collapsing the
- * gaps left by empty values), so an edited template renders cleanly per call. */
+/** Interpolate {name}/{sector}/{geo}/{line} into an opener template (collapsing
+ * the gaps left by empty values). {line} is the sector↔subject hook; the legacy
+ * {reason} token is accepted as an alias so older saved openers still render.
+ * Never positionally injected (a "M." honorific would corrupt the sentence). */
 export function interpolateOpener(
   template: string,
-  vars: { name?: string | null; sector?: string | null; geo?: string | null },
+  vars: { name?: string | null; sector?: string | null; geo?: string | null; line?: string | null; reason?: string | null },
 ): string {
-  return template
+  const line = (vars.line ?? vars.reason ?? "").trim();
+  const out = template
     .replace(/\{name\}/g, (vars.name ?? "").trim())
     .replace(/\{sector\}/g, (vars.sector ?? "").trim() || "votre secteur")
     .replace(/\{geo\}/g, (vars.geo ?? "").trim() || "votre région")
+    .replace(/\{line\}/g, line)
+    .replace(/\{reason\}/g, line);
+  return out
     .replace(/\s{2,}/g, " ")
-    .replace(/\s+([,.;:])/g, "$1")
+    // Only collapse a stray space before a comma/period (gaps left by an empty
+    // token). French keeps the space before ; : ! ? — never strip those.
+    .replace(/\s+([,.])/g, "$1")
     .replace(/^Bonjour\s*,/, "Bonjour,")
     .trim();
 }

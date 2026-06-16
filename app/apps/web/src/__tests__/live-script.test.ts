@@ -26,7 +26,7 @@ describe("isVoiceableSignal", () => {
 describe("deriveOpeningReason", () => {
   it("uses a voiceable signal as the reason", () => {
     const r = deriveOpeningReason({ signal: { type: "funding", label: "Série A levée en mai" }, hiringRole: "DSI", fundingLastRound: "Série B" });
-    expect(r).toEqual({ fact: "Série A levée en mai", source: "signal", sourceLabel: "Signal temps réel" });
+    expect(r).toEqual({ fact: "Série A levée en mai", source: "signal", sourceLabel: "Signal temps réel", observation: "J'ai vu Série A levée en mai." });
   });
 
   it("IGNORES an internal signal and falls through to a real event (the fix)", () => {
@@ -40,7 +40,7 @@ describe("deriveOpeningReason", () => {
   });
 
   it("uses hiring before funding", () => {
-    expect(deriveOpeningReason({ hiringRole: "DSI", fundingLastRound: "Série B" })).toEqual({ fact: "Recrute DSI", source: "hiring", sourceLabel: "Recrutement" });
+    expect(deriveOpeningReason({ hiringRole: "DSI", fundingLastRound: "Série B" })).toEqual({ fact: "Recrute DSI", source: "hiring", sourceLabel: "Recrutement", observation: "Je vois que vous recrutez DSI." });
   });
 
   it("uses funding when it is the only event", () => {
@@ -67,6 +67,12 @@ describe("deriveOpeningReason", () => {
   it("collapses whitespace in the grounded fact", () => {
     const r = deriveOpeningReason({ signal: { type: "leadership_change", label: "  Nouveau   DSI\n nommé " } });
     expect(r?.fact).toBe("Nouveau DSI nommé");
+  });
+
+  it("carries an opener-ready observation per source (Douablin's lead)", () => {
+    expect(deriveOpeningReason({ signal: { type: "tech_adoption", label: "a adopté Salesforce" } })?.observation).toBe("J'ai vu a adopté Salesforce.");
+    expect(deriveOpeningReason({ hiringRole: "un DSI" })?.observation).toBe("Je vois que vous recrutez un DSI.");
+    expect(deriveOpeningReason({ fundingLastRound: "Série B", fundingDate: "2026" })?.observation).toBe("Je vois que vous avez bouclé Série B (2026).");
   });
 
   it("keeps the bridge a fixed, content-free connector", () => {
