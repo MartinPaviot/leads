@@ -20,6 +20,10 @@ describe("isSuspiciousLink (R03)", () => {
     expect(isSuspiciousLink("", "http://192.168.10.4/x")).toBe(true);
     expect(isSuspiciousLink("", "https://xn--80ak6aa92e.example/x")).toBe(true);
   });
+  it("catches same-eTLD phishing on common multi-part TLDs", () => {
+    expect(isSuspiciousLink("bank.co.uk", "https://phish.co.uk/login")).toBe(true);
+    expect(isSuspiciousLink("mail.bank.co.uk", "https://bank.co.uk/x")).toBe(false);
+  });
 });
 
 describe("applyEmailPrivacy (R02/R07)", () => {
@@ -33,6 +37,11 @@ describe("applyEmailPrivacy (R02/R07)", () => {
   it("removes pixels declared via inline style", () => {
     const res = applyEmailPrivacy(`<img src="https://t.example/p.gif" style="width:1px;height:1px">`);
     expect(res.html.toLowerCase()).not.toContain("<img");
+  });
+
+  it("removes pixels declared with unitless / non-px styles", () => {
+    expect(applyEmailPrivacy(`<img src="https://t.example/a.gif" style="width:0">`).html.toLowerCase()).not.toContain("<img");
+    expect(applyEmailPrivacy(`<img src="https://t.example/b.gif" style="height:0pt">`).html.toLowerCase()).not.toContain("<img");
   });
 
   it("blocks a real remote image by default (no live src, stashed for later)", () => {

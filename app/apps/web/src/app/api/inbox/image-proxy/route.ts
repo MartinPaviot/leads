@@ -55,10 +55,26 @@ export async function GET(req: Request) {
       return new Response("Image too large", { status: 413 });
     }
 
-    const buf = await upstream.arrayBuffer();
-    if (buf.byteLength > MAX_BYTES) return new Response("Image too large", { status: 413 });
+    // Stream with a hard cap — never trust Content-Length. An upstream can omit
+    // it and stream an unbounded body, which `arrayBuffer()` would buffer whole
+    // into memory before any size check. Abort the moment we cross the limit.
+    if (!upstream.body) return new Response("Empty response", { status: 502 });
+    const reader = upstream.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_BYTES) {
+        await reader.cancel().catch(() => {});
+        controller.abort();
+        return new Response("Image too large", { status: 413 });
+      }
+      chunks.push(value);
+    }
 
-    return new Response(buf, {
+    return new Response(Buffer.concat(chunks), {
       status: 200,
       headers: {
         "Content-Type": type,

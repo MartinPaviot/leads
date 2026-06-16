@@ -37,11 +37,23 @@ const REMOTE_SRC = /^https?:\/\//i;
 const IP_HOST = /^(\d{1,3}\.){3}\d{1,3}$|:|^\[/; // IPv4 literal, or any colon (IPv6), or [..]
 const DOMAIN_IN_TEXT = /\b((?:[a-z0-9-]+\.)+[a-z]{2,})\b/i;
 
-/** Last two dot-labels, lowercased — a PSL-free "registrable-ish" comparator.
- *  Imperfect for multi-part TLDs (co.uk) but catches the common phishing case
- *  where the visible domain differs from the destination domain entirely. */
+/** Common multi-part public suffixes, so `bank.co.uk` ≠ `phish.co.uk` instead of
+ *  both collapsing to `co.uk`. Not the full PSL (that needs a dependency) — just
+ *  the suffixes a phisher is most likely to hide behind. */
+const MULTI_PART_TLDS = new Set([
+  "co.uk", "org.uk", "gov.uk", "ac.uk", "me.uk",
+  "co.jp", "co.kr", "co.nz", "co.za", "co.in", "co.il",
+  "com.au", "net.au", "org.au", "com.br", "com.cn", "com.mx", "com.tr", "com.sg",
+]);
+
+/** PSL-free "registrable-ish" comparator: the registrable domain, handling the
+ *  common multi-part TLDs. Catches the phishing case where the visible domain
+ *  differs from the destination domain. */
 function registrableish(host: string): string {
   const labels = host.toLowerCase().replace(/\.$/, "").split(".");
+  if (labels.length >= 3 && MULTI_PART_TLDS.has(labels.slice(-2).join("."))) {
+    return labels.slice(-3).join(".");
+  }
   return labels.slice(-2).join(".");
 }
 
@@ -64,8 +76,9 @@ function isTrackingPixel(el: Element): boolean {
   const h = dim(el.getAttribute("height"));
   if ((w !== null && w <= 1) || (h !== null && h <= 1)) return true;
   const style = (el.getAttribute("style") || "").toLowerCase();
-  const sw = /width\s*:\s*([0-9.]+)\s*px/.exec(style);
-  const sh = /height\s*:\s*([0-9.]+)\s*px/.exec(style);
+  // Match width/height with px/pt or no unit (trackers use "0", "1px", "0pt").
+  const sw = /(?:^|[;\s])width\s*:\s*([0-9.]+)\s*(?:px|pt)?\b/.exec(style);
+  const sh = /(?:^|[;\s])height\s*:\s*([0-9.]+)\s*(?:px|pt)?\b/.exec(style);
   if (sw && parseFloat(sw[1]) <= 1) return true;
   if (sh && parseFloat(sh[1]) <= 1) return true;
   return false;
