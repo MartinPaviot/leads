@@ -152,6 +152,10 @@ export default function AccountsPage() {
   const [newDomain, setNewDomain] = useState("");
   const [creating, setCreating] = useState(false);
   const [filter, setFilter] = useState<"all" | "tam" | "manual">("all");
+  // Enrichment partition — independent of the source tab. "unenriched" isolates
+  // the accounts still missing their base firmographics so the user can bulk-
+  // enrich just those (and not pay to re-enrich the ones already enriched).
+  const [enrichmentFilter, setEnrichmentFilter] = useState<"all" | "unenriched" | "enriched">("all");
   // Per-column header filters (Notion / Excel style). Keyed by the
   // column's filterKey → its filter state. An entry only exists while
   // the column constrains the list; clearing it deletes the key.
@@ -163,6 +167,10 @@ export default function AccountsPage() {
   // Filter dropdown options (distinct enum values) from the server, so the
   // menus stay complete even though only the filtered rows are loaded.
   const [serverFacets, setServerFacets] = useState<{ industries: string[]; geographies: string[]; sizes: string[]; revenues: string[]; stages: string[] } | null>(null);
+  // Per-value row counts for each enum facet, keyed by the column's filterKey
+  // (industry / geography / size / revenue / stage / score). Drives the "(N)"
+  // shown next to every value in the header dropdowns.
+  const [serverFacetCounts, setServerFacetCounts] = useState<Record<string, Record<string, number>> | null>(null);
   // Tenant-wide working-set counts (independent of the active filters) for the
   // tab + enrich badges, so they show true totals rather than the loaded subset.
   const [serverCounts, setServerCounts] = useState<{ total: number; tam: number; manual: number; unenriched: number } | null>(null);
@@ -474,6 +482,8 @@ export default function AccountsPage() {
   const serializeAccountFilters = useCallback((): URLSearchParams => {
     const p = new URLSearchParams();
     if (filter !== "all") p.set("tab", filter);
+    if (enrichmentFilter === "unenriched") p.set("fEnriched", "no");
+    else if (enrichmentFilter === "enriched") p.set("fEnriched", "yes");
     const ENUM_PARAM: Record<string, string> = {
       industry: "fIndustry", geography: "fGeography", size: "fSize",
       revenue: "fRevenue", stage: "fStage", score: "fGrade",
@@ -495,7 +505,7 @@ export default function AccountsPage() {
       else if (c.operator === "eq") { p.set("fScoreMin", String(n)); p.set("fScoreMax", String(n)); }
     }
     return p;
-  }, [filter, debouncedColumnFilters, smartFilters]);
+  }, [filter, enrichmentFilter, debouncedColumnFilters, smartFilters]);
 
   /** The COMPLETE filter state /api/accounts understands — view toggles
    *  (excluded/deleted) + search + tab/column/score filters. Single source
@@ -527,6 +537,7 @@ export default function AccountsPage() {
       if (!res.ok) return;
       const data = await res.json();
       if (data.facets) setServerFacets(data.facets);
+      if (data.facetCounts) setServerFacetCounts(data.facetCounts);
       if (data.counts) setServerCounts(data.counts);
       const batch: Account[] = data.accounts || data.items || [];
       const pagination = data.pagination as { page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | undefined;
@@ -1668,6 +1679,41 @@ export default function AccountsPage() {
           ))}
         </div>
 
+        {/* Enrichment partition — independent of the source tab. Lets the user
+            isolate the not-yet-enriched accounts so a bulk enrich doesn't pay to
+            re-enrich the ones already enriched. Counts come from the tenant-wide
+            working set (serverCounts), independent of this selection so each
+            segment shows a stable total. */}
+        <div className="flex items-center gap-0.5 border-l pl-2" style={{ borderColor: "var(--color-border-default)" }}>
+          <Sparkles size={12} style={{ color: "var(--color-text-tertiary)", opacity: 0.7 }} aria-hidden="true" />
+          {([
+            { key: "all", label: "All", title: "Every account regardless of enrichment" },
+            {
+              key: "unenriched",
+              label: serverCounts ? `To enrich (${serverCounts.unenriched})` : "To enrich",
+              title: "Accounts still missing their base firmographics — what a bulk enrich would actually fill",
+            },
+            {
+              key: "enriched",
+              label: serverCounts ? `Enriched (${Math.max(0, serverCounts.total - serverCounts.unenriched)})` : "Enriched",
+              title: "Accounts already enriched — skip these to avoid enriching twice",
+            },
+          ] as const).map((seg) => (
+            <button
+              key={seg.key}
+              onClick={() => setEnrichmentFilter(seg.key)}
+              title={seg.title}
+              className="rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
+              style={{
+                background: enrichmentFilter === seg.key ? "var(--color-accent-soft)" : "transparent",
+                color: enrichmentFilter === seg.key ? "var(--color-accent)" : "var(--color-text-tertiary)",
+              }}
+            >
+              {seg.label}
+            </button>
+          ))}
+        </div>
+
         {/* Per-column filters now live in the table headers (click the
             filter icon on Industry / Geography / Size / etc.). When any
             are active, surface a count + one-click reset here so the user
@@ -1932,6 +1978,7 @@ export default function AccountsPage() {
                           label={fcfg.label}
                           kind={fcfg.kind}
                           options={columnOptions[col.filterKey]}
+                          counts={serverFacetCounts?.[col.filterKey]}
                           state={columnFilters[col.filterKey]}
                           onChange={(next) =>
                             setColumnFilters((prev) => {

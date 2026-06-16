@@ -275,16 +275,23 @@ export async function GET(req: Request) {
 
     // Company filter options — distinct company names across ALL the tenant's
     // (non-deleted) contacts, so the header dropdown isn't limited to the
-    // loaded page. Grades are a fixed scale, so the page hardcodes those.
+    // loaded page, each with its contact count so the menu shows "(N)" next to
+    // every value. Grades are a fixed scale, so the page hardcodes those.
     let companyOptions: string[] = [];
+    let companyCounts: Record<string, number> = {};
     try {
-      const optRows = await db
-        .selectDistinct({ name: companies.name })
-        .from(companies)
-        .innerJoin(contacts, eq(contacts.companyId, companies.id))
-        .where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt), isNull(companies.deletedAt)))
-        .orderBy(companies.name);
-      companyOptions = optRows.map((r) => r.name).filter((n): n is string => !!n);
+      const rows = await db.execute(sql`
+        SELECT co.name AS name, count(*)::int AS count
+        FROM contacts c
+        JOIN companies co ON co.id = c.company_id
+        WHERE c.tenant_id = ${authCtx.tenantId} AND c.deleted_at IS NULL
+          AND co.deleted_at IS NULL AND co.name IS NOT NULL AND co.name <> ''
+        GROUP BY co.name
+        ORDER BY co.name ASC
+      `);
+      const list = (rows as unknown as Array<{ name: string; count: number }>);
+      companyOptions = list.map((r) => r.name);
+      companyCounts = Object.fromEntries(list.map((r) => [r.name, Number(r.count)]));
     } catch (e) {
       console.warn("Failed to fetch contact company options:", e);
     }
@@ -310,21 +317,49 @@ export async function GET(req: Request) {
     }
 
     // Title filter options — distinct titles across ALL contacts, frequency-
-    // ordered so the common roles sit on top of the dropdown. Capped: the
-    // dropdown has its own search-within for the long tail.
+    // ordered so the common roles sit on top of the dropdown, each with its
+    // contact count for the "(N)" badge. Capped: the dropdown has its own
+    // search-within for the long tail.
     let titleOptions: string[] = [];
+    let titleCounts: Record<string, number> = {};
     try {
       const rows = await db.execute(sql`
-        SELECT title FROM contacts
+        SELECT title, count(*)::int AS count FROM contacts
         WHERE tenant_id = ${authCtx.tenantId} AND deleted_at IS NULL
           AND title IS NOT NULL AND title <> ''
         GROUP BY title
         ORDER BY count(*) DESC, title ASC
         LIMIT 60
       `);
-      titleOptions = (rows as unknown as Array<{ title: string }>).map((r) => r.title);
+      const list = (rows as unknown as Array<{ title: string; count: number }>);
+      titleOptions = list.map((r) => r.title);
+      titleCounts = Object.fromEntries(list.map((r) => [r.title, Number(r.count)]));
     } catch (e) {
       console.warn("Failed to fetch contact title options:", e);
+    }
+
+    // Grade band counts (A+ … F) over ALL the tenant's scored contacts, mirroring
+    // the getGrade() ladder the fGrade filter uses, for the Score column "(N)".
+    let scoreCounts: Record<string, number> = {};
+    try {
+      const rows = await db.execute(sql`
+        SELECT CASE
+          WHEN round(score) >= 90 THEN 'A+'
+          WHEN round(score) >= 80 THEN 'A'
+          WHEN round(score) >= 60 THEN 'B'
+          WHEN round(score) >= 40 THEN 'C'
+          WHEN round(score) >= 20 THEN 'D'
+          WHEN round(score) >= 0 THEN 'F'
+          ELSE NULL END AS grade, count(*)::int AS count
+        FROM contacts
+        WHERE tenant_id = ${authCtx.tenantId} AND deleted_at IS NULL AND score IS NOT NULL
+        GROUP BY 1
+      `);
+      for (const r of rows as unknown as Array<{ grade: string | null; count: number }>) {
+        if (r.grade) scoreCounts[r.grade] = Number(r.count);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch contact grade counts:", e);
     }
 
     // Canonical paginated shape (items + legacy `contacts`) plus server-sourced
@@ -335,6 +370,14 @@ export async function GET(req: Request) {
       contacts: enrichedContacts,
       pagination: { page, pageSize, total, totalPages, hasMore: page * pageSize < total },
       filterOptions: { companies: companyOptions, industries: industryOptions, titles: titleOptions },
+      // Per-value row counts keyed by the table's filterKey, so each header
+      // dropdown can show "(N)" next to every value.
+      filterCounts: {
+        companyName: companyCounts,
+        industry: Object.fromEntries(industryOptions.map((o) => [o.industry, o.count])),
+        title: titleCounts,
+        score: scoreCounts,
+      },
     });
   } catch (error) {
     console.error("Failed to fetch contacts:", error);

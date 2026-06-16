@@ -34,6 +34,7 @@ export interface AccountListFilters {
   revenues: string[];
   stages: string[]; // matches the EFFECTIVE stage (manual override > deal-derived > "new")
   grades: string[]; // A+ | A | B | C | D | F
+  enriched: "yes" | "no" | null; // "no" = base firmographics still missing (to-enrich)
   linkedin: "has" | "empty" | null;
   name: string | null; // substring match
   domain: string | null; // substring match
@@ -71,6 +72,8 @@ export function parseAccountListFilters(params: URLSearchParams): AccountListFil
   const tab = tabRaw === "tam" || tabRaw === "manual" ? tabRaw : "all";
   const linkedinRaw = params.get("fLinkedin");
   const linkedin = linkedinRaw === "has" || linkedinRaw === "empty" ? linkedinRaw : null;
+  const enrichedRaw = params.get("fEnriched");
+  const enriched = enrichedRaw === "yes" || enrichedRaw === "no" ? enrichedRaw : null;
   return {
     industries: csv(params.get("fIndustry")),
     geographies: csv(params.get("fGeography")),
@@ -78,6 +81,7 @@ export function parseAccountListFilters(params: URLSearchParams): AccountListFil
     revenues: csv(params.get("fRevenue")),
     stages: csv(params.get("fStage")),
     grades: csv(params.get("fGrade")).filter((g) => g in GRADE_RANGES),
+    enriched,
     linkedin,
     name: params.get("fName")?.trim() || null,
     domain: params.get("fDomain")?.trim() || null,
@@ -97,6 +101,7 @@ export function hasActiveAccountFilters(f: AccountListFilters): boolean {
     f.revenues.length > 0 ||
     f.stages.length > 0 ||
     f.grades.length > 0 ||
+    f.enriched !== null ||
     f.linkedin !== null ||
     !!f.name ||
     !!f.domain ||
