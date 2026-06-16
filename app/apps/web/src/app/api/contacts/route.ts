@@ -118,6 +118,7 @@ export async function GET(req: Request) {
     const fGrade = (url.searchParams.get("fGrade") || "").split(",").map((s) => s.trim()).filter(Boolean);
     const fLinkedin = url.searchParams.get("fLinkedin"); // "has" | "empty"
     const fPhone = url.searchParams.get("fPhone"); // "has" | "empty"
+    const fNetwork = url.searchParams.get("fNetwork"); // "true" -> only my LinkedIn network
 
     if (fName) conds.push(sql`(coalesce(${contacts.firstName}, '') || ' ' || coalesce(${contacts.lastName}, '')) ILIKE ${"%" + fName + "%"}`);
     if (fEmail) conds.push(sql`${contacts.email} ILIKE ${"%" + fEmail + "%"}`);
@@ -162,6 +163,8 @@ export async function GET(req: Request) {
     if (fLinkedin === "empty") conds.push(sql`(${contacts.linkedinUrl} IS NULL OR ${contacts.linkedinUrl} = '')`);
     if (fPhone === "has") conds.push(sql`(${contacts.phone} IS NOT NULL AND ${contacts.phone} <> '')`);
     if (fPhone === "empty") conds.push(sql`(${contacts.phone} IS NULL OR ${contacts.phone} = '')`);
+    // "Mon réseau" — contacts imported from the founder's LinkedIn export.
+    if (fNetwork === "true") conds.push(sql`(${contacts.properties}->>'network') = 'true'`);
 
     // Smart-filter score threshold (e.g. "high fit" -> score >= 70), applied
     // server-side so the count reflects it — parity with /api/accounts.
@@ -362,6 +365,21 @@ export async function GET(req: Request) {
       console.warn("Failed to fetch contact grade counts:", e);
     }
 
+    // "Mon réseau" cohort size — contacts imported from the founder's LinkedIn
+    // export (properties.network), so the toggle can show "(N)" and decide
+    // whether to render at all.
+    let networkCount = 0;
+    try {
+      const rows = await db.execute(sql`
+        SELECT count(*)::int AS count FROM contacts
+        WHERE tenant_id = ${authCtx.tenantId} AND deleted_at IS NULL
+          AND (properties->>'network') = 'true'
+      `);
+      networkCount = Number((rows as unknown as Array<{ count: number }>)[0]?.count ?? 0);
+    } catch (e) {
+      console.warn("Failed to fetch network count:", e);
+    }
+
     // Canonical paginated shape (items + legacy `contacts`) plus server-sourced
     // filter options for the header dropdowns.
     const totalPages = Math.ceil(total / pageSize);
@@ -378,6 +396,7 @@ export async function GET(req: Request) {
         title: titleCounts,
         score: scoreCounts,
       },
+      networkCount,
     });
   } catch (error) {
     console.error("Failed to fetch contacts:", error);

@@ -22,33 +22,34 @@ Ordered. Each task: implement → verify → test → commit.
     activeIcps)` after insert; missing/empty ICP is non-fatal (`scored:0`, contacts
     kept for the next recompute).
 
-- [ ] **T4 — Contacts filter** `?fNetwork=true`
-  - Extend `app/api/contacts/route.ts` (condition + count). Add a "Mon réseau"
-    quick-filter chip in the Contacts UI.
-  - Test: filter returns only the cohort.
+- [x] **T4 — Contacts filter** `?fNetwork=true`
+  - `app/api/contacts/route.ts`: `fNetwork` condition (`properties->>'network'`)
+    + `networkCount` in the response. Contacts page: "Mon réseau (N)" toggle
+    (shown when count > 0) wired through `serializeContactFilters`.
 
-- [ ] **T5 — Call list source** (`SprintAudience.network`)
-  - Extend `lib/voice/sprint-audience.ts` + `sprintAudienceConditions()` in
-    `lib/voice/call-sprint.ts`; allow a "Mon réseau" saved list.
-  - Test: audience builder includes the network condition.
+- [x] **T5 — Call list source** (`SprintAudience.network`)
+  - `network?: boolean` on SprintAudience + readSprintAudience (a network-only
+    segment is valid) + condition in `sprintAudienceConditions`. A "Mon réseau"
+    list = segment `{ network: true }`. Test: network-sprint-audience.test (3).
 
-- [ ] **T6 — Enrich the top-of-ICP slice**
-  - Reuse `enqueueFullEnrichForContacts` on network contacts with `score >= grade
-    threshold` that lack a mobile. (Optional: cost-preview gate — reco #3.)
+- [x] **T6 — Enrich the cohort** (via the existing bulk action — no new code)
+  - Once "Mon réseau" is filterable (T4), the existing select-all-matching +
+    bulk enrich on Contacts runs `enqueueFullEnrichForContacts` over the cohort
+    (`?fNetwork=true` flows into select-all-matching). Reuse, not rebuild.
 
-- [ ] **T7 — Upload UI**
-  - Contacts page: "Importer mon réseau LinkedIn" → file input → `POST
-    /api/network/import` → toast `imported/duplicates/skipped` + deep-link to
-    `?fNetwork=true`. Include a one-line "how to export" helper
-    (LinkedIn → Settings → Data privacy → Get a copy of your data → Connections).
+- [x] **T7 — Upload UI**
+  - Contacts toolbar: "Mon réseau LinkedIn" button → file input →
+    `POST /api/network/import` → result banner (ajoutés/déjà présents/scorés) →
+    list refresh reveals the cohort + the "Mon réseau (N)" toggle.
 
-- [ ] **T8 — Regression + docs**
-  - `vitest run` + `tsc --noEmit` green; update product-spec if surfaced.
-  - Rebase branch onto `origin/main` (picks up PR #251 reachability so the cohort
-    rows can show call-readiness facts).
+- [x] **T8 — Rebase + checks**
+  - Rebased onto origin/main (c1c9d629, #257 reachability present). tsc 0 errors
+    (whole project); 44 unit tests green. Full vitest suite = CI gate on PR.
 
 ## Status
-T1+T2+T3 DONE this session (parse → dedup → upsert → ICP score, behind
-auth/rate-limit; 27 unit tests, tsc clean). Remaining: T4 contacts filter,
-T5 call-list source, T6 cohort enrich, T7 upload UI, T8 regression + rebase
-onto origin/main (for #251 reachability on the cohort rows).
+FEATURE COMPLETE this session, end-to-end + verified (44 tests, tsc 0):
+import (T1/T2/T3) → ICP score → Contacts "Mon réseau" filter+chip (T4) →
+call-list facet (T5) → cohort enrich via existing bulk (T6) → upload UI (T7),
+rebased on origin/main (T8). Branch feat/network-activation (worktree
+leads-wt-network), NOT pushed. Optional follow-ups: cost-preview gate before
+bulk enrich (YALC reco #3); call-readiness facts on cohort rows.

@@ -39,6 +39,9 @@ export interface SprintAudience {
   freshnessDays?: number;
   /** R4.6 — has a live linked deal worth >= dealValueMin. */
   dealValueMin?: number;
+  /** Network facet — the founder's imported LinkedIn connections
+   *  (contacts.properties.network). A network-only segment is valid. */
+  network?: boolean;
 }
 
 /**
@@ -68,6 +71,7 @@ export function readSprintAudience(targetFilter: unknown): SprintAudience | null
   const fitMin = posNum(a.fitMin);
   const freshnessDays = posNum(a.freshnessDays);
   const dealValueMin = posNum(a.dealValueMin);
+  const network = a.network === true;
 
   const empty =
     industries.length === 0 &&
@@ -76,7 +80,8 @@ export function readSprintAudience(targetFilter: unknown): SprintAudience | null
     phoneType.length === 0 &&
     fitMin === undefined &&
     freshnessDays === undefined &&
-    dealValueMin === undefined;
+    dealValueMin === undefined &&
+    !network;
   if (empty) return null;
 
   const label = typeof a.label === "string" && a.label.trim() ? a.label.trim() : "sprint";
@@ -89,5 +94,6 @@ export function readSprintAudience(targetFilter: unknown): SprintAudience | null
   if (fitMin !== undefined) out.fitMin = fitMin;
   if (freshnessDays !== undefined) out.freshnessDays = freshnessDays;
   if (dealValueMin !== undefined) out.dealValueMin = dealValueMin;
+  if (network) out.network = true;
   return out;
 }
