@@ -428,6 +428,67 @@ export function computeBlendedFit(
   return { score01, fitEvaluable, identityFit, signalFit, coverage, matched, unmatched, excludedBy: null };
 }
 
+// ── Graded fit DEPTH (Phase B1, _specs/propensity-scoring) ──────────
+//
+// Binary evaluateCriterion saturates inside an ICP (everyone matches → all A).
+// DEPTH grades HOW WELL a numeric criterion fits: a company dead-center in the
+// target range scores higher than one at the edge. Categorical criteria stay
+// binary. This is the dimension that separates two same-ICP companies.
+
+/**
+ * Degree of fit of one criterion, in [0,1], or null when the field has no data
+ * (so it leaves the depth denominator — same "no data ≠ no fit" rule as
+ * computeBlendedFit). `between {min,max}` is a triangular membership (1.0 at the
+ * range center, 0.5 at either edge, decaying to 0 one range-width beyond the
+ * edge); every other operator is the binary evaluateCriterion result.
+ */
+export function scoreCriterionDegree(criterion: Criterion, ctx: CompanyContext): number | null {
+  if (!hasData(ctx, criterion.fieldKey)) return null;
+  if (criterion.operator === "between") {
+    const n = asNumber(ctx[criterion.fieldKey]);
+    const v = criterion.value as { min?: unknown; max?: unknown } | null;
+    const min = v ? asNumber(v.min) : null;
+    const max = v ? asNumber(v.max) : null;
+    if (n !== null && min !== null && max !== null && max > min) {
+      const halfWidth = (max - min) / 2;
+      const d = Math.abs(n - (min + max) / 2);
+      if (d <= halfWidth) return 1 - 0.5 * (d / halfWidth); // center 1.0 → edge 0.5
+      return Math.max(0, 0.5 - 0.5 * ((d - halfWidth) / halfWidth)); // edge 0.5 → 0
+    }
+  }
+  return evaluateCriterion(criterion, ctx) ? 1 : 0;
+}
+
+/**
+ * Graded DEPTH over the soft IDENTITY criteria (firmographics) —
+ * Σ(w·degree) / Σ(w with data). Signals are the intent dimension (scored
+ * elsewhere), so depth is identity-only; required criteria are the gate, not
+ * depth. Returns { depth01, coverage } mirroring computeBlendedFit's coverage.
+ */
+export function computeDepth(
+  criteria: Criterion[],
+  ctx: CompanyContext,
+  sourcingOnly: ReadonlySet<string> = SOURCING_ONLY_FIELD_KEYS,
+): { depth01: number; coverage: number } {
+  let wTotal = 0;
+  let wWithData = 0;
+  let wDegree = 0;
+  for (const c of criteria) {
+    if (sourcingOnly.has(c.fieldKey)) continue;
+    if (c.isRequired) continue;
+    if (!IDENTITY_FIELD_KEYS.has(c.fieldKey)) continue;
+    wTotal += c.weight;
+    const d = scoreCriterionDegree(c, ctx);
+    if (d === null) continue;
+    wWithData += c.weight;
+    wDegree += c.weight * d;
+  }
+  return {
+    depth01: wWithData > 0 ? wDegree / wWithData : 0,
+    coverage: wTotal > 0 ? wWithData / wTotal : 0,
+  };
+}
+
 // ── Primary-ICP resolution ─────────────────────────────────────────
 
 export type IcpFitCell = {
