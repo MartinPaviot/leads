@@ -11,6 +11,7 @@ import {
   OBJECTIONS,
   resolveBranches,
   personaEnjeuIndex,
+  prefixObservation,
 } from "@/lib/call-mode/call-scripts";
 
 describe("pickCallScript", () => {
@@ -169,6 +170,21 @@ describe("peerLeadFor", () => {
     expect(peerLeadFor("hospital & health care")).toBe(BASCULE);
     expect(peerLeadFor("")).toBe(BASCULE);
     expect(peerLeadFor(null)).toBe(BASCULE);
+  });
+});
+
+describe("prefixObservation (lead with a fresh prospect signal)", () => {
+  const opener = "Bonjour M. Berra, Martin Paviot, cofondateur de Pilae, une société lausannoise. Je me concentre en ce moment sur les EMS romands. Ça vous convient ?";
+  it("inserts the observation as its own sentence after the identity, before the sector", () => {
+    const out = prefixObservation(opener, "Je vois que vous recrutez un DSI.");
+    expect(out).toBe("Bonjour M. Berra, Martin Paviot, cofondateur de Pilae, une société lausannoise. Je vois que vous recrutez un DSI. Je me concentre en ce moment sur les EMS romands. Ça vous convient ?");
+  });
+  it("returns the opener unchanged when there is no observation", () => {
+    expect(prefixObservation(opener, null)).toBe(opener);
+    expect(prefixObservation(opener, "  ")).toBe(opener);
+  });
+  it("prepends when the opener has no sentence break", () => {
+    expect(prefixObservation("Vous avez un instant", "J'ai vu votre levée.")).toBe("J'ai vu votre levée. Vous avez un instant");
   });
 });
 
