@@ -29,6 +29,9 @@ export interface OpeningReason {
   source: OpeningReasonSource;
   /** Human label for the provenance chip. */
   sourceLabel: string;
+  /** Opener-ready observation sentence ("Je vois que vous … ." / "J'ai vu … .")
+   *  — Douablin's observation that LEADS the opener, before the permission ask. */
+  observation: string;
 }
 
 /**
@@ -136,14 +139,20 @@ export function mergeTechStacks(
  * live signal → hiring → funding. Returns null when nothing sayable is known
  * (never fabricates, never voices an internal signal or a strategy note).
  */
+/** Ensure an observation reads as a clean sentence (single trailing period). */
+function asSentence(s: string): string {
+  const t = s.trim().replace(/[.!?]+$/, "");
+  return t ? `${t}.` : "";
+}
+
 export function deriveOpeningReason(input: OpeningReasonInput): OpeningReason | null {
   if (input.signal && isVoiceableSignal(input.signal.type)) {
     const label = clean(input.signal.label);
-    if (label) return { fact: label, source: "signal", sourceLabel: SOURCE_LABEL.signal };
+    if (label) return { fact: label, source: "signal", sourceLabel: SOURCE_LABEL.signal, observation: asSentence(`J'ai vu ${label}`) };
   }
 
   const hiring = clean(input.hiringRole);
-  if (hiring) return { fact: `Recrute ${hiring}`, source: "hiring", sourceLabel: SOURCE_LABEL.hiring };
+  if (hiring) return { fact: `Recrute ${hiring}`, source: "hiring", sourceLabel: SOURCE_LABEL.hiring, observation: asSentence(`Je vois que vous recrutez ${hiring}`) };
 
   const funding = clean(input.fundingLastRound);
   if (funding) {
@@ -151,7 +160,7 @@ export function deriveOpeningReason(input: OpeningReasonInput): OpeningReason | 
     const dated = date && date.toLowerCase() !== "unknown" && !funding.includes(date)
       ? `${funding} (${date})`
       : funding;
-    return { fact: dated, source: "funding", sourceLabel: SOURCE_LABEL.funding };
+    return { fact: dated, source: "funding", sourceLabel: SOURCE_LABEL.funding, observation: asSentence(`Je vois que vous avez bouclé ${dated}`) };
   }
 
   return null;

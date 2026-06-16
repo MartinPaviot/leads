@@ -20,9 +20,10 @@ describe("checkScriptMethod", () => {
     const base = defaultScriptFields("Fondation");
     const pitched = { ...base, opener: `Bonjour {name}, ${base.problems[0]} — vous avez 2 min ?` };
     expect(ids(pitched)).toContain("opener_pitches");
-    // the {tool} enjeu pasted into the opener still matches (placeholder stripped)
-    const toolEnjeu = base.problems.find((p) => p.includes("{tool}"))!;
-    const pitchedTool = { ...base, opener: `Bonjour, ${toolEnjeu.replace("{tool}", " ")} ?` };
+    // A {tool}-template enjeu (tenant scripts may still carry one) pasted into
+    // the opener still matches — the lever strips {tool} before comparing.
+    const toolEnjeu = "des abonnements comme {tool} qui grimpent à chaque renouvellement";
+    const pitchedTool = { ...base, problems: [toolEnjeu, ...base.problems], opener: `Bonjour, ${toolEnjeu.replace("{tool}", " ")} ?` };
     expect(ids(pitchedTool)).toContain("opener_pitches");
   });
 

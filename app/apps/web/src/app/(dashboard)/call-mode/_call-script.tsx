@@ -13,8 +13,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, CalendarClock, Phone, Pencil, Sparkles, Loader2, X, Plus, Trash2, AlertTriangle } from "lucide-react";
-import { interpolateOpener, defaultScriptFields, splitGuidance, withNoResponse, type ScriptFields } from "@/lib/call-mode/call-scripts";
-import { deriveOpeningReason, REASON_BRIDGE, type OpeningReasonInput } from "@/lib/call-mode/live-script";
+import { interpolateOpener, defaultScriptFields, splitGuidance, withNoResponse, lineFor, peerLeadFor, type ScriptFields } from "@/lib/call-mode/call-scripts";
+import { deriveOpeningReason, type OpeningReasonInput } from "@/lib/call-mode/live-script";
 import { planProblems } from "@/lib/call-mode/match-problem";
 import { checkScriptMethod } from "@/lib/call-mode/script-levers";
 import type { ScriptContext } from "@/lib/voice/script-context";
@@ -93,13 +93,16 @@ export function CallScriptPanel({
   useEffect(() => { setSector(defaultSector ?? ""); }, [contactId, defaultSector]);
   useEffect(() => { setGeo(defaultGeo ?? ""); }, [contactId, defaultGeo]);
 
-  const opener = useMemo(
-    () => interpolateOpener(fields.opener, { name: contactName, sector, geo }),
-    [fields.opener, contactName, sector, geo],
-  );
-  // The sayable reason to call THIS prospect — said right after the permission
-  // opener (Bloc 2). Voiceable triggers only; null ⇒ absent (open on the gate).
+  // Live reason kept for call telemetry (onContext.reasonSource); the spoken
+  // opener is identity + the prospect's sector tied to our subject (no tool in
+  // the opener — the tool only floats the matched enjeu downstream).
   const reason = deriveOpeningReason(reasonInput ?? {});
+  const openerLine = useMemo(() => lineFor(sector), [sector]);
+  // Identity + sector↔subject + permission opener.
+  const opener = useMemo(
+    () => interpolateOpener(fields.opener, { name: contactName, sector, geo, line: openerLine }),
+    [fields.opener, contactName, sector, geo, openerLine],
+  );
   const anyChecked = checked.size > 0;
   const toggle = (i: number) =>
     setChecked((prev) => {
@@ -249,7 +252,7 @@ export function CallScriptPanel({
       ) : editing && draft ? (
         // ── Edit mode — simple inline fields ──
         <div className="flex flex-col gap-2.5">
-          <Field label="Accroche — permission-based, « vous avez 2 min ? » ({name} interpolé)">
+          <Field label="Accroche — identité + secteur↔sujet ({name} et {line} interpolés)">
             <textarea value={draft.opener} onChange={(e) => setDraft({ ...draft, opener: e.target.value })}
               rows={2} className="w-full resize-y rounded-md px-2 py-1.5 text-[12.5px]" style={inputStyle} />
           </Field>
@@ -301,19 +304,8 @@ export function CallScriptPanel({
         // ── Read mode — what to say ──
         <>
           <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-text-primary)" }}>{opener}</p>
-          {reason && (
-            <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-text-primary)" }}>
-              <span style={{ color: "var(--color-text-tertiary)" }}>{REASON_BRIDGE} </span>
-              {reason.fact}
-              <span
-                className="ml-1.5 rounded-sm px-1.5 py-px align-middle text-[9px] font-semibold uppercase tracking-wide"
-                style={{ background: "var(--color-bg-hover)", color: "var(--color-text-tertiary)" }}
-                title="Source de la raison"
-              >
-                {reason.sourceLabel}
-              </span>
-            </p>
-          )}
+          {/* Récit-pair — éclairer les 3 enjeux par un pair, jamais frontalement. */}
+          <p className="text-[12px] italic" style={{ color: "var(--color-text-tertiary)" }}>{peerLeadFor(sector)}</p>
           <div className="flex flex-col gap-1.5">
             {orderedProblems.map(({ idx: i, text: p, viaTool }) => {
               const isMatch = i === matchedIdx;
@@ -337,7 +329,9 @@ export function CallScriptPanel({
               );
             })}
           </div>
-          <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{view.permissionCheck}</p>
+          {view.permissionCheck && (
+            <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{view.permissionCheck}</p>
+          )}
           <div className="flex items-start gap-2 rounded-md px-3 py-2 text-[12.5px]"
             style={{ background: anyChecked ? "var(--color-accent-soft)" : "var(--color-bg-hover)", color: anyChecked ? "var(--color-accent)" : "var(--color-text-tertiary)" }}>
             <CalendarClock size={14} className="mt-0.5 shrink-0" />
