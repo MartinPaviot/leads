@@ -6,6 +6,7 @@
 import { withAuthRLS } from "@/lib/auth/auth-utils";
 import { loadTenantScript, upsertTenantScript } from "@/lib/call-mode/tenant-script";
 import { classifyScriptSector } from "@/lib/call-mode/sector-classify";
+import { classifySectorLLM } from "@/lib/call-mode/sector-classify-llm";
 import { matchSectorKey } from "@/lib/call-mode/call-scripts";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
@@ -27,23 +28,52 @@ export async function GET(req: Request) {
     let via: string[] = [];
     if (companyId || domain) {
       const [company] = await db
-        .select({ name: companies.name, industry: companies.industry, properties: companies.properties })
+        .select({ id: companies.id, name: companies.name, industry: companies.industry, properties: companies.properties })
         .from(companies)
         .where(and(eq(companies.tenantId, authCtx.tenantId), companyId ? eq(companies.id, companyId) : eq(companies.domain, domain!)))
         .limit(1);
       if (company) {
         const p = (company.properties ?? {}) as Record<string, unknown>;
         const arr = (v: unknown) => (Array.isArray(v) ? (v as string[]) : null);
-        const cls = classifyScriptSector({
-          name: company.name,
-          industry: company.industry,
-          naics: arr(p.naics_codes),
-          sic: arr(p.sic_codes),
-          icpSector: typeof p.icp_sector === "string" ? p.icp_sector : null,
-          keywords: arr(p.keywords),
-        });
-        resolvedKey = cls.key;
-        via = cls.via;
+        if (typeof p.scriptSector === "string" && p.scriptSector) {
+          // 1) Cached LLM resolution — paid once.
+          resolvedKey = p.scriptSector;
+          via = ["mémoire"];
+        } else {
+          // 2) Deterministic waterfall (NAICS + name + classif + industry).
+          const cls = classifyScriptSector({
+            name: company.name,
+            industry: company.industry,
+            naics: arr(p.naics_codes),
+            sic: arr(p.sic_codes),
+            icpSector: typeof p.icp_sector === "string" ? p.icp_sector : null,
+            keywords: arr(p.keywords),
+          });
+          if (cls.confidence !== "low") {
+            resolvedKey = cls.key;
+            via = cls.via;
+          } else {
+            // 3) Last resort: a small model decides, then we cache it.
+            const llmKey = await classifySectorLLM({
+              name: company.name,
+              industry: company.industry,
+              description: typeof p.description === "string" ? p.description : null,
+              keywords: arr(p.keywords),
+            });
+            if (llmKey) {
+              resolvedKey = llmKey;
+              via = ["IA"];
+              await db
+                .update(companies)
+                .set({ properties: { ...p, scriptSector: llmKey, scriptSectorAt: new Date().toISOString() } })
+                .where(and(eq(companies.tenantId, authCtx.tenantId), eq(companies.id, company.id)))
+                .catch(() => { /* cache is best-effort */ });
+            } else {
+              resolvedKey = cls.key;
+              via = cls.via;
+            }
+          }
+        }
       }
     }
     // No company row → best-effort substring on name + typed sector.
