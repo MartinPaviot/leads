@@ -28,6 +28,7 @@ import { EmailComposerPanel, type EmailComposerDraft } from "@/components/email-
 import { MeetingSchedulerCard } from "@/components/meeting-scheduler";
 import { timeAgo } from "./_time-ago";
 import { reasonTooltip, type ConversationDetail, type InboxLane } from "./_types";
+import { EmailBody } from "./_email-body";
 
 const SNOOZE_OPTIONS: Array<{ label: string; until: () => Date }> = [
   {
@@ -474,9 +475,9 @@ export function ConversationPane({
             {m.subject && m.subject !== conv.subject && (
               <div className="mt-0.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{m.subject}</div>
             )}
-            <p className="mt-1.5 whitespace-pre-wrap text-[13px] leading-relaxed" style={{ color: "var(--color-text-primary)" }}>
-              {m.body || "(empty message)"}
-            </p>
+            <div className="mt-1.5">
+              <EmailBody html={m.bodyHtml} text={m.body || "(empty message)"} />
+            </div>
           </div>
         ))}
       </div>

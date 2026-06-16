@@ -674,3 +674,34 @@
 :focus:not(:focus-visible) {
   outline: none;
 }
+
+/* Sanitized email HTML body in the reading pane (INBOX-R01). Scoped so a
+   message's own markup can never break the 400px pane: images and tables are
+   bounded, long tokens wrap, and overflow scrolls instead of pushing layout.
+   The content is allowlist-sanitized before it reaches the DOM. */
+.email-body {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.email-body img {
+  max-width: 100%;
+  height: auto;
+}
+.email-body table {
+  max-width: 100%;
+  border-collapse: collapse;
+}
+.email-body a {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+.email-body blockquote {
+  margin: 0.5em 0;
+  padding-left: 0.75em;
+  border-left: 2px solid var(--color-border-strong);
+  color: var(--color-text-secondary);
+}
+.email-body pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}

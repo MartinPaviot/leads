@@ -108,12 +108,22 @@ export async function POST(req: Request) {
       // flag, and including inbound that never matched an outbound thread.
       // Idempotent on messageId; non-fatal on failure.
       if (tenantId) {
+        // EmailEngine may deliver the HTML part at `data.html` (string) or inside
+        // a `data.text` object — accept either, ignore anything else (R01/R13).
+        const eeData = (event.data ?? {}) as Record<string, unknown>;
+        const eeHtml =
+          typeof eeData.html === "string"
+            ? eeData.html
+            : eeData.text && typeof eeData.text === "object" && typeof (eeData.text as Record<string, unknown>).html === "string"
+              ? ((eeData.text as Record<string, unknown>).html as string)
+              : null;
         await captureInboundEmail({
           tenantId,
           fromHeader: from || "",
           toHeader: Array.isArray(to) ? to.join(", ") : (to ?? null),
           subject: subject ?? null,
           text: text ?? null,
+          html: eeHtml,
           messageId: messageId ?? null,
           threadId: threadId ?? null,
           knownContactId,

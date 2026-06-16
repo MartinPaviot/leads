@@ -41,6 +41,8 @@ export interface ConversationMessage {
   to: string;
   subject: string;
   body: string;
+  /** Sanitized HTML body for fidelity rendering (INBOX-R01). Null ⇒ render text. */
+  bodyHtml: string | null;
   at: string | null;
   status: string | null;
   stepNumber: number | null;

@@ -266,6 +266,7 @@ export const syncEmails = inngest.createFunction(
               toHeader: email.to?.[0] ?? null,
               subject: email.subject,
               text: (email.body || email.snippet || "").slice(0, 10000),
+              html: email.html ?? null,
               messageId: email.gmailMessageId,
               threadId: email.threadId,
               occurredAt: email.date,

@@ -121,7 +121,13 @@ export async function fetchRecentEmailsImap(
       const fromEmail = (parsed.from?.value?.[0]?.address || "").toLowerCase();
       const direction: "inbound" | "outbound" =
         fromEmail === m.emailAddress.toLowerCase() ? "outbound" : "inbound";
-      const body = (parsed.text || parsed.html || "").toString();
+      // Keep text and HTML apart: `body` (text-preferred) feeds the snippet and
+      // text fallback, while the original `html` part is retained for the reading
+      // pane to render with fidelity (INBOX-R01/R13). HTML-only mail degrades to
+      // a tag-stripped preview so the list snippet stays readable.
+      const text = (parsed.text || "").toString();
+      const html = (parsed.html || "").toString();
+      const body = text || html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
       // Normalise mailparser's header Map to a lower-cased record so the
       // inbound classifier can read List-Unsubscribe / Precedence / Auto-Submitted.
@@ -144,6 +150,7 @@ export async function fetchRecentEmailsImap(
         subject: parsed.subject || "",
         snippet: body.slice(0, 200),
         body,
+        html: html || null,
         date: parsed.date || new Date(),
         direction,
         headers: Object.keys(headerRecord).length ? headerRecord : null,

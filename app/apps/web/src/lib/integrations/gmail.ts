@@ -67,6 +67,10 @@ export interface SyncedEmail {
   subject: string;
   snippet: string;
   body: string;
+  /** Original `text/html` part, when the transport exposes it (IMAP today).
+   *  Retained so the reading pane can render real HTML (INBOX-R01/R13); absent
+   *  ⇒ the pane falls back to the text body. */
+  html?: string | null;
   date: Date;
   direction: "inbound" | "outbound";
   /** Raw RFC headers (lower-cased keys) when the transport exposes them —

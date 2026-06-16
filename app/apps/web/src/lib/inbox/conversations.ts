@@ -63,6 +63,9 @@ export interface ConversationMessage {
   to: string;
   subject: string;
   body: string;
+  /** Sanitized HTML body for fidelity rendering (INBOX-R01). Null ⇒ render `body`
+   *  as text. Inbound only today; outbound is composed as text. */
+  bodyHtml: string | null;
   at: string | null;
   status: string | null;
   stepNumber: number | null;
@@ -336,6 +339,7 @@ export function buildConversations(input: {
           to: String(meta.to ?? ""),
           subject: r.summary ?? String(meta.subject ?? ""),
           body: r.rawContent ?? String(meta.snippet ?? ""),
+          bodyHtml: typeof meta.bodyHtml === "string" ? meta.bodyHtml : null,
           at: toIso(r.occurredAt),
           status: null,
           stepNumber: null,
@@ -348,6 +352,7 @@ export function buildConversations(input: {
         to: r.toAddress,
         subject: r.subject,
         body: r.bodyText ?? "",
+        bodyHtml: null,
         at: toIso(r.sentAt),
         status: r.status,
         stepNumber: r.stepNumber,

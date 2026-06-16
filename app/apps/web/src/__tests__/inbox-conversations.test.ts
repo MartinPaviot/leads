@@ -469,6 +469,35 @@ describe("content extraction", () => {
     expect(convs[0].snippet).not.toContain("\n");
   });
 
+  it("threads the captured HTML body onto inbound messages (INBOX-R01)", () => {
+    const convs = buildConversations({
+      inbound: [
+        inbound({
+          id: "i1",
+          threadId: "t1",
+          metadata: { from: "p@acme.ch", bodyHtml: "<p>Hello <b>world</b></p>" },
+        }),
+      ],
+      outbound: [outbound({ id: "o1", threadId: "t1" })],
+      triage: [],
+      now: NOW,
+    });
+    const inboundMsg = convs[0].messages.find((m) => m.direction === "inbound")!;
+    const outboundMsg = convs[0].messages.find((m) => m.direction === "outbound")!;
+    expect(inboundMsg.bodyHtml).toBe("<p>Hello <b>world</b></p>");
+    expect(outboundMsg.bodyHtml).toBeNull(); // outbound is composed as text
+  });
+
+  it("leaves bodyHtml null for inbound with no HTML part", () => {
+    const convs = buildConversations({
+      inbound: [inbound({ id: "i1", threadId: "t1" })],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].messages[0].bodyHtml).toBeNull();
+  });
+
   it("counts lanes", () => {
     const convs = buildConversations({
       inbound: [

@@ -41,6 +41,7 @@ import { embedEntity } from "@/lib/ai/embeddings";
 import { ingestEpisode } from "@/lib/ai/context-graph";
 import { inngest } from "@/inngest/client";
 import { classifyInboundSender } from "@/lib/inbound/lead-classification";
+import { stripDangerousHtml } from "@/lib/inbox/sanitize-email";
 
 /** "John Doe <john@example.com>" -> "john@example.com" (lowercased). */
 export function extractEmailFromHeader(header: string): string {
@@ -83,6 +84,9 @@ export interface InboundEmailInput {
   toHeader?: string | null;
   subject?: string | null;
   text?: string | null;
+  /** Original `text/html` body. Sanitized + stored so the reading pane can
+   *  render real HTML (INBOX-R01/R13). Absent ⇒ text-only render. */
+  html?: string | null;
   messageId?: string | null;
   threadId?: string | null;
   /** When the inbound is a reply to a tracked outbound, its contactId. */
@@ -341,6 +345,13 @@ export async function captureInboundEmail(
   const mode = getCaptureApprovalMode(settings as unknown as Record<string, unknown>);
   const occurredAt = normalizeSyncDate(input.occurredAt);
 
+  // Retain the sanitized HTML body so the reading pane can render real markup
+  // (links / images / formatting) instead of flattened text (INBOX-R01/R13).
+  // The server pre-strip removes executable/dangerous markup before it is ever
+  // persisted; the pane re-sanitizes against a strict allowlist at render time.
+  // Capped so a hostile or runaway body can't bloat the activity row.
+  const bodyHtml = input.html ? stripDangerousHtml(input.html).slice(0, 500_000) : null;
+
   const res = await recordCapturedActivity({
     tenantId,
     mode,
@@ -366,6 +377,9 @@ export async function captureInboundEmail(
         to: input.toHeader || null,
         subject: input.subject || null,
         snippet: (input.text || "").slice(0, 200),
+        // Sanitized HTML body for the reading pane (INBOX-R01/R13). Only stored
+        // when present, so text-only mail keeps a lean metadata row.
+        ...(bodyHtml ? { bodyHtml } : {}),
         // The lead-recognition verdict travels with the activity so every
         // downstream reader (warm-leads, hot-inbounds, inbox lanes) can trust
         // a stored decision rather than re-deriving it. Deterministic-only in
