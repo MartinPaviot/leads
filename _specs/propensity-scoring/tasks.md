@@ -50,7 +50,7 @@ Phased so we MEASURE before we rebuild. Each task: implement → verify → test
     grade is fed by propensity (fit stays the gate; out-of-ICP = "hors ICP").
   - Test: monotonic in each component; penalty subtracts; gate preserved.
 
-- [ ] **B3 — Learned weights**
+- [x] **B3 — Learned weights** (learnPropensityWeights + assembleContactPropensity bridge, pure, 6 tests; needs accumulated component×outcome data to bite)
   - Regress component → outcome (A2 data), Bayesian-smoothed, min-sample floored,
     clamped; versioned `propensityWeights` in tenant settings; priors until enough.
   - Test: priors with no data; weights shift toward the predictive component;
@@ -83,8 +83,12 @@ verdict), call-brief surface (A5).
 **Phase B1+B2 BUILT** (commit d74181d3): graded depth (scoreCriterionDegree /
 computeDepth) + propensity blend (computePropensity / valueBand / normalizeIntent)
 — 14 tests, tsc-clean. Pure cores = the actual intra-ICP differentiator; fit
-stays the GATE, propensity is the RANK. Remaining: **B3** learned weights
-(regress component → outcome, like signal-outcomes), **B4** calibrated bands, and
-the **shadow wiring** (compute propensity ALONGSIDE the fit grade during
-recompute, store + surface it, prove it beats fit on outcomes via the calibration
-report, THEN flip the grade — never blind). Phase C = bounded LLM pain.
+stays the GATE, propensity is the RANK. **B3 DONE** (a13d5235: learnPropensityWeights
++ assembleContactPropensity bridge — pure, 6 tests). Remaining: **B4** calibrated
+bands, and the **SHADOW WIRING** (compute propensity ALONGSIDE the fit grade in the
+recompute via assembleContactPropensity, store in properties.propensity, surface it
+next to fit, prove it beats fit on outcomes via the calibration report, THEN flip
+the grade — never blind) — the invasive/unverifiable-here piece (edits the core
+recompute), best done where it can run. Phase C = bounded LLM pain. NB: existing FR
+UI in already-merged code (reachability labels, call-mode toasts) violates the
+all-English rule — separate cleanup, out of scope.
