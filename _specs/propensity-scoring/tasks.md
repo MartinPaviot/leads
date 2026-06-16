@@ -38,13 +38,13 @@ Phased so we MEASURE before we rebuild. Each task: implement → verify → test
 
 ## Phase B — differentiate within the ICP
 
-- [ ] **B1 — Graded depth evaluator**
+- [x] **B1 — Graded depth evaluator** (scoreCriterionDegree + computeDepth, 7 tests)
   - `scoreCriterion(criterion, ctx): number` in [0,1] (binary `evaluateCriterion`
     untouched for the gate). Range → triangular/plateau membership; bounds → soft
     ramp; categorical → {0,1}. `depth01` over soft identity criteria.
   - Test: center > edge > outside; categorical unchanged; absent field excluded.
 
-- [ ] **B2 — Propensity blend → grade**
+- [x] **B2 — Propensity blend** (pure computePropensity + valueBand + normalizeIntent, 7 tests; "→ grade" = shadow wiring, below)
   - `lib/scoring/propensity.ts` (pure): `clamp01(Σ wᵢcᵢ − penalties)` over
     depth/intent/reach/value (+pain in C). Wire into `fit-recompute-core` so the
     grade is fed by propensity (fit stays the gate; out-of-ICP = "hors ICP").
@@ -78,5 +78,13 @@ A1+UI): calibration (A2) + rationale (A3) + confidence (A4) +
 **UI** (`ScoreExplainLine` on the contact detail). 20 unit tests, tsc-clean.
 **NOT runtime-verified** (no DB/app here). Remaining (Martin's env): apply the
 migration (`pnpm db:migrate:apply`), live smoke (call → snapshot → calibration
-verdict), call-brief surface (A5). Then Phase B (graded depth + propensity →
-grade + learned weights) and C (bounded LLM pain).
+verdict), call-brief surface (A5).
+
+**Phase B1+B2 BUILT** (commit d74181d3): graded depth (scoreCriterionDegree /
+computeDepth) + propensity blend (computePropensity / valueBand / normalizeIntent)
+— 14 tests, tsc-clean. Pure cores = the actual intra-ICP differentiator; fit
+stays the GATE, propensity is the RANK. Remaining: **B3** learned weights
+(regress component → outcome, like signal-outcomes), **B4** calibrated bands, and
+the **shadow wiring** (compute propensity ALONGSIDE the fit grade during
+recompute, store + surface it, prove it beats fit on outcomes via the calibration
+report, THEN flip the grade — never blind). Phase C = bounded LLM pain.
