@@ -22,6 +22,17 @@ describe("pickCallScript", () => {
     expect(pickCallScript("Information technology & services").key).toBe("it");
   });
 
+  it("org-type wins over topic (the Apollo-industry trap)", () => {
+    // A health SCHOOL is education, not an EMS — even when Apollo tags the
+    // account "hospital & health care". The name carries the real signal.
+    expect(pickCallScript("Haute école de santé Genève hospital & health care").key).toBe("education");
+    expect(pickCallScript("Haute école de travail social nonprofit").key).toBe("education");
+    expect(pickCallScript("International School of Geneva").key).toBe("education");
+    // A real care institution still resolves to santé.
+    expect(pickCallScript("EMS Les Tilleuls hospital & health care").key).toBe("sante");
+    expect(pickCallScript("Clinique de La Source").key).toBe("sante");
+  });
+
   it("falls back to generic for unknown / empty", () => {
     expect(pickCallScript("Quantum widgets").key).toBe("generic");
     expect(pickCallScript(null).key).toBe("generic");
