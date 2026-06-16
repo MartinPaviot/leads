@@ -4,7 +4,7 @@ Phased so we MEASURE before we rebuild. Each task: implement → verify → test
 
 ## Phase A — measure + explain (ship first; proves the problem, pays immediately)
 
-- [ ] **A1 — Score snapshots**
+- [x] **A1 — Score snapshots** (BUILT, not runtime-verified — apply migration + smoke)
   - Migration: `score_snapshots` (tenantId, entityType, entityId, grade, score,
     event, eventRef, at). Thin hook at call-attempt / sequence-enroll / email-sent
     creation writes the LIVE grade. Immutable.
@@ -70,12 +70,13 @@ Phased so we MEASURE before we rebuild. Each task: implement → verify → test
   - Test: cited fact present → scored; no evidence → unscored + confidence drop.
 
 ## Status
-**Phase A cores + surfacing endpoint BUILT** (commits 7e4f34e4 cores + 881e0af7
-explain): calibration (A2) + rationale (A3) + confidence (A4) +
-`GET /api/analytics/score-calibration` (report) + `score-factors` assembler +
-`GET /api/contacts/[id]/score-explain` ("why this grade" on demand). 20 unit
-tests, tsc-clean. Remaining in Phase A: **A1 score_snapshots** (grade live at
-funnel-entry → kills the v1 calibration look-ahead) and a **thin UI wire** of
-rationale/confidence on the contact detail + call brief, then A5 live read of the
-real Pilae verdict. Then Phase B (graded depth + propensity → grade + learned
-weights) and C (bounded LLM pain).
+**Phase A FULLY BUILT** (commits 7e4f34e4 cores + 881e0af7 explain + 7d6e3ef8
+A1+UI): calibration (A2) + rationale (A3) + confidence (A4) +
+`GET /api/analytics/score-calibration` (now snapshot-backed for meeting_booked) +
+`score-factors` + `GET /api/contacts/[id]/score-explain` + **A1 score_snapshots**
+(table + drizzle/0077 + recordScoreSnapshot hooked into /api/calls/start) +
+**UI** (`ScoreExplainLine` on the contact detail). 20 unit tests, tsc-clean.
+**NOT runtime-verified** (no DB/app here). Remaining (Martin's env): apply the
+migration (`pnpm db:migrate:apply`), live smoke (call → snapshot → calibration
+verdict), call-brief surface (A5). Then Phase B (graded depth + propensity →
+grade + learned weights) and C (bounded LLM pain).
