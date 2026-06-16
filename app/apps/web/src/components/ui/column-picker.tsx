@@ -1,14 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { SlidersHorizontal, Check } from "lucide-react";
+import { SlidersHorizontal, Check, Lock } from "lucide-react";
 
 export interface PickerCategory {
   key: string;
   label: string;
   group: "firmographic" | "signal" | "custom";
-  /** Known method for fetching this column's data (shown under the label). */
+  /** Short, vendor-neutral description of what the column holds (shown
+   * under the label). */
   source: string;
+  /** False = the data source isn't connected yet: the row renders greyed
+   * out and can't be toggled. Omitted/true = selectable. */
+  available?: boolean;
 }
 
 const GROUP_LABEL: Record<PickerCategory["group"], string> = {
@@ -124,29 +128,39 @@ export function ColumnPicker({
                 <p className="px-2 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
                   {GROUP_LABEL[group]}
                 </p>
-                {items.map((c) => (
-                  <button
-                    key={c.key}
-                    type="button"
-                    onClick={() => onToggle(c.key)}
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-[var(--color-bg-hover)]"
-                    title={c.source}
-                  >
-                    <span
-                      className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border"
-                      style={{
-                        background: visible.has(c.key) ? "var(--color-accent)" : "transparent",
-                        borderColor: visible.has(c.key) ? "var(--color-accent)" : "var(--color-border-moderate)",
-                      }}
+                {items.map((c) => {
+                  const unavailable = c.available === false;
+                  const checked = !unavailable && visible.has(c.key);
+                  return (
+                    <button
+                      key={c.key}
+                      type="button"
+                      disabled={unavailable}
+                      aria-disabled={unavailable}
+                      onClick={unavailable ? undefined : () => onToggle(c.key)}
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors enabled:hover:bg-[var(--color-bg-hover)] disabled:cursor-not-allowed"
+                      style={unavailable ? { opacity: 0.55 } : undefined}
+                      title={unavailable ? `${c.label} — not connected yet` : c.source}
                     >
-                      {visible.has(c.key) && <Check size={10} className="text-white" />}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>{c.label}</span>
-                      <span className="block truncate text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>{c.source}</span>
-                    </span>
-                  </button>
-                ))}
+                      <span
+                        className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border"
+                        style={{
+                          background: checked ? "var(--color-accent)" : "transparent",
+                          borderColor: checked ? "var(--color-accent)" : "var(--color-border-moderate)",
+                        }}
+                      >
+                        {checked && <Check size={10} className="text-white" />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>{c.label}</span>
+                        <span className="block truncate text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>{c.source}</span>
+                      </span>
+                      {unavailable && (
+                        <Lock size={11} className="shrink-0" style={{ color: "var(--color-text-muted)" }} aria-hidden />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             );
           })}

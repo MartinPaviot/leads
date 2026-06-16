@@ -4,6 +4,7 @@ import {
   DEFAULT_VISIBLE_CATEGORY_KEYS,
   getColumnCategory,
   enrichCriteriaForCategories,
+  isCategoryAvailable,
 } from "@/lib/accounts/column-categories";
 
 describe("column categories catalog", () => {
@@ -51,5 +52,23 @@ describe("column categories catalog", () => {
       "field:custom-1", // unknown -> excluded
     ]);
     expect(got.sort()).toEqual(["funding", "technologies"].sort());
+  });
+
+  it("greys out the unconnected Crunchbase signal, keeps everything else available", () => {
+    for (const c of COLUMN_CATEGORIES) {
+      const expected = c.key !== "signal:funding_crunchbase";
+      expect(c.available, `${c.key} availability`).toBe(expected);
+    }
+    expect(isCategoryAvailable("signal:funding_crunchbase")).toBe(false);
+    expect(isCategoryAvailable("signal:funding_recent")).toBe(true);
+    // Unknown keys are available — defensive against stale clients.
+    expect(isCategoryAvailable("custom-signal:anything")).toBe(true);
+  });
+
+  it("never names a data provider in a user-facing source line", () => {
+    const provider = /\b(apollo|crunchbase|lusha|sirene|zeliq|pappers|datagma)\b/i;
+    for (const c of COLUMN_CATEGORIES) {
+      expect(c.source, `${c.key} leaks a provider: "${c.source}"`).not.toMatch(provider);
+    }
   });
 });

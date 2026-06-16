@@ -43,7 +43,7 @@ import { EnrichMenu } from "@/components/ui/enrich-menu";
 import { useEnrichStream, type EnrichCellState } from "@/hooks/use-enrich-stream";
 import { ColumnPicker, type PickerCategory } from "@/components/ui/column-picker";
 import { MoreMenu } from "@/components/ui/more-menu";
-import { COLUMN_CATEGORIES, DEFAULT_VISIBLE_CATEGORY_KEYS, getColumnCategory } from "@/lib/accounts/column-categories";
+import { COLUMN_CATEGORIES, DEFAULT_VISIBLE_CATEGORY_KEYS, getColumnCategory, isCategoryAvailable } from "@/lib/accounts/column-categories";
 import { TAM_PROPOSALS_ENTRY_ENABLED } from "@/lib/tam/entry-visibility";
 import { deriveAccountTabCounts } from "@/lib/accounts/tab-counts";
 
@@ -318,12 +318,17 @@ export default function AccountsPage() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(CATEGORIES_STORAGE_KEY);
-      if (raw) setVisibleCategories(new Set(JSON.parse(raw) as string[]));
+      // Drop any catalogued-but-not-connected keys a previous build may
+      // have persisted, so an unavailable column can't resurrect itself.
+      if (raw) setVisibleCategories(new Set((JSON.parse(raw) as string[]).filter(isCategoryAvailable)));
     } catch {
       /* localStorage unavailable — keep defaults */
     }
   }, []);
   const toggleCategory = useCallback((key: string) => {
+    // Catalogued-but-not-connected (e.g. Crunchbase): the picker disables
+    // the row, but guard here too so it can never be added programmatically.
+    if (!isCategoryAvailable(key)) return;
     const isAdding = !visibleCategories.has(key);
     setVisibleCategories((prev) => {
       const next = new Set(prev);
@@ -363,7 +368,7 @@ export default function AccountsPage() {
     }
   }, []);
   const pickerCategories = useMemo<PickerCategory[]>(
-    () => COLUMN_CATEGORIES.map((c) => ({ key: c.key, label: c.label, group: c.group, source: c.source })),
+    () => COLUMN_CATEGORIES.map((c) => ({ key: c.key, label: c.label, group: c.group, source: c.source, available: c.available })),
     [],
   );
 

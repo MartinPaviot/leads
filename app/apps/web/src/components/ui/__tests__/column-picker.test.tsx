@@ -54,4 +54,31 @@ describe("ColumnPicker controlled mode", () => {
     fireEvent.mouseDown(screen.getByTestId("outside"));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
+
+  it("renders an unavailable category disabled and ignores clicks", () => {
+    const onToggle = vi.fn();
+    render(
+      <ColumnPicker
+        categories={[
+          { key: "tech", label: "Technologies", group: "firmographic", source: "Enrichment" },
+          {
+            key: "signal:funding_crunchbase",
+            label: "Funding (Crunchbase)",
+            group: "signal",
+            source: "Not available yet",
+            available: false,
+          },
+        ]}
+        visible={new Set()}
+        onToggle={onToggle}
+        open
+        onOpenChange={vi.fn()}
+        hideTrigger
+      />,
+    );
+    const row = screen.getByRole("button", { name: /funding \(crunchbase\)/i }) as HTMLButtonElement;
+    expect(row.disabled).toBe(true);
+    fireEvent.click(row);
+    expect(onToggle).not.toHaveBeenCalled();
+  });
 });
