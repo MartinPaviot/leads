@@ -40,6 +40,7 @@ import {
 import { embedEntity } from "@/lib/ai/embeddings";
 import { ingestEpisode } from "@/lib/ai/context-graph";
 import { inngest } from "@/inngest/client";
+import { classifyInboundSender } from "@/lib/inbound/lead-classification";
 
 /** "John Doe <john@example.com>" -> "john@example.com" (lowercased). */
 export function extractEmailFromHeader(header: string): string {
@@ -88,6 +89,10 @@ export interface InboundEmailInput {
   knownContactId?: string | null;
   /** May be an ISO string when the caller crossed an Inngest step boundary. */
   occurredAt?: Date | string;
+  /** Raw RFC headers when the call-site has them (EmailEngine/IMAP). Drives
+   *  machine-sent detection (List-Unsubscribe, Precedence, Auto-Submitted).
+   *  Optional + back-compat: absent ⇒ role-local-part detection only. */
+  headers?: Record<string, string> | null;
 }
 
 export interface InboundCaptureResult {
@@ -178,6 +183,16 @@ export async function captureInboundEmail(
   const senderEmail = extractEmailFromHeader(input.fromHeader || "");
   const messageId = input.messageId || null;
 
+  // Classify the sender (human vs machine) up front: this is recorded on the
+  // activity so the timeline stays complete, AND it gates auto-creation below
+  // so a `noreply@`/newsletter sender never becomes a first-class lead-contact.
+  const classification = classifyInboundSender({
+    fromHeader: input.fromHeader || "",
+    subject: input.subject,
+    text: input.text,
+    headers: input.headers,
+  });
+
   // Idempotency: skip if this messageId is already captured for the tenant.
   // The batch pull paths historically keyed dedup on metadata.gmailMessageId,
   // so honour both keys — a message captured by one path must never be
@@ -255,9 +270,19 @@ export async function captureInboundEmail(
     // interaction the product promises to capture — create the contact under
     // that account even in "selective" mode (only "disabled" opts out).
     // Senders at unknown companies still require an explicit opt-in mode.
+    //
+    // Machine-sent gate: a `noreply@`/newsletter/automated sender is never
+    // promoted to a first-class person-contact (no fabricated "Noreply"
+    // contact, no `contact/created` → no enrich/qualify/"Hot inbound" fan-out).
+    // The activity is still captured below — attached to the company when the
+    // domain is already known, otherwise left unresolved. A sender that
+    // resolves to an EXISTING contact is unaffected (this branch only runs for
+    // unknown senders), so a known human is captured even if one message of
+    // theirs happens to be automated.
     const createContact =
-      shouldAutoCreateContact(settings.contactCreationMode, "inbound") ||
-      (!!existingCo && settings.contactCreationMode !== "disabled");
+      !classification.isMachineSent &&
+      (shouldAutoCreateContact(settings.contactCreationMode, "inbound") ||
+        (!!existingCo && settings.contactCreationMode !== "disabled"));
 
     if (createContact) {
       if (!resolvedCompanyId) {
@@ -286,7 +311,14 @@ export async function captureInboundEmail(
       contactCreated = true;
       companyId = newContact.companyId;
       void inngest
-        .send({ name: "contact/created", data: { contactId: newContact.id, tenantId } })
+        .send({
+          name: "contact/created",
+          // Tag the origin so the qualify handler runs the inbound relationship
+          // gate (prospect vs vendor/recruiter) before any "Hot inbound"
+          // notification — and so sourced/imported contacts never masquerade as
+          // inbound. See _specs/inbound-lead-recognition/.
+          data: { contactId: newContact.id, tenantId, source: "inbound_email" },
+        })
         .catch(() => {});
     } else {
       companyId = resolvedCompanyId;
@@ -334,6 +366,19 @@ export async function captureInboundEmail(
         to: input.toHeader || null,
         subject: input.subject || null,
         snippet: (input.text || "").slice(0, 200),
+        // The lead-recognition verdict travels with the activity so every
+        // downstream reader (warm-leads, hot-inbounds, inbox lanes) can trust
+        // a stored decision rather than re-deriving it. Deterministic-only in
+        // tranche 1; the LLM relationship verdict (`isInboundLead`) lands in
+        // tranche 2. See `_specs/inbound-lead-recognition/`.
+        leadClassification: {
+          senderType: classification.senderType,
+          isMachineSent: classification.isMachineSent,
+          isBulk: classification.isBulk,
+          isRoleAddress: classification.isRoleAddress,
+          reasons: classification.reasons,
+          classifier: "deterministic-v1",
+        },
       },
     },
     summary: input.subject || null,

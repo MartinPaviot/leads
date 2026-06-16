@@ -145,6 +145,7 @@ export async function POST() {
           messageId: email.gmailMessageId,
           threadId: email.threadId,
           occurredAt: email.date,
+          headers: email.headers ?? null,
         });
         if (captured.captured) created++;
         else if (captured.reason === "queued_for_review") queued++;
