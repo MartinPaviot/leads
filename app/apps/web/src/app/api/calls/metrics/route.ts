@@ -24,6 +24,12 @@ import {
   type OutcomeCounts,
   type TimeBucket,
 } from "@/lib/voice/call-metrics";
+import {
+  conversationFromTranscript,
+  aggregateConversation,
+  type ConversationMetrics,
+} from "@/lib/voice/conversation-metrics";
+import { phoneToTimezone, hourInTimezone } from "@/lib/voice/phone-timezone";
 
 const WINDOW_DAYS = 30;
 
@@ -117,6 +123,64 @@ export async function GET(req: Request) {
     const totalSec = Number(d.total_sec ?? 0);
     const activeDays = Number(d.active_days ?? 0);
 
+    // ── Conversation analytics — load the connected calls' diarised transcripts
+    // (capped, recent first) and characterise the dialogue in JS. jsonb array
+    // internals (questions, speaker switches, monologue spans) don't aggregate
+    // in SQL, so this is a bounded read + pure pass, gated by its own sample
+    // floor inside aggregateConversation.
+    const transcriptRows = (await db.execute(sql`
+      SELECT transcript
+      FROM calls
+      WHERE tenant_id = ${tenantId} AND started_at >= ${since}${scopeClause}
+        AND outcome IN (${connectList})
+        AND jsonb_typeof(transcript) = 'array'
+        AND jsonb_array_length(transcript) >= 3
+      ORDER BY started_at DESC
+      LIMIT 200
+    `)) as unknown as Array<{ transcript: unknown }>;
+    const perCall = transcriptRows
+      .map((r) => conversationFromTranscript(r.transcript))
+      .filter((m): m is ConversationMetrics => m !== null);
+    const conversation = aggregateConversation(perCall);
+
+    // ── Best time to call in the PROSPECT's local time. The rep-local buckets
+    // above are SQL; this needs each prospect's zone (derived from the dialled
+    // E.164), so it's a bounded per-call load + JS pass. Only surfaced when the
+    // prospects actually sit in a different zone than the rep (`crossTimezone`)
+    // — for a same-timezone market it would just mirror the rep-local view.
+    const dialRows = (await db.execute(sql`
+      SELECT (EXTRACT(epoch FROM started_at) * 1000)::bigint AS ts,
+             to_number,
+             (outcome IN (${connectList})) AS connect
+      FROM calls
+      WHERE tenant_id = ${tenantId} AND started_at >= ${since}${scopeClause}
+        AND to_number IS NOT NULL
+      ORDER BY started_at DESC
+      LIMIT 3000
+    `)) as unknown as Array<{ ts: string | number; to_number: string; connect: boolean }>;
+
+    const prospectMap = new Map<number, { dials: number; connects: number }>();
+    const prospectTzs = new Set<string>();
+    for (const row of dialRows) {
+      const ptz = phoneToTimezone(row.to_number);
+      if (!ptz) continue;
+      const h = hourInTimezone(new Date(Number(row.ts)), ptz);
+      if (h === null) continue;
+      prospectTzs.add(ptz);
+      const b = prospectMap.get(h) ?? { dials: 0, connects: 0 };
+      b.dials++;
+      if (row.connect) b.connects++;
+      prospectMap.set(h, b);
+    }
+    const prospectBuckets: TimeBucket[] = [...prospectMap.entries()]
+      .map(([key, v]) => ({ key, dials: v.dials, connects: v.connects }))
+      .sort((a, b) => a.key - b.key);
+    // Cross-timezone when any prospect zone's current hour differs from the rep's
+    // (same offset → effectively same clock → not worth a separate view).
+    const nowRef = new Date();
+    const repHour = hourInTimezone(nowRef, tz);
+    const crossTimezone = [...prospectTzs].some((p) => hourInTimezone(nowRef, p) !== repHour);
+
     return Response.json({
       scope,
       tz,
@@ -135,7 +199,11 @@ export async function GET(req: Request) {
         bestDows: bestWindows(dows, 2),
         hours,
         dows,
+        // Prospect-local best hours — empty unless prospects span a different zone.
+        bestHoursProspect: crossTimezone ? bestWindows(prospectBuckets, 3) : [],
+        crossTimezone,
       },
+      conversation,
     });
   });
 }

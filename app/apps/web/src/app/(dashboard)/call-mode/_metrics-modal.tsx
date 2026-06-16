@@ -58,6 +58,15 @@ interface MetricsResponse {
     bestDows: RankedBucket[];
     hours: TimeBucket[];
     dows: TimeBucket[];
+    bestHoursProspect?: RankedBucket[];
+    crossTimezone?: boolean;
+  };
+  conversation?: {
+    sample: number;
+    avgAgentTalkPct: number | null;
+    avgQuestionsAsked: number | null;
+    avgLongestMonologueSec: number | null;
+    avgInteractivityPerMin: number | null;
   };
 }
 
@@ -322,6 +331,33 @@ export function CallMetricsModal({
                 accent={talkRatioColor(data.quality.avgTalkRatioPct)}
               />
             </div>
+            {/* Transcript-derived dialogue shape — only once enough connected
+                calls carry a usable transcript (recorded conversations). */}
+            {data.conversation && data.conversation.sample >= 5 && (
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <Tile
+                  label="Questions / appel"
+                  value={data.conversation.avgQuestionsAsked != null ? String(data.conversation.avgQuestionsAsked) : "—"}
+                  sub={`sur ${data.conversation.sample} conversation${data.conversation.sample > 1 ? "s" : ""}`}
+                  hint="poser au moins quelques questions"
+                />
+                <Tile
+                  label="Monologue le plus long"
+                  value={fmtDuration(data.conversation.avgLongestMonologueSec)}
+                  hint="garder sous ~1 min"
+                  accent={
+                    data.conversation.avgLongestMonologueSec != null && data.conversation.avgLongestMonologueSec > 60
+                      ? "#d97706"
+                      : undefined
+                  }
+                />
+                <Tile
+                  label="Interactivité"
+                  value={data.conversation.avgInteractivityPerMin != null ? `${data.conversation.avgInteractivityPerMin}/min` : "—"}
+                  sub="échanges par minute"
+                />
+              </div>
+            )}
           </Section>
 
           {/* ── Quand appeler ── */}
@@ -332,8 +368,15 @@ export function CallMetricsModal({
               </p>
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <BestList title="Meilleures heures" items={data.timing.bestHours} render={(b) => fmtHour(b.key)} />
+                <BestList title={data.timing.crossTimezone ? "Meilleures heures (votre heure)" : "Meilleures heures"} items={data.timing.bestHours} render={(b) => fmtHour(b.key)} />
                 <BestList title="Meilleurs jours" items={data.timing.bestDows} render={(b) => DOW_FR[b.key] ?? String(b.key)} />
+                {data.timing.crossTimezone && (data.timing.bestHoursProspect?.length ?? 0) > 0 && (
+                  <BestList
+                    title="Meilleures heures (heure du prospect)"
+                    items={data.timing.bestHoursProspect!}
+                    render={(b) => fmtHour(b.key)}
+                  />
+                )}
               </div>
             )}
           </Section>
