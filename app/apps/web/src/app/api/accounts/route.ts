@@ -99,6 +99,7 @@ export async function GET(req: Request) {
     if (f.sizes.length) refineConds.push(sql`${companies.size} = ANY(${anyArr(f.sizes)})`);
     if (f.revenues.length) refineConds.push(sql`${companies.revenue} = ANY(${anyArr(f.revenues)})`);
     if (f.geographies.length) refineConds.push(sql`btrim(${companies.properties}->>'country') = ANY(${anyArr(f.geographies)})`);
+    if (f.regions.length) refineConds.push(sql`btrim(${companies.properties}->>'state') = ANY(${anyArr(f.regions)})`);
     if (f.stages.length) refineConds.push(sql`${sql.raw(EFFECTIVE_LIFECYCLE_STAGE_SQL)} = ANY(${anyArr(f.stages)})`);
     if (f.grades.length) {
       // A grade only applies once the row is enriched (matches displayScore,
@@ -286,6 +287,9 @@ export async function GET(req: Request) {
           UNION ALL
           SELECT 'recency'::text, ${recencyExpr}, count(*)::int
             FROM companies WHERE ${segWhere} GROUP BY 2
+          UNION ALL
+          SELECT 'region'::text, btrim(properties->>'state'), count(*)::int
+            FROM companies WHERE ${segWhere} AND btrim(coalesce(properties->>'state','')) <> '' GROUP BY 2
         `);
         facetCounts = facetCounts ?? {};
         for (const r of seg as unknown as Array<{ facet: string; value: string | null; count: number }>) {

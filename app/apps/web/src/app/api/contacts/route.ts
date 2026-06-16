@@ -129,6 +129,9 @@ export async function GET(req: Request) {
     // Engagement recency bucket (never / 7 / 30 / 90 / old), computed in SQL
     // from the last real interaction — the never-contacted / stalled split.
     const fRecency = (url.searchParams.get("fRecency") || "").split(",").map((s) => s.trim()).filter(Boolean);
+    // Region / canton — the contact's company state (properties.state), e.g.
+    // Geneva / Vaud / Valais. Same self-contained company subquery as fIndustry.
+    const fRegion = (url.searchParams.get("fRegion") || "").split(",").map((s) => s.trim()).filter(Boolean);
 
     if (fName) conds.push(sql`(coalesce(${contacts.firstName}, '') || ' ' || coalesce(${contacts.lastName}, '')) ILIKE ${"%" + fName + "%"}`);
     if (fEmail) conds.push(sql`${contacts.email} ILIKE ${"%" + fEmail + "%"}`);
@@ -183,6 +186,13 @@ export async function GET(req: Request) {
     if (fRecency.length > 0) {
       const recencyExpr = sql.raw(recencyBucketSql());
       conds.push(sql`(${recencyExpr}) = ANY(ARRAY[${sql.join(fRecency.map((r) => sql`${r}`), sql`, `)}]::text[])`);
+    }
+    if (fRegion.length > 0) {
+      conds.push(sql`${contacts.companyId} IN (
+        SELECT id FROM companies
+        WHERE tenant_id = ${authCtx.tenantId} AND deleted_at IS NULL
+          AND btrim(properties->>'state') = ANY(ARRAY[${sql.join(fRegion.map((r) => sql`${r}`), sql`, `)}]::text[])
+      )`);
     }
 
     // Smart-filter score threshold (e.g. "high fit" -> score >= 70), applied
@@ -442,6 +452,24 @@ export async function GET(req: Request) {
       console.warn("Failed to fetch contact recency counts:", e);
     }
 
+    // Region / canton counts — the contacts' company state, for the Géographie
+    // filter's options + "(N)".
+    const regionCounts: Record<string, number> = {};
+    try {
+      const rows = await db.execute(sql`
+        SELECT btrim(co.properties->>'state') AS r, count(*)::int AS count
+        FROM contacts c JOIN companies co ON co.id = c.company_id
+        WHERE c.tenant_id = ${authCtx.tenantId} AND c.deleted_at IS NULL AND co.deleted_at IS NULL
+          AND btrim(coalesce(co.properties->>'state','')) <> ''
+        GROUP BY 1
+      `);
+      for (const r of rows as unknown as Array<{ r: string | null; count: number }>) {
+        if (r.r) regionCounts[r.r] = Number(r.count);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch contact region counts:", e);
+    }
+
     // Canonical paginated shape (items + legacy `contacts`) plus server-sourced
     // filter options for the header dropdowns.
     const totalPages = Math.ceil(total / pageSize);
@@ -460,6 +488,7 @@ export async function GET(req: Request) {
         phone: phoneRegionCounts,
         seniority: seniorityCounts,
         recency: recencyCounts,
+        region: regionCounts,
       },
     });
   } catch (error) {

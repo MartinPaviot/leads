@@ -160,9 +160,10 @@ export default function ContactsPage() {
     if (pres("linkedin")) params.set("fLinkedin", pres("linkedin")!);
     // Phone is now a region multi-select (dial codes + none/unknown) → fPhoneRegion.
     if (vals("phone").length) params.set("fPhoneRegion", vals("phone").join(","));
-    // Panel filters (no column home): seniority + engagement recency.
+    // Panel filters (no column home): seniority + engagement recency + region.
     if (vals("seniority").length) params.set("fSeniority", vals("seniority").join(","));
     if (vals("recency").length) params.set("fRecency", vals("recency").join(","));
+    if (vals("region").length) params.set("fRegion", vals("region").join(","));
     // Industry column filter -> the contact's company industry (server-side,
     // same subquery shape as fCompany).
     if (vals("industry").length) params.set("fIndustry", vals("industry").join(","));
@@ -676,7 +677,17 @@ export default function ContactsPage() {
       value: b as string,
       label: recencyLabel(b),
     }));
+    const regionCounts = serverFilterCounts?.region ?? {};
+    const regionOpts = Object.keys(regionCounts)
+      .sort((a, b) => (regionCounts[b] ?? 0) - (regionCounts[a] ?? 0))
+      .map((v) => ({ value: v, label: v }));
     return [
+      {
+        title: "Géographie",
+        filters: [
+          { key: "region", label: "Région / canton", options: regionOpts, counts: regionCounts, hint: "Romandie : Geneva, Vaud, Valais, Neuchâtel, Fribourg, Jura" },
+        ],
+      },
       {
         title: "Joignabilité",
         filters: [

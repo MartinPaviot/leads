@@ -30,6 +30,7 @@ export function parseExcludedMode(param: string | null | undefined): ExcludedMod
 export interface AccountListFilters {
   industries: string[];
   geographies: string[]; // matches properties.country
+  regions: string[]; // matches properties.state (canton / region / state)
   sizes: string[];
   revenues: string[];
   stages: string[]; // matches the EFFECTIVE stage (manual override > deal-derived > "new")
@@ -79,6 +80,7 @@ export function parseAccountListFilters(params: URLSearchParams): AccountListFil
   return {
     industries: csv(params.get("fIndustry")),
     geographies: csv(params.get("fGeography")),
+    regions: csv(params.get("fRegion")),
     sizes: csv(params.get("fSize")),
     revenues: csv(params.get("fRevenue")),
     stages: csv(params.get("fStage")),
@@ -101,6 +103,7 @@ export function hasActiveAccountFilters(f: AccountListFilters): boolean {
   return (
     f.industries.length > 0 ||
     f.geographies.length > 0 ||
+    f.regions.length > 0 ||
     f.sizes.length > 0 ||
     f.revenues.length > 0 ||
     f.stages.length > 0 ||

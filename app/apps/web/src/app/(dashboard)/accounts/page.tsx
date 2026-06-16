@@ -530,8 +530,8 @@ export default function AccountsPage() {
     const ENUM_PARAM: Record<string, string> = {
       industry: "fIndustry", geography: "fGeography", size: "fSize",
       revenue: "fRevenue", stage: "fStage", score: "fGrade",
-      // Filters panel (no column home): contact reach + engagement recency.
-      contactReach: "fContactReach", recency: "fRecency",
+      // Filters panel (no column home): contact reach + recency + region.
+      contactReach: "fContactReach", recency: "fRecency", region: "fRegion",
     };
     const TEXT_PARAM: Record<string, string> = { name: "fName", domain: "fDomain" };
     for (const [key, fst] of Object.entries(debouncedColumnFilters)) {
@@ -578,7 +578,17 @@ export default function AccountsPage() {
       value: b as string,
       label: recencyLabel(b),
     }));
+    const regionCounts = serverFacetCounts?.region ?? {};
+    const regionOpts = Object.keys(regionCounts)
+      .sort((a, b) => (regionCounts[b] ?? 0) - (regionCounts[a] ?? 0))
+      .map((v) => ({ value: v, label: v }));
     return [
+      {
+        title: "Géographie",
+        filters: [
+          { key: "region", label: "Région / canton", options: regionOpts, counts: regionCounts, hint: "Romandie : Geneva, Vaud, Valais, Neuchâtel, Fribourg, Jura" },
+        ],
+      },
       {
         title: "Joignabilité",
         filters: [
