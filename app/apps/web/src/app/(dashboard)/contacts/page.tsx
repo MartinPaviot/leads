@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Factory, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, Trash2, Archive, RotateCcw, Loader2, type LucideIcon } from "lucide-react";
+import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Factory, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, Trash2, Archive, RotateCcw, Loader2, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { SmartImport } from "@/components/smart-import";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { displayScore, ENRICHMENT_COLORS } from "@/lib/util/ui-utils";
@@ -25,6 +25,9 @@ import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-
 import { chunkedBulkCall } from "@/lib/infra/chunk-bulk";
 import { selectAllMatchingIds } from "@/lib/infra/select-all-matching";
 import { phoneRegionLabel, PHONE_REGION_NONE, PHONE_REGION_UNKNOWN } from "@/lib/contacts/phone-region";
+import { FiltersPanel, panelActiveCount, type PanelSection } from "@/components/ui/filters-panel";
+import { seniorityLabel, compareSeniority } from "@/lib/contacts/seniority";
+import { recencyLabel, RECENCY_BUCKETS } from "@/lib/contacts/recency";
 
 function LinkedInIcon({ size = 13 }: { size?: number }) {
   return (
@@ -114,6 +117,9 @@ export default function ContactsPage() {
   // Per-column header filters (Notion / Excel style), parity with Accounts.
   const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilterState>>({});
   const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null);
+  // Dedicated "Filtres" panel — houses the segment filters with no column home
+  // (recency, seniority, …). Reads/writes the same `columnFilters` state.
+  const [showFilters, setShowFilters] = useState(false);
   // Column filters run server-side (debounced) so they span ALL contacts, not
   // just the loaded 50-row page. Company options also come from the server.
   const [debouncedColumnFilters, setDebouncedColumnFilters] = useState<Record<string, ColumnFilterState>>({});
@@ -154,6 +160,9 @@ export default function ContactsPage() {
     if (pres("linkedin")) params.set("fLinkedin", pres("linkedin")!);
     // Phone is now a region multi-select (dial codes + none/unknown) → fPhoneRegion.
     if (vals("phone").length) params.set("fPhoneRegion", vals("phone").join(","));
+    // Panel filters (no column home): seniority + engagement recency.
+    if (vals("seniority").length) params.set("fSeniority", vals("seniority").join(","));
+    if (vals("recency").length) params.set("fRecency", vals("recency").join(","));
     // Industry column filter -> the contact's company industry (server-side,
     // same subquery shape as fCompany).
     if (vals("industry").length) params.set("fIndustry", vals("industry").join(","));
@@ -654,6 +663,42 @@ export default function ContactsPage() {
     };
   }, [serverCompanyOptions, serverTitleOptions, serverIndustryOptions, serverFilterCounts]);
 
+  // Sections for the dedicated Filters panel — segment filters with no column
+  // home. Phone reuses the column options; seniority/recency come from their
+  // own server facet counts. Empty facets render "Aucune valeur".
+  const filterSections = useMemo<PanelSection[]>(() => {
+    const seniorityCounts = serverFilterCounts?.seniority ?? {};
+    const seniorityOpts = Object.keys(seniorityCounts)
+      .sort(compareSeniority)
+      .map((k) => ({ value: k, label: seniorityLabel(k) }));
+    const recencyCounts = serverFilterCounts?.recency ?? {};
+    const recencyOpts = RECENCY_BUCKETS.filter((b) => recencyCounts[b] != null).map((b) => ({
+      value: b as string,
+      label: recencyLabel(b),
+    }));
+    return [
+      {
+        title: "Joignabilité",
+        filters: [
+          { key: "phone", label: "Indicatif téléphone", options: columnOptions.phone ?? [], counts: serverFilterCounts?.phone },
+        ],
+      },
+      {
+        title: "Engagement",
+        filters: [
+          { key: "recency", label: "Dernier contact", options: recencyOpts, counts: recencyCounts, hint: "Dernier échange réel — email, appel ou RDV" },
+        ],
+      },
+      {
+        title: "Persona",
+        filters: [
+          { key: "seniority", label: "Séniorité", options: seniorityOpts, counts: seniorityCounts },
+        ],
+      },
+    ];
+  }, [columnOptions, serverFilterCounts]);
+  const panelActive = panelActiveCount(filterSections, columnFilters);
+
   // Column filters now run server-side (see fetchContacts -> /api/contacts), so
   // `contacts` is already the filtered + paginated set. Only the NL smart
   // filters refine it client-side here.
@@ -788,6 +833,24 @@ export default function ContactsPage() {
         >
           All ({totalContacts})
         </button>
+        <button
+          type="button"
+          onClick={() => setShowFilters(true)}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
+          style={{
+            background: panelActive > 0 ? "var(--color-accent-soft)" : "transparent",
+            color: panelActive > 0 ? "var(--color-accent)" : "var(--color-text-tertiary)",
+          }}
+          title="Filtres avancés — joignabilité, engagement, persona"
+        >
+          <SlidersHorizontal size={12} />
+          Filtres
+          {panelActive > 0 && (
+            <span className="rounded-full px-1.5 text-[10px] font-medium tabular-nums" style={{ background: "var(--color-accent)", color: "#fff" }}>
+              {panelActive}
+            </span>
+          )}
+        </button>
         {(() => {
           const activeKeys = Object.keys(columnFilters).filter((k) => isColumnFilterActive(columnFilters[k]));
           if (activeKeys.length === 0) return null;
@@ -799,7 +862,7 @@ export default function ContactsPage() {
               style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
             >
               <X size={12} />
-              {activeKeys.length} column filter{activeKeys.length === 1 ? "" : "s"} — clear
+              {activeKeys.length} filtre{activeKeys.length === 1 ? "" : "s"} actif{activeKeys.length === 1 ? "" : "s"} — effacer
             </button>
           );
         })()}
@@ -832,6 +895,20 @@ export default function ContactsPage() {
           />
         </div>
       </FilterBar>
+      <FiltersPanel
+        open={showFilters}
+        onOpenChange={setShowFilters}
+        sections={filterSections}
+        state={columnFilters}
+        onChange={(key, next) =>
+          setColumnFilters((prev) => {
+            const n = { ...prev };
+            if (next) n[key] = next;
+            else delete n[key];
+            return n;
+          })
+        }
+      />
       <ActiveFiltersChips
         filters={smartFilters}
         reasoning={smartMeta?.reasoning}
