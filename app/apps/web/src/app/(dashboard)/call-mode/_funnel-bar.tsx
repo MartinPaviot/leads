@@ -11,13 +11,16 @@
  */
 
 import { useEffect, useState } from "react";
+import { BarChart3 } from "lucide-react";
 import { impactDisplayable, type ScriptImpact } from "@/lib/voice/script-context";
+import { fmtPct, RATE_SAMPLE_FLOOR } from "@/lib/voice/call-metrics";
+import { CallMetricsModal } from "./_metrics-modal";
 
 interface Stats {
   campaign: { id: string; name: string; dailyQuota: number; weeklyTarget: number } | null;
   goal: { type: "calls" | "connects" | "meetings"; target: number; window: string } | null;
   goalDone: number;
-  progress: { callsToday: number; callsWeek: number; connectsWeek: number; meetingsWeek: number; dailyQuota: number };
+  progress: { callsToday: number; callsWeek: number; connectsWeek: number; noAnswerWeek: number; meetingsWeek: number; dailyQuota: number };
   cadence: { queued: number; in_progress: number; connected: number; converted: number; exhausted: number; dnc: number; dueToday: number; total: number };
   coverage: { targets: number; withPhone: number };
   scriptImpact?: ScriptImpact;
@@ -73,6 +76,7 @@ export function CampaignFunnelBar() {
   const [s, setS] = useState<Stats | null>(null);
   // Call Mode is per-user, but the numbers can be shared at the team level.
   const [scope, setScope] = useState<"me" | "team">("me");
+  const [showMetrics, setShowMetrics] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,14 +95,21 @@ export function CampaignFunnelBar() {
   const divider = { borderLeft: "1px solid var(--color-border-default)" } as React.CSSProperties;
   const weekTarget = s.goal?.target ?? s.campaign.weeklyTarget;
 
+  // Connect / NRP rate for the week — gated by the same sample floor as the
+  // dashboard so a thin week shows "—", not a noisy percentage.
+  const callsWk = s.progress.callsWeek;
+  const connectRate = callsWk >= RATE_SAMPLE_FLOOR ? s.progress.connectsWeek / callsWk : null;
+  const nrpRate = callsWk >= RATE_SAMPLE_FLOOR ? s.progress.noAnswerWeek / callsWk : null;
+
   return (
-    // Flush full-width strip (matches the app's FilterBar / BulkActionsBar
-    // convention) so the cockpit is framed edge-to-edge instead of floating an
-    // inset card above full-bleed columns.
-    <div
-      className="flex w-full flex-wrap items-center"
-      style={{ background: "var(--color-bg-card)", borderBottom: "1px solid var(--color-border-default)" }}
-    >
+    <>
+      {/* Flush full-width strip (matches the app's FilterBar / BulkActionsBar
+          convention) so the cockpit is framed edge-to-edge instead of floating
+          an inset card above full-bleed columns. */}
+      <div
+        className="flex w-full flex-wrap items-center"
+        style={{ background: "var(--color-bg-card)", borderBottom: "1px solid var(--color-border-default)" }}
+      >
       {/* Me / Team scope — per-user Call Mode, shareable team totals */}
       <div className="px-3.5 py-1.5" style={{ display: "flex", alignItems: "center" }}>
         <div className="flex gap-0.5 rounded-md p-0.5" style={{ background: "var(--color-bg-base)", border: "1px solid var(--color-border-default)" }}>
@@ -135,6 +146,15 @@ export function CampaignFunnelBar() {
         {s.progress.meetingsWeek}<span style={muted}> this week</span>
       </Cell>
 
+      {/* Connect / NRP — the joignabilité rates the experts watch. NRP made
+          first-class per its operational weight; full breakdown in "Détails". */}
+      <Cell label="Connexion / NRP" style={{ ...divider, minWidth: 150 }}>
+        {fmtPct(connectRate)}
+        <span style={muted}> conn · </span>
+        <span style={{ color: nrpRate !== null ? "rgb(185,28,28)" : "var(--color-text-primary)" }}>{fmtPct(nrpRate)}</span>
+        <span style={muted}> NRP</span>
+      </Cell>
+
       <Cell label="Cadence" style={{ ...divider, minWidth: 200, flex: "1 1 200px" }}>
         <span style={{ fontWeight: 400, fontSize: "12px", color: "var(--color-text-secondary)" }}>
           {s.cadence.dueToday} due · {s.cadence.queued} in cadence · {reached} reached · {s.cadence.exhausted} exhausted
@@ -157,6 +177,21 @@ export function CampaignFunnelBar() {
           </span>
         </Cell>
       )}
-    </div>
+
+        {/* Full expert dashboard on demand — keeps the strip a one-line glance. */}
+        <button
+          type="button"
+          onClick={() => setShowMetrics(true)}
+          className="ml-auto mr-3 flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
+          style={{ color: "var(--color-text-secondary)", border: "1px solid var(--color-border-default)" }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+        >
+          <BarChart3 className="h-3.5 w-3.5" />
+          Détails
+        </button>
+      </div>
+      <CallMetricsModal open={showMetrics} scope={scope} onClose={() => setShowMetrics(false)} />
+    </>
   );
 }
