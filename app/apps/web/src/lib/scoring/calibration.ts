@@ -9,7 +9,7 @@
  *   - "healthy"      — the top bands convert measurably above baseline, ordering
  *                      is monotonic (A+ ≥ A ≥ B …);
  *   - "inverted"     — a higher grade converts LESS than a lower one (the
- *                      "A+ takes taules" alarm — the score is miscalibrated);
+ *                      "A+ takes hits" alarm — the score is miscalibrated);
  *   - "flat"         — no band separates significantly (the score doesn't yet
  *                      discriminate);
  *   - "underpowered" — too few outcomes to conclude anything (never a fake green).
@@ -91,7 +91,7 @@ export function buildCalibration(outcome: string, rows: GradeOutcomeRow[]): Cali
 
   if (total < MIN_TOTAL || populated.length < 2 || populated.every((b) => b.n < 10)) {
     verdict = "underpowered";
-    summary = `Trop peu d'outcomes (${converted}/${total}) ou de grades peuplés pour conclure sur la calibration.`;
+    summary = `Too few outcomes (${converted}/${total}) or populated grades to judge calibration.`;
   } else {
     // Monotonic non-increasing across populated bands, best → worst.
     let inverted = false;
@@ -107,14 +107,14 @@ export function buildCalibration(outcome: string, rows: GradeOutcomeRow[]): Cali
     if (inverted) {
       verdict = "inverted";
       summary =
-        `Calibration INVERSÉE : un grade supérieur convertit moins qu'un grade inférieur sur « ${outcome} ». ` +
-        `Le score ne reflète pas la propension — c'est le cas « A+ qui se prend des taules ».`;
+        `INVERTED calibration: a higher grade converts less than a lower one on "${outcome}". ` +
+        `The score doesn't reflect propensity — the "A+ takes hits" case.`;
     } else if (topSig) {
       verdict = "healthy";
-      summary = `Calibration saine : ${topSig.grade} convertit à ${pct(topSig.rate)} (×${topSig.lift.toFixed(1)} vs le reste, q<0,10) sur « ${outcome} ».`;
+      summary = `Healthy calibration: ${topSig.grade} converts at ${pct(topSig.rate)} (×${topSig.lift.toFixed(1)} vs the rest, q<0.10) on "${outcome}".`;
     } else {
       verdict = "flat";
-      summary = `Calibration plate : aucun grade ne se détache significativement sur « ${outcome} » — le score ne discrimine pas (encore).`;
+      summary = `Flat calibration: no grade separates significantly on "${outcome}" — the score doesn't discriminate (yet).`;
     }
   }
 

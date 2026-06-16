@@ -9,7 +9,7 @@ interface ScoreExplain {
 }
 
 /**
- * "Pourquoi ce grade" — fetches GET /api/contacts/[id]/score-explain and shows
+ * "Why this grade" — fetches GET /api/contacts/[id]/score-explain and shows
  * the one-line evidence-cited rationale + a confidence dot. Self-contained and
  * non-critical: renders nothing on failure or when the contact isn't scored.
  */
@@ -42,11 +42,11 @@ export function ScoreExplainLine({ contactId }: { contactId: string }) {
     >
       <div className="mb-1 flex items-center justify-between">
         <span className="font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
-          Pourquoi ce grade
+          Why this grade
         </span>
         <span
           className="inline-flex items-center gap-1 text-[var(--color-text-tertiary)]"
-          title={`Confiance ${conf}% — couverture des critères × fraîcheur des données`}
+          title={`Confidence ${conf}% — criteria coverage × data freshness`}
         >
           <span className="inline-block h-2 w-2 rounded-full" style={{ background: tone }} />
           {conf}%

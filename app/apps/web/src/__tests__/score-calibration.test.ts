@@ -24,7 +24,7 @@ describe("buildCalibration", () => {
     ];
     const r = buildCalibration("meeting_booked", rows);
     expect(r.verdict).toBe("inverted");
-    expect(r.summary).toMatch(/taules/i);
+    expect(r.summary).toMatch(/inverted/i);
   });
 
   it("calls a non-separating ladder FLAT", () => {

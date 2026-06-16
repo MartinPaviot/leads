@@ -3,8 +3,8 @@ import { assembleScoreExplanation, criterionFactor } from "@/lib/scoring/score-f
 
 describe("criterionFactor", () => {
   it("maps firmographic fields to fit and signal-ish fields to signal", () => {
-    expect(criterionFactor("industry")).toEqual({ label: "secteur cœur", kind: "fit" });
-    expect(criterionFactor("num_open_jobs")).toEqual({ label: "recrute activement", kind: "signal" });
+    expect(criterionFactor("industry")).toEqual({ label: "core sector", kind: "fit" });
+    expect(criterionFactor("num_open_jobs")).toEqual({ label: "actively hiring", kind: "signal" });
     expect(criterionFactor("person_seniorities")?.kind).toBe("fit");
   });
   it("returns null for unknown / non-labellable fields", () => {
@@ -18,14 +18,14 @@ describe("assembleScoreExplanation", () => {
     const out = assembleScoreExplanation({
       grade: "A+",
       matchedFieldKeys: ["industry", "employee_count"],
-      freshSignals: [{ label: "recrute un RevOps", ageDays: 12 }],
-      reachability: ["décideur joignable"],
+      freshSignals: [{ label: "hiring a RevOps", ageDays: 12 }],
+      reachability: ["reachable"],
       coverage: 1,
     });
     expect(out.grade).toBe("A+");
-    expect(out.rationale.startsWith("A+ : recrute un RevOps (il y a")).toBe(true);
-    expect(out.rationale).toContain("secteur cœur");
-    expect(out.rationale).toContain("décideur joignable");
+    expect(out.rationale.startsWith("A+ · hiring a RevOps (")).toBe(true);
+    expect(out.rationale).toContain("core sector");
+    expect(out.rationale).toContain("reachable");
     expect(out.confidence).toBeGreaterThan(0.9);
   });
 
@@ -33,17 +33,17 @@ describe("assembleScoreExplanation", () => {
     const out = assembleScoreExplanation({
       grade: "A",
       matchedFieldKeys: ["industry"],
-      freshSignals: [{ label: "secteur cœur" }], // same label as the matched factor
+      freshSignals: [{ label: "core sector" }], // same label as the matched factor
       coverage: 0.8,
     });
     const labels = out.factors.map((f) => f.label);
-    expect(labels.filter((l) => l === "secteur cœur")).toHaveLength(1);
+    expect(labels.filter((l) => l === "core sector")).toHaveLength(1);
   });
 
   it("skips unlabellable matched fields and survives an empty input", () => {
     const out = assembleScoreExplanation({ grade: "B", matchedFieldKeys: ["hiring_job_titles"], coverage: 0.5 });
     expect(out.factors).toHaveLength(0);
-    expect(out.rationale).toBe("B : fit ICP, pas de signal récent");
+    expect(out.rationale).toBe("B · ICP fit, no recent signal");
   });
 
   it("propagates low confidence from thin coverage", () => {

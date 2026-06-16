@@ -14,20 +14,20 @@ import { computeConfidence } from "./confidence";
 /** fieldKey → (French factor label, kind). Firmographic identity = "fit";
  *  funding/tech/hiring = "signal" (timing/intent). Unknown keys are skipped. */
 const FACTOR_BY_FIELD: Record<string, { label: string; kind: RationaleFactor["kind"] }> = {
-  industry: { label: "secteur cœur", kind: "fit" },
-  employee_count: { label: "taille dans la cible", kind: "fit" },
-  geography: { label: "zone ciblée", kind: "fit" },
-  revenue: { label: "revenus dans la cible", kind: "fit" },
-  founded_year: { label: "ancienneté ciblée", kind: "fit" },
-  keywords: { label: "activité alignée", kind: "fit" },
-  person_seniorities: { label: "bonne séniorité", kind: "fit" },
-  person_titles: { label: "bon intitulé de poste", kind: "fit" },
-  technologies: { label: "stack ciblée", kind: "signal" },
-  latest_funding_stage: { label: "stade de levée ciblé", kind: "signal" },
-  latest_funding_date: { label: "levée récente", kind: "signal" },
-  total_funding: { label: "financement dans la cible", kind: "signal" },
-  num_open_jobs: { label: "recrute activement", kind: "signal" },
-  investor_names: { label: "investisseur ciblé", kind: "signal" },
+  industry: { label: "core sector", kind: "fit" },
+  employee_count: { label: "right size band", kind: "fit" },
+  geography: { label: "target region", kind: "fit" },
+  revenue: { label: "target revenue", kind: "fit" },
+  founded_year: { label: "target age", kind: "fit" },
+  keywords: { label: "aligned focus", kind: "fit" },
+  person_seniorities: { label: "right seniority", kind: "fit" },
+  person_titles: { label: "right title", kind: "fit" },
+  technologies: { label: "target tech", kind: "signal" },
+  latest_funding_stage: { label: "target funding stage", kind: "signal" },
+  latest_funding_date: { label: "recent funding", kind: "signal" },
+  total_funding: { label: "target funding", kind: "signal" },
+  num_open_jobs: { label: "actively hiring", kind: "signal" },
+  investor_names: { label: "target investor", kind: "signal" },
 };
 
 /** The factor for a matched criterion's field, or null when not labellable. */
@@ -41,7 +41,7 @@ export interface AssembleInput {
   matchedFieldKeys: string[];
   /** Already-resolved fresh real-time signals (with age in days). */
   freshSignals?: Array<{ label: string; ageDays?: number }>;
-  /** Reachability facts, e.g. "décideur joignable", "dans ton réseau". */
+  /** Reachability facts, e.g. "reachable", "in your network". */
   reachability?: string[];
   /** Share of scorable criteria evaluable, [0,1] (from computeBlendedFit). */
   coverage: number;
@@ -71,7 +71,7 @@ export function assembleScoreExplanation(input: AssembleInput): ScoreExplanation
     collected.push({ kind: "reach", label: r });
   }
 
-  // Dedup by label (first wins), so a fresh "recrute" signal and a matched
+  // Dedup by label (first wins), so a fresh "hiring" signal and a matched
   // num_open_jobs criterion don't both print.
   const seen = new Set<string>();
   const factors = collected.filter((f) => (seen.has(f.label) ? false : (seen.add(f.label), true)));

@@ -26,7 +26,7 @@ const KIND_ORDER: Record<RationaleFactor["kind"], number> = {
 
 function formatFactor(f: RationaleFactor): string {
   if (f.kind === "signal" && typeof f.ageDays === "number") {
-    return `${f.label} (il y a ${Math.max(0, Math.round(f.ageDays))}j)`;
+    return `${f.label} (${Math.max(0, Math.round(f.ageDays))}d ago)`;
   }
   return f.label;
 }
@@ -53,7 +53,7 @@ export function buildRationale(input: RationaleInput): string {
   const parts = sorted.slice(0, max).map(formatFactor);
   if (parts.length === 0) {
     // Honest fallback: in the ICP, but nothing currently distinguishes it.
-    return `${input.grade} : fit ICP, pas de signal récent`;
+    return `${input.grade} · ICP fit, no recent signal`;
   }
-  return `${input.grade} : ${parts.join(", ")}`;
+  return `${input.grade} · ${parts.join(", ")}`;
 }

@@ -367,7 +367,7 @@ export default function ContactDetailPage() {
         {/* Buyer Intent Score */}
         {buyerIntent && <BuyerIntentCard data={buyerIntent} />}
 
-        {/* "Pourquoi ce grade" — propensity rationale + confidence */}
+        {/* "Why this grade" — propensity rationale + confidence */}
         <ScoreExplainLine contactId={contactId} />
 
         {/* What the last call revealed about this person (role / disposition) */}

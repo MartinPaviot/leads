@@ -50,7 +50,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
     if (!contact) return Response.json({ error: "Contact not found" }, { status: 404 });
     if (contact.score == null) {
-      return Response.json({ grade: null, rationale: "Pas encore scoré", confidence: 0, factors: [] });
+      return Response.json({ grade: null, rationale: "Not scored yet", confidence: 0, factors: [] });
     }
 
     // Company context (empty when the contact has no linked company).
@@ -108,10 +108,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
     // Reachability facts (real, contact-level).
     const reachability: string[] = [];
-    if (contact.phone) reachability.push("décideur joignable");
-    else if (contact.email) reachability.push("email connu");
+    if (contact.phone) reachability.push("reachable");
+    else if (contact.email) reachability.push("email on file");
     if (stored && (stored as { network?: unknown }).network === true) {
-      reachability.push("dans ton réseau");
+      reachability.push("in your network");
     }
 
     const out = assembleScoreExplanation({
