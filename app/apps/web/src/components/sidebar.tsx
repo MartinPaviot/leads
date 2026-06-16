@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { useLocale } from "@/lib/i18n/locale";
 import {
   Building2,
   CircleDot,
@@ -18,6 +19,7 @@ import {
   LogOut,
   Moon,
   Sun,
+  Languages,
   Box,
   Folder,
   Package,
@@ -134,6 +136,7 @@ function UserMenu({
   isSettingsActive: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const { locale, setLocale } = useLocale();
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleEnter = useCallback(() => {
@@ -233,6 +236,18 @@ function UserMenu({
             >
               {theme === "light" ? <Moon size={14} style={{ opacity: 0.6 }} /> : <Sun size={14} style={{ opacity: 0.6 }} />}
               {theme === "light" ? "Dark mode" : "Light mode"}
+            </button>
+
+            {/* Language — FR is the default; switch shows the base English version */}
+            <button
+              onClick={() => setLocale(locale === "fr" ? "en" : "fr")}
+              className="flex w-full items-center gap-2.5 px-3 py-1.5 text-[13px] transition-colors"
+              style={{ color: "var(--color-text-secondary)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              <Languages size={14} style={{ opacity: 0.6 }} />
+              {locale === "fr" ? "English" : "Français"}
             </button>
 
             {/* Contact the team */}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import { useLocale } from "@/lib/i18n/locale";
 
 /** Mirror of lib/collision LastTouchByOthers (the fields this surface renders). */
 interface LastTouch {
@@ -53,11 +54,15 @@ const COPY: Record<
  */
 export function ContactCollisionNotice({
   contactId,
-  lang = "en",
+  lang,
 }: {
   contactId: string | null | undefined;
   lang?: Lang;
 }) {
+  // Follow the global locale by default; an explicit `lang` (Call Mode = "fr")
+  // still wins, keeping the Pilae call screen French.
+  const { locale } = useLocale();
+  const resolvedLang: Lang = lang ?? locale;
   const [touch, setTouch] = useState<LastTouch | null>(null);
 
   useEffect(() => {
@@ -82,7 +87,7 @@ export function ContactCollisionNotice({
 
   if (!touch) return null;
 
-  const c = COPY[lang];
+  const c = COPY[resolvedLang];
   const verb = c.verb[touch.channel] ?? c.verb.other;
   const extra = touch.otherUserCount - 1;
 
