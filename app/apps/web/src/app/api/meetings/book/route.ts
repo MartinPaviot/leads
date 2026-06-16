@@ -138,7 +138,7 @@ export async function POST(req: Request) {
       if (err instanceof CalendarNotConnectedError) {
         return apiError(
           "VALIDATION_ERROR",
-          "Aucun agenda connecté. Connecte Google, Microsoft ou une boîte CalDAV dans Réglages → Mail & Calendar pour planifier une visio.",
+          "Aucune boîte connectée. Connecte Google, Microsoft, ou ta boîte email (IMAP/SMTP — Zimbra, Infomaniak…) dans Réglages → Mail & Calendar pour planifier une visio.",
         );
       }
       throw err;

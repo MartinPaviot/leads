@@ -18,31 +18,25 @@ import { useEffect, useRef, useState, type ComponentType } from "react";
 import { motion, useInView, useReducedMotion } from "framer-motion";
 import { AppFrame, ScaleToFit } from "./product-mockups";
 import { CallModeDemo } from "./call-mode-demo";
-import { RealUpNext, RealAccounts, RealOpportunities, RealChat, RealCampaigns, RealMeetings } from "./real-surfaces";
+import { CampaignsDemo } from "./campaigns-demo";
+import { AccountsDemo } from "./accounts-demo";
+import { MeetingsDemo } from "./meetings-demo";
+import { OpportunitiesDemo } from "./opportunities-demo";
 
 // `h` = the natural content height shown in the shot (before scaling); the rest
 // of the page is clipped with a fade, so each shot ends cleanly on a few rows.
-const steps: { label: string; headline: string; body: string; Real?: ComponentType; h?: number; wide?: boolean }[] = [
+const steps: { label: string; headline: string; body: string; Real?: ComponentType; Demo?: ComponentType; h?: number; wide?: boolean }[] = [
   {
     label: "Find demand",
     headline: "Your target list builds itself",
     body: "Describe your ICP once. Elevay searches a live B2B database, builds your target account list, and scores every account against it, no CSV imports and no manual research.",
-    Real: RealAccounts,
-    h: 680,
-  },
-  {
-    label: "Find demand",
-    headline: "Open on who is ready now",
-    body: "Replies, opens, booked meetings, and deal moves land in one morning briefing, next to the short list of what genuinely needs a human. You open the day knowing exactly where to spend it.",
-    Real: RealUpNext,
-    h: 640,
+    Demo: AccountsDemo,
   },
   {
     label: "Engage",
     headline: "Outreach drafted from real context",
     body: "Multi-touch sequences drafted from each account's signals and notes, never from a template with a first name in it. Nothing leaves your domain until you approve it.",
-    Real: RealCampaigns,
-    h: 600,
+    Demo: CampaignsDemo,
   },
   {
     label: "Engage",
@@ -54,22 +48,13 @@ const steps: { label: string; headline: string; body: string; Real?: ComponentTy
     label: "Capture",
     headline: "Every meeting captured for you",
     body: "A bot joins your Meet, Zoom, and Teams calls, transcribes them, and pulls out the action items and buying signals, ready for you to review.",
-    Real: RealMeetings,
-    h: 640,
+    Demo: MeetingsDemo,
   },
   {
     label: "Capture",
     headline: "Your CRM fills itself",
     body: "Values update, fields populate, and the next stage is suggested for you, straight from your calls and emails, so the pipeline reflects reality without manual logging.",
-    Real: RealOpportunities,
-    h: 680,
-  },
-  {
-    label: "Operate",
-    headline: "Ask your pipeline anything",
-    body: "Query in plain language and get an answer in seconds, each one cited to the exact call, email, or knowledge entry it came from.",
-    Real: RealChat,
-    h: 560,
+    Demo: OpportunitiesDemo,
   },
 ];
 
@@ -185,7 +170,10 @@ export function ProcessSteps() {
           return (
             <div key={s.headline}>
               <StepHeading i={i} label={s.label} headline={s.headline} body={s.body} />
-              <RevealOnView className="mt-8 max-w-[1100px]">
+              {/* Full container width so the cockpit aligns to the same left AND
+                  right margins as every other step (was max-w-[1100px] left-
+                  aligned -> a dead gap on the right that broke the rhythm). */}
+              <RevealOnView className="mt-8">
                 {() => <CallModeDemo />}
               </RevealOnView>
             </div>
@@ -193,14 +181,18 @@ export function ProcessSteps() {
         }
         const flip = visualIdx % 2 === 1;
         visualIdx += 1;
-        const Real = s.Real as ComponentType;
+        const Demo = s.Demo;
         return (
           <div key={s.headline} className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
             <div className={`min-w-0 ${flip ? "lg:order-2" : ""}`}>
               <StepHeading i={i} label={s.label} headline={s.headline} body={s.body} />
             </div>
             <div className={`min-w-0 ${flip ? "lg:order-1" : ""}`}>
-              <RealShot Real={Real} h={s.h ?? 620} />
+              {Demo ? (
+                <RevealOnView>{() => <Demo />}</RevealOnView>
+              ) : (
+                <RealShot Real={s.Real as ComponentType} h={s.h ?? 620} />
+              )}
             </div>
           </div>
         );

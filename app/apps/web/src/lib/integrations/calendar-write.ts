@@ -28,7 +28,7 @@ import { sendViaSmtp } from "./smtp-send";
 import { createSovereignMeeting } from "./video-meeting";
 import { createZoomMeeting, zoomConfigured } from "./zoom";
 
-export type CalendarProvider = "google" | "microsoft" | "caldav";
+export type CalendarProvider = "google" | "microsoft" | "caldav" | "smtp";
 /** "sovereign" = Jitsi visio (default); the rest are opt-in "si besoin". */
 export type Conferencing = "sovereign" | "google_meet" | "teams" | "zoom";
 
@@ -116,61 +116,65 @@ export async function bookSovereignMeeting(opts: {
     title: opts.title,
   };
 
-  // Resolve the connected calendar backend (CalDAV -> Microsoft -> Google).
-  const caldav = await findCalDavMailbox(opts.userId, opts.tenantId);
-  let provider: CalendarProvider;
-  let msToken: string | null = null;
-  let google: calendar_v3.Calendar | null = null;
-  if (caldav) {
-    provider = "caldav";
-  } else {
-    msToken = await getMicrosoftAccessToken(opts.userId);
-    if (msToken) {
-      provider = "microsoft";
-    } else {
-      google = await getCalendarClient(opts.userId);
-      if (google) {
-        provider = "google";
-      } else {
-        throw new CalendarNotConnectedError();
-      }
-    }
+  // 1. The user's explicitly-connected IMAP/SMTP mailbox (Zimbra / Infomaniak /
+  //    OVH …). Preferred over OAuth — if they connected it, it's their primary.
+  //    CalDAV when the server exposes a calendar collection; otherwise a plain
+  //    iTIP (.ics) invitation over their own SMTP, which works for ANY mailbox
+  //    with no calendar API and no OAuth re-consent.
+  const mailbox = await findSmtpMailbox(opts.userId, opts.tenantId);
+  if (mailbox) {
+    const provider: CalendarProvider = mailbox.calendarUrl ? "caldav" : "smtp";
+    const mode = resolveConferencing(requested, provider, zoomConfigured());
+    const link = await injectedLink(mode, meeting.joinUrl, core);
+    const w = mailbox.calendarUrl
+      ? await writeCalDavEvent(mailbox, core, link, meeting.roomName)
+      : await writeSmtpIcsEvent(mailbox, core, link, meeting.roomName);
+    return { ...w, conferencing: mode, roomName: mode === "sovereign" ? meeting.roomName : null };
   }
 
-  const mode = resolveConferencing(requested, provider, zoomConfigured());
-
-  // Non-native modes inject a link: the sovereign Jitsi room, or a Zoom meeting.
-  // Native modes (Google Meet / Teams) let the calendar mint its own.
-  const injectLink =
-    mode === "zoom"
-      ? await createZoomMeeting({
-          topic: core.title,
-          startTime: core.startTime,
-          durationMinutes: core.durationMinutes,
-        })
-      : meeting.joinUrl;
-  // Only a sovereign Jitsi room is recorded by Jibri (correlated by roomName).
-  const recordingRoom = mode === "sovereign" ? meeting.roomName : null;
-
-  let w: WriteResult;
-  if (provider === "caldav") {
-    // CalDAV can't host Meet/Teams; it always carries an injected link.
-    w = await writeCalDavEvent(caldav!, core, injectLink, meeting.roomName);
-  } else if (provider === "microsoft") {
-    w = await writeMicrosoftEvent(
-      msToken!,
+  // 2. Microsoft OAuth (native Teams available).
+  const msToken = await getMicrosoftAccessToken(opts.userId);
+  if (msToken) {
+    const mode = resolveConferencing(requested, "microsoft", zoomConfigured());
+    const link = await injectedLink(mode, meeting.joinUrl, core);
+    const w = await writeMicrosoftEvent(
+      msToken,
       core,
-      mode === "teams" ? { native: true } : { native: false, link: injectLink },
+      mode === "teams" ? { native: true } : { native: false, link },
     );
-  } else {
-    w = await writeGoogleEvent(
-      google!,
-      core,
-      mode === "google_meet" ? { native: true } : { native: false, link: injectLink },
-    );
+    return { ...w, conferencing: mode, roomName: mode === "sovereign" ? meeting.roomName : null };
   }
 
-  return { ...w, conferencing: mode, roomName: recordingRoom };
+  // 3. Google OAuth (native Google Meet available).
+  const google = await getCalendarClient(opts.userId);
+  if (google) {
+    const mode = resolveConferencing(requested, "google", zoomConfigured());
+    const link = await injectedLink(mode, meeting.joinUrl, core);
+    const w = await writeGoogleEvent(
+      google,
+      core,
+      mode === "google_meet" ? { native: true } : { native: false, link },
+    );
+    return { ...w, conferencing: mode, roomName: mode === "sovereign" ? meeting.roomName : null };
+  }
+
+  throw new CalendarNotConnectedError();
+}
+
+/** Non-native modes carry a link in the event: the sovereign Jitsi room, or a
+ *  Zoom meeting (native Meet/Teams ignore this). */
+async function injectedLink(
+  mode: Conferencing,
+  jitsiUrl: string,
+  core: EventCore,
+): Promise<string> {
+  return mode === "zoom"
+    ? createZoomMeeting({
+        topic: core.title,
+        startTime: core.startTime,
+        durationMinutes: core.durationMinutes,
+      })
+    : jitsiUrl;
 }
 
 /** Sovereign: inject the provided Jitsi link. Native: let the provider mint its own. */
@@ -301,19 +305,25 @@ async function writeMicrosoftEvent(
 /*  CalDAV (Infomaniak / Zimbra / any RFC 4791 server) — sovereign     */
 /* ------------------------------------------------------------------ */
 
-interface CalDavBox {
+interface SmtpBox {
   email: string;
   password: string;
-  calendarUrl: string;
+  /** CalDAV collection URL when the server exposes one; null = SMTP iTIP only. */
+  calendarUrl: string | null;
   smtpHost: string | null;
   smtpPort: number | null;
   displayName: string | null;
 }
 
-async function findCalDavMailbox(
+/**
+ * Find the user's connected IMAP/SMTP mailbox (Zimbra / Infomaniak / OVH …).
+ * Requires SMTP (to send the invite); CalDAV is optional. Personal (per-user),
+ * falling back to any in the tenant for legacy rows whose userId wasn't set.
+ */
+async function findSmtpMailbox(
   userId: string,
   tenantId: string,
-): Promise<CalDavBox | null> {
+): Promise<SmtpBox | null> {
   const boxes = await db
     .select()
     .from(connectedMailboxes)
@@ -321,13 +331,13 @@ async function findCalDavMailbox(
       and(
         eq(connectedMailboxes.tenantId, tenantId),
         eq(connectedMailboxes.provider, "smtp_custom"),
-        isNotNull(connectedMailboxes.caldavUrl),
+        isNotNull(connectedMailboxes.smtpHost),
       ),
     );
   if (boxes.length === 0) return null;
 
   const box = boxes.find((b) => b.userId === userId) ?? boxes[0];
-  if (!box.secretEncrypted || !box.caldavUrl) return null;
+  if (!box.secretEncrypted || !box.smtpHost) return null;
 
   let password: string;
   try {
@@ -338,7 +348,7 @@ async function findCalDavMailbox(
   return {
     email: box.emailAddress,
     password,
-    calendarUrl: box.caldavUrl,
+    calendarUrl: box.caldavUrl ?? null,
     smtpHost: box.smtpHost,
     smtpPort: box.smtpPort,
     displayName: box.displayName,
@@ -346,11 +356,13 @@ async function findCalDavMailbox(
 }
 
 async function writeCalDavEvent(
-  box: CalDavBox,
+  box: SmtpBox,
   core: EventCore,
   link: string,
   roomName: string,
 ): Promise<WriteResult> {
+  const calendarUrl = box.calendarUrl;
+  if (!calendarUrl) throw new Error("writeCalDavEvent: no CalDAV URL");
   const end = new Date(core.startTime.getTime() + core.durationMinutes * 60_000);
   const uid = `${roomName}@elevay.dev`;
   const ics = buildIcs({
@@ -366,7 +378,7 @@ async function writeCalDavEvent(
     method: "REQUEST",
   });
 
-  const origin = new URL(box.calendarUrl).origin + "/";
+  const origin = new URL(calendarUrl).origin + "/";
   const client = await createDAVClient({
     serverUrl: origin,
     credentials: { username: box.email, password: box.password },
@@ -374,7 +386,7 @@ async function writeCalDavEvent(
     defaultAccountType: "caldav",
   });
   await client.createCalendarObject({
-    calendar: { url: box.calendarUrl } as never,
+    calendar: { url: calendarUrl } as never,
     filename: `${uid}.ics`,
     iCalString: ics,
   });
@@ -403,4 +415,54 @@ async function writeCalDavEvent(
   }
 
   return { provider: "caldav", eventId: uid, joinUrl: link, calendarLink: null };
+}
+
+/* ------------------------------------------------------------------ */
+/*  SMTP iTIP invite — any IMAP/SMTP mailbox (Zimbra…), no CalDAV       */
+/* ------------------------------------------------------------------ */
+
+async function writeSmtpIcsEvent(
+  box: SmtpBox,
+  core: EventCore,
+  link: string,
+  roomName: string,
+): Promise<WriteResult> {
+  if (!box.smtpHost) throw new Error("writeSmtpIcsEvent: no SMTP host");
+  const end = new Date(core.startTime.getTime() + core.durationMinutes * 60_000);
+  const uid = `${roomName}@elevay.dev`;
+  const ics = buildIcs({
+    uid,
+    start: core.startTime,
+    end,
+    summary: core.title,
+    description: descriptionText(link),
+    location: link,
+    url: link,
+    organizer: { email: box.email, name: box.displayName },
+    attendees: [{ email: core.contactEmail, name: core.contactName }],
+    method: "REQUEST",
+  });
+
+  // The invitation IS the booking here — there's no calendar API. Send the iTIP
+  // REQUEST from the user's own mailbox to the prospect, Cc the organiser so it
+  // also files onto their calendar. A send failure means the booking failed
+  // (so we throw, unlike the CalDAV path where the event is already written).
+  await sendViaSmtp(
+    {
+      emailAddress: box.email,
+      smtpHost: box.smtpHost,
+      smtpPort: box.smtpPort,
+      password: box.password,
+      displayName: box.displayName,
+    },
+    {
+      to: core.contactEmail,
+      cc: box.email,
+      subject: core.title,
+      html: htmlBody(core.title, link),
+      icsInvite: { method: "REQUEST", content: ics, filename: "invite.ics" },
+    },
+  );
+
+  return { provider: "smtp", eventId: uid, joinUrl: link, calendarLink: null };
 }
