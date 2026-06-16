@@ -111,6 +111,80 @@ export const DEFAULT_NO_RESPONSE =
 /** Marker prefixing the "no" response inside the guidance array. */
 export const NO_RESPONSE_TAG = "[NON]";
 
+// ── Branches: what a real call needs beyond the happy path — gatekeeper,
+//    voicemail, callback re-opener, and the objection playbook. Universal +
+//    Pilae-tuned (sober, never argue: redirect to the booking or ask a
+//    calibrated question). {name} interpolated; sector kept short on purpose.
+
+export interface Objection {
+  /** The objection, as the prospect says it. */
+  cue: string;
+  /** Pilae's answer — redirect to the meeting / a calibrated question. */
+  response: string;
+}
+
+/** The classic cold-call objections + sober answers. Order = frequency. */
+export const OBJECTIONS: Objection[] = [
+  {
+    cue: "Je n'ai pas le temps",
+    response: "Je comprends, je fais court. En deux phrases : on installe une IA interne et des automatisations en open source, hébergées en Suisse, facturées à l'usage. Si ce n'est pas le moment, je vous bloque juste 15 min en visio la semaine prochaine — vous regardez à tête reposée.",
+  },
+  {
+    cue: "Envoyez-moi un mail / une doc",
+    response: "Je peux, mais un mail de plus se perd. 15 minutes en visio vous donnent une lecture chiffrée sur votre cas, rien à préparer — plutôt lundi après-midi ou jeudi matin ?",
+  },
+  {
+    cue: "On a déjà un outil / on est chez Microsoft",
+    response: "C'est justement le bon moment : on ne remplace pas tout, on pose une IA interne et des automatisations par-dessus, en Suisse, à l'usage. Ça se voit mieux sur un cas concret — c'est l'objet de la visio.",
+  },
+  {
+    cue: "Pas intéressé",
+    response: "Aucun souci, c'est vous qui voyez. Juste pour comprendre — c'est le sujet (IA, souveraineté) qui ne parle pas, ou ce n'est pas le moment ? Si c'est le timing, je vous recontacte ; sinon je ne vous embête pas.",
+  },
+  {
+    cue: "C'est quoi Pilae / vous faites quoi exactement ?",
+    response: "On installe et on opère des outils open source — une IA interne, des automatisations — hébergés en Suisse et facturés à l'usage, pas une licence par tête. C'est pour ça que je voulais deux minutes avec vous.",
+  },
+  {
+    cue: "C'est combien ?",
+    response: "Ça dépend du périmètre, et je ne veux pas vous lancer un chiffre en l'air. Le but de la visio, c'est justement de vous donner l'écart de coût sur VOTRE situation — concret, sans engagement.",
+  },
+];
+
+/** Getting past the front desk. */
+export const GATEKEEPER =
+  "Bonjour, Martin Paviot. Je cherche à joindre {name} — c'est au sujet de l'IA interne hébergée en Suisse qu'on opère pour des institutions romandes. Vous pouvez me le ou la passer ?";
+export const GATEKEEPER_NOTE =
+  "Si « c'est à quel sujet ? » : deux minutes suffisent, il/elle saura si c'est pertinent. Si « envoyez un mail » : « bien sûr — quel est le meilleur moment pour le/la joindre en direct ? »";
+
+/** ~12 s voicemail — a reason + a callback path, no hard sell. */
+export const VOICEMAIL =
+  "Bonjour {name}, Martin Paviot, de Pilae à Lausanne. Je vous appelle au sujet de l'IA interne hébergée en Suisse pour votre secteur — je réessaie en fin de semaine ; au besoin, mon numéro s'affiche sur votre écran. Bonne journée.";
+
+/** Re-opener for a scheduled callback — never a cold opener again. */
+export const CALLBACK_OPENER =
+  "Bonjour {name}, Martin Paviot de Pilae — on avait convenu que je vous rappelle. C'est toujours un bon moment pour les deux minutes dont on avait parlé ?";
+
+export interface ResolvedBranches {
+  gatekeeper: string;
+  gatekeeperNote: string;
+  voicemail: string;
+  callback: string;
+  objections: Objection[];
+}
+
+/** Interpolate {name} into the branch lines for the live call. */
+export function resolveBranches(vars: { name?: string | null }): ResolvedBranches {
+  const i = (t: string) => interpolateOpener(t, { name: vars.name });
+  return {
+    gatekeeper: i(GATEKEEPER),
+    gatekeeperNote: GATEKEEPER_NOTE,
+    voicemail: i(VOICEMAIL),
+    callback: i(CALLBACK_OPENER),
+    objections: OBJECTIONS,
+  };
+}
+
 /** Global in-call principles — final model (sector↔subject opener, récit-pair,
  *  two-door, ton suisse). Per-sector qualifiers + the "non" branch compose on top. */
 export const GUIDANCE = [

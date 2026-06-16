@@ -12,8 +12,8 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, CalendarClock, Phone, Pencil, Sparkles, Loader2, X, Plus, Trash2, AlertTriangle } from "lucide-react";
-import { interpolateOpener, defaultScriptFields, splitGuidance, withNoResponse, lineFor, lineForKey, peerLeadFor, type ScriptFields } from "@/lib/call-mode/call-scripts";
+import { Check, CalendarClock, Phone, Pencil, Sparkles, Loader2, X, Plus, Trash2, AlertTriangle, ChevronRight, ChevronDown, ShieldQuestion } from "lucide-react";
+import { interpolateOpener, defaultScriptFields, splitGuidance, withNoResponse, lineFor, lineForKey, peerLeadFor, resolveBranches, type ScriptFields } from "@/lib/call-mode/call-scripts";
 import { deriveOpeningReason, type OpeningReasonInput } from "@/lib/call-mode/live-script";
 import { planProblems } from "@/lib/call-mode/match-problem";
 import { checkScriptMethod } from "@/lib/call-mode/script-levers";
@@ -88,6 +88,9 @@ export function CallScriptPanel({
   const [draftGrounding, setDraftGrounding] = useState<Array<{ index: number; fact: string }>>([]);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [showBranches, setShowBranches] = useState(false);
+  // Beyond the happy path: gatekeeper, voicemail, callback, objection playbook.
+  const branches = useMemo(() => resolveBranches({ name: contactName }), [contactName]);
 
   // Load the tenant's saved script for this sector (debounced on sector).
   useEffect(() => {
@@ -392,6 +395,41 @@ export function CallScriptPanel({
         </>
       )}
 
+      {/* Branches — beyond the happy path (gatekeeper / voicemail / callback /
+          objections). Collapsed by default so the main flow stays clean. */}
+      {!loading && !editing && (
+        <div className="border-t pt-2.5" style={{ borderColor: "var(--color-border-default)" }}>
+          <button
+            type="button"
+            onClick={() => setShowBranches((v) => !v)}
+            className="flex w-full items-center gap-1.5 text-[11px] font-medium transition-colors hover:opacity-80"
+            style={{ color: "var(--color-text-secondary)" }}
+          >
+            {showBranches ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            <ShieldQuestion size={12} /> Objections &amp; branches ({branches.objections.length})
+          </button>
+          {showBranches && (
+            <div className="mt-2 flex flex-col gap-2 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+              <BranchLine label="Barrage (secrétariat)" body={branches.gatekeeper} note={branches.gatekeeperNote} />
+              <BranchLine label="Répondeur" body={branches.voicemail} />
+              <BranchLine label="Rappel convenu" body={branches.callback} />
+              <div>
+                <div className="mb-1 text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>Objections</div>
+                <div className="flex flex-col gap-1.5">
+                  {branches.objections.map((o) => (
+                    <div key={o.cue} className="leading-snug">
+                      <span className="font-medium" style={{ color: "var(--color-text-primary)" }}>« {o.cue} »</span>
+                      <span style={{ color: "var(--color-text-tertiary)" }}> → </span>
+                      {o.response}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Méthode — soft lever markers on the shown script (read AND draft).
           Informative, never blocking: the rep owns the words. */}
       {!loading && methodGaps.length > 0 && (
@@ -422,6 +460,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <label className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>{label}</label>
       <div className="mt-1">{children}</div>
+    </div>
+  );
+}
+
+function BranchLine({ label, body, note }: { label: string; body: string; note?: string }) {
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>{label}</div>
+      <p className="leading-snug" style={{ color: "var(--color-text-primary)" }}>{body}</p>
+      {note && <p className="mt-0.5 text-[11px] italic" style={{ color: "var(--color-text-tertiary)" }}>{note}</p>}
     </div>
   );
 }

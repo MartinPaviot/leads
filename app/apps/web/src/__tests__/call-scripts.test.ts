@@ -8,6 +8,8 @@ import {
   withNoResponse,
   peerLeadFor,
   BASCULE,
+  OBJECTIONS,
+  resolveBranches,
 } from "@/lib/call-mode/call-scripts";
 
 describe("pickCallScript", () => {
@@ -166,6 +168,42 @@ describe("peerLeadFor", () => {
     expect(peerLeadFor("hospital & health care")).toBe(BASCULE);
     expect(peerLeadFor("")).toBe(BASCULE);
     expect(peerLeadFor(null)).toBe(BASCULE);
+  });
+});
+
+describe("branches (gatekeeper / voicemail / callback / objections)", () => {
+  it("covers the classic objections, each with a response", () => {
+    expect(OBJECTIONS.length).toBeGreaterThanOrEqual(5);
+    const cues = OBJECTIONS.map((o) => o.cue.toLowerCase()).join(" | ");
+    expect(cues).toMatch(/temps/);
+    expect(cues).toMatch(/mail/);
+    expect(cues).toMatch(/outil|microsoft/);
+    expect(cues).toMatch(/pas intéress/);
+    expect(cues).toMatch(/combien/);
+    for (const o of OBJECTIONS) {
+      expect(o.cue.trim().length).toBeGreaterThan(0);
+      expect(o.response.trim().length).toBeGreaterThan(20);
+    }
+  });
+
+  it("never argues — answers redirect to the meeting or ask a calibrated question", () => {
+    const all = OBJECTIONS.map((o) => o.response).join(" ").toLowerCase();
+    expect(all).toMatch(/visio|recontacte|deux minutes|15 min/);
+  });
+
+  it("interpolates {name} into the branch lines, no leftover token", () => {
+    const b = resolveBranches({ name: "M. Berra" });
+    expect(b.gatekeeper).toContain("M. Berra");
+    expect(b.voicemail).toContain("M. Berra");
+    expect(b.callback).toContain("M. Berra");
+    for (const s of [b.gatekeeper, b.voicemail, b.callback]) expect(s).not.toContain("{name}");
+    expect(b.objections).toHaveLength(OBJECTIONS.length);
+  });
+
+  it("degrades cleanly with no name", () => {
+    const b = resolveBranches({});
+    expect(b.voicemail).not.toContain("{name}");
+    expect(b.voicemail.length).toBeGreaterThan(0);
   });
 });
 
