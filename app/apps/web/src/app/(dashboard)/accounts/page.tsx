@@ -43,6 +43,7 @@ import { EnrichMenu } from "@/components/ui/enrich-menu";
 import { useEnrichStream, type EnrichCellState } from "@/hooks/use-enrich-stream";
 import { ColumnPicker } from "@/components/ui/column-picker";
 import { MoreMenu } from "@/components/ui/more-menu";
+import { SourcingPreviewModal } from "@/components/sourcing-preview-modal";
 import { COLUMN_CATEGORIES, DEFAULT_VISIBLE_CATEGORY_KEYS, getColumnCategory, buildPickerModel, isDynamicCategoryKey, isCategoryAvailable, customSignalKey, signalTypeKey, customFieldKey } from "@/lib/accounts/column-categories";
 import { TAM_PROPOSALS_ENTRY_ENABLED } from "@/lib/tam/entry-visibility";
 import { deriveAccountTabCounts } from "@/lib/accounts/tab-counts";
@@ -181,6 +182,8 @@ export default function AccountsPage() {
   const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null);
   // Bulk contact extraction (Apollo) + delete flows.
   const [extractingContacts, setExtractingContacts] = useState(false);
+  // Accounts the sourcing-preview modal is open for (null = closed).
+  const [previewIds, setPreviewIds] = useState<string[] | null>(null);
   // Deletes — single row AND the checkbox selection — go through the cascade
   // modal (lets the user also delete related contacts/deals/activities/notes/
   // tasks in one step). Everything is soft-delete, recoverable from Archive.
@@ -893,8 +896,8 @@ export default function AccountsPage() {
 
   // Pull real contacts (Apollo) for the selected accounts and persist
   // them. Deduped server-side against contacts already on each account.
-  async function extractContactsSelected() {
-    const ids = Array.from(selectedRows);
+  async function extractContactsSelected(idsOverride?: string[]) {
+    const ids = idsOverride ?? Array.from(selectedRows);
     if (ids.length === 0) return;
     setExtractingContacts(true);
     toast(`Extracting contacts for ${ids.length} account${ids.length === 1 ? "" : "s"}…`, "info");
@@ -1528,7 +1531,11 @@ export default function AccountsPage() {
           {
             label: extractingContacts ? "Extracting…" : "Extract contacts",
             icon: <UserPlus size={13} />,
-            onClick: extractContactsSelected,
+            // Open the ICP preview first — don't source blind.
+            onClick: () => {
+              const ids = Array.from(selectedRows);
+              if (ids.length > 0) setPreviewIds(ids);
+            },
             disabled: extractingContacts,
           },
           {
@@ -2822,6 +2829,18 @@ export default function AccountsPage() {
         onConfirm={performCascadeDelete}
         onCancel={() => { if (!cascadeBusy) setCascadeTarget(null); }}
       />
+
+      {previewIds && (
+        <SourcingPreviewModal
+          open
+          accountIds={previewIds}
+          onClose={() => setPreviewIds(null)}
+          onConfirm={(keptIds) => {
+            setPreviewIds(null);
+            void extractContactsSelected(keptIds);
+          }}
+        />
+      )}
     </div>
   );
 }
