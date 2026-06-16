@@ -40,6 +40,8 @@ const startSchema = z.object({
       matchedEnjeu: z.boolean(),
       viaTool: z.boolean(),
       tool: z.string().trim().max(80).nullable(),
+      sector: z.string().trim().max(40).nullable().optional(),
+      enjeuKey: z.string().trim().max(40).nullable().optional(),
     })
     .strict()
     .optional(),

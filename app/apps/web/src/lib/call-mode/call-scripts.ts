@@ -102,6 +102,18 @@ export const ENJEUX_TERRAIN = [
 const enjeuxFor = (segment: "terrain" | "mure"): string[] =>
   segment === "terrain" ? [...ENJEUX_TERRAIN] : [...ENJEUX_MURE];
 
+/** Stable semantic key per enjeu POSITION (same across both segments):
+ *  0 = IA/retard, 1 = coût/licences, 2 = souveraineté/données. Used to
+ *  attribute call outcomes to an enjeu in the learning loop (sector-agnostic
+ *  so "cost wins" aggregates across terrain + mûre). */
+export const ENJEU_KEYS = ["ia", "cout", "souverainete"] as const;
+export type EnjeuKey = (typeof ENJEU_KEYS)[number];
+
+/** Map a floated enjeu index to its semantic key (null if out of range). */
+export function enjeuKeyForIndex(idx: number): EnjeuKey | null {
+  return idx >= 0 && idx < ENJEU_KEYS.length ? ENJEU_KEYS[idx] : null;
+}
+
 /** Read-aloud response when the prospect says no — natural, autonomy-first
  *  (acknowledge, one calibrated question, graceful exit), never a pushy rebuttal.
  *  Persisted inside `guidance` (tagged) so it survives without a schema change. */

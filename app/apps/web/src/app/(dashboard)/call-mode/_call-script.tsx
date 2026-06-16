@@ -13,7 +13,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, CalendarClock, Phone, Pencil, Sparkles, Loader2, X, Plus, Trash2, AlertTriangle, ChevronRight, ChevronDown, ShieldQuestion } from "lucide-react";
-import { interpolateOpener, prefixObservation, defaultScriptFields, splitGuidance, withNoResponse, lineFor, lineForKey, peerLeadFor, resolveBranches, personaEnjeuIndex, type ScriptFields } from "@/lib/call-mode/call-scripts";
+import { interpolateOpener, prefixObservation, defaultScriptFields, splitGuidance, withNoResponse, lineFor, lineForKey, peerLeadFor, resolveBranches, personaEnjeuIndex, enjeuKeyForIndex, type ScriptFields } from "@/lib/call-mode/call-scripts";
 import { deriveOpeningReason, type OpeningReasonInput } from "@/lib/call-mode/live-script";
 import { planProblems } from "@/lib/call-mode/match-problem";
 import { checkScriptMethod } from "@/lib/call-mode/script-levers";
@@ -240,8 +240,12 @@ export function CallScriptPanel({
       matchedEnjeu: matchedIdx >= 0,
       viaTool: matchedViaTool,
       tool: replaceableTool ?? null,
+      // Learning loop: which sector + which enjeu the rep led with, so outcomes
+      // can teach us which enjeu books best per sector.
+      sector: resolvedSector ?? null,
+      enjeuKey: enjeuKeyForIndex(floatIdx >= 0 ? floatIdx : 0),
     });
-  }, [reason?.source, matchedIdx, matchedViaTool, replaceableTool]);
+  }, [reason?.source, matchedIdx, matchedViaTool, replaceableTool, resolvedSector, floatIdx]);
 
   return (
     <div
