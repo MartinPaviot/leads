@@ -13,7 +13,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, CalendarClock, Phone, Pencil, Sparkles, Loader2, X, Plus, Trash2, AlertTriangle, ChevronRight, ChevronDown, ShieldQuestion } from "lucide-react";
-import { interpolateOpener, defaultScriptFields, splitGuidance, withNoResponse, lineFor, lineForKey, peerLeadFor, resolveBranches, personaEnjeuIndex, type ScriptFields } from "@/lib/call-mode/call-scripts";
+import { interpolateOpener, prefixObservation, defaultScriptFields, splitGuidance, withNoResponse, lineFor, lineForKey, peerLeadFor, resolveBranches, personaEnjeuIndex, type ScriptFields } from "@/lib/call-mode/call-scripts";
 import { deriveOpeningReason, type OpeningReasonInput } from "@/lib/call-mode/live-script";
 import { planProblems } from "@/lib/call-mode/match-problem";
 import { checkScriptMethod } from "@/lib/call-mode/script-levers";
@@ -139,10 +139,14 @@ export function CallScriptPanel({
     () => (resolvedSector ? lineForKey(resolvedSector) : lineFor([companyName, sector].filter(Boolean).join(" "))),
     [resolvedSector, companyName, sector],
   );
-  // Identity + sector↔subject + permission opener.
+  // Identity + sector↔subject + permission opener. When a fresh, voiceable
+  // signal exists on the prospect, LEAD with it (Douablin's observation).
   const opener = useMemo(
-    () => interpolateOpener(fields.opener, { name: contactName, sector, geo, line: openerLine }),
-    [fields.opener, contactName, sector, geo, openerLine],
+    () => prefixObservation(
+      interpolateOpener(fields.opener, { name: contactName, sector, geo, line: openerLine }),
+      reason?.observation,
+    ),
+    [fields.opener, contactName, sector, geo, openerLine, reason?.observation],
   );
   const anyChecked = checked.size > 0;
   const toggle = (i: number) =>
@@ -355,6 +359,11 @@ export function CallScriptPanel({
         // ── Read mode — what to say ──
         <>
           <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-text-primary)" }}>{opener}</p>
+          {reason && (
+            <span className="w-fit rounded-sm px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide" style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
+              Accroche ancrée sur : {reason.sourceLabel}
+            </span>
+          )}
           {/* Récit-pair — éclairer les 3 enjeux par un pair, jamais frontalement. */}
           <p className="text-[12px] italic" style={{ color: "var(--color-text-tertiary)" }}>{peerLeadFor(sector)}</p>
           <div className="flex flex-col gap-1.5">

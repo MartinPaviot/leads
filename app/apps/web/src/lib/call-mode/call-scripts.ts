@@ -515,3 +515,21 @@ export function interpolateOpener(
     .replace(/^Bonjour\s*,/, "Bonjour,")
     .trim();
 }
+
+/**
+ * Lead the opener with a per-prospect OBSERVATION (Douablin) when a fresh,
+ * voiceable signal exists (deriveOpeningReason supplies it). Inserted as its
+ * own sentence right after the greeting+identity, before the sector subject:
+ * "…une société lausannoise. Je vois que vous recrutez un DSI. Je me concentre
+ * en ce moment sur …". No observation → the opener is returned unchanged.
+ */
+export function prefixObservation(opener: string, observation?: string | null): string {
+  const obs = (observation ?? "").trim();
+  if (!obs) return opener;
+  // End of the FIRST real sentence = a lowercase letter + ". ", so a French
+  // honorific ("M. Berra") or an initial ("J. Dupont") never fools the split.
+  const m = opener.match(/[a-zà-ÿ]\.\s/);
+  if (!m || m.index == null) return `${obs} ${opener}`.replace(/\s{2,}/g, " ").trim();
+  const cut = m.index + m[0].length;
+  return `${opener.slice(0, cut)}${obs} ${opener.slice(cut)}`.replace(/\s{2,}/g, " ").trim();
+}
