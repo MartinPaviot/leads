@@ -13,7 +13,7 @@ import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
-import { defaultScriptFields, type ScriptFields } from "./call-scripts";
+import { defaultScriptFields, defaultScriptFieldsForKey, type ScriptFields } from "./call-scripts";
 import type { GenEvidenceItem } from "./prospect-evidence";
 
 /** One generated enjeu: prospect-grounded iff it cites an evidence id. */
@@ -98,7 +98,7 @@ export interface StoredScript extends ScriptFields {
  * exists, else the tenant default ('' sector), else the code defaults seeded
  * with the best sector match. Never throws — the cockpit always gets a script.
  */
-export async function loadTenantScript(tenantId: string, sector?: string | null, name?: string | null): Promise<StoredScript> {
+export async function loadTenantScript(tenantId: string, sector?: string | null, defaultKey?: string | null): Promise<StoredScript> {
   const key = norm(sector);
   const rows = await db.select().from(callScripts).where(eq(callScripts.tenantId, tenantId));
   const exact = key ? rows.find((r) => r.sector === key) : undefined;
@@ -115,10 +115,10 @@ export async function loadTenantScript(tenantId: string, sector?: string | null,
       origin: row.origin,
     };
   }
-  // No saved script → defaults, classified on NAME + industry (the name wins,
-  // so a "Haute école de santé" gets the school script, not the EMS one).
-  const classify = [name, sector].filter((x) => x && x.trim()).join(" ") || sector;
-  return { ...defaultScriptFields(classify), sector: key, origin: "default" };
+  // No saved script → defaults for the resolved key (from the signal waterfall),
+  // else fall back to substring on the sector string.
+  const fields = defaultKey ? defaultScriptFieldsForKey(defaultKey) : defaultScriptFields(sector);
+  return { ...fields, sector: key, origin: "default" };
 }
 
 /** Save the rep's script for a (tenant, sector). Upsert on the unique key. */

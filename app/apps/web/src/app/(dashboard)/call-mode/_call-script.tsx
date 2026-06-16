@@ -13,16 +13,30 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, CalendarClock, Phone, Pencil, Sparkles, Loader2, X, Plus, Trash2, AlertTriangle } from "lucide-react";
-import { interpolateOpener, defaultScriptFields, splitGuidance, withNoResponse, lineFor, peerLeadFor, type ScriptFields } from "@/lib/call-mode/call-scripts";
+import { interpolateOpener, defaultScriptFields, splitGuidance, withNoResponse, lineFor, lineForKey, peerLeadFor, type ScriptFields } from "@/lib/call-mode/call-scripts";
 import { deriveOpeningReason, type OpeningReasonInput } from "@/lib/call-mode/live-script";
 import { planProblems } from "@/lib/call-mode/match-problem";
 import { checkScriptMethod } from "@/lib/call-mode/script-levers";
 import type { ScriptContext } from "@/lib/voice/script-context";
 import { useToast } from "@/components/ui/toast";
 
+/** Sector key → short French label for the "détecté" hint. */
+const SECTOR_LABEL: Record<string, string> = {
+  sante: "santé / soin",
+  fondations: "fondations / social",
+  parapublic: "parapublic",
+  international: "international",
+  education: "hautes écoles",
+  it: "IT & services",
+  conseil: "conseil",
+  "low-tech": "industrie / terrain",
+  generic: "générique",
+};
+
 export function CallScriptPanel({
   contactName,
   companyName,
+  companyDomain,
   contactId,
   defaultSector,
   defaultGeo,
@@ -32,9 +46,12 @@ export function CallScriptPanel({
   onContext,
 }: {
   contactName?: string | null;
-  /** The account name — disambiguates the sector (a "Haute école de santé" is
-   *  a SCHOOL, not an EMS, even when Apollo tags it "hospital & health care"). */
+  /** The account name — one of the signals the server crosses to resolve the
+   *  sector (a "Haute école de santé" is a SCHOOL, not an EMS). */
   companyName?: string | null;
+  /** The account domain — lets the server load the company and cross ALL its
+   *  signals (NAICS, our classif, industry) for the most reliable sector. */
+  companyDomain?: string | null;
   /** Focal prospect id — lets Régénérer ground the draft on THIS prospect's
    *  server-side evidence (cited fail-closed). */
   contactId?: string | null;
@@ -58,6 +75,10 @@ export function CallScriptPanel({
   const [geo, setGeo] = useState(defaultGeo ?? "");
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [fields, setFields] = useState<ScriptFields>(() => defaultScriptFields([companyName, defaultSector].filter(Boolean).join(" ")));
+  // Sector resolved server-side by crossing the company's signals (the waterfall):
+  // the key + which signals voted for it ("via"), shown for transparency.
+  const [resolvedSector, setResolvedSector] = useState<string | null>(null);
+  const [resolvedVia, setResolvedVia] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ScriptFields | null>(null);
@@ -72,7 +93,8 @@ export function CallScriptPanel({
   useEffect(() => {
     let cancelled = false;
     const t = setTimeout(() => {
-      fetch(`/api/calls/script?sector=${encodeURIComponent(sector)}&name=${encodeURIComponent(companyName ?? "")}`)
+      const qs = new URLSearchParams({ sector, name: companyName ?? "", domain: companyDomain ?? "" });
+      fetch(`/api/calls/script?${qs.toString()}`)
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
           if (cancelled || !d?.script) return;
@@ -83,12 +105,14 @@ export function CallScriptPanel({
             bookingAsk: d.script.bookingAsk,
             guidance: d.script.guidance ?? [],
           });
+          setResolvedSector(typeof d.resolvedSector === "string" ? d.resolvedSector : null);
+          setResolvedVia(Array.isArray(d.via) ? d.via : []);
         })
         .catch(() => {})
         .finally(() => !cancelled && setLoading(false));
     }, 300);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [sector, companyName]);
+  }, [sector, companyName, companyDomain]);
 
   // Auto-fill the sector AND the geography from the selected account once the
   // brain loads (it arrives async, per contact), and re-sync on prospect
@@ -101,7 +125,13 @@ export function CallScriptPanel({
   // opener is identity + the prospect's sector tied to our subject (no tool in
   // the opener — the tool only floats the matched enjeu downstream).
   const reason = deriveOpeningReason(reasonInput ?? {});
-  const openerLine = useMemo(() => lineFor([companyName, sector].filter(Boolean).join(" ")), [companyName, sector]);
+  // The opener line follows the server-resolved sector (the full signal
+  // waterfall) when available; before it returns, fall back to a name+sector
+  // substring guess so the panel is never blank.
+  const openerLine = useMemo(
+    () => (resolvedSector ? lineForKey(resolvedSector) : lineFor([companyName, sector].filter(Boolean).join(" "))),
+    [resolvedSector, companyName, sector],
+  );
   // Identity + sector↔subject + permission opener.
   const opener = useMemo(
     () => interpolateOpener(fields.opener, { name: contactName, sector, geo, line: openerLine }),
@@ -248,6 +278,11 @@ export function CallScriptPanel({
         <input value={geo} onChange={(e) => setGeo(e.target.value)} placeholder="Géographie (ex. Genève)"
           className="flex-1 rounded-md px-2 py-1 text-[12px]" style={inputStyle} />
       </div>
+      {!editing && resolvedSector && resolvedVia.length > 0 && (
+        <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
+          Secteur détecté : <span className="font-medium" style={{ color: "var(--color-text-secondary)" }}>{SECTOR_LABEL[resolvedSector] ?? resolvedSector}</span> · via {resolvedVia.join(", ")}
+        </p>
+      )}
 
       {loading ? (
         <div className="flex items-center gap-2 py-3 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
