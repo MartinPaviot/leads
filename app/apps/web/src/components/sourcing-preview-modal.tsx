@@ -127,26 +127,26 @@ export function SourcingPreviewModal({
   const footer = (
     <>
       <Button variant="outline" size="sm" onClick={onClose}>
-        Annuler
+        Cancel
       </Button>
       <Button size="sm" disabled={loading || !!error || keptIds.length === 0} onClick={() => onConfirm(keptIds)}>
-        <UserPlus size={13} /> Sourcer {keptIds.length} compte{keptIds.length === 1 ? "" : "s"}
+        <UserPlus size={13} /> Source {keptIds.length} account{keptIds.length === 1 ? "" : "s"}
       </Button>
     </>
   );
 
   return (
-    <Modal open={open} onClose={onClose} title="Avant de sourcer les contacts" size="lg" footer={footer}>
+    <Modal open={open} onClose={onClose} title="Before sourcing contacts" size="lg" footer={footer}>
       {loading && (
         <div className="flex items-center gap-2 py-6 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-          <Loader2 size={14} className="animate-spin" /> Analyse de ta sélection contre ton ICP…
+          <Loader2 size={14} className="animate-spin" /> Checking your selection against your ICP…
         </div>
       )}
 
       {error && (
         <div className="flex items-start gap-2 py-4 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
           <AlertTriangle size={14} style={{ color: "var(--color-warning, #d97706)" }} />
-          <span>Impossible de prévisualiser : {error}</span>
+          <span>Couldn&apos;t preview: {error}</span>
         </div>
       )}
 
@@ -155,12 +155,12 @@ export function SourcingPreviewModal({
           {/* Targeting — the heart of the ask: exactly what will be searched. */}
           <section>
             <div className="text-[12px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
-              Recherche ciblée — d&apos;après ton ICP
+              Targeted search — from your ICP
             </div>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {data.targeting.titles.length === 0 && data.targeting.seniorities.length === 0 ? (
                 <span className="text-[12px]" style={{ color: "var(--color-warning, #d97706)" }}>
-                  Aucun titre/séniorité ciblé — configure ton ICP, sinon la recherche part trop large.
+                  No titles or seniorities targeted — configure your ICP, or the search runs too broad.
                 </span>
               ) : (
                 <>
@@ -177,23 +177,23 @@ export function SourcingPreviewModal({
 
           {/* Summary chips */}
           <section className="flex flex-wrap gap-1.5">
-            <Chip label={`${data.summary.inIcp} dans l'ICP`} tone="good" />
-            {data.summary.outIcp > 0 && <Chip label={`${data.summary.outIcp} hors-ICP`} tone="warn" />}
-            {data.summary.noDomain > 0 && <Chip label={`${data.summary.noDomain} sans domaine`} tone="warn" />}
-            {data.summary.unscored > 0 && <Chip label={`${data.summary.unscored} non scoré`} tone="neutral" />}
+            <Chip label={`${data.summary.inIcp} in ICP`} tone="good" />
+            {data.summary.outIcp > 0 && <Chip label={`${data.summary.outIcp} out of ICP`} tone="warn" />}
+            {data.summary.noDomain > 0 && <Chip label={`${data.summary.noDomain} no domain`} tone="warn" />}
+            {data.summary.unscored > 0 && <Chip label={`${data.summary.unscored} unscored`} tone="neutral" />}
           </section>
 
           {/* Live Apollo sample for the top accounts */}
           {data.samples.length > 0 && (
             <section>
               <div className="text-[12px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
-                Aperçu — qui sera trouvé (échantillon réel)
+                Preview — who will be found (live sample)
               </div>
               <div className="mt-1.5 space-y-2">
                 {data.samples.map((s) => (
                   <div key={s.accountId} className="rounded-md p-2.5" style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}>
                     <div className="text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-                      {s.name} · <span style={{ color: "var(--color-text-tertiary)" }}>{s.totalFound} trouvable{s.totalFound === 1 ? "" : "s"}</span>
+                      {s.name} · <span style={{ color: "var(--color-text-tertiary)" }}>{s.totalFound} match{s.totalFound === 1 ? "" : "es"}</span>
                     </div>
                     <ul className="mt-1 space-y-0.5">
                       {s.people.map((p, i) => (
@@ -208,7 +208,7 @@ export function SourcingPreviewModal({
                         </li>
                       ))}
                       {s.people.length === 0 && (
-                        <li className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>Aucun contact ne correspond au ciblage.</li>
+                        <li className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>No contact matches the targeting.</li>
                       )}
                     </ul>
                   </div>
@@ -220,7 +220,7 @@ export function SourcingPreviewModal({
           {/* Accounts — out-of-ICP flagged + removable (pre-removed by default) */}
           <section>
             <div className="text-[12px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
-              Comptes ({keptIds.length} gardé{keptIds.length === 1 ? "" : "s"})
+              Accounts ({keptIds.length} kept)
             </div>
             <div className="mt-1.5 max-h-52 space-y-1 overflow-y-auto">
               {data.accounts.map((a) => {
@@ -237,7 +237,7 @@ export function SourcingPreviewModal({
                         {a.name}
                       </span>
                       <Chip
-                        label={!a.hasDomain ? "pas de domaine" : a.grade ? `ICP ${a.grade}` : "non scoré"}
+                        label={!a.hasDomain ? "no domain" : a.grade ? `ICP ${a.grade}` : "unscored"}
                         tone={tone as "neutral" | "good" | "warn"}
                       />
                     </div>
@@ -248,7 +248,7 @@ export function SourcingPreviewModal({
                         className="shrink-0 text-[11px] hover:underline"
                         style={{ color: "var(--color-text-tertiary)" }}
                       >
-                        {removed.has(a.accountId) ? "Réintégrer" : "Retirer"}
+                        {removed.has(a.accountId) ? "Re-add" : "Remove"}
                       </button>
                     )}
                   </div>
