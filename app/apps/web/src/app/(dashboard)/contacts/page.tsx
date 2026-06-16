@@ -107,6 +107,12 @@ export default function ContactsPage() {
   // Archive view: true = show only soft-deleted contacts so they can be
   // reviewed and restored (parity with the Accounts archive).
   const [viewDeleted, setViewDeleted] = useState(false);
+  // "My network" — the founder's imported LinkedIn connections. The toggle
+  // filters the list to that cohort; the count drives whether it's shown.
+  const [networkOnly, setNetworkOnly] = useState(false);
+  const [networkCount, setNetworkCount] = useState(0);
+  const [networkImporting, setNetworkImporting] = useState(false);
+  const networkFileRef = useRef<HTMLInputElement>(null);
   // "Score all contacts" (header More menu): true while the tenant-wide
   // ICP-fit run is in flight, so the item can't double-fire.
   const [scoringAll, setScoringAll] = useState(false);
@@ -165,8 +171,9 @@ export default function ContactsPage() {
       else if (c.operator === "lte" || c.operator === "lt") params.set("fScoreMax", String(n));
       else if (c.operator === "eq") { params.set("fScoreMin", String(n)); params.set("fScoreMax", String(n)); }
     }
+    if (networkOnly) params.set("fNetwork", "true");
     return params;
-  }, [viewDeleted, debouncedSearch, debouncedColumnFilters, smartFilters]);
+  }, [viewDeleted, debouncedSearch, debouncedColumnFilters, smartFilters, networkOnly]);
 
   /** Fetch one page of contacts.
    *  - page=1, append=false → initial load / filter change (replaces list)
@@ -190,6 +197,7 @@ export default function ContactsPage() {
         if (data.filterOptions?.titles) setServerTitleOptions(data.filterOptions.titles);
         if (data.filterOptions?.industries) setServerIndustryOptions(data.filterOptions.industries);
         if (data.filterCounts) setServerFilterCounts(data.filterCounts);
+        if (typeof data.networkCount === "number") setNetworkCount(data.networkCount);
       }
     } catch (e) {
       console.warn("contacts: list fetch failed", e);
@@ -217,6 +225,7 @@ export default function ContactsPage() {
           if (data.filterOptions?.titles) setServerTitleOptions(data.filterOptions.titles);
           if (data.filterOptions?.industries) setServerIndustryOptions(data.filterOptions.industries);
           if (data.filterCounts) setServerFilterCounts(data.filterCounts);
+          if (typeof data.networkCount === "number") setNetworkCount(data.networkCount);
         }
       }
       setContacts(all);
@@ -293,6 +302,36 @@ export default function ContactsPage() {
       } else { setImportResult(`Error: ${data.error}`); }
     } catch { setImportResult("Import failed — network error"); }
     finally { setImporting(false); if (fileRef.current) fileRef.current.value = ""; }
+  }
+
+  /** Import the founder's LinkedIn `Connections.csv` -> network-tagged,
+   *  ICP-scored contacts (POST /api/network/import). On success we refresh the
+   *  list so the new cohort and the "My network" toggle appear. */
+  async function handleNetworkImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setNetworkImporting(true);
+    setImportResult(null);
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch("/api/network/import", { method: "POST", body: formData });
+      const data = await res.json();
+      if (res.ok) {
+        setImportResult(
+          `Network imported: ${data.imported} added, ${data.alreadyInDb} already present, ${data.scored} scored` +
+            (data.skipped ? `, ${data.skipped} skipped` : "") + ".",
+        );
+        await refetchLoadedContacts();
+      } else {
+        setImportResult(`Error: ${data.error ?? "import failed"}`);
+      }
+    } catch {
+      setImportResult("Import failed — network error");
+    } finally {
+      setNetworkImporting(false);
+      if (networkFileRef.current) networkFileRef.current.value = "";
+    }
   }
 
   function isEnriched(contact: Contact): boolean {
@@ -732,6 +771,23 @@ export default function ContactsPage() {
               </Button>
               <input ref={fileRef} type="file" accept=".csv" onChange={handleImport} className="hidden" disabled={importing} />
             </label>
+            <label className="cursor-pointer">
+              <Button variant="outline" size="sm" icon={<LinkedInIcon size={12} />} disabled={networkImporting} loading={networkImporting} onClick={() => networkFileRef.current?.click()}>
+                {networkImporting ? "Import…" : "My LinkedIn network"}
+              </Button>
+              <input ref={networkFileRef} type="file" accept=".csv" onChange={handleNetworkImport} className="hidden" disabled={networkImporting} />
+            </label>
+            {networkCount > 0 && (
+              <Button
+                variant={networkOnly ? "gradient" : "outline"}
+                size="sm"
+                icon={<Users size={12} />}
+                onClick={() => { setNetworkOnly((v) => !v); setSelectedRows(new Set()); }}
+                title="Filter to contacts imported from my LinkedIn network"
+              >
+                My network ({networkCount})
+              </Button>
+            )}
             <Button variant="gradient" size="sm" icon={<Plus size={12} />} onClick={() => setShowCreate(true)}>Create contact</Button>
           </>
         )}

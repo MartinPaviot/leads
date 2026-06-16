@@ -99,6 +99,10 @@ export function sprintAudienceConditions(audience: SprintAudience): SQL[] {
         AND d.value >= ${audience.dealValueMin}
     )`);
   }
+  // Network facet — the founder's imported LinkedIn connections.
+  if (audience.network) {
+    conds.push(sql`("contacts"."properties" ->> 'network') = 'true'`);
+  }
   return conds;
 }
 
