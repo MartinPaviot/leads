@@ -99,6 +99,7 @@ export async function GET(req: Request) {
         fromAddress: c.fromAddress,
         snippet: c.snippet,
         reason: c.reason,
+        reasonSource: c.reasonSource,
         handledNote: c.handledNote,
         lastInboundAt: c.lastInboundAt,
         lastMessageAt: c.lastMessageAt,

@@ -27,7 +27,7 @@ import { useToast } from "@/components/ui/toast";
 import { EmailComposerPanel, type EmailComposerDraft } from "@/components/email-composer-panel";
 import { MeetingSchedulerCard } from "@/components/meeting-scheduler";
 import { timeAgo } from "./_time-ago";
-import type { ConversationDetail, InboxLane } from "./_types";
+import { reasonTooltip, type ConversationDetail, type InboxLane } from "./_types";
 
 const SNOOZE_OPTIONS: Array<{ label: string; until: () => Date }> = [
   {
@@ -273,9 +273,15 @@ export function ConversationPane({
               <span className="truncate text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
                 {conv.subject}
               </span>
-              <span className="text-[11px] font-medium" style={{ color: "var(--color-accent)" }}>
-                {conv.reason}
-              </span>
+              {conv.reason && (
+                <span
+                  className="text-[11px] font-medium"
+                  style={{ color: "var(--color-accent)" }}
+                  title={reasonTooltip(conv.reasonSource)}
+                >
+                  {conv.reason}
+                </span>
+              )}
               {intel?.urgencyLevel && intel.urgencyLevel !== "none" && (
                 <Badge variant={intel.urgencyLevel === "high" ? "error" : "warning"} size="sm">
                   {intel.urgencyLevel === "high" ? "High urgency" : `Urgency: ${intel.urgencyLevel}`}

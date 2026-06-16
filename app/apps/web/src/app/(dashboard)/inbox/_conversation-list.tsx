@@ -9,7 +9,7 @@ import { Inbox, CheckCircle2, AlarmClock, Bot, Mail } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { timeAgo } from "./_time-ago";
-import type { ConversationListItem, InboxLane } from "./_types";
+import { reasonTooltip, type ConversationListItem, type InboxLane } from "./_types";
 
 const EMPTY_COPY: Record<InboxLane, { title: string; description: string }> = {
   attention: {
@@ -109,9 +109,15 @@ export function ConversationList({
                   aria-hidden
                 />
               )}
-              <span className="min-w-0 truncate text-[11px] font-medium" style={{ color: lane === "handled" ? "var(--color-text-tertiary)" : "var(--color-accent)" }}>
-                {c.reason}
-              </span>
+              {c.reason && (
+                <span
+                  className="min-w-0 truncate text-[11px] font-medium"
+                  style={{ color: lane === "handled" ? "var(--color-text-tertiary)" : "var(--color-accent)" }}
+                  title={reasonTooltip(c.reasonSource)}
+                >
+                  {c.reason}
+                </span>
+              )}
               {showMailbox && c.mailboxLabel && (
                 <span
                   className="ml-auto flex shrink-0 items-center gap-1 text-[10px]"

@@ -19,6 +19,8 @@ export interface ConversationListItem {
   fromAddress: string;
   snippet: string;
   reason: string;
+  /** Provenance of `reason` for the honest-badge tooltip (INBOX-T08). Null = no badge. */
+  reasonSource: "reply" | "summary" | "sentiment" | "handled" | null;
   handledNote: string | null;
   lastInboundAt: string | null;
   lastMessageAt: string | null;
@@ -62,6 +64,24 @@ export interface ConversationDetail {
   contact: { id: string; name: string; email: string | null } | null;
   enrollment: { id: string; sequenceId: string; sequenceName: string; status: string } | null;
   preparedDraft: { id: string; subject: string; body: string } | null;
+}
+
+/** Human label for where the badge text came from (INBOX-T08). Undefined = no tooltip. */
+export function reasonTooltip(
+  source: ConversationListItem["reasonSource"],
+): string | undefined {
+  switch (source) {
+    case "reply":
+      return "Reply to your outreach";
+    case "summary":
+      return "AI summary";
+    case "sentiment":
+      return "Reply sentiment";
+    case "handled":
+      return "Handled automatically";
+    default:
+      return undefined;
+  }
 }
 
 export interface LaneCounts {

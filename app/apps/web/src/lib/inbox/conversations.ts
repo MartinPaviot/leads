@@ -53,6 +53,9 @@ export interface TriageRow {
 
 export type Lane = "attention" | "handled" | "snoozed" | "done";
 
+/** Where a conversation's `reason` line came from — drives the honest-badge tooltip (INBOX-T08). */
+export type ReasonSource = "reply" | "summary" | "sentiment" | "handled" | null;
+
 export interface ConversationMessage {
   id: string;
   direction: "inbound" | "outbound";
@@ -76,6 +79,8 @@ export interface Conversation {
   fromAddress: string;
   snippet: string;
   reason: string;
+  /** Provenance of `reason`, for the honest-badge tooltip. Null when there is no badge. */
+  reasonSource: ReasonSource;
   /** What the pipeline did, for the handled lane. Null elsewhere. */
   handledNote: string | null;
   lastInboundAt: string | null;
@@ -281,20 +286,44 @@ export function buildConversations(input: {
 
     const priority = Math.min(4, ...labels.map((l) => PRIORITY_BY_LABEL[l] ?? 4));
 
+    // Honest badge (INBOX-T08): a sales-reply label ("Asked about pricing",
+    // "Introduction", "Forwarded internally"…) is only legitimate on a genuine
+    // reply to one of OUR outbound emails. On general or automated inbound we
+    // never guess a sales meaning — we show a neutral AI summary line when one
+    // was cached (INBOX-S02), otherwise nothing. The bare "Replied" fallback is
+    // never emitted: an empty reason renders no badge, which is honest.
+    const aiSummaryLine =
+      typeof (lastInbound?.metadata as Record<string, unknown> | null)?.aiSummaryLine === "string"
+        ? ((lastInbound!.metadata as Record<string, unknown>).aiSummaryLine as string).trim()
+        : "";
+
     let reason: string;
+    let reasonSource: ReasonSource;
     if (lane === "handled") {
       reason = handledNote ?? "Handled";
+      reasonSource = "handled";
     } else {
-      const reasonLabel = [...labels].sort(
-        (a, b) => (PRIORITY_BY_LABEL[a] ?? 4) - (PRIORITY_BY_LABEL[b] ?? 4),
-      )[0];
-      reason =
-        (reasonLabel && REASON_BY_LABEL[reasonLabel]) ||
-        (lastInbound?.sentiment === "positive"
-          ? "Positive reply"
-          : lastInbound?.sentiment === "negative"
-            ? "Negative reply"
-            : "Replied");
+      const hasOutbound = g.outbound.length > 0;
+      const reasonLabel = hasOutbound
+        ? [...labels].sort((a, b) => (PRIORITY_BY_LABEL[a] ?? 4) - (PRIORITY_BY_LABEL[b] ?? 4))[0]
+        : undefined;
+      const mappedLabel = reasonLabel ? REASON_BY_LABEL[reasonLabel] : undefined;
+      if (mappedLabel) {
+        reason = mappedLabel;
+        reasonSource = "reply";
+      } else if (aiSummaryLine) {
+        reason = aiSummaryLine;
+        reasonSource = "summary";
+      } else if (hasOutbound && lastInbound?.sentiment === "positive") {
+        reason = "Positive reply";
+        reasonSource = "sentiment";
+      } else if (hasOutbound && lastInbound?.sentiment === "negative") {
+        reason = "Negative reply";
+        reasonSource = "sentiment";
+      } else {
+        reason = "";
+        reasonSource = null;
+      }
     }
 
     const messages: ConversationMessage[] = [
@@ -355,6 +384,7 @@ export function buildConversations(input: {
           lastOutbound?.bodyText,
       ),
       reason,
+      reasonSource,
       handledNote,
       lastInboundAt: lastInbound ? toIso(lastInbound.occurredAt) : null,
       lastMessageAt: lastMessage?.at ?? null,

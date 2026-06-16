@@ -326,14 +326,15 @@ describe("priority + ordering + reasons", () => {
     expect(convs[0].reason).toBe("Meeting request");
   });
 
-  it("falls back to sentiment for the reason when no label matches", () => {
+  it("uses sentiment for the reason only on a genuine reply (has outbound)", () => {
     const convs = buildConversations({
       inbound: [inbound({ id: "i1", threadId: "t1", sentiment: "positive" })],
-      outbound: [],
+      outbound: [outbound({ id: "o1", threadId: "t1" })],
       triage: [],
       now: NOW,
     });
     expect(convs[0].reason).toBe("Positive reply");
+    expect(convs[0].reasonSource).toBe("sentiment");
   });
 
   it("ties within a bucket break by freshest inbound first", () => {
@@ -347,6 +348,81 @@ describe("priority + ordering + reasons", () => {
       now: NOW,
     });
     expect(convs.map((c) => c.key)).toEqual(["t-new", "t-old"]);
+  });
+});
+
+describe("honest badge (INBOX-T08)", () => {
+  it("never shows a sales-reply label on general inbound (no outbound)", () => {
+    // intent ["introduction"] maps to "Introduction" — but with no outbound this
+    // is not a reply to us, so we must not assert a sales meaning on it.
+    const convs = buildConversations({
+      inbound: [inbound({ id: "i1", threadId: "t1", intent: ["introduction"] })],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].reason).toBe("");
+    expect(convs[0].reasonSource).toBeNull();
+  });
+
+  it("never emits the bare 'Replied' fallback", () => {
+    const convs = buildConversations({
+      inbound: [inbound({ id: "i1", threadId: "t1", sentiment: "neutral", intent: [] })],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].reason).toBe("");
+    expect(convs[0].reason).not.toBe("Replied");
+  });
+
+  it("shows the cached AI summary line for general inbound when present", () => {
+    const convs = buildConversations({
+      inbound: [
+        inbound({
+          id: "i1",
+          threadId: "t1",
+          // anna.keller@ is a confirmed human sender (stays in attention), so the
+          // summary path — not the automated-handled path — is exercised.
+          metadata: { from: "anna.keller@romandco.ch", aiSummaryLine: "Login code from your hosting provider" },
+        }),
+      ],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].reason).toBe("Login code from your hosting provider");
+    expect(convs[0].reasonSource).toBe("summary");
+  });
+
+  it("maps a real sequence-reply classification to friendly text", () => {
+    const convs = buildConversations({
+      inbound: [inbound({ id: "i1", threadId: "t1", intent: ["pricing_inquiry"] })],
+      outbound: [outbound({ id: "o1", threadId: "t1" })],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].reason).toBe("Asked about pricing");
+    expect(convs[0].reasonSource).toBe("reply");
+  });
+
+  it("a real label beats both summary and sentiment on a reply", () => {
+    const convs = buildConversations({
+      inbound: [
+        inbound({
+          id: "i1",
+          threadId: "t1",
+          sentiment: "positive",
+          intent: ["meeting_request"],
+          metadata: { from: "prospect@acme.ch", aiSummaryLine: "should be ignored" },
+        }),
+      ],
+      outbound: [outbound({ id: "o1", threadId: "t1" })],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].reason).toBe("Meeting request");
+    expect(convs[0].reasonSource).toBe("reply");
   });
 });
 
