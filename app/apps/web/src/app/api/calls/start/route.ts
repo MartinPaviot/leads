@@ -14,6 +14,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { getVoiceProvider, VoiceProviderError } from "@/lib/voice";
 import { isOnDnc } from "@/lib/voice/dnc";
+import { recordScoreSnapshot } from "@/lib/scoring/score-snapshot";
 import {
   parseE164,
   requiresTwoPartyConsent,
@@ -186,6 +187,16 @@ export async function POST(req: Request) {
         scriptContext: input.scriptContext ?? null,
       })
       .returning({ id: calls.id });
+
+    // Snapshot the contact's grade AT this call so score calibration joins the
+    // outcome to the grade live at the touch (no look-ahead). Non-fatal.
+    await recordScoreSnapshot({
+      tenantId: authCtx.tenantId,
+      entityType: "contact",
+      entityId: contact.id,
+      event: "call_attempt",
+      eventRef: callRow.id,
+    });
 
     // 8. Issue the capability token. We do NOT place the prospect call here:
     // the rep's browser (Twilio Voice SDK) connects as the AGENT leg, and the

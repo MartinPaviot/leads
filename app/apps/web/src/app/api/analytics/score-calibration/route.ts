@@ -70,6 +70,25 @@ async function gradeOutcomeRows(tenantId: string, outcome: string): Promise<Grad
   }));
 }
 
+/** Look-ahead-free cells for meeting_booked: the contact's grade AT each call
+ *  (score_snapshots) × whether THAT call booked. Empty until calls accrue. */
+async function snapshotRowsMeetingBooked(tenantId: string): Promise<GradeOutcomeRow[]> {
+  const rows = await db.execute(sql`
+    SELECT s.grade AS grade,
+      count(*)::int AS n,
+      count(*) FILTER (WHERE c.outcome = 'meeting_booked')::int AS converted
+    FROM score_snapshots s
+    JOIN calls c ON c.id = s.event_ref AND c.tenant_id = ${tenantId}
+    WHERE s.tenant_id = ${tenantId} AND s.event = 'call_attempt' AND s.entity_type = 'contact'
+    GROUP BY s.grade
+  `);
+  return (rows as unknown as Array<{ grade: string; n: number; converted: number }>).map((r) => ({
+    grade: r.grade,
+    n: Number(r.n),
+    converted: Number(r.converted),
+  }));
+}
+
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();
   if (!authCtx) return apiError("UNAUTHORIZED", "Authentication required");
@@ -80,8 +99,22 @@ export async function GET(req: Request) {
   }
 
   try {
-    const rows = await gradeOutcomeRows(authCtx.tenantId, outcome);
-    return Response.json(buildCalibration(outcome, rows));
+    // Prefer the look-ahead-free snapshot path for meeting_booked; fall back to
+    // the v1 current-grade path when no snapshots exist yet (or other outcomes).
+    let source: "snapshot" | "current" = "current";
+    let rows: GradeOutcomeRow[] = [];
+    if (outcome === "meeting_booked") {
+      const snap = await snapshotRowsMeetingBooked(authCtx.tenantId);
+      if (snap.reduce((sum, r) => sum + r.n, 0) > 0) {
+        rows = snap;
+        source = "snapshot";
+      }
+    }
+    if (rows.length === 0) {
+      rows = await gradeOutcomeRows(authCtx.tenantId, outcome);
+      source = "current";
+    }
+    return Response.json({ ...buildCalibration(outcome, rows), source });
   } catch (error) {
     console.error("Score calibration failed:", error);
     return apiError("INTERNAL_ERROR", "Calibration failed");

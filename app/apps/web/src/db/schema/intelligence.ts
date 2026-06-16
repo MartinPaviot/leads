@@ -239,6 +239,32 @@ export const signalOutcomes = pgTable(
   ]
 );
 
+/**
+ * Score snapshots — a prospect's grade/score AT a funnel-entry event (call
+ * attempt, sequence enroll, email send). Calibration joins the OUTCOME back to
+ * the grade that was live at the touch, not the current re-scored grade —
+ * removing look-ahead bias (_specs/propensity-scoring A1).
+ */
+export const scoreSnapshots = pgTable(
+  "score_snapshots",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    entityType: text("entity_type").notNull(), // 'contact' | 'company'
+    entityId: text("entity_id").notNull(),
+    grade: text("grade").notNull(), // A+ … F at the event
+    score: real("score").notNull(),
+    event: text("event").notNull(), // 'call_attempt' | 'sequence_enroll' | 'email_sent'
+    eventRef: text("event_ref"), // the call / enrollment / email id, when known
+    at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("score_snapshots_tenant_idx").on(table.tenantId),
+    index("score_snapshots_tenant_event_idx").on(table.tenantId, table.event),
+    index("score_snapshots_event_ref_idx").on(table.eventRef),
+  ]
+);
+
 export const contextGraphEdges = pgTable(
   "context_graph_edges",
   {

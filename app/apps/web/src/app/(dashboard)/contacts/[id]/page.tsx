@@ -15,6 +15,7 @@ import { DetailPageSkeleton } from "@/components/ui/skeleton";
 import { OwnerSelect } from "@/components/owner-select";
 import { useToast } from "@/components/ui/toast";
 import { ContactCallProfile } from "@/components/call-intel";
+import { ScoreExplainLine } from "@/components/score-explain-line";
 
 interface BuyerIntentSignal {
   type: string;
@@ -365,6 +366,9 @@ export default function ContactDetailPage() {
       <div className="w-full shrink-0 border-t p-6 lg:w-[300px] lg:border-t-0 lg:border-l overflow-auto" style={{ borderColor: "var(--color-border-default)" }}>
         {/* Buyer Intent Score */}
         {buyerIntent && <BuyerIntentCard data={buyerIntent} />}
+
+        {/* "Pourquoi ce grade" — propensity rationale + confidence */}
+        <ScoreExplainLine contactId={contactId} />
 
         {/* What the last call revealed about this person (role / disposition) */}
         <ContactCallProfile properties={contact.properties} className={buyerIntent ? "mt-6" : undefined} entityId={contactId} />
