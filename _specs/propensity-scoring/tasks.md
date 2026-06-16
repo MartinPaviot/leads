@@ -70,10 +70,12 @@ Phased so we MEASURE before we rebuild. Each task: implement → verify → test
   - Test: cited fact present → scored; no evidence → unscored + confidence drop.
 
 ## Status
-Spec drafted + **Phase A pure cores BUILT** (commit 7e4f34e4): calibration (A2),
-rationale (A3), confidence (A4) + the `GET /api/analytics/score-calibration` v1
-report — 14 unit tests, tsc-clean. Remaining in Phase A: **A1 score_snapshots**
-(grade live at funnel-entry → kills the v1 look-ahead bias) and **surface
-rationale + confidence in the UI** (contact/account detail + call brief), then
-A5 live read of the real Pilae calibration verdict. Then Phase B (graded depth +
-propensity → grade + learned weights) and C (bounded LLM pain).
+**Phase A cores + surfacing endpoint BUILT** (commits 7e4f34e4 cores + 881e0af7
+explain): calibration (A2) + rationale (A3) + confidence (A4) +
+`GET /api/analytics/score-calibration` (report) + `score-factors` assembler +
+`GET /api/contacts/[id]/score-explain` ("why this grade" on demand). 20 unit
+tests, tsc-clean. Remaining in Phase A: **A1 score_snapshots** (grade live at
+funnel-entry → kills the v1 calibration look-ahead) and a **thin UI wire** of
+rationale/confidence on the contact detail + call brief, then A5 live read of the
+real Pilae verdict. Then Phase B (graded depth + propensity → grade + learned
+weights) and C (bounded LLM pain).
