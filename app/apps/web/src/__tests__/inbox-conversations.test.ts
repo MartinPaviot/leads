@@ -179,6 +179,39 @@ describe("lanes", () => {
     expect(convs[0].lane).toBe("handled");
     expect(convs[0].handledNote).toContain("Bounced");
   });
+
+  it("routes an automated/role sender (noreply@) to handled — never attention", () => {
+    const convs = buildConversations({
+      inbound: [
+        inbound({
+          id: "i1",
+          threadId: "t1",
+          metadata: { from: "Infomaniak <no-reply@infomaniak.com>", to: "martin@pilae.ch" },
+        }),
+      ],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].lane).toBe("handled");
+    expect(convs[0].handledNote).toContain("Automated");
+  });
+
+  it("keeps a human sender in attention (role detection doesn't over-match)", () => {
+    const convs = buildConversations({
+      inbound: [
+        inbound({
+          id: "i1",
+          threadId: "t1",
+          metadata: { from: "Anna Keller <anna.keller@romandco.ch>", to: "martin@pilae.ch" },
+        }),
+      ],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].lane).toBe("attention");
+  });
 });
 
 describe("triage state machine (computed reopen)", () => {

@@ -19,6 +19,7 @@ import {
   type KpiMetrics,
   type Actualite,
 } from "@/lib/home/up-next";
+import { isExcludedAsLead } from "@/lib/inbound/lead-status";
 
 /**
  * `/api/home/up-next` — the founder's dashboard in one read: KPIs + a cross-page
@@ -91,8 +92,25 @@ async function loadReplies(
       await loadConversationRows(tenantId),
       scope,
     );
-    return buildConversations({ inbound, outbound, triage })
-      .filter((c) => c.lane === "attention")
+    const attention = buildConversations({ inbound, outbound, triage }).filter(
+      (c) => c.lane === "attention",
+    );
+    // Respect the human/LLM "not a lead" verdict (tranche 3): a contact marked
+    // not-a-lead must not reappear as a task here either. (Automated senders are
+    // already dropped to the handled lane inside buildConversations.)
+    const cids = [...new Set(attention.map((c) => c.contactId).filter((x): x is string => !!x))];
+    const excludedIds = new Set<string>();
+    if (cids.length) {
+      const rows = await db
+        .select({ id: contacts.id, properties: contacts.properties })
+        .from(contacts)
+        .where(and(eq(contacts.tenantId, tenantId), inArray(contacts.id, cids)));
+      for (const r of rows) {
+        if (isExcludedAsLead(r.properties as Record<string, unknown> | null)) excludedIds.add(r.id);
+      }
+    }
+    return attention
+      .filter((c) => !(c.contactId && excludedIds.has(c.contactId)))
       .slice(0, 25)
       .map((c) => ({
         conversationKey: c.key,
