@@ -1474,6 +1474,7 @@ export default function CallModePage() {
               <CallScriptPanel
                 contactName={selected.contactName}
                 companyName={selected.companyName}
+                companyDomain={selected.companyDomain}
                 contactId={selected.contactId}
                 defaultSector={brain?.companyBrain?.company?.industry}
                 defaultGeo={speakableGeo(brain?.companyBrain?.company?.location, selected.localTimezone)}

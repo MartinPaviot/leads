@@ -288,26 +288,35 @@ export function peerLeadFor(_sector?: string | null): string {
 // "hospital & health care"); the company name disambiguates.
 const MATCH_ORDER = ["it", "education", "international", "fondations", "sante", "parapublic", "conseil", "low-tech"];
 
-/** Pick the best script for a company. Pass the NAME + industry (the name wins
- * via MATCH_ORDER). Substring match, accent/case-insensitive; falls back to a
- * generic (mature) script. */
-export function pickCallScript(sector: string | null | undefined): CallScript {
-  const s = norm(sector ?? "");
-  if (s) {
-    for (const key of MATCH_ORDER) {
-      const entry = SECTOR_SCRIPTS.find((e) => e.key === key);
-      if (entry && entry.match.some((m) => s.includes(norm(m)))) {
-        return {
-          key: entry.key,
-          segment: entry.segment,
-          problems: enjeuxFor(entry.segment),
-          qualifiers: entry.qualifiers,
-          line: entry.line,
-          note: entry.note,
-          bookingAsk: BOOKING_ASK,
-        };
-      }
-    }
+/** Every sector key the classifier can resolve to (incl. generic). */
+export const SECTOR_KEYS = [...MATCH_ORDER, "generic"] as const;
+
+/** Substring match (accent/case-insensitive) of free text → a sector key, in
+ *  precedence order (org-type before topic), or null. The waterfall uses this
+ *  for the NAME and INDUSTRY signals. */
+export function matchSectorKey(text: string | null | undefined): string | null {
+  const s = norm(text ?? "");
+  if (!s) return null;
+  for (const key of MATCH_ORDER) {
+    const entry = SECTOR_SCRIPTS.find((e) => e.key === key);
+    if (entry && entry.match.some((m) => s.includes(norm(m)))) return key;
+  }
+  return null;
+}
+
+/** Build the CallScript for a known sector key (generic if unknown/empty). */
+export function scriptForKey(key: string | null | undefined): CallScript {
+  const entry = SECTOR_SCRIPTS.find((e) => e.key === key);
+  if (entry) {
+    return {
+      key: entry.key,
+      segment: entry.segment,
+      problems: enjeuxFor(entry.segment),
+      qualifiers: entry.qualifiers,
+      line: entry.line,
+      note: entry.note,
+      bookingAsk: BOOKING_ASK,
+    };
   }
   return {
     key: "generic",
@@ -316,6 +325,29 @@ export function pickCallScript(sector: string | null | undefined): CallScript {
     qualifiers: GENERIC_QUALIFIERS,
     line: GENERIC_LINE,
     bookingAsk: BOOKING_ASK,
+  };
+}
+
+/** Pick the best script from free text (name/industry substring). Falls back
+ *  to generic. (The full multi-signal waterfall lives in sector-classify.) */
+export function pickCallScript(sector: string | null | undefined): CallScript {
+  return scriptForKey(matchSectorKey(sector) ?? "generic");
+}
+
+/** The opener sector↔subject line for a known sector key. */
+export function lineForKey(key: string | null | undefined): string {
+  return scriptForKey(key).line;
+}
+
+/** Default editable fields for a known sector key. */
+export function defaultScriptFieldsForKey(key: string | null | undefined): ScriptFields {
+  const base = scriptForKey(key);
+  return {
+    opener: DEFAULT_OPENER,
+    problems: base.problems,
+    permissionCheck: PERMISSION_CHECK,
+    bookingAsk: base.bookingAsk,
+    guidance: composeGuidance(base),
   };
 }
 
