@@ -69,6 +69,9 @@ export interface SyncedEmail {
   body: string;
   date: Date;
   direction: "inbound" | "outbound";
+  /** Raw RFC headers (lower-cased keys) when the transport exposes them —
+   *  drives machine-sent detection (List-Unsubscribe, Precedence, …). */
+  headers?: Record<string, string> | null;
 }
 
 export async function fetchRecentEmails(
@@ -128,6 +131,13 @@ export async function fetchRecentEmails(
           ? "outbound"
           : "inbound";
 
+      // Normalise Gmail's {name,value}[] headers to a lower-cased record so the
+      // inbound classifier can read List-Unsubscribe / Precedence / Auto-Submitted.
+      const headerRecord: Record<string, string> = {};
+      for (const h of headers) {
+        if (h.name && h.value) headerRecord[h.name.toLowerCase()] = h.value;
+      }
+
       emails.push({
         gmailMessageId: msg.id,
         threadId: msg.threadId || "",
@@ -139,6 +149,7 @@ export async function fetchRecentEmails(
         body: body.slice(0, 50000), // cap at 50k chars
         date: dateStr ? new Date(dateStr) : new Date(),
         direction,
+        headers: Object.keys(headerRecord).length ? headerRecord : null,
       });
     } catch (err) {
       // Skip messages that fail to fetch (deleted, etc.)

@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import { runSkill } from "@/skills/runner";
 import { inboundLeadEnrichmentSkill } from "@/skills/enrichment/inbound-lead-enrichment";
 import { inboundLeadQualificationSkill } from "@/skills/scoring/inbound-lead-qualification";
+import { confirmHotInboundIsLead } from "@/lib/inbound/relationship-check";
 
 /**
  * When a contact is created, auto-enrich via Apollo then qualify.
@@ -65,7 +66,19 @@ export const onContactCreatedEnrichAndQualify = inngest.createFunction(
         recommendedAction: string;
       };
 
-      if (data.priority === "hot") {
+      let shouldNotify = data.priority === "hot";
+      // Inbound EMAIL only: confirm the sender is genuinely a prospect (not a
+      // vendor we pay, a recruiter, or a newsletter that slipped the
+      // deterministic stage) before raising a "Hot inbound lead". Other sources
+      // (demo forms, referrals) are already high-intent. Fail-open: a null or
+      // uncertain verdict keeps the notification. See _specs/inbound-lead-recognition/.
+      if (shouldNotify && source === "inbound_email") {
+        const conf = await step.run("confirm-inbound-relationship", async () => {
+          return await confirmHotInboundIsLead({ contactId, tenantId });
+        });
+        shouldNotify = conf.isLead;
+      }
+      if (shouldNotify) {
         await step.run("notify-hot-lead", async () => {
           // Fan out to every user in the tenant — notifications.userId is required.
           const recipients = await db

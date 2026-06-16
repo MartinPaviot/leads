@@ -311,7 +311,14 @@ export async function captureInboundEmail(
       contactCreated = true;
       companyId = newContact.companyId;
       void inngest
-        .send({ name: "contact/created", data: { contactId: newContact.id, tenantId } })
+        .send({
+          name: "contact/created",
+          // Tag the origin so the qualify handler runs the inbound relationship
+          // gate (prospect vs vendor/recruiter) before any "Hot inbound"
+          // notification — and so sourced/imported contacts never masquerade as
+          // inbound. See _specs/inbound-lead-recognition/.
+          data: { contactId: newContact.id, tenantId, source: "inbound_email" },
+        })
         .catch(() => {});
     } else {
       companyId = resolvedCompanyId;

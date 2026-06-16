@@ -208,6 +208,37 @@ describe("captureInboundEmail — attribution matrix", () => {
     expect(lc.isMachineSent).toBe(true);
     expect(lc.senderType).toBe("automated_transactional");
   });
+
+  it("List-Unsubscribe header: human-looking sender treated as machine, no contact created", async () => {
+    selectQueue = [
+      [], // dedup
+      [], // no contact by sender
+      [{ id: "co-77" }], // company matched by domain
+    ];
+    const r = await captureInboundEmail({
+      ...baseInput,
+      fromHeader: "Jane Doe <jane@startup.com>",
+      subject: "Product news",
+      text: "Latest updates from us.",
+      headers: { "List-Unsubscribe": "<https://startup.com/u/abc>" },
+    });
+    expect(r.captured).toBe(true);
+    expect(r.contactCreated).toBe(false);
+    expect(inserts).toHaveLength(0);
+    expect(sent.some((e) => e.name === "contact/created")).toBe(false);
+    const activity = recordCapturedActivity.mock.calls[0][0] as {
+      activity: { entityType: string; metadata: Record<string, unknown> };
+    };
+    expect(activity.activity.entityType).toBe("company");
+    const lc = activity.activity.metadata.leadClassification as {
+      isMachineSent: boolean;
+      isBulk: boolean;
+      senderType: string;
+    };
+    expect(lc.isMachineSent).toBe(true);
+    expect(lc.isBulk).toBe(true);
+    expect(lc.senderType).toBe("automated_marketing");
+  });
 });
 
 describe("normalizeSyncDate", () => {

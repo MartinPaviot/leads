@@ -29,7 +29,25 @@ export async function POST(req: Request) {
 
   switch (event.event) {
     case "messageNew": {
-      const { account, from, to, subject, text, messageId, threadId } = event.data || {};
+      const { account, from, to, subject, text, messageId, threadId, headers: rawHeaders } = event.data || {};
+
+      // EmailEngine includes RFC headers in `messageNew` when the webhook is
+      // configured with notifyHeaders. Normalise the object/array shape to a
+      // lower-cased record so the classifier sees List-Unsubscribe / Precedence;
+      // absent ⇒ null (capture falls back to role-local-part detection).
+      const eeHeaders: Record<string, string> = {};
+      if (rawHeaders && typeof rawHeaders === "object") {
+        const entries = Array.isArray(rawHeaders)
+          ? (rawHeaders as Array<{ key?: string; name?: string; value?: string; line?: string }>).map(
+              (h) => [h.key ?? h.name, h.value ?? h.line] as const,
+            )
+          : Object.entries(rawHeaders as Record<string, unknown>);
+        for (const [k, v] of entries) {
+          if (typeof k === "string") {
+            eeHeaders[k.toLowerCase()] = Array.isArray(v) ? v.map((x) => String(x)).join(", ") : String(v ?? "");
+          }
+        }
+      }
 
       // Resolve the receiving tenant from the connected mailbox, so inbound
       // that isn't tied to one of our outbound threads can still be captured.
@@ -99,6 +117,7 @@ export async function POST(req: Request) {
           messageId: messageId ?? null,
           threadId: threadId ?? null,
           knownContactId,
+          headers: Object.keys(eeHeaders).length ? eeHeaders : null,
         }).catch((e) => console.warn("emailengine: inbound capture failed", e));
       }
 

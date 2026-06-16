@@ -123,6 +123,17 @@ export async function fetchRecentEmailsImap(
         fromEmail === m.emailAddress.toLowerCase() ? "outbound" : "inbound";
       const body = (parsed.text || parsed.html || "").toString();
 
+      // Normalise mailparser's header Map to a lower-cased record so the
+      // inbound classifier can read List-Unsubscribe / Precedence / Auto-Submitted.
+      const headerRecord: Record<string, string> = {};
+      if (parsed.headers) {
+        for (const [k, v] of parsed.headers) {
+          headerRecord[String(k).toLowerCase()] = Array.isArray(v)
+            ? v.map((x) => String(x)).join(", ")
+            : String(v ?? "");
+        }
+      }
+
       emails.push({
         // Stable dedup key: the RFC Message-ID, else a synthetic UID key.
         gmailMessageId: parsed.messageId || `imap-${m.emailAddress}-${msg.uid}`,
@@ -135,6 +146,7 @@ export async function fetchRecentEmailsImap(
         body,
         date: parsed.date || new Date(),
         direction,
+        headers: Object.keys(headerRecord).length ? headerRecord : null,
       });
 
       if (++count >= MAX_PER_RUN) break;
