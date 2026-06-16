@@ -8,6 +8,7 @@ import { embedEntity, contactToText } from "@/lib/ai/embeddings";
 import { extractDomain } from "@/lib/util/email";
 import { checkPlanLimit } from "@/lib/billing/plan-limits";
 import { apiError } from "@/lib/infra/api-errors";
+import { phoneRegionKeySql } from "@/lib/contacts/phone-region";
 import { z } from "zod";
 
 const createContactSchema = z.object({
@@ -118,6 +119,10 @@ export async function GET(req: Request) {
     const fGrade = (url.searchParams.get("fGrade") || "").split(",").map((s) => s.trim()).filter(Boolean);
     const fLinkedin = url.searchParams.get("fLinkedin"); // "has" | "empty"
     const fPhone = url.searchParams.get("fPhone"); // "has" | "empty"
+    // Phone region — multi-select of country dial codes ("41", "33", …) plus
+    // the "none"/"unknown" sentinels. Computed in SQL from the phone-region
+    // SSOT so it spans ALL contacts (the list paginates), not just the page.
+    const fPhoneRegion = (url.searchParams.get("fPhoneRegion") || "").split(",").map((s) => s.trim()).filter(Boolean);
 
     if (fName) conds.push(sql`(coalesce(${contacts.firstName}, '') || ' ' || coalesce(${contacts.lastName}, '')) ILIKE ${"%" + fName + "%"}`);
     if (fEmail) conds.push(sql`${contacts.email} ILIKE ${"%" + fEmail + "%"}`);
@@ -162,6 +167,10 @@ export async function GET(req: Request) {
     if (fLinkedin === "empty") conds.push(sql`(${contacts.linkedinUrl} IS NULL OR ${contacts.linkedinUrl} = '')`);
     if (fPhone === "has") conds.push(sql`(${contacts.phone} IS NOT NULL AND ${contacts.phone} <> '')`);
     if (fPhone === "empty") conds.push(sql`(${contacts.phone} IS NULL OR ${contacts.phone} = '')`);
+    if (fPhoneRegion.length > 0) {
+      const regionExpr = sql.raw(phoneRegionKeySql('"contacts"."phone"'));
+      conds.push(sql`(${regionExpr}) = ANY(ARRAY[${sql.join(fPhoneRegion.map((r) => sql`${r}`), sql`, `)}]::text[])`);
+    }
 
     // Smart-filter score threshold (e.g. "high fit" -> score >= 70), applied
     // server-side so the count reflects it — parity with /api/accounts.
@@ -362,6 +371,26 @@ export async function GET(req: Request) {
       console.warn("Failed to fetch contact grade counts:", e);
     }
 
+    // Phone-region band counts (dial code / none / unknown) over the active
+    // view, mirroring phoneRegionKeySql, for the Phone column "(N)" + the
+    // dropdown's option list. Same SSOT the fPhoneRegion filter uses.
+    const phoneRegionCounts: Record<string, number> = {};
+    try {
+      const regionExpr = sql.raw(phoneRegionKeySql('"contacts"."phone"'));
+      const rows = await db.execute(sql`
+        SELECT ${regionExpr} AS region, count(*)::int AS count
+        FROM contacts
+        WHERE tenant_id = ${authCtx.tenantId}
+          AND ${showDeleted ? sql`deleted_at IS NOT NULL` : sql`deleted_at IS NULL`}
+        GROUP BY 1
+      `);
+      for (const r of rows as unknown as Array<{ region: string | null; count: number }>) {
+        if (r.region) phoneRegionCounts[r.region] = Number(r.count);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch contact phone-region counts:", e);
+    }
+
     // Canonical paginated shape (items + legacy `contacts`) plus server-sourced
     // filter options for the header dropdowns.
     const totalPages = Math.ceil(total / pageSize);
@@ -377,6 +406,7 @@ export async function GET(req: Request) {
         industry: Object.fromEntries(industryOptions.map((o) => [o.industry, o.count])),
         title: titleCounts,
         score: scoreCounts,
+        phone: phoneRegionCounts,
       },
     });
   } catch (error) {

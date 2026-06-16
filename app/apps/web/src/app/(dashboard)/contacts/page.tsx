@@ -24,6 +24,7 @@ import { ColumnFilter, isColumnFilterActive, type ColumnFilterKind, type ColumnF
 import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-delete-modal";
 import { chunkedBulkCall } from "@/lib/infra/chunk-bulk";
 import { selectAllMatchingIds } from "@/lib/infra/select-all-matching";
+import { phoneRegionLabel, PHONE_REGION_NONE, PHONE_REGION_UNKNOWN } from "@/lib/contacts/phone-region";
 
 function LinkedInIcon({ size = 13 }: { size?: number }) {
   return (
@@ -151,7 +152,8 @@ export default function ContactsPage() {
     if (vals("companyName").length) params.set("fCompany", vals("companyName").join(","));
     if (vals("score").length) params.set("fGrade", vals("score").join(","));
     if (pres("linkedin")) params.set("fLinkedin", pres("linkedin")!);
-    if (pres("phone")) params.set("fPhone", pres("phone")!);
+    // Phone is now a region multi-select (dial codes + none/unknown) → fPhoneRegion.
+    if (vals("phone").length) params.set("fPhoneRegion", vals("phone").join(","));
     // Industry column filter -> the contact's company industry (server-side,
     // same subquery shape as fCompany).
     if (vals("industry").length) params.set("fIndustry", vals("industry").join(","));
@@ -620,19 +622,37 @@ export default function ContactsPage() {
     // user picks the precise roles instead of guessing a substring.
     title: { label: "Title", kind: "enum" },
     linkedin: { label: "LinkedIn", kind: "presence" },
-    phone: { label: "Phone", kind: "presence" },
+    // Phone is filtered by country dial code (+41 / +33 / …) plus a "Sans
+    // numéro" bucket — richer than has/empty, and what a romand rep needs to
+    // split Swiss prospects from French noise. Server-computed (fPhoneRegion).
+    phone: { label: "Phone", kind: "enum" },
     score: { label: "Score", kind: "enum" },
   };
 
   // Enum filter options come from the server now: company names across ALL
   // contacts (not just the loaded page, which would hide values the server can
   // still filter on), and grades are a fixed scale.
-  const columnOptions = useMemo<Record<string, string[]>>(() => ({
-    companyName: serverCompanyOptions,
-    title: serverTitleOptions,
-    industry: serverIndustryOptions.map((o) => o.industry),
-    score: ["A+", "A", "B", "C", "D", "F"],
-  }), [serverCompanyOptions, serverTitleOptions, serverIndustryOptions]);
+  const columnOptions = useMemo<Record<string, Array<string | { value: string; label: string }>>>(() => {
+    // Phone-region options come from the server facet counts: dial codes
+    // ordered by frequency, with the "Sans numéro"/"Indicatif inconnu" buckets
+    // pinned last. Labels via the SSOT so "41" shows as "Suisse · +41".
+    const phoneCounts = serverFilterCounts?.phone ?? {};
+    const phoneRegions = Object.keys(phoneCounts)
+      .sort((a, b) => {
+        const sa = a === PHONE_REGION_NONE || a === PHONE_REGION_UNKNOWN ? 1 : 0;
+        const sb = b === PHONE_REGION_NONE || b === PHONE_REGION_UNKNOWN ? 1 : 0;
+        if (sa !== sb) return sa - sb;
+        return (phoneCounts[b] ?? 0) - (phoneCounts[a] ?? 0);
+      })
+      .map((key) => ({ value: key, label: phoneRegionLabel(key) }));
+    return {
+      companyName: serverCompanyOptions,
+      title: serverTitleOptions,
+      industry: serverIndustryOptions.map((o) => o.industry),
+      score: ["A+", "A", "B", "C", "D", "F"],
+      phone: phoneRegions,
+    };
+  }, [serverCompanyOptions, serverTitleOptions, serverIndustryOptions, serverFilterCounts]);
 
   // Column filters now run server-side (see fetchContacts -> /api/contacts), so
   // `contacts` is already the filtered + paginated set. Only the NL smart
