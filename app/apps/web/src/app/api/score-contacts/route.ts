@@ -21,8 +21,10 @@ import {
   hasContactScorableCriteria,
   scoreAllContactsIcp,
   scoreContactIcpBatch,
+  listContactIds,
   CONTACT_SCORE_BATCH_SIZE,
 } from "@/lib/scoring/contact-icp-fit";
+import { recomputeContactPropensity } from "@/lib/scoring/contact-propensity-recompute";
 
 // Tenant-wide runs walk every contact in SQL batches; give the route
 // the same budget as the other long synchronous routes (tam/build,
@@ -84,11 +86,23 @@ export async function POST(req: Request) {
 
     if (all) {
       const r = await scoreAllContactsIcp(authCtx.tenantId, activeIcps);
+      // Shadow pass: propensity ALONGSIDE the fit grade (properties.propensity).
+      // Best-effort — never fail fit scoring on a propensity error.
+      try {
+        await recomputeContactPropensity(authCtx.tenantId, await listContactIds(authCtx.tenantId), activeIcps);
+      } catch (e) {
+        console.error("Propensity shadow recompute failed (fit scoring kept):", e);
+      }
       return Response.json({ success: true, scored: r.scored, total: r.total });
     }
 
     const ids = contactIds!;
     const { scored } = await scoreContactIcpBatch(authCtx.tenantId, ids, activeIcps);
+    try {
+      await recomputeContactPropensity(authCtx.tenantId, ids, activeIcps);
+    } catch (e) {
+      console.error("Propensity shadow recompute failed (fit scoring kept):", e);
+    }
     return Response.json({ success: true, scored, total: ids.length });
   } catch (error) {
     console.error("Contact scoring failed:", error);

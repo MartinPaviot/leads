@@ -6,6 +6,8 @@ interface ScoreExplain {
   grade: string | null;
   rationale: string;
   confidence: number;
+  /** Shadow propensity [0,1] — not the grade yet. */
+  propensity?: number | null;
 }
 
 /**
@@ -53,6 +55,11 @@ export function ScoreExplainLine({ contactId }: { contactId: string }) {
         </span>
       </div>
       <p className="text-[var(--color-text-secondary)]">{data.rationale}</p>
+      {typeof data.propensity === "number" && (
+        <p className="mt-1 text-[10px] text-[var(--color-text-tertiary)]">
+          Propensity {Math.round(data.propensity * 100)}% — shadow, not the grade yet
+        </p>
+      )}
     </div>
   );
 }

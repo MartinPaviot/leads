@@ -121,7 +121,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       coverage,
       dataDates: [contact.lastEnrichedAt],
     });
-    return Response.json(out);
+    // Shadow propensity (computed by the recompute pass), surfaced for comparison
+    // with the fit grade — not the grade itself yet.
+    const propensity =
+      (contact.properties as { propensity?: { score?: number } } | null)?.propensity?.score ?? null;
+    return Response.json({ ...out, propensity });
   } catch (error) {
     console.error("score-explain failed:", error);
     return apiError("INTERNAL_ERROR", "Score explain failed");
