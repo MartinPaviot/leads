@@ -52,11 +52,9 @@ export function EmailBody({ html, text }: { html: string | null; text: string })
 
         <div
           className="email-body text-[13px] leading-relaxed"
-          style={{
-            color: "var(--color-text-primary)",
-            wordBreak: "break-word",
-            overflowWrap: "anywhere",
-          }}
+          // Color is owned by the `.email-body` rule so dark mode can swap to a
+          // light "paper" (INBOX-R08); inline color would override that.
+          style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
           // Allowlist-sanitized by sanitizeEmailHtml, then privacy-filtered above.
           dangerouslySetInnerHTML={{ __html: fold.visibleHtml }}
         />
@@ -78,7 +76,6 @@ export function EmailBody({ html, text }: { html: string | null; text: string })
           <div
             className="email-body mt-1 border-l pl-2 text-[13px] leading-relaxed"
             style={{
-              color: "var(--color-text-tertiary)",
               borderColor: "var(--color-border-default)",
               wordBreak: "break-word",
               overflowWrap: "anywhere",
