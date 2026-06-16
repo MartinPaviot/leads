@@ -32,6 +32,7 @@ export function ColumnFilter({
   label,
   kind,
   options = [],
+  counts,
   state,
   onChange,
   open,
@@ -41,6 +42,9 @@ export function ColumnFilter({
   kind: ColumnFilterKind;
   /** Distinct values for an enum filter (already de-duped + sorted). */
   options?: string[];
+  /** Per-value row counts (value → N) for an enum filter, shown as "(N)" next
+   *  to each option so the user gets an order of magnitude before picking. */
+  counts?: Record<string, number>;
   state: ColumnFilterState | undefined;
   onChange: (next: ColumnFilterState | undefined) => void;
   open: boolean;
@@ -233,7 +237,15 @@ export function ColumnFilter({
                         >
                           {isSel && <Check size={10} color="#fff" />}
                         </span>
-                        <span className="truncate">{opt}</span>
+                        <span className="flex-1 truncate">{opt}</span>
+                        {counts && counts[opt] != null && (
+                          <span
+                            className="shrink-0 tabular-nums text-[11px]"
+                            style={{ color: "var(--color-text-tertiary)" }}
+                          >
+                            ({counts[opt].toLocaleString()})
+                          </span>
+                        )}
                       </button>
                     );
                   })

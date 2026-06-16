@@ -123,6 +123,9 @@ export default function ContactsPage() {
   // Distinct company industries (frequency-ordered, with contact counts) —
   // options for the Industry column filter, Accounts-parity.
   const [serverIndustryOptions, setServerIndustryOptions] = useState<Array<{ industry: string; count: number }>>([]);
+  // Per-value row counts keyed by the column's filterKey (companyName / industry
+  // / title / score), for the "(N)" shown next to every value in the dropdowns.
+  const [serverFilterCounts, setServerFilterCounts] = useState<Record<string, Record<string, number>> | null>(null);
   // Deletes — single row AND the checkbox selection — go through the cascade
   // modal (lets the user also delete the contacts' activities/notes/tasks in
   // one step). Everything is soft-delete, recoverable from Archive.
@@ -186,6 +189,7 @@ export default function ContactsPage() {
         if (data.filterOptions?.companies) setServerCompanyOptions(data.filterOptions.companies);
         if (data.filterOptions?.titles) setServerTitleOptions(data.filterOptions.titles);
         if (data.filterOptions?.industries) setServerIndustryOptions(data.filterOptions.industries);
+        if (data.filterCounts) setServerFilterCounts(data.filterCounts);
       }
     } catch (e) {
       console.warn("contacts: list fetch failed", e);
@@ -212,6 +216,7 @@ export default function ContactsPage() {
           if (data.filterOptions?.companies) setServerCompanyOptions(data.filterOptions.companies);
           if (data.filterOptions?.titles) setServerTitleOptions(data.filterOptions.titles);
           if (data.filterOptions?.industries) setServerIndustryOptions(data.filterOptions.industries);
+          if (data.filterCounts) setServerFilterCounts(data.filterCounts);
         }
       }
       setContacts(all);
@@ -921,6 +926,7 @@ export default function ContactsPage() {
                           label={fcfg.label}
                           kind={fcfg.kind}
                           options={columnOptions[col.filterKey]}
+                          counts={serverFilterCounts?.[col.filterKey]}
                           state={columnFilters[col.filterKey]}
                           onChange={(next) =>
                             setColumnFilters((prev) => {

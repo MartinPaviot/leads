@@ -130,15 +130,26 @@ export async function GET(req: Request) {
           ? sql`(${companies.properties}->>'source' IS DISTINCT FROM 'tam')`
           : undefined;
 
+    // Enrichment partition — same "enriched" definition as the unenriched count
+    // and isEnriched() on the client: a row is enriched once it has its base
+    // firmographics (industry + description). Held OUT of the counts (like the
+    // tab) so the "À enrichir (N)" / "Enrichis (M)" segment shows stable totals
+    // and doesn't zero out its own complement when selected; applied only to the
+    // list so the user can isolate the not-yet-enriched and bulk-enrich just them.
+    const enrichedExpr = sql`(${companies.industry} IS NOT NULL AND ${companies.industry} <> '' AND ${companies.description} IS NOT NULL AND ${companies.description} <> '')`;
+    const enrichCond: SQL | undefined =
+      f.enriched === "yes" ? enrichedExpr : f.enriched === "no" ? sql`NOT ${enrichedExpr}` : undefined;
+
     // Counts scope = base + search + column/score filters, WITHOUT the tab, so
     // All / Prospects / Manual each reflect the active filters and add up.
-    // List scope = counts scope + the active tab partition.
+    // List scope = counts scope + the active tab + enrichment partitions.
     const countsWhere = and(
       baseWhere,
       ...(searchCond ? [searchCond] : []),
       ...refineConds,
     )!;
-    const whereClause = tabCond ? and(countsWhere, tabCond)! : countsWhere;
+    const listConds = [tabCond, enrichCond].filter(Boolean) as SQL[];
+    const whereClause = listConds.length > 0 ? and(countsWhere, ...listConds)! : countsWhere;
 
     // "Select all matching" support: `?idsOnly=true` returns just the ids of
     // EVERY account the current view + filters match (the exact whereClause
@@ -175,16 +186,23 @@ export async function GET(req: Request) {
     let facets:
       | { industries: string[]; geographies: string[]; sizes: string[]; revenues: string[]; stages: string[] }
       | undefined;
+    // Per-value row counts for each enum facet — keyed by the table's filterKey
+    // (industry / geography / size / revenue / stage / score) so the header
+    // dropdowns can show "(N)" next to every value. Same base scope as `facets`
+    // (independent of the active narrowing filters), so the order-of-magnitude
+    // numbers stay stable and complete while the user drills in.
+    let facetCounts: Record<string, Record<string, number>> | undefined;
     let counts: { total: number; tam: number; manual: number; unenriched: number } | undefined;
     if (page === 1) {
+      // Shared by the facets, facet-count and tab-count queries below.
+      const deletedSql = showDeleted ? sql`deleted_at IS NOT NULL` : sql`deleted_at IS NULL`;
+      const excludedSql =
+        excludedMode === "all"
+          ? sql`TRUE`
+          : excludedMode === "only"
+            ? sql`excluded_reason IS NOT NULL`
+            : sql`excluded_reason IS NULL`;
       try {
-        const deletedSql = showDeleted ? sql`deleted_at IS NOT NULL` : sql`deleted_at IS NULL`;
-        const excludedSql =
-          excludedMode === "all"
-            ? sql`TRUE`
-            : excludedMode === "only"
-              ? sql`excluded_reason IS NOT NULL`
-              : sql`excluded_reason IS NULL`;
         const fr = await db.execute(sql`
           SELECT
             COALESCE(array_agg(DISTINCT industry) FILTER (WHERE industry IS NOT NULL AND industry <> ''), '{}') AS industries,
@@ -208,7 +226,53 @@ export async function GET(req: Request) {
         console.warn("accounts: facets query failed", e);
       }
       try {
-        const enrichedExpr = sql`(${companies.industry} IS NOT NULL AND ${companies.industry} <> '' AND ${companies.description} IS NOT NULL AND ${companies.description} <> '')`;
+        // One UNION-ALL pass over the base scope: (facet, value, count) tuples
+        // for every enum column. GROUP BY 2 (the output column position) avoids
+        // re-rendering the stage / grade expressions in a second clause, which
+        // would otherwise duplicate their bound params and break the grouping.
+        const baseFacetWhere = sql`tenant_id = ${authCtx.tenantId} AND ${deletedSql} AND ${excludedSql}`;
+        const stageExpr = sql.raw(EFFECTIVE_LIFECYCLE_STAGE_SQL);
+        // Grade band of round(score), mirroring GRADE_RANGES + getGrade(): only
+        // enriched rows earn a grade (parity with the fGrade filter + displayScore).
+        const gradeWhens = Object.entries(GRADE_RANGES).map(([g, [lo, hi]]) =>
+          hi == null
+            ? sql`WHEN round(score) >= ${lo} THEN ${g}`
+            : sql`WHEN round(score) >= ${lo} AND round(score) < ${hi} THEN ${g}`,
+        );
+        const gradeExpr = sql`CASE ${sql.join(gradeWhens, sql` `)} ELSE NULL END`;
+        const fc = await db.execute(sql`
+          SELECT 'industry'::text AS facet, industry AS value, count(*)::int AS count
+            FROM companies WHERE ${baseFacetWhere} AND industry IS NOT NULL AND industry <> '' GROUP BY 2
+          UNION ALL
+          SELECT 'geography'::text, btrim(properties->>'country'), count(*)::int
+            FROM companies WHERE ${baseFacetWhere} AND btrim(properties->>'country') IS NOT NULL AND btrim(properties->>'country') <> '' GROUP BY 2
+          UNION ALL
+          SELECT 'size'::text, size, count(*)::int
+            FROM companies WHERE ${baseFacetWhere} AND size IS NOT NULL AND size <> '' GROUP BY 2
+          UNION ALL
+          SELECT 'revenue'::text, revenue, count(*)::int
+            FROM companies WHERE ${baseFacetWhere} AND revenue IS NOT NULL AND revenue <> '' GROUP BY 2
+          UNION ALL
+          SELECT 'stage'::text, ${stageExpr}, count(*)::int
+            FROM companies WHERE ${baseFacetWhere} GROUP BY 2
+          UNION ALL
+          SELECT 'score'::text, ${gradeExpr}, count(*)::int
+            FROM companies WHERE ${baseFacetWhere}
+              AND (industry IS NOT NULL AND industry <> '' AND description IS NOT NULL AND description <> '')
+              AND score IS NOT NULL GROUP BY 2
+        `);
+        const fcOut: Record<string, Record<string, number>> = {};
+        for (const r of fc as unknown as Array<{ facet: string; value: string | null; count: number }>) {
+          if (r.value == null || r.value === "") continue;
+          (fcOut[r.facet] ??= {})[String(r.value)] = Number(r.count);
+        }
+        facetCounts = fcOut;
+      } catch (e) {
+        console.warn("accounts: facet counts query failed", e);
+      }
+      try {
+        // Reuses the `enrichedExpr` defined above (same definition the
+        // enrichment filter + the client's isEnriched() use).
         const cr = await db
           .select({
             total: sql<number>`count(*)::int`,
@@ -305,7 +369,13 @@ export async function GET(req: Request) {
       enrichedAccounts,
       { page, pageSize, total },
       "accounts",
-      facets || counts ? { ...(facets ? { facets } : {}), ...(counts ? { counts } : {}) } : undefined,
+      facets || facetCounts || counts
+        ? {
+            ...(facets ? { facets } : {}),
+            ...(facetCounts ? { facetCounts } : {}),
+            ...(counts ? { counts } : {}),
+          }
+        : undefined,
     );
   } catch (error) {
     console.error("Failed to fetch accounts:", error);
