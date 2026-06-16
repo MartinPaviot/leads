@@ -20,7 +20,7 @@ import { readSprintAudience, sprintAudienceConditions } from "@/lib/voice/call-s
 
 describe("SprintAudience network facet", () => {
   it("parses network:true, and a network-only segment is valid", () => {
-    const a = readSprintAudience({ audience: { label: "Mon réseau", network: true } });
+    const a = readSprintAudience({ audience: { label: "My network", network: true } });
     expect(a).not.toBeNull();
     expect(a!.network).toBe(true);
   });

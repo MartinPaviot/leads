@@ -107,7 +107,7 @@ export default function ContactsPage() {
   // Archive view: true = show only soft-deleted contacts so they can be
   // reviewed and restored (parity with the Accounts archive).
   const [viewDeleted, setViewDeleted] = useState(false);
-  // "Mon réseau" — the founder's imported LinkedIn connections. The toggle
+  // "My network" — the founder's imported LinkedIn connections. The toggle
   // filters the list to that cohort; the count drives whether it's shown.
   const [networkOnly, setNetworkOnly] = useState(false);
   const [networkCount, setNetworkCount] = useState(0);
@@ -306,7 +306,7 @@ export default function ContactsPage() {
 
   /** Import the founder's LinkedIn `Connections.csv` -> network-tagged,
    *  ICP-scored contacts (POST /api/network/import). On success we refresh the
-   *  list so the new cohort and the "Mon réseau" toggle appear. */
+   *  list so the new cohort and the "My network" toggle appear. */
   async function handleNetworkImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -319,8 +319,8 @@ export default function ContactsPage() {
       const data = await res.json();
       if (res.ok) {
         setImportResult(
-          `Réseau importé : ${data.imported} ajoutés, ${data.alreadyInDb} déjà présents, ${data.scored} scorés` +
-            (data.skipped ? `, ${data.skipped} ignorés` : "") + ".",
+          `Network imported: ${data.imported} added, ${data.alreadyInDb} already present, ${data.scored} scored` +
+            (data.skipped ? `, ${data.skipped} skipped` : "") + ".",
         );
         await refetchLoadedContacts();
       } else {
@@ -773,7 +773,7 @@ export default function ContactsPage() {
             </label>
             <label className="cursor-pointer">
               <Button variant="outline" size="sm" icon={<LinkedInIcon size={12} />} disabled={networkImporting} loading={networkImporting} onClick={() => networkFileRef.current?.click()}>
-                {networkImporting ? "Import…" : "Mon réseau LinkedIn"}
+                {networkImporting ? "Import…" : "My LinkedIn network"}
               </Button>
               <input ref={networkFileRef} type="file" accept=".csv" onChange={handleNetworkImport} className="hidden" disabled={networkImporting} />
             </label>
@@ -783,9 +783,9 @@ export default function ContactsPage() {
                 size="sm"
                 icon={<Users size={12} />}
                 onClick={() => { setNetworkOnly((v) => !v); setSelectedRows(new Set()); }}
-                title="Filtrer sur les contacts importés de mon réseau LinkedIn"
+                title="Filter to contacts imported from my LinkedIn network"
               >
-                Mon réseau ({networkCount})
+                My network ({networkCount})
               </Button>
             )}
             <Button variant="gradient" size="sm" icon={<Plus size={12} />} onClick={() => setShowCreate(true)}>Create contact</Button>

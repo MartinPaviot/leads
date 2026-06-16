@@ -163,7 +163,7 @@ export async function GET(req: Request) {
     if (fLinkedin === "empty") conds.push(sql`(${contacts.linkedinUrl} IS NULL OR ${contacts.linkedinUrl} = '')`);
     if (fPhone === "has") conds.push(sql`(${contacts.phone} IS NOT NULL AND ${contacts.phone} <> '')`);
     if (fPhone === "empty") conds.push(sql`(${contacts.phone} IS NULL OR ${contacts.phone} = '')`);
-    // "Mon réseau" — contacts imported from the founder's LinkedIn export.
+    // "My network" — contacts imported from the founder's LinkedIn export.
     if (fNetwork === "true") conds.push(sql`(${contacts.properties}->>'network') = 'true'`);
 
     // Smart-filter score threshold (e.g. "high fit" -> score >= 70), applied
@@ -365,7 +365,7 @@ export async function GET(req: Request) {
       console.warn("Failed to fetch contact grade counts:", e);
     }
 
-    // "Mon réseau" cohort size — contacts imported from the founder's LinkedIn
+    // "My network" cohort size — contacts imported from the founder's LinkedIn
     // export (properties.network), so the toggle can show "(N)" and decide
     // whether to render at all.
     let networkCount = 0;
