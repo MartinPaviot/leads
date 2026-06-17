@@ -10,7 +10,7 @@
  * Keyboard: j/k select, e done, r reply — ignored while typing.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Inbox, Mail } from "lucide-react";
 import { PageHeader, FilterBar } from "@/components/ui/page-header";
@@ -21,6 +21,7 @@ import { ConversationList } from "./_conversation-list";
 import { ConversationPane } from "./_conversation-pane";
 import { OutboundTable } from "./_outbound-table";
 import { BundlesView } from "./_bundles-view";
+import { CommandPalette, type PaletteCommand } from "./_command-palette";
 import { MailboxRail } from "./_mailbox-rail";
 import type { ConversationListItem, InboxLane, LaneCounts, MailboxSummary } from "./_types";
 import type { BundleSource } from "@/lib/inbox/bundle";
@@ -68,6 +69,8 @@ export default function InboxPage() {
   const [total, setTotal] = useState(0);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [replySignal, setReplySignal] = useState(0);
+  // Cmd/Ctrl+K command palette (INBOX-K01).
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   // In-flight triage POST. Lane fetches await it so switching to Done/
   // Snoozed right after the verb never races the write (the GET would
@@ -306,6 +309,73 @@ export default function InboxPage() {
   const hasMore = tab !== "outbound" && conversations.length < total;
   const bundleTotal = bundles.reduce((n, b) => n + b.count, 0);
 
+  // Cmd/Ctrl+K toggles the palette — registered separately from the j/k
+  // handler (which ignores modifier keys) so it fires even from a text field.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Palette commands: jump to a lane, act on the current conversation, or open
+  // any loaded conversation by fuzzy name/subject. Rebuilt as those inputs move.
+  const paletteCommands = useMemo<PaletteCommand[]>(() => {
+    const cmds: PaletteCommand[] = [];
+    (["attention", "snoozed", "done", "handled", "outbound"] as const).forEach((t) =>
+      cmds.push({
+        id: `lane:${t}`,
+        label: `Go to ${TAB_LABELS[t]}`,
+        hint: "Lane",
+        run: () => {
+          setCustomLaneId(null);
+          setTab(t);
+        },
+      }),
+    );
+    if (bundleTotal > 0) {
+      cmds.push({
+        id: "lane:bundles",
+        label: "Go to Bundles",
+        hint: "Lane",
+        run: () => {
+          setCustomLaneId(null);
+          setTab("bundles");
+        },
+      });
+    }
+    customLanes.forEach((l) =>
+      cmds.push({ id: `lane:${l.id}`, label: `Go to ${l.name}`, hint: "Lane", run: () => setCustomLaneId(l.id) }),
+    );
+    if (selectedKey && (tab === "attention" || tab === "snoozed")) {
+      cmds.push({
+        id: "act:done",
+        label: "Mark current conversation done",
+        hint: "Action",
+        run: () => void handleTriage(selectedKey, "done"),
+      });
+      cmds.push({
+        id: "act:snooze",
+        label: "Snooze current conversation for 1 day",
+        hint: "Action",
+        run: () => void handleTriage(selectedKey, "snooze", new Date(Date.now() + 86_400_000).toISOString()),
+      });
+    }
+    conversations.forEach((c) =>
+      cmds.push({
+        id: `conv:${c.key}`,
+        label: `${c.displayName} — ${c.subject}`,
+        hint: "Open",
+        run: () => setSelectedKey(c.key),
+      }),
+    );
+    return cmds;
+  }, [conversations, customLanes, bundleTotal, selectedKey, tab, handleTriage]);
+
   return (
     <div className="flex h-full flex-col animate-content-in">
       <PageHeader
@@ -440,6 +510,8 @@ export default function InboxPage() {
           </div>
         </div>
       )}
+
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={paletteCommands} />
     </div>
   );
 }
