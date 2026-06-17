@@ -13,6 +13,7 @@ import { db } from "@/db";
 import { companies, contacts, deals, activities, notes, chatMemories, knowledgeEntries } from "@/db/schema";
 import { and, eq, desc, sql, or, isNull } from "drizzle-orm";
 import { getTenantSettings, deriveTargetRoles, type TenantSettings } from "@/lib/config/tenant-settings";
+import { readApprovalMode, chatCreateDisposition } from "@/lib/guardrails/approval-mode";
 import { buildChatSystemPrompt } from "@/lib/prompts/chat-system-prompt";
 import { buildAllChatTools, type ToolContext } from "@/lib/chat/tools";
 import { resolveCapabilities, type SurfaceContext } from "@/lib/agents/capability-resolver";
@@ -552,7 +553,12 @@ export async function POST(req: Request) {
       }
     })(),
     (async () => {
-      return tenantSettings.agentApprovalMode || "auto";
+      // SSOT coercion — collapses legacy ("ask"/"auto"/"manual"/"off") and v2 values to
+      // the canonical v2 enum. Was `tenantSettings.agentApprovalMode || "auto"`, which
+      // leaked a raw value that create tools + the prompt mis-tested as `=== "ask"`
+      // (CLE-00 dead-wire bug: prod default is "review-each", so the proposal branch
+      // never fired and creates mutated immediately).
+      return readApprovalMode(tenantSettings);
     })(),
     // Load persistent memories for this user
     (async () => {
@@ -662,7 +668,7 @@ export async function POST(req: Request) {
         knowledgeContext,
         memoriesContext,
         workQueueContext,
-        agentApprovalMode,
+        approvalRequiresReview: chatCreateDisposition(agentApprovalMode) === "proposal",
         userName: tenantSettings.onboardingCompanyName || undefined,
         preferredLanguage: tenantSettings.language || undefined,
       }) + resolved.surfacePromptAddendum + specialistPromptAddendum;

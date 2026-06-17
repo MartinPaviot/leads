@@ -1,5 +1,6 @@
 import type { AuthContext } from "@/lib/auth/auth-utils";
 import type { TenantSettings } from "@/lib/config/tenant-settings";
+import type { ApprovalModeV2 } from "@/lib/guardrails/approval-mode";
 import { tool } from "ai";
 import { z } from "zod";
 
@@ -8,7 +9,8 @@ export interface ToolContext {
   userId: string;
   authCtx: AuthContext;
   settings: TenantSettings;
-  agentApprovalMode: string;
+  /** Canonical v2 approval mode (coerced via readApprovalMode at the route read site). */
+  agentApprovalMode: ApprovalModeV2;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

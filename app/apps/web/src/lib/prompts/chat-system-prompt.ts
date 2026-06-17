@@ -12,7 +12,9 @@ interface SystemPromptParams {
   knowledgeContext: string;
   memoriesContext: string;
   workQueueContext?: string;
-  agentApprovalMode: string;
+  /** CLE-00: precomputed in the route via chatCreateDisposition(mode) === "proposal",
+   *  so the prompt block and the create tools branch on the SAME function. */
+  approvalRequiresReview: boolean;
   userName?: string;
   preferredLanguage?: string;
 }
@@ -25,7 +27,7 @@ export function buildChatSystemPrompt(params: SystemPromptParams): string {
     knowledgeContext,
     memoriesContext,
     workQueueContext,
-    agentApprovalMode,
+    approvalRequiresReview,
     userName,
     preferredLanguage,
   } = params;
@@ -349,7 +351,7 @@ I also noticed you don't have a deal created for DataSync yet. Want me to create
 </ideal_response>
 </example>
 </full_response_examples>
-${agentApprovalMode === "ask" ? `
+${approvalRequiresReview ? `
 <approval_mode>
 Approval mode is ON. When the user asks to create or update a CRM record, call the create/update tool immediately.
 The tool will return a proposal card that the user can review, edit fields, and approve or dismiss in the UI.

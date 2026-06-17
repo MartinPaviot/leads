@@ -177,3 +177,42 @@ export function enforceAgentApprovalMode(
     reason: `mode:auto-high-confidence — confidence ${confidenceValue.toFixed(2)} < ${threshold} for ${action}; falling back to review-each`,
   };
 }
+
+/**
+ * CLE-00 minimal disposition mapper. Maps the effective v2 mode to a coarse
+ * decision for the chat *create* tools, which carry no per-call confidence today.
+ *
+ * FORWARD-COMPAT: this is a thin stand-in. CLE-10 replaces all call sites with
+ * `decideAction(...)` (see _specs/chat-live-executor/README.md §3.5bis), which folds
+ * in metadata (mutating/outbound/reversible/cost), role, and a real confidence signal.
+ * Keep the shape narrow so the swap is mechanical.
+ *
+ * @param mode       effective mode (already through readApprovalMode)
+ * @param confidence optional 0-1 signal; absent → treated as below-threshold (safe)
+ */
+export function chatCreateDisposition(
+  mode: ApprovalModeV2,
+  confidence?: number | null,
+): "proposal" | "execute" {
+  switch (mode) {
+    case "review-each":
+      return "proposal";
+    case "batch-daily":
+      // No chat-side daily queue store exists pre-CLE-10. Degrade to the review
+      // card — NEVER silent execute.
+      return "proposal";
+    case "auto-high-confidence":
+      // Create is treated as auto-executable under explicit autonomy. When a
+      // confidence is supplied and is below the create bar, fall back to a card.
+      if (confidence == null) return "execute";
+      return confidence >= HIGH_CONFIDENCE_THRESHOLDS["contact-create"]
+        ? "execute"
+        : "proposal";
+    default: {
+      // Unknown/unreachable (readApprovalMode already defaults). Safest = proposal.
+      const _exhaustive: never = mode;
+      void _exhaustive;
+      return "proposal";
+    }
+  }
+}
