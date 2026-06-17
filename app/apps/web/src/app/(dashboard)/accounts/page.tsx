@@ -31,6 +31,7 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { useT, useLocale } from "@/lib/i18n/locale";
 import { chunkedBulkCall } from "@/lib/infra/chunk-bulk";
 import { selectAllMatchingIds } from "@/lib/infra/select-all-matching";
 import { BulkActionsBar } from "@/components/ui/bulk-actions-bar";
@@ -149,6 +150,8 @@ function streamedRowToAccount(
 
 export default function AccountsPage() {
   const { toast } = useToast();
+  const t = useT();
+  const { locale } = useLocale();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -575,12 +578,12 @@ export default function AccountsPage() {
     const reachCounts = serverFacetCounts?.contactReach ?? {};
     const reachOpts = ACCOUNT_REACH_BUCKETS.filter((b) => reachCounts[b] != null).map((b) => ({
       value: b as string,
-      label: accountReachLabel(b),
+      label: accountReachLabel(b, locale),
     }));
     const recencyCounts = serverFacetCounts?.recency ?? {};
     const recencyOpts = RECENCY_BUCKETS.filter((b) => recencyCounts[b] != null).map((b) => ({
       value: b as string,
-      label: recencyLabel(b),
+      label: recencyLabel(b, locale),
     }));
     const regionCounts = serverFacetCounts?.region ?? {};
     const regionOpts = Object.keys(regionCounts)
@@ -591,31 +594,31 @@ export default function AccountsPage() {
     const familyCountsObj = Object.fromEntries(famList.map((f) => [f.key, f.count]));
     return [
       {
-        title: "Secteur",
+        title: t("filters.section.sector"),
         filters: [
-          { key: "family", label: "Famille sectorielle", options: familyOpts, counts: familyCountsObj, hint: familyLoading ? "Classement des secteurs…" : "Regroupe les industries en familles (santé, public, non-profit…)" },
+          { key: "family", label: t("filters.family.label"), options: familyOpts, counts: familyCountsObj, hint: familyLoading ? t("filters.family.hintLoading") : t("filters.family.hint") },
         ],
       },
       {
-        title: "Géographie",
+        title: t("filters.section.geography"),
         filters: [
-          { key: "region", label: "Région / canton", options: regionOpts, counts: regionCounts, hint: "Romandie : Geneva, Vaud, Valais, Neuchâtel, Fribourg, Jura" },
+          { key: "region", label: t("filters.region.label"), options: regionOpts, counts: regionCounts, hint: t("filters.region.hint") },
         ],
       },
       {
-        title: "Joignabilité",
+        title: t("filters.section.reachability"),
         filters: [
-          { key: "contactReach", label: "Couverture contact", options: reachOpts, counts: reachCounts, hint: "A-t-on un interlocuteur — et un numéro pour l'appeler ?" },
+          { key: "contactReach", label: t("filters.contactReach.label"), options: reachOpts, counts: reachCounts, hint: t("filters.contactReach.hint") },
         ],
       },
       {
-        title: "Engagement",
+        title: t("filters.section.engagement"),
         filters: [
-          { key: "recency", label: "Dernier contact", options: recencyOpts, counts: recencyCounts, hint: "Dernier échange réel sur le compte (contacts, emails, RDV)" },
+          { key: "recency", label: t("filters.recency.label"), options: recencyOpts, counts: recencyCounts, hint: t("filters.recency.hintAccounts") },
         ],
       },
     ];
-  }, [serverFacetCounts, familyFacet, familyLoading]);
+  }, [serverFacetCounts, familyFacet, familyLoading, t, locale]);
   const panelActive = panelActiveCount(filterSections, columnFilters);
 
   // Lazy-load the sector-family facet the first time the Filtres panel opens.
@@ -1817,7 +1820,7 @@ export default function AccountsPage() {
             background: panelActive > 0 ? "var(--color-accent-soft)" : "transparent",
             color: panelActive > 0 ? "var(--color-accent)" : "var(--color-text-tertiary)",
           }}
-          title="Filtres avancés — joignabilité, récence"
+          title={t("filters.advancedAccounts")}
         >
           <SlidersHorizontal size={12} />
           Filtres

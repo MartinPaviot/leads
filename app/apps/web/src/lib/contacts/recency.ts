@@ -12,21 +12,31 @@
  */
 
 import { INTERACTION_TYPES_SQL_LIST } from "@/lib/accounts/last-interaction";
+import type { Locale } from "@/lib/i18n/messages";
 
 /** Non-overlapping buckets, ordered newest → oldest, "never" first. */
 export const RECENCY_BUCKETS = ["never", "7", "30", "90", "old"] as const;
 export type RecencyBucket = (typeof RECENCY_BUCKETS)[number];
 
-const RECENCY_LABELS: Record<RecencyBucket, string> = {
-  never: "Jamais contacté",
-  "7": "≤ 7 jours",
-  "30": "8–30 jours",
-  "90": "31–90 jours",
-  old: "> 90 jours",
+const RECENCY_LABELS: Record<Locale, Record<RecencyBucket, string>> = {
+  fr: {
+    never: "Jamais contacté",
+    "7": "≤ 7 jours",
+    "30": "8–30 jours",
+    "90": "31–90 jours",
+    old: "> 90 jours",
+  },
+  en: {
+    never: "Never contacted",
+    "7": "≤ 7 days",
+    "30": "8–30 days",
+    "90": "31–90 days",
+    old: "> 90 days",
+  },
 };
 
-export function recencyLabel(key: string): string {
-  return RECENCY_LABELS[key as RecencyBucket] ?? key;
+export function recencyLabel(key: string, locale: Locale = "fr"): string {
+  return RECENCY_LABELS[locale][key as RecencyBucket] ?? RECENCY_LABELS.fr[key as RecencyBucket] ?? key;
 }
 
 /** Day boundaries that separate the buckets (ascending). Exported so the

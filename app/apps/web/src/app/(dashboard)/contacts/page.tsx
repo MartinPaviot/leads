@@ -17,6 +17,7 @@ import { TableSkeleton } from "@/components/ui/skeleton";
 import { BulkActionsBar } from "@/components/ui/bulk-actions-bar";
 import { MoreMenu } from "@/components/ui/more-menu";
 import { useToast } from "@/components/ui/toast";
+import { useT, useLocale } from "@/lib/i18n/locale";
 import { SmartSearchBar, ActiveFiltersChips } from "@/components/ui/smart-search-bar";
 import { applyFilters } from "@/lib/search/filters";
 import type { FilterCondition } from "@/lib/search/filters";
@@ -76,6 +77,8 @@ const PAGE_SIZE = 200;
 export default function ContactsPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const t = useT();
+  const { locale } = useLocale();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
@@ -659,7 +662,7 @@ export default function ContactsPage() {
         if (sa !== sb) return sa - sb;
         return (phoneCounts[b] ?? 0) - (phoneCounts[a] ?? 0);
       })
-      .map((key) => ({ value: key, label: phoneRegionLabel(key) }));
+      .map((key) => ({ value: key, label: phoneRegionLabel(key, locale) }));
     return {
       companyName: serverCompanyOptions,
       title: serverTitleOptions,
@@ -667,7 +670,7 @@ export default function ContactsPage() {
       score: ["A+", "A", "B", "C", "D", "F"],
       phone: phoneRegions,
     };
-  }, [serverCompanyOptions, serverTitleOptions, serverIndustryOptions, serverFilterCounts]);
+  }, [serverCompanyOptions, serverTitleOptions, serverIndustryOptions, serverFilterCounts, locale]);
 
   // Sections for the dedicated Filters panel — segment filters with no column
   // home. Phone reuses the column options; seniority/recency come from their
@@ -676,11 +679,11 @@ export default function ContactsPage() {
     const seniorityCounts = serverFilterCounts?.seniority ?? {};
     const seniorityOpts = Object.keys(seniorityCounts)
       .sort(compareSeniority)
-      .map((k) => ({ value: k, label: seniorityLabel(k) }));
+      .map((k) => ({ value: k, label: seniorityLabel(k, locale) }));
     const recencyCounts = serverFilterCounts?.recency ?? {};
     const recencyOpts = RECENCY_BUCKETS.filter((b) => recencyCounts[b] != null).map((b) => ({
       value: b as string,
-      label: recencyLabel(b),
+      label: recencyLabel(b, locale),
     }));
     const regionCounts = serverFilterCounts?.region ?? {};
     const regionOpts = Object.keys(regionCounts)
@@ -691,37 +694,37 @@ export default function ContactsPage() {
     const familyCountsObj = Object.fromEntries(famList.map((f) => [f.key, f.count]));
     return [
       {
-        title: "Secteur",
+        title: t("filters.section.sector"),
         filters: [
-          { key: "family", label: "Famille sectorielle", options: familyOpts, counts: familyCountsObj, hint: familyLoading ? "Classement des secteurs…" : "Regroupe les industries en familles (santé, public, non-profit…)" },
+          { key: "family", label: t("filters.family.label"), options: familyOpts, counts: familyCountsObj, hint: familyLoading ? t("filters.family.hintLoading") : t("filters.family.hint") },
         ],
       },
       {
-        title: "Géographie",
+        title: t("filters.section.geography"),
         filters: [
-          { key: "region", label: "Région / canton", options: regionOpts, counts: regionCounts, hint: "Romandie : Geneva, Vaud, Valais, Neuchâtel, Fribourg, Jura" },
+          { key: "region", label: t("filters.region.label"), options: regionOpts, counts: regionCounts, hint: t("filters.region.hint") },
         ],
       },
       {
-        title: "Joignabilité",
+        title: t("filters.section.reachability"),
         filters: [
-          { key: "phone", label: "Indicatif téléphone", options: columnOptions.phone ?? [], counts: serverFilterCounts?.phone },
+          { key: "phone", label: t("filters.phone.label"), options: columnOptions.phone ?? [], counts: serverFilterCounts?.phone },
         ],
       },
       {
-        title: "Engagement",
+        title: t("filters.section.engagement"),
         filters: [
-          { key: "recency", label: "Dernier contact", options: recencyOpts, counts: recencyCounts, hint: "Dernier échange réel — email, appel ou RDV" },
+          { key: "recency", label: t("filters.recency.label"), options: recencyOpts, counts: recencyCounts, hint: t("filters.recency.hintContacts") },
         ],
       },
       {
-        title: "Persona",
+        title: t("filters.section.persona"),
         filters: [
-          { key: "seniority", label: "Séniorité", options: seniorityOpts, counts: seniorityCounts },
+          { key: "seniority", label: t("filters.seniority.label"), options: seniorityOpts, counts: seniorityCounts },
         ],
       },
     ];
-  }, [columnOptions, serverFilterCounts, familyFacet, familyLoading]);
+  }, [columnOptions, serverFilterCounts, familyFacet, familyLoading, t, locale]);
   const panelActive = panelActiveCount(filterSections, columnFilters);
 
   // Lazy-load the sector-family facet the first time the Filtres panel opens.
@@ -877,7 +880,7 @@ export default function ContactsPage() {
             background: panelActive > 0 ? "var(--color-accent-soft)" : "transparent",
             color: panelActive > 0 ? "var(--color-accent)" : "var(--color-text-tertiary)",
           }}
-          title="Filtres avancés — joignabilité, engagement, persona"
+          title={t("filters.advancedContacts")}
         >
           <SlidersHorizontal size={12} />
           Filtres

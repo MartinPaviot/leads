@@ -8,6 +8,8 @@
  * The filter sends the raw key (e.g. "c_suite"); the panel shows the label.
  */
 
+import type { Locale } from "@/lib/i18n/messages";
+
 /** Most senior → least senior. Drives the option ordering in the filter. */
 export const SENIORITY_ORDER = [
   "owner",
@@ -23,23 +25,38 @@ export const SENIORITY_ORDER = [
   "intern",
 ] as const;
 
-const SENIORITY_LABELS: Record<string, string> = {
-  owner: "Propriétaire",
-  founder: "Fondateur",
-  c_suite: "Direction (C-level)",
-  partner: "Associé",
-  vp: "Vice-président",
-  head: "Responsable (Head)",
-  director: "Directeur",
-  manager: "Manager",
-  senior: "Senior",
-  entry: "Junior",
-  intern: "Stagiaire",
+const SENIORITY_LABELS: Record<Locale, Record<string, string>> = {
+  fr: {
+    owner: "Propriétaire",
+    founder: "Fondateur",
+    c_suite: "Direction (C-level)",
+    partner: "Associé",
+    vp: "Vice-président",
+    head: "Responsable (Head)",
+    director: "Directeur",
+    manager: "Manager",
+    senior: "Senior",
+    entry: "Junior",
+    intern: "Stagiaire",
+  },
+  en: {
+    owner: "Owner",
+    founder: "Founder",
+    c_suite: "C-level",
+    partner: "Partner",
+    vp: "VP",
+    head: "Head",
+    director: "Director",
+    manager: "Manager",
+    senior: "Senior",
+    entry: "Entry-level",
+    intern: "Intern",
+  },
 };
 
-/** French label for a seniority key; unknown keys fall back to a tidy form. */
-export function seniorityLabel(key: string): string {
-  return SENIORITY_LABELS[key] ?? key.replace(/_/g, " ");
+/** Localized label for a seniority key (default FR); unknown keys fall back to a tidy form. */
+export function seniorityLabel(key: string, locale: Locale = "fr"): string {
+  return SENIORITY_LABELS[locale][key] ?? SENIORITY_LABELS.fr[key] ?? key.replace(/_/g, " ");
 }
 
 /** Comparator for seniority keys: most senior first, unknown keys last. */

@@ -16,6 +16,7 @@ import { LiveExtraction } from "@/components/live-extraction";
 import { MeddpiccScorecard, AccountCallIntel, ContactCallProfile } from "@/components/call-intel";
 import { MeetingRecorder } from "./_meeting-recorder";
 import { useToast } from "@/components/ui/toast";
+import { useT } from "@/lib/i18n/locale";
 
 interface MeetingNotes {
   summary: string;
@@ -171,6 +172,7 @@ export default function MeetingDetailPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const t = useT();
   const meetingId = params.id as string;
 
   // MONACO-PARITY-05: when a coaching citation chip links here, it
@@ -679,7 +681,7 @@ export default function MeetingDetailPage() {
 
       {data.transcriptSource === "jibri" && (
         <p className="text-[11px] text-gray-500 dark:text-gray-400">
-          Visio souveraine — enregistrée et transcrite sur votre infrastructure.
+          {t("meeting.sovereignNotice")}
         </p>
       )}
 

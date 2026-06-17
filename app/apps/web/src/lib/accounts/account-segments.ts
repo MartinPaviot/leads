@@ -15,19 +15,27 @@
 
 import { INTERACTION_TYPES_SQL_LIST } from "./last-interaction";
 import { RECENCY_BOUNDARY_DAYS } from "@/lib/contacts/recency";
+import type { Locale } from "@/lib/i18n/messages";
 
 // ── Contact reach ────────────────────────────────────────────────────
 export const ACCOUNT_REACH_BUCKETS = ["reachable", "no_phone", "none"] as const;
 export type AccountReachBucket = (typeof ACCOUNT_REACH_BUCKETS)[number];
 
-const REACH_LABELS: Record<AccountReachBucket, string> = {
-  reachable: "Contact joignable",
-  no_phone: "Contact, sans numéro",
-  none: "Sans contact",
+const REACH_LABELS: Record<Locale, Record<AccountReachBucket, string>> = {
+  fr: {
+    reachable: "Contact joignable",
+    no_phone: "Contact, sans numéro",
+    none: "Sans contact",
+  },
+  en: {
+    reachable: "Reachable contact",
+    no_phone: "Contact, no number",
+    none: "No contact",
+  },
 };
 
-export function accountReachLabel(key: string): string {
-  return REACH_LABELS[key as AccountReachBucket] ?? key;
+export function accountReachLabel(key: string, locale: Locale = "fr"): string {
+  return REACH_LABELS[locale][key as AccountReachBucket] ?? REACH_LABELS.fr[key as AccountReachBucket] ?? key;
 }
 
 /** SQL CASE → contact-reach bucket for a "companies" row. EXISTS over the

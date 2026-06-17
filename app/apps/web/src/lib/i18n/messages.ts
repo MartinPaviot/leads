@@ -51,6 +51,33 @@ export const messages: Record<Locale, Messages> = {
       "Ajoute l'événement à votre agenda connecté avec un lien de visio souveraine, et invite le contact.",
     "meeting.descProvider":
       "Crée la réunion (Google Meet / Teams / Zoom) selon votre choix et votre agenda connecté, et invite le contact.",
+    // Meetings list — show-rate chip + meeting detail
+    "meeting.showRate.title": "Présence RDV",
+    "meeting.showRate.heldQualified": "{held} tenus / {qualified} qualifiés",
+    "meeting.showRate.toQualify": "{n} à qualifier",
+    "meeting.showRate.benchmark": "repère 75-80%",
+    "meeting.sovereignNotice":
+      "Visio souveraine — enregistrée et transcrite sur votre infrastructure.",
+    // List filters — Accounts / Contacts filter panels
+    "filters.section.sector": "Secteur",
+    "filters.section.geography": "Géographie",
+    "filters.section.reachability": "Joignabilité",
+    "filters.section.engagement": "Engagement",
+    "filters.section.persona": "Persona",
+    "filters.family.label": "Famille sectorielle",
+    "filters.family.hintLoading": "Classement des secteurs…",
+    "filters.family.hint": "Regroupe les industries en familles (santé, public, non-profit…)",
+    "filters.region.label": "Région / canton",
+    "filters.region.hint": "Romandie : Geneva, Vaud, Valais, Neuchâtel, Fribourg, Jura",
+    "filters.phone.label": "Indicatif téléphone",
+    "filters.recency.label": "Dernier contact",
+    "filters.recency.hintContacts": "Dernier échange réel — email, appel ou RDV",
+    "filters.recency.hintAccounts": "Dernier échange réel sur le compte (contacts, emails, RDV)",
+    "filters.seniority.label": "Séniorité",
+    "filters.contactReach.label": "Couverture contact",
+    "filters.contactReach.hint": "A-t-on un interlocuteur — et un numéro pour l'appeler ?",
+    "filters.advancedContacts": "Filtres avancés — joignabilité, engagement, persona",
+    "filters.advancedAccounts": "Filtres avancés — joignabilité, récence",
     // Settings → Recording
     "settings.recording.title": "Enregistrement",
     "settings.recording.subtitle":
@@ -154,6 +181,33 @@ export const messages: Record<Locale, Messages> = {
       "Adds the event to your connected calendar with a sovereign video link, and invites the contact.",
     "meeting.descProvider":
       "Creates the meeting (Google Meet / Teams / Zoom) per your choice and connected calendar, and invites the contact.",
+    // Meetings list — show-rate chip + meeting detail
+    "meeting.showRate.title": "Show rate",
+    "meeting.showRate.heldQualified": "{held} held / {qualified} qualified",
+    "meeting.showRate.toQualify": "{n} to qualify",
+    "meeting.showRate.benchmark": "benchmark 75-80%",
+    "meeting.sovereignNotice":
+      "Sovereign video — recorded and transcribed on your own infrastructure.",
+    // List filters — Accounts / Contacts filter panels
+    "filters.section.sector": "Sector",
+    "filters.section.geography": "Geography",
+    "filters.section.reachability": "Reachability",
+    "filters.section.engagement": "Engagement",
+    "filters.section.persona": "Persona",
+    "filters.family.label": "Sector family",
+    "filters.family.hintLoading": "Classifying sectors…",
+    "filters.family.hint": "Groups industries into families (health, public, non-profit…)",
+    "filters.region.label": "Region / canton",
+    "filters.region.hint": "French-speaking Switzerland: Geneva, Vaud, Valais, Neuchâtel, Fribourg, Jura",
+    "filters.phone.label": "Phone country code",
+    "filters.recency.label": "Last contact",
+    "filters.recency.hintContacts": "Last real exchange — email, call or meeting",
+    "filters.recency.hintAccounts": "Last real exchange on the account (contacts, emails, meetings)",
+    "filters.seniority.label": "Seniority",
+    "filters.contactReach.label": "Contact coverage",
+    "filters.contactReach.hint": "Do we have a contact — and a number to call them?",
+    "filters.advancedContacts": "Advanced filters — reachability, engagement, persona",
+    "filters.advancedAccounts": "Advanced filters — reachability, recency",
     // Settings → Recording
     "settings.recording.title": "Recording",
     "settings.recording.subtitle":

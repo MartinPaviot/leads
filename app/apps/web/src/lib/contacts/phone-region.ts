@@ -23,6 +23,8 @@
  * in SQL, not over the loaded page).
  */
 
+import type { Locale } from "@/lib/i18n/messages";
+
 export interface PhoneCountry {
   /** Dial code, digits only, no "+". */
   dial: string;
@@ -30,6 +32,8 @@ export interface PhoneCountry {
   iso: string;
   /** French country name shown in the filter option. */
   label: string;
+  /** English country name (shown when the UI locale is EN). */
+  enLabel: string;
 }
 
 /** Curated dial-code table for a Suisse-romande B2B motion: Switzerland + its
@@ -38,36 +42,36 @@ export interface PhoneCountry {
  *  Order here is irrelevant — matching sorts by code length descending. */
 export const PHONE_COUNTRIES: readonly PhoneCountry[] = [
   // Switzerland + immediate neighbours / micro-states (romand core).
-  { dial: "41", iso: "CH", label: "Suisse" },
-  { dial: "33", iso: "FR", label: "France" },
-  { dial: "49", iso: "DE", label: "Allemagne" },
-  { dial: "39", iso: "IT", label: "Italie" },
-  { dial: "43", iso: "AT", label: "Autriche" },
-  { dial: "423", iso: "LI", label: "Liechtenstein" },
-  { dial: "377", iso: "MC", label: "Monaco" },
+  { dial: "41", iso: "CH", label: "Suisse", enLabel: "Switzerland" },
+  { dial: "33", iso: "FR", label: "France", enLabel: "France" },
+  { dial: "49", iso: "DE", label: "Allemagne", enLabel: "Germany" },
+  { dial: "39", iso: "IT", label: "Italie", enLabel: "Italy" },
+  { dial: "43", iso: "AT", label: "Autriche", enLabel: "Austria" },
+  { dial: "423", iso: "LI", label: "Liechtenstein", enLabel: "Liechtenstein" },
+  { dial: "377", iso: "MC", label: "Monaco", enLabel: "Monaco" },
   // Wider Western / Central Europe.
-  { dial: "32", iso: "BE", label: "Belgique" },
-  { dial: "352", iso: "LU", label: "Luxembourg" },
-  { dial: "31", iso: "NL", label: "Pays-Bas" },
-  { dial: "44", iso: "GB", label: "Royaume-Uni" },
-  { dial: "353", iso: "IE", label: "Irlande" },
-  { dial: "34", iso: "ES", label: "Espagne" },
-  { dial: "351", iso: "PT", label: "Portugal" },
-  { dial: "30", iso: "GR", label: "Grèce" },
-  { dial: "45", iso: "DK", label: "Danemark" },
-  { dial: "46", iso: "SE", label: "Suède" },
-  { dial: "47", iso: "NO", label: "Norvège" },
-  { dial: "358", iso: "FI", label: "Finlande" },
-  { dial: "48", iso: "PL", label: "Pologne" },
-  { dial: "420", iso: "CZ", label: "Tchéquie" },
+  { dial: "32", iso: "BE", label: "Belgique", enLabel: "Belgium" },
+  { dial: "352", iso: "LU", label: "Luxembourg", enLabel: "Luxembourg" },
+  { dial: "31", iso: "NL", label: "Pays-Bas", enLabel: "Netherlands" },
+  { dial: "44", iso: "GB", label: "Royaume-Uni", enLabel: "United Kingdom" },
+  { dial: "353", iso: "IE", label: "Irlande", enLabel: "Ireland" },
+  { dial: "34", iso: "ES", label: "Espagne", enLabel: "Spain" },
+  { dial: "351", iso: "PT", label: "Portugal", enLabel: "Portugal" },
+  { dial: "30", iso: "GR", label: "Grèce", enLabel: "Greece" },
+  { dial: "45", iso: "DK", label: "Danemark", enLabel: "Denmark" },
+  { dial: "46", iso: "SE", label: "Suède", enLabel: "Sweden" },
+  { dial: "47", iso: "NO", label: "Norvège", enLabel: "Norway" },
+  { dial: "358", iso: "FI", label: "Finlande", enLabel: "Finland" },
+  { dial: "48", iso: "PL", label: "Pologne", enLabel: "Poland" },
+  { dial: "420", iso: "CZ", label: "Tchéquie", enLabel: "Czechia" },
   // North America (NANP).
-  { dial: "1", iso: "US", label: "États-Unis / Canada" },
+  { dial: "1", iso: "US", label: "États-Unis / Canada", enLabel: "United States / Canada" },
   // Francophone Maghreb + common MEA.
-  { dial: "212", iso: "MA", label: "Maroc" },
-  { dial: "213", iso: "DZ", label: "Algérie" },
-  { dial: "216", iso: "TN", label: "Tunisie" },
-  { dial: "971", iso: "AE", label: "Émirats arabes unis" },
-  { dial: "972", iso: "IL", label: "Israël" },
+  { dial: "212", iso: "MA", label: "Maroc", enLabel: "Morocco" },
+  { dial: "213", iso: "DZ", label: "Algérie", enLabel: "Algeria" },
+  { dial: "216", iso: "TN", label: "Tunisie", enLabel: "Tunisia" },
+  { dial: "971", iso: "AE", label: "Émirats arabes unis", enLabel: "United Arab Emirates" },
+  { dial: "972", iso: "IL", label: "Israël", enLabel: "Israel" },
 ];
 
 export const PHONE_REGION_NONE = "none";
@@ -75,7 +79,7 @@ export const PHONE_REGION_UNKNOWN = "unknown";
 
 /** Matchers, longest dial code first, so 352/423/212 win over 35-/41-/21-. */
 const BY_LEN_DESC = [...PHONE_COUNTRIES].sort((a, b) => b.dial.length - a.dial.length);
-const LABEL_BY_DIAL = new Map(PHONE_COUNTRIES.map((c) => [c.dial, c.label]));
+const COUNTRY_BY_DIAL = new Map(PHONE_COUNTRIES.map((c) => [c.dial, c]));
 
 /** Minimum digit count for a usable number (below = noise / partial). Mirrors
  *  phoneGeo so both surfaces agree on what counts as "has a number". */
@@ -97,11 +101,12 @@ export function phoneRegionKey(raw: string | null | undefined): string {
   return PHONE_REGION_UNKNOWN; // international prefix, code not in the table
 }
 
-/** French label for a region key (dial code / "none" / "unknown"). */
-export function phoneRegionLabel(key: string): string {
-  if (key === PHONE_REGION_NONE) return "Sans numéro";
-  if (key === PHONE_REGION_UNKNOWN) return "Indicatif inconnu";
-  const name = LABEL_BY_DIAL.get(key);
+/** Localized label for a region key (dial code / "none" / "unknown"); default FR. */
+export function phoneRegionLabel(key: string, locale: Locale = "fr"): string {
+  if (key === PHONE_REGION_NONE) return locale === "en" ? "No number" : "Sans numéro";
+  if (key === PHONE_REGION_UNKNOWN) return locale === "en" ? "Unknown code" : "Indicatif inconnu";
+  const c = COUNTRY_BY_DIAL.get(key);
+  const name = c ? (locale === "en" ? c.enLabel : c.label) : undefined;
   return name ? `${name} · +${key}` : `+${key}`;
 }
 

@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody } from "@/components/ui/card";
+import { useT } from "@/lib/i18n/locale";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   MeetingCard,
@@ -355,19 +356,23 @@ export default function MeetingsPage() {
  * "to qualify" backlog so the number is never mistaken for the whole. Below the
  * sample floor the rate reads "—" (a rate on a handful of meetings is noise). */
 function ShowRateChip({ stats }: { stats: ReturnType<typeof tallyShowStats> }) {
+  const t = useT();
   const v = stats.showRate.value;
   const pct = v === null ? "—" : `${Math.round(v * 100)}%`;
   const onTrack = v !== null && v >= SHOW_RATE_BENCHMARK.typical[0];
+  const tooltipParts = [t("meeting.showRate.heldQualified", { held: stats.held, qualified: stats.qualified })];
+  if (stats.unknown) tooltipParts.push(t("meeting.showRate.toQualify", { n: stats.unknown }));
+  tooltipParts.push(t("meeting.showRate.benchmark"));
   return (
     <span
       className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px]"
       style={{ border: "1px solid var(--color-border-default)", color: "var(--color-text-secondary)" }}
-      title={`${stats.held} tenus / ${stats.qualified} qualifiés${stats.unknown ? ` · ${stats.unknown} à qualifier` : ""} · repère 75-80%`}
+      title={tooltipParts.join(" · ")}
     >
-      <span style={{ color: "var(--color-text-tertiary)" }}>Présence RDV</span>
+      <span style={{ color: "var(--color-text-tertiary)" }}>{t("meeting.showRate.title")}</span>
       <span className="font-semibold" style={{ color: onTrack ? "rgb(21,128,61)" : "var(--color-text-primary)" }}>{pct}</span>
       {v === null && <span style={{ color: "var(--color-text-tertiary)" }}>· {stats.qualified}/{SHOW_RATE_SAMPLE_FLOOR}</span>}
-      {stats.unknown > 0 && <span style={{ color: "var(--color-text-tertiary)" }}>· {stats.unknown} à qualifier</span>}
+      {stats.unknown > 0 && <span style={{ color: "var(--color-text-tertiary)" }}>· {t("meeting.showRate.toQualify", { n: stats.unknown })}</span>}
     </span>
   );
 }
