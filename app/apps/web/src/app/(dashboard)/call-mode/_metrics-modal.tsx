@@ -58,6 +58,15 @@ interface MetricsResponse {
     bestDows: RankedBucket[];
     hours: TimeBucket[];
     dows: TimeBucket[];
+    bestHoursProspect?: RankedBucket[];
+    crossTimezone?: boolean;
+  };
+  conversation?: {
+    sample: number;
+    avgAgentTalkPct: number | null;
+    avgQuestionsAsked: number | null;
+    avgLongestMonologueSec: number | null;
+    avgInteractivityPerMin: number | null;
   };
 }
 
@@ -132,6 +141,15 @@ function ctx(r: Rate): string {
   return `${r.num} / ${r.den}`;
 }
 
+interface ShowStatsData {
+  held: number;
+  noShow: number;
+  qualified: number;
+  unknown: number;
+  scheduled: number;
+  showRate: { value: number | null; num: number; den: number };
+}
+
 export function CallMetricsModal({
   open,
   scope,
@@ -143,6 +161,7 @@ export function CallMetricsModal({
 }) {
   const [data, setData] = useState<MetricsResponse | null>(null);
   const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+  const [showStats, setShowStats] = useState<ShowStatsData | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -160,6 +179,22 @@ export function CallMetricsModal({
       .catch(() => {
         if (!cancelled) setState("error");
       });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, scope]);
+
+  // Meeting show rate — a separate, cheap tally (no live calendar call) so a
+  // failure here never blanks the call metrics.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetch(`/api/meetings/show-stats?scope=${scope}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { stats?: ShowStatsData } | null) => {
+        if (!cancelled && d?.stats) setShowStats(d.stats);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -217,6 +252,31 @@ export function CallMetricsModal({
             </div>
           </Section>
 
+          {/* ── Présence aux RDV (show rate) ── */}
+          <Section title="Présence aux RDV — taux de présence (90 j)">
+            {showStats && showStats.qualified > 0 ? (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <Tile
+                  label="Taux de présence"
+                  value={fmtPct(showStats.showRate.value)}
+                  sub={
+                    showStats.showRate.value === null
+                      ? `${showStats.held}/${showStats.qualified} · échantillon insuffisant`
+                      : `${showStats.held} tenus / ${showStats.qualified} qualifiés`
+                  }
+                  hint="repère 75-80 %"
+                  accent={showRateColor(showStats.showRate.value)}
+                />
+                <Tile label="No-show" value={String(showStats.noShow)} sub="RDV manqués" accent={showStats.noShow > 0 ? "#d97706" : undefined} />
+                <Tile label="À qualifier" value={String(showStats.unknown)} sub="RDV passés non marqués" />
+              </div>
+            ) : (
+              <p className="text-[12px]" style={muted}>
+                Pas encore de RDV qualifiés. Marquez vos RDV passés « tenu / pas venu » dans Meetings pour suivre la présence.
+              </p>
+            )}
+          </Section>
+
           {/* ── Joignabilité (distribution) ── */}
           <Section title="Joignabilité — pourquoi ça décroche ou non">
             <OutcomeBar counts={data.counts} />
@@ -271,6 +331,33 @@ export function CallMetricsModal({
                 accent={talkRatioColor(data.quality.avgTalkRatioPct)}
               />
             </div>
+            {/* Transcript-derived dialogue shape — only once enough connected
+                calls carry a usable transcript (recorded conversations). */}
+            {data.conversation && data.conversation.sample >= 5 && (
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <Tile
+                  label="Questions / appel"
+                  value={data.conversation.avgQuestionsAsked != null ? String(data.conversation.avgQuestionsAsked) : "—"}
+                  sub={`sur ${data.conversation.sample} conversation${data.conversation.sample > 1 ? "s" : ""}`}
+                  hint="poser au moins quelques questions"
+                />
+                <Tile
+                  label="Monologue le plus long"
+                  value={fmtDuration(data.conversation.avgLongestMonologueSec)}
+                  hint="garder sous ~1 min"
+                  accent={
+                    data.conversation.avgLongestMonologueSec != null && data.conversation.avgLongestMonologueSec > 60
+                      ? "#d97706"
+                      : undefined
+                  }
+                />
+                <Tile
+                  label="Interactivité"
+                  value={data.conversation.avgInteractivityPerMin != null ? `${data.conversation.avgInteractivityPerMin}/min` : "—"}
+                  sub="échanges par minute"
+                />
+              </div>
+            )}
           </Section>
 
           {/* ── Quand appeler ── */}
@@ -281,8 +368,15 @@ export function CallMetricsModal({
               </p>
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <BestList title="Meilleures heures" items={data.timing.bestHours} render={(b) => fmtHour(b.key)} />
+                <BestList title={data.timing.crossTimezone ? "Meilleures heures (votre heure)" : "Meilleures heures"} items={data.timing.bestHours} render={(b) => fmtHour(b.key)} />
                 <BestList title="Meilleurs jours" items={data.timing.bestDows} render={(b) => DOW_FR[b.key] ?? String(b.key)} />
+                {data.timing.crossTimezone && (data.timing.bestHoursProspect?.length ?? 0) > 0 && (
+                  <BestList
+                    title="Meilleures heures (heure du prospect)"
+                    items={data.timing.bestHoursProspect!}
+                    render={(b) => fmtHour(b.key)}
+                  />
+                )}
               </div>
             )}
           </Section>
@@ -342,6 +436,10 @@ function connectColor(v: number | null): string | undefined {
   if (v === null) return undefined;
   if (v >= BENCHMARKS.connectRate.typical[0]) return "#16a34a";
   return "#d97706";
+}
+function showRateColor(v: number | null): string | undefined {
+  if (v === null) return undefined;
+  return v >= 0.75 ? "#16a34a" : "#d97706";
 }
 function dialsPerMeetingColor(v: number | null): string | undefined {
   if (v === null) return undefined;

@@ -20,7 +20,7 @@
  */
 
 import { db } from "@/db";
-import { companies, icps, icpCriteria, companyIcpFit } from "@/db/schema";
+import { companies, icps, icpCriteria, companyIcpFit, icpFieldCatalog } from "@/db/schema";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   computeBlendedFit,
@@ -29,7 +29,7 @@ import {
   type IcpFitCell,
 } from "./criteria-engine";
 import { SOURCING_ONLY_FIELD_KEYS } from "./field-catalog";
-import { buildCompanyContext } from "./company-context";
+import { buildCompanyContext, customExtra, type CustomFieldDef } from "./company-context";
 import { getGrade } from "@/lib/scoring/scoring";
 import { updateTenantSettings } from "@/lib/config/tenant-settings";
 
@@ -85,6 +85,24 @@ export async function loadActiveIcps(tenantId: string): Promise<ActiveIcp[]> {
 }
 
 /**
+ * The tenant's custom_property field defs (fieldKey → properties dot path).
+ * Without these, custom_property ICP criteria never evaluate (buildCompanyContext
+ * only knows the standard Apollo fields). One query; the caller passes the
+ * result into every scoreCompanyBatch call so the per-batch path stays pure.
+ * `signal` fields are excluded — their sourcePath is a signal id, not a
+ * properties path; they're resolved elsewhere.
+ */
+export async function loadCustomFieldDefs(tenantId: string): Promise<CustomFieldDef[]> {
+  const rows = await db
+    .select({ fieldKey: icpFieldCatalog.fieldKey, sourcePath: icpFieldCatalog.sourcePath })
+    .from(icpFieldCatalog)
+    .where(and(eq(icpFieldCatalog.tenantId, tenantId), eq(icpFieldCatalog.source, "custom_property")));
+  return rows
+    .filter((r): r is { fieldKey: string; sourcePath: string } => !!r.sourcePath)
+    .map((r) => ({ fieldKey: r.fieldKey, sourcePath: r.sourcePath }));
+}
+
+/**
  * Guard (R3.4, tightened): only recompute when at least one active ICP
  * has a criterion the company engine can actually score. Empty shells
  * (the 96 migration "Default"s) and people-only ICPs must not zero a
@@ -123,6 +141,7 @@ export async function scoreCompanyBatch(
   tenantId: string,
   companyIds: string[],
   activeIcps: ActiveIcp[],
+  customFields: CustomFieldDef[] = [],
 ): Promise<BatchDiff> {
   if (companyIds.length === 0 || activeIcps.length === 0) {
     return { companies: 0, regradedUp: 0, regradedDown: 0, unowned: 0 };
@@ -154,12 +173,11 @@ export async function scoreCompanyBatch(
   let unowned = 0;
 
   for (const company of rows) {
-    const ctx = buildCompanyContext({
-      industry: company.industry,
-      size: company.size,
-      revenue: company.revenue,
-      properties: company.properties as Record<string, unknown> | null,
-    });
+    const props = company.properties as Record<string, unknown> | null;
+    const ctx = buildCompanyContext(
+      { industry: company.industry, size: company.size, revenue: company.revenue, properties: props },
+      customExtra(props, customFields),
+    );
 
     const cells: IcpFitCell[] = [];
     for (const icp of activeIcps) {
@@ -242,6 +260,7 @@ export async function runFullRecompute(tenantId: string): Promise<RecomputeSumma
   const activeIcps = await loadActiveIcps(tenantId);
   if (!hasScorableCriteria(activeIcps)) return null;
 
+  const customFields = await loadCustomFieldDefs(tenantId);
   const ids = await listCompanyIds(tenantId);
   const agg: BatchDiff = { companies: 0, regradedUp: 0, regradedDown: 0, unowned: 0 };
   for (let i = 0; i < ids.length; i += RECOMPUTE_BATCH_SIZE) {
@@ -249,6 +268,7 @@ export async function runFullRecompute(tenantId: string): Promise<RecomputeSumma
       tenantId,
       ids.slice(i, i + RECOMPUTE_BATCH_SIZE),
       activeIcps,
+      customFields,
     );
     agg.companies += diff.companies;
     agg.regradedUp += diff.regradedUp;

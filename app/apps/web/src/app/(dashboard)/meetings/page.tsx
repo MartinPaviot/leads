@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody } from "@/components/ui/card";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   MeetingCard,
   CalendarView,
@@ -15,6 +15,14 @@ import {
   weekLabel,
   type Meeting,
 } from "./_meeting-views";
+import {
+  resolveAttendance,
+  tallyShowStats,
+  SHOW_RATE_BENCHMARK,
+  SHOW_RATE_SAMPLE_FLOOR,
+  type MeetingAttendance,
+  type ResolvedAttendance,
+} from "@/lib/meetings/attendance";
 
 interface NextMeetingInfo {
   id: string;
@@ -126,6 +134,50 @@ export default function MeetingsPage() {
     setPrepLoading((prev) => ({ ...prev, [meetingId]: false }));
   }, [prepDocs, expandedMeeting]);
 
+  // Mark a past meeting held / no-show (or clear). Optimistic — re-resolve the
+  // card's attendance from its own signals so a cleared mark falls back to
+  // "recorded ⇒ held" / unknown, not a stale value; the server reconciles on
+  // the next fetch.
+  const markAttendance = useCallback(
+    async (id: string, attendance: MeetingAttendance | null) => {
+      setMeetings((prev) =>
+        prev.map((m) =>
+          m.id === id
+            ? {
+                ...m,
+                attendance: resolveAttendance({
+                  explicit: attendance,
+                  calendarStatus: m.status,
+                  isPast: m.isPast,
+                  recorded: m.hasTranscript || m.hasNotes || !!m.recordingUrl,
+                }),
+              }
+            : m,
+        ),
+      );
+      try {
+        await fetch(`/api/meetings/${id}/attendance`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ attendance }),
+        });
+      } catch (e) {
+        console.warn("meetings: attendance save failed", e);
+      }
+    },
+    [],
+  );
+
+  const showStats = useMemo(
+    () =>
+      tallyShowStats(
+        meetings
+          .map((m) => m.attendance)
+          .filter((a): a is ResolvedAttendance => !!a),
+      ),
+    [meetings],
+  );
+
   const upcoming = meetings.filter((m) => !m.isPast && !m.isAllDay);
   const allDayUpcoming = meetings.filter((m) => !m.isPast && m.isAllDay);
   const past = meetings.filter((m) => m.isPast);
@@ -158,6 +210,7 @@ export default function MeetingsPage() {
   return (
     <div className="flex h-full flex-col animate-content-in">
       <PageHeader icon={<Calendar size={15} />} title="Meetings" subtitle={`${meetings.length}`}>
+        {showStats.qualified > 0 && <ShowRateChip stats={showStats} />}
         {meetings.length > 0 && <ViewToggle view={view} onChange={setView} />}
       </PageHeader>
 
@@ -275,7 +328,7 @@ export default function MeetingsPage() {
                 <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>Upcoming ({upcoming.length})</h2>
                 <div className="space-y-2">
                   {upcoming.map((m) => (
-                    <MeetingCard key={m.id} meeting={m} expanded={expandedMeeting === m.id} onToggle={() => setExpandedMeeting(expandedMeeting === m.id ? null : m.id)} onPrep={() => generatePrep(m.id)} prepDoc={prepDocs[m.id]} prepLoading={prepLoading[m.id]} />
+                    <MeetingCard key={m.id} meeting={m} expanded={expandedMeeting === m.id} onToggle={() => setExpandedMeeting(expandedMeeting === m.id ? null : m.id)} onPrep={() => generatePrep(m.id)} prepDoc={prepDocs[m.id]} prepLoading={prepLoading[m.id]} onAttendance={markAttendance} />
                   ))}
                 </div>
               </section>
@@ -286,7 +339,7 @@ export default function MeetingsPage() {
                 <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>Past ({past.length})</h2>
                 <div className="space-y-2">
                   {past.map((m) => (
-                    <MeetingCard key={m.id} meeting={m} expanded={expandedMeeting === m.id} onToggle={() => setExpandedMeeting(expandedMeeting === m.id ? null : m.id)} onPrep={() => generatePrep(m.id)} prepDoc={prepDocs[m.id]} prepLoading={prepLoading[m.id]} />
+                    <MeetingCard key={m.id} meeting={m} expanded={expandedMeeting === m.id} onToggle={() => setExpandedMeeting(expandedMeeting === m.id ? null : m.id)} onPrep={() => generatePrep(m.id)} prepDoc={prepDocs[m.id]} prepLoading={prepLoading[m.id]} onAttendance={markAttendance} />
                   ))}
                 </div>
               </section>
@@ -295,6 +348,27 @@ export default function MeetingsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+/** Meeting show rate in the page header: held / qualified meetings, with the
+ * "to qualify" backlog so the number is never mistaken for the whole. Below the
+ * sample floor the rate reads "—" (a rate on a handful of meetings is noise). */
+function ShowRateChip({ stats }: { stats: ReturnType<typeof tallyShowStats> }) {
+  const v = stats.showRate.value;
+  const pct = v === null ? "—" : `${Math.round(v * 100)}%`;
+  const onTrack = v !== null && v >= SHOW_RATE_BENCHMARK.typical[0];
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px]"
+      style={{ border: "1px solid var(--color-border-default)", color: "var(--color-text-secondary)" }}
+      title={`${stats.held} tenus / ${stats.qualified} qualifiés${stats.unknown ? ` · ${stats.unknown} à qualifier` : ""} · repère 75-80%`}
+    >
+      <span style={{ color: "var(--color-text-tertiary)" }}>Présence RDV</span>
+      <span className="font-semibold" style={{ color: onTrack ? "rgb(21,128,61)" : "var(--color-text-primary)" }}>{pct}</span>
+      {v === null && <span style={{ color: "var(--color-text-tertiary)" }}>· {stats.qualified}/{SHOW_RATE_SAMPLE_FLOOR}</span>}
+      {stats.unknown > 0 && <span style={{ color: "var(--color-text-tertiary)" }}>· {stats.unknown} à qualifier</span>}
+    </span>
   );
 }
 

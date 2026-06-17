@@ -11,6 +11,7 @@ import { ScalingPathPrompt } from "@/components/ScalingPathPrompt";
 import { VisitorIdCapBanner } from "@/components/visitor-id-cap-banner";
 import { HotInboundsWidget } from "@/components/hot-inbounds-widget";
 import { HotVisitorsWidget } from "@/components/hot-visitors-widget";
+import { HOT_INBOUNDS_WIDGET_ENABLED } from "@/lib/inbound/widget-visibility";
 import { UpNextView } from "@/components/up-next/up-next-view";
 
 /**
@@ -110,10 +111,12 @@ export default function DashboardPage() {
           <VisitorIdCapBanner />
 
           {/* Speed-to-lead: hot inbounds + visitors. Each self-hides when empty,
-              so this row vanishes on a quiet day. */}
+              so this row vanishes on a quiet day. Hot inbounds is hidden in
+              production (subscription/no-reply noise on real mailboxes — see
+              lib/inbound/widget-visibility.ts). */}
           {!showOnboarding && (
             <div className="grid gap-4 md:grid-cols-2 empty:hidden">
-              <HotInboundsWidget />
+              {HOT_INBOUNDS_WIDGET_ENABLED && <HotInboundsWidget />}
               <HotVisitorsWidget />
             </div>
           )}

@@ -5,13 +5,14 @@
  * so the live page and the throwaway preview route render the exact same UI.
  */
 
-import { ChevronDown, ChevronRight, FileText, Users, ExternalLink } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Users, ExternalLink, Check, X } from "lucide-react";
 import Link from "next/link";
 import { Card, CardBody } from "@/components/ui/card";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChatMarkdown } from "@/components/chat-markdown";
+import type { ResolvedAttendance, MeetingAttendance } from "@/lib/meetings/attendance";
 
 export interface MatchedContact {
   id: string;
@@ -40,6 +41,7 @@ export interface Meeting {
   notes: { summary: string } | null;
   recordingUrl: string | null;
   activityId: string | null;
+  attendance?: ResolvedAttendance;
   account: { id: string; name: string; domain: string | null } | null;
   matchedContacts: MatchedContact[];
 }
@@ -53,6 +55,7 @@ export function MeetingCard({
   onPrep,
   prepDoc,
   prepLoading,
+  onAttendance,
 }: {
   meeting: Meeting;
   expanded: boolean;
@@ -60,6 +63,7 @@ export function MeetingCard({
   onPrep: () => void;
   prepDoc?: string;
   prepLoading?: boolean;
+  onAttendance?: (id: string, attendance: MeetingAttendance | null) => void;
 }) {
   const date = new Date(m.startTime);
   const endDate = new Date(m.endTime);
@@ -122,9 +126,16 @@ export function MeetingCard({
           </div>
         </button>
 
-        <Link href={`/meetings/${m.id}`} className="mt-1 ml-5 inline-flex items-center gap-1 text-[11px] font-medium hover:underline" style={{ color: "var(--color-accent)" }}>
-          View details <ChevronRight size={11} />
-        </Link>
+        <div className="mt-1 ml-5 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Link href={`/meetings/${m.id}`} className="inline-flex items-center gap-1 text-[11px] font-medium hover:underline" style={{ color: "var(--color-accent)" }}>
+            View details <ChevronRight size={11} />
+          </Link>
+          {/* Show-rate capture — a no-show leaves no trace, so the rep's verdict
+              on a past meeting is what makes the rate real. */}
+          {m.isPast && m.activityId && onAttendance && (
+            <AttendanceControl value={m.attendance} onChange={(v) => onAttendance(m.id, v)} />
+          )}
+        </div>
 
         {expanded && (
           <div className="mt-3 ml-5 space-y-3" style={{ borderTop: "1px solid var(--color-border-default)", paddingTop: "12px" }}>
@@ -191,6 +202,52 @@ export function MeetingCard({
         )}
       </CardBody>
     </Card>
+  );
+}
+
+/** Held / no-show toggle on a past meeting. The active state reflects the
+ * resolved attendance (explicit mark, or "recorded ⇒ held"); clicking the
+ * active button clears the mark. Cancelled meetings show a static label. */
+function AttendanceControl({
+  value,
+  onChange,
+}: {
+  value?: ResolvedAttendance;
+  onChange: (v: MeetingAttendance | null) => void;
+}) {
+  if (value === "cancelled") {
+    return (
+      <span className="text-[11px]" style={{ color: "var(--color-text-muted)" }}>
+        Annulé
+      </span>
+    );
+  }
+  const held = value === "held";
+  const noShow = value === "no_show";
+  const base = "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium transition";
+  const idle = { color: "var(--color-text-secondary)", border: "1px solid var(--color-border-default)" };
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>Présence</span>
+      <button
+        type="button"
+        onClick={() => onChange(held ? null : "held")}
+        className={base}
+        style={held ? { background: "rgba(34,197,94,.14)", color: "rgb(21,128,61)" } : idle}
+        title={held ? "Marqué tenu — cliquer pour effacer" : "Marquer comme tenu"}
+      >
+        <Check size={11} /> Tenu
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange(noShow ? null : "no_show")}
+        className={base}
+        style={noShow ? { background: "rgba(220,38,38,.12)", color: "rgb(185,28,28)" } : idle}
+        title={noShow ? "Marqué pas venu — cliquer pour effacer" : "Marquer comme pas venu (no-show)"}
+      >
+        <X size={11} /> Pas venu
+      </button>
+    </span>
   );
 }
 

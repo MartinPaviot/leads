@@ -22,7 +22,8 @@ describe("parseAccountListFilters", () => {
   it("defaults to an empty/neutral filter set", () => {
     const f = parseAccountListFilters(P(""));
     expect(f).toEqual({
-      industries: [], geographies: [], sizes: [], revenues: [], stages: [], grades: [],
+      industries: [], geographies: [], regions: [], sizes: [], revenues: [], stages: [], grades: [],
+      contactReach: [], recency: [], families: [],
       enriched: null, linkedin: null, name: null, domain: null, tab: "all", scoreMin: null, scoreMax: null,
     });
     expect(hasActiveAccountFilters(f)).toBe(false);
