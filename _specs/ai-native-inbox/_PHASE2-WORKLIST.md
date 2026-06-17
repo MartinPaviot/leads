@@ -23,13 +23,18 @@ built, needs wiring · [O] ocean (flag, don't fake) · [ ] to build.
       view/banner; lastSeenAt from user_preferences JSONB.
 - [ ] T06 no-reply nudge — shouldResurface(core) → surface a nudge on outbound
       threads gone quiet (read-time flag in conversations route + list chip).
-- [ ] T07 one-click unsubscribe + block — parseListUnsubscribe(core) → button in
-      the Bundles view / handled lane (mailto/http unsubscribe; needs the raw
-      List-Unsubscribe header — check capture stores it, else flag).
+- [O] T07 one-click unsubscribe — parseListUnsubscribe(core) is ready, but the
+      raw List-Unsubscribe header is NOT persisted: classifyInboundSender only
+      *detects* it transiently for bulk classification (email-capture.ts metadata
+      = {messageId,from,to,...}). A read-time unsubscribe has nothing to act on.
+      Honest fix = capture-path change to store metadata.listUnsubscribe
+      (forward-only JSONB) + the RFC 8058 one-click POST endpoint + suppression
+      ledger write → bounded but multi-part, do with runtime verify. FLAGGED.
 - [x] T09 bulk keyboard multi-select — selection(core) → x/Shift+x/Esc + per-row
       checkbox + sticky bulk bar (Done/Snooze/Select-all/Clear) (5b40a2fa).
-- [ ] Q04 search operators + saved searches — parseSearchQuery(core) → wire into
-      the inbox search box; saved searches in user_preferences JSONB.
+- [x] Q04 search operators — search-match.ts (matchesSearch + isActiveQuery, 6
+      tests) + ?q= cross-lane filter in the route + debounced search box (e138dc51).
+      Saved searches (user_preferences) still residual.
 - [ ] S09 why-line in the LIST — composeWhyLine(core) now that G05 produces
       stage+situation; thread deal-stage into the conversations route per row.
 
