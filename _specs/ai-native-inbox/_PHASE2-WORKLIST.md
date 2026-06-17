@@ -26,8 +26,8 @@ built, needs wiring · [O] ocean (flag, don't fake) · [ ] to build.
 - [ ] T07 one-click unsubscribe + block — parseListUnsubscribe(core) → button in
       the Bundles view / handled lane (mailto/http unsubscribe; needs the raw
       List-Unsubscribe header — check capture stores it, else flag).
-- [ ] T09 bulk keyboard multi-select — selection(core) toggle/rangeTo/selectAll
-      → x/shift-x select in the list + a bulk action bar (done/snooze the set).
+- [x] T09 bulk keyboard multi-select — selection(core) → x/Shift+x/Esc + per-row
+      checkbox + sticky bulk bar (Done/Snooze/Select-all/Clear) (5b40a2fa).
 - [ ] Q04 search operators + saved searches — parseSearchQuery(core) → wire into
       the inbox search box; saved searches in user_preferences JSONB.
 - [ ] S09 why-line in the LIST — composeWhyLine(core) now that G05 produces
