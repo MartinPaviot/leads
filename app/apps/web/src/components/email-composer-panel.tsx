@@ -2,11 +2,12 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { X, Send, ChevronDown, ChevronUp, Mail, Save, AlertCircle, RefreshCw } from "lucide-react";
+import { X, Send, ChevronDown, ChevronUp, Mail, Save, AlertCircle, RefreshCw, Sparkles, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { ContactCollisionNotice } from "@/components/collision/contact-collision-notice";
 import { parseRecipients } from "@/lib/inbox/template-vars";
+import { REWRITE_PRESETS } from "@/lib/inbox/rewrite";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -202,6 +203,12 @@ export function EmailComposerPanel({ draft, onClose, onSent }: EmailComposerPane
   const [sendError, setSendError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
+  // Rewrite (INBOX-C04): GTM presets + free-form; keeps the prior body for undo.
+  const [rewriteOpen, setRewriteOpen] = useState(false);
+  const [rewriteInstruction, setRewriteInstruction] = useState("");
+  const [rewriting, setRewriting] = useState(false);
+  const [rewriteUndo, setRewriteUndo] = useState<string | null>(null);
+
   // Refs
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
@@ -250,6 +257,34 @@ export function EmailComposerPanel({ draft, onClose, onSent }: EmailComposerPane
       dealId: draft.dealId,
     });
     toast("Draft saved.", "success");
+  }
+
+  /* ── Rewrite (INBOX-C04) ─────────────────────────────────────── */
+
+  async function handleRewrite(instruction: string) {
+    if (!editBody.trim() || !instruction.trim() || rewriting) return;
+    setRewriting(true);
+    setRewriteOpen(false);
+    try {
+      const res = await fetch("/api/inbox/compose/rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: editBody, instruction }),
+      });
+      const data = res.ok ? ((await res.json()) as { text?: string }) : {};
+      if (data.text && data.text.trim()) {
+        setRewriteUndo(editBody); // keep the original for one-tap undo
+        setEditBody(data.text.trim());
+        setRewriteInstruction("");
+        toast("Rewritten — undo if it's not right.", "success");
+      } else {
+        toast("Couldn't rewrite — kept your text.", "warning");
+      }
+    } catch {
+      toast("Couldn't rewrite — kept your text.", "warning");
+    } finally {
+      setRewriting(false);
+    }
   }
 
   /* ── Send ───────────────────────────────────────────────────── */
@@ -429,6 +464,74 @@ export function EmailComposerPanel({ draft, onClose, onSent }: EmailComposerPane
 
         {/* Body — plain textarea, keeps markdown formatting */}
         <div className="flex-1 overflow-auto p-4">
+          {/* Rewrite toolbar (INBOX-C04): GTM presets + free-form, with undo. */}
+          <div className="mb-2 flex items-center gap-2">
+            <div className="relative">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setRewriteOpen((v) => !v)}
+                disabled={rewriting || !editBody.trim()}
+                className="gap-1.5"
+              >
+                {rewriting ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                Rewrite
+              </Button>
+              {rewriteOpen && (
+                <div
+                  className="absolute left-0 top-full z-20 mt-1 w-64 rounded-lg border p-1 shadow-lg"
+                  style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
+                >
+                  {REWRITE_PRESETS.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => void handleRewrite(p.instruction)}
+                      className="block w-full rounded px-2 py-1.5 text-left text-[12px] transition-colors hover:bg-[var(--color-bg-hover)]"
+                      style={{ color: "var(--color-text-primary)" }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                  <div className="my-1 border-t" style={{ borderColor: "var(--color-border-default)" }} />
+                  <div className="flex items-center gap-1 p-1">
+                    <input
+                      value={rewriteInstruction}
+                      onChange={(e) => setRewriteInstruction(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && rewriteInstruction.trim()) {
+                          e.preventDefault();
+                          void handleRewrite(rewriteInstruction);
+                        }
+                      }}
+                      placeholder="Tell the AI how…"
+                      className="min-w-0 flex-1 rounded border px-2 py-1 text-[12px] outline-none"
+                      style={{
+                        borderColor: "var(--color-border-default)",
+                        background: "var(--color-bg-page)",
+                        color: "var(--color-text-primary)",
+                      }}
+                    />
+                    <Button size="sm" onClick={() => void handleRewrite(rewriteInstruction)} disabled={!rewriteInstruction.trim()}>
+                      Go
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+            {rewriteUndo != null && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setEditBody(rewriteUndo);
+                  setRewriteUndo(null);
+                }}
+                className="gap-1"
+              >
+                <Undo2 size={12} /> Undo rewrite
+              </Button>
+            )}
+          </div>
           <textarea
             ref={bodyRef}
             value={editBody}
