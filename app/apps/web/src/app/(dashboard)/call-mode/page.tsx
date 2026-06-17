@@ -512,9 +512,11 @@ export default function CallModePage() {
     () => {
       const callbacks = queue.filter((q) => (q.attemptCount ?? 0) > 0).length;
       const fresh = queue.filter((q) => (q.attemptCount ?? 0) === 0).length;
+      // Short labels so the segmented control fits the rail on one line; the
+      // dropped detail ("dus", "today") lives in each toggle's tooltip.
       return [
-        { id: "today", name: "Aujourd'hui", count: queue.length },
-        { id: "callbacks_due", name: "Rappels dus", count: callbacks },
+        { id: "today", name: "Tous", count: queue.length },
+        { id: "callbacks_due", name: "Rappels", count: callbacks },
         { id: "new", name: "Nouveaux", count: fresh },
       ];
     },
