@@ -32,6 +32,7 @@ import { timeAgo } from "./_time-ago";
 import { reasonTooltip, type ConversationDetail, type InboxLane } from "./_types";
 import { EmailBody } from "./_email-body";
 import { initialsFor, avatarColorIndex } from "@/lib/inbox/sender-auth";
+import { parseWhen } from "@/lib/inbox/parse-when";
 
 const SNOOZE_OPTIONS: Array<{ label: string; until: () => Date }> = [
   {
@@ -83,6 +84,7 @@ export function ConversationPane({
   const [drafting, setDrafting] = useState(false);
   const [schedOpen, setSchedOpen] = useState(false);
   const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const [snoozeText, setSnoozeText] = useState("");
   const [stopping, setStopping] = useState(false);
   const snoozeRef = useRef<HTMLDivElement>(null);
 
@@ -328,26 +330,62 @@ export function ConversationPane({
                   Snooze
                   <ChevronDown className="h-3 w-3" />
                 </Button>
-                {snoozeOpen && (
-                  <div
-                    className="absolute right-0 top-full z-20 mt-1 w-44 rounded-lg border py-1 shadow-lg"
-                    style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
-                  >
-                    {SNOOZE_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.label}
-                        className="block w-full px-3 py-1.5 text-left text-[12px] transition-colors hover:underline"
-                        style={{ color: "var(--color-text-primary)" }}
-                        onClick={() => {
-                          setSnoozeOpen(false);
-                          void onTriage(conv.key, "snooze", opt.until().toISOString());
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {snoozeOpen && (() => {
+                  const parsed = snoozeText.trim() ? parseWhen(snoozeText) : null;
+                  return (
+                    <div
+                      className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border p-1 shadow-lg"
+                      style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
+                    >
+                      {/* Natural-language snooze (INBOX-T05): "2d", "monday", "tomorrow 9am". */}
+                      <div className="px-1.5 pt-1 pb-1">
+                        <input
+                          autoFocus
+                          value={snoozeText}
+                          onChange={(e) => setSnoozeText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && parsed) {
+                              setSnoozeOpen(false);
+                              setSnoozeText("");
+                              void onTriage(conv.key, "snooze", parsed.toISOString());
+                            }
+                          }}
+                          placeholder='"2d", "monday", "tomorrow 9am"'
+                          className="w-full rounded-md border px-2 py-1 text-[12px] outline-none"
+                          style={{
+                            borderColor: "var(--color-border-default)",
+                            background: "var(--color-bg-page)",
+                            color: "var(--color-text-primary)",
+                          }}
+                        />
+                        {snoozeText.trim() && (
+                          <div
+                            className="mt-1 px-0.5 text-[11px]"
+                            style={{ color: parsed ? "var(--color-text-secondary)" : "var(--color-warning)" }}
+                          >
+                            {parsed
+                              ? `→ ${parsed.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
+                              : "couldn't read that time"}
+                          </div>
+                        )}
+                      </div>
+                      <div className="my-1 border-t" style={{ borderColor: "var(--color-border-default)" }} />
+                      {SNOOZE_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.label}
+                          className="block w-full px-3 py-1.5 text-left text-[12px] transition-colors hover:underline"
+                          style={{ color: "var(--color-text-primary)" }}
+                          onClick={() => {
+                            setSnoozeOpen(false);
+                            void onTriage(conv.key, "snooze", opt.until().toISOString());
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
             {triageable ? (
