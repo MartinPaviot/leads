@@ -79,6 +79,10 @@ export interface ConversationDetail {
   nextAction: { action: string; why: string; stage: string | null } | null;
   /** The contact's most recent real interaction of any channel (INBOX-G03). */
   lastInteraction: { at: string; type: string } | null;
+  /** Deterministic action items pulled from the inbound text (INBOX-S04). */
+  actionItems: Array<{ text: string; due: string | null }>;
+  /** High-signal entities mentioned in the thread (INBOX-S05). */
+  entities: { amounts: string[]; dates: string[]; phones: string[] };
 }
 
 /** Human label for where the badge text came from (INBOX-T08). Undefined = no tooltip. */

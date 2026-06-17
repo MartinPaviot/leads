@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   ShieldAlert,
   ArrowRight,
+  ListChecks,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +37,7 @@ import { EmailBody } from "./_email-body";
 import { ProspectBriefSection } from "./_prospect-brief";
 import { initialsFor, avatarColorIndex } from "@/lib/inbox/sender-auth";
 import { parseWhen } from "@/lib/inbox/parse-when";
+import { dirOf } from "@/lib/inbox/text-direction";
 
 const SNOOZE_OPTIONS: Array<{ label: string; until: () => Date }> = [
   {
@@ -472,6 +474,49 @@ export function ConversationPane({
         {/* ── Prospect brief (INBOX-G01): reuse the Call Mode brief endpoint,
              fetched on demand so opening a thread spends no credit. ── */}
         {detail.contact && <ProspectBriefSection contactId={detail.contact.id} />}
+
+        {/* ── Action items (INBOX-S04): deterministic request/commitment cues. ── */}
+        {detail.actionItems.length > 0 && (
+          <div
+            className="mb-3 rounded-lg border px-3 py-2.5"
+            style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
+          >
+            <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
+              <ListChecks size={12} /> Action items
+            </span>
+            <ul className="mt-1.5 list-inside list-disc space-y-0.5">
+              {detail.actionItems.map((a, i) => (
+                <li key={i} className="text-[12px] leading-snug" style={{ color: "var(--color-text-secondary)" }} dir={dirOf(a.text)}>
+                  {a.text}
+                  {a.due && (
+                    <span className="font-medium" style={{ color: "var(--color-accent)" }}>
+                      {" · due "}
+                      {a.due}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* ── Key details (INBOX-S05): high-signal entities (money / dates / phones). ── */}
+        {(detail.entities.amounts.length > 0 || detail.entities.dates.length > 0 || detail.entities.phones.length > 0) && (
+          <div className="mb-3 flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+              Key details
+            </span>
+            {[...detail.entities.amounts, ...detail.entities.dates, ...detail.entities.phones].map((e, i) => (
+              <span
+                key={i}
+                className="rounded px-1.5 py-0.5 text-[11px]"
+                style={{ background: "var(--color-badge-0-bg)", color: "var(--color-badge-0)" }}
+              >
+                {e}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* ── Handled note: what the agent already did ── */}
         {conv.handledNote && (

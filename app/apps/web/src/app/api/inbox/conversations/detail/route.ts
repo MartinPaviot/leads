@@ -7,6 +7,8 @@ import { loadConversationRows, contactNameMap } from "@/lib/inbox/load";
 import { getInboxScope, scopeConversationRows } from "@/lib/inbox/user-scope";
 import { suggestNextAction, deriveSituation } from "@/lib/inbox/next-action";
 import { INTERACTION_ACTIVITY_TYPES } from "@/lib/accounts/last-interaction";
+import { extractActionItems } from "@/lib/inbox/action-items";
+import { extractEntities } from "@/lib/inbox/entities";
 
 /**
  * GET /api/inbox/conversations/detail?key=<conversationKey>
@@ -142,6 +144,18 @@ export async function GET(req: Request) {
       }
     }
 
+    // Action items (INBOX-S04) + key entities (INBOX-S05) — deterministic
+    // extraction over the thread's inbound text. Pure, fail-soft, no LLM.
+    const inboundText = conversation.messages
+      .filter((m) => m.direction === "inbound")
+      .map((m) => m.body)
+      .join("\n\n");
+    const actionItems = extractActionItems(inboundText).slice(0, 6);
+    const ent = extractEntities(inboundText);
+    // High-signal entities only — money + dates + phones. URLs/emails are
+    // signature noise in practice.
+    const entities = { amounts: ent.amounts, dates: ent.dates, phones: ent.phones };
+
     return Response.json({
       conversation: {
         ...conversation,
@@ -152,6 +166,8 @@ export async function GET(req: Request) {
       preparedDraft,
       nextAction,
       lastInteraction,
+      actionItems,
+      entities,
     });
   } catch (error) {
     console.error("Failed to load conversation detail:", error);
