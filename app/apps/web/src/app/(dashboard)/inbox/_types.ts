@@ -75,6 +75,10 @@ export interface ConversationDetail {
   contact: { id: string; name: string; email: string | null } | null;
   enrollment: { id: string; sequenceId: string; sequenceName: string; status: string } | null;
   preparedDraft: { id: string; subject: string; body: string } | null;
+  /** Suggested next action by deal stage + situation (INBOX-G05). Null = nothing sharp to suggest. */
+  nextAction: { action: string; why: string; stage: string | null } | null;
+  /** The contact's most recent real interaction of any channel (INBOX-G03). */
+  lastInteraction: { at: string; type: string } | null;
 }
 
 /** Human label for where the badge text came from (INBOX-T08). Undefined = no tooltip. */

@@ -22,6 +22,7 @@ import {
   Quote,
   ShieldCheck,
   ShieldAlert,
+  ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -297,6 +298,12 @@ export function ConversationPane({
                 <Badge variant="warning" size="sm">Sentiment declining</Badge>
               )}
             </div>
+            {/* Last interaction of any channel (INBOX-G03) — recency beyond this thread. */}
+            {detail.lastInteraction && (
+              <div className="mt-1 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                Last interaction: {timeAgo(detail.lastInteraction.at)} · {detail.lastInteraction.type.replace(/_/g, " ")}
+              </div>
+            )}
           </div>
         </div>
 
@@ -411,6 +418,25 @@ export function ConversationPane({
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3">
+        {/* ── Suggested next action (INBOX-G05): stage + situation → one cited
+             prompt. Suggests, never auto-acts. ── */}
+        {detail.nextAction && (
+          <div
+            className="mb-3 flex items-start gap-2 rounded-lg border px-3 py-2"
+            style={{ borderColor: "var(--color-accent)", background: "var(--color-accent-soft)" }}
+          >
+            <ArrowRight className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--color-accent)" }} />
+            <span className="text-[12px]" style={{ color: "var(--color-text-primary)" }}>
+              <span className="font-medium">Next: {detail.nextAction.action}</span>
+              <span style={{ color: "var(--color-text-secondary)" }}>
+                {" — "}
+                {detail.nextAction.stage ? `${detail.nextAction.stage} stage · ` : ""}
+                {detail.nextAction.why}
+              </span>
+            </span>
+          </div>
+        )}
+
         {/* ── Handled note: what the agent already did ── */}
         {conv.handledNote && (
           <div
