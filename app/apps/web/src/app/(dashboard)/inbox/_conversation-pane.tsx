@@ -35,6 +35,8 @@ import { timeAgo } from "./_time-ago";
 import { reasonTooltip, type ConversationDetail, type InboxLane } from "./_types";
 import { EmailBody } from "./_email-body";
 import { ProspectBriefSection } from "./_prospect-brief";
+import { ThreadSummarySection } from "./_thread-summary";
+import { shouldSummarize } from "@/lib/inbox/thread-summary-prep";
 import { initialsFor, avatarColorIndex } from "@/lib/inbox/sender-auth";
 import { parseWhen } from "@/lib/inbox/parse-when";
 import { dirOf } from "@/lib/inbox/text-direction";
@@ -474,6 +476,12 @@ export function ConversationPane({
         {/* ── Prospect brief (INBOX-G01): reuse the Call Mode brief endpoint,
              fetched on demand so opening a thread spends no credit. ── */}
         {detail.contact && <ProspectBriefSection contactId={detail.contact.id} />}
+
+        {/* ── Thread summary (INBOX-S01/S08): on-demand TL;DR for long threads. ── */}
+        {shouldSummarize(
+          conv.messages.length,
+          conv.messages.reduce((n, m) => n + (m.body?.length ?? 0), 0),
+        ) && <ThreadSummarySection conversationKey={conv.key} />}
 
         {/* ── Action items (INBOX-S04): deterministic request/commitment cues. ── */}
         {detail.actionItems.length > 0 && (
