@@ -163,3 +163,39 @@ export function buildCompanyContext(
 
   return ctx;
 }
+
+// ── Custom-property resolution (the `extra` the recompute must pass) ──
+
+/** A tenant custom_property field: its criterion key + where it lives under
+ *  companies.properties (dot path). From icp_field_catalog. */
+export type CustomFieldDef = { fieldKey: string; sourcePath: string };
+
+/** Read a (possibly nested) value out of an object by dot path. Pure. */
+function getByPath(obj: Record<string, unknown> | null | undefined, path: string): unknown {
+  if (!obj || !path) return undefined;
+  let cur: unknown = obj;
+  for (const part of path.split(".")) {
+    if (cur === null || typeof cur !== "object") return undefined;
+    cur = (cur as Record<string, unknown>)[part];
+  }
+  return cur;
+}
+
+/**
+ * Build the `extra` bag for buildCompanyContext from a company's properties +
+ * the tenant's custom_property field defs. This is the missing wire: without
+ * it, custom_property ICP criteria (e.g. an "international institution" flag)
+ * are never present in the context and so never evaluate. Only sets a key when
+ * the value is present, so absent custom props don't pollute the context.
+ */
+export function customExtra(
+  properties: Record<string, unknown> | null | undefined,
+  defs: CustomFieldDef[],
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const d of defs) {
+    const v = getByPath(properties, d.sourcePath);
+    if (v !== undefined) out[d.fieldKey] = v;
+  }
+  return out;
+}
