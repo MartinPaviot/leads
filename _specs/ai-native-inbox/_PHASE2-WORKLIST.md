@@ -49,10 +49,10 @@ built, needs wiring · [O] ocean (flag, don't fake) · [ ] to build.
       stage+situation; thread deal-stage into the conversations route per row.
 
 ## B. LLM features (injectable-generator + tests; runtime verify deferred)
-- [ ] S01 per-thread summary with citations — summarizeThread(messages, generate?)
-      on-demand (button) so open spends no token; render a TL;DR card.
-- [ ] S08 long-thread TL;DR + key decisions — reuse shouldSummarize/pickKeyMessages
-      (core) to pick inputs; same on-demand summarizer as S01 (one helper).
+- [x] S01 + S08 thread summary — summarize-thread.ts (injectable, reuses
+      pickKeyMessages, citations clamped, fail-closed, 3 tests) + POST
+      /api/inbox/conversations/summarize + "Summarize thread" button shown only
+      for long threads (shouldSummarize), fetch-on-click (a5ec2578).
 - [ ] C04 rewrite commands (free-form + GTM presets) — rewrite(body, instruction,
       generate?) wired into the composer (a "Rewrite" menu).
 - [ ] C07 draft from bullet points — bulletsToDraft(bullets, generate?) in composer.
