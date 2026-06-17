@@ -28,10 +28,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { EmailComposerPanel, type EmailComposerDraft } from "@/components/email-composer-panel";
+import { ContactCollisionNotice } from "@/components/collision/contact-collision-notice";
 import { MeetingSchedulerCard } from "@/components/meeting-scheduler";
 import { timeAgo } from "./_time-ago";
 import { reasonTooltip, type ConversationDetail, type InboxLane } from "./_types";
 import { EmailBody } from "./_email-body";
+import { ProspectBriefSection } from "./_prospect-brief";
 import { initialsFor, avatarColorIndex } from "@/lib/inbox/sender-auth";
 import { parseWhen } from "@/lib/inbox/parse-when";
 
@@ -418,6 +420,14 @@ export function ConversationPane({
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3">
+        {/* ── Collision heads-up (INBOX-G06): a teammate already touched this
+             contact recently. Soft, non-blocking — informs, never gates. ── */}
+        {detail.contact && (
+          <div className="mb-3">
+            <ContactCollisionNotice contactId={detail.contact.id} />
+          </div>
+        )}
+
         {/* ── Suggested next action (INBOX-G05): stage + situation → one cited
              prompt. Suggests, never auto-acts. ── */}
         {detail.nextAction && (
@@ -436,6 +446,10 @@ export function ConversationPane({
             </span>
           </div>
         )}
+
+        {/* ── Prospect brief (INBOX-G01): reuse the Call Mode brief endpoint,
+             fetched on demand so opening a thread spends no credit. ── */}
+        {detail.contact && <ProspectBriefSection contactId={detail.contact.id} />}
 
         {/* ── Handled note: what the agent already did ── */}
         {conv.handledNote && (
