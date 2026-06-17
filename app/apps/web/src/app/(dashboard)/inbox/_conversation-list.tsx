@@ -106,8 +106,8 @@ export function ConversationList({
               {lane === "attention" && (
                 <span
                   className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{ background: priorityDot(c.priority) }}
-                  aria-hidden
+                  style={{ background: priorityDot(c.importanceTier) }}
+                  title={c.importanceFactors.length ? `Importance: ${c.importanceFactors.join(" · ")}` : undefined}
                 />
               )}
               {c.reason && (

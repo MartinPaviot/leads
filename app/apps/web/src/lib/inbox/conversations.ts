@@ -15,6 +15,7 @@
 import { classifyInboundSender } from "@/lib/inbound/lead-classification";
 import type { SenderAuthStatus } from "@/lib/inbox/sender-auth";
 import { checkSla } from "@/lib/inbox/sla";
+import { scoreImportance } from "@/lib/inbox/importance";
 
 /** Hours awaiting our reply before a conversation is flagged overdue (INBOX-N04). */
 const SLA_THRESHOLD_HOURS = 24;
@@ -95,6 +96,11 @@ export interface Conversation {
   /** Hours overdue if we're past the response SLA on a conversation awaiting our
    *  reply (INBOX-N04); null when not awaiting us or within the SLA. */
   slaHoursOverdue: number | null;
+  /** Explainable importance (INBOX-T04): 0–100 score, coarse 1–4 tier (1 hottest)
+   *  that the attention lane sorts on, and the cited contributing factors. */
+  importanceScore: number;
+  importanceTier: 1 | 2 | 3 | 4;
+  importanceFactors: string[];
   /** What the pipeline did, for the handled lane. Null elsewhere. */
   handledNote: string | null;
   lastInboundAt: string | null;
@@ -397,6 +403,26 @@ export function buildConversations(input: {
     });
     const slaHoursOverdue = sla.breached ? sla.hoursOver : null;
 
+    // Importance (INBOX-T04): rank the attention lane by revenue relevance from
+    // already-persisted signals — intent, urgency/sentiment trend, recency — with
+    // automated senders pinned to the bottom. hasOpenDeal/seniority are residual
+    // (need a deal + role lookup); cited factors drive the "why important" tooltip.
+    const intel = (intelligence ?? {}) as Record<string, unknown>;
+    const lastInAtMs = lastInbound ? toMs(lastInbound.occurredAt) : null;
+    const importance = scoreImportance({
+      intentLabel: [...labels].sort((a, b) => (PRIORITY_BY_LABEL[a] ?? 4) - (PRIORITY_BY_LABEL[b] ?? 4))[0] ?? null,
+      urgencyLevel:
+        typeof intel.urgencyLevel === "string"
+          ? (intel.urgencyLevel as "none" | "low" | "medium" | "high")
+          : null,
+      sentimentTrend:
+        typeof intel.sentimentTrend === "string"
+          ? (intel.sentimentTrend as "improving" | "declining" | "stable")
+          : null,
+      isAutomated: inboundIsAutomated,
+      ageHours: lastInAtMs != null ? Math.max(0, (nowMs - lastInAtMs) / 3_600_000) : undefined,
+    });
+
     conversations.push({
       key,
       lane,
@@ -416,6 +442,9 @@ export function buildConversations(input: {
       reason,
       reasonSource,
       slaHoursOverdue,
+      importanceScore: importance.score,
+      importanceTier: importance.tier,
+      importanceFactors: importance.factors.map((f) => f.label),
       handledNote,
       lastInboundAt: lastInbound ? toIso(lastInbound.occurredAt) : null,
       lastMessageAt: lastMessage?.at ?? null,
@@ -429,11 +458,13 @@ export function buildConversations(input: {
   return sortConversations(conversations);
 }
 
-/** Attention: priority bucket then freshest inbound. Other lanes: freshest first. */
+/** Attention: importance tier, then finer score, then freshest inbound (INBOX-T04).
+ *  Other lanes: freshest first. */
 export function sortConversations(conversations: Conversation[]): Conversation[] {
   return [...conversations].sort((a, b) => {
-    if (a.lane === "attention" && b.lane === "attention" && a.priority !== b.priority) {
-      return a.priority - b.priority;
+    if (a.lane === "attention" && b.lane === "attention") {
+      if (a.importanceTier !== b.importanceTier) return a.importanceTier - b.importanceTier;
+      if (a.importanceScore !== b.importanceScore) return b.importanceScore - a.importanceScore;
     }
     const aMs = a.lastInboundAt ?? a.lastMessageAt ?? "";
     const bMs = b.lastInboundAt ?? b.lastMessageAt ?? "";

@@ -101,6 +101,8 @@ export async function GET(req: Request) {
         reason: c.reason,
         reasonSource: c.reasonSource,
         slaHoursOverdue: c.slaHoursOverdue,
+        importanceTier: c.importanceTier,
+        importanceFactors: c.importanceFactors,
         handledNote: c.handledNote,
         lastInboundAt: c.lastInboundAt,
         lastMessageAt: c.lastMessageAt,

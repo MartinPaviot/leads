@@ -580,3 +580,27 @@ describe("response SLA (INBOX-N04)", () => {
     expect(convs[0].slaHoursOverdue).toBeNull();
   });
 });
+
+describe("importance ranking (INBOX-T04)", () => {
+  it("scores a hot intent above the bottom and pins automated senders to tier 4", () => {
+    const convs = buildConversations({
+      inbound: [
+        inbound({ id: "i1", threadId: "t-hot", intent: ["meeting_request"] }),
+        inbound({
+          id: "i2",
+          threadId: "t-auto",
+          metadata: { from: "Infomaniak <no-reply@infomaniak.com>", to: "m@pilae.ch" },
+        }),
+      ],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    const hot = convs.find((c) => c.key === "t-hot")!;
+    const auto = convs.find((c) => c.key === "t-auto")!;
+    expect(hot.importanceTier).toBeLessThan(4);
+    expect(hot.importanceFactors.length).toBeGreaterThan(0); // cited, never opaque
+    expect(auto.importanceTier).toBe(4);
+    expect(auto.importanceScore).toBe(0);
+  });
+});
