@@ -53,8 +53,9 @@ built, needs wiring · [O] ocean (flag, don't fake) · [ ] to build.
       pickKeyMessages, citations clamped, fail-closed, 3 tests) + POST
       /api/inbox/conversations/summarize + "Summarize thread" button shown only
       for long threads (shouldSummarize), fetch-on-click (a5ec2578).
-- [ ] C04 rewrite commands (free-form + GTM presets) — rewrite(body, instruction,
-      generate?) wired into the composer (a "Rewrite" menu).
+- [x] C04 rewrite commands — rewrite.ts (5 GTM presets + free-form, grounded,
+      fail-closed, 4 tests) + POST /api/inbox/compose/rewrite + composer "Rewrite"
+      menu with one-tap Undo (a3541a37).
 - [ ] C07 draft from bullet points — bulletsToDraft(bullets, generate?) in composer.
 - [ ] C08 translate / multi-language — translate(body, lang, generate?) in composer.
 - [ ] C01/G08 voice-matched full draft — compose(context, generate?) grounded in
