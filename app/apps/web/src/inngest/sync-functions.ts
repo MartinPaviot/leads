@@ -6,6 +6,7 @@ import { fetchRecentEmails, type SyncedEmail } from "@/lib/integrations/gmail";
 import { fetchOutlookEmails } from "@/lib/integrations/outlook";
 import { fetchRecentEmailsImap } from "@/lib/integrations/imap";
 import { captureInboundEmail, detectSequenceReply, normalizeSyncDate } from "@/lib/capture/email-capture";
+import { summarizeMessages } from "@/lib/inbox/summarize";
 import { decryptSecret } from "@/lib/crypto/settings-encryption";
 import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/integrations/calendar";
 import { embedEntity, activityToText, contactToText, companyToText } from "@/lib/ai/embeddings";
@@ -484,15 +485,28 @@ export const syncEmails = inngest.createFunction(
       }));
 
       const sentiments = await analyzeEmailBatch(emailBatch);
+      // INBOX-S02: a one-line neutral summary for inbound mail, cached on
+      // metadata.aiSummaryLine (the honest badge renders it). Fail-soft: no key /
+      // LLM error → no summary written, never a fabricated line.
+      const summaries = await summarizeMessages(emailBatch.filter((e) => e.direction === "inbound"));
 
       for (const [idx, result] of sentiments) {
         const act = batch[idx];
         if (act) {
+          const summary = summaries.get(idx);
           await db.update(activities)
             .set({
               sentiment: result.sentiment as any,
               intent: result.intent,
-              metadata: { ...(act.metadata || {}), intent: result.intent },
+              // JSONB-MERGE onto the live column (NOT overwrite): preserves the full
+              // metadata captureInboundEmail wrote (from / snippet / bodyHtml /
+              // senderAuth / leadClassification) — fixing the partial-overwrite
+              // clobber (PR #260 sequela) — while adding intent + the S02 summary.
+              metadata: sql`${activities.metadata} || ${JSON.stringify({
+                ...(act.metadata || {}),
+                intent: result.intent,
+                ...(summary ? { aiSummaryLine: summary } : {}),
+              })}::jsonb`,
             })
             .where(eq(activities.id, act.id));
         }
