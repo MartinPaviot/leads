@@ -7,6 +7,7 @@ import { fetchOutlookEmails } from "@/lib/integrations/outlook";
 import { fetchRecentEmailsImap } from "@/lib/integrations/imap";
 import { captureInboundEmail, detectSequenceReply, normalizeSyncDate } from "@/lib/capture/email-capture";
 import { summarizeMessages } from "@/lib/inbox/summarize";
+import { classifyGeneralIntent } from "@/lib/inbox/classify-intent";
 import { decryptSecret } from "@/lib/crypto/settings-encryption";
 import { fetchRecentMeetings, type SyncedMeeting } from "@/lib/integrations/calendar";
 import { embedEntity, activityToText, contactToText, companyToText } from "@/lib/ai/embeddings";
@@ -485,15 +486,18 @@ export const syncEmails = inngest.createFunction(
       }));
 
       const sentiments = await analyzeEmailBatch(emailBatch);
-      // INBOX-S02: a one-line neutral summary for inbound mail, cached on
-      // metadata.aiSummaryLine (the honest badge renders it). Fail-soft: no key /
-      // LLM error → no summary written, never a fabricated line.
-      const summaries = await summarizeMessages(emailBatch.filter((e) => e.direction === "inbound"));
+      const inboundForEnrich = emailBatch.filter((e) => e.direction === "inbound");
+      // INBOX-S02: a one-line neutral summary the honest badge renders.
+      // INBOX-S06: a general-intent label (broad taxonomy, gated at read time).
+      // Both lazy-load the AI SDK + fail-soft (no key / error → not written).
+      const summaries = await summarizeMessages(inboundForEnrich);
+      const generalIntents = await classifyGeneralIntent(inboundForEnrich);
 
       for (const [idx, result] of sentiments) {
         const act = batch[idx];
         if (act) {
           const summary = summaries.get(idx);
+          const generalIntent = generalIntents.get(idx);
           await db.update(activities)
             .set({
               sentiment: result.sentiment as any,
@@ -501,11 +505,13 @@ export const syncEmails = inngest.createFunction(
               // JSONB-MERGE onto the live column (NOT overwrite): preserves the full
               // metadata captureInboundEmail wrote (from / snippet / bodyHtml /
               // senderAuth / leadClassification) — fixing the partial-overwrite
-              // clobber (PR #260 sequela) — while adding intent + the S02 summary.
+              // clobber (PR #260 sequela) — while adding intent + the S02 summary
+              // + the S06 general intent.
               metadata: sql`${activities.metadata} || ${JSON.stringify({
                 ...(act.metadata || {}),
                 intent: result.intent,
                 ...(summary ? { aiSummaryLine: summary } : {}),
+                ...(generalIntent ? { generalIntent } : {}),
               })}::jsonb`,
             })
             .where(eq(activities.id, act.id));
