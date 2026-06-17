@@ -2,12 +2,13 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { X, Send, ChevronDown, ChevronUp, Mail, Save, AlertCircle, RefreshCw, Sparkles, Undo2 } from "lucide-react";
+import { X, Send, ChevronDown, ChevronUp, Mail, Save, AlertCircle, RefreshCw, Sparkles, Undo2, Languages, ListPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { ContactCollisionNotice } from "@/components/collision/contact-collision-notice";
 import { parseRecipients } from "@/lib/inbox/template-vars";
 import { REWRITE_PRESETS } from "@/lib/inbox/rewrite";
+import { TRANSLATE_LANGUAGES } from "@/lib/inbox/translate";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -203,11 +204,17 @@ export function EmailComposerPanel({ draft, onClose, onSent }: EmailComposerPane
   const [sendError, setSendError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
-  // Rewrite (INBOX-C04): GTM presets + free-form; keeps the prior body for undo.
+  // Compose-AI (INBOX-C04/C07/C08): rewrite / translate / draft-from-bullets.
+  // All keep the prior body in rewriteUndo for a one-tap Undo.
   const [rewriteOpen, setRewriteOpen] = useState(false);
   const [rewriteInstruction, setRewriteInstruction] = useState("");
   const [rewriting, setRewriting] = useState(false);
   const [rewriteUndo, setRewriteUndo] = useState<string | null>(null);
+  const [translateOpen, setTranslateOpen] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  const [draftOpen, setDraftOpen] = useState(false);
+  const [draftBullets, setDraftBullets] = useState("");
+  const [drafting, setDrafting] = useState(false);
 
   // Refs
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -284,6 +291,59 @@ export function EmailComposerPanel({ draft, onClose, onSent }: EmailComposerPane
       toast("Couldn't rewrite — kept your text.", "warning");
     } finally {
       setRewriting(false);
+    }
+  }
+
+  async function handleTranslate(lang: string) {
+    if (!editBody.trim() || translating) return;
+    setTranslating(true);
+    setTranslateOpen(false);
+    try {
+      const res = await fetch("/api/inbox/compose/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: editBody, targetLang: lang }),
+      });
+      const data = res.ok ? ((await res.json()) as { text?: string }) : {};
+      if (data.text && data.text.trim()) {
+        setRewriteUndo(editBody);
+        setEditBody(data.text.trim());
+        toast(`Translated to ${lang} — undo if it's not right.`, "success");
+      } else {
+        toast("Couldn't translate — kept your text.", "warning");
+      }
+    } catch {
+      toast("Couldn't translate — kept your text.", "warning");
+    } finally {
+      setTranslating(false);
+    }
+  }
+
+  async function handleDraft() {
+    if (!draftBullets.trim() || drafting) return;
+    setDrafting(true);
+    try {
+      const res = await fetch("/api/inbox/compose/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bullets: draftBullets }),
+      });
+      const data = res.ok ? ((await res.json()) as { subject?: string; text?: string }) : {};
+      if (data.text && data.text.trim()) {
+        setRewriteUndo(editBody);
+        // Fill the subject only when it's still empty — never clobber a "Re:".
+        if (data.subject && data.subject.trim() && !editSubject.trim()) setEditSubject(data.subject.trim());
+        setEditBody(data.text.trim());
+        setDraftOpen(false);
+        setDraftBullets("");
+        toast("Drafted from your bullets — undo if it's not right.", "success");
+      } else {
+        toast("Couldn't draft — add a little more detail.", "warning");
+      }
+    } catch {
+      toast("Couldn't draft — try again.", "warning");
+    } finally {
+      setDrafting(false);
     }
   }
 
@@ -518,6 +578,76 @@ export function EmailComposerPanel({ draft, onClose, onSent }: EmailComposerPane
                 </div>
               )}
             </div>
+
+            {/* Translate (INBOX-C08) */}
+            <div className="relative">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setTranslateOpen((v) => !v)}
+                disabled={translating || !editBody.trim()}
+                className="gap-1.5"
+              >
+                {translating ? <RefreshCw size={12} className="animate-spin" /> : <Languages size={12} />}
+                Translate
+              </Button>
+              {translateOpen && (
+                <div
+                  className="absolute left-0 top-full z-20 mt-1 w-40 rounded-lg border p-1 shadow-lg"
+                  style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
+                >
+                  {TRANSLATE_LANGUAGES.map((l) => (
+                    <button
+                      key={l.code}
+                      onClick={() => void handleTranslate(l.label)}
+                      className="block w-full rounded px-2 py-1.5 text-left text-[12px] transition-colors hover:bg-[var(--color-bg-hover)]"
+                      style={{ color: "var(--color-text-primary)" }}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Draft from bullets (INBOX-C07) */}
+            <div className="relative">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setDraftOpen((v) => !v)}
+                disabled={drafting}
+                className="gap-1.5"
+              >
+                {drafting ? <RefreshCw size={12} className="animate-spin" /> : <ListPlus size={12} />}
+                Draft from bullets
+              </Button>
+              {draftOpen && (
+                <div
+                  className="absolute left-0 top-full z-20 mt-1 w-72 rounded-lg border p-2 shadow-lg"
+                  style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
+                >
+                  <textarea
+                    value={draftBullets}
+                    onChange={(e) => setDraftBullets(e.target.value)}
+                    rows={4}
+                    placeholder={"- what you want to say\n- another point"}
+                    className="w-full resize-none rounded border px-2 py-1 text-[12px] outline-none"
+                    style={{
+                      borderColor: "var(--color-border-default)",
+                      background: "var(--color-bg-page)",
+                      color: "var(--color-text-primary)",
+                    }}
+                  />
+                  <div className="mt-1.5 flex justify-end">
+                    <Button size="sm" onClick={() => void handleDraft()} disabled={!draftBullets.trim() || drafting} loading={drafting}>
+                      Generate
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {rewriteUndo != null && (
               <Button
                 size="sm"
@@ -528,7 +658,7 @@ export function EmailComposerPanel({ draft, onClose, onSent }: EmailComposerPane
                 }}
                 className="gap-1"
               >
-                <Undo2 size={12} /> Undo rewrite
+                <Undo2 size={12} /> Undo
               </Button>
             )}
           </div>
