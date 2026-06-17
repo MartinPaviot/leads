@@ -19,18 +19,20 @@ import { planProblems } from "@/lib/call-mode/match-problem";
 import { checkScriptMethod } from "@/lib/call-mode/script-levers";
 import type { ScriptContext } from "@/lib/voice/script-context";
 import { useToast } from "@/components/ui/toast";
+import { useT } from "@/lib/i18n/locale";
 
-/** Sector key → short French label for the "détecté" hint. */
-const SECTOR_LABEL: Record<string, string> = {
-  sante: "santé / soin",
-  fondations: "fondations / social",
-  parapublic: "parapublic",
-  international: "international",
-  education: "hautes écoles",
-  it: "IT & services",
-  conseil: "conseil",
-  "low-tech": "industrie / terrain",
-  generic: "générique",
+/** Sector key → i18n key for the "détecté" hint (resolved with t() at render,
+ *  since this const is module-level and can't call the hook). */
+const SECTOR_LABEL_KEY: Record<string, string> = {
+  sante: "callScript.sector.sante",
+  fondations: "callScript.sector.fondations",
+  parapublic: "callScript.sector.parapublic",
+  international: "callScript.sector.international",
+  education: "callScript.sector.education",
+  it: "callScript.sector.it",
+  conseil: "callScript.sector.conseil",
+  "low-tech": "callScript.sector.low-tech",
+  generic: "callScript.sector.generic",
 };
 
 export function CallScriptPanel({
@@ -75,6 +77,7 @@ export function CallScriptPanel({
   onContext?: (ctx: ScriptContext) => void;
 }) {
   const { toast } = useToast();
+  const t = useT();
   const [sector, setSector] = useState(defaultSector ?? "");
   const [geo, setGeo] = useState(defaultGeo ?? "");
   const [checked, setChecked] = useState<Set<number>>(new Set());
@@ -172,13 +175,13 @@ export function CallScriptPanel({
         body: JSON.stringify({ sector, fields: { ...draft, problems: draft.problems.filter((p) => p.trim()) } }),
       });
       const data = await res.json();
-      if (!res.ok) { toast(data.error || "Enregistrement impossible", "error"); return; }
+      if (!res.ok) { toast(data.error || t("callScript.saveFailed"), "error"); return; }
       setFields({ opener: data.script.opener, problems: data.script.problems ?? [], permissionCheck: data.script.permissionCheck, bookingAsk: data.script.bookingAsk, guidance: data.script.guidance ?? [] });
       setEditing(false);
       setDraft(null);
       setDraftGrounding([]);
-      toast("Script enregistré", "success");
-    } catch { toast("Erreur réseau", "error"); }
+      toast(t("callScript.saved"), "success");
+    } catch { toast(t("callScript.networkError"), "error"); }
     finally { setSaving(false); }
   }
 
@@ -192,18 +195,18 @@ export function CallScriptPanel({
         body: JSON.stringify({ sector, contactId: contactId ?? undefined }),
       });
       const data = await res.json();
-      if (!res.ok) { toast(data.error || "Génération impossible", "error"); return; }
+      if (!res.ok) { toast(data.error || t("callScript.genFailed"), "error"); return; }
       const d: ScriptFields = { ...data.draft, guidance: data.draft.guidance ?? fields.guidance };
       setDraft(d);
       setDraftGrounding(Array.isArray(data.grounding) ? data.grounding : []);
       setEditing(true);
       toast(
         Array.isArray(data.grounding) && data.grounding.length > 0
-          ? "Brouillon généré, ancré sur ce prospect — relisez puis enregistrez"
-          : "Brouillon généré — relisez puis enregistrez",
+          ? t("callScript.draftGroundedToast")
+          : t("callScript.draftToast"),
         "success",
       );
-    } catch { toast("Erreur réseau", "error"); }
+    } catch { toast(t("callScript.networkError"), "error"); }
     finally { setGenerating(false); }
   }
 
@@ -254,7 +257,7 @@ export function CallScriptPanel({
     >
       <div className="flex items-center gap-2">
         <Phone size={14} style={{ color: "var(--color-accent)" }} />
-        <span className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>Script d&apos;appel</span>
+        <span className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>{t("callScript.title")}</span>
         <span className="ml-auto inline-flex items-center gap-1.5">
           <button
             type="button"
@@ -262,9 +265,9 @@ export function CallScriptPanel({
             disabled={generating}
             className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
             style={{ color: "var(--color-text-secondary)" }}
-            title="Régénérer depuis votre produit + ICP"
+            title={t("callScript.regenerateTitle")}
           >
-            {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} Régénérer
+            {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} {t("callScript.regenerate")}
           </button>
           {!editing ? (
             <button
@@ -273,18 +276,18 @@ export function CallScriptPanel({
               className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
               style={{ color: "var(--color-text-secondary)" }}
             >
-              <Pencil size={12} /> Éditer
+              <Pencil size={12} /> {t("callScript.edit")}
             </button>
           ) : (
             <>
               <button type="button" onClick={save} disabled={saving}
                 className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium"
                 style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
-                {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Enregistrer
+                {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} {t("callScript.save")}
               </button>
               <button type="button" onClick={() => { setEditing(false); setDraft(null); setDraftGrounding([]); }}
                 className="inline-flex items-center justify-center rounded-md p-1 transition-colors hover:bg-[var(--color-bg-hover)]"
-                style={{ color: "var(--color-text-tertiary)" }} title="Annuler">
+                style={{ color: "var(--color-text-tertiary)" }} title={t("callScript.cancel")}>
                 <X size={13} />
               </button>
             </>
@@ -293,29 +296,29 @@ export function CallScriptPanel({
       </div>
 
       <div className="flex gap-2">
-        <input value={sector} onChange={(e) => setSector(e.target.value)} placeholder="Secteur (ex. Santé, Fondation)"
+        <input value={sector} onChange={(e) => setSector(e.target.value)} placeholder={t("callScript.sectorPlaceholder")}
           className="flex-1 rounded-md px-2 py-1 text-[12px]" style={inputStyle} />
-        <input value={geo} onChange={(e) => setGeo(e.target.value)} placeholder="Géographie (ex. Genève)"
+        <input value={geo} onChange={(e) => setGeo(e.target.value)} placeholder={t("callScript.geoPlaceholder")}
           className="flex-1 rounded-md px-2 py-1 text-[12px]" style={inputStyle} />
       </div>
       {!editing && resolvedSector && resolvedVia.length > 0 && (
         <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
-          Secteur détecté : <span className="font-medium" style={{ color: "var(--color-text-secondary)" }}>{SECTOR_LABEL[resolvedSector] ?? resolvedSector}</span> · via {resolvedVia.join(", ")}
+          {t("callScript.sectorDetected")} <span className="font-medium" style={{ color: "var(--color-text-secondary)" }}>{SECTOR_LABEL_KEY[resolvedSector] ? t(SECTOR_LABEL_KEY[resolvedSector]) : resolvedSector}</span> · {t("callScript.via")} {resolvedVia.join(", ")}
         </p>
       )}
 
       {loading ? (
         <div className="flex items-center gap-2 py-3 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-          <Loader2 size={13} className="animate-spin" /> Chargement du script…
+          <Loader2 size={13} className="animate-spin" /> {t("callScript.loading")}
         </div>
       ) : editing && draft ? (
         // ── Edit mode — simple inline fields ──
         <div className="flex flex-col gap-2.5">
-          <Field label="Accroche — identité + secteur↔sujet ({name} et {line} interpolés)">
+          <Field label={t("callScript.field.opener")}>
             <textarea value={draft.opener} onChange={(e) => setDraft({ ...draft, opener: e.target.value })}
               rows={2} className="w-full resize-y rounded-md px-2 py-1.5 text-[12.5px]" style={inputStyle} />
           </Field>
-          <Field label="Enjeux (validés un par un en appel — {tool} = outil détecté chez le prospect, masqué sinon)">
+          <Field label={t("callScript.field.problems")}>
             <div className="flex flex-col gap-1.5">
               {draft.problems.map((p, i) => {
                 const grounded = draftGrounding.find((g) => g.index === i);
@@ -331,7 +334,7 @@ export function CallScriptPanel({
                   </div>
                   {grounded && (
                     <span className="ml-1 w-fit rounded-sm px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide" style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
-                      Ancré : {grounded.fact}
+                      {t("callScript.grounded", { fact: grounded.fact })}
                     </span>
                   )}
                 </div>
@@ -340,20 +343,20 @@ export function CallScriptPanel({
               {draft.problems.length < 5 && (
                 <button type="button" onClick={() => setDraft({ ...draft, problems: [...draft.problems, ""] })}
                   className="inline-flex w-fit items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors hover:bg-[var(--color-bg-hover)]" style={{ color: "var(--color-accent)" }}>
-                  <Plus size={12} /> Ajouter un enjeu
+                  <Plus size={12} /> {t("callScript.addProblem")}
                 </button>
               )}
             </div>
           </Field>
-          <Field label="Question de validation">
+          <Field label={t("callScript.field.permissionCheck")}>
             <input value={draft.permissionCheck} onChange={(e) => setDraft({ ...draft, permissionCheck: e.target.value })}
               className="w-full rounded-md px-2 py-1 text-[12.5px]" style={inputStyle} />
           </Field>
-          <Field label="Demande de rendez-vous">
+          <Field label={t("callScript.field.bookingAsk")}>
             <textarea value={draft.bookingAsk} onChange={(e) => setDraft({ ...draft, bookingAsk: e.target.value })}
               rows={2} className="w-full resize-y rounded-md px-2 py-1.5 text-[12.5px]" style={inputStyle} />
           </Field>
-          <Field label="Réponse si « non »">
+          <Field label={t("callScript.field.noResponse")}>
             <textarea value={splitGuidance(draft.guidance).noResponse}
               onChange={(e) => setDraft({ ...draft, guidance: withNoResponse(splitGuidance(draft.guidance).tips, e.target.value) })}
               rows={3} className="w-full resize-y rounded-md px-2 py-1.5 text-[12.5px]" style={inputStyle} />
@@ -365,7 +368,7 @@ export function CallScriptPanel({
           <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-text-primary)" }}>{opener}</p>
           {reason && (
             <span className="w-fit rounded-sm px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide" style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
-              Accroche ancrée sur : {reason.sourceLabel}
+              {t("callScript.anchoredOn", { label: reason.sourceLabel })}
             </span>
           )}
           {/* Récit-pair — éclairer les 3 enjeux par un pair, jamais frontalement. */}
@@ -385,7 +388,7 @@ export function CallScriptPanel({
                     {p}
                     {isMatch && (
                       <span className="ml-1.5 rounded-sm px-1.5 py-px align-middle text-[9px] font-semibold uppercase tracking-wide" style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
-                        {floatViaPersona ? "Adapté au rôle" : viaTool ? "Détecté chez eux" : "Le plus pertinent"}
+                        {floatViaPersona ? t("callScript.match.persona") : viaTool ? t("callScript.match.tool") : t("callScript.match.relevant")}
                       </span>
                     )}
                   </span>
@@ -403,7 +406,7 @@ export function CallScriptPanel({
           </div>
           {viewNoResp && (
             <div className="rounded-md px-3 py-2 text-[12.5px]" style={{ background: "var(--color-bg-hover)" }}>
-              <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>Si le prospect dit non</div>
+              <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>{t("callScript.ifNo")}</div>
               <span style={{ color: "var(--color-text-primary)" }}>{viewNoResp}</span>
             </div>
           )}
@@ -428,15 +431,15 @@ export function CallScriptPanel({
             style={{ color: "var(--color-text-secondary)" }}
           >
             {showBranches ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-            <ShieldQuestion size={12} /> Objections &amp; branches ({branches.objections.length})
+            <ShieldQuestion size={12} /> {t("callScript.objectionsBranches")} ({branches.objections.length})
           </button>
           {showBranches && (
             <div className="mt-2 flex flex-col gap-2 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-              <BranchLine label="Barrage (secrétariat)" body={branches.gatekeeper} note={branches.gatekeeperNote} />
-              <BranchLine label="Répondeur" body={branches.voicemail} />
-              <BranchLine label="Rappel convenu" body={branches.callback} />
+              <BranchLine label={t("callScript.branch.gatekeeper")} body={branches.gatekeeper} note={branches.gatekeeperNote} />
+              <BranchLine label={t("callScript.branch.voicemail")} body={branches.voicemail} />
+              <BranchLine label={t("callScript.branch.callback")} body={branches.callback} />
               <div>
-                <div className="mb-1 text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>Objections</div>
+                <div className="mb-1 text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>{t("callScript.branch.objections")}</div>
                 <div className="flex flex-col gap-1.5">
                   {branches.objections.map((o) => (
                     <div key={o.cue} className="leading-snug">
@@ -461,7 +464,7 @@ export function CallScriptPanel({
         >
           <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: "rgb(133,77,14)" }}>
             <AlertTriangle size={11} />
-            Méthode — {methodGaps.length} point{methodGaps.length > 1 ? "s" : ""} à revoir
+            {t("callScript.method", { n: methodGaps.length })}
           </div>
           <ul className="flex flex-col gap-1">
             {methodGaps.map((g) => (

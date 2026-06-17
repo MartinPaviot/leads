@@ -15,6 +15,8 @@
  * `roleVerification` (the cached LinkedIn check).
  */
 
+import type { Locale } from "@/lib/i18n/messages";
+
 /** jsonb key under contacts.properties marking the stored role as stale. */
 export const ROLE_OBSOLETE_KEY = "roleObsoleteAt";
 
@@ -157,4 +159,38 @@ export function relativeFr(
   const mo = Math.round(d / 30);
   if (mo < 12) return `il y a ${mo} mois`;
   return `il y a ${Math.round(mo / 12)} an${mo >= 24 ? "s" : ""}`;
+}
+
+/**
+ * English twin of relativeFr — "just now / X min/h/d/mo/yr ago", or null for a
+ * missing/unparseable date. Same breakpoints so the two locales stay in sync.
+ */
+export function relativeEn(
+  iso: string | Date | null | undefined,
+  now: Date = new Date(),
+): string | null {
+  if (!iso) return null;
+  const then = iso instanceof Date ? iso.getTime() : new Date(iso).getTime();
+  if (!Number.isFinite(then)) return null;
+  const diff = now.getTime() - then;
+  const min = Math.round(diff / 60000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min} min ago`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h} h ago`;
+  const d = Math.round(h / 24);
+  if (d < 30) return `${d}d ago`;
+  const mo = Math.round(d / 30);
+  if (mo < 12) return `${mo} mo ago`;
+  const y = Math.round(mo / 12);
+  return `${y} yr${y >= 2 ? "s" : ""} ago`;
+}
+
+/** Locale-aware relative time; default FR so existing callers are unchanged. */
+export function relativeTime(
+  iso: string | Date | null | undefined,
+  locale: Locale = "fr",
+  now: Date = new Date(),
+): string | null {
+  return locale === "en" ? relativeEn(iso, now) : relativeFr(iso, now);
 }
