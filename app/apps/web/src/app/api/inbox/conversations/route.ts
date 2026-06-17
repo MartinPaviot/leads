@@ -8,6 +8,8 @@ import { getInboxScope, scopeConversationRows } from "@/lib/inbox/user-scope";
 import { attributeMailbox, indexMailboxes } from "@/lib/inbox/mailbox-attribution";
 import { laneMatches, type MatchCandidate } from "@/lib/inbox/lane-match";
 import { getUserLanes } from "@/lib/inbox/lane-store";
+import { applyLabelFilters } from "@/lib/inbox/filter-match";
+import { getUserFilters } from "@/lib/inbox/filter-store";
 
 const LANES: Lane[] = ["attention", "handled", "snoozed", "done"];
 const PAGE_SIZE = 30;
@@ -31,6 +33,7 @@ export async function GET(req: Request) {
     // ?lane=<id> selects one and filters by its saved query (over the already-
     // scoped set) instead of a built-in lane; never widens visibility.
     const userLanes = await getUserLanes(authCtx.userId);
+    const userFilters = await getUserFilters(authCtx.userId);
     const customLane = userLanes.find((l) => l.id === laneParam) ?? null;
     const toLaneCandidate = (row: {
       c: { fromAddress: string; subject: string };
@@ -131,6 +134,7 @@ export async function GET(req: Request) {
         slaHoursOverdue: c.slaHoursOverdue,
         importanceTier: c.importanceTier,
         importanceFactors: c.importanceFactors,
+        labels: applyLabelFilters(toLaneCandidate({ c, mb }), userFilters),
         handledNote: c.handledNote,
         lastInboundAt: c.lastInboundAt,
         lastMessageAt: c.lastMessageAt,

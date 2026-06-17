@@ -26,6 +26,8 @@ export interface ConversationListItem {
   /** Importance tier 1–4 (1 hottest) that sorts the attention lane + cited factors (INBOX-T04). */
   importanceTier: 1 | 2 | 3 | 4;
   importanceFactors: string[];
+  /** Labels applied by the user's deterministic filters (INBOX-T02). */
+  labels: string[];
   handledNote: string | null;
   lastInboundAt: string | null;
   lastMessageAt: string | null;

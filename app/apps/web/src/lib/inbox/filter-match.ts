@@ -41,3 +41,21 @@ export function foldExamples(existing: LabeledExample[], marks: LabeledExample[]
   for (const m of marks) byKey.set(m.key, { key: m.key, correct: m.correct });
   return [...byKey.values()];
 }
+
+/** A stored filter: its deterministic criteria + the label it applies. */
+export interface LabelFilter extends DeterministicFilter {
+  id: string;
+  name: string;
+  label?: string;
+}
+
+/** Deterministic labels a conversation earns from the user's label-filters. */
+export function applyLabelFilters(c: MatchCandidate, filters: LabelFilter[]): string[] {
+  const labels: string[] = [];
+  for (const f of filters) {
+    if (f.action === "label" && f.label && filterMatches(c, f) && !labels.includes(f.label)) {
+      labels.push(f.label);
+    }
+  }
+  return labels;
+}

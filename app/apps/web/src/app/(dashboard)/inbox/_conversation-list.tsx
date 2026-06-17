@@ -119,6 +119,15 @@ export function ConversationList({
                   {c.reason}
                 </span>
               )}
+              {c.labels.map((label) => (
+                <span
+                  key={label}
+                  className="shrink-0 rounded px-1 text-[10px] font-medium"
+                  style={{ background: "var(--color-badge-0-bg)", color: "var(--color-badge-0)" }}
+                >
+                  {label}
+                </span>
+              ))}
               {c.slaHoursOverdue != null && (
                 <span
                   className="flex shrink-0 items-center gap-1 rounded px-1 text-[10px] font-medium"
