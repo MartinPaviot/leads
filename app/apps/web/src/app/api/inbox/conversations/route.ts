@@ -10,6 +10,7 @@ import { laneMatches, type MatchCandidate } from "@/lib/inbox/lane-match";
 import { getUserLanes } from "@/lib/inbox/lane-store";
 import { applyLabelFilters } from "@/lib/inbox/filter-match";
 import { getUserFilters } from "@/lib/inbox/filter-store";
+import { bundleConversations } from "@/lib/inbox/bundle";
 
 const LANES: Lane[] = ["attention", "handled", "snoozed", "done"];
 const PAGE_SIZE = 30;
@@ -114,6 +115,29 @@ export async function GET(req: Request) {
       }))
       .filter((l) => !l.hideWhenEmpty || l.count > 0);
 
+    // Newsletter/promo bundling (INBOX-T03): group the bulk, never-replied
+    // senders into one collapsible source each so they can be cleared in a
+    // batch instead of one-by-one. Computed over the visible (scoped) set so
+    // the per-mailbox filter narrows it too. Cheap; always returned.
+    const bundles = bundleConversations(
+      visible
+        .filter(
+          ({ c }) =>
+            c.isBulk &&
+            c.messageCount <= c.inboundCount &&
+            c.lane !== "done" &&
+            c.lane !== "snoozed",
+        )
+        .map(({ c }) => ({
+          key: c.key,
+          fromAddress: c.fromAddress,
+          subject: c.subject,
+          lastMessageAt: c.lastMessageAt,
+          isBulk: c.isBulk,
+          hasOutbound: c.messageCount > c.inboundCount,
+        })),
+    );
+
     const names = await contactNameMap(
       authCtx.tenantId,
       pageRows.map(({ c }) => c.contactId).filter(Boolean) as string[],
@@ -151,6 +175,7 @@ export async function GET(req: Request) {
       selectedMailbox,
       customLanes,
       activeLane: customLane ? customLane.id : lane,
+      bundles,
     });
   } catch (error) {
     console.error("Failed to load inbox conversations:", error);

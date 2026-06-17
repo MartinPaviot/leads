@@ -20,10 +20,12 @@ import { useToast } from "@/components/ui/toast";
 import { ConversationList } from "./_conversation-list";
 import { ConversationPane } from "./_conversation-pane";
 import { OutboundTable } from "./_outbound-table";
+import { BundlesView } from "./_bundles-view";
 import { MailboxRail } from "./_mailbox-rail";
 import type { ConversationListItem, InboxLane, LaneCounts, MailboxSummary } from "./_types";
+import type { BundleSource } from "@/lib/inbox/bundle";
 
-type Tab = InboxLane | "outbound";
+type Tab = InboxLane | "outbound" | "bundles";
 
 const TAB_LABELS: Record<Tab, string> = {
   attention: "Needs attention",
@@ -31,9 +33,12 @@ const TAB_LABELS: Record<Tab, string> = {
   done: "Done",
   handled: "Handled",
   outbound: "Outbound",
+  bundles: "Bundles",
 };
 
-const TABS: Tab[] = ["attention", "snoozed", "done", "handled", "outbound"];
+// Built-in lane tabs. "bundles" is rendered separately (only when non-empty),
+// so it's excluded here — that keeps `counts[t]` exhaustively typed.
+const TABS: Exclude<Tab, "bundles">[] = ["attention", "snoozed", "done", "handled", "outbound"];
 
 export default function InboxPage() {
   const { toast } = useToast();
@@ -52,6 +57,10 @@ export default function InboxPage() {
   const [mailboxes, setMailboxes] = useState<MailboxSummary[]>([]);
   const [selectedMailbox, setSelectedMailbox] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
+  // Newsletter/promo bundles (INBOX-T03) — always returned by the route, so the
+  // tab count is live regardless of which lane is open.
+  const [bundles, setBundles] = useState<BundleSource[]>([]);
+  const [clearingBundle, setClearingBundle] = useState<string | null>(null);
   const [counts, setCounts] = useState<LaneCounts>({ attention: 0, snoozed: 0, done: 0, handled: 0, outbound: 0 });
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -95,10 +104,12 @@ export default function InboxPage() {
           mailboxes?: MailboxSummary[];
           selectedMailbox?: string | null;
           customLanes?: Array<{ id: string; name: string; hideWhenEmpty: boolean; count: number }>;
+          bundles?: BundleSource[];
         };
         setMailboxConnected(data.mailboxConnected !== false);
         if (data.mailboxes) setMailboxes(data.mailboxes);
         setCustomLanes(data.customLanes ?? []);
+        setBundles(data.bundles ?? []);
         setCounts(data.counts);
         setTotal(data.pagination.total);
         setConversations((prev) => (append ? [...prev, ...data.conversations] : data.conversations));
@@ -133,12 +144,55 @@ export default function InboxPage() {
     }
   }, [toast]);
 
+  // Clear a whole bundle (INBOX-T03): mark every message from that sender done
+  // in one pass. Reuses the per-key triage verb (a dedicated bulk endpoint +
+  // unsubscribe are residual). Optimistic — drop the source, then write.
+  const handleClearBundle = useCallback(
+    async (sender: string, keys: string[]) => {
+      setClearingBundle(sender);
+      setBundles((prev) => prev.filter((b) => b.sender !== sender));
+      setCounts((c) => ({
+        ...c,
+        done: c.done + keys.length,
+        handled: Math.max(0, c.handled - keys.length),
+      }));
+      try {
+        await Promise.all(
+          keys.map((key) =>
+            fetch("/api/inbox/triage", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ conversationKey: key, action: "done" }),
+            }).then((r) => {
+              if (!r.ok) throw new Error(`${r.status}`);
+            }),
+          ),
+        );
+        toast(`Cleared ${keys.length} message${keys.length === 1 ? "" : "s"} from ${sender}.`, "success");
+      } catch {
+        toast("Couldn't clear the bundle — reloading.", "error");
+        void loadLane("bundles", 1, false);
+      } finally {
+        setClearingBundle(null);
+      }
+    },
+    [toast, loadLane],
+  );
+
   useEffect(() => {
     const param = customLaneId ?? tab;
     if (param === "outbound") return;
     setPage(1);
     void loadLane(param, 1, false);
   }, [tab, customLaneId, loadLane]);
+
+  // The Bundles tab hides itself when empty; if it empties while open (all
+  // cleared), fall back to attention so the user isn't stranded on a dead tab.
+  useEffect(() => {
+    if (tab === "bundles" && !customLaneId && bundles.length === 0 && !loading) {
+      setTab("attention");
+    }
+  }, [tab, customLaneId, bundles.length, loading]);
 
   // Reconcile the selection whenever the list changes: a pending deep-link
   // wins when its thread is listed; otherwise keep the current selection if
@@ -180,7 +234,7 @@ export default function InboxPage() {
       setSelectedKey(next[Math.min(Math.max(idx, 0), next.length - 1)]?.key ?? null);
       setCounts((c) => {
         const updated = { ...c };
-        if (tab !== "outbound") updated[tab] = Math.max(0, updated[tab] - 1);
+        if (tab !== "outbound" && tab !== "bundles") updated[tab] = Math.max(0, updated[tab] - 1);
         if (action === "done") updated.done += 1;
         if (action === "snooze") updated.snoozed += 1;
         if (action === "reopen") updated.attention += 1;
@@ -220,7 +274,7 @@ export default function InboxPage() {
       ) {
         return;
       }
-      if (tab === "outbound" && !customLaneId) return;
+      if ((tab === "outbound" || tab === "bundles") && !customLaneId) return;
 
       if (e.key === "j" || e.key === "k") {
         if (conversations.length === 0) return;
@@ -250,6 +304,7 @@ export default function InboxPage() {
   }, [tab, selectedKey, handleTriage, conversations]);
 
   const hasMore = tab !== "outbound" && conversations.length < total;
+  const bundleTotal = bundles.reduce((n, b) => n + b.count, 0);
 
   return (
     <div className="flex h-full flex-col animate-content-in">
@@ -297,6 +352,21 @@ export default function InboxPage() {
               {l.name} ({l.count})
             </button>
           ))}
+          {bundleTotal > 0 && (
+            <button
+              onClick={() => {
+                setCustomLaneId(null);
+                setTab("bundles");
+              }}
+              className="rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
+              style={{
+                background: customLaneId === null && tab === "bundles" ? "var(--color-accent-soft)" : "transparent",
+                color: customLaneId === null && tab === "bundles" ? "var(--color-accent)" : "var(--color-text-tertiary)",
+              }}
+            >
+              Bundles ({bundleTotal})
+            </button>
+          )}
           <button
             onClick={() => void handleNewLane()}
             className="rounded-md px-2 py-1 text-[12px] font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
@@ -323,6 +393,10 @@ export default function InboxPage() {
         <div className="flex-1 overflow-hidden">
           <OutboundTable />
         </div>
+      ) : tab === "bundles" && !customLaneId ? (
+        <div className="flex flex-1 overflow-hidden">
+          <BundlesView bundles={bundles} onClear={handleClearBundle} clearing={clearingBundle} />
+        </div>
       ) : (
         <div className="flex flex-1 overflow-hidden">
           {mailboxes.length >= 2 && (
@@ -341,7 +415,7 @@ export default function InboxPage() {
               <TableSkeleton rows={8} cols={1} />
             ) : (
               <ConversationList
-                lane={customLaneId ? "attention" : tab === "outbound" ? "attention" : tab}
+                lane={customLaneId ? "attention" : tab === "outbound" || tab === "bundles" ? "attention" : tab}
                 conversations={conversations}
                 selectedKey={selectedKey}
                 onSelect={setSelectedKey}
@@ -359,7 +433,7 @@ export default function InboxPage() {
           <div className="min-w-0 flex-1">
             <ConversationPane
               conversationKey={selectedKey}
-              lane={customLaneId ? "attention" : tab === "outbound" ? "attention" : tab}
+              lane={customLaneId ? "attention" : tab === "outbound" || tab === "bundles" ? "attention" : tab}
               replySignal={replySignal}
               onTriage={handleTriage}
             />

@@ -101,6 +101,8 @@ export interface Conversation {
   importanceScore: number;
   importanceTier: 1 | 2 | 3 | 4;
   importanceFactors: string[];
+  /** Last inbound is automated/bulk — drives newsletter/promo bundling (INBOX-T03). */
+  isBulk: boolean;
   /** What the pipeline did, for the handled lane. Null elsewhere. */
   handledNote: string | null;
   lastInboundAt: string | null;
@@ -445,6 +447,7 @@ export function buildConversations(input: {
       importanceScore: importance.score,
       importanceTier: importance.tier,
       importanceFactors: importance.factors.map((f) => f.label),
+      isBulk: inboundIsAutomated,
       handledNote,
       lastInboundAt: lastInbound ? toIso(lastInbound.occurredAt) : null,
       lastMessageAt: lastMessage?.at ?? null,

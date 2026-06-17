@@ -604,3 +604,25 @@ describe("importance ranking (INBOX-T04)", () => {
     expect(auto.importanceScore).toBe(0);
   });
 });
+
+describe("bulk bundling flag (INBOX-T03)", () => {
+  it("flags automated/bulk senders isBulk and leaves real threads alone", () => {
+    const convs = buildConversations({
+      inbound: [
+        inbound({ id: "i1", threadId: "t-human", intent: ["meeting_request"] }),
+        inbound({
+          id: "i2",
+          threadId: "t-bulk",
+          metadata: { from: "Acme Newsletter <no-reply@news.acme.com>", to: "m@pilae.ch" },
+        }),
+      ],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    const human = convs.find((c) => c.key === "t-human")!;
+    const bulk = convs.find((c) => c.key === "t-bulk")!;
+    expect(bulk.isBulk).toBe(true); // feeds the Bundles view
+    expect(human.isBulk).toBe(false); // a real reply never gets bundled away
+  });
+});
