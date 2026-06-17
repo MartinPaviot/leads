@@ -85,6 +85,9 @@ export default function InboxPage() {
   // Search (INBOX-Q04): debounced so each keystroke doesn't refetch.
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  // Catch-me-up (INBOX-S03): new-since-last-seen count + a one-time init guard.
+  const [catchUpCount, setCatchUpCount] = useState(0);
+  const seenInitRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
   // In-flight triage POST. Lane fetches await it so switching to Done/
   // Snoozed right after the verb never races the write (the GET would
@@ -123,11 +126,20 @@ export default function InboxPage() {
           selectedMailbox?: string | null;
           customLanes?: Array<{ id: string; name: string; hideWhenEmpty: boolean; count: number }>;
           bundles?: BundleSource[];
+          catchUpCount?: number;
+          lastSeen?: string | null;
         };
         setMailboxConnected(data.mailboxConnected !== false);
         if (data.mailboxes) setMailboxes(data.mailboxes);
         setCustomLanes(data.customLanes ?? []);
         setBundles(data.bundles ?? []);
+        setCatchUpCount(data.catchUpCount ?? 0);
+        // First visit (no marker yet): stamp it once so future visits compute
+        // "new since last here" — and the banner never floods on day one.
+        if (data.lastSeen == null && !seenInitRef.current) {
+          seenInitRef.current = true;
+          void fetch("/api/inbox/seen", { method: "POST" }).catch(() => {});
+        }
         setCounts(data.counts);
         setTotal(data.pagination.total);
         setConversations((prev) => (append ? [...prev, ...data.conversations] : data.conversations));
@@ -602,6 +614,28 @@ export default function InboxPage() {
             className="w-[360px] shrink-0 overflow-y-auto border-r"
             style={{ borderColor: "var(--color-border-default)" }}
           >
+            {/* Catch-me-up (INBOX-S03) — new since you were last here. */}
+            {catchUpCount > 0 && !debouncedSearch && selection.keys.length === 0 && (
+              <div
+                className="flex items-center gap-2 border-b px-3 py-2"
+                style={{ background: "var(--color-accent-soft)", borderColor: "var(--color-border-default)" }}
+              >
+                <span className="text-[12px]" style={{ color: "var(--color-text-primary)" }}>
+                  <span className="font-medium">{catchUpCount}</span> new since you were last here
+                </span>
+                <button
+                  onClick={() => {
+                    setCatchUpCount(0);
+                    void fetch("/api/inbox/seen", { method: "POST" }).catch(() => {});
+                  }}
+                  className="ml-auto text-[11px] font-medium hover:underline"
+                  style={{ color: "var(--color-accent)" }}
+                >
+                  Mark all seen
+                </button>
+              </div>
+            )}
+
             {/* Bulk action bar (INBOX-T09) — appears once a row is selected. */}
             {selection.keys.length > 0 && (
               <div

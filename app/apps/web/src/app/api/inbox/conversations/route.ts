@@ -12,6 +12,8 @@ import { applyLabelFilters } from "@/lib/inbox/filter-match";
 import { getUserFilters } from "@/lib/inbox/filter-store";
 import { bundleConversations } from "@/lib/inbox/bundle";
 import { matchesSearch, isActiveQuery, parseSearchQuery } from "@/lib/inbox/search-match";
+import { selectCatchUp } from "@/lib/inbox/catch-up";
+import { getLastSeen } from "@/lib/inbox/seen-store";
 
 const LANES: Lane[] = ["attention", "handled", "snoozed", "done"];
 const PAGE_SIZE = 30;
@@ -36,6 +38,7 @@ export async function GET(req: Request) {
     // scoped set) instead of a built-in lane; never widens visibility.
     const userLanes = await getUserLanes(authCtx.userId);
     const userFilters = await getUserFilters(authCtx.userId);
+    const lastSeen = await getLastSeen(authCtx.userId);
     const customLane = userLanes.find((l) => l.id === laneParam) ?? null;
     const toLaneCandidate = (row: {
       c: { fromAddress: string; subject: string };
@@ -159,6 +162,20 @@ export async function GET(req: Request) {
         })),
     );
 
+    // Catch-me-up (INBOX-S03): how many conversations got a new inbound since
+    // the user was last here. First visit (no lastSeen) ⇒ 0, so we never flood.
+    const catchUpCount = lastSeen
+      ? selectCatchUp(
+          visible.map(({ c }) => ({
+            key: c.key,
+            subject: c.subject,
+            lastInboundAt: c.lastInboundAt,
+            inboundCount: c.inboundCount,
+          })),
+          lastSeen,
+        ).sinceCount
+      : 0;
+
     const names = await contactNameMap(
       authCtx.tenantId,
       pageRows.map(({ c }) => c.contactId).filter(Boolean) as string[],
@@ -198,6 +215,8 @@ export async function GET(req: Request) {
       activeLane: customLane ? customLane.id : lane,
       bundles,
       searching,
+      catchUpCount,
+      lastSeen,
     });
   } catch (error) {
     console.error("Failed to load inbox conversations:", error);
