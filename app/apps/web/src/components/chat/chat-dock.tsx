@@ -20,6 +20,7 @@ import { trackEvent } from "@/components/posthog-provider";
 import { useToast } from "@/components/ui/toast";
 import { deriveSurface, type SurfaceIcon } from "@/lib/chat/surface-from-path";
 import { useUiDirectives, runUiDirective } from "@/components/chat/use-ui-directives";
+import { getActionManifest } from "@/lib/chat/page-actions/registry";
 import type { UiDirective } from "@/lib/chat/ui-directives";
 
 const ICONS: Record<SurfaceIcon, typeof Compass> = {
@@ -80,6 +81,14 @@ export function ChatDock() {
   const surfaceRef = useRef(surface);
   surfaceRef.current = surface;
 
+  // Live page-action manifest for the transport body. The dock outlives any
+  // route, so read it at send time (like surfaceRef). Refreshed each render —
+  // cheap, and reflects the current page's mount/unmount registrations.
+  const manifestRef = useRef(getActionManifest());
+  useEffect(() => {
+    manifestRef.current = getActionManifest();
+  });
+
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState(false); // drives the enter transition
   const [localInput, setLocalInput] = useState("");
@@ -115,6 +124,8 @@ export function ChatDock() {
             payload.contextId = s.contextId;
           }
           if (threadIdRef.current) payload.threadId = threadIdRef.current;
+          const manifest = manifestRef.current;
+          if (manifest.length > 0) payload.pageActions = manifest; // CLE-03: current page's actions
           return payload;
         },
       }),
@@ -131,8 +142,9 @@ export function ChatDock() {
       runUiDirective(d, {
         navigate: (p) => router.push(p),
         openComposer: (draft) => setEmailComposer(draft),
+        sendActionResult: (text) => chat.sendMessage({ text }),
       }),
-    [router],
+    [router, chat],
   );
   useUiDirectives(chat, onDirective);
 

@@ -33,7 +33,15 @@ export type UiDirective =
   /** Navigate the SPA to an internal path (same-origin only). */
   | { kind: "navigate"; path: string; label?: string }
   /** Open the email composer pre-filled with a draft (does not send). */
-  | { kind: "composeEmail"; draft: ComposeEmailDraft };
+  | { kind: "composeEmail"; draft: ComposeEmailDraft }
+  /** Run a registered Page Action on the live page (CLE-03). */
+  | {
+      kind: "invokeAction";
+      invocationId: string; // uuid — correlates request <-> result
+      actionId: string; // e.g. "opportunities.moveStage"
+      params: Record<string, unknown>;
+      requireConfirm: boolean; // computed server-side via decideAction (CLE-04/CLE-10)
+    };
 
 /* ------------------------------------------------------------------ */
 /*  Server-side builders — spread into a tool result                   */
@@ -47,6 +55,23 @@ export function navigateDirective(path: string, label?: string) {
 /** `{ _uiDirective: { kind: "composeEmail", ... } }` — spread into a tool result. */
 export function composeEmailDirective(draft: ComposeEmailDraft) {
   return { [UI_DIRECTIVE_KEY]: { kind: "composeEmail", draft } } as const;
+}
+
+/**
+ * `{ _uiDirective: { kind: "invokeAction", ... } }` — spread into a tool result.
+ * The server caller (CLE-04 invokePageAction) decides the invocationId once
+ * (crypto.randomUUID) so it threads through to the result envelope, and the
+ * requireConfirm flag from decideAction.
+ */
+export function invokeActionDirective(
+  invocationId: string,
+  actionId: string,
+  params: Record<string, unknown>,
+  requireConfirm: boolean,
+) {
+  return {
+    [UI_DIRECTIVE_KEY]: { kind: "invokeAction", invocationId, actionId, params, requireConfirm },
+  } as const;
 }
 
 /* ------------------------------------------------------------------ */
@@ -107,6 +132,23 @@ export function parseUiDirective(result: unknown): UiDirective | null {
       ...(asNonEmptyString(d.dealId) ? { dealId: d.dealId as string } : {}),
     };
     return { kind: "composeEmail", draft };
+  }
+
+  if (raw.kind === "invokeAction") {
+    // Structural validation only. The real safety gate is the registry: the
+    // only actionIds that ever run are those a mounted page registered.
+    const invocationId = asNonEmptyString(raw.invocationId);
+    const actionId = asNonEmptyString(raw.actionId);
+    if (!invocationId || !actionId) return null;
+    if (!isRecord(raw.params)) return null;
+    if (typeof raw.requireConfirm !== "boolean") return null;
+    return {
+      kind: "invokeAction",
+      invocationId,
+      actionId,
+      params: raw.params as Record<string, unknown>,
+      requireConfirm: raw.requireConfirm,
+    };
   }
 
   return null;

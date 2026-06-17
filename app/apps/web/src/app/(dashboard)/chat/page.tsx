@@ -71,8 +71,11 @@ export default function ChatPage() {
       runUiDirective(d, {
         navigate: (p) => router.push(p),
         openComposer: (draft) => setEmailComposer(draft),
+        // The /chat page sends no manifest, so it dispatches no page actions in
+        // practice; wiring this keeps the shared executor's ctx uniform.
+        sendActionResult: (text) => chat.sendMessage({ text }),
       }),
-    [router],
+    [router, chat],
   );
   useUiDirectives(chat, onDirective);
   const [firstName, setFirstName] = useState<string>("");
