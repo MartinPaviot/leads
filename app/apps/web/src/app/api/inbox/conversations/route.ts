@@ -11,6 +11,7 @@ import { getUserLanes } from "@/lib/inbox/lane-store";
 import { applyLabelFilters } from "@/lib/inbox/filter-match";
 import { getUserFilters } from "@/lib/inbox/filter-store";
 import { bundleConversations } from "@/lib/inbox/bundle";
+import { matchesSearch, isActiveQuery, parseSearchQuery } from "@/lib/inbox/search-match";
 
 const LANES: Lane[] = ["attention", "handled", "snoozed", "done"];
 const PAGE_SIZE = 30;
@@ -100,9 +101,29 @@ export async function GET(req: Request) {
         ),
       );
 
-    const inLane = customLane
-      ? visible.filter((row) => laneMatches(toLaneCandidate(row), customLane))
-      : visible.filter(({ c }) => c.lane === lane);
+    // Search (INBOX-Q04): ?q=<operators + free text>. When active it filters
+    // across ALL lanes (you search the whole inbox, not the open lane).
+    const qParam = (url.searchParams.get("q") || "").trim();
+    const parsedQuery = qParam ? parseSearchQuery(qParam) : null;
+    const searching = parsedQuery != null && isActiveQuery(parsedQuery);
+
+    const inLane = searching
+      ? visible.filter((row) =>
+          matchesSearch(
+            {
+              from: row.c.fromAddress,
+              subject: row.c.subject,
+              snippet: row.c.snippet,
+              lane: row.c.lane,
+              at: row.c.lastMessageAt,
+              mailbox: row.mb.mailboxAddress,
+            },
+            parsedQuery!,
+          ),
+        )
+      : customLane
+        ? visible.filter((row) => laneMatches(toLaneCandidate(row), customLane))
+        : visible.filter(({ c }) => c.lane === lane);
     const pageRows = inLane.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
     // Per-custom-lane counts for the tabs (honour "hide when empty").
@@ -176,6 +197,7 @@ export async function GET(req: Request) {
       customLanes,
       activeLane: customLane ? customLane.id : lane,
       bundles,
+      searching,
     });
   } catch (error) {
     console.error("Failed to load inbox conversations:", error);

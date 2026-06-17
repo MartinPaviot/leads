@@ -12,7 +12,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Inbox, Mail } from "lucide-react";
+import { Inbox, Mail, Search, X } from "lucide-react";
 import { PageHeader, FilterBar } from "@/components/ui/page-header";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -82,6 +82,9 @@ export default function InboxPage() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   // Bulk multi-select (INBOX-T09): x toggles, Shift+x ranges, Esc clears.
   const [selection, setSelection] = useState<SelectionState>(EMPTY_SELECTION);
+  // Search (INBOX-Q04): debounced so each keystroke doesn't refetch.
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
   // In-flight triage POST. Lane fetches await it so switching to Done/
   // Snoozed right after the verb never races the write (the GET would
@@ -108,7 +111,8 @@ export default function InboxPage() {
       try {
         if (pendingTriage.current) await pendingTriage.current.catch(() => {});
         const mailboxQuery = selectedMailbox ? `&mailbox=${encodeURIComponent(selectedMailbox)}` : "";
-        const res = await fetch(`/api/inbox/conversations?lane=${lane}&page=${pageNum}${mailboxQuery}`);
+        const searchQuery = debouncedSearch ? `&q=${encodeURIComponent(debouncedSearch)}` : "";
+        const res = await fetch(`/api/inbox/conversations?lane=${lane}&page=${pageNum}${mailboxQuery}${searchQuery}`);
         if (!res.ok) throw new Error(`${res.status}`);
         const data = (await res.json()) as {
           conversations: ConversationListItem[];
@@ -134,8 +138,14 @@ export default function InboxPage() {
         setLoadingMore(false);
       }
     },
-    [toast, selectedMailbox],
+    [toast, selectedMailbox, debouncedSearch],
   );
+
+  // Debounce the search box so each keystroke doesn't refetch (INBOX-Q04).
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   // Minimal lane creator (INBOX-T01): name + a sender-domain clause. Selecting the
   // new lane triggers the load effect, which refreshes customLanes from the route.
@@ -468,6 +478,7 @@ export default function InboxPage() {
       />
 
       <FilterBar>
+        <div className="flex w-full items-center gap-3">
         <div className="flex flex-wrap gap-0.5">
           {TABS.map((t) => {
             const active = customLaneId === null && tab === t;
@@ -524,6 +535,37 @@ export default function InboxPage() {
           >
             + New lane
           </button>
+        </div>
+
+        {/* Search (INBOX-Q04): operators from:/to:/subject:/before:/after:/is: + free text. */}
+        <div className="relative ml-auto shrink-0">
+          <Search
+            size={13}
+            className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2"
+            style={{ color: "var(--color-text-muted)" }}
+          />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search — from: subject: is:unread"
+            className="w-60 rounded-md border py-1 pl-7 pr-7 text-[12px] outline-none"
+            style={{
+              borderColor: "var(--color-border-default)",
+              background: "var(--color-bg-page)",
+              color: "var(--color-text-primary)",
+            }}
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2"
+              style={{ color: "var(--color-text-muted)" }}
+              title="Clear search"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
         </div>
       </FilterBar>
 
