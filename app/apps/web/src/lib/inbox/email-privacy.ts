@@ -36,6 +36,30 @@ export interface EmailPrivacyResult {
 }
 
 const REMOTE_SRC = /^https?:\/\//i;
+// Any remote url(...) inside an inline style — background images, list/cursor,
+// border-image. All are silent remote fetches (tracking beacons), so they get
+// the same default-block-then-proxy treatment as <img src> (INBOX-R07).
+const REMOTE_CSS_URL_RE = /url\(\s*['"]?\s*(https?:\/\/[^'")\s]+)\s*['"]?\s*\)/gi;
+
+/**
+ * Neutralize (or, on explicit load, proxy) every remote `url(...)` in an inline
+ * style so a CSS background beacon can't leak the recipient's IP / "opened"
+ * signal. Increments `counts.remote` per withheld url so the "load images" banner
+ * accounts for them too.
+ */
+function neutralizeRemoteCssUrls(
+  style: string,
+  opts: EmailPrivacyOptions,
+  counts: { remote: number; links: number },
+): string {
+  return style.replace(REMOTE_CSS_URL_RE, (match, url: string) => {
+    if (opts.loadRemoteImages) {
+      return opts.proxyBase ? `url("${opts.proxyBase + encodeURIComponent(url)}")` : match;
+    }
+    counts.remote++;
+    return "none"; // valid CSS for background/background-image — no fetch
+  });
+}
 
 /** Is an <img> a tracking pixel? Zero/one-px in width|height attr or inline style. */
 function isTrackingPixel(el: Element): boolean {
@@ -71,6 +95,12 @@ function walk(node: Node, opts: EmailPrivacyOptions, counts: { remote: number; l
     if (child.nodeType !== 1) continue;
     const el = child as Element;
     const tag = el.tagName.toLowerCase();
+
+    // Remote CSS background beacons get the same privacy treatment as <img> (R07).
+    const style = el.getAttribute("style");
+    if (style && /url\(\s*['"]?\s*https?:/i.test(style)) {
+      el.setAttribute("style", neutralizeRemoteCssUrls(style, opts, counts));
+    }
 
     if (tag === "img") {
       if (isTrackingPixel(el)) {

@@ -74,6 +74,28 @@ describe("applyEmailPrivacy (R02/R07)", () => {
     expect(res.html).toContain('data-suspicious="true"');
   });
 
+  it("blocks a remote CSS background image by default (R07)", () => {
+    const res = applyEmailPrivacy(`<div style="background-image:url(https://cdn.example/bg.png)">hi</div>`);
+    expect(res.blockedRemoteImages).toBe(1);
+    expect(res.html).not.toContain("cdn.example");
+    expect(res.html).toContain("background-image:none");
+  });
+
+  it("proxies a remote CSS background when images are loaded (R07)", () => {
+    const res = applyEmailPrivacy(`<div style="background:#fff url('https://cdn.example/b.png') no-repeat">x</div>`, {
+      loadRemoteImages: true,
+      proxyBase: "/api/inbox/image-proxy?url=",
+    });
+    expect(res.html).toContain("/api/inbox/image-proxy?url=");
+    expect(res.html).toContain(encodeURIComponent("https://cdn.example/b.png"));
+  });
+
+  it("keeps a data: CSS background (no remote fetch, no leak)", () => {
+    const res = applyEmailPrivacy(`<div style="background:url(data:image/png;base64,iVBORw0KGgo=)">x</div>`);
+    expect(res.blockedRemoteImages).toBe(0);
+    expect(res.html).toContain("data:image/png");
+  });
+
   it("returns zeroed result for empty input", () => {
     expect(applyEmailPrivacy("")).toEqual({ html: "", blockedRemoteImages: 0, suspiciousLinks: 0 });
   });
