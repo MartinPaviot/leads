@@ -6,10 +6,10 @@ import { Check } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { parseUiToolParts } from "@/components/tool-call-panel";
 import { ActionCard, parseToolResultForCard } from "@/components/action-card";
-import { runRegisteredAction } from "@/lib/chat/page-actions/registry";
+import { runRegisteredAction, highlightEntity } from "@/lib/chat/page-actions/registry";
 import type { PageActionResult } from "@/lib/chat/page-actions/types";
 import type { InvokeActionDirective } from "@/lib/chat/ui-directives";
-import { encodeActionResult } from "@/components/chat/use-ui-directives";
+import { encodeActionResult, maybeHighlightFromResult } from "@/components/chat/use-ui-directives";
 import { ActionConfirmCard, type ConfirmStatus } from "./action-confirm-card";
 
 /**
@@ -289,6 +289,10 @@ export function useActionConfirmCards(chat: ChatSender): ActionConfirmController
       // and never throws (CLE-03 §2.3) — so no try/catch is needed here.
       const result = await runRegisteredAction(cur.directive.actionId, editedParams);
       roundTrip(invocationId, result); // AC-2: success OR error envelope round-trips
+      // CLE-15: pulse the affected element if the result named one. Import
+      // highlightEntity directly (module-level) so the controller signature is
+      // not widened. A failed run pulses nothing (maybeHighlightFromResult guards).
+      maybeHighlightFromResult(result, highlightEntity);
 
       const prev = byIdRef.current[invocationId];
       byIdRef.current = {

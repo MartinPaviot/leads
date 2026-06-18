@@ -146,3 +146,131 @@ export function getRegisteredActionMeta(
 export function __resetPageActionsForTest(): void {
   store.clear();
 }
+
+/* ================================================================== */
+/*  CLE-15 — Highlight registry (sibling to the action store, same     */
+/*  file so a page registers actions AND a locator through one import). */
+/*                                                                      */
+/*  The decisive constraint: the SAME entity renders in different DOM   */
+/*  nodes per view (a deal is a table <tr> in table mode but a board    */
+/*  <div> in board mode), and there is no global data-entity-id today.  */
+/*  So instead of a DOM scan, each page registers a LOCATOR fn that,    */
+/*  given an entity id, returns the currently-mounted element for it.   */
+/*  This mirrors how the action registry above already works.           */
+/* ================================================================== */
+
+/** What a directive / result names so the client can find an element to pulse. */
+export interface HighlightAnchor {
+  /** the row/card/field key, e.g. a deal id. */
+  entityId: string;
+  /** optional: a surface hint, e.g. "opportunities" — disambiguates overlapping ids. */
+  scope?: string;
+  /** optional: a sub-element key (e.g. "stage", "owner") for field-level pulse. */
+  field?: string;
+  /** optional: page opts in to move focus (default false — never steals focus). */
+  focus?: boolean;
+}
+
+/** A page-supplied function: resolve an entity id to its live element, or null. */
+export type EntityLocator = (anchor: HighlightAnchor) => HTMLElement | null;
+
+/** Module-level locator store. Pages register on mount, clear on unmount. */
+interface LocatorRegistration {
+  locate: EntityLocator;
+  owner: symbol;
+}
+const locators = new Map<string, LocatorRegistration>(); // keyed by scope
+
+const DEFAULT_SCOPE = "__default__";
+const HIGHLIGHT_MS = 1600; // bounded window
+const MAX_HIGHLIGHTS_PER_CALL = 25; // cap — never strobe a 1000-row bulk
+
+/**
+ * Hook: a page registers HOW to locate its entities. Mirrors
+ * useRegisterPageActions — register on mount, clear (only our own) on unmount.
+ * A page passes a stable `locate` (useCallback) so we re-register only if it
+ * changes.
+ */
+export function useRegisterEntityLocator(scope: string, locate: EntityLocator): void {
+  useEffect(() => {
+    const owner = Symbol("entity-locator-owner");
+    locators.set(scope || DEFAULT_SCOPE, { locate, owner });
+    return () => {
+      const cur = locators.get(scope || DEFAULT_SCOPE);
+      if (cur && cur.owner === owner) locators.delete(scope || DEFAULT_SCOPE); // only clear our own
+    };
+  }, [scope, locate]);
+}
+
+/** Resolve an element for an anchor, trying the scoped locator then the default. Never throws. */
+export function locateEntity(anchor: HighlightAnchor): HTMLElement | null {
+  try {
+    if (anchor.scope) {
+      const scoped = locators.get(anchor.scope);
+      const el = scoped?.locate(anchor) ?? null;
+      if (el) return el;
+    }
+    const def = locators.get(DEFAULT_SCOPE);
+    return def?.locate(anchor) ?? null; // no locator / not found -> null
+  } catch {
+    return null; // a buggy page locator must never crash the highlight
+  }
+}
+
+/**
+ * SSR/jsdom-safe read of the reduced-motion preference. matchMedia is absent in
+ * tests unless mocked -> treated as "no reduce" (the animated path) by default.
+ */
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+/**
+ * Pulse the element(s) for one or many anchors. Fire-and-forget; resolves
+ * harmlessly. A highlight is best-effort decoration: it either decorates a real
+ * element briefly and self-clears, or it does nothing — it never throws, never
+ * blocks, never steals focus, never leaves residue.
+ */
+export function highlightEntity(anchors: HighlightAnchor | HighlightAnchor[]): void {
+  const list = (Array.isArray(anchors) ? anchors : [anchors]).slice(0, MAX_HIGHLIGHTS_PER_CALL); // cap
+  for (const anchor of list) {
+    const el = locateEntity(anchor);
+    if (!el) {
+      // silent no-op — never an error log (not on screen / not registered / unmounted).
+      if (typeof console !== "undefined") console.debug?.("[highlight] no element for", anchor.entityId);
+      continue;
+    }
+    applyPulse(el, anchor.focus === true); // self-clears with an isConnected guard
+  }
+}
+
+function applyPulse(el: HTMLElement, allowFocus: boolean): void {
+  const reduced = prefersReducedMotion();
+  // 1. Bring into view if off-screen. block:"nearest" -> minimal scroll, no
+  //    jarring jump, no focus steal.
+  if (typeof el.scrollIntoView === "function") {
+    el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: reduced ? "auto" : "smooth" });
+  }
+  if (allowFocus && typeof el.focus === "function") el.focus({ preventScroll: true });
+
+  // 2. Apply emphasis. Reduced-motion -> static class (no transition); else the
+  //    animated pulse. The preference is read ONCE here so the matching clear
+  //    removes whatever was added (consistent within one highlight).
+  const cls = reduced ? "cle-entity-highlight--static" : "cle-entity-highlight";
+  el.classList.add(cls);
+
+  // 3. Self-clear after the window, guarded so an unmounted node is left alone.
+  window.setTimeout(() => {
+    if (el.isConnected) el.classList.remove(cls);
+    // detached -> nothing to clean; the class went away with the node.
+  }, HIGHLIGHT_MS);
+}
+
+/** Test-only: clear the locator store between cases. Not part of the runtime contract. */
+export function __resetEntityLocatorsForTest(): void {
+  locators.clear();
+}

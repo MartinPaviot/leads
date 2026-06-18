@@ -692,3 +692,44 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ================================================================
+   CLE-15 — post-action highlight pulse
+   Scoped, self-contained, no dependency. Emphasis is NOT color-only:
+   a solid outline + box-shadow ring + a soft background tint, so it is
+   perceivable without color vision. The JS (registry.ts) picks the
+   animated or the --static class; this owns the look. color-mix degrades
+   to the plain outline where unsupported.
+   ================================================================ */
+@keyframes cle-highlight-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--color-accent);
+    background-color: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  }
+  60% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 45%, transparent);
+    background-color: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    background-color: transparent;
+  }
+}
+.cle-entity-highlight {
+  animation: cle-highlight-pulse 1.6s ease-out 1; /* matches HIGHLIGHT_MS; 1 iteration, then clears */
+  border-radius: 6px; /* soft, matches table/card radii */
+}
+/* Static fallback: an instant solid emphasis with NO animation, removed by JS after the window. */
+.cle-entity-highlight--static {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -1px;
+  background-color: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+/* Belt-and-braces: even if JS adds the animated class, kill motion under reduce. */
+@media (prefers-reduced-motion: reduce) {
+  .cle-entity-highlight {
+    animation: none;
+    outline: 2px solid var(--color-accent);
+    outline-offset: -1px;
+  }
+}

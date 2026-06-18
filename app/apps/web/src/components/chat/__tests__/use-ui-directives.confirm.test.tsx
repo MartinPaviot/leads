@@ -24,6 +24,7 @@ function ctx() {
     openComposer: vi.fn(),
     sendActionResult: vi.fn(),
     enqueueConfirm: vi.fn(),
+    highlight: vi.fn(), // CLE-15: ctx widened with a highlight fn (no-op here)
   };
 }
 function invoke(requireConfirm: boolean): InvokeActionDirective {

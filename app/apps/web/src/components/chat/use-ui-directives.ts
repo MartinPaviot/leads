@@ -7,6 +7,7 @@ import {
   type UiDirective,
   type ComposeEmailDraft,
   type InvokeActionDirective,
+  type HighlightAnchor,
 } from "@/lib/chat/ui-directives";
 import {
   runRegisteredAction,
@@ -94,6 +95,56 @@ function postPageActionLog(
   });
 }
 
+/* ------------------------------------------------------------------ */
+/*  CLE-15 — highlight from a Page Action result                        */
+/* ------------------------------------------------------------------ */
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+/**
+ * CLE-15: coerce `result.data.highlight` (a single anchor, an array, or
+ * undefined) into a list of validated anchors. Mirrors parseHighlightAnchor:
+ * requires a non-empty string `entityId`, strips unknown keys, drops malformed
+ * entries — NEVER throws.
+ */
+export function coerceAnchors(raw: unknown): HighlightAnchor[] {
+  const candidates = Array.isArray(raw) ? raw : raw === undefined || raw === null ? [] : [raw];
+  const out: HighlightAnchor[] = [];
+  for (const c of candidates) {
+    if (!isRecord(c)) continue;
+    const entityId = typeof c.entityId === "string" && c.entityId.trim().length > 0 ? c.entityId : null;
+    if (!entityId) continue;
+    const scope = typeof c.scope === "string" && c.scope.trim().length > 0 ? c.scope : undefined;
+    const field = typeof c.field === "string" && c.field.trim().length > 0 ? c.field : undefined;
+    out.push({
+      entityId,
+      ...(scope ? { scope } : {}),
+      ...(field ? { field } : {}),
+      ...(c.focus === true ? { focus: true } : {}),
+    });
+  }
+  return out;
+}
+
+/**
+ * CLE-15: after a SUCCESSFUL Page Action run, pulse the affected element(s) the
+ * result names via the optional `result.data.highlight`. One read point shared
+ * by both the run-now arm (below) and CLE-05's approve path. A failure pulses
+ * nothing (a green flash on a failure would mislead). A result with no highlight
+ * pulses nothing.
+ */
+export function maybeHighlightFromResult(
+  result: PageActionResult,
+  highlight: (a: HighlightAnchor | HighlightAnchor[]) => void,
+): void {
+  if (!result.ok) return;
+  const h = (result.data as { highlight?: unknown } | undefined)?.highlight;
+  const anchors = coerceAnchors(h);
+  if (anchors.length) highlight(anchors);
+}
+
 /** Minimal shape we need from the AI SDK `useChat` return value. */
 interface ChatLike {
   messages: { id: string; role: string; parts: readonly { type: string }[] }[];
@@ -115,10 +166,20 @@ export function runUiDirective(
     sendActionResult: (text: string) => void;
     /** CLE-05: hand a confirm-needed directive to the card controller (no run). */
     enqueueConfirm: (d: InvokeActionDirective) => void;
+    /**
+     * CLE-15: pulse an element on the page. `afterNavigation` tells the impl to
+     * wait for the target page's locator to mount (bounded poll); otherwise it
+     * fires immediately. Always a no-op when no locator resolves the anchor.
+     */
+    highlight: (a: HighlightAnchor | HighlightAnchor[], opts?: { afterNavigation?: boolean }) => void;
   },
 ): void {
-  if (d.kind === "navigate") ctx.navigate(d.path);
-  else if (d.kind === "composeEmail") ctx.openComposer(d.draft);
+  if (d.kind === "navigate") {
+    ctx.navigate(d.path);
+    // CLE-15: when the navigate carries a highlight, pulse the target AFTER the
+    // route settles (the dock impl polls for the page's locator).
+    if (d.highlight) ctx.highlight(d.highlight, { afterNavigation: true });
+  } else if (d.kind === "composeEmail") ctx.openComposer(d.draft);
   else if (d.kind === "invokeAction") {
     if (d.requireConfirm) {
       // CLE-05 (AC-1): do NOT run. Hand to the controller, which renders an
@@ -134,6 +195,9 @@ export function runUiDirective(
         ctx.sendActionResult(encodeActionResult(d.invocationId, result));
         // Audit path (CLE-11): record the outcome + undo descriptor server-side.
         postPageActionLog(d, result);
+        // CLE-15: pulse the affected element if the result named one. Immediate
+        // (we are already on the page the action ran on).
+        maybeHighlightFromResult(result, ctx.highlight);
       });
     }
   }

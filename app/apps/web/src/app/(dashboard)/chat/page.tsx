@@ -15,6 +15,7 @@ import { FollowUpPills, extractFollowUps } from "@/components/chat/follow-up-pil
 import { CopyButton } from "@/components/chat/copy-button";
 import { useUiDirectives, runUiDirective } from "@/components/chat/use-ui-directives";
 import { useActionConfirmCards, ActionConfirmCards } from "@/components/chat/chat-action-cards";
+import { highlightEntity } from "@/lib/chat/page-actions/registry";
 import type { UiDirective } from "@/lib/chat/ui-directives";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -77,6 +78,10 @@ export default function ChatPage() {
         // practice; wiring this keeps the shared executor's ctx uniform.
         sendActionResult: (text) => chat.sendMessage({ text }),
         enqueueConfirm: (cd) => actionConfirm.enqueueConfirm(cd),
+        // CLE-15: the /chat page mounts no entity locators, so highlights here
+        // are silent no-ops (correct) — wired for ctx uniformity. The immediate
+        // highlightEntity is fine: an unresolved anchor simply does nothing.
+        highlight: (anchor) => highlightEntity(anchor),
       }),
     [router, chat, actionConfirm],
   );

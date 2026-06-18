@@ -5,6 +5,7 @@ import { z } from "zod";
 import { makeTool, type ToolContext } from "./context";
 import { scoreBuyerIntent, type BuyerIntentScore } from "@/lib/scoring/buyer-intent";
 import { predictStalls, type StallPrediction } from "@/lib/analysis/stall-predictor";
+import { navigateDirective } from "@/lib/chat/ui-directives"; // CLE-15 narrate-actuate
 
 export function buildIntelligenceTools(ctx: ToolContext) {
   const { tenantId } = ctx;
@@ -115,9 +116,16 @@ export function buildIntelligenceTools(ctx: ToolContext) {
 
     getAccountIntelligence: makeTool({
       description:
-        "Get detailed account intelligence including score breakdown, signals, contacts, and activity summary. Use for 'why this account', account analysis, or account strategy questions.",
+        "Get detailed account intelligence including score breakdown, signals, contacts, and activity summary. Use for 'why this account', account analysis, or account strategy questions. " +
+        "Set `reveal: true` ONLY when the user also wants to SEE the account (e.g. 'score Acme and pull it up', 'analyze Acme and take me there') — it sends them to the account page and highlights it. For a pure question (no intent to go there), leave `reveal` unset: the text answer stands alone.",
       inputSchema: z.object({
         accountId: z.string().describe("The account/company ID"),
+        reveal: z
+          .boolean()
+          .optional()
+          .describe(
+            "Opt-in narrate-actuate: when true, also navigate the user to the account page and highlight it. Set only when the user wants to land on the record, never for a pure question.",
+          ),
       }),
       execute: async (input) => {
         const [company] = await db
@@ -167,6 +175,15 @@ export function buildIntelligenceTools(ctx: ToolContext) {
         }
 
         return {
+          // CLE-15: opt-in narrate-actuate. The full text payload below always
+          // stands on its own; the directive is additive and ignored by off-web
+          // clients. Only emitted when the model set `reveal` (intent to SEE).
+          ...(input.reveal
+            ? navigateDirective(`/accounts/${company.id}`, company.name ?? undefined, {
+                entityId: company.id,
+                scope: "accounts",
+              })
+            : {}),
           account: {
             id: company.id,
             name: company.name,

@@ -25,8 +25,8 @@ import { trackEvent } from "@/components/posthog-provider";
 import { useToast } from "@/components/ui/toast";
 import { deriveSurface, type SurfaceIcon } from "@/lib/chat/surface-from-path";
 import { useUiDirectives, runUiDirective } from "@/components/chat/use-ui-directives";
-import { getActionManifest } from "@/lib/chat/page-actions/registry";
-import type { UiDirective } from "@/lib/chat/ui-directives";
+import { getActionManifest, locateEntity, highlightEntity } from "@/lib/chat/page-actions/registry";
+import type { UiDirective, HighlightAnchor } from "@/lib/chat/ui-directives";
 
 const ICONS: Record<SurfaceIcon, typeof Compass> = {
   building: Building2,
@@ -150,6 +150,28 @@ export function ChatDock() {
         openComposer: (draft) => setEmailComposer(draft),
         sendActionResult: (text) => chat.sendMessage({ text }),
         enqueueConfirm: (cd) => actionConfirm.enqueueConfirm(cd),
+        // CLE-15: pulse the affected element. A PAR-result highlight fires
+        // immediately (we're on the page already). A narrate-actuate navigate
+        // highlight needs a short bounded poll because router.push is async —
+        // the target page mounts and registers its locator on a later tick.
+        highlight: (anchor: HighlightAnchor | HighlightAnchor[], opts?: { afterNavigation?: boolean }) => {
+          if (!opts?.afterNavigation) {
+            highlightEntity(anchor);
+            return;
+          }
+          const first = Array.isArray(anchor) ? anchor[0] : anchor;
+          if (!first) return;
+          let tries = 0;
+          const tick = () => {
+            if (locateEntity(first)) {
+              highlightEntity(anchor); // resolved -> pulse all
+              return;
+            }
+            if (++tries >= 12) return; // ~12 × 100ms = 1.2s budget, then silent no-op
+            window.setTimeout(tick, 100);
+          };
+          tick();
+        },
       }),
     [router, chat, actionConfirm],
   );

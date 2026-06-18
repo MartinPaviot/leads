@@ -19,6 +19,21 @@
 /** The key a directive rides under on a tool result object. */
 export const UI_DIRECTIVE_KEY = "_uiDirective" as const;
 
+/**
+ * CLE-15: what a `navigate` directive (or a PageActionResult) names so the
+ * client can find an element to pulse. The runtime highlight registry lives in
+ * the "use client" module `lib/chat/page-actions/registry.ts`; this is a PURE
+ * re-export of the same shape so the server builder and the client parser share
+ * the type without a client-side import. Kept structurally in sync with the
+ * registry's `HighlightAnchor`.
+ */
+export interface HighlightAnchor {
+  entityId: string; // the row/card/field key, e.g. a deal id
+  scope?: string; // optional surface hint, e.g. "opportunities"
+  field?: string; // optional sub-element key, e.g. "stage"
+  focus?: boolean; // optional: page opts in to move focus (default false)
+}
+
 /** Draft handed to the email composer. Mirrors EmailComposerDraft. */
 export interface ComposeEmailDraft {
   to: string;
@@ -30,8 +45,12 @@ export interface ComposeEmailDraft {
 }
 
 export type UiDirective =
-  /** Navigate the SPA to an internal path (same-origin only). */
-  | { kind: "navigate"; path: string; label?: string }
+  /**
+   * Navigate the SPA to an internal path (same-origin only). CLE-15 adds an
+   * OPTIONAL `highlight` anchor: when set, the client pulses the matching
+   * element after the route settles. Absent ⇒ today's exact behaviour.
+   */
+  | { kind: "navigate"; path: string; label?: string; highlight?: HighlightAnchor }
   /** Open the email composer pre-filled with a draft (does not send). */
   | { kind: "composeEmail"; draft: ComposeEmailDraft }
   /** Run a registered Page Action on the live page (CLE-03). */
@@ -61,9 +80,22 @@ export type InvokeActionDirective = Extract<UiDirective, { kind: "invokeAction" 
 /*  Server-side builders — spread into a tool result                   */
 /* ------------------------------------------------------------------ */
 
-/** `{ _uiDirective: { kind: "navigate", ... } }` — spread into a tool result. */
-export function navigateDirective(path: string, label?: string) {
-  return { [UI_DIRECTIVE_KEY]: { kind: "navigate", path, ...(label ? { label } : {}) } } as const;
+/**
+ * `{ _uiDirective: { kind: "navigate", ... } }` — spread into a tool result.
+ * CLE-15: the optional 3rd arg attaches a highlight anchor so the client pulses
+ * the target after navigating. A highlight with no usable entityId is dropped
+ * (the navigate is still emitted).
+ */
+export function navigateDirective(path: string, label?: string, highlight?: HighlightAnchor) {
+  const anchor = highlight ? normalizeAnchor(highlight) : null;
+  return {
+    [UI_DIRECTIVE_KEY]: {
+      kind: "navigate",
+      path,
+      ...(label ? { label } : {}),
+      ...(anchor ? { highlight: anchor } : {}),
+    },
+  } as const;
 }
 
 /** `{ _uiDirective: { kind: "composeEmail", ... } }` — spread into a tool result. */
@@ -109,6 +141,32 @@ function asNonEmptyString(v: unknown): string | null {
 }
 
 /**
+ * CLE-15: structurally validate a `highlight` value, stripping unknown keys.
+ * Requires a non-empty string `entityId`; accepts optional string `scope`/
+ * `field` and a boolean `focus`. Returns a clean anchor or `null` — NEVER
+ * throws, so a malformed highlight only drops itself and never invalidates the
+ * navigate it rides on. Shared by the builder (normalizeAnchor) and the parser.
+ */
+function parseHighlightAnchor(v: unknown): HighlightAnchor | null {
+  if (!isRecord(v)) return null;
+  const entityId = asNonEmptyString(v.entityId);
+  if (!entityId) return null; // entityId is the only required field
+  const scope = asNonEmptyString(v.scope);
+  const field = asNonEmptyString(v.field);
+  return {
+    entityId,
+    ...(scope ? { scope } : {}),
+    ...(field ? { field } : {}),
+    ...(v.focus === true ? { focus: true } : {}),
+  };
+}
+
+/** Builder-side normalization: same validation, used before emitting. */
+function normalizeAnchor(anchor: HighlightAnchor): HighlightAnchor | null {
+  return parseHighlightAnchor(anchor);
+}
+
+/**
  * Is `path` a safe, same-origin internal route? Guards against open-redirect:
  * must start with a single "/", never "//" (protocol-relative), never contain
  * a scheme, and carry no whitespace. The client navigates with router.push, so
@@ -136,7 +194,15 @@ export function parseUiDirective(result: unknown): UiDirective | null {
   if (raw.kind === "navigate") {
     if (!isSafeInternalPath(raw.path)) return null;
     const label = asNonEmptyString(raw.label);
-    return { kind: "navigate", path: raw.path, ...(label ? { label } : {}) };
+    // CLE-15: validate the optional highlight; a malformed one is dropped but
+    // the navigate is kept (never throws, never invalidates the navigation).
+    const highlight = parseHighlightAnchor(raw.highlight);
+    return {
+      kind: "navigate",
+      path: raw.path,
+      ...(label ? { label } : {}),
+      ...(highlight ? { highlight } : {}),
+    };
   }
 
   if (raw.kind === "composeEmail") {
