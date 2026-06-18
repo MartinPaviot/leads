@@ -28,6 +28,7 @@ import { icps } from "@/db/schema";
 import { isNull } from "drizzle-orm";
 import {
   loadActiveIcps,
+  loadCustomFieldDefs,
   hasScorableCriteria,
   listCompanyIds,
   scoreCompanyBatch,
@@ -70,6 +71,12 @@ export const icpFitRecomputeTenant = inngest.createFunction(
       listCompanyIds(tenantId),
     );
 
+    // Custom_property field defs (e.g. the institution flag) so custom ICP
+    // criteria actually evaluate during the per-batch scoring.
+    const customFields = await step.run("load-custom-fields", () =>
+      loadCustomFieldDefs(tenantId),
+    );
+
     const agg: BatchDiff = { companies: 0, regradedUp: 0, regradedDown: 0, unowned: 0 };
     const batches = Math.ceil(companyIds.length / RECOMPUTE_BATCH_SIZE);
     for (let i = 0; i < batches; i++) {
@@ -78,6 +85,7 @@ export const icpFitRecomputeTenant = inngest.createFunction(
           tenantId,
           companyIds.slice(i * RECOMPUTE_BATCH_SIZE, (i + 1) * RECOMPUTE_BATCH_SIZE),
           activeIcps,
+          customFields,
         ),
       );
       agg.companies += diff.companies;

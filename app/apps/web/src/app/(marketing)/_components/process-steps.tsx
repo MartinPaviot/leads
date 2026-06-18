@@ -137,7 +137,7 @@ function StepHeading({ i, label, headline, body }: { i: number; label: string; h
           />
           <span className="relative z-[1] transition-colors duration-500" style={{ color: live ? "#fff" : "#2C6BED" }}>{i + 1}</span>
         </m.span>
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-[#2C6BED]">{label}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-[#2563DF]">{label}</p>
       </div>
       <m.h3
         className="mt-3 text-[24px] font-bold leading-snug tracking-tight text-gray-900"

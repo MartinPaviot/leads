@@ -372,8 +372,8 @@ export default function LandingPage() {
       <Section className="relative overflow-hidden pb-20 pt-16 sm:pt-20">
         <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(0,0,0,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.025) 1px, transparent 1px)", backgroundSize: "32px 32px", maskImage: "linear-gradient(to bottom, black, transparent 75%)", WebkitMaskImage: "linear-gradient(to bottom, black, transparent 75%)" }} />
         <div className="relative mx-auto max-w-[1240px] px-6 text-center">
-          <Animate><p className="text-xs font-semibold uppercase tracking-wider text-gray-500">The pre-built revenue engine for founder-led sales</p></Animate>
-          <Animate><h1 className="mx-auto mt-6 max-w-[800px] text-[32px] font-bold leading-[1.08] tracking-tight text-gray-900 sm:text-[56px]">Elevay runs your pipeline.<br className="hidden sm:block" /> You run the conversations.</h1></Animate>
+          <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">The pre-built revenue engine for founder-led sales</p></Animate>
+          <Animate><h1 className="mx-auto mt-6 max-w-[900px] text-[34px] font-bold leading-[1.05] tracking-[-0.03em] text-gray-900 sm:text-[48px] lg:text-[64px]">Elevay runs your pipeline.<br className="hidden sm:block" /> You run the conversations.</h1></Animate>
           <Animate><p className="mx-auto mt-6 max-w-[620px] text-lg leading-relaxed text-gray-600">It builds your target list, tells you who to reach and when, drafts your outreach across email and calls, and captures every meeting in your CRM. You review and close.</p></Animate>
           <Animate>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -393,7 +393,7 @@ export default function LandingPage() {
       {/* INTEGRATIONS / trust strip */}
       <Section className="pb-8 pt-8">
         <div className="mx-auto max-w-[1240px] px-6">
-          <Animate><p className="text-center text-xs font-medium uppercase tracking-wider text-gray-400">Works with the tools you already use</p></Animate>
+          <Animate><p className="text-center text-xs font-medium uppercase tracking-wider text-gray-500">Works with the tools you already use</p></Animate>
           <Animate><div className="mt-7"><IntegrationsStrip /></div></Animate>
           {/* Trust / control band — honest anxiety-reducers (MECLABS A).
               Every claim is true today: see the FAQ (encryption, OAuth,
@@ -423,10 +423,10 @@ export default function LandingPage() {
       </Section>
 
       {/* HOW IT WORKS */}
-      <Section id="how-it-works" className="pt-32">
+      <Section id="how-it-works" className="bg-[#F4F6FB] pt-32 pb-32">
         <div className="mx-auto max-w-[1240px] px-6">
-          <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2C6BED]">How it works</p></Animate>
-          <Animate><h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">From a cold list to a closed deal</h2></Animate>
+          <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">How it works</p></Animate>
+          <Animate><h2 className="mt-4 text-[30px] font-bold tracking-tight text-gray-900 sm:text-[38px]">From a cold list to a closed deal</h2></Animate>
           <Animate><p className="mt-4 max-w-2xl text-lg leading-relaxed text-gray-600">Watch one account, Notion, travel from a cold list to a closed deal. Each step moves the same deal one stage forward, because Elevay remembers every interaction.</p></Animate>
           {/* Market evidence — speed-to-lead. Cited third-party data
               (Dr. James Oldroyd, MIT / InsideSales), the reason the
@@ -443,7 +443,7 @@ export default function LandingPage() {
                 transition={{ duration: 0.7, ease: [0.22, 0.61, 0.36, 1] }}
               />
               <span className="shrink-0 text-4xl font-bold tabular-nums tracking-tight text-gray-900 sm:text-[44px]"><AnimatedStat to={21} suffix="×" /></span>
-              <p className="max-w-md text-[15px] leading-relaxed text-gray-600">more likely to qualify a lead you reach within five minutes than one you reach at thirty <span className="text-gray-400">(MIT / InsideSales)</span>. Elevay surfaces who&apos;s ready now, so you reach them in the window that still converts.</p>
+              <p className="max-w-md text-[15px] leading-relaxed text-gray-600">more likely to qualify a lead you reach within five minutes than one you reach at thirty <span className="text-gray-600">(MIT / InsideSales)</span>. Elevay surfaces who&apos;s ready now, so you reach them in the window that still converts.</p>
             </div>
           </Animate>
           <Animate><div className="mt-14"><ProcessSteps /></div></Animate>
@@ -457,8 +457,8 @@ export default function LandingPage() {
       <Section className="pt-32">
         <div className="mx-auto max-w-[1240px] px-6">
           <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-10 md:p-14">
-            <Animate><p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Human in the loop</p></Animate>
-            <Animate><h2 className="mt-3 max-w-2xl text-3xl font-bold tracking-tight text-gray-900">It does the work. You make the calls.</h2></Animate>
+            <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">Human in the loop</p></Animate>
+            <Animate><h2 className="mt-3 max-w-2xl text-[30px] font-bold tracking-tight text-gray-900 sm:text-[38px]">It does the work. You make the calls.</h2></Animate>
             <Animate><p className="mt-5 max-w-2xl text-lg leading-relaxed text-gray-600">Every email, meeting, and deal change waits for your go-ahead. Elevay does the research, the list-building, the first drafts, and the note-taking, the work that doesn&apos;t need a person. The conversations and the relationships stay yours.</p></Animate>
             <div className="mt-10 grid gap-8 md:grid-cols-3">
               {[
@@ -485,7 +485,7 @@ export default function LandingPage() {
       <Section className="pt-32">
         <div className="mx-auto max-w-[1240px] px-6">
           <div className="mx-auto max-w-3xl rounded-2xl border border-gray-200 bg-white p-8 md:p-12">
-            <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2C6BED]">From the founder</p></Animate>
+            <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">From the founder</p></Animate>
             <Animate>
               <blockquote className="mt-5 text-[19px] leading-relaxed text-gray-800 md:text-[21px] md:leading-[1.65]">
                 In founder-led sales, you are the pipeline. The conversations are yours to win, but everything around them, the lists, the data, the first drafts, the call notes, quietly eats your week. Salesforce puts it at <span className="font-semibold text-gray-900">70% of a rep&apos;s time</span> on admin and data entry, not selling. I&apos;m building Elevay to be the back office a founder doesn&apos;t have yet: it does that work and hands you the conversations. It&apos;s early, and I onboard every founder myself, so when you start, you&apos;re talking to me.
@@ -516,10 +516,10 @@ export default function LandingPage() {
 
       {/* LANDSCAPE: positioning vs the alternatives (after the product
           story, before the conversion CTAs) */}
-      <Section className="pt-32">
+      <Section className="bg-[#F4F6FB] pt-32 pb-32">
         <div className="mx-auto max-w-[1240px] px-6">
-          <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2C6BED]">Landscape</p></Animate>
-          <Animate><h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">The alternatives weren&apos;t built for founder-led sales</h2></Animate>
+          <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">Landscape</p></Animate>
+          <Animate><h2 className="mt-4 text-[30px] font-bold tracking-tight text-gray-900 sm:text-[38px]">The alternatives weren&apos;t built for founder-led sales</h2></Animate>
           <Animate><p className="mt-6 max-w-2xl text-lg leading-relaxed text-gray-600">Each category solves one slice and leaves you holding the rest. Elevay is built to not be any of them.</p></Animate>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {[
@@ -538,7 +538,7 @@ export default function LandingPage() {
                   <div className="mb-4 flex items-center gap-1.5">
                     {card.logos.map((d) => <Logo key={d} src={clogo(d)} size={28} rounded="rounded-lg" />)}
                   </div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">{card.kind}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">{card.kind}</p>
                   <h3 className="mt-2 text-base font-semibold text-gray-900">{card.headline}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-gray-600">{card.body}</p>
                 </m.div>
@@ -561,7 +561,7 @@ export default function LandingPage() {
               <h2 className="text-2xl font-bold tracking-tight text-gray-900">See Elevay on your own pipeline</h2>
               <p className="mx-auto mt-3 max-w-md text-[15px] text-gray-600">15 minutes. We&apos;ll connect your inbox live, build a target list from your ICP, and show you the priorities it surfaces.</p>
               <div className="mt-8 flex justify-center">
-                <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="group inline-flex cursor-pointer items-center gap-2 rounded-lg px-8 py-3.5 text-sm font-semibold text-white transition-[opacity,transform] duration-150 hover:-translate-y-0.5 hover:opacity-90 active:translate-y-0" style={{ background: "#2C6BED" }}>Book a demo <ArrowRight size={14} className="transition-transform duration-150 group-hover:translate-x-0.5" /></a>
+                <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="group inline-flex cursor-pointer items-center gap-2 rounded-lg px-8 py-3.5 text-sm font-semibold text-white transition-[opacity,transform] duration-150 hover:-translate-y-0.5 hover:opacity-90 active:translate-y-0" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Book a demo <ArrowRight size={14} className="transition-transform duration-150 group-hover:translate-x-0.5" /></a>
               </div>
             </div>
           </Animate>
@@ -572,7 +572,7 @@ export default function LandingPage() {
           with a real height animation when opened. */}
       <Section className="pt-32">
         <div className="mx-auto max-w-3xl px-6">
-          <Animate><h2 className="text-3xl font-bold tracking-tight text-gray-900">Questions</h2></Animate>
+          <Animate><h2 className="text-[30px] font-bold tracking-tight text-gray-900 sm:text-[38px]">Questions</h2></Animate>
           <m.div className="mt-8" variants={{ visible: { transition: { staggerChildren: 0.05 } } }}>
             {faqs.map((faq) => (
               <Animate key={faq.q}>
@@ -589,7 +589,7 @@ export default function LandingPage() {
       <Section className="pt-32">
         <div className="mx-auto max-w-[1240px] px-6">
           <div className="rounded-2xl border border-gray-200 bg-gray-50/60 px-8 py-11 text-center md:px-12">
-            <Animate><p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Under the hood</p></Animate>
+            <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">Under the hood</p></Animate>
             <Animate><h2 className="mx-auto mt-3 max-w-xl text-2xl font-bold tracking-tight text-gray-900">The infrastructure Elevay is built on</h2></Animate>
             <Animate><p className="mx-auto mt-3 max-w-lg text-[15px] leading-relaxed text-gray-600">We don&apos;t reinvent the hard parts. Reasoning, drafting, voice, transcription, and meeting capture run on specialized providers built for exactly that.</p></Animate>
             <Animate><div className="mt-9"><BuiltOnStrip /></div></Animate>
@@ -601,7 +601,7 @@ export default function LandingPage() {
       <Section className="mt-32">
         <div className="py-24" style={{ background: "linear-gradient(180deg, #FAFAFA 0%, #FFFFFF 100%)" }}>
           <div className="mx-auto max-w-[1240px] px-6 text-center">
-            <Animate><h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Run your whole pipeline<br />from one place.</h2></Animate>
+            <Animate><h2 className="text-[30px] font-bold tracking-tight text-gray-900 sm:text-[38px]">Run your whole pipeline<br />from one place.</h2></Animate>
             <Animate><p className="mt-4 text-lg text-gray-600">See it on your own pipeline, live, in 15 minutes.</p></Animate>
             <Animate>
               <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -639,7 +639,7 @@ export default function LandingPage() {
               )}
             </div>
           </div>
-          <p className="mt-8 text-center text-xs text-gray-400">&copy; 2026 Elevay. All rights reserved.</p>
+          <p className="mt-8 text-center text-xs text-gray-500">&copy; 2026 Elevay. All rights reserved.</p>
         </div>
       </footer>
     </div>

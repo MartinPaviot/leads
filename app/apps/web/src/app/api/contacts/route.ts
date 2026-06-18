@@ -8,6 +8,9 @@ import { embedEntity, contactToText } from "@/lib/ai/embeddings";
 import { extractDomain } from "@/lib/util/email";
 import { checkPlanLimit } from "@/lib/billing/plan-limits";
 import { apiError } from "@/lib/infra/api-errors";
+import { phoneRegionKeySql } from "@/lib/contacts/phone-region";
+import { recencyBucketSql } from "@/lib/contacts/recency";
+import { classifyIndustryFamilies, familiesToIndustries } from "@/lib/search/industry-family";
 import { z } from "zod";
 
 const createContactSchema = z.object({
@@ -118,6 +121,20 @@ export async function GET(req: Request) {
     const fGrade = (url.searchParams.get("fGrade") || "").split(",").map((s) => s.trim()).filter(Boolean);
     const fLinkedin = url.searchParams.get("fLinkedin"); // "has" | "empty"
     const fPhone = url.searchParams.get("fPhone"); // "has" | "empty"
+    // Phone region — multi-select of country dial codes ("41", "33", …) plus
+    // the "none"/"unknown" sentinels. Computed in SQL from the phone-region
+    // SSOT so it spans ALL contacts (the list paginates), not just the page.
+    const fPhoneRegion = (url.searchParams.get("fPhoneRegion") || "").split(",").map((s) => s.trim()).filter(Boolean);
+    // Persona: Apollo seniority tier stored at properties.seniority (raw keys).
+    const fSeniority = (url.searchParams.get("fSeniority") || "").split(",").map((s) => s.trim()).filter(Boolean);
+    // Engagement recency bucket (never / 7 / 30 / 90 / old), computed in SQL
+    // from the last real interaction — the never-contacted / stalled split.
+    const fRecency = (url.searchParams.get("fRecency") || "").split(",").map((s) => s.trim()).filter(Boolean);
+    // Region / canton — the contact's company state (properties.state), e.g.
+    // Geneva / Vaud / Valais. Same self-contained company subquery as fIndustry.
+    const fRegion = (url.searchParams.get("fRegion") || "").split(",").map((s) => s.trim()).filter(Boolean);
+    // Sector family — resolved to the company industries via the LLM classifier.
+    const fFamily = (url.searchParams.get("fFamily") || "").split(",").map((s) => s.trim()).filter(Boolean);
 
     if (fName) conds.push(sql`(coalesce(${contacts.firstName}, '') || ' ' || coalesce(${contacts.lastName}, '')) ILIKE ${"%" + fName + "%"}`);
     if (fEmail) conds.push(sql`${contacts.email} ILIKE ${"%" + fEmail + "%"}`);
@@ -162,6 +179,42 @@ export async function GET(req: Request) {
     if (fLinkedin === "empty") conds.push(sql`(${contacts.linkedinUrl} IS NULL OR ${contacts.linkedinUrl} = '')`);
     if (fPhone === "has") conds.push(sql`(${contacts.phone} IS NOT NULL AND ${contacts.phone} <> '')`);
     if (fPhone === "empty") conds.push(sql`(${contacts.phone} IS NULL OR ${contacts.phone} = '')`);
+    if (fPhoneRegion.length > 0) {
+      const regionExpr = sql.raw(phoneRegionKeySql('"contacts"."phone"'));
+      conds.push(sql`(${regionExpr}) = ANY(ARRAY[${sql.join(fPhoneRegion.map((r) => sql`${r}`), sql`, `)}]::text[])`);
+    }
+    if (fSeniority.length > 0) {
+      conds.push(sql`${contacts.properties}->>'seniority' = ANY(ARRAY[${sql.join(fSeniority.map((s) => sql`${s}`), sql`, `)}]::text[])`);
+    }
+    if (fRecency.length > 0) {
+      const recencyExpr = sql.raw(recencyBucketSql());
+      conds.push(sql`(${recencyExpr}) = ANY(ARRAY[${sql.join(fRecency.map((r) => sql`${r}`), sql`, `)}]::text[])`);
+    }
+    if (fRegion.length > 0) {
+      conds.push(sql`${contacts.companyId} IN (
+        SELECT id FROM companies
+        WHERE tenant_id = ${authCtx.tenantId} AND deleted_at IS NULL
+          AND btrim(properties->>'state') = ANY(ARRAY[${sql.join(fRegion.map((r) => sql`${r}`), sql`, `)}]::text[])
+      )`);
+    }
+    if (fFamily.length > 0) {
+      const indRows = await db
+        .selectDistinct({ industry: companies.industry })
+        .from(companies)
+        .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)));
+      const industries = indRows.map((r) => r.industry).filter((x): x is string => !!x);
+      const famMap = await classifyIndustryFamilies(industries, authCtx.tenantId);
+      const inds = familiesToIndustries(famMap, fFamily);
+      conds.push(
+        inds.length > 0
+          ? sql`${contacts.companyId} IN (
+              SELECT id FROM companies
+              WHERE tenant_id = ${authCtx.tenantId} AND deleted_at IS NULL
+                AND industry = ANY(ARRAY[${sql.join(inds.map((i) => sql`${i}`), sql`, `)}]::text[])
+            )`
+          : sql`false`,
+      );
+    }
 
     // Smart-filter score threshold (e.g. "high fit" -> score >= 70), applied
     // server-side so the count reflects it — parity with /api/accounts.
@@ -362,6 +415,83 @@ export async function GET(req: Request) {
       console.warn("Failed to fetch contact grade counts:", e);
     }
 
+    // Phone-region band counts (dial code / none / unknown) over the active
+    // view, mirroring phoneRegionKeySql, for the Phone column "(N)" + the
+    // dropdown's option list. Same SSOT the fPhoneRegion filter uses.
+    const phoneRegionCounts: Record<string, number> = {};
+    try {
+      const regionExpr = sql.raw(phoneRegionKeySql('"contacts"."phone"'));
+      const rows = await db.execute(sql`
+        SELECT ${regionExpr} AS region, count(*)::int AS count
+        FROM contacts
+        WHERE tenant_id = ${authCtx.tenantId}
+          AND ${showDeleted ? sql`deleted_at IS NOT NULL` : sql`deleted_at IS NULL`}
+        GROUP BY 1
+      `);
+      for (const r of rows as unknown as Array<{ region: string | null; count: number }>) {
+        if (r.region) phoneRegionCounts[r.region] = Number(r.count);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch contact phone-region counts:", e);
+    }
+
+    // Seniority band counts (raw Apollo tier keys) over the active view, for the
+    // Persona filter's option list + "(N)".
+    const seniorityCounts: Record<string, number> = {};
+    try {
+      const rows = await db.execute(sql`
+        SELECT ${contacts.properties}->>'seniority' AS s, count(*)::int AS count
+        FROM contacts
+        WHERE tenant_id = ${authCtx.tenantId}
+          AND ${showDeleted ? sql`deleted_at IS NOT NULL` : sql`deleted_at IS NULL`}
+          AND ${contacts.properties}->>'seniority' IS NOT NULL AND ${contacts.properties}->>'seniority' <> ''
+        GROUP BY 1
+      `);
+      for (const r of rows as unknown as Array<{ s: string | null; count: number }>) {
+        if (r.s) seniorityCounts[r.s] = Number(r.count);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch contact seniority counts:", e);
+    }
+
+    // Engagement-recency bucket counts (never / 7 / 30 / 90 / old), mirroring
+    // recencyBucketSql, for the "Dernier contact" filter.
+    const recencyCounts: Record<string, number> = {};
+    try {
+      const recencyExpr = sql.raw(recencyBucketSql());
+      const rows = await db.execute(sql`
+        SELECT ${recencyExpr} AS bucket, count(*)::int AS count
+        FROM contacts
+        WHERE tenant_id = ${authCtx.tenantId}
+          AND ${showDeleted ? sql`deleted_at IS NOT NULL` : sql`deleted_at IS NULL`}
+        GROUP BY 1
+      `);
+      for (const r of rows as unknown as Array<{ bucket: string | null; count: number }>) {
+        if (r.bucket) recencyCounts[r.bucket] = Number(r.count);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch contact recency counts:", e);
+    }
+
+    // Region / canton counts — the contacts' company state, for the Géographie
+    // filter's options + "(N)".
+    const regionCounts: Record<string, number> = {};
+    try {
+      const rows = await db.execute(sql`
+        SELECT btrim(co.properties->>'state') AS r, count(*)::int AS count
+        FROM contacts c JOIN companies co ON co.id = c.company_id
+        WHERE c.tenant_id = ${authCtx.tenantId} AND c.deleted_at IS NULL AND co.deleted_at IS NULL
+          AND btrim(coalesce(co.properties->>'state','')) <> ''
+        GROUP BY 1
+      `);
+      for (const r of rows as unknown as Array<{ r: string | null; count: number }>) {
+        if (r.r) regionCounts[r.r] = Number(r.count);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch contact region counts:", e);
+    }
+
+
     // Canonical paginated shape (items + legacy `contacts`) plus server-sourced
     // filter options for the header dropdowns.
     const totalPages = Math.ceil(total / pageSize);
@@ -377,6 +507,10 @@ export async function GET(req: Request) {
         industry: Object.fromEntries(industryOptions.map((o) => [o.industry, o.count])),
         title: titleCounts,
         score: scoreCounts,
+        phone: phoneRegionCounts,
+        seniority: seniorityCounts,
+        recency: recencyCounts,
+        region: regionCounts,
       },
     });
   } catch (error) {

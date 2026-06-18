@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
-import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Factory, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, Trash2, Archive, RotateCcw, Loader2, type LucideIcon } from "lucide-react";
+import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Factory, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, Trash2, Archive, RotateCcw, Loader2, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
 import { useRegisterPageActions, useRegisterEntityLocator, cssEscape } from "@/lib/chat/page-actions/registry";
 import type { EntityLocator } from "@/lib/chat/page-actions/registry";
@@ -28,6 +28,10 @@ import { ColumnFilter, isColumnFilterActive, type ColumnFilterKind, type ColumnF
 import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-delete-modal";
 import { chunkedBulkCall } from "@/lib/infra/chunk-bulk";
 import { selectAllMatchingIds } from "@/lib/infra/select-all-matching";
+import { phoneRegionLabel, PHONE_REGION_NONE, PHONE_REGION_UNKNOWN } from "@/lib/contacts/phone-region";
+import { FiltersPanel, panelActiveCount, type PanelSection } from "@/components/ui/filters-panel";
+import { seniorityLabel, compareSeniority } from "@/lib/contacts/seniority";
+import { recencyLabel, RECENCY_BUCKETS } from "@/lib/contacts/recency";
 
 function LinkedInIcon({ size = 13 }: { size?: number }) {
   return (
@@ -72,7 +76,7 @@ function definePageAction<P>(a: PageAction<P>): PageAction {
  *  Pure; emoji-free. Count is server-async, so it is not included here. */
 function describeContactFilters(p: {
   contact?: string; companyName?: string[]; industry?: string[]; email?: string;
-  title?: string[]; linkedin?: "present" | "absent"; phone?: "present" | "absent";
+  title?: string[]; linkedin?: "present" | "absent"; phone?: string[];
   score?: string[];
 }): string {
   const parts: string[] = [];
@@ -82,7 +86,7 @@ function describeContactFilters(p: {
   if (p.email) parts.push('email "' + p.email + '"');
   if (p.title?.length) parts.push("title " + p.title.join("/"));
   if (p.linkedin) parts.push("LinkedIn " + p.linkedin);
-  if (p.phone) parts.push("phone " + p.phone);
+  if (p.phone?.length) parts.push("phone region " + p.phone.join("/"));
   if (p.score?.length) parts.push("score " + p.score.join("/"));
   return parts.length ? parts.join(", ") : "no filters";
 }
@@ -147,6 +151,13 @@ export default function ContactsPage() {
   // Per-column header filters (Notion / Excel style), parity with Accounts.
   const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilterState>>({});
   const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null);
+  // Dedicated "Filtres" panel — houses the segment filters with no column home
+  // (recency, seniority, region, sector family). Reads/writes `columnFilters`.
+  const [showFilters, setShowFilters] = useState(false);
+  // Sector-family facet (LLM-classified) — fetched lazily when the panel opens,
+  // so the multi-second classification never blocks the contacts list.
+  const [familyFacet, setFamilyFacet] = useState<Array<{ key: string; label: string; count: number }> | null>(null);
+  const [familyLoading, setFamilyLoading] = useState(false);
   // Column filters run server-side (debounced) so they span ALL contacts, not
   // just the loaded 50-row page. Company options also come from the server.
   const [debouncedColumnFilters, setDebouncedColumnFilters] = useState<Record<string, ColumnFilterState>>({});
@@ -185,7 +196,13 @@ export default function ContactsPage() {
     if (vals("companyName").length) params.set("fCompany", vals("companyName").join(","));
     if (vals("score").length) params.set("fGrade", vals("score").join(","));
     if (pres("linkedin")) params.set("fLinkedin", pres("linkedin")!);
-    if (pres("phone")) params.set("fPhone", pres("phone")!);
+    // Phone is now a region multi-select (dial codes + none/unknown) → fPhoneRegion.
+    if (vals("phone").length) params.set("fPhoneRegion", vals("phone").join(","));
+    // Panel filters (no column home): seniority + engagement recency + region.
+    if (vals("seniority").length) params.set("fSeniority", vals("seniority").join(","));
+    if (vals("recency").length) params.set("fRecency", vals("recency").join(","));
+    if (vals("region").length) params.set("fRegion", vals("region").join(","));
+    if (vals("family").length) params.set("fFamily", vals("family").join(","));
     // Industry column filter -> the contact's company industry (server-side,
     // same subquery shape as fCompany).
     if (vals("industry").length) params.set("fIndustry", vals("industry").join(","));
@@ -710,19 +727,103 @@ export default function ContactsPage() {
     // user picks the precise roles instead of guessing a substring.
     title: { label: "Title", kind: "enum" },
     linkedin: { label: "LinkedIn", kind: "presence" },
-    phone: { label: "Phone", kind: "presence" },
+    // Phone is filtered by country dial code (+41 / +33 / …) plus a "Sans
+    // numéro" bucket — richer than has/empty, and what a romand rep needs to
+    // split Swiss prospects from French noise. Server-computed (fPhoneRegion).
+    phone: { label: "Phone", kind: "enum" },
     score: { label: "Score", kind: "enum" },
   };
 
   // Enum filter options come from the server now: company names across ALL
   // contacts (not just the loaded page, which would hide values the server can
   // still filter on), and grades are a fixed scale.
-  const columnOptions = useMemo<Record<string, string[]>>(() => ({
-    companyName: serverCompanyOptions,
-    title: serverTitleOptions,
-    industry: serverIndustryOptions.map((o) => o.industry),
-    score: ["A+", "A", "B", "C", "D", "F"],
-  }), [serverCompanyOptions, serverTitleOptions, serverIndustryOptions]);
+  const columnOptions = useMemo<Record<string, Array<string | { value: string; label: string }>>>(() => {
+    // Phone-region options come from the server facet counts: dial codes
+    // ordered by frequency, with the "Sans numéro"/"Indicatif inconnu" buckets
+    // pinned last. Labels via the SSOT so "41" shows as "Suisse · +41".
+    const phoneCounts = serverFilterCounts?.phone ?? {};
+    const phoneRegions = Object.keys(phoneCounts)
+      .sort((a, b) => {
+        const sa = a === PHONE_REGION_NONE || a === PHONE_REGION_UNKNOWN ? 1 : 0;
+        const sb = b === PHONE_REGION_NONE || b === PHONE_REGION_UNKNOWN ? 1 : 0;
+        if (sa !== sb) return sa - sb;
+        return (phoneCounts[b] ?? 0) - (phoneCounts[a] ?? 0);
+      })
+      .map((key) => ({ value: key, label: phoneRegionLabel(key) }));
+    return {
+      companyName: serverCompanyOptions,
+      title: serverTitleOptions,
+      industry: serverIndustryOptions.map((o) => o.industry),
+      score: ["A+", "A", "B", "C", "D", "F"],
+      phone: phoneRegions,
+    };
+  }, [serverCompanyOptions, serverTitleOptions, serverIndustryOptions, serverFilterCounts]);
+
+  // Sections for the dedicated Filters panel — segment filters with no column
+  // home. Phone reuses the column options; seniority/recency come from their
+  // own server facet counts. Empty facets render "Aucune valeur".
+  const filterSections = useMemo<PanelSection[]>(() => {
+    const seniorityCounts = serverFilterCounts?.seniority ?? {};
+    const seniorityOpts = Object.keys(seniorityCounts)
+      .sort(compareSeniority)
+      .map((k) => ({ value: k, label: seniorityLabel(k) }));
+    const recencyCounts = serverFilterCounts?.recency ?? {};
+    const recencyOpts = RECENCY_BUCKETS.filter((b) => recencyCounts[b] != null).map((b) => ({
+      value: b as string,
+      label: recencyLabel(b),
+    }));
+    const regionCounts = serverFilterCounts?.region ?? {};
+    const regionOpts = Object.keys(regionCounts)
+      .sort((a, b) => (regionCounts[b] ?? 0) - (regionCounts[a] ?? 0))
+      .map((v) => ({ value: v, label: v }));
+    const famList = familyFacet ?? [];
+    const familyOpts = famList.map((f) => ({ value: f.key, label: f.label }));
+    const familyCountsObj = Object.fromEntries(famList.map((f) => [f.key, f.count]));
+    return [
+      {
+        title: "Secteur",
+        filters: [
+          { key: "family", label: "Famille sectorielle", options: familyOpts, counts: familyCountsObj, hint: familyLoading ? "Classement des secteurs…" : "Regroupe les industries en familles (santé, public, non-profit…)" },
+        ],
+      },
+      {
+        title: "Géographie",
+        filters: [
+          { key: "region", label: "Région / canton", options: regionOpts, counts: regionCounts, hint: "Romandie : Geneva, Vaud, Valais, Neuchâtel, Fribourg, Jura" },
+        ],
+      },
+      {
+        title: "Joignabilité",
+        filters: [
+          { key: "phone", label: "Indicatif téléphone", options: columnOptions.phone ?? [], counts: serverFilterCounts?.phone },
+        ],
+      },
+      {
+        title: "Engagement",
+        filters: [
+          { key: "recency", label: "Dernier contact", options: recencyOpts, counts: recencyCounts, hint: "Dernier échange réel — email, appel ou RDV" },
+        ],
+      },
+      {
+        title: "Persona",
+        filters: [
+          { key: "seniority", label: "Séniorité", options: seniorityOpts, counts: seniorityCounts },
+        ],
+      },
+    ];
+  }, [columnOptions, serverFilterCounts, familyFacet, familyLoading]);
+  const panelActive = panelActiveCount(filterSections, columnFilters);
+
+  // Lazy-load the sector-family facet the first time the Filtres panel opens.
+  useEffect(() => {
+    if (!showFilters || familyFacet !== null || familyLoading) return;
+    setFamilyLoading(true);
+    fetch("/api/industry-families?entity=contact")
+      .then((r) => (r.ok ? r.json() : { families: [] }))
+      .then((d) => setFamilyFacet(d.families ?? []))
+      .catch(() => setFamilyFacet([]))
+      .finally(() => setFamilyLoading(false));
+  }, [showFilters, familyFacet, familyLoading]);
 
   // Column filters now run server-side (see fetchContacts -> /api/contacts), so
   // `contacts` is already the filtered + paginated set. Only the NL smart
@@ -783,7 +884,7 @@ export default function ContactsPage() {
         title: "Filter the contacts list",
         description:
           "Apply the contacts list's column filters: contact name (text), company (names), industry, email " +
-          "(text), title (one or more), LinkedIn present/absent, phone present/absent, score grade " +
+          "(text), title (one or more), LinkedIn present/absent, phone region (dial codes like +33 / +41, or none / unknown), score grade " +
           "(A+/A/B/C/D/F). Replaces the current column-filter set. Use when the user wants to narrow the list. " +
           "It runs server-side across ALL contacts, not just the loaded page.",
         params: z.object({
@@ -793,7 +894,7 @@ export default function ContactsPage() {
           email: z.string().optional(),
           title: z.array(z.string()).optional(),
           linkedin: z.enum(["present", "absent"]).optional(),
-          phone: z.enum(["present", "absent"]).optional(),
+          phone: z.array(z.string()).optional(),
           score: z.array(z.enum(["A+", "A", "B", "C", "D", "F"])).optional(),
         }),
         mutating: false, reversible: true, cost: "free", confirm: "never",
@@ -806,7 +907,7 @@ export default function ContactsPage() {
           if (p.industry?.length) next.industry = { values: p.industry };
           if (p.score?.length) next.score = { values: p.score };
           if (p.linkedin) next.linkedin = { presence: p.linkedin === "present" ? "has" : "empty" };
-          if (p.phone) next.phone = { presence: p.phone === "present" ? "has" : "empty" };
+          if (p.phone?.length) next.phone = { values: p.phone };
           setColumnFilters(next);
           return okResult("Filtered contacts by " + describeContactFilters(p) + ".");
         },
@@ -1114,6 +1215,24 @@ export default function ContactsPage() {
         >
           All ({totalContacts})
         </button>
+        <button
+          type="button"
+          onClick={() => setShowFilters(true)}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
+          style={{
+            background: panelActive > 0 ? "var(--color-accent-soft)" : "transparent",
+            color: panelActive > 0 ? "var(--color-accent)" : "var(--color-text-tertiary)",
+          }}
+          title="Filtres avancés — joignabilité, engagement, persona"
+        >
+          <SlidersHorizontal size={12} />
+          Filtres
+          {panelActive > 0 && (
+            <span className="rounded-full px-1.5 text-[10px] font-medium tabular-nums" style={{ background: "var(--color-accent)", color: "#fff" }}>
+              {panelActive}
+            </span>
+          )}
+        </button>
         {(() => {
           const activeKeys = Object.keys(columnFilters).filter((k) => isColumnFilterActive(columnFilters[k]));
           if (activeKeys.length === 0) return null;
@@ -1125,7 +1244,7 @@ export default function ContactsPage() {
               style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
             >
               <X size={12} />
-              {activeKeys.length} column filter{activeKeys.length === 1 ? "" : "s"} — clear
+              {activeKeys.length} filtre{activeKeys.length === 1 ? "" : "s"} actif{activeKeys.length === 1 ? "" : "s"} — effacer
             </button>
           );
         })()}
@@ -1158,6 +1277,20 @@ export default function ContactsPage() {
           />
         </div>
       </FilterBar>
+      <FiltersPanel
+        open={showFilters}
+        onOpenChange={setShowFilters}
+        sections={filterSections}
+        state={columnFilters}
+        onChange={(key, next) =>
+          setColumnFilters((prev) => {
+            const n = { ...prev };
+            if (next) n[key] = next;
+            else delete n[key];
+            return n;
+          })
+        }
+      />
       <ActiveFiltersChips
         filters={smartFilters}
         reasoning={smartMeta?.reasoning}

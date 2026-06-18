@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Inter, JetBrains_Mono, Fraunces } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { SkipLink } from "@/components/a11y/skip-link";
 import { PostHogProvider } from "@/components/posthog-provider";
@@ -14,12 +14,6 @@ const inter = Inter({
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
-  display: "swap",
-});
-
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-display",
   display: "swap",
 });
 
@@ -63,7 +57,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${jetbrainsMono.variable} ${fraunces.variable}`}
+      className={`${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body>
         <SkipLink />

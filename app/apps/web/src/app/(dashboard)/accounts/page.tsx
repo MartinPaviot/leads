@@ -47,9 +47,13 @@ import { EnrichMenu } from "@/components/ui/enrich-menu";
 import { useEnrichStream, type EnrichCellState } from "@/hooks/use-enrich-stream";
 import { ColumnPicker } from "@/components/ui/column-picker";
 import { MoreMenu } from "@/components/ui/more-menu";
+import { SourcingPreviewModal } from "@/components/sourcing-preview-modal";
 import { COLUMN_CATEGORIES, DEFAULT_VISIBLE_CATEGORY_KEYS, getColumnCategory, buildPickerModel, isDynamicCategoryKey, isCategoryAvailable, customSignalKey, signalTypeKey, customFieldKey } from "@/lib/accounts/column-categories";
 import { TAM_PROPOSALS_ENTRY_ENABLED } from "@/lib/tam/entry-visibility";
 import { deriveAccountTabCounts } from "@/lib/accounts/tab-counts";
+import { FiltersPanel, panelActiveCount, type PanelSection } from "@/components/ui/filters-panel";
+import { accountReachLabel, ACCOUNT_REACH_BUCKETS } from "@/lib/accounts/account-segments";
+import { recencyLabel, RECENCY_BUCKETS } from "@/lib/contacts/recency";
 
 /** Firmographic-extra category columns (founded year, tech, funding,
  * keywords) — addable via the Categories picker, filled by the same
@@ -217,8 +221,17 @@ export default function AccountsPage() {
   // tab + enrich badges, so they show true totals rather than the loaded subset.
   const [serverCounts, setServerCounts] = useState<{ total: number; tam: number; manual: number; unenriched: number } | null>(null);
   const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null);
+  // Dedicated "Filtres" panel — segment cuts with no column home (contact
+  // reach, engagement recency, sector family, region). Reads/writes columnFilters.
+  const [showFilters, setShowFilters] = useState(false);
+  // Sector-family facet (LLM-classified) — fetched lazily when the panel first
+  // opens, so the multi-second classification never blocks the accounts list.
+  const [familyFacet, setFamilyFacet] = useState<Array<{ key: string; label: string; count: number }> | null>(null);
+  const [familyLoading, setFamilyLoading] = useState(false);
   // Bulk contact extraction (Apollo) + delete flows.
   const [extractingContacts, setExtractingContacts] = useState(false);
+  // Accounts the sourcing-preview modal is open for (null = closed).
+  const [previewIds, setPreviewIds] = useState<string[] | null>(null);
   // Deletes — single row AND the checkbox selection — go through the cascade
   // modal (lets the user also delete related contacts/deals/activities/notes/
   // tasks in one step). Everything is soft-delete, recoverable from Archive.
@@ -601,6 +614,8 @@ export default function AccountsPage() {
     const ENUM_PARAM: Record<string, string> = {
       industry: "fIndustry", geography: "fGeography", size: "fSize",
       revenue: "fRevenue", stage: "fStage", score: "fGrade",
+      // Filters panel (no column home): contact reach + recency + region + sector family.
+      contactReach: "fContactReach", recency: "fRecency", region: "fRegion", family: "fFamily",
     };
     const TEXT_PARAM: Record<string, string> = { name: "fName", domain: "fDomain" };
     for (const [key, fst] of Object.entries(debouncedColumnFilters)) {
@@ -633,6 +648,66 @@ export default function AccountsPage() {
     for (const [k, v] of serializeAccountFilters()) params.set(k, v);
     return params;
   }, [debouncedSearch, viewExcluded, viewDeleted, serializeAccountFilters]);
+
+  // Sections for the dedicated Filters panel — the two account cuts with no
+  // column home, from the server segment facet counts (lib/accounts/account-segments).
+  const filterSections = useMemo<PanelSection[]>(() => {
+    const reachCounts = serverFacetCounts?.contactReach ?? {};
+    const reachOpts = ACCOUNT_REACH_BUCKETS.filter((b) => reachCounts[b] != null).map((b) => ({
+      value: b as string,
+      label: accountReachLabel(b),
+    }));
+    const recencyCounts = serverFacetCounts?.recency ?? {};
+    const recencyOpts = RECENCY_BUCKETS.filter((b) => recencyCounts[b] != null).map((b) => ({
+      value: b as string,
+      label: recencyLabel(b),
+    }));
+    const regionCounts = serverFacetCounts?.region ?? {};
+    const regionOpts = Object.keys(regionCounts)
+      .sort((a, b) => (regionCounts[b] ?? 0) - (regionCounts[a] ?? 0))
+      .map((v) => ({ value: v, label: v }));
+    const famList = familyFacet ?? [];
+    const familyOpts = famList.map((f) => ({ value: f.key, label: f.label }));
+    const familyCountsObj = Object.fromEntries(famList.map((f) => [f.key, f.count]));
+    return [
+      {
+        title: "Secteur",
+        filters: [
+          { key: "family", label: "Famille sectorielle", options: familyOpts, counts: familyCountsObj, hint: familyLoading ? "Classement des secteurs…" : "Regroupe les industries en familles (santé, public, non-profit…)" },
+        ],
+      },
+      {
+        title: "Géographie",
+        filters: [
+          { key: "region", label: "Région / canton", options: regionOpts, counts: regionCounts, hint: "Romandie : Geneva, Vaud, Valais, Neuchâtel, Fribourg, Jura" },
+        ],
+      },
+      {
+        title: "Joignabilité",
+        filters: [
+          { key: "contactReach", label: "Couverture contact", options: reachOpts, counts: reachCounts, hint: "A-t-on un interlocuteur — et un numéro pour l'appeler ?" },
+        ],
+      },
+      {
+        title: "Engagement",
+        filters: [
+          { key: "recency", label: "Dernier contact", options: recencyOpts, counts: recencyCounts, hint: "Dernier échange réel sur le compte (contacts, emails, RDV)" },
+        ],
+      },
+    ];
+  }, [serverFacetCounts, familyFacet, familyLoading]);
+  const panelActive = panelActiveCount(filterSections, columnFilters);
+
+  // Lazy-load the sector-family facet the first time the Filtres panel opens.
+  useEffect(() => {
+    if (!showFilters || familyFacet !== null || familyLoading) return;
+    setFamilyLoading(true);
+    fetch("/api/industry-families?entity=account")
+      .then((r) => (r.ok ? r.json() : { families: [] }))
+      .then((d) => setFamilyFacet(d.families ?? []))
+      .catch(() => setFamilyFacet([]))
+      .finally(() => setFamilyLoading(false));
+  }, [showFilters, familyFacet, familyLoading]);
 
   /** Fetch a single page of accounts.
    *  - page=1, append=false → initial load (replaces list)
@@ -1032,8 +1107,8 @@ export default function AccountsPage() {
 
   // Pull real contacts (Apollo) for the selected accounts and persist
   // them. Deduped server-side against contacts already on each account.
-  async function extractContactsSelected() {
-    const ids = Array.from(selectedRows);
+  async function extractContactsSelected(idsOverride?: string[]) {
+    const ids = idsOverride ?? Array.from(selectedRows);
     if (ids.length === 0) return;
     setExtractingContacts(true);
     toast(`Extracting contacts for ${ids.length} account${ids.length === 1 ? "" : "s"}…`, "info");
@@ -2078,7 +2153,11 @@ export default function AccountsPage() {
           {
             label: extractingContacts ? "Extracting…" : "Extract contacts",
             icon: <UserPlus size={13} />,
-            onClick: extractContactsSelected,
+            // Open the ICP preview first — don't source blind.
+            onClick: () => {
+              const ids = Array.from(selectedRows);
+              if (ids.length > 0) setPreviewIds(ids);
+            },
             disabled: extractingContacts,
           },
           {
@@ -2280,6 +2359,25 @@ export default function AccountsPage() {
           ))}
         </div>
 
+        <button
+          type="button"
+          onClick={() => setShowFilters(true)}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
+          style={{
+            background: panelActive > 0 ? "var(--color-accent-soft)" : "transparent",
+            color: panelActive > 0 ? "var(--color-accent)" : "var(--color-text-tertiary)",
+          }}
+          title="Filtres avancés — joignabilité, récence"
+        >
+          <SlidersHorizontal size={12} />
+          Filtres
+          {panelActive > 0 && (
+            <span className="rounded-full px-1.5 text-[10px] font-medium tabular-nums" style={{ background: "var(--color-accent)", color: "#fff" }}>
+              {panelActive}
+            </span>
+          )}
+        </button>
+
         {/* Enrichment partition — independent of the source tab. Lets the user
             isolate the not-yet-enriched accounts so a bulk enrich doesn't pay to
             re-enrich the ones already enriched. Counts come from the tenant-wide
@@ -2362,6 +2460,21 @@ export default function AccountsPage() {
           />
         </div>
       </FilterBar>
+
+      <FiltersPanel
+        open={showFilters}
+        onOpenChange={setShowFilters}
+        sections={filterSections}
+        state={columnFilters}
+        onChange={(key, next) =>
+          setColumnFilters((prev) => {
+            const n = { ...prev };
+            if (next) n[key] = next;
+            else delete n[key];
+            return n;
+          })
+        }
+      />
 
       <ActiveFiltersChips
         filters={smartFilters}
@@ -3372,6 +3485,18 @@ export default function AccountsPage() {
         onConfirm={performCascadeDelete}
         onCancel={() => { if (!cascadeBusy) setCascadeTarget(null); }}
       />
+
+      {previewIds && (
+        <SourcingPreviewModal
+          open
+          accountIds={previewIds}
+          onClose={() => setPreviewIds(null)}
+          onConfirm={(keptIds) => {
+            setPreviewIds(null);
+            void extractContactsSelected(keptIds);
+          }}
+        />
+      )}
     </div>
   );
 }

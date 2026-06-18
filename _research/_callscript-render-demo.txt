@@ -1,0 +1,59 @@
+
+===== Santé / EMS + outil détecté (secteur="hospital & health care", outil=Microsoft 365) =====
+OUVERTURE:
+  Bonjour Madame Rochat, Martin Paviot, co-fondateur de Pilae, une startup lausannoise qui installe et opère des logiciels open source — IA interne comprise — hébergés en Suisse, à la place des SaaS payés trop cher. Je vous appelle car je vois que vous tournez sur Microsoft 365 — et beaucoup d'institutions de soin sont en retard sur l'IA et paient cher des logiciels dont les données résidents partent aux États-Unis.
+
+Ce qu'on entend chez des institutions de soin comme vous :
+  1. beaucoup d'institutions de soin se sentent en retard sur l'IA, pendant que les équipes bricolent avec des outils publics
+  2. vous payez des logiciels dont la facture grimpe à chaque renouvellement, sans pilotage
+  3. vos données résidents ou patients transitent par des outils hébergés aux États-Unis, au moment où la nLPD se durcit
+
+  -> C'est quelque chose que vous vivez en ce moment ?
+
+BOOKING:
+  Très bien — dans ce cas, je pense qu'on a intérêt à se rencontrer. Vous seriez disponible pour une visio de 45 minutes à 1h, plutôt lundi entre 14h et 18h, ou jeudi entre 9h et 12h ? Je viendrais avec une première lecture de ce que vous pourriez remplacer et l'écart de coût — rien à préparer de votre côté.
+
+
+===== Fondation (aucun outil) (secteur="nonprofit organization management", outil=aucun) =====
+OUVERTURE:
+  Bonjour Monsieur Berra, Martin Paviot, co-fondateur de Pilae, une startup lausannoise qui installe et opère des logiciels open source — IA interne comprise — hébergés en Suisse, à la place des SaaS payés trop cher. Je vous appelle car beaucoup de fondations paient leurs logiciels bien plus cher que nécessaire et gardent leurs données donateurs sur des outils américains.
+
+Ce qu'on entend chez des fondations comme vous :
+  1. beaucoup de fondations se sentent en retard sur l'IA : les équipes utilisent des IA publiques avec leurs données, faute d'une solution interne
+  2. des abonnements qui s'accumulent et grimpent à chaque renouvellement, sans que personne pilote ce que vous payez
+  3. vos données donateurs ou bénéficiaires vivent sur des outils américains, hors de votre contrôle, alors que la souveraineté devient un vrai sujet
+
+  -> C'est quelque chose que vous vivez en ce moment ?
+
+BOOKING:
+  Très bien — dans ce cas, je pense qu'on a intérêt à se rencontrer. Vous seriez disponible pour une visio de 45 minutes à 1h, plutôt lundi entre 14h et 18h, ou jeudi entre 9h et 12h ? Je viendrais avec une première lecture de ce que vous pourriez remplacer et l'écart de coût — rien à préparer de votre côté.
+
+
+===== International Genève + outil (secteur="international affairs", outil=Outlook) =====
+OUVERTURE:
+  Bonjour Mr. Smith, Martin Paviot, co-fondateur de Pilae, une startup lausannoise qui installe et opère des logiciels open source — IA interne comprise — hébergés en Suisse, à la place des SaaS payés trop cher. Je vous appelle car je vois que vous tournez sur Outlook — et beaucoup d'organisations internationales basées ici gardent des données sensibles sur des outils américains, alors que leur mandat demande l'inverse.
+
+Ce qu'on entend chez des organisations internationales comme vous :
+  1. vos équipes utilisent déjà des IA publiques avec des données sensibles, faute d'une IA interne maîtrisée
+  2. des licences par poste, en CHF, qui grimpent à chaque renouvellement sans que personne pilote ce que vous payez
+  3. vos données — États membres, fédérations, programmes — vivent sur des outils américains soumis au Cloud Act, alors que votre mandat demande l'inverse
+
+  -> C'est quelque chose que vous vivez en ce moment ?
+
+BOOKING:
+  Très bien — dans ce cas, je pense qu'on a intérêt à se rencontrer. Vous seriez disponible pour une visio de 45 minutes à 1h, plutôt lundi entre 14h et 18h, ou jeudi entre 9h et 12h ? Je viendrais avec une première lecture de ce que vous pourriez remplacer et l'écart de coût — rien à préparer de votre côté.
+
+
+===== Enseignement (aucun outil) (secteur="higher education", outil=aucun) =====
+OUVERTURE:
+  Bonjour Madame Favre, Martin Paviot, co-fondateur de Pilae, une startup lausannoise qui installe et opère des logiciels open source — IA interne comprise — hébergés en Suisse, à la place des SaaS payés trop cher. Je vous appelle car beaucoup d'écoles paient des licences par poste qui grimpent et gardent les données élèves sur des outils américains.
+
+Ce qu'on entend chez des écoles comme vous :
+  1. élèves et enseignants utilisent déjà des IA publiques, sans solution interne ni cadre
+  2. des licences par poste qui grimpent à chaque rentrée, sur une pile d'outils qui ne se parlent pas
+  3. les données élèves, étudiants ou candidats vivent sur des outils américains, au moment où la nLPD se durcit et où parents et conseils y sont sensibles
+
+  -> C'est quelque chose que vous vivez en ce moment ?
+
+BOOKING:
+  Très bien — dans ce cas, je pense qu'on a intérêt à se rencontrer. Vous seriez disponible pour une visio de 45 minutes à 1h, plutôt lundi entre 14h et 18h, ou jeudi entre 9h et 12h ? Je viendrais avec une première lecture de ce que vous pourriez remplacer et l'écart de coût — rien à préparer de votre côté.

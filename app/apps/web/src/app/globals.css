@@ -18,7 +18,6 @@
 @theme {
   /* === TYPOGRAPHY === */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --font-display: 'Fraunces', 'Georgia', serif;
   --font-mono: 'JetBrains Mono', 'DM Mono', monospace;
 
   /* === LAYOUT === */

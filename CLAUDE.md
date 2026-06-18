@@ -1,25 +1,3 @@
-# Coding rules hook & git trailer
-
-**Rippletide rules hook — currently INERT on this machine (verified 2026-06-18).**
-The `UserPromptSubmit` hook (`.claude/hooks/fetch-rules.sh`) is meant to inject a
-`[Coding Rules from Rippletide]` block before planning/coding, and a PreToolUse hook
-(`check-code.sh`) to check edits against it. Both no-op here: no Rippletide config/
-`user_id` exists on this Windows box and `jq` is absent (see memory
-`jq-missing-in-git-bash`). Therefore **do NOT preface responses with
-"Applying rules: …"** — none are injected. IF a `<user-prompt-submit-hook>` block
-tagged `[Coding Rules from Rippletide]` ever DOES appear (e.g. after logging into
-Rippletide), honor it: process the rules first, state which you apply, comply.
-
-**Git co-authorship (mandatory, every commit):** append this trailer as a Git
-trailer (blank line before it) at the end of every commit message — feature, fix,
-refactor, docs, all of them:
-
-```
-Co-Authored-By: Rippletide <admin@rippletide.com>
-```
-
----
-
 # CLAUDE.md
 
 ## What this is
@@ -133,7 +111,7 @@ Full phase methodology (Calibrate, Research, Plan) is in `_harness/CHARTER.md`.
 | One full feature cycle | `/next` |
 | Re-evaluate current branch | `/evaluate` · `/code-review ultra` (cloud) |
 | Regression + drift check | `/regression` |
-| Repo-aware plan (Rippletide rules) | `/plan` |
+| Repo-aware plan | `/plan` |
 | Code review before commit/PR | `/code-review` |
 | Visual/UX audit of the live UI | `/design-review` (vs design language + AI-slop) |
 | Debug a bug / failing test | `/investigate` (no fix without investigation) |
@@ -160,11 +138,7 @@ Full phase methodology (Calibrate, Research, Plan) is in `_harness/CHARTER.md`.
 
 ## Memory
 
-Persistent memory across sessions, in priority order:
-1. **File memory** — `.claude/.../memory/MEMORY.md` index + one-fact files. Recall
-   before deciding; write non-obvious facts immediately.
-2. **Rippletide MCP** — `recall()` before decisions, `remember()` decisions/findings/
-   blockers, `relate()` entities, `invalidate()` stale info, `get_context()` before
-   building a feature.
+Persistent memory across sessions: **File memory** — `.claude/.../memory/MEMORY.md`
+index + one-fact files. Recall before deciding; write non-obvious facts immediately.
 
 If you don't persist it, you lose it when context compacts.
