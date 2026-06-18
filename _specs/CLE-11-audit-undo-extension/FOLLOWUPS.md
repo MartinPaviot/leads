@@ -89,10 +89,15 @@ ops now confine through the parent sequence's tenant (`sequenceStepOwnedByTenant
 in `tool-call-log-page-action.test.ts` (forged foreign step → 0 deletes; owned step
 → 1 delete). The other allowlisted entities were already tenant-filtered.
 
-## 3. Deploy: migration `0077_outbound_hold.sql` must be applied
-Adds the `held`/`canceled` enum values + `hold_until` column + index. NOT run by the
-implementation. Apply with `pnpm db:migrate:apply`. Code is safe pre-migration
-(window 0 never writes/reads the new states). Requires PostgreSQL >= 12 (Neon is).
+## 3. Deploy: migration `0077_outbound_hold.sql` — ✅ APPLIED on dev 2026-06-18
+Adds the `held`/`canceled` enum values + `hold_until` column + index. Applied +
+verified + recorded (`__elevay_migrations`) on the dev DB `leadsens-localdev` — all
+three (column, enum values, `outbound_hold_idx`) confirmed present. It is additive +
+idempotent (`IF NOT EXISTS` everywhere), PostgreSQL >= 12. **PROD (`leadsens-dev`)
+still pending** — apply at deploy time when this branch merges to main (do not migrate
+prod from an unmerged branch). The full `pnpm db:migrate:apply` runner breaks at
+`0012` here; apply this file's SQL directly (idempotent) + record it, as done on dev.
+Code is safe pre-migration (window 0 never writes/reads the new states).
 
 ## 4. Minor: audit row can be lost on a fast page unmount
 If the page unmounts before `getRegisteredActionMeta` resolves in `postPageActionLog`,

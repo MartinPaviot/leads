@@ -1,0 +1,17 @@
+CLE-10 approval-mode backfill — dev run (leadsens-localdev)
+Date: 2026-06-18
+Target: Supabase project leadsens-localdev (ref mrxxeuozlzgwsuojebad), pooler eu-central-1
+Command: DATABASE_URL=<.env.local + ?sslmode=require> npx tsx scripts/cle10-backfill-approval-mode.ts
+
+--dry:
+  CLE-10 approval-mode backfill — DRY RUN (no writes)
+  autonomy_config rows: 0
+  Done. changed=0 unchanged=0 skipped(no row)=tenants-without-autonomy_config
+
+apply:
+  CLE-10 approval-mode backfill — APPLYING
+  autonomy_config rows: 0
+  Done. changed=0 unchanged=0 skipped(no row)=tenants-without-autonomy_config
+
+Result: no-op on dev (fresh DB has no autonomy_config rows). Idempotent; re-running is safe.
+PROD (leadsens-dev): NOT run — apply at deploy time when the branch merges to main.
