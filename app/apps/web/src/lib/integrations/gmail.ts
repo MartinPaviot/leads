@@ -132,6 +132,7 @@ export async function fetchRecentEmails(
       // original HTML part for fidelity rendering — INBOX-R01/R13).
       const body = extractBodyFromPayload(detail.data.payload);
       const html = extractHtmlFromPayload(detail.data.payload);
+      const calendar = extractCalendarFromPayload(detail.data.payload);
 
       // Determine direction: if user's email is in the From field → outbound
       const fromEmail = extractEmail(from);
@@ -160,6 +161,7 @@ export async function fetchRecentEmails(
         date: dateStr ? new Date(dateStr) : new Date(),
         direction,
         headers: Object.keys(headerRecord).length ? headerRecord : null,
+        calendar: calendar ? calendar.slice(0, 100000) : null,
       });
     } catch (err) {
       // Skip messages that fail to fetch (deleted, etc.)
@@ -244,5 +246,27 @@ function extractHtmlFromPayload(payload: any): string {
     }
   }
 
+  return "";
+}
+
+/**
+ * Recursively extract the raw `text/calendar` (.ics) part from a Gmail payload,
+ * for inline meeting-invite rendering in the reading pane (INBOX-R12/CAL). Returns
+ * "" when the message carries no calendar part. Only inline parts (body.data) are
+ * read; an .ics delivered as a fetch-only attachment is a residual.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function extractCalendarFromPayload(payload: any): string {
+  if (!payload) return "";
+  const mime = (payload.mimeType || "").toLowerCase();
+  if (payload.body?.data && (mime.startsWith("text/calendar") || mime === "application/ics")) {
+    return Buffer.from(payload.body.data, "base64url").toString("utf-8");
+  }
+  if (payload.parts && Array.isArray(payload.parts)) {
+    for (const part of payload.parts) {
+      const found = extractCalendarFromPayload(part);
+      if (found) return found;
+    }
+  }
   return "";
 }
