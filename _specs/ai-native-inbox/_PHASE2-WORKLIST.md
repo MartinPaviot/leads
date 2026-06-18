@@ -45,8 +45,8 @@ built, needs wiring · [O] ocean (flag, don't fake) · [ ] to build.
 - [x] Q04 search operators — search-match.ts (matchesSearch + isActiveQuery, 6
       tests) + ?q= cross-lane filter in the route + debounced search box (e138dc51).
       Saved searches (user_preferences) still residual.
-- [ ] S09 why-line in the LIST — composeWhyLine(core) now that G05 produces
-      stage+situation; thread deal-stage into the conversations route per row.
+- [O] S09 why-line in the LIST — FLAGGED above (covered by T08+G05+N04+S05; the
+      deal-stage-per-row join is the residual). Duplicate of the section-A entry.
 
 ## B. LLM features (injectable-generator + tests; runtime verify deferred)
 - [x] S01 + S08 thread summary — summarize-thread.ts (injectable, reuses
@@ -56,8 +56,10 @@ built, needs wiring · [O] ocean (flag, don't fake) · [ ] to build.
 - [x] C04 rewrite commands — rewrite.ts (5 GTM presets + free-form, grounded,
       fail-closed, 4 tests) + POST /api/inbox/compose/rewrite + composer "Rewrite"
       menu with one-tap Undo (a3541a37).
-- [ ] C07 draft from bullet points — bulletsToDraft(bullets, generate?) in composer.
-- [ ] C08 translate / multi-language — translate(body, lang, generate?) in composer.
+- [x] C07 draft-from-bullets — draft-from-bullets.ts + POST /api/inbox/compose/draft
+      + composer "Draft from bullets" popover (fills subject if empty + body) (423c6846).
+- [x] C08 translate — translate.ts (5 langs) + POST /api/inbox/compose/translate
+      + composer "Translate" menu, shared one-tap Undo (423c6846).
 - [ ] C01/G08 voice-matched full draft — compose(context, generate?) grounded in
       prospect context; the deepest one — do after C04/C07/C08.
 - [ ] C05 autocomplete grounded in history — defer if it needs streaming infra
