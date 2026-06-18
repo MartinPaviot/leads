@@ -55,6 +55,11 @@ export interface DeliverInteractiveInput {
   dealId?: string | null;
   /** Tag for the activity record, e.g. "composer" | "meeting_follow_up". */
   source?: string;
+  /** Attach an iCalendar part (e.g. an RSVP REPLY) — passed to the transport. */
+  icsInvite?: { method: "REQUEST" | "PUBLISH" | "CANCEL" | "REPLY"; content: string; filename?: string };
+  /** Skip the CAN-SPAM unsubscribe footer/header — for transactional sends
+   *  (an RSVP reply to a meeting organizer is not marketing). */
+  skipUnsubscribe?: boolean;
 }
 
 export type DeliverInteractiveResult =
@@ -151,7 +156,7 @@ export async function deliverInteractiveEmail(
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.elevay.dev";
   const unsubUrl = buildUnsubscribeUrl(appUrl, tenantId, to);
-  const text = withFooter(body, unsubUrl);
+  const text = input.skipUnsubscribe ? body : withFooter(body, unsubUrl);
 
   const useSmtp = shouldUseOwnerSmtp(mailbox);
   const fromAddress =
@@ -181,6 +186,7 @@ export async function deliverInteractiveEmail(
           text,
           cc: input.cc && input.cc.length > 0 ? input.cc.join(", ") : undefined,
           bcc: input.bcc && input.bcc.length > 0 ? input.bcc.join(", ") : undefined,
+          icsInvite: input.icsInvite,
         },
       );
       messageId = res.messageId;
@@ -196,7 +202,10 @@ export async function deliverInteractiveEmail(
         bcc: input.bcc && input.bcc.length > 0 ? input.bcc : undefined,
         subject,
         text,
-        headers: { "List-Unsubscribe": `<${unsubUrl}>` },
+        attachments: input.icsInvite
+          ? [{ filename: input.icsInvite.filename || "reply.ics", content: Buffer.from(input.icsInvite.content) }]
+          : undefined,
+        headers: input.skipUnsubscribe ? undefined : { "List-Unsubscribe": `<${unsubUrl}>` },
       });
       if (error) return { ok: false, code: "send_failed", error: error.message };
       messageId = data?.id || crypto.randomUUID();

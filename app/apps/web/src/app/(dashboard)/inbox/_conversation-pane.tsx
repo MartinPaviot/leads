@@ -744,7 +744,7 @@ export function ConversationPane({
               <div className="mt-0.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }} dir={dirOf(decodeDisplay(m.subject))}>{decodeDisplay(m.subject)}</div>
             )}
             <div className="mt-1.5">
-              <EventCard ics={m.calendar} />
+              <EventCard ics={m.calendar} conversationKey={conv.key} />
               <EmailBody
                 html={m.bodyHtml}
                 text={m.body || "(empty message)"}

@@ -34,7 +34,7 @@ export interface OutgoingMessage {
    * meeting on a CalDAV calendar, which — unlike Google/Microsoft — does not
    * email the attendee itself, so we send the REQUEST ourselves.
    */
-  icsInvite?: { method: "REQUEST" | "PUBLISH" | "CANCEL"; content: string; filename?: string };
+  icsInvite?: { method: "REQUEST" | "PUBLISH" | "CANCEL" | "REPLY"; content: string; filename?: string };
 }
 
 function makeTransport(c: SmtpCreds) {

@@ -23,8 +23,14 @@ export interface IcsEventInput {
   url?: string | null;
   organizer: IcsPerson;
   attendees: IcsPerson[];
-  /** REQUEST for an invitation, PUBLISH for a plain calendar object. */
-  method?: "REQUEST" | "PUBLISH";
+  /** REQUEST = invitation, PUBLISH = plain object, REPLY = an attendee's RSVP. */
+  method?: "REQUEST" | "PUBLISH" | "REPLY";
+  /**
+   * Attendee participation status for a REPLY (iTIP §3.2.3). When set, attendees
+   * are emitted as `ATTENDEE;PARTSTAT=<value>` (the responder's answer) instead
+   * of the NEEDS-ACTION/RSVP=TRUE form used in an outgoing REQUEST.
+   */
+  attendeePartstat?: "ACCEPTED" | "TENTATIVE" | "DECLINED";
   sequence?: number;
 }
 
@@ -98,6 +104,7 @@ export function buildIcs(input: IcsEventInput): string {
     organizer,
     attendees,
     method = "REQUEST",
+    attendeePartstat,
     sequence = 0,
   } = input;
 
@@ -118,13 +125,16 @@ export function buildIcs(input: IcsEventInput): string {
   if (location) lines.push(`LOCATION:${escapeIcsText(location)}`);
   if (url) lines.push(`URL:${url}`); // URI value — not TEXT-escaped
   lines.push(personLine("ORGANIZER", organizer));
+  // A REPLY carries the responder's PARTSTAT; a REQUEST/PUBLISH invites them.
+  const attendeeParams = attendeePartstat
+    ? `;PARTSTAT=${attendeePartstat}`
+    : ";ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE";
   for (const a of attendees) {
-    lines.push(
-      personLine("ATTENDEE", a, ";ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE"),
-    );
+    lines.push(personLine("ATTENDEE", a, attendeeParams));
   }
   lines.push(`SEQUENCE:${sequence}`);
-  lines.push("STATUS:CONFIRMED");
+  // STATUS belongs on the organizer's object, not on an attendee's REPLY.
+  if (method !== "REPLY") lines.push("STATUS:CONFIRMED");
   lines.push("END:VEVENT");
   lines.push("END:VCALENDAR");
 
