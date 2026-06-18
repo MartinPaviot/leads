@@ -1,15 +1,14 @@
-# Hook-First Planning Instructions
+# Coding rules hook & git trailer
 
-**Applies to `CLAUDE.md` and `AGENTS.md`.** Before any planning, code, refactor,
-or test response, the `UserPromptSubmit` hook is the first source of truth.
-
-- When the hook injects context tagged `[Coding Rules from Rippletide]`, you MUST
-  process it before producing a plan or code. The hook query is the user's exact
-  request text (e.g. `/plan write a hello world` → query is that string).
-- Make the active rules explicit, up front, before any plan/code output:
-  `Applying rules: Rule A, Rule B, Rule C`. If none returned:
-  `Applying rules: none returned by hook`. Never plan or generate silently.
-- Keep the rules visible in the response and note which one changed the design.
+**Rippletide rules hook — currently INERT on this machine (verified 2026-06-18).**
+The `UserPromptSubmit` hook (`.claude/hooks/fetch-rules.sh`) is meant to inject a
+`[Coding Rules from Rippletide]` block before planning/coding, and a PreToolUse hook
+(`check-code.sh`) to check edits against it. Both no-op here: no Rippletide config/
+`user_id` exists on this Windows box and `jq` is absent (see memory
+`jq-missing-in-git-bash`). Therefore **do NOT preface responses with
+"Applying rules: …"** — none are injected. IF a `<user-prompt-submit-hook>` block
+tagged `[Coding Rules from Rippletide]` ever DOES appear (e.g. after logging into
+Rippletide), honor it: process the rules first, state which you apply, comply.
 
 **Git co-authorship (mandatory, every commit):** append this trailer as a Git
 trailer (blank line before it) at the end of every commit message — feature, fix,

@@ -1,76 +1,34 @@
-# Hook-First Planning Instructions
+# Agent instructions
 
-## Objective
+## Coding rules hook (currently inert on this machine)
 
-Use the `UserPromptSubmit` hook as the first source of truth for coding
-rules and planning guidance.
+A `UserPromptSubmit` hook (`.claude/hooks/fetch-rules.sh`) is designed to inject a
+`[Coding Rules from Rippletide]` block — coding/planning rules pulled from the
+Rippletide backend — before any planning, code, refactor, or test response. A
+PreToolUse hook (`.claude/hooks/check-code.sh`) is designed to check edits against
+those rules.
 
-These instructions apply to both `AGENTS.md` and `CLAUDE.md`.
+**Status — verified 2026-06-18: both hooks no-op here.** There is no Rippletide
+config / `user_id` on this machine (absent from `$HOME/.config`, `%APPDATA%`, and
+`%LOCALAPPDATA%`) and `jq` is not on the Git Bash PATH, so the hooks exit early
+without injecting or checking anything. See memory `jq-missing-in-git-bash`.
 
-## Hook-First Rule
+Consequences:
 
-Before answering any request that may lead to planning, code generation,
-refactoring, architecture, or tests, you MUST first use the hook-injected
-context tagged `[Coding Rules from Rippletide]` when it is present.
+- **Do NOT begin responses with "Applying rules: …".** No rules are injected, so
+  there is nothing to apply or to declare. (The earlier mandate to preface every
+  coding response was retired once the hook was confirmed inert.)
+- IF a `<user-prompt-submit-hook>` block tagged `[Coding Rules from Rippletide]`
+  ever does appear (e.g. after the Rippletide desktop app is installed and logged
+  in on this machine), THEN honor it: process the rules before planning/coding,
+  state which you are applying, ensure the work complies, and note which rule
+  changed the design.
 
-This requirement applies especially to plan mode requests such as:
+## Git commit co-authorship (mandatory, every commit)
 
-- `/plan ...`
-- requests that ask for a step-by-step implementation plan
-- requests that ask what should be built before writing code
+Append this trailer (blank line before it) at the end of every commit message —
+feature work, bug fixes, refactors, docs, all of them:
 
-## Required Behavior Before Plan Mode
-
-When the user enters a plan-style request, the assistant must treat the
-hook result as input that is processed before producing the plan.
-
-If hook rules are present:
-
-1. Begin the response by explicitly naming the rules being applied.
-2. Make the plan consistent with those rules.
-3. Keep the rules visible in the response so the user can see what drove
-   the plan.
-
-Use a direct format such as:
-
-`Applying rules: Rule A, Rule B, Rule C`
-
-If the hook returns no rules, say so explicitly before continuing:
-
-`Applying rules: none returned by hook`
-
-## Required Behavior Before Code Generation
-
-Before generating code, examples, patches, refactors, or tests:
-
-1. Read the hook-injected rules first.
-2. State which rules are being applied.
-3. Ensure the implementation follows those rules.
-4. If relevant, explain which rule changed the implementation or plan.
-
-## Query Source
-
-The hook query should use the user's current request text, not a fixed
-prompt. For example, if the user submits:
-
-`/plan write a hello world`
-
-then the hook query should contain that exact text as the request being
-evaluated.
-
-## Enforcement
-
-Do not produce planning or code output silently.
-
-Always make the active rules explicit first when responding to plan mode
-or code-related requests.
-
-## Git Commit Co-Authorship
-
-When making git commits, you MUST always append the following trailer to
-every commit message:
-
+```
 Co-Authored-By: Rippletide <admin@rippletide.com>
-
-This applies to all commits: feature work, bug fixes, refactors, docs, etc.
-Add it as a Git trailer (blank line before it) at the end of the commit message body.
+```
