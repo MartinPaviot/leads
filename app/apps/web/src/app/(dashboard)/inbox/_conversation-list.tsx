@@ -12,6 +12,7 @@ import { timeAgo } from "./_time-ago";
 import { reasonTooltip, type ConversationListItem, type InboxLane } from "./_types";
 import { dirOf } from "@/lib/inbox/text-direction";
 import { decodeDisplay } from "@/lib/inbox/text-decode";
+import { SenderAvatar } from "./_sender-avatar";
 
 const EMPTY_COPY: Record<InboxLane, { title: string; description: string }> = {
   attention: {
@@ -113,10 +114,11 @@ export function ConversationList({
                   {multiSelected ? <CheckSquare size={15} /> : <Square size={15} />}
                 </span>
               )}
+              <SenderAvatar name={decodeDisplay(c.displayName)} email={c.fromAddress} size={28} />
               <div className="min-w-0 flex-1">
             <div className="flex items-baseline justify-between gap-2">
               <span className="truncate text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-                {c.displayName}
+                {decodeDisplay(c.displayName)}
               </span>
               {when && (
                 <span className="shrink-0 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
