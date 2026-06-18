@@ -43,6 +43,7 @@ import { extractSenderEmail } from "@/lib/inbox/image-trust";
 import { ProspectBriefSection } from "./_prospect-brief";
 import { ThreadSummarySection } from "./_thread-summary";
 import { ThreadAskSection } from "./_thread-ask";
+import { ThreadNotes } from "./_thread-notes";
 import { shouldSummarize } from "@/lib/inbox/thread-summary-prep";
 import { initialsFor, avatarColorIndex } from "@/lib/inbox/sender-auth";
 import { parseWhen } from "@/lib/inbox/parse-when";
@@ -559,6 +560,9 @@ export function ConversationPane({
 
         {/* ── Ask about this thread (INBOX-Q07): on-demand, cited, thread-scoped Q&A. ── */}
         {conv.messages.length > 0 && <ThreadAskSection conversationKey={conv.key} />}
+
+        {/* ── Private notes (INBOX-X06): the founder's internal scratchpad on this thread. ── */}
+        <ThreadNotes conversationKey={conv.key} />
 
         {/* ── Action items (INBOX-S04): deterministic request/commitment cues. ── */}
         {detail.actionItems.length > 0 && (
