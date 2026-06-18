@@ -52,8 +52,9 @@ built, needs wiring · [O] ocean (flag, don't fake) · [ ] to build.
 - [x] Q04 search operators — search-match.ts (matchesSearch + isActiveQuery, 6
       tests) + ?q= cross-lane filter in the route + debounced search box (e138dc51).
       Saved searches (user_preferences) still residual.
-- [ ] S09 why-line in the LIST — composeWhyLine(core) now that G05 produces
-      stage+situation; thread deal-stage into the conversations route per row.
+- [O] S09 why-line in the LIST — DUP of the flagged S09 above; covered by T08
+      reason + G05 next-action card + N04 overdue + S05 details. Per-row deal-stage
+      join would risk regressing the clean T08 reason for marginal gain → stays flagged.
 
 ## B. LLM features (injectable-generator + tests; runtime verify deferred)
 - [x] S01 + S08 thread summary — summarize-thread.ts (injectable, reuses
@@ -63,8 +64,10 @@ built, needs wiring · [O] ocean (flag, don't fake) · [ ] to build.
 - [x] C04 rewrite commands — rewrite.ts (5 GTM presets + free-form, grounded,
       fail-closed, 4 tests) + POST /api/inbox/compose/rewrite + composer "Rewrite"
       menu with one-tap Undo (a3541a37).
-- [ ] C07 draft from bullet points — bulletsToDraft(bullets, generate?) in composer.
-- [ ] C08 translate / multi-language — translate(body, lang, generate?) in composer.
+- [x] C07 draft from bullets — draftFromBullets(bullets, context?, generate?) +
+      POST /api/inbox/compose/draft + composer popover (423c6846, batch 19).
+- [x] C08 translate / multi-language — translate(body, lang, generate?) (5 langs) +
+      POST /api/inbox/compose/translate + composer menu (423c6846, batch 19).
 - [ ] C01/G08 voice-matched full draft — compose(context, generate?) grounded in
       prospect context; the deepest one — do after C04/C07/C08.
 - [ ] C05 autocomplete grounded in history — defer if it needs streaming infra
@@ -97,7 +100,11 @@ COVERED (4) — done:
 
 PARTIAL (18) — core shipped; the residual IS the remaining work toward 101/101:
 - [~] R02 image proxy + SSRF guard ✓ — residual: per-sender "always show" memory (user_prefs JSONB); cid: inline (R04 ocean).
-- [~] R03 isSuspiciousLink + banner ✓ — residual LAKE: link-safety.ts (true host), hover popover, per-link warn chips.
+- [x] R03 isSuspiciousLink + banner + **link-safety.ts (classifyLink: real host,
+      mismatch/punycode/credentials/ip-literal/dangerous-scheme, safeHref) + true-host
+      hover title on every link + inline warn chip per risky link on BOTH render paths,
+      22 tests (7d29f21a, batch 23)**. Residual: sanitize-email scheme hardening (all
+      data: non-image on href, block data:image/svg src) + styled hover popover = browser-deferred.
 - [~] R05 quote fold (email-fold.ts) ✓ — residual LAKE: signature/disclaimer detect, earlier-msg thread fold, Expand-all.
 - [~] R06 sender-auth parse + msg-level avatar ✓ — residual: shared SenderIdentity comp, list-row avatar.
 - [~] R07 img tracking-pixel strip ✓ — residual LAKE: CSS bg-beacon strip, tracker host list, opt-out (user_prefs).
@@ -145,6 +152,36 @@ Aliases: P01 = R07 (pixel block), P02 = R03 (link safety) — same artifacts, no
 - [O] K03 zero-latency optimistic UI — partly present (triage is optimistic);
       full coverage is cross-cutting, treat as continuous not a single build.
 - [O] N05 mobile parity — responsive pass, large cross-cutting effort.
+
+## F. Triage disposition (wf w602vr4cq, 26 units, 26 Explore agents, ~1.56M tok, 2026-06-18)
+Full per-item build plan: `_REMAINING-BUILD-PLAN.md` (agent estimates — treat LOC/completeness
+as rough). My corrections layered on the raw verdicts (verify-current-state, not blind relay):
+
+BUILDABLE NOW within the bar (24, no prod migration): R09 (empty-state, ~120) · G10 (inject join
+link, ~80) · G04 (signal surfacing, ~230) · O02 (standing instructions) · O03/O05 (voice+density) ·
+P06 (wire citations) · G02 (capture review) · X01 (assignment via activities.metadata) · CAL03
+(scheduler stepper) · K02/K04/K05 (cheatsheet/prefetch/quick-switch) · T11/O06 (autonomy hub) ·
+C12 (grammar) · C05 (autocomplete, single-shot) · C10 (propose-times) · C01/G08 (grounded draft) ·
+G12 (VoC wiring) · G13 (inbox MCP+Skills) · P04 (residency posture) · CAL02/CAL04 (book/RSVP) ·
+N01/N02/N03 (notif prefs+compute) · Q01/Q02/Q05 (search+ask) · P03 (zero-retention) · R12 (.ics).
+
+FLAG-DECISION (2): X03/X04/X05/X06 collab — needs presence/label/snippet TABLES (migration) → the
+JSONB-only slice is thin; FLAG the table-backed version. Q06/Q08 — Q06 blocked on R04 (attachment
+bytes = ocean); Q08 hosted web-lookup is buildable but the sovereign backend is ocean.
+
+MY OVERRIDES (don't trust the agent blindly):
+- **P05 → OCEAN, not buildable.** The agent scoped only app-layer tripwire tests; real DB-level
+  tenant isolation (Postgres RLS / withTenantTx) REQUIRES a migration. App-layer getInboxScope is
+  already shipped; the RLS hardening + isolation e2e is an ocean → FLAG. Only the tripwire unit tests
+  are JSONB-free-buildable.
+- **N01-N03 / CAL02-04 / Q01-Q05 = CORE buildable, DELIVERY/QUALITY deferred.** Notification *delivery*
+  needs Inngest (banned this loop) + a channel; semantic-search *quality* needs live LLM + Playwright.
+  Buildable = the preference model + read-time compute + endpoints; live send + recall% = runtime-verify.
+- **R12 over-estimated** (1200 LOC for inline .ics is ~150 real); fold into the R-render path.
+
+NEXT BUILD ORDER (cheap+high-confidence first): R09 → G10 → G04 → P06 → O03/O05 → G02 → X01 →
+O02 → K02/K04/K05 → CAL03 → then the LLM cluster (C12, C05, C10, C01/G08) → then the heavy infra
+(G12, G13, T11/O06, P03, P04, N0x, Q0x, CAL02/04) → R12 → flag X03-06 + Q06/Q08.
 
 ## Completion
 When A+B+D are shipped and C+E are documented/flagged, post the final
