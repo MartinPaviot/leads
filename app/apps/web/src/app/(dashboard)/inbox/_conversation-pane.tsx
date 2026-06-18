@@ -45,6 +45,7 @@ import { ProspectBriefSection } from "./_prospect-brief";
 import { ThreadSummarySection } from "./_thread-summary";
 import { ThreadAskSection } from "./_thread-ask";
 import { ThreadNotes } from "./_thread-notes";
+import { ThreadAssignment } from "./_thread-assignment";
 import { shouldSummarize } from "@/lib/inbox/thread-summary-prep";
 import { initialsFor, avatarColorIndex } from "@/lib/inbox/sender-auth";
 import { parseWhen } from "@/lib/inbox/parse-when";
@@ -425,6 +426,8 @@ export function ConversationPane({
               Book {proposedTime.phrase}
             </Button>
           )}
+          {/* Assign to a teammate (INBOX-X01) — shows only when the workspace has 2+ members. */}
+          <ThreadAssignment conversationKey={conv.key} />
           {detail.enrollment && (
             <Button variant="outline" size="sm" onClick={stopSequence} disabled={stopping} className="gap-1.5">
               {stopping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <OctagonX className="h-3.5 w-3.5" />}
