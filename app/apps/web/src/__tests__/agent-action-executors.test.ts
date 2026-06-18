@@ -4,6 +4,7 @@ import {
   dealNameFor,
   companyIdFromPayload,
   emailIntentFromPayload,
+  enrollmentTargetsFromPayload,
   executeAgentAction,
 } from "@/lib/agents/action-executors";
 
@@ -55,6 +56,27 @@ describe("emailIntentFromPayload", () => {
   });
 });
 
+describe("enrollmentTargetsFromPayload (CLE-13 deferred-enroll schema)", () => {
+  it("parses a well-formed deferred-enrollment payload", () => {
+    expect(
+      enrollmentTargetsFromPayload({ sequenceId: "s1", contactIds: ["c1", "c2"] }),
+    ).toEqual({ sequenceId: "s1", contactIds: ["c1", "c2"] });
+  });
+  it("drops blank/non-string contactIds and trims", () => {
+    expect(
+      enrollmentTargetsFromPayload({ sequenceId: " s1 ", contactIds: ["c1", "", "  ", 5, null, "c2"] }),
+    ).toEqual({ sequenceId: "s1", contactIds: ["c1", "c2"] });
+  });
+  it("returns null when the sequenceId is missing", () => {
+    expect(enrollmentTargetsFromPayload({ contactIds: ["c1"] })).toBeNull();
+  });
+  it("returns null when no usable contactId survives", () => {
+    expect(enrollmentTargetsFromPayload({ sequenceId: "s1", contactIds: ["", "  "] })).toBeNull();
+    expect(enrollmentTargetsFromPayload({ sequenceId: "s1" })).toBeNull();
+    expect(enrollmentTargetsFromPayload({ sequenceId: "s1", contactIds: "c1" })).toBeNull();
+  });
+});
+
 describe("executeAgentAction — fail-closed routing (no CRM mutation)", () => {
   const action = (actionType: string) => ({ id: "a", userId: null, actionType, payload: {} });
   it("fails closed for advance_deal", async () => {
@@ -68,5 +90,12 @@ describe("executeAgentAction — fail-closed routing (no CRM mutation)", () => {
   it("fails closed for an unknown type", async () => {
     const r = await executeAgentAction("t", action("teleport"));
     expect(r.ok).toBe(false);
+  });
+  // sequence-enrollment with an empty payload short-circuits in the validator
+  // BEFORE any DB call — so this is safe to assert without a db mock.
+  it("fails closed for sequence-enrollment with an empty payload (no DB touch)", async () => {
+    const r = await executeAgentAction("t", action("sequence-enrollment"));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/sequenceId or contactIds/);
   });
 });

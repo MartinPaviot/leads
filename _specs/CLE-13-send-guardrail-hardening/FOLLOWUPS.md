@@ -10,17 +10,28 @@ computed in the tenant timezone (was UTC). No migration. tsc 0; 54 tests.
 
 The following are deliberate, tracked deferrals — not oversights.
 
-## 1. Approving a deferred sequence-enrollment is a dead-end (follow-up)
+## 1. Approving a deferred sequence-enrollment is a dead-end (follow-up) — ✅ RESOLVED 2026-06-18
 When `signalAutoEnroll` defers, it records an `awaitingApproval` agent action with
-`actionType:"sequence-enrollment"`. The action-executor dispatcher
-(`lib/agents/action-executors.ts`) has **no handler** for that actionType, so if a
-founder approves the deferred row it is marked `failed` and the contact is never
-enrolled. This is **tighten-safe** (no autonomous or approved send ever leaks — the
-failure mode is "does nothing", never "sends unapproved"), and the design accepted
-"skip-and-notify" for M2. But the approve button on a deferred enrollment is
-currently inert. Follow-up: add a `sequence-enrollment` executor that performs the
-enrollment when the founder approves. Low urgency while there are no active
-sequences + autonomy enabled.
+`actionType:"sequence-enrollment"`. Previously the action-executor dispatcher
+(`lib/agents/action-executors.ts`) had **no handler** for that actionType, so an
+approved deferred row was marked `failed` and the contact never enrolled (inert
+approve button — tighten-safe, but a UX dead-end).
+
+**Resolved:** `executeAgentAction` now has a `case "sequence-enrollment"` that:
+- validates the structured payload via the pure, unit-tested
+  `enrollmentTargetsFromPayload` (requires a `sequenceId` + ≥1 non-blank
+  `contactId`; fail-closed → no DB touch otherwise);
+- verifies the sequence belongs to the acting tenant (tenant-scoped `sequences`
+  select) before any write;
+- idempotently inserts `sequenceEnrollments` (status `active`, step 1, `nextStepAt`
+  now), skipping any contact already enrolled in that sequence;
+- returns a human summary (`Enrolled N contacts in <name> (M already enrolled)`).
+
+The dispatcher (`agent-action-dispatcher.ts:78`) already passes `row.actionType` +
+`row.payload` through, so the approve path is live end-to-end. The first-step sends
+this enrollment triggers still cross the CLE-10 gate + CLE-13 `evaluateSend` chokepoints
+at send time — enrolling does not bypass any send guardrail. Tests: 4 helper cases +
+an empty-payload fail-closed case in `agent-action-executors.test.ts`.
 
 ## 2. Auto-enroll "always defers" rests on a code-trace guarantee, not a behavioral test
 `signal-auto-enroll.approval.test.ts` mocks `enforceAgentApprovalMode` for the
