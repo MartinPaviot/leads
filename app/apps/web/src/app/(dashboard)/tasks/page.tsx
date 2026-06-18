@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { z } from "zod";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
 import { CheckSquare, Plus, ArrowUpDown, AlertCircle, Clock, ListFilter, Building2, User, Briefcase } from "lucide-react";
 import { PageHeader, FilterBar } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -27,6 +30,17 @@ type SortMode = "priority" | "due_date";
 
 const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 const PRIORITY_CYCLE: Record<string, string> = { low: "medium", medium: "high", high: "low" };
+
+/* ── CLE-14: page-action helpers (pure, shared) ── */
+
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+
+/** Type a PageAction against its own params schema, then erase P so heterogeneous
+ *  actions live in one PageAction[] (the registry stores PageAction<unknown>). */
+function definePageAction<P>(a: PageAction<P>): PageAction {
+  return a as unknown as PageAction;
+}
 
 function isOverdue(task: Task): boolean {
   if (!task.dueDate || task.status === "completed") return false;
@@ -112,48 +126,167 @@ export default function TasksPage() {
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
-  async function addTask() {
-    if (!newTask.trim()) return;
-    setSaving(true);
+  // ── CLE-14: result-returning network extractions. These are the SINGLE copy
+  //    of each request; both the existing button handlers and the registered
+  //    chat actions call them. They surface {ok} so the action layer can report
+  //    failure (the buttons can ignore the return — behaviour-preserving). ──
+  const createTask = useCallback(async (title: string, priority: string): Promise<{ ok: boolean; error?: string }> => {
     try {
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newTask.trim(), priority: "medium" }),
+        body: JSON.stringify({ title, priority }),
       });
-      if (res.ok) { setNewTask(""); fetchTasks(); }
+      if (res.ok) { fetchTasks(); return { ok: true }; }
+      return { ok: false, error: "Failed to create the task." };
     } catch (e) {
       console.warn("tasks: add failed", e);
+      return { ok: false, error: "Failed to create the task." };
+    }
+  }, [fetchTasks]);
+
+  const setTaskStatus = useCallback(async (taskId: string, status: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) { fetchTasks(); return { ok: true }; }
+      return { ok: false, error: "Failed to update the task." };
+    } catch (e) {
+      console.warn("tasks: toggle failed", e);
+      return { ok: false, error: "Failed to update the task." };
+    }
+  }, [fetchTasks]);
+
+  const setTaskPriority = useCallback(async (taskId: string, priority: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ priority }),
+      });
+      if (res.ok) { fetchTasks(); return { ok: true }; }
+      return { ok: false, error: "Failed to update the task." };
+    } catch (e) {
+      console.warn("tasks: priority change failed", e);
+      return { ok: false, error: "Failed to update the task." };
+    }
+  }, [fetchTasks]);
+
+  async function addTask() {
+    if (!newTask.trim()) return;
+    setSaving(true);
+    try {
+      const r = await createTask(newTask.trim(), "medium");
+      if (r.ok) setNewTask("");
     } finally { setSaving(false); }
   }
 
   async function toggleTask(id: string, currentStatus: string) {
     const newStatus = currentStatus === "completed" ? "pending" : "completed";
-    try {
-      await fetch(`/api/tasks/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      fetchTasks();
-    } catch (e) {
-      console.warn("tasks: toggle failed", e);
-    }
+    await setTaskStatus(id, newStatus);
   }
 
   async function cyclePriority(id: string, currentPriority: string) {
     const newPriority = PRIORITY_CYCLE[currentPriority] || "medium";
-    try {
-      await fetch(`/api/tasks/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priority: newPriority }),
-      });
-      fetchTasks();
-    } catch (e) {
-      console.warn("tasks: priority change failed", e);
-    }
+    await setTaskPriority(id, newPriority);
   }
+
+  // ── CLE-14: register this page's actions for the chat live-executor. run()s
+  //    reuse the extractions above; live values via refs. ──
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
+  const taskActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "tasks.addTask",
+        title: "Add a task",
+        description:
+          "Create a new task in the list. The title is required; priority defaults to medium. " +
+          "Use when the user wants to add a to-do or follow-up.",
+        params: z.object({
+          title: z.string().min(1),
+          priority: z.enum(["low", "medium", "high"]).optional(),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ title, priority }): Promise<PageActionResult> => {
+          const t = title.trim();
+          if (!t) return errResult("A task title is required.");
+          const r = await createTask(t, priority ?? "medium");
+          return r.ok ? okResult(`Added task "${t}".`) : errResult(r.error ?? "Failed to create the task.");
+        },
+      }),
+      definePageAction({
+        id: "tasks.toggleComplete",
+        title: "Complete or reopen a task",
+        description:
+          "Mark a task done, or reopen it. Pass completed:true/false to set it explicitly, " +
+          "otherwise the current status is toggled. Use when the user checks off or reopens a task.",
+        params: z.object({
+          taskId: z.string().min(1),
+          completed: z.boolean().optional(),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ taskId, completed }): Promise<PageActionResult> => {
+          const task = tasksRef.current.find((t) => t.id === taskId);
+          if (!task) return errResult("That task is not in the current list.");
+          const wantDone = completed != null ? completed : task.status !== "completed";
+          const status = wantDone ? "completed" : "pending";
+          const r = await setTaskStatus(taskId, status);
+          if (!r.ok) return errResult(r.error ?? "Failed to update the task.");
+          return okResult(wantDone ? "Marked the task done." : "Reopened the task.");
+        },
+      }),
+      definePageAction({
+        id: "tasks.cyclePriority",
+        title: "Change a task's priority",
+        description:
+          "Cycle a task's priority through low -> medium -> high -> low. " +
+          "Use when the user wants to bump or lower a task's priority.",
+        params: z.object({ taskId: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ taskId }): Promise<PageActionResult> => {
+          const task = tasksRef.current.find((t) => t.id === taskId);
+          if (!task) return errResult("That task is not in the current list.");
+          const next = PRIORITY_CYCLE[task.priority] ?? "medium";
+          const r = await setTaskPriority(taskId, next);
+          if (!r.ok) return errResult(r.error ?? "Failed to update the task.");
+          return okResult(`Priority set to ${next}.`);
+        },
+      }),
+      definePageAction({
+        id: "tasks.setFilter",
+        title: "Filter the task list",
+        description:
+          "Switch the visible task filter: all, due_today, overdue, or completed. " +
+          "Use when the user wants to focus the list.",
+        params: z.object({ filter: z.enum(["all", "due_today", "overdue", "completed"]) }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async ({ filter }): Promise<PageActionResult> => {
+          setFilterTab(filter);
+          return okResult(`Showing ${filter} tasks.`);
+        },
+      }),
+      definePageAction({
+        id: "tasks.setSort",
+        title: "Sort the task list",
+        description: "Sort the task list by priority or by due date.",
+        params: z.object({ sort: z.enum(["priority", "due_date"]) }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async ({ sort }): Promise<PageActionResult> => {
+          setSortMode(sort);
+          return okResult(`Sorted by ${sort}.`);
+        },
+      }),
+    ],
+    // Stable id set; run() reads live values via refs and calls stable
+    // useCallback helpers / setters — registration happens once (CLE-03).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useRegisterPageActions(taskActions);
 
   const pendingCount = tasks.filter((t) => t.status !== "completed").length;
   const overdueCount = tasks.filter(isOverdue).length;

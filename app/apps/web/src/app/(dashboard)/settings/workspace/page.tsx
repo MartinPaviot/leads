@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { SettingsHeader } from "@/components/ui/settings-header";
@@ -9,6 +9,14 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Tag } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { processWorkspaceLogoFile, LOGO_FILE_ACCEPT } from "@/lib/logo/client-logo-file";
+import { z } from "zod";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+
+/* CLE-14: page-action helpers (pure, shared) */
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+function definePageAction<P>(a: PageAction<P>): PageAction { return a as unknown as PageAction; }
 
 export default function WorkspaceSettingsPage() {
   const router = useRouter();
@@ -46,22 +54,65 @@ export default function WorkspaceSettingsPage() {
     return fallback;
   }
 
+  /**
+   * CLE-14 — the single PUT path for the workspace name, shared by the Update
+   * button and the chat action. Updates local state so the input reflects the
+   * saved value, returns {ok,error?} so the action run can report without
+   * duplicating the fetch. On failure it surfaces via the page's error banner.
+   */
+  const saveWorkspaceName = useCallback(
+    async (next: string): Promise<{ ok: boolean; error?: string }> => {
+      const trimmed = next.trim();
+      if (!trimmed) return { ok: false, error: "A workspace name is required." };
+      setError("");
+      try {
+        const res = await fetch("/api/settings/workspace", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: trimmed }),
+        });
+        if (!res.ok) throw new Error(await readApiError(res, "Failed to save workspace name"));
+        setName(trimmed);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+        return { ok: true };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to save workspace name";
+        setError(msg);
+        return { ok: false, error: msg };
+      }
+    },
+    [],
+  );
+
   async function saveName() {
-    if (!name.trim()) return;
-    setError("");
-    try {
-      const res = await fetch("/api/settings/workspace", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim() }),
-      });
-      if (!res.ok) throw new Error(await readApiError(res, "Failed to save workspace name"));
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save workspace name");
-    }
+    await saveWorkspaceName(name);
   }
+
+  // CLE-14: register this page's one SAFE config action (rename only — the
+  // danger-zone delete stays human-bound and disabled). Reuses saveWorkspaceName.
+  const workspaceActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "settings.updateWorkspaceName",
+        title: "Rename the workspace",
+        description:
+          "Change the workspace's display name (shown in the sidebar and across the app). " +
+          "Use when the user wants to rename their workspace/organisation.",
+        params: z.object({ name: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ name: next }): Promise<PageActionResult> => {
+          const trimmed = next.trim();
+          if (!trimmed) return errResult("A workspace name is required.");
+          const r = await saveWorkspaceName(trimmed);
+          return r.ok ? okResult(`Workspace renamed to "${trimmed}".`) : errResult(r.error ?? "Failed to rename the workspace.");
+        },
+      }),
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [saveWorkspaceName],
+  );
+  useRegisterPageActions(workspaceActions);
 
   async function saveLogo(logoDataUrl: string | null) {
     const res = await fetch("/api/settings/workspace", {

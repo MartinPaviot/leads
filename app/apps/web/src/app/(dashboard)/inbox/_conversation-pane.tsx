@@ -7,7 +7,8 @@
  * triage verbs: Reply, Book meeting, Stop sequence, Done, Snooze.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useImperativeHandle } from "react";
+import type { Ref } from "react";
 import Link from "next/link";
 import {
   Mail,
@@ -59,17 +60,37 @@ const SNOOZE_OPTIONS: Array<{ label: string; until: () => Date }> = [
   },
 ];
 
+/**
+ * CLE-14 §lift: the imperative handle ConversationPane exposes to the Inbox
+ * page so the registered reply/draft/book/stop actions run the SAME flows the
+ * pane's buttons run (open the composer, open the scheduler, stop the
+ * sequence). The page reads this via `apiRef`; it is non-null only while a
+ * conversation is open (this pane mounted with detail loaded), so the actions
+ * degrade cleanly when no conversation is selected.
+ */
+export interface ConversationPaneApi {
+  /** Open the reply composer (prepared draft if present, else AI-suggested). Does NOT send. */
+  openReply: () => Promise<void>;
+  /** Open the meeting scheduler card. */
+  bookMeeting: () => void;
+  /** Stop the active sequence enrollment. ok:false when there is none. */
+  stopSequence: () => Promise<{ ok: boolean; error?: string }>;
+}
+
 export function ConversationPane({
   conversationKey,
   lane,
   replySignal,
   onTriage,
+  apiRef,
 }: {
   conversationKey: string | null;
   lane: InboxLane;
   /** Incremented by the page when the user presses `r`. */
   replySignal: number;
   onTriage: (key: string, action: "done" | "snooze" | "reopen", snoozeUntil?: string) => Promise<void>;
+  /** CLE-14: set by the page to drive reply/book/stop from the chat. */
+  apiRef?: Ref<ConversationPaneApi | null>;
 }) {
   const { toast } = useToast();
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
@@ -192,8 +213,12 @@ export function ConversationPane({
     toast("Reply sent. Mark the conversation done when you're finished.", "success");
   }
 
-  async function stopSequence() {
-    if (!detail?.enrollment) return;
+  // CLE-14 §lift: returns {ok,error?} so the chat action can report the outcome
+  // while the existing toast/early-return behaviour is preserved for the button.
+  // The Stop button is only rendered when detail.enrollment exists, so the
+  // no-enrollment branch returning is harmless to the button (it ignores it).
+  const stopSequence = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    if (!detail?.enrollment) return { ok: false, error: "No active sequence on this conversation." };
     setStopping(true);
     try {
       const res = await fetch(`/api/sequences/${detail.enrollment.sequenceId}/enroll`, {
@@ -204,16 +229,32 @@ export function ConversationPane({
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         toast(data.error ?? "Couldn't stop the sequence.", "error");
-        return;
+        return { ok: false, error: data.error ?? "Couldn't stop the sequence." };
       }
       toast(`Stopped "${detail.enrollment.sequenceName}" for this contact.`, "success");
       setDetail((d) => (d ? { ...d, enrollment: null } : d));
+      return { ok: true };
     } catch {
       toast("Network error while stopping the sequence.", "error");
+      return { ok: false, error: "Network error while stopping the sequence." };
     } finally {
       setStopping(false);
     }
-  }
+  }, [detail, toast]);
+
+  // CLE-14 §lift: expose openReply/bookMeeting/stopSequence to the page so the
+  // chat actions run the SAME flows as the buttons. Non-null only while a
+  // conversation is open. openReply/stopSequence are useCallbacks; bookMeeting
+  // just opens the scheduler (stable setState).
+  useImperativeHandle(
+    apiRef,
+    (): ConversationPaneApi => ({
+      openReply,
+      bookMeeting: () => setSchedOpen(true),
+      stopSequence,
+    }),
+    [openReply, stopSequence],
+  );
 
   if (!conversationKey) {
     return (
@@ -305,7 +346,7 @@ export function ConversationPane({
             </Button>
           )}
           {detail.enrollment && (
-            <Button variant="outline" size="sm" onClick={stopSequence} disabled={stopping} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => void stopSequence()} disabled={stopping} className="gap-1.5">
               {stopping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <OctagonX className="h-3.5 w-3.5" />}
               Stop sequence
             </Button>

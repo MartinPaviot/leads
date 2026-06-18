@@ -11,7 +11,8 @@
  * icons, one accent, no emoji (design-language.md).
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useState } from "react";
+import type { Ref } from "react";
 import { useRouter } from "next/navigation";
 import {
   Mail, MailOpen, AlertTriangle, Calendar, CheckSquare, CheckCircle2, CalendarPlus,
@@ -76,7 +77,18 @@ function timeAgo(iso: string | null): string {
   return `${d}d`;
 }
 
-export function UpNextView() {
+/**
+ * CLE-14: imperative handle the /home page lifts so the chat live-executor can
+ * drive the SAME handlers the user's buttons drive (one code path, parity by
+ * construction). `replyTo` opens the reply composer for a `reply` todo;
+ * `openItem` runs the row's navigation. The page reads this via `apiRef`.
+ */
+export interface UpNextApi {
+  replyTo: (todoId: string) => { ok: boolean; subject?: string };
+  openItem: (id: string, kind: "todo" | "actualite") => { ok: boolean };
+}
+
+export function UpNextView({ apiRef }: { apiRef?: Ref<UpNextApi | null> } = {}) {
   const router = useRouter();
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,6 +119,32 @@ export function UpNextView() {
     }
     if (item.href) router.push(item.href);
   }
+
+  // CLE-14: expose reply/open to the page so the chat can drive them. `data` is
+  // read live inside the closures; re-expose when it changes. Mirrors the
+  // ScriptPanelApi lift in /call-mode (CLE-09).
+  useImperativeHandle(
+    apiRef,
+    (): UpNextApi => ({
+      replyTo: (todoId: string) => {
+        const t = data?.todos.find((x) => x.id === todoId);
+        if (!t || t.kind !== "reply") return { ok: false };
+        onTodo(t); // reuses the page handler verbatim — opens the composer
+        return { ok: true, subject: t.subtitle ?? undefined };
+      },
+      openItem: (id: string, kind: "todo" | "actualite") => {
+        const item =
+          kind === "todo"
+            ? data?.todos.find((x) => x.id === id)
+            : data?.actualites.find((x) => x.id === id);
+        if (!item?.href) return { ok: false };
+        router.push(item.href);
+        return { ok: true };
+      },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data],
+  );
 
   if (loading) {
     return (

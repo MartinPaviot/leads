@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { z } from "zod";
 import { formatSecondsAsTimestamp } from "@/lib/coaching/citation-parser";
 import { TranscriptChunks } from "@/components/coaching/transcript-chunks";
 import { TranscriptVideoPlayer } from "@/components/coaching/transcript-video-player";
@@ -16,6 +17,55 @@ import { LiveExtraction } from "@/components/live-extraction";
 import { MeddpiccScorecard, AccountCallIntel, ContactCallProfile } from "@/components/call-intel";
 import { MeetingRecorder } from "./_meeting-recorder";
 import { useToast } from "@/components/ui/toast";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+
+/* ── CLE-14: page-action helpers (pure, shared) ── */
+
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+
+/** Type a PageAction against its own params schema, then erase P so heterogeneous
+ *  actions live in one PageAction[] (the registry stores PageAction<unknown>). */
+function definePageAction<P>(a: PageAction<P>): PageAction {
+  return a as unknown as PageAction;
+}
+
+/**
+ * CLE-14 — the meeting IDs we INTENTIONALLY do NOT register. The in-browser
+ * recorder (mic getUserMedia + MediaRecorder) and the transcript upload (a
+ * native file-picker dialog) are HUMAN-BOUND: the agent cannot grant mic
+ * permission, capture audio, or pick a file off the user's disk (README §2 —
+ * "l'agent prépare et navigue, l'humain exécute"). The agent operates on a
+ * meeting that ALREADY has a transcript; producing the transcript is the
+ * human's job. A boundary test asserts the registered id set is disjoint from
+ * this — registering any of these would be a breach.
+ */
+export const MEETINGS_EXCLUDED_IDS = [
+  "meetings.record", "meetings.startRecording", "meetings.stopRecording",
+  "meetings.uploadTranscript", "meetings.submitTranscript",
+] as const;
+
+/** E-9 helper — does the meeting's CRM bag carry a PENDING intel proposal for
+ *  this entity type? The post-call pipeline writes pending facts to a `pending*`
+ *  key (call-intel.tsx). Read-only; the /api/call-intel/review endpoint is
+ *  idempotent, so this is a best-effort guard, not a hard gate. */
+function hasPendingIntel(
+  crm: MeetingData["crm"] | undefined,
+  entityType: "deal" | "company" | "contact",
+): boolean {
+  const props =
+    entityType === "deal" ? crm?.deal?.properties
+    : entityType === "company" ? crm?.company?.properties
+    : crm?.contact?.properties;
+  if (!props) return false;
+  const key =
+    entityType === "deal" ? "pendingMeddic"
+    : entityType === "company" ? "pendingCallIntel"
+    : "pendingCallProfile";
+  const pending = (props as Record<string, unknown>)[key];
+  return pending != null && typeof pending === "object";
+}
 
 interface MeetingNotes {
   summary: string;
@@ -184,6 +234,10 @@ export default function MeetingDetailPage() {
     : null;
 
   const [data, setData] = useState<MeetingData | null>(null);
+  // CLE-14: live ref so the registered page-actions' run()s read the current
+  // meeting without re-registering on every data change.
+  const dataRef = useRef<MeetingData | null>(null);
+  dataRef.current = data;
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [processingPostCall, setProcessingPostCall] = useState(false);
@@ -271,34 +325,63 @@ export default function MeetingDetailPage() {
     setUploading(false);
   };
 
-  const triggerPostCall = async () => {
+  // CLE-14: returns a result so the meetings.postCallConfirm action can read it;
+  // the existing buttons call it via onClick and ignore the return.
+  const triggerPostCall = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
     setProcessingPostCall(true);
     try {
-      await fetch(`/api/meetings/${meetingId}/post-call`, {
+      const res = await fetch(`/api/meetings/${meetingId}/post-call`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
       await fetchMeeting();
-    } catch { /* silent */ }
-    setProcessingPostCall(false);
-  };
-
-  async function patchNotes(partial: Partial<MeetingNotes>): Promise<boolean> {
-    if (!data?.notes) return false;
-    const next = { ...data.notes, ...partial };
-    const res = await fetch(`/api/meetings/${meetingId}/notes`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ structuredNotes: next }),
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast((body as { error?: string }).error || "Failed to save notes.", "error");
-      return false;
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        return { ok: false, error: (errBody as { error?: string }).error || "Post-call failed." };
+      }
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Network error." };
+    } finally {
+      setProcessingPostCall(false);
     }
-    return true;
-  }
+  }, [meetingId, fetchMeeting]);
+
+  // CLE-14: the SINGLE PATCH /api/meetings/:id/notes copy. Every save handler
+  // (summary / key points / decisions / follow-up draft) and the
+  // meetings.editNotesSection action build their `partial` and call this — so
+  // the button path and the agent path issue one identical request.
+  //  - a `structuredNotes` partial (summary/keyPoints/decisions) merges onto the
+  //    live notes (legacy behavior).
+  //  - a `followUpEmailDraft` partial is sent as its own top-level key.
+  const patchNotes = useCallback(
+    async (
+      partial: Partial<MeetingNotes> | { followUpEmailDraft: { subject: string; body: string } },
+    ): Promise<{ ok: boolean; error?: string }> => {
+      let body: Record<string, unknown>;
+      if ("followUpEmailDraft" in partial) {
+        body = { followUpEmailDraft: partial.followUpEmailDraft };
+      } else {
+        const base = dataRef.current?.notes;
+        if (!base) return { ok: false, error: "No notes to edit on this meeting yet." };
+        body = { structuredNotes: { ...base, ...partial } };
+      }
+      const res = await fetch(`/api/meetings/${meetingId}/notes`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        const error = (errBody as { error?: string }).error || "Failed to save notes.";
+        toast(error, "error");
+        return { ok: false, error };
+      }
+      return { ok: true };
+    },
+    [meetingId, toast],
+  );
 
   async function saveSummary() {
     if (!data?.notes) return;
@@ -308,7 +391,7 @@ export default function MeetingDetailPage() {
       return;
     }
     setSavingSummary(true);
-    const ok = await patchNotes({ summary: trimmed });
+    const { ok } = await patchNotes({ summary: trimmed });
     setSavingSummary(false);
     if (ok) {
       toast("Summary updated.", "success");
@@ -325,7 +408,7 @@ export default function MeetingDetailPage() {
       return;
     }
     setSavingKeyPoints(true);
-    const ok = await patchNotes({ keyPoints: cleaned });
+    const { ok } = await patchNotes({ keyPoints: cleaned });
     setSavingKeyPoints(false);
     if (ok) {
       toast("Key points updated.", "success");
@@ -344,7 +427,7 @@ export default function MeetingDetailPage() {
       return;
     }
     setSavingDecisions(true);
-    const ok = await patchNotes({ decisions: cleaned });
+    const { ok } = await patchNotes({ decisions: cleaned });
     setSavingDecisions(false);
     if (ok) {
       toast("Decisions updated.", "success");
@@ -362,16 +445,8 @@ export default function MeetingDetailPage() {
     }
     setSavingDraft(true);
     try {
-      const res = await fetch(`/api/meetings/${meetingId}/notes`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ followUpEmailDraft: { subject, body } }),
-      });
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        toast((errBody as { error?: string }).error || "Failed to save draft.", "error");
-        return;
-      }
+      const { ok } = await patchNotes({ followUpEmailDraft: { subject, body } });
+      if (!ok) return; // patchNotes already toasted the error
       toast("Follow-up draft saved.", "success");
       setEditingDraft(false);
       await fetchMeeting();
@@ -383,11 +458,13 @@ export default function MeetingDetailPage() {
     }
   }
 
-  async function sendFollowUp() {
-    if (!data) return;
-    if (data.followUpSentAt) {
+  // CLE-14: returns a result so the meetings.sendFollowUp action can read it;
+  // the existing button calls it via onClick and ignores the return.
+  async function sendFollowUp(): Promise<{ ok: boolean; error?: string; recipients?: string[] }> {
+    if (!dataRef.current) return { ok: false, error: "Meeting not loaded." };
+    if (dataRef.current.followUpSentAt) {
       toast("Follow-up has already been sent.", "info");
-      return;
+      return { ok: false, error: "Follow-up has already been sent." };
     }
     setSendingFollowUp(true);
     try {
@@ -396,36 +473,282 @@ export default function MeetingDetailPage() {
       });
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
-        toast((errBody as { error?: string }).error || "Failed to send follow-up.", "error");
-        return;
+        const error = (errBody as { error?: string }).error || "Failed to send follow-up.";
+        toast(error, "error");
+        return { ok: false, error };
       }
       const result = (await res.json()) as { recipients: string[] };
       toast(`Follow-up sent to ${result.recipients.length} recipient${result.recipients.length === 1 ? "" : "s"}.`, "success");
       await fetchMeeting();
+      return { ok: true, recipients: result.recipients };
     } catch (e) {
       console.warn("meeting-detail: sendFollowUp failed", e);
       toast("Failed to send follow-up — network error.", "error");
+      return { ok: false, error: "Network error." };
     } finally {
       setSendingFollowUp(false);
     }
   }
 
-  async function shareToSlack() {
+  // CLE-14: returns a result so the meetings.shareSlack action can read it; the
+  // existing button calls it via onClick and ignores the return.
+  async function shareToSlack(): Promise<{ ok: boolean; error?: string }> {
     setSharingSlack(true);
     try {
       const res = await fetch(`/api/meetings/${meetingId}/share-slack`, { method: "POST" });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast((body as { error?: string }).error || "Couldn't share to Slack.", "error");
-        return;
+        const error = (body as { error?: string }).error || "Couldn't share to Slack.";
+        toast(error, "error");
+        return { ok: false, error };
       }
       toast("Shared to Slack.", "success");
+      return { ok: true };
     } catch {
       toast("Couldn't share to Slack — network error.", "error");
+      return { ok: false, error: "Network error." };
     } finally {
       setSharingSlack(false);
     }
   }
+
+  // CLE-14: the SINGLE POST /api/meetings/prep copy. The upcoming-meeting
+  // "Generate Prep Now" button and the meetings.generatePrep action both call
+  // this — reading the meeting's account/contact off the live `dataRef`.
+  const generatePrepResult = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    setGeneratingPrep(true);
+    try {
+      const m = (dataRef.current?.meeting ?? {}) as Record<string, unknown>;
+      const res = await fetch("/api/meetings/prep", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountId: m.entityId || m.accountId,
+          contactId: m.contactId,
+        }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        return { ok: false, error: (errBody as { error?: string }).error || "Prep generation failed." };
+      }
+      const body = await res.json();
+      setMeetingPrep(body.prep || body.briefing || "Prep generated. Check the meeting details.");
+      return { ok: true };
+    } catch (e) {
+      console.warn("meeting-detail: prep generation failed", e);
+      return { ok: false, error: "Network error." };
+    } finally {
+      setGeneratingPrep(false);
+    }
+  }, []);
+
+  // CLE-14 §4: a second caller of the call-intel review REST contract — the SAME
+  // request the MeddpiccScorecard / AccountCallIntel / ContactCallProfile cards
+  // issue (call-intel.tsx usePendingReview.act). The server owns the
+  // live-vs-pending merge; this adds no business logic. The cards keep their own
+  // Approve/Dismiss buttons — this is purely the agent path.
+  const reviewMeetingIntel = useCallback(
+    async (
+      entityType: "deal" | "company" | "contact",
+      entityId: string,
+      action: "approve" | "dismiss",
+    ): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const res = await fetch("/api/call-intel/review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ entityType, entityId, action }),
+        });
+        if (res.ok) return { ok: true };
+        const errBody = await res.json().catch(() => ({}));
+        return { ok: false, error: (errBody as { error?: string }).error || "Couldn't update the proposal." };
+      } catch {
+        return { ok: false, error: "Couldn't update the proposal." };
+      }
+    },
+    [],
+  );
+
+  // ── CLE-14: live refs + the meeting-detail registration. The actions are
+  //    captured once at mount; their run()s read live state via `dataRef` and
+  //    call the stable handlers above. Registered UNCONDITIONALLY (before the
+  //    early returns), so the manifest reflects /meetings/[id] the moment it
+  //    mounts; each run() guards on the id matching the open meeting (E-1).
+  //    The in-browser recorder + transcript upload are NEVER registered
+  //    (MEETINGS_EXCLUDED_IDS) — they are human-bound. ──
+  const meetingIdConst = meetingId;
+  const sectionToPartial = useCallback(
+    (
+      section: "summary" | "keyPoints" | "decisions" | "followUp",
+      value: string | string[] | { subject?: string; body?: string },
+    ): Partial<MeetingNotes> | { followUpEmailDraft: { subject: string; body: string } } | null => {
+      if (section === "summary") {
+        if (typeof value !== "string") return null;
+        return { summary: value.trim() };
+      }
+      if (section === "keyPoints" || section === "decisions") {
+        if (!Array.isArray(value)) return null;
+        const cleaned = value.map((v) => String(v).trim()).filter(Boolean);
+        return section === "keyPoints" ? { keyPoints: cleaned } : { decisions: cleaned };
+      }
+      // followUp
+      if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+      const subject = (value.subject ?? "").trim();
+      const body = (value.body ?? "").trim();
+      if (!subject || !body) return null;
+      return { followUpEmailDraft: { subject, body } };
+    },
+    [],
+  );
+
+  const meetingActions: PageAction[] = useMemo(
+    () => [
+      // ── editNotesSection (summary / keyPoints / decisions / followUp draft) ──
+      definePageAction({
+        id: "meetings.editNotesSection",
+        title: "Edit a section of the meeting notes",
+        description:
+          "Edit one section of the open meeting's notes: the summary (string), the key points or decisions " +
+          "(array of strings, replaces the list), or the follow-up email draft ({subject, body}). " +
+          "Use when the user wants to fix or rewrite one of these sections.",
+        params: z.object({
+          meetingId: z.string().min(1),
+          section: z.enum(["summary", "keyPoints", "decisions", "followUp"]),
+          value: z.union([
+            z.string(),
+            z.array(z.string()),
+            z.object({ subject: z.string().optional(), body: z.string().optional() }),
+          ]),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ meetingId: mId, section, value }): Promise<PageActionResult> => {
+          if (mId !== meetingIdConst) return errResult("That meeting is not the one open here.");
+          const partial = sectionToPartial(section, value);
+          if (!partial) {
+            return errResult(
+              section === "summary" ? "The summary must be text."
+              : section === "followUp" ? "The follow-up draft needs both a subject and a body."
+              : `The ${section} must be a list of strings.`,
+            );
+          }
+          const r = await patchNotes(partial);
+          if (!r.ok) return errResult(r.error ?? "Couldn't save that change.");
+          const label = section === "followUp" ? "follow-up draft" : section;
+          return okResult(`Updated the meeting ${label}.`);
+        },
+      }),
+      // ── sendFollowUp (OUTBOUND) ─────────────────────────────────────────────
+      definePageAction({
+        id: "meetings.sendFollowUp",
+        title: "Send the follow-up email",
+        description:
+          "Send the saved follow-up email draft for the open meeting to its attendees. This SENDS mail (always " +
+          "confirmed). Only works when a draft exists and the follow-up hasn't already been sent.",
+        params: z.object({ meetingId: z.string().min(1) }),
+        mutating: true, outbound: true, reversible: false, cost: "free", confirm: "always",
+        run: async ({ meetingId: mId }): Promise<PageActionResult> => {
+          if (mId !== meetingIdConst) return errResult("That meeting is not the one open here.");
+          const r = await sendFollowUp();
+          if (!r.ok) return errResult(r.error ?? "Couldn't send the follow-up.");
+          const n = r.recipients?.length ?? 0;
+          return okResult(n > 0 ? `Follow-up sent to ${n} recipient${n === 1 ? "" : "s"}.` : "Follow-up sent.");
+        },
+      }),
+      // ── shareSlack (OUTBOUND) ───────────────────────────────────────────────
+      definePageAction({
+        id: "meetings.shareSlack",
+        title: "Share the meeting to Slack",
+        description:
+          "Post the open meeting's summary to the workspace Slack channel via the configured webhook. This SENDS to " +
+          "Slack (always confirmed).",
+        params: z.object({ meetingId: z.string().min(1) }),
+        mutating: true, outbound: true, reversible: false, cost: "free", confirm: "always",
+        run: async ({ meetingId: mId }): Promise<PageActionResult> => {
+          if (mId !== meetingIdConst) return errResult("That meeting is not the one open here.");
+          const r = await shareToSlack();
+          return r.ok ? okResult("Shared the meeting to Slack.") : errResult(r.error ?? "Couldn't share to Slack.");
+        },
+      }),
+      // ── generatePrep ────────────────────────────────────────────────────────
+      definePageAction({
+        id: "meetings.generatePrep",
+        title: "Generate the meeting prep",
+        description:
+          "Generate a pre-meeting briefing for the open meeting (account context, key contacts, active deals, recent " +
+          "interactions). Use for an upcoming meeting the user wants prepared.",
+        params: z.object({ meetingId: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ meetingId: mId }): Promise<PageActionResult> => {
+          if (mId !== meetingIdConst) return errResult("That meeting is not the one open here.");
+          const r = await generatePrepResult();
+          return r.ok ? okResult("Generated the meeting prep.") : errResult(r.error ?? "Couldn't generate the prep.");
+        },
+      }),
+      // ── postCallConfirm (run the post-call pipeline; updates the CRM) ────────
+      definePageAction({
+        id: "meetings.postCallConfirm",
+        title: "Run post-call processing",
+        description:
+          "Run the post-call pipeline on the open meeting: create the action-item tasks, update the deal, and draft the " +
+          "follow-up email. Use to confirm the auto-extracted data and push it to the CRM.",
+        params: z.object({ meetingId: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ meetingId: mId }): Promise<PageActionResult> => {
+          if (mId !== meetingIdConst) return errResult("That meeting is not the one open here.");
+          const r = await triggerPostCall();
+          return r.ok ? okResult("Ran post-call - CRM updated.") : errResult(r.error ?? "Post-call processing failed.");
+        },
+      }),
+      // ── approveIntel / dismissIntel (second REST caller of /call-intel/review) ─
+      definePageAction({
+        id: "meetings.approveIntel",
+        title: "Approve a call-intel proposal on this meeting",
+        description:
+          "Apply the post-call qualification proposal pending on one of this meeting's CRM records (deal MEDDPICC, " +
+          "company account-intel, or contact call-profile). Pass entityType and entityId. Only works when a proposal is pending.",
+        params: z.object({
+          meetingId: z.string().min(1),
+          entityType: z.enum(["deal", "company", "contact"]),
+          entityId: z.string().min(1),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ meetingId: mId, entityType, entityId }): Promise<PageActionResult> => {
+          if (mId !== meetingIdConst) return errResult("That meeting is not the one open here.");
+          if (!hasPendingIntel(dataRef.current?.crm, entityType)) {
+            return errResult(`There's no pending ${entityType} intel proposal on this meeting.`);
+          }
+          const r = await reviewMeetingIntel(entityType, entityId, "approve");
+          return r.ok ? okResult(`Applied the ${entityType} intel.`) : errResult(r.error ?? "Couldn't update the proposal.");
+        },
+      }),
+      definePageAction({
+        id: "meetings.dismissIntel",
+        title: "Dismiss a call-intel proposal on this meeting",
+        description:
+          "Dismiss the post-call qualification proposal pending on one of this meeting's CRM records (deal MEDDPICC, " +
+          "company account-intel, or contact call-profile). Pass entityType and entityId. Only works when a proposal is pending.",
+        params: z.object({
+          meetingId: z.string().min(1),
+          entityType: z.enum(["deal", "company", "contact"]),
+          entityId: z.string().min(1),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ meetingId: mId, entityType, entityId }): Promise<PageActionResult> => {
+          if (mId !== meetingIdConst) return errResult("That meeting is not the one open here.");
+          if (!hasPendingIntel(dataRef.current?.crm, entityType)) {
+            return errResult(`There's no pending ${entityType} intel proposal on this meeting.`);
+          }
+          const r = await reviewMeetingIntel(entityType, entityId, "dismiss");
+          return r.ok ? okResult(`Dismissed the ${entityType} intel.`) : errResult(r.error ?? "Couldn't update the proposal.");
+        },
+      }),
+    ],
+    // Stable id set; run()s read live `data` via dataRef and call the stable
+    // handlers/useCallbacks above — so registration happens once (CLE-03).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [meetingIdConst],
+  );
+  useRegisterPageActions(meetingActions);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -1090,26 +1413,7 @@ export default function MeetingDetailPage() {
                 Generate a briefing with account context, key contacts, active deals, and recent interactions.
               </p>
               <button
-                onClick={async () => {
-                  setGeneratingPrep(true);
-                  try {
-                    const meetingAny = meeting as Record<string, unknown>;
-                    const res = await fetch("/api/meetings/prep", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        accountId: meetingAny.entityId || meetingAny.accountId,
-                        contactId: meetingAny.contactId,
-                      }),
-                    });
-                    if (res.ok) {
-                      const data = await res.json();
-                      setMeetingPrep(data.prep || data.briefing || "Prep generated. Check the meeting details.");
-                    }
-                  } catch (e) {
-                    console.warn("meeting-detail: prep generation failed", e);
-                  } finally { setGeneratingPrep(false); }
-                }}
+                onClick={() => { void generatePrepResult(); }}
                 disabled={generatingPrep}
                 className="flex items-center gap-2 rounded-md px-3 py-1.5 text-[12px] font-medium text-white gradient-brand"
               >

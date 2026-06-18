@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { z } from "zod";
 import { Clock } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { OnboardingV2Wrapper } from "@/components/onboarding-v2-wrapper";
@@ -11,7 +12,18 @@ import { ScalingPathPrompt } from "@/components/ScalingPathPrompt";
 import { VisitorIdCapBanner } from "@/components/visitor-id-cap-banner";
 import { HotInboundsWidget } from "@/components/hot-inbounds-widget";
 import { HotVisitorsWidget } from "@/components/hot-visitors-widget";
-import { UpNextView } from "@/components/up-next/up-next-view";
+import { UpNextView, type UpNextApi } from "@/components/up-next/up-next-view";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+
+/* ── CLE-14: page-action helpers (pure, shared — mirrors CLE-06/09) ── */
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+/** Type a PageAction against its own params schema, then erase P so heterogeneous
+ *  actions live in one PageAction[] (the registry stores PageAction<unknown>). */
+function definePageAction<P>(a: PageAction<P>): PageAction {
+  return a as unknown as PageAction;
+}
 
 /**
  * "Up next" — the founder's morning briefing.
@@ -101,6 +113,83 @@ export default function DashboardPage() {
     };
   }, []);
 
+  // ── CLE-14: page-action registration. The /home page is mostly chrome; the
+  //    actionable surface is two children. The run()s reuse the children's OWN
+  //    handlers: <UpNextView> via an imperative handle (the reply composer +
+  //    row navigation), <HotInboundsWidget>'s "not a lead" via a page-level
+  //    second caller that posts the SAME request the widget's X button posts
+  //    (CLE-08) — so the agent path and the button path are one network copy. ──
+  const upNextApiRef = useRef<UpNextApi | null>(null);
+
+  // Second REST caller for the widget's "not a lead" verdict (CLE-08): the
+  // widget owns its optimistic row-drop + identical POST; this lets the chat
+  // record the same verdict even when the widget is hidden (prod) or unmounted.
+  const markNotALead = useCallback(async (contactId: string) => {
+    const res = await fetch(`/api/contacts/${contactId}/lead-feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isLead: false }),
+    });
+    return res.ok ? { ok: true } : { ok: false, error: "Couldn't record the feedback." };
+  }, []);
+
+  const homeActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "home.replyNeedsYou",
+        title: "Reply to a Needs-you item",
+        description:
+          "Open a pre-filled email reply for a reply-type item in the home \"Needs you\" list. " +
+          "Use when the user wants to answer one of the people waiting on them on the home feed.",
+        params: z.object({ todoId: z.string().min(1) }),
+        mutating: false, cost: "free", confirm: "never",
+        run: async ({ todoId }): Promise<PageActionResult> => {
+          const api = upNextApiRef.current;
+          if (!api) return errResult("The home feed isn't ready yet.");
+          const r = api.replyTo(todoId);
+          return r.ok
+            ? okResult(`Opened a reply to ${r.subject ?? "the item"}.`)
+            : errResult("That item isn't a reply item in your Needs-you list.");
+        },
+      }),
+      definePageAction({
+        id: "home.openItem",
+        title: "Open a home-feed item",
+        description:
+          "Navigate to the underlying record for an item on the home feed — a \"Needs you\" todo or an Activity " +
+          "entry. Use when the user asks to open or go to one of the items shown on the home page.",
+        params: z.object({ id: z.string().min(1), kind: z.enum(["todo", "actualite"]) }),
+        mutating: false, cost: "free", confirm: "never",
+        run: async ({ id, kind }): Promise<PageActionResult> => {
+          const api = upNextApiRef.current;
+          if (!api) return errResult("The home feed isn't ready yet.");
+          const r = api.openItem(id, kind);
+          return r.ok
+            ? okResult("Opened the item.")
+            : errResult("That item isn't in your home feed (or has no link).");
+        },
+      }),
+      definePageAction({
+        id: "home.notALead",
+        title: "Mark a hot inbound as not a lead",
+        description:
+          "Record the human verdict that a surfaced hot-inbound contact is NOT a real lead, so it stops being " +
+          "surfaced. This verdict overrides the automatic qualification. Use when the user dismisses an inbound.",
+        params: z.object({ contactId: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ contactId }): Promise<PageActionResult> => {
+          const r = await markNotALead(contactId);
+          return r.ok ? okResult("Marked as not a lead.") : errResult(r.error ?? "Couldn't record the feedback.");
+        },
+      }),
+    ],
+    // Stable id set; run()s read live values via refs / stable useCallback,
+    // so registration happens once (CLE-03).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useRegisterPageActions(homeActions);
+
   return (
     <div className="flex h-full flex-col animate-content-in">
       <PageHeader icon={<Clock size={15} />} title="Up next" subtitle={today} />
@@ -132,7 +221,7 @@ export default function DashboardPage() {
 
         {/* The briefing */}
         <div className="mt-2">
-          <UpNextView />
+          <UpNextView apiRef={upNextApiRef} />
         </div>
       </div>
 

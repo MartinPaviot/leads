@@ -10,20 +10,34 @@
  * Keyboard: j/k select, e done, r reply — ignored while typing.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { z } from "zod";
 import { Inbox, Mail } from "lucide-react";
 import { PageHeader, FilterBar } from "@/components/ui/page-header";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
 import { ConversationList } from "./_conversation-list";
-import { ConversationPane } from "./_conversation-pane";
-import { OutboundTable } from "./_outbound-table";
+import { ConversationPane, type ConversationPaneApi } from "./_conversation-pane";
+import { OutboundTable, type OutboundTableApi } from "./_outbound-table";
 import { MailboxRail } from "./_mailbox-rail";
 import type { ConversationListItem, InboxLane, LaneCounts, MailboxSummary } from "./_types";
 
 type Tab = InboxLane | "outbound";
+
+/* ── CLE-14: page-action helpers (pure, shared) ── */
+
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+
+/** Type a PageAction against its own params schema, then erase P so heterogeneous
+ *  actions live in one PageAction[] (the registry stores PageAction<unknown>). */
+function definePageAction<P>(a: PageAction<P>): PageAction {
+  return a as unknown as PageAction;
+}
 
 const TAB_LABELS: Record<Tab, string> = {
   attention: "Needs attention",
@@ -178,6 +192,190 @@ export default function InboxPage() {
     [tab, toast, loadLane, conversations],
   );
 
+  // ── CLE-14: page-action registration ──────────────────────────
+  // Live refs so a registered action's run() reads the LIVE inbox without
+  // re-registering on every state change (CLE-06 §3.1 — stable id set +
+  // ref-read). Imperative handles are null when the owning child is unmounted
+  // (no conversation open / not on the outbound tab) -> graceful degradation.
+  const selectedKeyRef = useRef(selectedKey); selectedKeyRef.current = selectedKey;
+  const conversationsRef = useRef(conversations); conversationsRef.current = conversations;
+  // handleTriage is recreated each render (it closes over `conversations`/`tab`);
+  // hold it in a ref so the once-registered actions always call the LIVE one.
+  const handleTriageRef = useRef(handleTriage); handleTriageRef.current = handleTriage;
+  const paneApiRef = useRef<ConversationPaneApi | null>(null);
+  const outboundApiRef = useRef<OutboundTableApi | null>(null);
+
+  const inboxActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "inbox.triageDone",
+        title: "Mark a conversation done",
+        description:
+          "Triage a conversation to Done — it leaves the needs-attention lane. Use when the user says a thread is " +
+          "handled / done / archived. Pass the conversationKey from the current list.",
+        params: z.object({ conversationKey: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ conversationKey }): Promise<PageActionResult> => {
+          const conv = conversationsRef.current.find((c) => c.key === conversationKey);
+          await handleTriageRef.current(conversationKey, "done");
+          return okResult(`Marked the conversation${conv ? ` with ${conv.displayName}` : ""} as done.`);
+        },
+      }),
+      definePageAction({
+        id: "inbox.snooze",
+        title: "Snooze a conversation",
+        description:
+          "Snooze a conversation until a future time — it leaves needs-attention and returns when the time arrives. " +
+          "Pass conversationKey and `until` (an ISO date-time or any parseable date in the future).",
+        params: z.object({ conversationKey: z.string().min(1), until: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ conversationKey, until }): Promise<PageActionResult> => {
+          const t = new Date(until);
+          if (Number.isNaN(t.getTime()) || t.getTime() <= Date.now()) {
+            return errResult("Pick a future time to snooze until.");
+          }
+          await handleTriageRef.current(conversationKey, "snooze", t.toISOString());
+          return okResult(`Snoozed until ${until}.`);
+        },
+      }),
+      definePageAction({
+        id: "inbox.reopen",
+        title: "Reopen a conversation",
+        description: "Reopen a Done conversation — it returns to the needs-attention lane. Pass the conversationKey.",
+        params: z.object({ conversationKey: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ conversationKey }): Promise<PageActionResult> => {
+          await handleTriageRef.current(conversationKey, "reopen");
+          return okResult("Reopened the conversation.");
+        },
+      }),
+      definePageAction({
+        id: "inbox.selectConversation",
+        title: "Open a conversation",
+        description:
+          "Select and read a conversation from the current lane in the reading pane. Pass the conversationKey of a " +
+          "thread that is in the list.",
+        params: z.object({ conversationKey: z.string().min(1) }),
+        mutating: false, reversible: false, cost: "free", confirm: "never",
+        run: async ({ conversationKey }): Promise<PageActionResult> => {
+          const conv = conversationsRef.current.find((c) => c.key === conversationKey);
+          if (!conv) return errResult("That conversation is not in the current list.");
+          setSelectedKey(conversationKey);
+          return okResult(`Opened the conversation with ${conv.displayName}.`);
+        },
+      }),
+      definePageAction({
+        id: "inbox.setLane",
+        title: "Switch the inbox lane",
+        description:
+          "Switch which lane is shown: attention (needs attention), snoozed, done, handled, or outbound (sent mail).",
+        params: z.object({ lane: z.enum(["attention", "snoozed", "done", "handled", "outbound"]) }),
+        mutating: false, reversible: false, cost: "free", confirm: "never",
+        run: async ({ lane }): Promise<PageActionResult> => {
+          setTab(lane);
+          return okResult(`Showing the ${lane} lane.`);
+        },
+      }),
+      definePageAction({
+        id: "inbox.switchMailbox",
+        title: "Switch the focused mailbox",
+        description:
+          "In the unified inbox, focus one connected mailbox (pass its mailboxId) or all inboxes (pass null).",
+        params: z.object({ mailboxId: z.string().nullable() }),
+        mutating: false, reversible: false, cost: "free", confirm: "never",
+        run: async ({ mailboxId }): Promise<PageActionResult> => {
+          setSelectedMailbox(mailboxId);
+          return okResult(mailboxId ? "Focused that mailbox." : "Showing all inboxes.");
+        },
+      }),
+      definePageAction({
+        id: "inbox.reply",
+        title: "Draft a reply",
+        description:
+          "Draft a reply to a conversation and open the composer for review. Uses the agent's prepared draft when one " +
+          "exists, otherwise suggests one. Does NOT send — the user reviews and sends in the composer.",
+        params: z.object({ conversationKey: z.string().min(1) }),
+        mutating: false, outbound: false, cost: "credits", confirm: "never",
+        run: async ({ conversationKey }): Promise<PageActionResult> => {
+          if (selectedKeyRef.current !== conversationKey) setSelectedKey(conversationKey);
+          const api = paneApiRef.current;
+          if (!api) return errResult("Open the conversation first.");
+          await api.openReply();
+          return okResult("Drafted a reply - review and send it in the composer.");
+        },
+      }),
+      definePageAction({
+        id: "inbox.consumeDraft",
+        title: "Open the prepared draft",
+        description:
+          "Open the agent's prepared reply for a conversation in the composer (falls back to suggesting one if there " +
+          "is no prepared draft). Does NOT send — the user reviews and sends.",
+        params: z.object({ conversationKey: z.string().min(1) }),
+        mutating: false, outbound: false, cost: "free", confirm: "never",
+        run: async ({ conversationKey }): Promise<PageActionResult> => {
+          if (selectedKeyRef.current !== conversationKey) setSelectedKey(conversationKey);
+          const api = paneApiRef.current;
+          if (!api) return errResult("Open the conversation first.");
+          await api.openReply();
+          return okResult("Opened the draft - review and send it in the composer.");
+        },
+      }),
+      definePageAction({
+        id: "inbox.bookMeeting",
+        title: "Book a meeting from a conversation",
+        description:
+          "Open the meeting scheduler for the contact on a conversation. Pass the conversationKey. The user picks the " +
+          "slot and confirms in the scheduler.",
+        params: z.object({ conversationKey: z.string().min(1) }),
+        mutating: false, reversible: false, cost: "free", confirm: "never",
+        run: async ({ conversationKey }): Promise<PageActionResult> => {
+          if (selectedKeyRef.current !== conversationKey) setSelectedKey(conversationKey);
+          const api = paneApiRef.current;
+          if (!api) return errResult("Open the conversation first.");
+          api.bookMeeting();
+          return okResult("Opened the meeting scheduler.");
+        },
+      }),
+      definePageAction({
+        id: "inbox.stopSequence",
+        title: "Stop the sequence on a conversation",
+        description:
+          "Stop the active outbound sequence enrollment for the contact on a conversation (no more steps will send). " +
+          "Pass the conversationKey.",
+        params: z.object({ conversationKey: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ conversationKey }): Promise<PageActionResult> => {
+          if (selectedKeyRef.current !== conversationKey) setSelectedKey(conversationKey);
+          const api = paneApiRef.current;
+          if (!api) return errResult("Open the conversation first.");
+          const r = await api.stopSequence();
+          return r.ok
+            ? okResult("Stopped the sequence for this contact.")
+            : errResult(r.error ?? "No active sequence on this conversation.");
+        },
+      }),
+      definePageAction({
+        id: "inbox.setOutboundFilter",
+        title: "Filter the outbound view",
+        description:
+          "On the Outbound lane, filter sent emails by status: all (sent), replied, awaiting, or bounced.",
+        params: z.object({ filter: z.enum(["all", "replied", "awaiting", "bounced"]) }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async ({ filter }): Promise<PageActionResult> => {
+          const api = outboundApiRef.current;
+          if (!api) return errResult("Switch to the outbound lane first.");
+          api.setFilter(filter);
+          return okResult(`Outbound filter: ${filter}.`);
+        },
+      }),
+    ],
+    // Stable id set; run() reads live values via refs and calls stable
+    // setters/useCallback helpers — so registration happens once (CLE-06 §3.1).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useRegisterPageActions(inboxActions);
+
   // Keyboard: j/k navigate, e done, r reply. Never while typing.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -266,7 +464,7 @@ export default function InboxPage() {
         </div>
       ) : tab === "outbound" ? (
         <div className="flex-1 overflow-hidden">
-          <OutboundTable />
+          <OutboundTable apiRef={outboundApiRef} />
         </div>
       ) : (
         <div className="flex flex-1 overflow-hidden">
@@ -307,6 +505,7 @@ export default function InboxPage() {
               lane={tab}
               replySignal={replySignal}
               onTriage={handleTriage}
+              apiRef={paneApiRef}
             />
           </div>
         </div>
