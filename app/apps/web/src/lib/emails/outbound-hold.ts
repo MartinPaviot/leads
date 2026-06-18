@@ -59,6 +59,14 @@ export interface EnqueueOutboundInput {
   enrollmentId?: string | null;
   stepNumber?: number | null;
   fromAddress?: string | null;
+  /**
+   * Free-form idempotency / dedup key written to the `message_id` column (e.g.
+   * `draft:<id>` used by sequence-draft-to-outbound). Optional and defaults to
+   * null, so when unset the held/queued row is byte-identical to today. This is
+   * the seam that lets a dedup-bearing inserter route through enqueueOutbound
+   * WITHOUT losing its select-then-insert idempotency (CLE-11 activation, #1).
+   */
+  messageId?: string | null;
   /** Tenant settings — read for the window. */
   settings: Pick<TenantSettings, "outboundUndoWindowSeconds"> | null | undefined;
 }
@@ -104,6 +112,7 @@ export async function enqueueOutbound(
       subject: input.subject,
       bodyHtml: input.bodyHtml,
       bodyText: input.bodyText ?? null,
+      messageId: input.messageId ?? null,
       status: held ? "held" : "queued",
       queuedAt: held ? null : new Date(),
       holdUntil,

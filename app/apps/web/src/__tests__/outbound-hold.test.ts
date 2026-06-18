@@ -90,6 +90,16 @@ describe("CLE-11 enqueueOutbound", () => {
     expect(inserts[0].values.holdUntil).toBeNull();
   });
 
+  it("CLE-11 activation: a messageId dedup key is written through to message_id", async () => {
+    await enqueueOutbound({ ...base, messageId: "draft:d1", settings: { outboundUndoWindowSeconds: 30 } });
+    expect(inserts[0].values.messageId).toBe("draft:d1");
+  });
+
+  it("CLE-11 activation: messageId defaults to null when unset (byte-identical to today)", async () => {
+    await enqueueOutbound({ ...base, settings: { outboundUndoWindowSeconds: 0 } });
+    expect(inserts[0].values.messageId).toBeNull();
+  });
+
   it("E-7: an insert returning no row throws (no phantom send)", async () => {
     // Force the insert to return nothing.
     const dbMod = await import("@/db");
