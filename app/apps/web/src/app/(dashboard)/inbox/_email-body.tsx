@@ -6,6 +6,7 @@ import { sanitizeEmailHtml } from "@/lib/inbox/sanitize-email";
 import { applyEmailPrivacy } from "@/lib/inbox/email-privacy";
 import { foldQuotedReply } from "@/lib/inbox/email-fold";
 import { linkifyPlainText } from "@/lib/inbox/linkify";
+import { classifyLink, riskChipLabel } from "@/lib/inbox/link-safety";
 import { dirOf } from "@/lib/inbox/text-direction";
 
 /**
@@ -113,21 +114,42 @@ export function EmailBody({ html, text }: { html: string | null; text: string })
       style={{ color: "var(--color-text-primary)", wordBreak: "break-word", overflowWrap: "anywhere" }}
       dir={dirOf(text)}
     >
-      {linkifyPlainText(text).map((seg, i) =>
-        seg.type === "link" ? (
-          <a
-            key={i}
-            href={seg.href}
-            target="_blank"
-            rel="noopener noreferrer nofollow"
-            style={{ color: "var(--color-accent)", textDecoration: "underline" }}
-          >
-            {seg.text}
-          </a>
-        ) : (
-          <span key={i}>{seg.text}</span>
-        ),
-      )}
+      {linkifyPlainText(text).map((seg, i) => {
+        if (seg.type !== "link") return <span key={i}>{seg.text}</span>;
+        // Same safety rules as the HTML path (R03): neutralize dangerous schemes,
+        // preview the real host on hover, chip the risky ones at the point of click.
+        const safety = classifyLink(seg.href, seg.text);
+        const chip = riskChipLabel(safety);
+        return (
+          <span key={i}>
+            <a
+              href={safety.safeHref}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              title={
+                safety.realHost
+                  ? safety.risky && safety.reason
+                    ? safety.reason
+                    : `Goes to ${safety.realHost}`
+                  : undefined
+              }
+              style={{ color: "var(--color-accent)", textDecoration: "underline" }}
+            >
+              {seg.text}
+            </a>
+            {chip && (
+              <span
+                className="ml-1 inline-flex items-center gap-0.5 rounded px-1 align-baseline text-[11px]"
+                style={{ background: "var(--color-warning-soft)", color: "var(--color-warning)" }}
+                title={safety.reason ?? undefined}
+              >
+                <ShieldAlert size={11} className="shrink-0" />
+                {chip}
+              </span>
+            )}
+          </span>
+        );
+      })}
     </div>
   );
 }

@@ -17,6 +17,8 @@
  * On the server (no DOM) it is a no-op pass-through with zero counts.
  */
 
+import { classifyLink, riskChipLabel } from "./link-safety";
+
 export interface EmailPrivacyOptions {
   /** false (default) blocks remote images; true loads them (through the proxy). */
   loadRemoteImages?: boolean;
@@ -34,36 +36,6 @@ export interface EmailPrivacyResult {
 }
 
 const REMOTE_SRC = /^https?:\/\//i;
-const IP_HOST = /^(\d{1,3}\.){3}\d{1,3}$|:|^\[/; // IPv4 literal, or any colon (IPv6), or [..]
-const DOMAIN_IN_TEXT = /\b((?:[a-z0-9-]+\.)+[a-z]{2,})\b/i;
-
-/** Common multi-part public suffixes, so `bank.co.uk` ≠ `phish.co.uk` instead of
- *  both collapsing to `co.uk`. Not the full PSL (that needs a dependency) — just
- *  the suffixes a phisher is most likely to hide behind. */
-const MULTI_PART_TLDS = new Set([
-  "co.uk", "org.uk", "gov.uk", "ac.uk", "me.uk",
-  "co.jp", "co.kr", "co.nz", "co.za", "co.in", "co.il",
-  "com.au", "net.au", "org.au", "com.br", "com.cn", "com.mx", "com.tr", "com.sg",
-]);
-
-/** PSL-free "registrable-ish" comparator: the registrable domain, handling the
- *  common multi-part TLDs. Catches the phishing case where the visible domain
- *  differs from the destination domain. */
-function registrableish(host: string): string {
-  const labels = host.toLowerCase().replace(/\.$/, "").split(".");
-  if (labels.length >= 3 && MULTI_PART_TLDS.has(labels.slice(-2).join("."))) {
-    return labels.slice(-3).join(".");
-  }
-  return labels.slice(-2).join(".");
-}
-
-function hostOf(url: string): string | null {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return null;
-  }
-}
 
 /** Is an <img> a tracking pixel? Zero/one-px in width|height attr or inline style. */
 function isTrackingPixel(el: Element): boolean {
@@ -86,21 +58,12 @@ function isTrackingPixel(el: Element): boolean {
 
 /**
  * Decide whether a link is misleading. Pure + exported for unit testing.
- * Suspicious when: the destination host is a raw IP or punycode, OR the visible
- * text names a domain whose registrable-ish form differs from the destination's.
+ * Delegates to the richer classifier (link-safety.ts) so the body-level banner's
+ * notion of "misleading" stays in lock-step with the per-link chips. A merely
+ * neutralized/disabled scheme is not "suspicious link text", so it is excluded.
  */
 export function isSuspiciousLink(text: string, href: string): boolean {
-  const host = hostOf(href);
-  if (!host) return false; // unparseable/relative — not our concern here
-  if (IP_HOST.test(host)) return true;
-  if (host.toLowerCase().includes("xn--")) return true; // punycode / IDN homograph
-
-  const m = DOMAIN_IN_TEXT.exec(text || "");
-  if (m) {
-    const textHost = m[1];
-    if (registrableish(textHost) !== registrableish(host)) return true;
-  }
-  return false;
+  return classifyLink(href, text).risks.some((r) => r !== "dangerous-scheme");
 }
 
 function walk(node: Node, opts: EmailPrivacyOptions, counts: { remote: number; links: number }): void {
@@ -129,10 +92,29 @@ function walk(node: Node, opts: EmailPrivacyOptions, counts: { remote: number; l
 
     if (tag === "a") {
       const href = el.getAttribute("href") || "";
-      if (isSuspiciousLink(el.textContent || "", href)) {
+      const safety = classifyLink(href, el.textContent || "");
+      // Hover/focus preview of the true destination on EVERY link (R03): benign
+      // links get a quiet "Goes to <host>", risky ones get the warning reason.
+      if (safety.realHost) {
+        el.setAttribute("title", safety.risky && safety.reason ? safety.reason : `Goes to ${safety.realHost}`);
+      }
+      if (safety.risky) {
         el.setAttribute("data-suspicious", "true");
-        el.setAttribute("title", `Link text doesn't match its destination (${hostOf(href) ?? "unknown"})`);
         counts.links++;
+        // Inline per-link warning chip — the deception is flagged at the point of
+        // decision, not just in the body-level banner. Tokens drive light/dark.
+        const doc = el.ownerDocument;
+        if (doc) {
+          const chip = doc.createElement("span");
+          chip.setAttribute("data-link-warn", "true");
+          if (safety.reason) chip.setAttribute("title", safety.reason);
+          chip.setAttribute(
+            "style",
+            "display:inline-flex;align-items:center;margin-left:4px;padding:0 4px;border-radius:4px;font-size:11px;line-height:1.5;white-space:nowrap;background:var(--color-warning-soft);color:var(--color-warning);",
+          );
+          chip.textContent = riskChipLabel(safety) ?? "check link";
+          el.after(chip);
+        }
       }
       continue;
     }
