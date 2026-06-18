@@ -23,7 +23,7 @@
 
 import { db } from "@/db";
 import { tasks, deals, companies, contacts, sequences, sequenceEnrollments } from "@/db/schema";
-import { and, eq, isNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { deliverInteractiveEmail } from "@/lib/emails/deliver-interactive";
 
 export interface ExecutableAction {
@@ -208,8 +208,18 @@ export async function executeAgentAction(
         .where(and(eq(sequences.id, target.sequenceId), eq(sequences.tenantId, tenantId)))
         .limit(1);
       if (!seq) return { ok: false, error: "sequence not found for this tenant" };
+      // Re-validate every contact belongs to THIS tenant and isn't soft-deleted.
+      // The payload is a stored-then-replayed snapshot and sequenceEnrollments has
+      // no tenantId column, so the contact FK is the only tenant anchor — the
+      // executor is the trust boundary, exactly like create_deal / send_followup.
+      const validContacts = await db
+        .select({ id: contacts.id })
+        .from(contacts)
+        .where(and(inArray(contacts.id, target.contactIds), eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt)));
+      const validIds = new Set(validContacts.map((c) => c.id));
       let enrolled = 0;
       for (const contactId of target.contactIds) {
+        if (!validIds.has(contactId)) continue; // not this tenant's, or soft-deleted
         // Idempotent: skip a contact already enrolled in this sequence (any status).
         const [existing] = await db
           .select({ id: sequenceEnrollments.id })
@@ -227,10 +237,12 @@ export async function executeAgentAction(
         enrolled++;
       }
       const name = str(p.sequenceName) ?? "the sequence";
+      // Skipped = already-enrolled + any contact that failed the tenant/deletedAt
+      // re-validation (so the count stays honest, not just "already enrolled").
       const skipped = target.contactIds.length - enrolled;
       return {
         ok: true,
-        detail: `Enrolled ${enrolled} contact${enrolled === 1 ? "" : "s"} in ${name}${skipped > 0 ? ` (${skipped} already enrolled)` : ""}.`,
+        detail: `Enrolled ${enrolled} contact${enrolled === 1 ? "" : "s"} in ${name}${skipped > 0 ? ` (${skipped} skipped)` : ""}.`,
       };
     }
 

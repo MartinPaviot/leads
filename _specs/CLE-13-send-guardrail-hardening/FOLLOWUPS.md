@@ -31,7 +31,26 @@ The dispatcher (`agent-action-dispatcher.ts:78`) already passes `row.actionType`
 `row.payload` through, so the approve path is live end-to-end. The first-step sends
 this enrollment triggers still cross the CLE-10 gate + CLE-13 `evaluateSend` chokepoints
 at send time — enrolling does not bypass any send guardrail. Tests: 4 helper cases +
-an empty-payload fail-closed case in `agent-action-executors.test.ts`.
+an empty-payload fail-closed case in `agent-action-executors.test.ts`, plus the
+DB-behavior suite in `agent-action-enroll-executor.test.ts`.
+
+**Trust-boundary hardening (review-found H1).** The payload is a stored-then-replayed
+snapshot and `sequenceEnrollments` has no `tenantId` column, so the contact FK is the
+only tenant anchor. The executor now re-validates every `contactId` against
+`contacts.tenantId == tenantId AND deletedAt IS NULL` (one `inArray` query) before
+enrolling — matching the membership re-check `create_deal` / `send_followup` already
+do at dispatch — so a soft-deleted or foreign contact is skipped, not enrolled. The
+"N skipped" count folds in both already-enrolled and re-validation failures.
+
+**Deliberate v1 scope (review-found H2 — intentional, not a gap to fix now).** The
+inline auto-execute branch in `signalAutoEnroll` does enroll + `trackPipeline` +
+create-deal + notify as one signal-handling bundle. The discrete `sequence-enrollment`
+approval executor ONLY enrolls — it does what its actionType says. Rationale: the
+founder approving from the UI is already "notified" (they clicked approve), and
+bundling deal-creation into an *enrollment* approval would conflate action types. If
+product wants the full bundle on approval, route the deferral as a small multi-step
+plan (enroll + create_deal) rather than overloading this executor. `trackPipeline` is
+pure analytics and non-load-bearing. Flagged for the M-checkpoint, not blocking.
 
 ## 2. Auto-enroll "always defers" rests on a code-trace guarantee, not a behavioral test — ✅ RESOLVED 2026-06-18
 `signal-auto-enroll.approval.test.ts` mocks `enforceAgentApprovalMode` for the
