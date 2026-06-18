@@ -142,3 +142,17 @@ export function sanitizeEmailHtml(dirty: string): string {
   walk(doc.body);
   return doc.body.innerHTML;
 }
+
+const HTML_MARKUP =
+  /<(?:html|body|head|div|p|br|table|tr|td|span|a|img|ul|ol|li|h[1-6]|blockquote|strong|em|b|i|font|center|pre)\b[^>]*>|<\/[a-z][a-z0-9]*>|<!doctype html/i;
+
+/**
+ * Heuristic: does this "text" body actually contain HTML markup (INBOX-R09)?
+ * Used by the reading pane to route a mis-typed `text/plain` part that is really
+ * HTML through the sanitizer instead of showing raw tags. Conservative — it needs
+ * a recognizable tag or closing tag, so prose like "a < b and c > d" is NOT
+ * misread as HTML.
+ */
+export function looksLikeHtml(s: string): boolean {
+  return !!s && HTML_MARKUP.test(s);
+}

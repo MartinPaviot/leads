@@ -30,6 +30,62 @@ export interface ImapMailbox {
   imapLastUid?: number | null;
 }
 
+/** Minimal shape of the imapflow ENVELOPE — server-parsed, no mailparser needed. */
+interface ImapEnvelopeAddress {
+  name?: string;
+  address?: string;
+}
+interface ImapEnvelope {
+  date?: Date;
+  subject?: string;
+  messageId?: string;
+  inReplyTo?: string;
+  from?: ImapEnvelopeAddress[];
+  to?: ImapEnvelopeAddress[];
+  cc?: ImapEnvelopeAddress[];
+}
+
+function formatEnvelopeAddr(a: ImapEnvelopeAddress | undefined): string {
+  if (!a) return "";
+  if (a.name && a.address) return `${a.name} <${a.address}>`;
+  return a.address || a.name || "";
+}
+
+function envelopeAddrList(arr: ImapEnvelopeAddress[] | undefined): string[] {
+  if (!arr) return [];
+  return arr.map((a) => (a.address || "").toLowerCase()).filter(Boolean);
+}
+
+/**
+ * Build a degraded `SyncedEmail` from the IMAP ENVELOPE when mailparser throws on
+ * the raw MIME (INBOX-R09). Records headers/subject/from/to with a null HTML body
+ * and a marker header — capture-degraded so the message still appears in the inbox
+ * and in CRM last-interaction, instead of being silently dropped.
+ */
+function degradedFromEnvelope(
+  env: ImapEnvelope | undefined,
+  uid: number,
+  mailboxEmail: string,
+): SyncedEmail {
+  const fromAddr = (env?.from?.[0]?.address || "").toLowerCase();
+  const direction: "inbound" | "outbound" =
+    fromAddr === mailboxEmail.toLowerCase() ? "outbound" : "inbound";
+  return {
+    gmailMessageId: env?.messageId || `imap-${mailboxEmail}-${uid}`,
+    threadId: env?.inReplyTo || env?.messageId || "",
+    from: formatEnvelopeAddr(env?.from?.[0]),
+    to: envelopeAddrList(env?.to),
+    cc: envelopeAddrList(env?.cc),
+    subject: env?.subject || "(unreadable message)",
+    snippet: "",
+    body: "",
+    html: null,
+    date: env?.date || new Date(),
+    direction,
+    headers: { "x-elevay-capture": "degraded" },
+  };
+}
+
 function makeClient(m: { imapHost: string; imapPort: number | null; emailAddress: string; password: string }) {
   const port = m.imapPort || 993;
   return new ImapFlow({
@@ -112,7 +168,12 @@ export async function fetchRecentEmailsImap(
       try {
         parsed = await simpleParser(msg.source);
       } catch {
-        continue; // skip unparseable MIME rather than fail the whole poll
+        // Capture-degraded instead of silent drop (INBOX-R09): build a record
+        // from the server-parsed ENVELOPE (no mailparser needed) so the message
+        // still lands in the inbox + CRM last-interaction. bodyHtml is null.
+        emails.push(degradedFromEnvelope((msg as { envelope?: ImapEnvelope }).envelope, msg.uid, m.emailAddress));
+        if (++count >= MAX_PER_RUN) break;
+        continue;
       }
 
       const fromText = parsed.from?.text || "";

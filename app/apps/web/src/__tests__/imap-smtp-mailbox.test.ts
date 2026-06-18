@@ -126,6 +126,53 @@ describe("fetchRecentEmailsImap", () => {
     );
     expect(emails[0].gmailMessageId).toBe("imap-me@org.ch-5");
   });
+
+  it("capture-degrades a malformed-MIME message from the envelope instead of dropping it (R09)", async () => {
+    fetchYield.mockReturnValue(asyncGen([
+      {
+        uid: 20,
+        source: Buffer.from("garbage"),
+        envelope: {
+          subject: "Broken but recorded",
+          messageId: "<broken@x>",
+          date: new Date("2026-02-02"),
+          from: [{ name: "Cust", address: "cust@acme.com" }],
+          to: [{ address: "me@org.ch" }],
+        },
+      },
+    ]));
+    simpleParser.mockRejectedValueOnce(new Error("bad MIME"));
+
+    const { emails, maxUid } = await fetchRecentEmailsImap(
+      { emailAddress: "me@org.ch", imapHost: "h", imapPort: 993, password: "pw", imapLastUid: 0 },
+      30,
+    );
+
+    expect(emails).toHaveLength(1); // recorded, not dropped
+    expect(maxUid).toBe(20);
+    const e = emails[0];
+    expect(e.gmailMessageId).toBe("<broken@x>");
+    expect(e.subject).toBe("Broken but recorded");
+    expect(e.html).toBeNull();
+    expect(e.direction).toBe("inbound");
+    expect(e.to).toEqual(["me@org.ch"]);
+    expect(e.headers).toMatchObject({ "x-elevay-capture": "degraded" });
+  });
+
+  it("capture-degrades even without an envelope, using a synthetic dedup key (R09)", async () => {
+    fetchYield.mockReturnValue(asyncGen([{ uid: 7, source: Buffer.from("x") }]));
+    simpleParser.mockRejectedValueOnce(new Error("bad MIME"));
+
+    const { emails } = await fetchRecentEmailsImap(
+      { emailAddress: "me@org.ch", imapHost: "h", imapPort: 993, password: "pw", imapLastUid: 0 },
+      30,
+    );
+
+    expect(emails).toHaveLength(1);
+    expect(emails[0].gmailMessageId).toBe("imap-me@org.ch-7");
+    expect(emails[0].subject).toBe("(unreadable message)");
+    expect(emails[0].html).toBeNull();
+  });
 });
 
 describe("sendViaSmtp / verifySmtp", () => {

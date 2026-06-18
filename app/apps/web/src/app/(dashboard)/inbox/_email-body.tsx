@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ImageOff, MoreHorizontal, ShieldAlert } from "lucide-react";
-import { sanitizeEmailHtml } from "@/lib/inbox/sanitize-email";
+import { sanitizeEmailHtml, looksLikeHtml } from "@/lib/inbox/sanitize-email";
 import { applyEmailPrivacy } from "@/lib/inbox/email-privacy";
 import { foldQuotedReply } from "@/lib/inbox/email-fold";
 import { linkifyPlainText } from "@/lib/inbox/linkify";
@@ -28,7 +28,20 @@ export function EmailBody({ html, text }: { html: string | null; text: string })
   const [loadRemote, setLoadRemote] = useState(false);
   const [showTrimmed, setShowTrimmed] = useState(false);
 
-  const safeHtml = useMemo(() => (html ? sanitizeEmailHtml(html) : ""), [html]);
+  // Prefer the real HTML part; if it is absent but the "text" body actually
+  // contains markup (mis-typed text/plain part), route that through the
+  // sanitizer too instead of showing raw tags (INBOX-R09).
+  const htmlSource = html ?? (looksLikeHtml(text) ? text : null);
+  const safeHtml = useMemo(() => {
+    if (!htmlSource) return "";
+    try {
+      return sanitizeEmailHtml(htmlSource);
+    } catch {
+      // Sanitizer failure must never blank or crash the pane — fall back to the
+      // text path below (INBOX-R09).
+      return "";
+    }
+  }, [htmlSource]);
   const privacy = useMemo(
     () => applyEmailPrivacy(safeHtml, { loadRemoteImages: loadRemote, proxyBase: PROXY_BASE }),
     [safeHtml, loadRemote],
@@ -36,7 +49,7 @@ export function EmailBody({ html, text }: { html: string | null; text: string })
   // Split off the quoted reply chain so the new content reads first (R05).
   const fold = useMemo(() => foldQuotedReply(privacy.html), [privacy.html]);
 
-  if (html && safeHtml.trim()) {
+  if (htmlSource && safeHtml.trim()) {
     return (
       <div>
         {privacy.suspiciousLinks > 0 && (
@@ -104,6 +117,15 @@ export function EmailBody({ html, text }: { html: string | null; text: string })
             </span>
           </button>
         )}
+      </div>
+    );
+  }
+
+  // Empty body — a clear, distinct state (not a load error), per INBOX-R09.
+  if (!text.trim()) {
+    return (
+      <div className="text-[13px] italic leading-relaxed" style={{ color: "var(--color-text-tertiary)" }}>
+        (no content)
       </div>
     );
   }
