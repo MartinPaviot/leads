@@ -7,9 +7,12 @@
  * toggle — the single biggest readability win on long threads.
  *
  * Heuristic, cross-client: detects `<blockquote>`, the major clients' quote
- * containers (Gmail/Yahoo/Thunderbird/Outlook), and the attribution line that
- * precedes a quote, in EN/FR/DE. Runs on already-sanitized HTML (so classes we
- * key on, like `gmail_quote`, are still present — `class` is allowlisted).
+ * containers (Gmail/Yahoo/Thunderbird/Outlook), the attribution line that
+ * precedes a quote (EN/FR/DE), AND the trailing signature / legal-disclaimer
+ * block (the `-- ` RFC 3676 delimiter, `gmail_signature`, "Sent from my …",
+ * confidentiality footers) so the reader sees only the new content. Runs on
+ * already-sanitized HTML (so classes we key on, like `gmail_quote`, are still
+ * present — `class` is allowlisted).
  *
  * DOM-based ⇒ browser only; on the server it is a no-op (everything "visible").
  */
@@ -45,6 +48,27 @@ function isAttributionNode(node: Node): boolean {
   return ATTRIBUTION_RE.test(text);
 }
 
+// Legal / auto footers. Anchored at the start of the block so a body that merely
+// mentions "this email" mid-sentence is never mistaken for a disclaimer.
+const DISCLAIMER_RE =
+  /^(?:confidentiality notice|disclaimer\s*:|this (?:e-?mail|message)(?: and (?:any|its) attachments?)? (?:is|are) (?:intended|confidential|strictly confidential)|this (?:e-?mail|message) is intended (?:only |solely )?for|the (?:information|content)[\s\S]{0,40}?is (?:confidential|intended)|sent from my \w+|please consider the environment)/i;
+
+/** A trailing signature or disclaimer block: the `-- ` delimiter line, a
+ *  `gmail_signature`/`#signature` container, "Sent from my …", or a legal footer. */
+function isSignatureNode(node: Node): boolean {
+  if (node.nodeType === 1) {
+    const el = node as Element;
+    const cls = (el.getAttribute("class") || "").toLowerCase();
+    const id = (el.getAttribute("id") || "").toLowerCase();
+    if (/\bgmail_signature\b/.test(cls) || /\bsignature\b/.test(id)) return true;
+  }
+  const text = (node.textContent || "").trim();
+  if (!text) return false;
+  // RFC 3676 "-- " delimiter as the first line of the block.
+  if (text.split("\n")[0].trim() === "--") return true;
+  return DISCLAIMER_RE.test(text);
+}
+
 export function foldQuotedReply(html: string): FoldResult {
   if (!html) return { visibleHtml: "", trimmedHtml: "", hasTrimmed: false };
   if (typeof window === "undefined" || typeof DOMParser === "undefined") {
@@ -62,6 +86,10 @@ export function foldQuotedReply(html: string): FoldResult {
       break;
     }
     if (isAttributionNode(n)) {
+      foldIndex = i;
+      break;
+    }
+    if (isSignatureNode(n)) {
       foldIndex = i;
       break;
     }

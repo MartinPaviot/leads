@@ -69,4 +69,46 @@ describe("foldQuotedReply (INBOX-R05)", () => {
   it("returns empty for empty input", () => {
     expect(foldQuotedReply("")).toEqual({ visibleHtml: "", trimmedHtml: "", hasTrimmed: false });
   });
+
+  it("folds a gmail_signature block so only the new content shows (R05)", () => {
+    const res = foldQuotedReply(
+      `<div>Here's the update.</div><div class="gmail_signature">John Doe<br>CEO, Acme</div>`,
+    );
+    expect(res.hasTrimmed).toBe(true);
+    expect(res.visibleHtml).toContain("Here's the update.");
+    expect(res.visibleHtml).not.toContain("CEO, Acme");
+    expect(res.trimmedHtml).toContain("CEO, Acme");
+  });
+
+  it("folds at the '-- ' signature delimiter line", () => {
+    const res = foldQuotedReply(`<div>My answer is yes.</div><div>-- </div><div>Jane, Acme</div>`);
+    expect(res.hasTrimmed).toBe(true);
+    expect(res.visibleHtml).toContain("My answer is yes.");
+    expect(res.trimmedHtml).toContain("Jane, Acme");
+  });
+
+  it("folds a confidentiality disclaimer footer", () => {
+    const res = foldQuotedReply(
+      `<p>Looking forward to it.</p><p>CONFIDENTIALITY NOTICE: this message is intended only for the addressee.</p>`,
+    );
+    expect(res.hasTrimmed).toBe(true);
+    expect(res.visibleHtml).toContain("Looking forward to it.");
+    expect(res.visibleHtml).not.toContain("CONFIDENTIALITY");
+  });
+
+  it("folds the signature even before a quoted thread (both go to trimmed)", () => {
+    const res = foldQuotedReply(
+      `<div>Confirmed.</div><div class="gmail_signature">Bob</div>` +
+        `<div class="gmail_quote">On Mon, Al wrote:<blockquote>old</blockquote></div>`,
+    );
+    expect(res.visibleHtml).toContain("Confirmed.");
+    expect(res.visibleHtml).not.toContain("Bob");
+    expect(res.trimmedHtml).toContain("Bob");
+    expect(res.trimmedHtml).toContain("old");
+  });
+
+  it("does NOT fold a body that merely mentions 'this email' mid-sentence", () => {
+    const res = foldQuotedReply(`<p>This email confirms our meeting on Tuesday at noon.</p>`);
+    expect(res.hasTrimmed).toBe(false);
+  });
 });
