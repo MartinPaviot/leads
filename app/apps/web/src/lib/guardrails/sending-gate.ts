@@ -114,10 +114,11 @@ export interface EvaluateSendArgs {
  *
  * NOTE on EC-1 / design §5.1: `getTenantSettings` ALWAYS returns the merged
  * `DEFAULTS` (it never returns null — lib/config/tenant-settings.ts:510-525), so
- * every real tenant gets `primary-with-caps` protection. The narrow
- * "null settings -> fail open to send" branch from the design is therefore only
- * reachable if a caller explicitly passes `settings: null`; that branch is kept
- * (and tested) for completeness but does not occur via `getTenantSettings`.
+ * every real tenant gets `primary-with-caps` protection. A caller MAY still pass
+ * `settings: null` explicitly; rather than fail OPEN (the original design's narrow
+ * branch), the gate then evaluates against the protective `DEFAULTS` — so there is
+ * no send-through path at all (CLE-13 FOLLOWUPS #4: the gate is fully fail-closed,
+ * an absent/unknown settings object can only make it send LESS, never more).
  */
 export async function evaluateSend(
   args: EvaluateSendArgs,
@@ -136,17 +137,15 @@ export async function evaluateSend(
         ? args.settings
         : await getTenantSettings(args.tenantId);
 
-    // EC-1 / design §5.1: a genuinely-absent settings object (caller passed
-    // null) cannot tell us the mode — preserve "today's behavior" and allow.
-    if (!settings) {
-      return { send: true, reason: "no settings row — preserving prior behavior" };
-    }
-
-    const mode = settings.sendingMailboxMode ?? DEFAULTS.sendingMailboxMode;
+    // CLE-13 FOLLOWUPS #4: a genuinely-absent settings object (caller passed
+    // null) cannot tell us the mode — so fall back to the protective DEFAULTS
+    // (primary-with-caps, cold blocked) rather than failing open. `?.` makes the
+    // null case use every DEFAULT, leaving the gate with no send-through path.
+    const mode = settings?.sendingMailboxMode ?? DEFAULTS.sendingMailboxMode;
     const cap =
-      settings.sendingDailyCapPrimary ?? DEFAULTS.sendingDailyCapPrimary;
+      settings?.sendingDailyCapPrimary ?? DEFAULTS.sendingDailyCapPrimary;
     const allowCold =
-      settings.sendingAllowColdOnPrimary ?? DEFAULTS.sendingAllowColdOnPrimary;
+      settings?.sendingAllowColdOnPrimary ?? DEFAULTS.sendingAllowColdOnPrimary;
     const isCold =
       args.isCold ?? (await isColdRecipient(args.tenantId, args.toAddress));
 

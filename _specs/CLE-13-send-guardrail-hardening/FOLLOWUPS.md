@@ -33,13 +33,19 @@ this enrollment triggers still cross the CLE-10 gate + CLE-13 `evaluateSend` cho
 at send time — enrolling does not bypass any send guardrail. Tests: 4 helper cases +
 an empty-payload fail-closed case in `agent-action-executors.test.ts`.
 
-## 2. Auto-enroll "always defers" rests on a code-trace guarantee, not a behavioral test
+## 2. Auto-enroll "always defers" rests on a code-trace guarantee, not a behavioral test — ✅ RESOLVED 2026-06-18
 `signal-auto-enroll.approval.test.ts` mocks `enforceAgentApprovalMode` for the
 auto-high-confidence / execute cases. The always-defers guarantee is real (verified
 by trace: `GUARDED_ACTION_METADATA["sequence-enrollment"]` is `outbound:true,
 confirm:"always"` → `decideAction` returns confirm/queue under every mode), but a
-future change to that metadata wouldn't be caught by a behavioral test here. Consider
-an end-to-end test driving the real authority.
+future change to that metadata wouldn't be caught by a behavioral test there.
+
+**Resolved:** added a behavioral suite to `guardrails-approval-mode.test.ts` (which
+uses the REAL `enforceAgentApprovalMode` + real metadata) asserting
+`sequence-enrollment` is never `allowed` across all three modes — even at confidence
+1 with a forged 0.0 learned bar — and always parks (`queueAs != null`). Flipping the
+metadata to `outbound:false` / `confirm:"never"` now fails a test here, not in prod.
+(Plus a sibling check for `email-send`/`email-reply`.)
 
 ## 3. Operator note: SMTP-custom tenants must set sendingMailboxMode explicitly
 With DEFAULTS now applied (`primary-with-caps`, cold-blocked), an SMTP-custom tenant
@@ -48,8 +54,14 @@ went out. This is the intended tightening, but operators must set
 `external-connected` explicitly for those tenants or cold SMTP outreach silently
 fails (lands as `failed` with an identity-block reason).
 
-## 4. Minor: dead fail-open branch in sending-gate.ts
-`evaluateSend` carries a `settings === null → fail open (send)` branch that is
-unreachable in prod (`getTenantSettings` always merges DEFAULTS; no caller passes
-null). Verified safe/unreachable. Consider deleting the branch so the gate has no
-fail-open path at all.
+## 4. Minor: dead fail-open branch in sending-gate.ts — ✅ RESOLVED 2026-06-18
+`evaluateSend` carried a `settings === null → fail open (send)` branch that was
+unreachable in prod (`getTenantSettings` always merges DEFAULTS; verified no caller
+passes `settings: null`).
+
+**Resolved:** removed the fail-open return. A null settings object now evaluates
+against the protective `DEFAULTS` (primary-with-caps, cold blocked) via optional
+chaining, so the gate has **no send-through path at all** — an absent/unknown
+settings object can only make it send LESS, never more (matches the module's
+fail-closed doctrine). Test updated: `settings:null` + cold → blocked
+(`cold-on-primary-blocked`); `settings:null` + warm-under-cap → still allowed.

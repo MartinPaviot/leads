@@ -181,9 +181,15 @@ describe("evaluateSend — fail-closed (design §7/§8)", () => {
   });
 });
 
-describe("evaluateSend — EC-1 explicit null settings -> fail open to send", () => {
-  it("settings:null preserves prior behavior (allow)", async () => {
+describe("evaluateSend — CLE-13 #4: explicit null settings -> protective DEFAULTS (no fail-open)", () => {
+  it("settings:null evaluates against DEFAULTS (cold blocked, not sent)", async () => {
     const r = await evaluateSend({ tenantId: "t1", toAddress: "cold@a.com", sentTodayFromPrimary: 0, settings: null });
+    expect(r.send).toBe(false);
+    if (!r.send) expect(r.code).toBe("cold-on-primary-blocked");
+  });
+  it("settings:null still allows a warm recipient under the DEFAULT cap", async () => {
+    activityRows = [{ tenantId: "t1", to: "warm@a.com" }];
+    const r = await evaluateSend({ tenantId: "t1", toAddress: "warm@a.com", sentTodayFromPrimary: 0, settings: null });
     expect(r.send).toBe(true);
   });
 });

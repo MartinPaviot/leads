@@ -150,3 +150,39 @@ describe("enforceAgentApprovalMode — determinism", () => {
     expect(a).toEqual(b);
   });
 });
+
+// CLE-13 FOLLOWUPS #2 — `signalAutoEnroll`'s "always defers" guarantee rested on
+// a code-trace of GUARDED_ACTION_METADATA["sequence-enrollment"] (outbound:true,
+// confirm:"always"). Lock it BEHAVIORALLY through the real authority so flipping
+// that metadata (e.g. to outbound:false / confirm:never) fails a test here, not in
+// prod. The signal-auto-enroll approval test mocks enforceAgentApprovalMode, so it
+// cannot catch a metadata regression; this can.
+describe("enforceAgentApprovalMode — sequence-enrollment NEVER auto-executes (the auto-enroll defer guarantee)", () => {
+  const MODES = ["review-each", "batch-daily", "auto-high-confidence"] as const;
+  for (const mode of MODES) {
+    it(`${mode}: confidence 1 + forced 0.0 learned bar still never allows`, () => {
+      const d = enforceAgentApprovalMode({
+        mode,
+        action: "sequence-enrollment",
+        confidence: 1,
+        // Even a forged 0.0 learned bar cannot unlock it (HARD RULE: outbound
+        // never auto-executes).
+        learnedThresholds: { "sequence-enrollment": 0 },
+      });
+      expect(d.allowed).toBe(false);
+      expect(d.queueAs).not.toBeNull(); // always parks for human review/batch
+    });
+  }
+
+  it("the other two outbound verbs are likewise never auto-allowed at confidence 1", () => {
+    for (const action of ["email-send", "email-reply"] as const) {
+      const d = enforceAgentApprovalMode({
+        mode: "auto-high-confidence",
+        action,
+        confidence: 1,
+        learnedThresholds: { [action]: 0 },
+      });
+      expect(d.allowed).toBe(false);
+    }
+  });
+});
