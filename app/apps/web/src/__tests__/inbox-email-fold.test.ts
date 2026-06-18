@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
-import { foldQuotedReply } from "@/lib/inbox/email-fold";
+import { foldQuotedReply, foldPlainTextReply } from "@/lib/inbox/email-fold";
 
 describe("foldQuotedReply (INBOX-R05)", () => {
   it("folds a Gmail-style quote container", () => {
@@ -110,5 +110,49 @@ describe("foldQuotedReply (INBOX-R05)", () => {
   it("does NOT fold a body that merely mentions 'this email' mid-sentence", () => {
     const res = foldQuotedReply(`<p>This email confirms our meeting on Tuesday at noon.</p>`);
     expect(res.hasTrimmed).toBe(false);
+  });
+});
+
+describe("foldPlainTextReply (INBOX-R05/R09 plain-text path)", () => {
+  it("folds a '>'-quoted reply tail", () => {
+    const res = foldPlainTextReply("Sounds good to me.\n\n> On Mon you wrote:\n> the original");
+    expect(res.hasTrimmed).toBe(true);
+    expect(res.visible).toContain("Sounds good to me.");
+    expect(res.visible).not.toContain("the original");
+    expect(res.trimmed).toContain("the original");
+  });
+
+  it("folds at an 'On … wrote:' attribution line", () => {
+    const res = foldPlainTextReply("Thanks!\nOn Mon, 1 Jun 2026 at 09:00, Alice wrote:\nold stuff");
+    expect(res.hasTrimmed).toBe(true);
+    expect(res.visible.trim()).toBe("Thanks!");
+    expect(res.trimmed).toContain("old stuff");
+  });
+
+  it("folds at a '--' signature delimiter", () => {
+    const res = foldPlainTextReply("My answer.\n--\nJane Doe\nAcme");
+    expect(res.hasTrimmed).toBe(true);
+    expect(res.visible.trim()).toBe("My answer.");
+    expect(res.trimmed).toContain("Jane Doe");
+  });
+
+  it("does not fold a plain note with no quote or signature", () => {
+    const res = foldPlainTextReply("Just a plain note.\nSecond line, all mine.");
+    expect(res.hasTrimmed).toBe(false);
+    expect(res.visible).toContain("Second line");
+  });
+
+  it("does not mistake an inline '>' for a quote line", () => {
+    expect(foldPlainTextReply("if a > b then ship it").hasTrimmed).toBe(false);
+  });
+
+  it("keeps everything when the body is entirely quoted (leading boundary)", () => {
+    const res = foldPlainTextReply("> only quoted content here");
+    expect(res.hasTrimmed).toBe(false);
+    expect(res.visible).toContain("only quoted content");
+  });
+
+  it("returns empty for empty input", () => {
+    expect(foldPlainTextReply("")).toEqual({ visible: "", trimmed: "", hasTrimmed: false });
   });
 });

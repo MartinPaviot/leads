@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { ImageOff, MoreHorizontal, ShieldAlert } from "lucide-react";
 import { sanitizeEmailHtml, looksLikeHtml } from "@/lib/inbox/sanitize-email";
 import { applyEmailPrivacy } from "@/lib/inbox/email-privacy";
-import { foldQuotedReply } from "@/lib/inbox/email-fold";
+import { foldQuotedReply, foldPlainTextReply } from "@/lib/inbox/email-fold";
 import { linkifyPlainText } from "@/lib/inbox/linkify";
 import { classifyLink, riskChipLabel } from "@/lib/inbox/link-safety";
 import { dirOf } from "@/lib/inbox/text-direction";
@@ -130,48 +130,72 @@ export function EmailBody({ html, text }: { html: string | null; text: string })
     );
   }
 
+  // Linkify + per-link safety (R03), shared by the visible body and the folded tail.
+  const renderText = (t: string) =>
+    linkifyPlainText(t).map((seg, i) => {
+      if (seg.type !== "link") return <span key={i}>{seg.text}</span>;
+      const safety = classifyLink(seg.href, seg.text);
+      const chip = riskChipLabel(safety);
+      return (
+        <span key={i}>
+          <a
+            href={safety.safeHref}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            title={
+              safety.realHost
+                ? safety.risky && safety.reason
+                  ? safety.reason
+                  : `Goes to ${safety.realHost}`
+                : undefined
+            }
+            style={{ color: "var(--color-accent)", textDecoration: "underline" }}
+          >
+            {seg.text}
+          </a>
+          {chip && (
+            <span
+              className="ml-1 inline-flex items-center gap-0.5 rounded px-1 align-baseline text-[11px]"
+              style={{ background: "var(--color-warning-soft)", color: "var(--color-warning)" }}
+              title={safety.reason ?? undefined}
+            >
+              <ShieldAlert size={11} className="shrink-0" />
+              {chip}
+            </span>
+          )}
+        </span>
+      );
+    });
+
+  // Fold the quoted reply / signature tail so the new content reads first (R05/R09).
+  const textFold = foldPlainTextReply(text);
+
   return (
     <div
       className="whitespace-pre-wrap text-[13px] leading-relaxed"
       style={{ color: "var(--color-text-primary)", wordBreak: "break-word", overflowWrap: "anywhere" }}
       dir={dirOf(text)}
     >
-      {linkifyPlainText(text).map((seg, i) => {
-        if (seg.type !== "link") return <span key={i}>{seg.text}</span>;
-        // Same safety rules as the HTML path (R03): neutralize dangerous schemes,
-        // preview the real host on hover, chip the risky ones at the point of click.
-        const safety = classifyLink(seg.href, seg.text);
-        const chip = riskChipLabel(safety);
-        return (
-          <span key={i}>
-            <a
-              href={safety.safeHref}
-              target="_blank"
-              rel="noopener noreferrer nofollow"
-              title={
-                safety.realHost
-                  ? safety.risky && safety.reason
-                    ? safety.reason
-                    : `Goes to ${safety.realHost}`
-                  : undefined
-              }
-              style={{ color: "var(--color-accent)", textDecoration: "underline" }}
-            >
-              {seg.text}
-            </a>
-            {chip && (
-              <span
-                className="ml-1 inline-flex items-center gap-0.5 rounded px-1 align-baseline text-[11px]"
-                style={{ background: "var(--color-warning-soft)", color: "var(--color-warning)" }}
-                title={safety.reason ?? undefined}
-              >
-                <ShieldAlert size={11} className="shrink-0" />
-                {chip}
-              </span>
-            )}
-          </span>
-        );
-      })}
+      {renderText(textFold.visible)}
+
+      {textFold.hasTrimmed && !showTrimmed && (
+        <button
+          type="button"
+          onClick={() => setShowTrimmed(true)}
+          title="Show trimmed content"
+          aria-label="Show trimmed content"
+          className="mt-1 inline-flex items-center rounded px-2 py-0.5 leading-none hover:bg-[var(--color-bg-hover)]"
+          style={{ color: "var(--color-text-tertiary)", border: "1px solid var(--color-border-default)" }}
+        >
+          <MoreHorizontal size={14} />
+        </button>
+      )}
+
+      {textFold.hasTrimmed && showTrimmed && (
+        <div className="mt-1 border-l pl-2" style={{ borderColor: "var(--color-border-default)" }}>
+          {renderText(textFold.trimmed)}
+        </div>
+      )}
     </div>
   );
 }

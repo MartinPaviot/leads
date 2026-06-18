@@ -69,6 +69,42 @@ function isSignatureNode(node: Node): boolean {
   return DISCLAIMER_RE.test(text);
 }
 
+// Line-oriented attribution for the plain-text path (the HTML one keys on nodes).
+const PLAIN_ATTRIBUTION_RE =
+  /^\s*(?:on\b.{0,160}?\bwrote:|le\b.{0,160}?\ba écrit\s*:|am\b.{0,160}?\bschrieb.{0,40}?:|-{2,}\s*original message\s*-{2,}|_{5,})\s*$/i;
+
+export interface PlainFoldResult {
+  visible: string;
+  trimmed: string;
+  hasTrimmed: boolean;
+}
+
+/**
+ * Quote / signature folding for the PLAIN-TEXT reading path (INBOX-R05/R09).
+ * Splits at the first `>`-quoted line, attribution line ("On … wrote:"), or
+ * `-- ` signature delimiter — the quoted tail always sits at the bottom of a
+ * plain-text reply — so the pane shows the new content with the rest one tap away.
+ * Pure (string-only); never hides everything (a pure-quote forward stays visible).
+ */
+export function foldPlainTextReply(text: string): PlainFoldResult {
+  if (!text) return { visible: "", trimmed: "", hasTrimmed: false };
+  const lines = text.split("\n");
+  let foldAt = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\s*>/.test(line) || PLAIN_ATTRIBUTION_RE.test(line) || line.trim() === "--") {
+      foldAt = i;
+      break;
+    }
+  }
+  if (foldAt < 0) return { visible: text, trimmed: "", hasTrimmed: false };
+  const visible = lines.slice(0, foldAt).join("\n");
+  const trimmed = lines.slice(foldAt).join("\n");
+  // Boundary at the very top (pure quote / leading attribution) → show it all.
+  if (!visible.trim()) return { visible: text, trimmed: "", hasTrimmed: false };
+  return { visible, trimmed, hasTrimmed: trimmed.trim().length > 0 };
+}
+
 export function foldQuotedReply(html: string): FoldResult {
   if (!html) return { visibleHtml: "", trimmedHtml: "", hasTrimmed: false };
   if (typeof window === "undefined" || typeof DOMParser === "undefined") {
