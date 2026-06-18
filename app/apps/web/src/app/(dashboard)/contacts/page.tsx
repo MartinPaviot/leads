@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Factory, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, Trash2, Archive, RotateCcw, Loader2, type LucideIcon } from "lucide-react";
 import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
-import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+import { useRegisterPageActions, useRegisterEntityLocator, cssEscape } from "@/lib/chat/page-actions/registry";
+import type { EntityLocator } from "@/lib/chat/page-actions/registry";
 import { SmartImport } from "@/components/smart-import";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { displayScore, ENRICHMENT_COLORS } from "@/lib/util/ui-utils";
@@ -1003,8 +1004,18 @@ export default function ContactsPage() {
   );
   useRegisterPageActions(contactListActions);
 
+  // CLE-15 — let the chat pulse a specific contact row (e.g. one it navigates
+  // to). Each <tr> carries data-cle-entity; the locator resolves an id to the
+  // live row. Null-safe when the row is filtered out or not mounted.
+  const surfaceContainerRef = useRef<HTMLDivElement>(null);
+  const contactsLocate = useCallback<EntityLocator>(
+    (a) => surfaceContainerRef.current?.querySelector<HTMLElement>(`[data-cle-entity="${cssEscape(a.entityId)}"]`) ?? null,
+    [],
+  );
+  useRegisterEntityLocator("contacts", contactsLocate);
+
   return (
-    <div className="flex h-full flex-col animate-content-in">
+    <div ref={surfaceContainerRef} className="flex h-full flex-col animate-content-in">
       <BulkActionsBar
         count={selectedRows.size}
         onClear={() => setSelectedRows(new Set())}
@@ -1288,6 +1299,7 @@ export default function ContactsPage() {
                 return (
                   <tr
                     key={contact.id}
+                    data-cle-entity={contact.id}
                     data-selected={selectedRows.has(contact.id) ? "true" : undefined}
                     className="cursor-pointer"
                     onClick={() => router.push(`/contacts/${contact.id}`)}

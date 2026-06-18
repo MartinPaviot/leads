@@ -6,7 +6,8 @@ import Link from "next/link";
 import { z } from "zod";
 import { Check, X, Pencil, TrendingUp, TrendingDown, Minus, Gauge, Mail, Send, Phone } from "lucide-react";
 import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
-import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+import { useRegisterPageActions, useRegisterEntityLocator, cssEscape } from "@/lib/chat/page-actions/registry";
+import type { EntityLocator } from "@/lib/chat/page-actions/registry";
 import { EmailComposerPanel } from "@/components/email-composer-panel";
 import type { EmailComposerDraft } from "@/components/email-composer-panel";
 import { Button } from "@/components/ui/button";
@@ -247,7 +248,7 @@ export default function ContactDetailPage() {
           if (id !== contactIdConst) return errResult("That contact is not the one open here.");
           const okSaved = await updateFieldRef.current(field, value);
           return okSaved
-            ? okResult('Updated ' + field + ' to "' + value.trim() + '".')
+            ? okResult('Updated ' + field + ' to "' + value.trim() + '".', { highlight: { entityId: id, scope: "contacts", field } })
             : errResult(field === "email" ? "That doesn't look like a valid email address." : "Couldn't save that change.");
         },
       }),
@@ -369,6 +370,19 @@ export default function ContactDetailPage() {
   );
   useRegisterPageActions(contactDetailActions);
 
+  // CLE-15 — pulse this record's header when the chat navigates here, or after a
+  // field edit (contacts.updateField returns data.highlight for this id). The
+  // header carries data-cle-entity. Null-safe before the contact loads.
+  const detailContainerRef = useRef<HTMLDivElement>(null);
+  const contactDetailLocate = useCallback<EntityLocator>(
+    (a) =>
+      a.entityId === contactIdConst
+        ? detailContainerRef.current?.querySelector<HTMLElement>(`[data-cle-entity="${cssEscape(a.entityId)}"]`) ?? null
+        : null,
+    [contactIdConst],
+  );
+  useRegisterEntityLocator("contacts", contactDetailLocate);
+
   useEffect(() => {
     async function load() {
       try {
@@ -445,7 +459,7 @@ export default function ContactDetailPage() {
     (contact.lastName?.charAt(0) || "").toUpperCase();
 
   return (
-    <div className="flex h-full flex-col lg:flex-row">
+    <div ref={detailContainerRef} className="flex h-full flex-col lg:flex-row">
       {/* Main content */}
       <div className="flex-1 overflow-auto p-6">
         <Breadcrumbs
@@ -465,7 +479,7 @@ export default function ContactDetailPage() {
             {initials}
           </div>
           <div className="flex-1">
-            <h1 className="text-xl font-semibold">{name}</h1>
+            <h1 className="text-xl font-semibold" data-cle-entity={contactIdConst}>{name}</h1>
             <p className="text-sm text-[var(--color-text-secondary)]">
               {contact.title || "No title"} {contact.email ? `\u00b7 ${contact.email}` : ""}
               {(() => {

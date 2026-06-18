@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { z } from "zod";
 import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
-import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+import { useRegisterPageActions, useRegisterEntityLocator, cssEscape } from "@/lib/chat/page-actions/registry";
+import type { EntityLocator } from "@/lib/chat/page-actions/registry";
 import {
   ArrowRight, Gauge, Sparkles, TrendingUp, TrendingDown, Minus,
   AlertTriangle, Calendar, Send, Users, Shield, ShieldAlert, ShieldCheck,
@@ -350,6 +351,19 @@ export default function DealDetailPage() {
   );
   useRegisterPageActions(opportunityDetailActions);
 
+  // CLE-15 — pulse this record's header when the chat navigates here
+  // (openRecord emits navigate.highlight). The header carries data-cle-entity;
+  // the locator resolves the open deal id to it. Null-safe before the deal loads.
+  const detailContainerRef = useRef<HTMLDivElement>(null);
+  const dealDetailLocate = useCallback<EntityLocator>(
+    (a) =>
+      a.entityId === dealId
+        ? detailContainerRef.current?.querySelector<HTMLElement>(`[data-cle-entity="${cssEscape(a.entityId)}"]`) ?? null
+        : null,
+    [dealId],
+  );
+  useRegisterEntityLocator("opportunities", dealDetailLocate);
+
   async function createFollowUpTask(intervention: SuggestedIntervention) {
     try {
       const res = await fetch("/api/tasks", {
@@ -404,7 +418,7 @@ export default function DealDetailPage() {
   const isClosed = deal.stage === "won" || deal.stage === "lost";
 
   return (
-    <div className="flex h-full">
+    <div ref={detailContainerRef} className="flex h-full">
       <div className="flex-1 overflow-auto p-6">
         <Breadcrumbs
           items={[
@@ -414,7 +428,7 @@ export default function DealDetailPage() {
         />
 
         <div className="mt-4 flex items-center gap-3">
-          <h1 className="text-xl font-semibold">{deal.name}</h1>
+          <h1 className="text-xl font-semibold" data-cle-entity={deal.id}>{deal.name}</h1>
           <Badge variant={stageBadgeVariant[deal.stage] || "neutral"} size="md">
             {deal.stage.toUpperCase()}
           </Badge>

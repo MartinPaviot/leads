@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
-import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+import { useRegisterPageActions, useRegisterEntityLocator, cssEscape } from "@/lib/chat/page-actions/registry";
+import type { EntityLocator } from "@/lib/chat/page-actions/registry";
 import {
   CircleDot, Plus, BarChart3, ChevronDown, ChevronUp,
   Search, X, Building2, User, Calendar, DollarSign, Clock,
@@ -316,6 +317,7 @@ export default function OpportunitiesPage() {
   //    id list), so their run() must read current state via refs and call these
   //    stable helpers — never a stale closure. Each helper is the SINGLE copy of
   //    its network call; the button/drag handlers below delegate to it. ──
+  const surfaceContainerRef = useRef<HTMLDivElement>(null); // CLE-15 highlight scope (spans board + table)
   const dealsRef = useRef(deals); dealsRef.current = deals;
   const stalledOnlyRef = useRef(stalledOnly); stalledOnlyRef.current = stalledOnly;
   const viewDeletedRef = useRef(viewDeleted); viewDeletedRef.current = viewDeleted;
@@ -696,12 +698,14 @@ export default function OpportunitiesPage() {
             // Commit with the canonical lowercase "won"/"lost" (the pipeline's
             // closed-stage ids); the optimistic setDeals above used the raw stage.
             await commitStageChange(dealId, lower, prev, { reason: closeReason.reason, note: closeReason.note?.trim() ?? null });
-            return okResult(`Marked ${deal.name} ${lower === "won" ? "Won" : "Lost"} (${closeReason.reason}).`);
+            return okResult(`Marked ${deal.name} ${lower === "won" ? "Won" : "Lost"} (${closeReason.reason}).`, {
+              highlight: { entityId: dealId, scope: "opportunities", field: "stage" },
+            });
           }
           await commitStageChange(dealId, stage, prev);
           const moved = dealsRef.current.find((d) => d.id === dealId);
           return moved?.stage === stage
-            ? okResult(`Moved ${deal.name} to ${stage}.`)
+            ? okResult(`Moved ${deal.name} to ${stage}.`, { highlight: { entityId: dealId, scope: "opportunities", field: "stage" } })
             : errResult(`The move to ${stage} did not persist; it has been rolled back.`);
         },
       }),
@@ -864,6 +868,16 @@ export default function OpportunitiesPage() {
     [],
   );
   useRegisterPageActions(opportunityListActions);
+
+  // CLE-15 — let the chat pulse a specific deal (the moved deal, or a record the
+  // chat navigates to). The locator resolves an id to whichever node renders it
+  // in the CURRENT view (board card or table row both carry data-cle-entity).
+  // Null-safe: returns null when the deal is filtered out or not mounted.
+  const opportunitiesLocate = useCallback<EntityLocator>(
+    (a) => surfaceContainerRef.current?.querySelector<HTMLElement>(`[data-cle-entity="${cssEscape(a.entityId)}"]`) ?? null,
+    [],
+  );
+  useRegisterEntityLocator("opportunities", opportunitiesLocate);
 
   // Filter. Text/sector search is server-side (industry-aware), so the loaded
   // `deals` are already the matched set — the client predicate only applies the
@@ -1095,7 +1109,7 @@ export default function OpportunitiesPage() {
   /* ── Render ── */
 
   return (
-    <div className="flex h-full flex-col animate-content-in" style={{ background: "var(--color-bg-card)" }}>
+    <div ref={surfaceContainerRef} className="flex h-full flex-col animate-content-in" style={{ background: "var(--color-bg-card)" }}>
       {/* Multi-select bar (table view) — appears when rows are checked. */}
       <BulkActionsBar
         count={selectedRows.size}
@@ -1531,7 +1545,7 @@ export default function OpportunitiesPage() {
               </thead>
               <tbody>
                 {sortedDeals.map((deal) => (
-                  <tr key={deal.id} data-selected={selectedRows.has(deal.id) ? "true" : undefined} onClick={() => handleCardClick(deal.id)} className="cursor-pointer transition-colors" style={{ borderBottom: "1px solid var(--color-border-default)", background: selectedRows.has(deal.id) ? "var(--color-bg-selected, var(--color-bg-hover))" : undefined }}
+                  <tr key={deal.id} data-cle-entity={deal.id} data-selected={selectedRows.has(deal.id) ? "true" : undefined} onClick={() => handleCardClick(deal.id)} className="cursor-pointer transition-colors" style={{ borderBottom: "1px solid var(--color-border-default)", background: selectedRows.has(deal.id) ? "var(--color-bg-selected, var(--color-bg-hover))" : undefined }}
                     onMouseEnter={(e) => { if (!selectedRows.has(deal.id)) e.currentTarget.style.background = "var(--color-bg-hover)"; }} onMouseLeave={(e) => { if (!selectedRows.has(deal.id)) e.currentTarget.style.background = "transparent"; }}>
                     <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                       <input
@@ -1697,7 +1711,7 @@ export default function OpportunitiesPage() {
                   {/* Cards */}
                   <div className="flex-1 space-y-2 overflow-y-auto p-2">
                     {stageDeals.map((deal) => (
-                      <div key={deal.id} draggable
+                      <div key={deal.id} data-cle-entity={deal.id} draggable
                         onDragStart={(e) => handleDragStart(e, deal.id)}
                         onDragEnd={handleDragEnd}
                         onClick={() => handleCardClick(deal.id)}

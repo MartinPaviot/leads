@@ -174,6 +174,18 @@ export interface HighlightAnchor {
 /** A page-supplied function: resolve an entity id to its live element, or null. */
 export type EntityLocator = (anchor: HighlightAnchor) => HTMLElement | null;
 
+/**
+ * Escape a string for safe use inside a CSS attribute selector. Pages building a
+ * `[data-cle-entity="<id>"]` query use this so an id with quotes/brackets cannot
+ * break (or inject into) the selector. Prefers the native CSS.escape and falls
+ * back to a minimal escape when it is unavailable (older jsdom). Never throws.
+ */
+export function cssEscape(value: string): string {
+  const s = String(value);
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(s);
+  return s.replace(/["\\\]\[]/g, "\\$&");
+}
+
 /** Module-level locator store. Pages register on mount, clear on unmount. */
 interface LocatorRegistration {
   locate: EntityLocator;

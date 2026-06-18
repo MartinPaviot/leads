@@ -4,7 +4,8 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { z } from "zod";
 import { Building2, Search, Filter, Plus, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, Trash2, UserPlus, Ban, RotateCcw, Archive, SlidersHorizontal, Layers, type LucideIcon } from "lucide-react";
 import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
-import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+import { useRegisterPageActions, useRegisterEntityLocator, cssEscape } from "@/lib/chat/page-actions/registry";
+import type { EntityLocator } from "@/lib/chat/page-actions/registry";
 import { useTamStream } from "@/hooks/use-tam-stream";
 import { TamBuildProgress } from "@/components/tam-build-progress";
 import { SignalChip } from "@/components/signal-chip";
@@ -1922,7 +1923,7 @@ export default function AccountsPage() {
         mutating: true, reversible: true, cost: "credits", confirm: "risky",
         run: async ({ accountId, criteria }): Promise<PageActionResult> => {
           runEnrichRef.current(criteria ?? ["industry", "description"], [accountId]);
-          return okResult("Enriching the account…");
+          return okResult("Enriching the account…", { highlight: { entityId: accountId, scope: "accounts" } });
         },
       }),
       // ── scoreAccount (single row) ───────────────────────────────────────
@@ -1934,7 +1935,9 @@ export default function AccountsPage() {
         mutating: true, reversible: true, cost: "free", confirm: "risky",
         run: async ({ accountId }): Promise<PageActionResult> => {
           const r = await scoreByIdsRef.current([accountId]);
-          return r.failed === 0 ? okResult("Scored the account.") : errResult("Couldn't score the account.");
+          return r.failed === 0
+            ? okResult("Scored the account.", { highlight: { entityId: accountId, scope: "accounts", field: "score" } })
+            : errResult("Couldn't score the account.");
         },
       }),
       // ── excludeAccount (single row) ─────────────────────────────────────
@@ -1946,7 +1949,10 @@ export default function AccountsPage() {
         mutating: true, reversible: true, cost: "free", confirm: "risky",
         run: async ({ accountId, restore }): Promise<PageActionResult> => {
           await rowSetExclusionRef.current(accountId, restore ? "include" : "exclude");
-          return okResult(restore ? "Restored the account to the active list." : "Marked the account as not a fit.");
+          return okResult(
+            restore ? "Restored the account to the active list." : "Marked the account as not a fit.",
+            { highlight: { entityId: accountId, scope: "accounts" } },
+          );
         },
       }),
       // ── deleteAccount (single row, DESTRUCTIVE, ALWAYS confirm) ──────────
@@ -2004,6 +2010,17 @@ export default function AccountsPage() {
   );
   useRegisterPageActions(accountListActions);
 
+  // CLE-15 — let the chat pulse a specific account row (e.g. the one it just
+  // enriched / scored / excluded, or one it navigates to). Each <tr> carries
+  // data-cle-entity; the locator resolves an id to the live row. Null-safe when
+  // the row is filtered out or not mounted.
+  const surfaceContainerRef = useRef<HTMLDivElement>(null);
+  const accountsLocate = useCallback<EntityLocator>(
+    (a) => surfaceContainerRef.current?.querySelector<HTMLElement>(`[data-cle-entity="${cssEscape(a.entityId)}"]`) ?? null,
+    [],
+  );
+  useRegisterEntityLocator("accounts", accountsLocate);
+
   // Per-tab counts shown in parentheses (All / Sourced / Added). The server
   // counts reflect the active column/search/score filters but are independent
   // of the selected tab, so the badges evolve with the filters and add up
@@ -2041,7 +2058,7 @@ export default function AccountsPage() {
 
   // === RENDER ===
   return (
-    <div className="flex h-full flex-col animate-content-in" style={{ background: "var(--color-bg-page)" }}>
+    <div ref={surfaceContainerRef} className="flex h-full flex-col animate-content-in" style={{ background: "var(--color-bg-page)" }}>
       {/* A3 — bulk actions bar appears when one or more rows are checked. */}
       <BulkActionsBar
         count={selectedRows.size}
@@ -2592,7 +2609,7 @@ export default function AccountsPage() {
 
                 return (
                   <React.Fragment key={account.id}>
-                  <tr className="group" data-selected={selectedRows.has(account.id) ? "true" : undefined}>
+                  <tr className="group" data-cle-entity={account.id} data-selected={selectedRows.has(account.id) ? "true" : undefined}>
                     {/* Row checkbox */}
                     <td className="check" onClick={(e) => e.stopPropagation()}>
                       <input

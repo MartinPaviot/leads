@@ -6,7 +6,8 @@ import Link from "next/link";
 import { z } from "zod";
 import { Users, DollarSign, ClipboardList, Swords, Sparkles, RefreshCw } from "lucide-react";
 import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
-import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+import { useRegisterPageActions, useRegisterEntityLocator, cssEscape } from "@/lib/chat/page-actions/registry";
+import type { EntityLocator } from "@/lib/chat/page-actions/registry";
 import { IntelligenceBrief } from "@/components/intelligence-brief";
 import { CompanyDossier } from "@/components/company-dossier";
 import { AccountCallIntel } from "@/components/call-intel";
@@ -284,13 +285,25 @@ export default function AccountDetailPage() {
   );
   useRegisterPageActions(accountDetailActions);
 
+  // CLE-15 — pulse this record's header when the chat navigates here
+  // (openRecord emits navigate.highlight). Null-safe before the account loads.
+  const detailContainerRef = useRef<HTMLDivElement>(null);
+  const accountDetailLocate = useCallback<EntityLocator>(
+    (a) =>
+      a.entityId === accountIdConst
+        ? detailContainerRef.current?.querySelector<HTMLElement>(`[data-cle-entity="${cssEscape(a.entityId)}"]`) ?? null
+        : null,
+    [accountIdConst],
+  );
+  useRegisterEntityLocator("accounts", accountDetailLocate);
+
   if (loading) return <DetailPageSkeleton avatar="square" />;
   if (!account) return <p className="p-6 text-sm text-red-400">Account not found</p>;
 
   const initial = account.name.charAt(0).toUpperCase();
 
   return (
-    <div className="flex h-full flex-col lg:flex-row">
+    <div ref={detailContainerRef} className="flex h-full flex-col lg:flex-row">
       {/* Main content */}
       <div className="flex-1 overflow-auto p-6">
         <Breadcrumbs
@@ -305,7 +318,7 @@ export default function AccountDetailPage() {
             {initial}
           </div>
           <div className="flex-1">
-            <h1 className="text-xl font-semibold">{account.name}</h1>
+            <h1 className="text-xl font-semibold" data-cle-entity={account.id}>{account.name}</h1>
             <p className="text-sm text-[var(--color-text-secondary)]">
               {account.domain || "No domain"} {account.industry ? `· ${account.industry}` : ""}
             </p>
