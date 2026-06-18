@@ -84,16 +84,44 @@ built, needs wiring · [O] ocean (flag, don't fake) · [ ] to build.
       flag interactive if it needs new vector infra.
 - [ ] Q06/Q08 find-file / web-grounded — Q06 depends R04 (ocean); Q08 gated web.
 
-## C. Already PROD-COVERED — verify + document (don't rebuild)
-- [P] R01/R02/R03/R05/R06/R07/R08/R09/R10/R13 — Phase 1 rendering suite.
-- [P] C02 one-tap replies — /api/emails/suggest-reply (used by the pane).
-- [P] C03 auto-draft — prepared-draft path (reply-handler).
-- [P] G02 capture, G10 meeting→CRM+visio, G12 voice-of-customer, G13 MCP/skills.
-- [P] X01 shared inbox + assignment — unified inbox + ownership PRs.
-- [P] P01 pixel block (=R07), P02 link-safety (=R03), P03/P04/P05/P06 — isolation
-      audit + sovereign hosting + provenance.
-- [P] O01 connect mailbox, CAL03 scheduler, CAL05 visio.
-  → For each [P]: add a one-line coverage note to the ledger, mark done.
+## C. "Prod-covered" — VERIFIED 2026-06-18 (24-agent adversarial sweep, wf weleqton9)
+Blanket [P] was too generous: only 4/24 are truly done. Honest disposition below
+(verdict + evidence + residual). [x]=covered · [~]=core shipped, residual named
+(LAKE = buildable here unless noted) · [M]=missing (not built).
+
+COVERED (4) — done:
+- [x] R01 sanitized HTML body — sanitize-email.ts (2-layer) + _email-body.tsx + tests.
+- [x] R13 capture full HTML+text at ingest — gmail.ts/imap.ts/email-capture.ts, 500KB cap.
+- [x] O01 connect mailbox — settings/mail-calendar 3-path (OAuth G/MS + IMAP), AES-GCM, pre-verify.
+- [x] CAL05 sovereign visio injection — video-meeting.ts + calendar-write resolveConferencing + ics.
+
+PARTIAL (18) — core shipped; the residual IS the remaining work toward 101/101:
+- [~] R02 image proxy + SSRF guard ✓ — residual: per-sender "always show" memory (user_prefs JSONB); cid: inline (R04 ocean).
+- [~] R03 isSuspiciousLink + banner ✓ — residual LAKE: link-safety.ts (true host), hover popover, per-link warn chips.
+- [~] R05 quote fold (email-fold.ts) ✓ — residual LAKE: signature/disclaimer detect, earlier-msg thread fold, Expand-all.
+- [~] R06 sender-auth parse + msg-level avatar ✓ — residual: shared SenderIdentity comp, list-row avatar.
+- [~] R07 img tracking-pixel strip ✓ — residual LAKE: CSS bg-beacon strip, tracker host list, opt-out (user_prefs).
+- [~] R08 dark-mode container ✓ — residual LAKE: view-original-colors toggle, adaptive per-block contrast.
+- [~] R09 text path + sanitizer fallback ✓ — residual: malformed-MIME silently dropped (imap), empty-state "(no content)".
+- [~] R10 dir=auto + dirOf ✓ — residual LAKE: text-decode.ts (charset/RFC2047/bidi-strip), subject dir, CJK/Arabic fonts.
+- [~] C02 suggest-reply returns 3 tones ✓ — residual LAKE: chip row + 1/2/3 keys + per-thread cache + server-side voice.
+- [~] C03 draft stage+consume ✓ (reactive) — residual: proactive triggers, reason field+badge, calendar slot re-validate.
+- [~] G02 capture+approval backend ✓ — residual: inbox review drawer, Add-to-CRM CTA, "Captured by Elevay" provenance line.
+- [~] G10 meeting book+visio+CRM+inbox UI ✓ — residual LAKE: onBooked → inject join link into reply draft (G08 junction).
+- [~] G12 VoC schema+classifier ✓ — residual: 'inbox' source + capture→VoC wiring + ?source filter + /reports rollup.
+- [~] G13 MCP CRM tools + keys ✓ — residual: 7 inbox MCP tools + 4 Skills + per-user mailbox-scope enforcement.
+- [~] P04 IMAP/SMTP/CalDAV + Mistral-EU + sovereign visio ✓ — residual: residency_profile (JSONB), posture endpoint, settings card.
+- [~] P05 app-layer scope (getInboxScope on all read paths) ✓ — residual: DB-level withTenantTx/RLS + tripwire/e2e isolation tests.
+- [~] P06 CitedClaim/SourceLink/Confidence components exist — residual LAKE: wire into pane/_thread-summary/_thread-ask + {text,sources,confidence} contract.
+- [~] CAL03 book backend + MeetingSchedulerCard ✓ — residual: /api/inbox/schedule agentic stepper, voice-matched draft, multi-provider slots.
+
+MISSING (2) — not built:
+- [M] X01 shared inbox + per-message assignment — no inbox_assignment table/column, no /assign route, no assignee in API/UI.
+      Per-message assignee storable in activities.metadata JSONB (no migration); endpoint + UI then buildable.
+- [M] P03 AI zero-retention / opt-out — no tenant aiProcessingProfile, no retention headers, no privacy card.
+      Tenant profile via tenant-settings/user_preferences JSONB (no migration); header gating touches the llm-call path (verify).
+
+Aliases: P01 = R07 (pixel block), P02 = R03 (link safety) — same artifacts, not separate work.
 
 ## D. Settings / infra wiring (buildable; runtime verify deferred)
 - [ ] T11 / O06 per-feature autonomy dial + hub — settings surface over a
