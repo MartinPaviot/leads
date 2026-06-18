@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { timeAgo } from "./_time-ago";
 import { reasonTooltip, type ConversationListItem, type InboxLane } from "./_types";
 import { dirOf } from "@/lib/inbox/text-direction";
+import { decodeDisplay } from "@/lib/inbox/text-decode";
 
 const EMPTY_COPY: Record<InboxLane, { title: string; description: string }> = {
   attention: {
@@ -123,12 +124,12 @@ export function ConversationList({
                 </span>
               )}
             </div>
-            <div className="mt-0.5 truncate text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-              {c.subject}
+            <div className="mt-0.5 truncate text-[12px]" style={{ color: "var(--color-text-secondary)" }} dir={dirOf(decodeDisplay(c.subject))}>
+              {decodeDisplay(c.subject)}
             </div>
             {c.snippet && (
-              <div className="mt-0.5 truncate text-[11px]" style={{ color: "var(--color-text-tertiary)" }} dir={dirOf(c.snippet)}>
-                {c.snippet}
+              <div className="mt-0.5 truncate text-[11px]" style={{ color: "var(--color-text-tertiary)" }} dir={dirOf(decodeDisplay(c.snippet))}>
+                {decodeDisplay(c.snippet)}
               </div>
             )}
             <div className="mt-1 flex items-center gap-1.5">

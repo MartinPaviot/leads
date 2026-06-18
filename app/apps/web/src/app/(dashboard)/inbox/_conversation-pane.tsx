@@ -41,6 +41,7 @@ import { shouldSummarize } from "@/lib/inbox/thread-summary-prep";
 import { initialsFor, avatarColorIndex } from "@/lib/inbox/sender-auth";
 import { parseWhen } from "@/lib/inbox/parse-when";
 import { dirOf } from "@/lib/inbox/text-direction";
+import { decodeDisplay } from "@/lib/inbox/text-decode";
 
 const SNOOZE_OPTIONS: Array<{ label: string; until: () => Date }> = [
   {
@@ -284,8 +285,8 @@ export function ConversationPane({
               )}
             </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-              <span className="truncate text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-                {conv.subject}
+              <span className="truncate text-[12px]" style={{ color: "var(--color-text-secondary)" }} dir={dirOf(decodeDisplay(conv.subject))}>
+                {decodeDisplay(conv.subject)}
               </span>
               {conv.reason && (
                 <span
@@ -663,7 +664,7 @@ export function ConversationPane({
               </span>
             </div>
             {m.subject && m.subject !== conv.subject && (
-              <div className="mt-0.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{m.subject}</div>
+              <div className="mt-0.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }} dir={dirOf(decodeDisplay(m.subject))}>{decodeDisplay(m.subject)}</div>
             )}
             <div className="mt-1.5">
               <EmailBody html={m.bodyHtml} text={m.body || "(empty message)"} />
