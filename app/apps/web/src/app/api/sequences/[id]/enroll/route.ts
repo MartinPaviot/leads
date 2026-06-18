@@ -1,4 +1,5 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
+import { requireCapabilityForRequest } from "@/lib/auth/permissions";
 import { db } from "@/db";
 import {
   sequenceEnrollments,
@@ -18,6 +19,11 @@ export async function POST(
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // CLE-12 — unified matrix gate on the fresh DB role. Enrolling under
+  // /api/sequences requires sequences:write (member+); viewer blocked at edge.
+  const denied = requireCapabilityForRequest(authCtx, req);
+  if (denied) return denied;
 
   const { id } = await params;
 

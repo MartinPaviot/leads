@@ -3,6 +3,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, contacts } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth/auth-utils";
+import { requireCapabilityForRequest } from "@/lib/auth/permissions";
 import { logger } from "@/lib/observability/logger";
 import { Resend } from "resend";
 import { buildCtaFootersForActivity, appendFooterIfExternal } from "@/lib/recording/cta";
@@ -25,11 +26,16 @@ const FROM_ADDRESS =
  * recorded back into metadata for audit.
  */
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const authCtx = await getAuthContext();
   if (!authCtx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // CLE-12 — unified matrix gate on the fresh DB role. Sending a meeting
+  // follow-up under /api/meetings requires deals:write (member+).
+  const denied = requireCapabilityForRequest(authCtx, req);
+  if (denied) return denied;
 
   const { id } = await params;
 

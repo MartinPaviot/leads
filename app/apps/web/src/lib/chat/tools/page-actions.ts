@@ -17,6 +17,7 @@ import { makeTool, type ToolContext } from "./context";
 import { invokeActionDirective } from "@/lib/chat/ui-directives"; // CLE-03 builder
 import { decideAction } from "@/lib/guardrails/decide-action";
 import { readApprovalMode } from "@/lib/guardrails/approval-mode";
+import { capabilityForPageAction, hasPermission } from "@/lib/auth/permissions";
 import { jsonSchemaToZod } from "@/lib/chat/page-actions/manifest-validate";
 import type { PageActionManifestEntry } from "@/lib/chat/page-actions/types";
 
@@ -135,6 +136,29 @@ export function buildPageActionTools(ctx: ToolContext) {
           return {
             error: `Invalid parameters for "${actionId}": ${issue?.message ?? "validation failed"} (${where}).`,
           };
+        }
+
+        // CLE-12 — STATIC permission gate, BEFORE the dynamic approval gate.
+        // Permission first ("may this role do this kind of thing at all?"), then
+        // approval ("does it need a card right now?"). A member invoking an
+        // outbound:paid action is refused HERE even though decideAction alone
+        // would only say "confirm"; a viewer + mutating action is refused by
+        // both this gate and decideAction's viewer floor (defence in depth).
+        // A pure-read action carries no capability -> passes -> decideAction
+        // executes it (CLE-04 gateway behaviour preserved, incl. for viewers).
+        const requiredCap = capabilityForPageAction({
+          id: entry.id,
+          mutating: entry.mutating,
+          outbound: entry.outbound,
+          cost: entry.cost,
+          reversible: entry.reversible,
+        });
+        if (requiredCap && !hasPermission(role, requiredCap)) {
+          return {
+            error: `Cannot run "${actionId}": your role (${role}) lacks "${requiredCap}".`,
+          };
+          // No _uiDirective key -> client dispatches nothing (CLE-04 wire-level
+          // guarantee). decideAction is NOT consulted (permission-first).
         }
 
         // The single decision authority computes the disposition.

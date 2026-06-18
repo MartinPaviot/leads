@@ -1,6 +1,7 @@
 import { auth } from "./auth";
 import { NextResponse } from "next/server";
 import { isViewerWriteBlocked } from "./lib/auth/viewer-guard";
+import { capabilityForRoute, hasPermission } from "./lib/auth/permissions";
 
 // ── IP-based rate limiting for API routes ──
 // Simple in-memory store (works in Edge Runtime)
@@ -156,6 +157,29 @@ export default auth((req) => {
           code: "FORBIDDEN",
           message: "Viewers have read-only access",
           reason: "viewer-read-only",
+        },
+      },
+      { status: 403 },
+    );
+  }
+
+  // Admin/member capability gate, derived from the unified matrix (CLE-12).
+  // This is the cheap EDGE line on the JWT role only — no DB read here; the API
+  // layer re-checks with the FRESH DB role via requireCapabilityForRequest
+  // (defence in depth, closes the stale-JWT window). Runs AFTER the viewer
+  // floor (so a viewer write is reported as "viewer-read-only", not a missing
+  // capability) and only inside the authenticated, non-public region — so
+  // Twilio/Inngest/webhooks are never reached. A SAFE method or an unmapped
+  // non-high-risk write yields `undefined` and passes through unchanged.
+  const cap = capabilityForRoute(pathname, req.method);
+  if (cap && !hasPermission(sessionRole ?? "member", cap)) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "FORBIDDEN",
+          message: `Missing capability: ${cap}`,
+          requiredCapability: cap,
+          currentRole: sessionRole ?? null,
         },
       },
       { status: 403 },

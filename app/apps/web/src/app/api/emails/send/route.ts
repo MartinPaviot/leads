@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/auth-utils";
+import { requireCapabilityForRequest } from "@/lib/auth/permissions";
 import { deliverInteractiveEmail } from "@/lib/emails/deliver-interactive";
 import { logger } from "@/lib/observability/logger";
 import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
@@ -36,6 +37,11 @@ export async function POST(req: Request) {
   if (!authCtx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // CLE-12 — unified matrix gate on the fresh DB role. POST /api/emails/send
+  // requires outbound:send (member+); a viewer is already blocked at the edge.
+  const denied = requireCapabilityForRequest(authCtx, req);
+  if (denied) return denied;
 
   let parsed: z.infer<typeof sendEmailSchema>;
   try {

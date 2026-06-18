@@ -1,4 +1,5 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
+import { requireCapabilityForRequest } from "@/lib/auth/permissions";
 import { db } from "@/db";
 import { autonomyConfig } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -34,6 +35,12 @@ export async function PUT(req: Request) {
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // CLE-12 — unified matrix gate on the fresh DB role. Autonomy config is
+  // admin-only (settings:write); previously this PUT had NO role gate, so any
+  // member could change workspace autonomy (gap closed, access NARROWED).
+  const denied = requireCapabilityForRequest(authCtx, req);
+  if (denied) return denied;
 
   const body = await req.json();
   const { level, permissions, guardrails, brand } = body;

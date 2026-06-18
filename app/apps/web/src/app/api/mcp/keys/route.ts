@@ -1,4 +1,5 @@
 import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { requireCapabilityForRequest } from "@/lib/auth/permissions";
 import { getTenantSettings, updateTenantSettings } from "@/lib/config/tenant-settings";
 import type { McpApiKeyEntry } from "@/lib/config/tenant-settings";
 import { hash } from "bcryptjs";
@@ -54,6 +55,9 @@ export async function POST(req: Request) {
 
   const adminCheck = requireAdmin(authCtx);
   if (adminCheck) return adminCheck;
+  // CLE-12 — belt-and-braces matrix gate on the fresh DB role (mcp:manage).
+  const denied = requireCapabilityForRequest(authCtx, req);
+  if (denied) return denied;
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -129,6 +133,9 @@ export async function DELETE(req: Request) {
 
   const adminCheck = requireAdmin(authCtx);
   if (adminCheck) return adminCheck;
+  // CLE-12 — belt-and-braces matrix gate on the fresh DB role (mcp:manage).
+  const denied = requireCapabilityForRequest(authCtx, req);
+  if (denied) return denied;
 
   try {
     const body = await req.json().catch(() => ({}));

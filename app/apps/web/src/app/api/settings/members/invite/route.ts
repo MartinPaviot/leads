@@ -1,5 +1,5 @@
 import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
-import { requirePermission } from "@/lib/auth/permissions";
+import { requirePermission, requireCapabilityForRequest } from "@/lib/auth/permissions";
 import { db } from "@/db";
 import { pendingInvites, users, tenants } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -19,6 +19,10 @@ export async function POST(req: Request) {
   // Granular permission check (subsumes the old admin-only gate)
   const denied = requirePermission(authCtx.role, "members:invite");
   if (denied) return denied;
+  // CLE-12 — belt-and-braces matrix gate on the fresh DB role, resolving the
+  // capability from the SAME route map the middleware uses (members:invite).
+  const routeDenied = requireCapabilityForRequest(authCtx, req);
+  if (routeDenied) return routeDenied;
 
   let body: { email?: unknown; role?: unknown };
   try {

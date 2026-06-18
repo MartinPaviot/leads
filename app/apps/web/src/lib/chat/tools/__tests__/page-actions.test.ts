@@ -82,10 +82,15 @@ describe("invokePageAction", () => {
     const t = buildPageActionTools(ctx("member", MANIFEST));
     const move = await run(t.invokePageAction, { actionId: "opportunities.moveStage", params: { dealId: "d1", stage: "won" } });
     const del = await run(t.invokePageAction, { actionId: "accounts.delete", params: { id: "a1" } });
-    const launch = await run(t.invokePageAction, { actionId: "sequences.launch", params: { sequenceId: "s1" } });
     expect(move[DIRECTIVE_KEY].requireConfirm).toBe(true); // mutating+reversible+risky
-    expect(del[DIRECTIVE_KEY].requireConfirm).toBe(true); // mutating+!reversible
-    expect(launch[DIRECTIVE_KEY].requireConfirm).toBe(true); // outbound+money
+    expect(del[DIRECTIVE_KEY].requireConfirm).toBe(true); // mutating+!reversible (companies:delete, member holds)
+    // CLE-12: an outbound+money action maps to outbound:paid, which a member
+    // LACKS, so the matrix refuses it before decideAction (covered in
+    // page-action-permission.test.ts). An ADMIN reaches decideAction, which
+    // maps cost:money to confirm.
+    const adminTools = buildPageActionTools(ctx("admin", MANIFEST));
+    const launch = await run(adminTools.invokePageAction, { actionId: "sequences.launch", params: { sequenceId: "s1" } });
+    expect(launch[DIRECTIVE_KEY].requireConfirm).toBe(true); // outbound+money -> admin confirm
   });
 
   it("viewer is refused a mutating action (no directive) but may run a read action", async () => {

@@ -1,4 +1,5 @@
 import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { requireCapabilityForRequest } from "@/lib/auth/permissions";
 import {
   getTenantSettings,
   updateTenantSettings,
@@ -70,6 +71,9 @@ export async function PUT(req: Request) {
 
   const adminCheck = requireAdmin(authCtx);
   if (adminCheck) return adminCheck;
+  // CLE-12 — belt-and-braces matrix gate on the fresh DB role (settings:write).
+  const denied = requireCapabilityForRequest(authCtx, req);
+  if (denied) return denied;
 
   try {
     const body = await req.json();

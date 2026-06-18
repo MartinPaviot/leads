@@ -1,4 +1,5 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
+import { requireCapabilityForRequest } from "@/lib/auth/permissions";
 import { db } from "@/db";
 import {
   users,
@@ -25,6 +26,12 @@ export async function POST(req: Request) {
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // CLE-12 — unified matrix gate on the fresh DB role. A workspace-wide GDPR
+  // purge is admin-only (settings:write); previously this route had NO role
+  // gate, so any member could trigger it (gap closed, access NARROWED).
+  const denied = requireCapabilityForRequest(authCtx, req);
+  if (denied) return denied;
 
   try {
     const body = await req.json().catch(() => ({}));
