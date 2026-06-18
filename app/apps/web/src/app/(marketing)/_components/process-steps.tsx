@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useRef, useState, type ComponentType } from "react";
-import { motion, useInView, useReducedMotion } from "framer-motion";
+import { m, useInView, useReducedMotion } from "framer-motion";
 import { AppFrame, ScaleToFit } from "./product-mockups";
 import { CallModeDemo } from "./call-mode-demo";
 import { CampaignsDemo } from "./campaigns-demo";
@@ -71,7 +71,7 @@ function RevealOnView({ children, className = "" }: { children: () => React.Reac
   useEffect(() => { if (inView) setLive(true); }, [inView]);
   useEffect(() => { const t = setTimeout(() => setLive(true), 6000); return () => clearTimeout(t); }, []);
   return (
-    <motion.div
+    <m.div
       ref={ref}
       className={className}
       initial={reduced ? false : { opacity: 0, y: 22, scale: 0.97 }}
@@ -79,7 +79,7 @@ function RevealOnView({ children, className = "" }: { children: () => React.Reac
       transition={{ duration: reduced ? 0 : 0.6, ease: [0.22, 0.61, 0.36, 1] }}
     >
       {children()}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -120,14 +120,14 @@ function StepHeading({ i, label, headline, body }: { i: number; label: string; h
   return (
     <div ref={ref}>
       <div className="flex items-center gap-3">
-        <motion.span
+        <m.span
           className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-white text-[13px] font-bold tabular-nums"
           style={{ borderColor: "#E5E7EF", boxShadow: "0 2px 6px rgba(26,26,46,0.06)" }}
           initial={false}
           animate={live ? { scale: [1, 1.12, 1] } : undefined}
           transition={{ duration: reduced ? 0 : 0.45, ease: "easeOut" }}
         >
-          <motion.span
+          <m.span
             aria-hidden
             className="absolute inset-0 rounded-full"
             style={{ background: "#2C6BED" }}
@@ -136,25 +136,25 @@ function StepHeading({ i, label, headline, body }: { i: number; label: string; h
             transition={{ duration: reduced ? 0 : 0.4, ease: [0.22, 0.61, 0.36, 1] }}
           />
           <span className="relative z-[1] transition-colors duration-500" style={{ color: live ? "#fff" : "#2C6BED" }}>{i + 1}</span>
-        </motion.span>
+        </m.span>
         <p className="text-[11px] font-semibold uppercase tracking-wider text-[#2C6BED]">{label}</p>
       </div>
-      <motion.h3
+      <m.h3
         className="mt-3 text-[24px] font-bold leading-snug tracking-tight text-gray-900"
         initial={reduced ? false : { opacity: 0, y: 14 }}
         animate={live ? { opacity: 1, y: 0 } : undefined}
         transition={{ duration: 0.45, ease: "easeOut", delay: reduced ? 0 : 0.08 }}
       >
         {headline}
-      </motion.h3>
-      <motion.p
+      </m.h3>
+      <m.p
         className="mt-3 max-w-md text-[15px] leading-relaxed text-gray-600"
         initial={reduced ? false : { opacity: 0, y: 14 }}
         animate={live ? { opacity: 1, y: 0 } : undefined}
         transition={{ duration: 0.45, ease: "easeOut", delay: reduced ? 0 : 0.16 }}
       >
         {body}
-      </motion.p>
+      </m.p>
     </div>
   );
 }

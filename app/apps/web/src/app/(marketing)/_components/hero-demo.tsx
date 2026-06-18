@@ -17,7 +17,7 @@
  */
 
 import { useState, useEffect, useRef, type ComponentType } from "react";
-import { motion, AnimatePresence, useReducedMotion, useInView } from "framer-motion";
+import { m, AnimatePresence, useReducedMotion, useInView } from "framer-motion";
 import {
   Building2, Users, CircleDot, Inbox, Phone, Clock, Zap,
   Calendar, Send, MessageSquare, Briefcase, ChevronsLeft, Search, Plus,
@@ -206,9 +206,9 @@ export function HeroDemo() {
               </div>
               <div ref={viewportRef} className="no-scrollbars relative min-h-0 flex-1 overflow-hidden">
                 <AnimatePresence mode="wait">
-                  <motion.div key={phase} className="h-full" initial={reduced ? false : { opacity: 0, y: 12, scale: 0.992 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={reduced ? { opacity: 0 } : { opacity: 0, y: -10, scale: 0.992 }} transition={{ duration: reduced ? 0 : 0.42, ease: [0.22, 0.61, 0.36, 1] }}>
+                  <m.div key={phase} className="h-full" initial={reduced ? false : { opacity: 0, y: 12, scale: 0.992 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={reduced ? { opacity: 0 } : { opacity: 0, y: -10, scale: 0.992 }} transition={{ duration: reduced ? 0 : 0.42, ease: [0.22, 0.61, 0.36, 1] }}>
                     <PhaseEl />
-                  </motion.div>
+                  </m.div>
                 </AnimatePresence>
                 {/* (depth-of-field overlay AND camera push-in removed — both
                     bleed past the frame clip on weak GPUs: blur composites
@@ -225,16 +225,16 @@ export function HeroDemo() {
 
         {/* multiplayer-style agent pointer (transform only — GPU-safe) */}
         {cursor && !reduced && (
-          <motion.div className="pointer-events-none absolute left-0 top-0 z-30 hidden sm:block"
+          <m.div className="pointer-events-none absolute left-0 top-0 z-30 hidden sm:block"
             initial={false} animate={{ x: cursor.x, y: cursor.y }} transition={{ type: "spring", stiffness: 130, damping: 16, mass: 0.7 }}>
             {clicking && (
-              <motion.span className="absolute -left-2 -top-2 block h-8 w-8 rounded-full" style={{ border: `2px solid ${T.accent}` }}
+              <m.span className="absolute -left-2 -top-2 block h-8 w-8 rounded-full" style={{ border: `2px solid ${T.accent}` }}
                 initial={{ scale: 0.2, opacity: 0.7 }} animate={{ scale: 1.5, opacity: 0 }} transition={{ duration: 0.5, ease: "easeOut" }} />
             )}
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
               <path d="M5.5 3.5L5.5 19.5L10 15.3L12.7 21L15.2 19.9L12.5 14.5L18 14.5Z" fill={T.accent} stroke="#fff" strokeWidth="1.6" strokeLinejoin="round" />
             </svg>
-          </motion.div>
+          </m.div>
         )}
       </div>
     </div>

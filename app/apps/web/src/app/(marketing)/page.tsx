@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { motion, useReducedMotion, useInView } from "framer-motion";
+import { m, useReducedMotion, useInView } from "framer-motion";
 import {
   ChevronDown,
   ArrowRight,
@@ -68,7 +68,7 @@ function Section({
 }) {
   const { ref, live, reduced } = useReveal();
   return (
-    <motion.section
+    <m.section
       ref={ref as React.Ref<HTMLElement>}
       id={id}
       className={className}
@@ -79,7 +79,7 @@ function Section({
       }}
     >
       {children}
-    </motion.section>
+    </m.section>
   );
 }
 
@@ -92,13 +92,13 @@ function Animate({
 }) {
   const reduced = useReducedMotion();
   return (
-    <motion.div
+    <m.div
       className={className}
       variants={fadeInUp}
       transition={{ duration: reduced ? 0 : 0.45, ease: [0.22, 0.61, 0.36, 1] }}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -192,7 +192,7 @@ function FAQItem({ q, a }: { q: string; a: string }) {
       </button>
       {/* Real height animation (not a max-h guess): the panel glides open to
           its true size. Kept mounted so aria-controls always resolves. */}
-      <motion.div
+      <m.div
         id={panelId}
         role="region"
         aria-labelledby={buttonId}
@@ -203,7 +203,7 @@ function FAQItem({ q, a }: { q: string; a: string }) {
         style={{ overflow: "hidden" }}
       >
         <p className="pb-5 text-[15px] leading-relaxed text-gray-600">{a}</p>
-      </motion.div>
+      </m.div>
     </div>
   );
 }
@@ -399,7 +399,7 @@ export default function LandingPage() {
               Every claim is true today: see the FAQ (encryption, OAuth,
               revoke) and the human-in-the-loop principle. Each chip settles
               in on its own small stagger (opacity + y, GPU-safe). */}
-          <motion.div
+          <m.div
             className="mt-9 flex flex-wrap items-center justify-center gap-x-6 gap-y-2.5"
             variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
           >
@@ -409,16 +409,16 @@ export default function LandingPage() {
               { icon: RotateCcw, t: "Revoke access anytime" },
               { icon: UserCheck, t: "Nothing sends without you" },
             ].map((c) => { const Icon = c.icon; return (
-              <motion.span
+              <m.span
                 key={c.t}
                 variants={{ hidden: { opacity: 0, y: 6 }, visible: { opacity: 1, y: 0 } }}
                 transition={{ duration: 0.35, ease: [0.22, 0.61, 0.36, 1] }}
                 className="inline-flex items-center gap-1.5 text-[12px] text-gray-500"
               >
                 <Icon size={13} className="text-gray-400" /> {c.t}
-              </motion.span>
+              </m.span>
             ); })}
-          </motion.div>
+          </m.div>
         </div>
       </Section>
 
@@ -435,7 +435,7 @@ export default function LandingPage() {
             <div className="relative mt-8 flex items-baseline gap-4 pl-5">
               {/* The accent rule draws itself in (scaleY, top origin) as the
                   number counts up — the stat lands instead of sitting there. */}
-              <motion.span
+              <m.span
                 aria-hidden
                 className="absolute bottom-0 left-0 top-0 w-[2px] rounded-full"
                 style={{ background: "#2C6BED", transformOrigin: "top" }}
@@ -530,7 +530,7 @@ export default function LandingPage() {
               <Animate key={card.kind} className="h-full">
                 {/* Hover lift is a transform (translateY) — composited, cheap,
                     and it stays inside normal flow. */}
-                <motion.div
+                <m.div
                   whileHover={{ y: -5 }}
                   transition={{ type: "spring", stiffness: 320, damping: 24 }}
                   className="flex h-full flex-col rounded-xl border border-gray-200 bg-white p-8 transition-shadow duration-200 hover:shadow-[0_8px_24px_rgba(0,0,0,0.07)]"
@@ -541,7 +541,7 @@ export default function LandingPage() {
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">{card.kind}</p>
                   <h3 className="mt-2 text-base font-semibold text-gray-900">{card.headline}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-gray-600">{card.body}</p>
-                </motion.div>
+                </m.div>
               </Animate>
             ))}
           </div>
@@ -573,13 +573,13 @@ export default function LandingPage() {
       <Section className="pt-32">
         <div className="mx-auto max-w-3xl px-6">
           <Animate><h2 className="text-3xl font-bold tracking-tight text-gray-900">Questions</h2></Animate>
-          <motion.div className="mt-8" variants={{ visible: { transition: { staggerChildren: 0.05 } } }}>
+          <m.div className="mt-8" variants={{ visible: { transition: { staggerChildren: 0.05 } } }}>
             {faqs.map((faq) => (
               <Animate key={faq.q}>
                 <FAQItem q={faq.q} a={faq.a} />
               </Animate>
             ))}
-          </motion.div>
+          </m.div>
         </div>
       </Section>
 

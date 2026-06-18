@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useInView, useReducedMotion } from "framer-motion";
+import { m, useInView, useReducedMotion } from "framer-motion";
 import { Video, Radio, Check, Sparkles, ListChecks, TrendingUp } from "lucide-react";
 import { AppFrame, ScaleToFit, Avatar } from "./product-mockups";
 
@@ -79,13 +79,13 @@ export function MeetingsDemo() {
                     <div className="text-[10px]" style={{ color: T.ter }}>Zoom · 2 participants</div>
                   </div>
                 </div>
-                <motion.div
+                <m.div
                   className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold"
                   style={{ background: recording ? "rgba(209,75,67,0.10)" : T.soft, color: recording ? RED : T.ter }}
                   initial={false}
                 >
                   {recording ? <><Radio size={11} className={reduced ? "" : "animate-pulse"} /> Recording</> : <>Notetaker joining…</>}
-                </motion.div>
+                </m.div>
               </div>
 
               {/* transcript card: messages flow at the top, a live summary is
@@ -93,7 +93,7 @@ export function MeetingsDemo() {
               <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border" style={{ borderColor: T.border, background: T.card }}>
                 <div className="min-h-0 flex-1 space-y-2.5 overflow-hidden p-4">
                   {CHUNKS.slice(0, chunksShown).map((c, i) => (
-                    <motion.div
+                    <m.div
                       key={i}
                       initial={reduced ? false : { opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -105,7 +105,7 @@ export function MeetingsDemo() {
                         <div className="text-[9.5px] font-semibold" style={{ color: c.who === "you" ? T.accent : T.sec }}>{c.name}</div>
                         <div className="text-[11.5px] leading-snug" style={{ color: T.text }}>{c.text}</div>
                       </div>
-                    </motion.div>
+                    </m.div>
                   ))}
                   {recording && chunksShown < CHUNKS.length && !reduced && (
                     <div className="flex gap-1 pl-7 pt-1">
@@ -115,7 +115,7 @@ export function MeetingsDemo() {
                     </div>
                   )}
                 </div>
-                <motion.div
+                <m.div
                   initial={reduced ? false : { opacity: 0 }}
                   animate={{ opacity: showSummary ? 1 : 0 }}
                   transition={{ duration: 0.4 }}
@@ -127,7 +127,7 @@ export function MeetingsDemo() {
                     <div className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}>Live summary</div>
                     <div className="text-[11px] leading-snug" style={{ color: T.text }}>{SUMMARY}</div>
                   </div>
-                </motion.div>
+                </m.div>
               </div>
             </div>
 
@@ -142,7 +142,7 @@ export function MeetingsDemo() {
                 <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}><ListChecks size={12} /> Action items</div>
                 <div className="space-y-1.5">
                   {ACTIONS.map((a, i) => (
-                    <motion.div
+                    <m.div
                       key={i}
                       initial={reduced ? false : { opacity: 0, x: 8 }}
                       animate={showActions ? { opacity: 1, x: 0 } : { opacity: 0 }}
@@ -152,7 +152,7 @@ export function MeetingsDemo() {
                     >
                       <span className="mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border" style={{ borderColor: T.ter }} />
                       {a}
-                    </motion.div>
+                    </m.div>
                   ))}
                 </div>
               </div>
@@ -161,7 +161,7 @@ export function MeetingsDemo() {
                 <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.ter }}><TrendingUp size={12} /> Buying signals</div>
                 <div className="flex flex-wrap gap-1.5">
                   {SIGNALS.map((s, i) => (
-                    <motion.span
+                    <m.span
                       key={i}
                       initial={reduced ? false : { opacity: 0, scale: 0.9 }}
                       animate={showSignals ? { opacity: 1, scale: 1 } : { opacity: 0 }}
@@ -170,13 +170,13 @@ export function MeetingsDemo() {
                       style={{ background: s.tone === GREEN ? GREEN_SOFT : T.accentSoft, color: s.tone }}
                     >
                       {s.label}
-                    </motion.span>
+                    </m.span>
                   ))}
                 </div>
               </div>
 
               {/* pinned to the bottom — the whole capture lands in the CRM, no typing */}
-              <motion.div
+              <m.div
                 initial={reduced ? false : { opacity: 0, y: 6 }}
                 animate={showSync ? { opacity: 1, y: 0 } : { opacity: 0 }}
                 transition={{ duration: 0.4 }}
@@ -185,7 +185,7 @@ export function MeetingsDemo() {
               >
                 <Check size={14} style={{ color: GREEN }} />
                 Logged to your CRM · no manual entry
-              </motion.div>
+              </m.div>
             </div>
           </div>
         </AppFrame>

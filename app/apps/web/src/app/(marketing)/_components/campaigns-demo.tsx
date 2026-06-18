@@ -13,7 +13,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useInView, useReducedMotion } from "framer-motion";
+import { m, useInView, useReducedMotion } from "framer-motion";
 import { Sparkles, Mail, MessageSquare, Clock, ShieldCheck, Check } from "lucide-react";
 import { AppFrame, ScaleToFit, Logo, clogo } from "./product-mockups";
 
@@ -99,7 +99,7 @@ export function CampaignsDemo() {
                 {STEPS.map((s, i) => {
                   const Icon = s.icon;
                   return (
-                    <motion.div
+                    <m.div
                       key={i}
                       initial={reduced ? false : { opacity: 0, y: 8 }}
                       animate={stepVisible(i) ? { opacity: 1, y: 0 } : { opacity: 0.25, y: 0 }}
@@ -116,7 +116,7 @@ export function CampaignsDemo() {
                           <Clock size={8} /> {s.day}
                         </div>
                       </div>
-                    </motion.div>
+                    </m.div>
                   );
                 })}
               </div>
@@ -145,7 +145,7 @@ export function CampaignsDemo() {
                   <ShieldCheck size={15} style={{ color: approved ? GREEN : T.ter }} />
                   Nothing leaves your domain until you approve.
                 </div>
-                <motion.span
+                <m.span
                   className="inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-[12px] font-semibold text-white"
                   style={{ background: approved ? GREEN : T.accent }}
                   initial={false}
@@ -153,7 +153,7 @@ export function CampaignsDemo() {
                   transition={{ duration: 0.5, ease: "easeOut" }}
                 >
                   {approved ? <><Check size={13} /> Approved</> : "Approve & launch"}
-                </motion.span>
+                </m.span>
               </div>
             </div>
           </div>

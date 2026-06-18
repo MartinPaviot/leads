@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useInView, useReducedMotion } from "framer-motion";
+import { m, useInView, useReducedMotion } from "framer-motion";
 import { Sparkles, Check, Banknote, CalendarClock, ArrowRight } from "lucide-react";
 import { AppFrame, ScaleToFit, Logo, Avatar, clogo } from "./product-mockups";
 
@@ -62,7 +62,7 @@ export function OpportunitiesDemo() {
               {showNext ? "Updated from your call with Mercury" : "Updating from your last call…"}
             </div>
 
-            <motion.div
+            <m.div
               className="mt-3 flex-1 rounded-2xl border p-5"
               style={{ borderColor: T.border, background: T.card }}
               initial={reduced ? false : { opacity: 0, y: 12 }}
@@ -87,7 +87,7 @@ export function OpportunitiesDemo() {
                   const passed = i < activeStage;
                   return (
                     <div key={st} className="flex flex-1 items-center gap-1.5">
-                      <motion.div
+                      <m.div
                         className="flex-1 rounded-full py-1.5 text-center text-[10px] font-semibold"
                         animate={{
                           background: active ? T.accent : passed ? GREEN_SOFT : T.soft,
@@ -96,20 +96,20 @@ export function OpportunitiesDemo() {
                         transition={{ duration: 0.5 }}
                       >
                         {st}
-                      </motion.div>
+                      </m.div>
                     </div>
                   );
                 })}
               </div>
               {advanced && (
-                <motion.div
+                <m.div
                   initial={reduced ? false : { opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="mt-1.5 flex items-center justify-center gap-1 text-[9.5px] font-medium"
                   style={{ color: T.accent }}
                 >
                   <ArrowRight size={10} /> advanced to {STAGES[TO_STAGE]} · suggested by Elevay
-                </motion.div>
+                </m.div>
               )}
 
               {/* populated fields */}
@@ -117,7 +117,7 @@ export function OpportunitiesDemo() {
                 {FIELDS.map((f, i) => {
                   const Icon = f.icon;
                   return (
-                    <motion.div
+                    <m.div
                       key={f.label}
                       initial={reduced ? false : { opacity: 0, y: 8 }}
                       animate={showFields ? { opacity: 1, y: 0 } : { opacity: 0 }}
@@ -129,13 +129,13 @@ export function OpportunitiesDemo() {
                         <Icon size={11} /> {f.label}
                       </div>
                       <div className="mt-1 text-[14px] font-bold" style={{ color: T.text }}>{f.value}</div>
-                    </motion.div>
+                    </m.div>
                   );
                 })}
               </div>
 
               {/* next step */}
-              <motion.div
+              <m.div
                 initial={reduced ? false : { opacity: 0, y: 8 }}
                 animate={showNext ? { opacity: 1, y: 0 } : { opacity: 0 }}
                 transition={{ duration: 0.35 }}
@@ -144,8 +144,8 @@ export function OpportunitiesDemo() {
               >
                 <span className="text-[9.5px] font-semibold uppercase tracking-wider" style={{ color: GREEN }}>Next</span>
                 Book the technical review · CRM-sync confirmed
-              </motion.div>
-            </motion.div>
+              </m.div>
+            </m.div>
           </div>
         </AppFrame>
       </ScaleToFit>

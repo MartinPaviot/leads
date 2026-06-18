@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useInView, useReducedMotion } from "framer-motion";
+import { m, useInView, useReducedMotion } from "framer-motion";
 import { Search, Check, Target } from "lucide-react";
 import { AppFrame, ScaleToFit, Logo, clogo } from "./product-mockups";
 
@@ -85,7 +85,7 @@ export function AccountsDemo() {
               {ACCOUNTS.map((a, i) => {
                 const tone = scoreTone(a.score);
                 return (
-                  <motion.div
+                  <m.div
                     key={a.dom}
                     initial={reduced ? false : { opacity: 0, y: 10 }}
                     animate={i < shown ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
@@ -99,7 +99,7 @@ export function AccountsDemo() {
                       <div className="text-[10.5px]" style={{ color: T.ter }}>{a.ind}</div>
                     </div>
                     <span className="rounded-md px-2 py-1 text-[11px] font-bold tabular-nums" style={{ background: tone.bg, color: tone.fg }}>{a.score}</span>
-                  </motion.div>
+                  </m.div>
                 );
               })}
             </div>

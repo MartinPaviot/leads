@@ -19,7 +19,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence, useInView, useReducedMotion } from "framer-motion";
+import { m, AnimatePresence, useInView, useReducedMotion } from "framer-motion";
 import {
   Phone, PhoneOff, Mic, Clock, Building2, Users, CircleDot, Inbox, Zap,
   Calendar, Briefcase, Check, Sparkles, Radio, Banknote, Target,
@@ -76,7 +76,7 @@ function FunnelCell({ label, value, sub, bar, divider }: { label: string; value:
       {bar != null && (
         <div className="mt-0.5 h-0.5 w-full overflow-hidden rounded-full" style={{ background: T.soft }}>
           {/* scaleX, not width — composited, and it never leaves the track */}
-          <motion.div className="h-full w-full rounded-full" style={{ background: T.accent, transformOrigin: "left" }} animate={{ scaleX: bar }} transition={{ duration: 0.6, ease: "easeOut" }} />
+          <m.div className="h-full w-full rounded-full" style={{ background: T.accent, transformOrigin: "left" }} animate={{ scaleX: bar }} transition={{ duration: 0.6, ease: "easeOut" }} />
         </div>
       )}
     </div>
@@ -261,25 +261,25 @@ export function CallModeDemo() {
                         <div className="flex shrink-0 items-center gap-2">
                           <AnimatePresence mode="wait" initial={false}>
                             {stage === "prep" && (
-                              <motion.span key="call" data-act="dial" exit={reduced ? undefined : { opacity: 0, scale: 0.96 }} className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-[11px] font-semibold text-white" style={{ background: BRAND }}>
+                              <m.span key="call" data-act="dial" exit={reduced ? undefined : { opacity: 0, scale: 0.96 }} className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-[11px] font-semibold text-white" style={{ background: BRAND }}>
                                 <Phone size={11} /> Call
-                              </motion.span>
+                              </m.span>
                             )}
                             {stage === "dialing" && (
-                              <motion.span key="dialing" initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2 text-[10.5px]" style={{ color: T.sec }}>
+                              <m.span key="dialing" initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2 text-[10.5px]" style={{ color: T.sec }}>
                                 Dialing +1 (415) 555-0183…
                                 <span className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium" style={{ borderColor: T.border, color: T.sec }}><PhoneOff size={10} /> Cancel</span>
-                              </motion.span>
+                              </m.span>
                             )}
                             {stage === "live" && (
-                              <motion.span key="live" initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
+                              <m.span key="live" initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
                                 <span className="font-mono text-[11px] tabular-nums" style={{ color: C.red }}>{mm}:{ss}</span>
                                 <span className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium" style={{ borderColor: T.border, color: T.sec }}><Mic size={10} /> Mute</span>
                                 <span className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold text-white" style={{ background: C.red }}><PhoneOff size={10} /> End call</span>
-                              </motion.span>
+                              </m.span>
                             )}
                             {(stage === "wrap" || stage === "logged") && (
-                              <motion.span key="ended" initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} className="text-[10.5px]" style={{ color: T.ter }}>Call ended · 00:34</motion.span>
+                              <m.span key="ended" initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} className="text-[10.5px]" style={{ color: T.ter }}>Call ended · 00:34</m.span>
                             )}
                           </AnimatePresence>
                         </div>
@@ -324,7 +324,7 @@ export function CallModeDemo() {
                             {stage === "live" ? (
                               <>
                                 <span className="relative flex h-1.5 w-1.5">
-                                  <motion.span className="absolute inline-flex h-full w-full rounded-full" style={{ background: C.red }} animate={reduced ? undefined : { opacity: [0.7, 0, 0.7], scale: [1, 2.2, 1] }} transition={{ duration: 1.4, repeat: Infinity, ease: "easeOut" }} />
+                                  <m.span className="absolute inline-flex h-full w-full rounded-full" style={{ background: C.red }} animate={reduced ? undefined : { opacity: [0.7, 0, 0.7], scale: [1, 2.2, 1] }} transition={{ duration: 1.4, repeat: Infinity, ease: "easeOut" }} />
                                   <span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: C.red }} />
                                 </span>
                                 <span className="font-medium" style={{ color: C.red }}>Live</span>
@@ -343,14 +343,14 @@ export function CallModeDemo() {
                           {CHUNKS.slice(0, chunkCount).map((c, i) => {
                             const agent = c.who === "agent";
                             return (
-                              <motion.div key={i} initial={reduced ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 300, damping: 24 }} className={`flex ${agent ? "justify-end" : "justify-start"}`}>
+                              <m.div key={i} initial={reduced ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 300, damping: 24 }} className={`flex ${agent ? "justify-end" : "justify-start"}`}>
                                 <div className={`flex max-w-[78%] flex-col ${agent ? "items-end" : "items-start"}`}>
                                   <span className="mb-px text-[7.5px] uppercase tracking-wide" style={{ color: agent ? "#6366F1" : T.ter }}>{agent ? "You" : "Prospect"} <span style={{ color: T.border }}>{c.ts}</span></span>
                                   <div className={`px-2.5 py-1.5 text-[10px] leading-snug ${agent ? "rounded-lg rounded-br-sm text-white" : "rounded-lg rounded-bl-sm"}`} style={agent ? { background: "#4F46E5" } : { background: T.soft, color: T.text }}>
                                     {c.text}
                                   </div>
                                 </div>
-                              </motion.div>
+                              </m.div>
                             );
                           })}
                           {stage === "live" && chunkCount === 0 && (
@@ -360,12 +360,12 @@ export function CallModeDemo() {
                         {/* Post-call: what the autopilot just captured + execution read */}
                         <AnimatePresence>
                           {logged && (
-                            <motion.div initial={reduced ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="shrink-0 border-t px-4 py-2" style={{ borderColor: T.border, background: T.card }}>
+                            <m.div initial={reduced ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="shrink-0 border-t px-4 py-2" style={{ borderColor: T.border, background: T.card }}>
                               <div className="flex items-center gap-1.5 text-[10px] font-medium" style={{ color: C.green }}>
                                 <Check size={11} /> Meeting booked · captured: deal created, 2 tasks
                               </div>
                               <div className="mt-0.5 text-[8.5px]" style={{ color: T.ter }}>Execution — you spoke 54% (target ~55%) · next: Dana Liu, Mercury</div>
-                            </motion.div>
+                            </m.div>
                           )}
                         </AnimatePresence>
                       </div>
@@ -373,8 +373,8 @@ export function CallModeDemo() {
                       {/* One-tap disposition — the real ended-state modal */}
                       <AnimatePresence>
                         {stage === "wrap" && (
-                          <motion.div key="dispo" initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 flex items-center justify-center" style={{ background: "rgba(26,26,46,0.28)" }}>
-                            <motion.div initial={reduced ? false : { opacity: 0, y: 14, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 280, damping: 22 }} className="w-[280px] rounded-xl border bg-white p-3.5" style={{ borderColor: T.border, boxShadow: "0 12px 32px rgba(26,26,46,0.18)" }}>
+                          <m.div key="dispo" initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 flex items-center justify-center" style={{ background: "rgba(26,26,46,0.28)" }}>
+                            <m.div initial={reduced ? false : { opacity: 0, y: 14, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 280, damping: 22 }} className="w-[280px] rounded-xl border bg-white p-3.5" style={{ borderColor: T.border, boxShadow: "0 12px 32px rgba(26,26,46,0.18)" }}>
                               <div className="text-[11.5px] font-semibold" style={{ color: T.text }}>How did it go with Alex?</div>
                               <div className="mt-0.5 text-[9px]" style={{ color: T.ter }}>Logs the outcome, updates the cadence and the CRM.</div>
                               <div className="mt-2.5 flex flex-wrap gap-1.5">
@@ -384,8 +384,8 @@ export function CallModeDemo() {
                                 ))}
                               </div>
                               <div className="mt-2 flex items-center gap-1 text-[8.5px]" style={{ color: T.ter }}><Sparkles size={8} /> Suggested from the transcript</div>
-                            </motion.div>
-                          </motion.div>
+                            </m.div>
+                          </m.div>
                         )}
                       </AnimatePresence>
                     </div>
@@ -425,14 +425,14 @@ export function CallModeDemo() {
 
         {/* Agent pointer (transform only — GPU-safe), same dialect as the hero */}
         {cursor && !reduced && (
-          <motion.div className="pointer-events-none absolute left-0 top-0 z-30 hidden sm:block" initial={false} animate={{ x: cursor.x, y: cursor.y }} transition={{ type: "spring", stiffness: 130, damping: 16, mass: 0.7 }}>
+          <m.div className="pointer-events-none absolute left-0 top-0 z-30 hidden sm:block" initial={false} animate={{ x: cursor.x, y: cursor.y }} transition={{ type: "spring", stiffness: 130, damping: 16, mass: 0.7 }}>
             {clicking && (
-              <motion.span className="absolute -left-2 -top-2 block h-8 w-8 rounded-full" style={{ border: `2px solid ${T.accent}` }} initial={{ scale: 0.2, opacity: 0.7 }} animate={{ scale: 1.5, opacity: 0 }} transition={{ duration: 0.5, ease: "easeOut" }} />
+              <m.span className="absolute -left-2 -top-2 block h-8 w-8 rounded-full" style={{ border: `2px solid ${T.accent}` }} initial={{ scale: 0.2, opacity: 0.7 }} animate={{ scale: 1.5, opacity: 0 }} transition={{ duration: 0.5, ease: "easeOut" }} />
             )}
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
               <path d="M5.5 3.5L5.5 19.5L10 15.3L12.7 21L15.2 19.9L12.5 14.5L18 14.5Z" fill={T.accent} stroke="#fff" strokeWidth="1.6" strokeLinejoin="round" />
             </svg>
-          </motion.div>
+          </m.div>
         )}
       </div>
     </div>
