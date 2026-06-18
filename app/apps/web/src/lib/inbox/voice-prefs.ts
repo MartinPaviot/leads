@@ -51,7 +51,7 @@ export function normalizeTone(v: unknown): VoiceTone {
 
 export function clampVoice(prefs: Partial<VoicePrefs>): VoicePrefs {
   const tone = normalizeTone(prefs.tone);
-  const custom = (prefs.customGuidance || "").trim().slice(0, 300);
+  const custom = (typeof prefs.customGuidance === "string" ? prefs.customGuidance : "").trim().slice(0, 300);
   return custom ? { tone, customGuidance: custom } : { tone };
 }
 

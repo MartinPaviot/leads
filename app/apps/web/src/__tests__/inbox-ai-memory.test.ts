@@ -76,4 +76,15 @@ describe("ai-memory (INBOX-O02)", () => {
     expect(c.aboutMe.signOffName).toBe("Martin"); // trimmed
     expect(c.aboutMe.keyColleagues).toEqual(["Anna"]); // blanks dropped
   });
+
+  it("survives hostile non-string / non-array memory without crashing", () => {
+    const hostile = {
+      standingInstructions: [{ id: 1, text: 42 }, "nope"],
+      aboutMe: { signOffName: 99, keyColleagues: "notarray", companyLine: {} },
+    } as unknown as InboxMemory;
+    const c = clampMemory(hostile);
+    expect(c.standingInstructions).toEqual([]); // numeric/object text -> "" -> dropped
+    expect(c.aboutMe.signOffName).toBeUndefined();
+    expect(c.aboutMe.keyColleagues).toEqual([]);
+  });
 });

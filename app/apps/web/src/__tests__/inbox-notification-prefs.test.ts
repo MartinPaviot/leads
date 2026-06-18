@@ -57,4 +57,11 @@ describe("notification-prefs (INBOX-N01/N02/N03)", () => {
     expect(c.dndEnd).toBeNull();
     expect(c.events).toEqual({ important_inbound: false }); // unknown dropped
   });
+
+  it("survives hostile non-string DND values without crashing", () => {
+    const c = clampPrefs({ dndStart: 1430 as unknown as string, dndEnd: {} as unknown as string });
+    expect(c.dndStart).toBeNull();
+    expect(c.dndEnd).toBeNull();
+    expect(isInDnd(600, 1430 as unknown as string, "07:00")).toBe(false);
+  });
 });

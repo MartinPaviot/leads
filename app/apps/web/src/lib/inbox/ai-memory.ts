@@ -52,19 +52,21 @@ export function isAutoSendInstruction(text: string): boolean {
 
 /** Enforce caps + drop blanks at save time (pure). */
 export function clampMemory(memory: InboxMemory): InboxMemory {
-  const standingInstructions = (memory.standingInstructions || [])
+  const str = (v: unknown): string => (typeof v === "string" ? v : "");
+  const rawInstructions = Array.isArray(memory?.standingInstructions) ? memory.standingInstructions : [];
+  const standingInstructions = rawInstructions
     .map((s) => ({
       id: String(s?.id || "").trim(),
-      text: (s?.text || "").trim().slice(0, MAX_INSTRUCTION_LEN),
+      text: str(s?.text).trim().slice(0, MAX_INSTRUCTION_LEN),
     }))
     .filter((s) => s.text.length > 0)
     .slice(0, MAX_INSTRUCTIONS);
-  const a = memory.aboutMe || {};
+  const a = (memory?.aboutMe && typeof memory.aboutMe === "object" ? memory.aboutMe : {}) as AboutMe;
   const aboutMe: AboutMe = {
-    signOffName: (a.signOffName || "").trim().slice(0, 80) || undefined,
-    companyLine: (a.companyLine || "").trim().slice(0, 200) || undefined,
-    keyColleagues: (a.keyColleagues || []).map((c) => (c || "").trim()).filter(Boolean).slice(0, 20),
-    defaultCc: (a.defaultCc || []).map((c) => (c || "").trim()).filter(Boolean).slice(0, 20),
+    signOffName: str(a.signOffName).trim().slice(0, 80) || undefined,
+    companyLine: str(a.companyLine).trim().slice(0, 200) || undefined,
+    keyColleagues: (Array.isArray(a.keyColleagues) ? a.keyColleagues : []).map((c) => str(c).trim()).filter(Boolean).slice(0, 20),
+    defaultCc: (Array.isArray(a.defaultCc) ? a.defaultCc : []).map((c) => str(c).trim()).filter(Boolean).slice(0, 20),
   };
   return { standingInstructions, aboutMe };
 }

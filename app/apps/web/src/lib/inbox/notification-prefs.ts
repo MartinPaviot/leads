@@ -52,7 +52,7 @@ const KEY = "notifications";
 const DIGESTS: DigestMode[] = ["off", "morning", "morning_evening"];
 
 function parseHM(s: string | null | undefined): number | null {
-  if (!s) return null;
+  if (typeof s !== "string" || !s) return null;
   const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
   if (!m) return null;
   const h = Number(m[1]);

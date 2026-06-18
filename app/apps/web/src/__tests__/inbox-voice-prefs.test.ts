@@ -35,4 +35,9 @@ describe("voice-prefs (INBOX-O03)", () => {
     expect(clampVoice({ tone: "warm", customGuidance: "   " })).toEqual({ tone: "warm" });
     expect(clampVoice({ tone: "formal", customGuidance: "x".repeat(400) }).customGuidance?.length).toBe(300);
   });
+
+  it("survives hostile non-string custom guidance without crashing", () => {
+    expect(clampVoice({ tone: "warm", customGuidance: 123 as unknown as string })).toEqual({ tone: "warm" });
+    expect(clampVoice({ tone: "warm", customGuidance: {} as unknown as string })).toEqual({ tone: "warm" });
+  });
 });
