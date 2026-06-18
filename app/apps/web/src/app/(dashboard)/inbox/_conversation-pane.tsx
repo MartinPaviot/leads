@@ -34,6 +34,7 @@ import { MeetingSchedulerCard } from "@/components/meeting-scheduler";
 import { timeAgo } from "./_time-ago";
 import { reasonTooltip, type ConversationDetail, type InboxLane } from "./_types";
 import { EmailBody } from "./_email-body";
+import { EventCard } from "./_event-card";
 import { ProspectBriefSection } from "./_prospect-brief";
 import { ThreadSummarySection } from "./_thread-summary";
 import { ThreadAskSection } from "./_thread-ask";
@@ -667,6 +668,7 @@ export function ConversationPane({
               <div className="mt-0.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }} dir={dirOf(decodeDisplay(m.subject))}>{decodeDisplay(m.subject)}</div>
             )}
             <div className="mt-1.5">
+              <EventCard ics={m.calendar} />
               <EmailBody html={m.bodyHtml} text={m.body || "(empty message)"} />
             </div>
           </div>

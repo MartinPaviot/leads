@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseIcs } from "@/lib/inbox/parse-ics";
+import { parseIcs, eventStatusLabel, isEventCancelled } from "@/lib/inbox/parse-ics";
 
 const INVITE = [
   "BEGIN:VCALENDAR",
@@ -76,5 +76,15 @@ describe("parseIcs (INBOX-R12/CAL)", () => {
     const ev = parseIcs("BEGIN:VEVENT\r\nDTSTART:garbage\r\nSUMMARY:Broken\r\n")!;
     expect(ev.summary).toBe("Broken");
     expect(ev.start).toBeNull();
+  });
+
+  it("labels the invite from METHOD/STATUS and detects cancellation", () => {
+    expect(eventStatusLabel(parseIcs(INVITE)!)).toBe("Invitation");
+    const cancel = parseIcs("BEGIN:VCALENDAR\r\nMETHOD:CANCEL\r\nBEGIN:VEVENT\r\nSUMMARY:x\r\nDTSTART:20260101T090000Z\r\nEND:VEVENT")!;
+    expect(eventStatusLabel(cancel)).toBe("Cancelled");
+    expect(isEventCancelled(cancel)).toBe(true);
+    expect(isEventCancelled(parseIcs(INVITE)!)).toBe(false);
+    const tentative = parseIcs("BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nSUMMARY:y\r\nDTSTART:20260101T090000Z\r\nSTATUS:TENTATIVE\r\nEND:VEVENT")!;
+    expect(eventStatusLabel(tentative)).toBe("Tentative invitation");
   });
 });

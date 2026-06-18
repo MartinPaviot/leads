@@ -112,3 +112,16 @@ export function parseIcs(raw: string): IcsEvent | null {
   if (!ev.summary && !ev.start) return null;
   return ev;
 }
+
+/** Short human label for the invite card header, from METHOD/STATUS. */
+export function eventStatusLabel(ev: IcsEvent): string {
+  if (ev.method === "CANCEL" || ev.status === "CANCELLED") return "Cancelled";
+  if (ev.method === "REPLY") return "Reply";
+  if (ev.method === "REQUEST") return ev.status === "TENTATIVE" ? "Tentative invitation" : "Invitation";
+  return "Event";
+}
+
+/** Whether this invite has been cancelled (drives the card's struck-through state). */
+export function isEventCancelled(ev: IcsEvent): boolean {
+  return ev.method === "CANCEL" || ev.status === "CANCELLED";
+}

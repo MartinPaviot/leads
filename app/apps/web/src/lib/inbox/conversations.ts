@@ -72,6 +72,9 @@ export interface ConversationMessage {
   /** Sanitized HTML body for fidelity rendering (INBOX-R01). Null ⇒ render `body`
    *  as text. Inbound only today; outbound is composed as text. */
   bodyHtml: string | null;
+  /** Raw .ics of an inbound meeting invite (INBOX-R12/CAL), when present — drives
+   *  the inline event card. Null ⇒ not an invite. */
+  calendar: string | null;
   /** Sender domain-auth verdict (INBOX-R06): "pass" earns a verified badge,
    *  "fail" a caution, "unknown" shows nothing. Outbound is always "unknown". */
   senderVerified: SenderAuthStatus;
@@ -359,6 +362,7 @@ export function buildConversations(input: {
           subject: r.summary ?? String(meta.subject ?? ""),
           body: r.rawContent ?? String(meta.snippet ?? ""),
           bodyHtml: typeof meta.bodyHtml === "string" ? meta.bodyHtml : null,
+          calendar: typeof meta.calendar === "string" ? meta.calendar : null,
           senderVerified:
             (meta.senderAuth as { status?: SenderAuthStatus } | undefined)?.status ?? "unknown",
           at: toIso(r.occurredAt),
@@ -374,6 +378,7 @@ export function buildConversations(input: {
         subject: r.subject,
         body: r.bodyText ?? "",
         bodyHtml: null,
+        calendar: null,
         senderVerified: "unknown" as const,
         at: toIso(r.sentAt),
         status: r.status,

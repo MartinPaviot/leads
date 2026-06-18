@@ -50,6 +50,8 @@ export interface ConversationMessage {
   body: string;
   /** Sanitized HTML body for fidelity rendering (INBOX-R01). Null ⇒ render text. */
   bodyHtml: string | null;
+  /** Raw .ics of an inbound meeting invite (INBOX-R12/CAL) — drives the event card. */
+  calendar: string | null;
   /** Sender domain-auth verdict (INBOX-R06): pass → verified badge, fail → caution. */
   senderVerified: "pass" | "fail" | "unknown";
   at: string | null;
