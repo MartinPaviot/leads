@@ -501,6 +501,28 @@ export function ConversationPane({
           </div>
         )}
 
+        {/* ── Fresh GTM signals (INBOX-G04): the contact's company-level buying
+             signals (hiring / funding / …), past-shelf-life ones already dropped. ── */}
+        {detail.freshSignals && detail.freshSignals.length > 0 && (
+          <div
+            className="mb-3 rounded-lg border p-3"
+            style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
+          >
+            <span className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
+              Fresh signals
+            </span>
+            {detail.freshSignals.map((s, i) => (
+              <div key={`fs-${i}`} className="mt-2 flex items-start gap-2">
+                <Badge variant="success" size="sm">{s.type.replace(/_/g, " ")}</Badge>
+                <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                  {s.title}
+                  {s.description ? ` — ${s.description}` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* ── Prospect brief (INBOX-G01): reuse the Call Mode brief endpoint,
              fetched on demand so opening a thread spends no credit. ── */}
         {detail.contact && <ProspectBriefSection contactId={detail.contact.id} />}

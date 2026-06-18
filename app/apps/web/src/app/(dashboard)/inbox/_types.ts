@@ -85,6 +85,8 @@ export interface ConversationDetail {
   actionItems: Array<{ text: string; due: string | null }>;
   /** High-signal entities mentioned in the thread (INBOX-S05). */
   entities: { amounts: string[]; dates: string[]; phones: string[] };
+  /** Fresh company-level GTM signals — hiring/funding/etc., past-shelf-life dropped (INBOX-G04). */
+  freshSignals?: Array<{ type: string; title: string; description: string }>;
 }
 
 /** Human label for where the badge text came from (INBOX-T08). Undefined = no tooltip. */

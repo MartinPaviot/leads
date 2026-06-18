@@ -1,8 +1,9 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { outboundEmails, sequenceEnrollments, sequences, deals, activities } from "@/db/schema";
+import { outboundEmails, sequenceEnrollments, sequences, deals, activities, contacts, companies } from "@/db/schema";
 import { and, eq, desc, isNull, inArray } from "drizzle-orm";
 import { buildConversations } from "@/lib/inbox/conversations";
+import { selectFreshCompanySignals } from "@/lib/inbox/company-signals";
 import { loadConversationRows, contactNameMap } from "@/lib/inbox/load";
 import { getInboxScope, scopeConversationRows } from "@/lib/inbox/user-scope";
 import { suggestNextAction, deriveSituation } from "@/lib/inbox/next-action";
@@ -144,6 +145,26 @@ export async function GET(req: Request) {
       }
     }
 
+    // Fresh company-level GTM signals (INBOX-G04) — hiring / funding / leadership
+    // change etc. from the contact's company, dropped once past their shelf life
+    // (lib/signals/freshness). Read-only over the existing companies.properties JSONB.
+    let freshSignals: { type: string; title: string; description: string }[] = [];
+    if (contactId) {
+      const [c] = await db
+        .select({ companyId: contacts.companyId })
+        .from(contacts)
+        .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, authCtx.tenantId)))
+        .limit(1);
+      if (c?.companyId) {
+        const [co] = await db
+          .select({ properties: companies.properties })
+          .from(companies)
+          .where(and(eq(companies.id, c.companyId), eq(companies.tenantId, authCtx.tenantId)))
+          .limit(1);
+        freshSignals = selectFreshCompanySignals(co?.properties);
+      }
+    }
+
     // Action items (INBOX-S04) + key entities (INBOX-S05) — deterministic
     // extraction over the thread's inbound text. Pure, fail-soft, no LLM.
     const inboundText = conversation.messages
@@ -168,6 +189,7 @@ export async function GET(req: Request) {
       lastInteraction,
       actionItems,
       entities,
+      freshSignals,
     });
   } catch (error) {
     console.error("Failed to load conversation detail:", error);
