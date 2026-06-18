@@ -26,6 +26,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import {
   logPageActionCall,
   reopenEvent,
+  isValidReversibleSnapshot,
   type ReversibleSnapshot,
 } from "@/lib/chat/tool-call-log";
 import type { UndoDescriptor } from "@/lib/chat/page-actions/types";
@@ -70,9 +71,11 @@ function descriptorToSnapshot(
     };
   }
   if (undo.kind === "server") {
-    // Trust the page's own server snapshot shape (create/update/delete/...).
-    // reverseToolCall validates by type at reversal time.
-    return (undo.snapshot ?? null) as ReversibleSnapshot | null;
+    // CLE-11 FOLLOWUPS #2: structurally validate the page's client-asserted
+    // server snapshot at WRITE time (discriminant + required fields + entity
+    // allowlist) instead of only at reversal. A malformed/forged snapshot is
+    // rejected up front (logged as non-undoable) rather than persisted verbatim.
+    return isValidReversibleSnapshot(undo.snapshot) ? undo.snapshot : null;
   }
   return null;
 }

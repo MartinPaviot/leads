@@ -121,6 +121,75 @@ export type ReversibleSnapshot =
       channel: "email" | "sequence_step" | "meeting_invite";
     };
 
+/** The entities `restoreEntity`/`reinsertEntity` can actually act on (kept in
+ *  sync with their switch). The validator below rejects any snapshot naming an
+ *  entity outside this set, so a forged `entity` can never even be persisted. */
+const REVERSIBLE_ENTITIES: ReadonlySet<string> = new Set<ReversibleEntityLoose>([
+  "contact", "company", "deal", "note", "task",
+  "activity", "sequence", "sequence_step", "comment", "shared_prompt",
+]);
+
+const isStr = (v: unknown): v is string => typeof v === "string" && v.length > 0;
+const isObj = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+const isEntity = (v: unknown): boolean => typeof v === "string" && REVERSIBLE_ENTITIES.has(v);
+
+/**
+ * CLE-11 FOLLOWUPS #2 — structural validation of a client-asserted Mode-A
+ * (`undo.kind:"server"`) snapshot BEFORE it is persisted. The reversal path
+ * already forces `tenantId` and only touches allowlisted tables (so a forged
+ * snapshot can't escape the actor's tenant), but previously a malformed snapshot
+ * was stored verbatim and only failed when the user clicked undo. This validates
+ * the discriminant + required fields + entity allowlist at WRITE time, so a
+ * malformed/forged snapshot is rejected up front (the action logs as
+ * non-undoable rather than appearing undoable and failing later). It can only
+ * REJECT — a well-formed snapshot is unchanged.
+ */
+export function isValidReversibleSnapshot(s: unknown): s is ReversibleSnapshot {
+  if (!isObj(s)) return false;
+  switch (s.type) {
+    case "create":
+      return isEntity(s.entity) && isStr(s.id);
+    case "update":
+      return isEntity(s.entity) && isStr(s.id) && isObj(s.before);
+    case "delete":
+      return isEntity(s.entity) && isObj(s.before);
+    case "bulk_update":
+      return (
+        isEntity(s.entity) &&
+        Array.isArray(s.rows) &&
+        s.rows.every((r) => isObj(r) && isStr(r.id) && isObj(r.before))
+      );
+    case "merge_contacts":
+      return (
+        isStr(s.survivorId) &&
+        Array.isArray(s.mergedRows) &&
+        isObj(s.repoints) &&
+        Array.isArray((s.repoints as Record<string, unknown>).activities) &&
+        Array.isArray((s.repoints as Record<string, unknown>).deals) &&
+        Array.isArray((s.repoints as Record<string, unknown>).sequenceEnrollments) &&
+        Array.isArray((s.repoints as Record<string, unknown>).tasks)
+      );
+    case "delete_sequence_step":
+      return isStr(s.sequenceId) && Array.isArray(s.stepsBefore);
+    case "page_action":
+      return (
+        isStr(s.actionId) &&
+        isObj(s.inverse) &&
+        isStr((s.inverse as Record<string, unknown>).actionId) &&
+        isObj((s.inverse as Record<string, unknown>).params)
+      );
+    case "outbound_send":
+      return (
+        isStr(s.outboundEmailId) &&
+        isStr(s.holdUntil) &&
+        (s.channel === "email" || s.channel === "sequence_step" || s.channel === "meeting_invite")
+      );
+    default:
+      return false;
+  }
+}
+
 export interface LogToolCallInput {
   tenantId: string;
   userId: string;

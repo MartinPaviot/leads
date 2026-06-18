@@ -3,6 +3,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const getAuthContext = vi.fn();
 const logPageActionCall = vi.fn();
 const reopenEvent = vi.fn();
+// The route consults the validator and nulls the snapshot when it returns false.
+// We control its verdict per-test here; its actual accept/reject LOGIC is locked
+// in reversible-snapshot-validation.test.ts.
+const isValidReversibleSnapshot = vi.fn((_s?: unknown) => true);
 
 vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: () => getAuthContext(),
@@ -10,6 +14,7 @@ vi.mock("@/lib/auth/auth-utils", () => ({
 vi.mock("@/lib/chat/tool-call-log", () => ({
   logPageActionCall: (...a: unknown[]) => logPageActionCall(...a),
   reopenEvent: (...a: unknown[]) => reopenEvent(...a),
+  isValidReversibleSnapshot: (s: unknown) => isValidReversibleSnapshot(s),
 }));
 
 import { POST } from "@/app/api/chat/page-action-log/route";
@@ -28,9 +33,11 @@ beforeEach(() => {
   getAuthContext.mockReset();
   logPageActionCall.mockReset();
   reopenEvent.mockReset();
+  isValidReversibleSnapshot.mockReset();
   getAuthContext.mockResolvedValue(authCtx);
   logPageActionCall.mockResolvedValue("evt-1");
   reopenEvent.mockResolvedValue(true);
+  isValidReversibleSnapshot.mockReturnValue(true);
 });
 
 describe("CLE-11 POST /api/chat/page-action-log", () => {
@@ -70,6 +77,18 @@ describe("CLE-11 POST /api/chat/page-action-log", () => {
     }));
     const arg = logPageActionCall.mock.calls[0][0];
     expect(arg.snapshot).toEqual({ type: "create", entity: "deal", id: "d9" });
+    expect(isValidReversibleSnapshot).toHaveBeenCalledWith({ type: "create", entity: "deal", id: "d9" });
+  });
+
+  it("CLE-11 #2: an INVALID server snapshot is rejected to null (logged, not undoable)", async () => {
+    isValidReversibleSnapshot.mockReturnValue(false);
+    await POST(req({
+      actionId: "deal.create", params: {}, ok: true, mutating: true,
+      undo: { kind: "server", snapshot: { type: "wat", entity: "secrets" } },
+    }));
+    // Still logged (the forward action did happen) but with no persisted snapshot.
+    expect(logPageActionCall).toHaveBeenCalledTimes(1);
+    expect(logPageActionCall.mock.calls[0][0].snapshot).toBeNull();
   });
 
   it("AC-2: a non-mutating (read) result is NOT logged", async () => {

@@ -56,13 +56,24 @@ Each rewired caller re-opens the window-0-vs-window-N regression surface, so do 
 per-caller with a test each. The seam itself is complete; activation is now purely
 the per-caller reroute + its regression test.
 
-## 2. Mode-A (`undo:{kind:"server", snapshot}`) is client-asserted at write time (MEDIUM)
-`POST /api/chat/page-action-log` persists the client-supplied server snapshot
-verbatim. Blast radius is confined: on undo, `reinsertEntity`/`restoreEntity` force
-`tenantId` to the session value and only touch allowlisted entity tables, so a
-forged snapshot cannot escape the actor's own tenant. Acceptable for M2; a future
-hardening could validate the snapshot shape/entity against the recorded action
-server-side before persisting.
+## 2. Mode-A (`undo:{kind:"server", snapshot}`) is client-asserted at write time (MEDIUM) — ✅ RESOLVED 2026-06-18
+`POST /api/chat/page-action-log` previously persisted the client-supplied server
+snapshot verbatim. Blast radius was already confined: on undo,
+`reinsertEntity`/`restoreEntity` force `tenantId` to the session value and only touch
+allowlisted entity tables, so a forged snapshot could not escape the actor's own
+tenant — but a malformed/garbage snapshot was stored and only failed when the user
+clicked undo.
+
+**Resolved:** added `isValidReversibleSnapshot` (in `tool-call-log.ts`, co-located
+with the `ReversibleSnapshot` union + the entity allowlist so it can't drift) and
+wired it into the route's `descriptorToSnapshot` server branch. It validates the
+discriminant + required fields + entity allowlist at WRITE time, so a
+malformed/forged snapshot is rejected up front (the action logs as non-undoable
+rather than being persisted and failing on click). It can only REJECT — a
+well-formed snapshot is persisted unchanged. Tests: a 24-case pure validator suite
+(`reversible-snapshot-validation.test.ts`) + a route-level reject-to-null case.
+Defense-in-depth; the tenant-scoping at reversal time still stands as the primary
+guard.
 
 ## 3. Deploy: migration `0077_outbound_hold.sql` must be applied
 Adds the `held`/`canceled` enum values + `hold_until` column + index. NOT run by the
