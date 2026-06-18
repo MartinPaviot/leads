@@ -45,9 +45,9 @@ export async function POST(req: Request) {
       return Response.json({ error: "No reply-able invitation in this thread" }, { status: 422 });
     }
 
-    // The responder is the mailbox the invite was sent to (the invited address).
-    const responderEmail =
-      conversation.mailboxAddress || invite?.to || conversation.fromAddress;
+    // The responder is the address the invite was sent to (the inbound `to` is
+    // the user's own mailbox — the invited attendee).
+    const responderEmail = invite?.to || "";
     if (!responderEmail) {
       return Response.json({ error: "Couldn't determine your invite address" }, { status: 422 });
     }
