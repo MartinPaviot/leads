@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { ContactCollisionNotice } from "@/components/collision/contact-collision-notice";
 import { parseRecipients } from "@/lib/inbox/template-vars";
-import { REWRITE_PRESETS } from "@/lib/inbox/rewrite";
-import { TRANSLATE_LANGUAGES } from "@/lib/inbox/translate";
+import { REWRITE_PRESETS } from "@/lib/inbox/rewrite-presets";
+import { TRANSLATE_LANGUAGES } from "@/lib/inbox/translate-languages";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

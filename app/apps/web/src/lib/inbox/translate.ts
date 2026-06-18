@@ -11,14 +11,10 @@ export interface TranslateResult {
   text: string;
 }
 
-/** Target languages offered in the composer menu. */
-export const TRANSLATE_LANGUAGES: { code: string; label: string }[] = [
-  { code: "en", label: "English" },
-  { code: "fr", label: "French" },
-  { code: "de", label: "German" },
-  { code: "es", label: "Spanish" },
-  { code: "it", label: "Italian" },
-];
+// Client-safe language list lives in translate-languages.ts so the composer (a
+// client component) can import it without bundling this module's server-only
+// AI/db stack (postgres). Re-exported here for server + test callers.
+export { TRANSLATE_LANGUAGES } from "./translate-languages";
 
 const schema = z.object({ text: z.string() });
 
