@@ -77,6 +77,23 @@ describe("sanitizeEmailHtml (authoritative DOM allowlist)", () => {
     expect(out).not.toContain("onerror");
   });
 
+  it("blocks every data: scheme on an href — no legit data: link in mail (R03)", () => {
+    const out = sanitizeEmailHtml(`<a href="data:image/png;base64,iVBORw0KGgo=">x</a>`);
+    expect(out).not.toContain("data:image/png");
+    expect(out).toContain('href="#"');
+  });
+
+  it("neutralises vbscript:, file: and blob: hrefs (R03)", () => {
+    expect(sanitizeEmailHtml(`<a href="vbscript:msgbox(1)">x</a>`)).not.toContain("vbscript:");
+    expect(sanitizeEmailHtml(`<a href="file:///etc/passwd">x</a>`)).not.toContain("file:");
+    expect(sanitizeEmailHtml(`<a href="blob:https://x.example/abc">x</a>`)).not.toContain("blob:");
+  });
+
+  it("keeps a benign data:image src but blocks a script-bearing data:image/svg src (R03)", () => {
+    expect(sanitizeEmailHtml(`<img src="data:image/png;base64,iVBORw0KGgo=">`)).toContain("data:image/png");
+    expect(sanitizeEmailHtml(`<img src="data:image/svg+xml;base64,PHN2Zz4=">`)).not.toContain("data:image/svg");
+  });
+
   it("returns empty string for empty input", () => {
     expect(sanitizeEmailHtml("")).toBe("");
   });

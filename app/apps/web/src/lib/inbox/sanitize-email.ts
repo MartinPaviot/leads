@@ -55,7 +55,12 @@ const ALLOWED_ATTR = new Set([
   "cellspacing", "border",
 ]);
 
-const UNSAFE_URL = /^\s*(javascript:|vbscript:|data:text\/html|data:application)/i;
+// No data: link has a legitimate use in mail, so every data: (and vbscript:/file:/
+// blob:/about:) href is neutralized (INBOX-R03). For <img src>, inline data:image
+// stays (it is harmless and used for embedded logos) EXCEPT data:image/svg, which
+// can carry script.
+const UNSAFE_HREF = /^\s*(?:javascript:|vbscript:|data:|file:|about:|blob:)/i;
+const UNSAFE_SRC = /^\s*(?:javascript:|vbscript:|data:text\/html|data:application|data:image\/svg)/i;
 /** CSS properties/values that can break out of the email's box or run code. */
 const UNSAFE_CSS = /(position\s*:\s*(fixed|absolute|sticky))|(expression\s*\()|(url\s*\(\s*['"]?\s*(javascript|vbscript):)|(-moz-binding)|(behavior\s*:)/gi;
 
@@ -114,8 +119,11 @@ function walk(node: Node): void {
         if (cleaned) el.setAttribute("style", cleaned);
         else el.removeAttribute("style");
       }
-      if ((name === "href" || name === "src") && UNSAFE_URL.test(attr.value)) {
-        el.setAttribute(name, name === "href" ? "#" : "");
+      if (name === "href" && UNSAFE_HREF.test(attr.value)) {
+        el.setAttribute("href", "#");
+      }
+      if (name === "src" && UNSAFE_SRC.test(attr.value)) {
+        el.setAttribute("src", "");
       }
     }
 
