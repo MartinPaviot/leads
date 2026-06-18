@@ -10,8 +10,15 @@ names). LLM features ARE buildable here via the injectable-generator pattern
 for deterministic unit tests, fail-closed) — that's how S02/S06 shipped.
 Browser/runtime verify is deferred (Playwright down) and called out per item.
 
-Branch: feat/ai-native-inbox-rendering · worktree C:/Users/marti/leads-wt-inbox.
+Branch: feat/ai-native-inbox-rendering · worktree (this machine, ombel)
+C:/Users/ombel/leads-wt-inbox  (marti machine used C:/Users/marti/leads-wt-inbox).
 Ledger = _EXECUTION-LOG.md (append per batch). Update THIS file's checkboxes too.
+AUTH NOTE (RESOLVED 2026-06-18): the ombel machine's GCM `git:https://github.com`
+cred was GitHub user ombelinecarcel-tech (no push access → 403). Fixed with
+`gh auth setup-git` (gh.exe at "C:/Program Files/GitHub CLI") → git now uses the
+gh CLI's MartinPaviot token (repo scope), so pushes work from this worktree/tree.
+Co-author trailer is Claude Opus 4.8 ONLY now (the Rippletide trailer requirement
+was removed from CLAUDE.md in b1a23558).
 
 Legend: [x] shipped · [P] prod-covered (document, don't rebuild) · [~] core
 built, needs wiring · [O] ocean (flag, don't fake) · [ ] to build.
@@ -64,8 +71,14 @@ built, needs wiring · [O] ocean (flag, don't fake) · [ ] to build.
       (flag as interactive if so).
 - [ ] C12 inline grammar/autocorrect — lightweight; may fold into C04.
 - [ ] C10 scheduling-email drafter — reuse CAL availability + sovereign visio.
-- [ ] Q07 Ask-AI scoped to one thread — askThread(thread, question, generate?)
-      → a thread Q&A box; cite messages.
+- [x] Q07 ask-this-thread SHIPPED eb73c0ca (pushed) —
+      ask-thread.ts askThread(messages, question, generate?) → {answer, citations[],
+      answered}, injectable + fail-closed, citations clamped+capped, reuses
+      pickKeyMessages; POST /api/inbox/conversations/ask (owner-scoped via getInboxScope,
+      read-only, stateless); _thread-ask.tsx cited Q&A box in the pane ("via Elevay", no
+      provider name, answered=false → offer wider search). 5 tests, tsc0, inbox 348/348.
+      Deep dock-pinned version (inbox_thread chat surface + CRM-cluster grounding + draft
+      handoff + persisted history) = runtime-verify follow-up, flagged not faked.
 - [ ] Q01/Q02/Q05 semantic + whole-inbox + cross-entity Ask-AI — check if the
       existing Elevay chat already covers (cite it); else heavier (embeddings) →
       flag interactive if it needs new vector infra.
