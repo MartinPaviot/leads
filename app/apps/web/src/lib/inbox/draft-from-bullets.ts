@@ -16,8 +16,8 @@ const schema = z.object({ subject: z.string(), text: z.string() });
 
 export type DraftGenerator = (prompt: string) => Promise<{ subject: string; text: string }>;
 
-export function buildDraftPrompt(bullets: string, context?: string): string {
-  return `Turn these bullet points into a short, professional sales email.${context ? ` Context: ${context}.` : ""}
+export function buildDraftPrompt(bullets: string, context?: string, instructions = ""): string {
+  return `${instructions ? instructions + "\n\n" : ""}Turn these bullet points into a short, professional sales email.${context ? ` Context: ${context}.` : ""}
 Cover every bullet, invent no new facts, offers or commitments, and keep a natural first-person voice. Return a concise subject line and the body.
 
 Bullets:
@@ -49,10 +49,11 @@ export async function draftFromBullets(
   bullets: string,
   context?: string,
   generate: DraftGenerator = defaultGenerate,
+  instructions = "",
 ): Promise<DraftResult> {
   if (!(bullets || "").trim()) return { subject: "", text: "" };
   try {
-    const { subject, text } = await generate(buildDraftPrompt(bullets, context));
+    const { subject, text } = await generate(buildDraftPrompt(bullets, context, instructions));
     return { subject: (subject || "").trim(), text: (text || "").trim() };
   } catch (err) {
     console.warn("inbox draft-from-bullets failed:", err);

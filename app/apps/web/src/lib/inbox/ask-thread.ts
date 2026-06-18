@@ -52,7 +52,7 @@ export type ThreadAnswerGenerator = (prompt: string) => Promise<{
   answered: boolean;
 }>;
 
-export function buildAskThreadPrompt(messages: ThreadMessage[], question: string): string {
+export function buildAskThreadPrompt(messages: ThreadMessage[], question: string, instructions = ""): string {
   const picked = new Set(pickKeyMessages(messages, 8));
   const lines = messages
     .map((m, i) => {
@@ -62,7 +62,7 @@ export function buildAskThreadPrompt(messages: ThreadMessage[], question: string
     })
     .filter(Boolean)
     .join("\n---\n");
-  return `Answer the salesperson's question using ONLY this email thread. Rules:
+  return `${instructions ? instructions + "\n\n" : ""}Answer the salesperson's question using ONLY this email thread. Rules:
 - Ground every claim in the messages; never invent facts, names, dates, or commitments.
 - answer: a direct, concise answer in the salesperson's voice. If the thread does not contain the answer, set answered=false and say you couldn't find it in this thread (do not guess).
 - citations: the [index] numbers of the message(s) your answer draws on (empty when answered=false).
@@ -106,11 +106,12 @@ export async function askThread(
   messages: ThreadMessage[],
   question: string,
   generate: ThreadAnswerGenerator = defaultGenerate,
+  instructions = "",
 ): Promise<ThreadAnswer> {
   const q = (question || "").trim();
   if (messages.length === 0 || !q) return NO_ANSWER;
   try {
-    const a = await generate(buildAskThreadPrompt(messages, q));
+    const a = await generate(buildAskThreadPrompt(messages, q, instructions));
     const answer = (a.answer || "").trim();
     const answered = Boolean(a.answered) && answer.length > 0;
     if (!answered) return { answer: answer || NOT_FOUND, citations: [], answered: false };

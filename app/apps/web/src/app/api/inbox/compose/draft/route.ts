@@ -1,6 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { z } from "zod";
 import { draftFromBullets } from "@/lib/inbox/draft-from-bullets";
+import { getInboxMemory, buildMemoryPrompt } from "@/lib/inbox/ai-memory";
 
 /**
  * POST /api/inbox/compose/draft  { bullets, context? }  (INBOX-C07)
@@ -27,7 +28,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await draftFromBullets(parsed.bullets, parsed.context);
+    const { prompt: instructions } = buildMemoryPrompt(await getInboxMemory(authCtx.userId));
+    const result = await draftFromBullets(parsed.bullets, parsed.context, undefined, instructions);
     return Response.json(result);
   } catch (error) {
     console.error("Failed to draft from bullets:", error);

@@ -3,6 +3,7 @@ import { buildConversations } from "@/lib/inbox/conversations";
 import { loadConversationRows } from "@/lib/inbox/load";
 import { getInboxScope, scopeConversationRows } from "@/lib/inbox/user-scope";
 import { askThread, type ThreadMessage } from "@/lib/inbox/ask-thread";
+import { getInboxMemory, buildMemoryPrompt } from "@/lib/inbox/ai-memory";
 
 /**
  * POST /api/inbox/conversations/ask  { key, question }  (INBOX-Q07)
@@ -42,7 +43,8 @@ export async function POST(req: Request) {
       at: m.at,
     }));
 
-    const result = await askThread(messages, question);
+    const { prompt: instructions } = buildMemoryPrompt(await getInboxMemory(authCtx.userId));
+    const result = await askThread(messages, question, undefined, instructions);
     return Response.json({ result });
   } catch (error) {
     console.error("Failed to answer thread question:", error);
