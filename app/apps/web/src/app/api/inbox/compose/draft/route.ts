@@ -3,6 +3,7 @@ import { z } from "zod";
 import { draftFromBullets } from "@/lib/inbox/draft-from-bullets";
 import { getInboxMemory, buildMemoryPrompt } from "@/lib/inbox/ai-memory";
 import { getAiProfile, aiEnabled } from "@/lib/inbox/ai-profile";
+import { getVoicePrefs, buildVoicePrompt } from "@/lib/inbox/voice-prefs";
 
 /**
  * POST /api/inbox/compose/draft  { bullets, context? }  (INBOX-C07)
@@ -33,7 +34,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { prompt: instructions } = buildMemoryPrompt(await getInboxMemory(authCtx.userId));
+    const voice = buildVoicePrompt(await getVoicePrefs(authCtx.userId));
+    const { prompt: memory } = buildMemoryPrompt(await getInboxMemory(authCtx.userId));
+    const instructions = [voice, memory].filter(Boolean).join("\n\n");
     const result = await draftFromBullets(parsed.bullets, parsed.context, undefined, instructions);
     return Response.json(result);
   } catch (error) {
