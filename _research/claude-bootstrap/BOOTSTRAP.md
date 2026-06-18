@@ -75,6 +75,12 @@ Tu bootstrappes Claude Code pour `leads` sur une machine neuve. Repo cloné, je 
 
 ---
 
+## Envoyer un mail de test (vers nos propres adresses)
+
+Comment déclencher un envoi sortant vers `martin@elevay.dev` /
+`martin.paviot@outlook.com` sans toucher de prospect (garde-fou allowlist +
+côté expéditeur Resend + scripts probe) : **`SEND-TEST-EMAIL.md`** (dans ce dossier).
+
 ## Les `.env` à remplir
 
 Liste exhaustive groupée + template copiable : **`ENV.md`** (dans ce dossier).
