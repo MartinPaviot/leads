@@ -119,7 +119,9 @@ Full phase methodology (Calibrate, Research, Plan) is in `_harness/CHARTER.md`.
   No "or we stop here" off-ramps.
 - **Commit frequently, one logical change each.** Split renames, refactors, tests,
   and behavior into separate, independently revertable commits. If the machine
-  crashes, only committed work survives.
+  crashes, only committed work survives. A `secret-scan` PreToolUse hook blocks any
+  `git commit`/`push` carrying a high-confidence secret — if it fires, investigate
+  and remove the secret (move it to env/.env); never bypass it silently.
 - **"Pre-existing" requires proof.** Before blaming a failure on existing code, run
   it on `main` and show it fails there too — or call it unverified.
 - **Re-verify branch + HEAD right before every commit/push** (parallel sessions can
@@ -134,6 +136,7 @@ Full phase methodology (Calibrate, Research, Plan) is in `_harness/CHARTER.md`.
 | Regression + drift check | `/regression` |
 | Repo-aware plan (Rippletide rules) | `/plan` |
 | Code review before commit/PR | `/code-review` |
+| Debug a bug / failing test | `/investigate` (no fix without investigation) |
 | Confirm a change works in the app | `/verify` · `/run` |
 | Reuse/simplify pass (no bug hunt) | `/simplify` |
 | Deep multi-source research | `/deep-research` |
