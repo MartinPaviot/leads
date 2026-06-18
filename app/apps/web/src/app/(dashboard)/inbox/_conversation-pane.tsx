@@ -36,6 +36,7 @@ import { reasonTooltip, type ConversationDetail, type InboxLane } from "./_types
 import { EmailBody } from "./_email-body";
 import { EventCard } from "./_event-card";
 import { injectMeetingLink } from "@/lib/inbox/meeting-link";
+import { extractSenderEmail } from "@/lib/inbox/image-trust";
 import { ProspectBriefSection } from "./_prospect-brief";
 import { ThreadSummarySection } from "./_thread-summary";
 import { ThreadAskSection } from "./_thread-ask";
@@ -97,6 +98,7 @@ export function ConversationPane({
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [snoozeText, setSnoozeText] = useState("");
   const [stopping, setStopping] = useState(false);
+  const [trustedSenders, setTrustedSenders] = useState<string[]>([]);
   const snoozeRef = useRef<HTMLDivElement>(null);
 
   // Dismiss the snooze popover on Escape or outside click.
@@ -115,6 +117,20 @@ export function ConversationPane({
       document.removeEventListener("mousedown", onPointer);
     };
   }, [snoozeOpen]);
+
+  // Load the per-user "always show images" allowlist once (INBOX-R02).
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/inbox/image-trust")
+      .then((r) => (r.ok ? r.json() : { senders: [] }))
+      .then((d: { senders?: string[] }) => {
+        if (!cancelled && Array.isArray(d.senders)) setTrustedSenders(d.senders);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     setComposer(null);
@@ -674,7 +690,13 @@ export function ConversationPane({
             )}
             <div className="mt-1.5">
               <EventCard ics={m.calendar} />
-              <EmailBody html={m.bodyHtml} text={m.body || "(empty message)"} />
+              <EmailBody
+                html={m.bodyHtml}
+                text={m.body || "(empty message)"}
+                senderEmail={extractSenderEmail(m.from)}
+                trustedSenders={trustedSenders}
+                onTrust={(email) => setTrustedSenders((s) => (s.includes(email) ? s : [...s, email]))}
+              />
             </div>
           </div>
         ))}

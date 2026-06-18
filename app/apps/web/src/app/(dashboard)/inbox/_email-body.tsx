@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ImageOff, MoreHorizontal, ShieldAlert } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ImageOff, MoreHorizontal, ShieldAlert, ShieldCheck } from "lucide-react";
 import { sanitizeEmailHtml, looksLikeHtml } from "@/lib/inbox/sanitize-email";
 import { applyEmailPrivacy } from "@/lib/inbox/email-privacy";
 import { foldQuotedReply, foldPlainTextReply } from "@/lib/inbox/email-fold";
 import { linkifyPlainText } from "@/lib/inbox/linkify";
 import { classifyLink, riskChipLabel } from "@/lib/inbox/link-safety";
+import { isImageSenderTrusted } from "@/lib/inbox/image-trust";
 import { dirOf } from "@/lib/inbox/text-direction";
 
 /**
@@ -24,9 +25,41 @@ import { dirOf } from "@/lib/inbox/text-direction";
  */
 const PROXY_BASE = "/api/inbox/image-proxy?url=";
 
-export function EmailBody({ html, text }: { html: string | null; text: string }) {
-  const [loadRemote, setLoadRemote] = useState(false);
+export function EmailBody({
+  html,
+  text,
+  senderEmail,
+  trustedSenders,
+  onTrust,
+}: {
+  html: string | null;
+  text: string;
+  /** Sender address for the "always show images from this sender" memory (R02). */
+  senderEmail?: string;
+  /** The user's trusted-image-sender allowlist; a match auto-loads remote images. */
+  trustedSenders?: string[];
+  /** Called when the user trusts this sender, so the pane can update its list. */
+  onTrust?: (email: string) => void;
+}) {
+  const trusted = isImageSenderTrusted(trustedSenders ?? [], senderEmail ?? "");
+  const [loadRemote, setLoadRemote] = useState(trusted);
   const [showTrimmed, setShowTrimmed] = useState(false);
+
+  // A trusted sender's images auto-load — the allowlist may arrive after mount (R02).
+  useEffect(() => {
+    if (trusted) setLoadRemote(true);
+  }, [trusted]);
+
+  function trustSender() {
+    if (!senderEmail) return;
+    void fetch("/api/inbox/image-trust", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sender: senderEmail }),
+    }).catch(() => {});
+    onTrust?.(senderEmail);
+    setLoadRemote(true);
+  }
 
   // Prefer the real HTML part; if it is absent but the "text" body actually
   // contains markup (mis-typed text/plain part), route that through the
@@ -115,6 +148,19 @@ export function EmailBody({ html, text }: { html: string | null; text: string })
                 ? "1 remote image blocked for your privacy — load it"
                 : `${privacy.blockedRemoteImages} remote images blocked for your privacy — load them`}
             </span>
+          </button>
+        )}
+
+        {!loadRemote && privacy.blockedRemoteImages > 0 && senderEmail && (
+          <button
+            type="button"
+            onClick={trustSender}
+            title="Always load images from this sender, on every message"
+            className="mt-2 ml-2 inline-flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-[11px] hover:bg-[var(--color-bg-hover)]"
+            style={{ borderColor: "var(--color-border-default)", color: "var(--color-text-secondary)" }}
+          >
+            <ShieldCheck size={13} className="shrink-0" />
+            <span>Always show from this sender</span>
           </button>
         )}
       </div>
