@@ -5,6 +5,8 @@ import { eq } from "drizzle-orm";
 import { buildDefaultConfig } from "@/lib/campaign-engine/autonomy-defaults";
 import { getTrustScore } from "@/lib/campaign-engine/trust-score";
 import type { AutonomyLevel } from "@/lib/campaign-engine/types";
+import { deriveApprovalModeFromLevel } from "@/lib/guardrails/approval-mode";
+import { updateTenantSettings } from "@/lib/config/tenant-settings";
 
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();
@@ -82,6 +84,16 @@ export async function PUT(req: Request) {
   }
 
   const trustScore = await getTrustScore(authCtx.tenantId);
+
+  // CLE-10 §4.3 — write-side sync: level is the user-facing control; the canonical
+  // ApprovalModeV2 is DERIVED from it and cached into tenant_settings.agentApprovalMode
+  // so even a row-less background reader (which uses readApprovalMode, not the autonomy
+  // row) sees the new posture. The user-facing toggle is now load-bearing (req AC-14).
+  const { mode: derivedApprovalMode } = deriveApprovalModeFromLevel(
+    merged.level as AutonomyLevel,
+    trustScore.overall,
+  );
+  await updateTenantSettings(authCtx.tenantId, { agentApprovalMode: derivedApprovalMode });
 
   return Response.json({
     config: merged,

@@ -1,22 +1,26 @@
 /**
- * decideAction — the single decision authority for the Chat Live Executor
- * (README §3.5bis). One function decides whether an action — headless OR a
- * page action — executes directly, shows a confirm card, queues, or is refused.
+ * decideAction — THE single decision authority for the Chat Live Executor
+ * (README §3.5bis). One function decides whether an action — headless OR a page
+ * action OR a background-loop action — executes directly, shows a confirm card,
+ * queues into the daily review, or is refused.
  *
- * STATUS: CONSERVATIVE STUB (CLE-04). The SIGNATURE below is the frozen contract
- * (README §3.5bis) and MUST NOT change. CLE-10 replaces the BODY with the unified
- * control plane: it will fold in `approvalMode` (review-each/batch-daily/
- * auto-high-confidence) and a real `confidence` signal, and it will absorb
- * CLE-00's `chatCreateDisposition` (approval-mode.ts) so create/update tools,
- * invokePageAction, and the background loops all route through this one function.
+ * CLE-10: this is the REAL body. It branches on approvalMode (the ApprovalModeV2
+ * SSOT via readApprovalMode), the action class derived from metadata, the role,
+ * and confidence (honouring F005 learnedThresholds). It is consumed IDENTICALLY by:
+ *   (a) chat create/update tools (absorbs CLE-00's chatCreateDisposition),
+ *   (b) invokePageAction (CLE-04 — import site unchanged),
+ *   (c) the background loops, via enforceAgentApprovalMode which now DELEGATES here.
  *
- * Until then this stub gates on action METADATA + ROLE only (it accepts
- * `approvalMode`/`confidence` to fix the signature, but does not branch on them).
- * Every defaulting path resolves toward MORE confirmation, never less — the
- * "zero silent actions" posture CLE-00 established.
+ * The SIGNATURE (DecideActionInput / DecideActionResult / the function shape) is the
+ * frozen §3.5bis contract and MUST NOT change. CLE-16 will feed it richer confidence
+ * and trained thresholds; it will not change the signature.
+ *
+ * Fail-safe doctrine: every defaulting path resolves toward MORE control
+ * (confirm/refuse), never toward a silent execute (CLE-00 "zero silent actions").
  */
 
 import type { ApprovalModeV2 } from "@/lib/guardrails/approval-mode";
+import { HIGH_CONFIDENCE_THRESHOLDS, type GuardedAction } from "@/lib/guardrails/approval-mode";
 
 export type ActionDisposition = "execute" | "confirm" | "queue" | "refuse";
 
@@ -28,9 +32,9 @@ export interface DecideActionInput {
     cost?: "free" | "credits" | "money";
     confirm: "never" | "risky" | "always";
   };
-  approvalMode: ApprovalModeV2; // SSOT via readApprovalMode() — accepted now, branched on in CLE-10
+  approvalMode: ApprovalModeV2; // SSOT via readApprovalMode()
   role: "admin" | "member" | "viewer";
-  confidence?: number; // accepted now, branched on in CLE-10/CLE-16
+  confidence?: number;
 }
 
 export interface DecideActionResult {
@@ -38,60 +42,120 @@ export interface DecideActionResult {
   reason: string;
 }
 
-// Signature matches README §3.5bis as amended by §3.8 (CLE-10/CLE-16): an OPTIONAL 2nd
-// arg `extra` is part of the frozen signature. The CLE-04 stub accepts but ignores it
-// (CLE-10 fills the body; CLE-16 passes `extra.learnedThresholds`), so the signature
-// never changes downstream.
+/**
+ * Optional extension input (NOT part of §3.5bis — additive, all optional, so the
+ * frozen call shape `decideAction({ action, approvalMode, role, confidence })` is a
+ * valid subset). Lets background callers pass the F005 learned thresholds and an
+ * action key for threshold lookup. Page actions / chat creates do not pass these.
+ */
+export interface DecideActionExtra {
+  /** Action key for confidence-threshold lookup (F005). Defaults via class→key map. */
+  actionKey?: GuardedAction;
+  /** F005 learned per-action thresholds; override HIGH_CONFIDENCE_THRESHOLDS when present. */
+  learnedThresholds?: Record<string, number>;
+}
+
 export function decideAction(
   input: DecideActionInput,
-  _extra?: { actionKey?: string; learnedThresholds?: Record<string, number> },
+  extra?: DecideActionExtra,
 ): DecideActionResult {
-  const { action, role } = input;
+  const { approvalMode, role } = input;
 
-  // Defensive normalization: a conformant manifest is already typed, but a
-  // malformed scalar must fail SAFE.
-  const mutating = typeof action.mutating === "boolean" ? action.mutating : true;
-  const outbound = action.outbound === true;
-  const reversible = action.reversible === true;
-  const cost = action.cost ?? "free";
+  // ── Defensive normalization (fail-safe: unknown scalar → safest) — req AC-21 ──
+  const mutating = typeof input.action.mutating === "boolean" ? input.action.mutating : true;
+  const outbound = input.action.outbound === true;
+  const reversible = input.action.reversible === true;
+  const cost =
+    input.action.cost === "free" || input.action.cost === "credits" || input.action.cost === "money"
+      ? input.action.cost
+      : "free";
   const confirmPolicy =
-    action.confirm === "never" || action.confirm === "risky" || action.confirm === "always"
-      ? action.confirm
+    input.action.confirm === "never" || input.action.confirm === "risky" || input.action.confirm === "always"
+      ? input.action.confirm
       : "always"; // unknown → safest
 
-  // 1. Viewer may only drive pure-read actions. Any mutation/outbound → refuse.
-  //    (The page-action TOOLS are reachable by viewers — the gate is HERE, not
-  //    in capability-resolver. CLE-12 generalizes this into the unified matrix.)
-  if (role === "viewer" && (mutating || outbound)) {
+  // ── 0. ROLE FLOOR (evaluated before mode) — req AC-1 / AC-2 ──
+  // Viewers may only drive pure-read actions. Any write/outbound/paid → refuse,
+  // regardless of approvalMode. (Minimal viewer gate; full matrix is CLE-12.)
+  if (role === "viewer") {
+    if (mutating || outbound || cost === "money") {
+      return {
+        disposition: "refuse",
+        reason: "role:viewer — read-only; mutating/outbound/paid actions require a member or admin",
+      };
+    }
+    return { disposition: "execute", reason: "role:viewer — read-only action, execute" };
+  }
+
+  // ── 1. PAID always confirms, regardless of mode — req AC-3 ──
+  // Spending real money is never silent and never batched.
+  if (cost === "money") {
+    return { disposition: "confirm", reason: "cost:money — always confirm a paid action" };
+  }
+
+  // ── 2. PURE READ executes in every mode — req AC-5 ──
+  if (!mutating && !outbound) {
+    return { disposition: "execute", reason: "read-only action — execute" };
+  }
+
+  // From here: member/admin, non-paid, and (mutating || outbound).
+  // Classify for the mode matrix.
+  const destructive = mutating && !reversible && !outbound;
+
+  // ── 3. review-each: every write/outbound is carded — req AC-4 ──
+  if (approvalMode === "review-each") {
+    return { disposition: "confirm", reason: "mode:review-each — every action requires approval" };
+  }
+
+  // ── 4. batch-daily — req AC-6 / AC-7 / AC-8 ──
+  if (approvalMode === "batch-daily") {
+    if (destructive) {
+      // Irreversible change is never silently batched.
+      return { disposition: "confirm", reason: "mode:batch-daily — irreversible change requires confirm" };
+    }
+    // outbound (non-paid) and reversible mutation → daily review lane.
     return {
-      disposition: "refuse",
-      reason: "role:viewer — read-only; mutating/outbound actions require a member or admin",
+      disposition: "queue",
+      reason: outbound
+        ? "mode:batch-daily — outbound queued into the daily review"
+        : "mode:batch-daily — reversible change queued into the daily review",
     };
   }
 
-  // 2. Spending money is always confirmed, regardless of mode.
-  if (outbound && cost === "money") {
-    return { disposition: "confirm", reason: "outbound+cost:money — always confirm a paid send" };
-  }
-
-  // 3. Any external send is confirmed (under the user's eyes).
-  if (outbound) {
-    return { disposition: "confirm", reason: "outbound — confirm external send" };
-  }
-
-  // 4. Irreversible mutation is always confirmed.
-  if (mutating && !reversible) {
-    return { disposition: "confirm", reason: "mutating+!reversible — confirm irreversible change" };
-  }
-
-  // 5. Reversible mutation honours the action's own confirm policy.
-  if (mutating && reversible) {
-    if (confirmPolicy === "always" || confirmPolicy === "risky") {
-      return { disposition: "confirm", reason: `mutating+reversible, confirm:${confirmPolicy}` };
+  // ── 5. auto-high-confidence — req AC-9 / AC-10 / AC-11 / AC-13 ──
+  // Autonomy auto-runs only REVERSIBLE, NON-OUTBOUND, NON-DESTRUCTIVE work, and only
+  // above the action's confidence threshold. Outbound + destructive always confirm.
+  if (approvalMode === "auto-high-confidence") {
+    if (outbound || destructive) {
+      return {
+        disposition: "confirm",
+        reason: outbound
+          ? "mode:auto-high-confidence — outbound always confirmed (under the user's eyes)"
+          : "mode:auto-high-confidence — irreversible change always confirmed",
+      };
     }
-    return { disposition: "execute", reason: "mutating+reversible, confirm:never — safe to execute" };
+    // reversible mutation. The action's own policy can RAISE the bar — req AC-13 / AC-12.
+    if (confirmPolicy === "always" || confirmPolicy === "risky") {
+      return { disposition: "confirm", reason: `mode:auto-high-confidence — action confirm:${confirmPolicy}` };
+    }
+    // confirm:"never" reversible → gate on confidence (F005-aware) — req AC-9 / AC-10.
+    const key = extra?.actionKey;
+    const threshold =
+      (key && extra?.learnedThresholds?.[key]) ??
+      (key ? HIGH_CONFIDENCE_THRESHOLDS[key] : 0.8); // no key → moderate default bar
+    const confidenceValue = input.confidence ?? 0;
+    if (confidenceValue >= threshold) {
+      return {
+        disposition: "execute",
+        reason: `mode:auto-high-confidence — confidence ${confidenceValue.toFixed(2)} >= ${threshold}`,
+      };
+    }
+    return {
+      disposition: "confirm",
+      reason: `mode:auto-high-confidence — confidence ${confidenceValue.toFixed(2)} < ${threshold}; fall back to review`,
+    };
   }
 
-  // 6. Pure read (filters, view toggles): execute. Allowed even for viewers.
-  return { disposition: "execute", reason: "read-only action — execute" };
+  // ── 6. Unknown mode (unreachable: readApprovalMode coerces) → safest — req AC-21 ──
+  return { disposition: "confirm", reason: "unknown approval mode — defaulting to confirm" };
 }

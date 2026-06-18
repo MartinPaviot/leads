@@ -28,6 +28,12 @@ export async function gateAction(context: ActionContext): Promise<GateResult> {
   if (escalation) return escalation;
 
   // 3. Apply permission level
+  // CLE-10 BOUNDARY: this `PermissionValue` send-policy axis is the campaign-engine's
+  // own per-action policy, DOWNSTREAM of the autonomy level. CLE-10 deliberately does
+  // NOT unify it with `decideAction` — CLE-10 unifies only the *approval-mode* axis
+  // (review-each | batch-daily | auto-high-confidence). The level→mode derivation
+  // leaves this gate reading the same autonomy_config row it reads today. See
+  // _specs/CLE-10-unified-approval-plane/design.md §4.4 / §8.
   const permission = getEffectivePermission(context.actionType, config);
 
   switch (permission) {

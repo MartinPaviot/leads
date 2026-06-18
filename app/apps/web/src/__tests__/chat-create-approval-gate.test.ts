@@ -70,13 +70,14 @@ const { chatCreateDisposition, readApprovalMode } = await import("@/lib/guardrai
 import type { ApprovalModeV2 } from "@/lib/guardrails/approval-mode";
 import type { ToolContext } from "@/lib/chat/tools/context";
 
-function makeCtx(mode: ApprovalModeV2): ToolContext {
+function makeCtx(mode: ApprovalModeV2, role: "admin" | "member" | "viewer" = "member"): ToolContext {
   return {
     tenantId: "t1",
     userId: "u1",
     agentApprovalMode: mode,
     // role:"member" holds write capability; approval mode is orthogonal to role.
-    authCtx: { role: "member", appUserId: "u1", tenantId: "t1" },
+    // CLE-10: create.ts now passes the REAL role to decideAction → viewer is refused.
+    authCtx: { role, appUserId: "u1", tenantId: "t1" },
     settings: {},
   } as unknown as ToolContext;
 }
@@ -140,6 +141,38 @@ describe("create tools honour the approval gate (the regression)", () => {
     expect(res.proposal).toBeUndefined();
     expect(res.created?.id).toBe("row-1");
     expect(insertSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("auto-high-confidence: createAccount and createDeal insert once each", async () => {
+    const tools = buildCreateTools(makeCtx("auto-high-confidence"));
+    const acc = (await run(tools.createAccount, { name: "Acme" })) as { created?: { id: string } };
+    const deal = (await run(tools.createDeal, { name: "Acme expansion" })) as { created?: { id: string } };
+    expect(acc.created?.id).toBe("row-1");
+    expect(deal.created?.id).toBe("row-1");
+    expect(insertSpy).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("CLE-10 viewer floor (AC-1): a viewer cannot create via chat", () => {
+  it("review-each + viewer: createContact returns an error, NO insert, NO proposal", async () => {
+    const tools = buildCreateTools(makeCtx("review-each", "viewer"));
+    const res = (await run(tools.createContact, { firstName: "Test", lastName: "Reviewer" })) as {
+      error?: string; proposal?: boolean; created?: unknown;
+    };
+    expect(res.error).toBeDefined();
+    expect(res.error).toMatch(/viewer/i);
+    expect(res.proposal).toBeUndefined();
+    expect(res.created).toBeUndefined();
+    expect(insertSpy).not.toHaveBeenCalled();
+  });
+
+  it("auto-high-confidence + viewer: STILL refuses (role floor beats mode)", async () => {
+    const tools = buildCreateTools(makeCtx("auto-high-confidence", "viewer"));
+    const acc = (await run(tools.createAccount, { name: "Acme" })) as { error?: string };
+    const deal = (await run(tools.createDeal, { name: "Acme expansion" })) as { error?: string };
+    expect(acc.error).toBeDefined();
+    expect(deal.error).toBeDefined();
+    expect(insertSpy).not.toHaveBeenCalled();
   });
 });
 

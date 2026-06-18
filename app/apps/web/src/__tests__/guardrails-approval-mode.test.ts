@@ -65,11 +65,14 @@ describe("enforceAgentApprovalMode — batch-daily", () => {
 });
 
 describe("enforceAgentApprovalMode — auto-high-confidence", () => {
-  it("allows when confidence ≥ threshold", () => {
-    const threshold = HIGH_CONFIDENCE_THRESHOLDS["email-send"];
+  it("allows a reversible confirm:never action when confidence ≥ threshold", () => {
+    // CLE-10 (AC-11): outbound sends now ALWAYS confirm under autonomy, so the
+    // threshold-pass case is demonstrated on a reversible non-outbound action whose
+    // own policy is confirm:never (only those auto-execute on confidence — AC-12).
+    const threshold = HIGH_CONFIDENCE_THRESHOLDS["task-create"];
     const decision = enforceAgentApprovalMode({
       mode: "auto-high-confidence",
-      action: "email-send",
+      action: "task-create",
       confidence: threshold + 0.01,
     });
     expect(decision.allowed).toBe(true);
@@ -77,16 +80,28 @@ describe("enforceAgentApprovalMode — auto-high-confidence", () => {
     expect(decision.reason).toMatch(/auto-high-confidence/);
   });
 
-  it("falls back to per-item review when confidence < threshold", () => {
-    const threshold = HIGH_CONFIDENCE_THRESHOLDS["email-send"];
+  it("falls back to per-item review when a reversible confirm:never action is below threshold", () => {
+    const threshold = HIGH_CONFIDENCE_THRESHOLDS["task-create"];
     const decision = enforceAgentApprovalMode({
       mode: "auto-high-confidence",
-      action: "email-send",
+      action: "task-create",
       confidence: threshold - 0.1,
     });
     expect(decision.allowed).toBe(false);
     expect(decision.queueAs).toBe("pending-per-item");
-    expect(decision.reason).toMatch(/falling back to review-each/);
+    expect(decision.reason).toMatch(/fall back to review/);
+  });
+
+  it("outbound email-send ALWAYS confirms under autonomy, even above threshold (AC-11)", () => {
+    const threshold = HIGH_CONFIDENCE_THRESHOLDS["email-send"];
+    const decision = enforceAgentApprovalMode({
+      mode: "auto-high-confidence",
+      action: "email-send",
+      confidence: threshold + 0.01,
+    });
+    expect(decision.allowed).toBe(false);
+    expect(decision.queueAs).toBe("pending-per-item");
+    expect(decision.reason).toMatch(/outbound/);
   });
 
   it("falls back to per-item review when confidence is null", () => {
