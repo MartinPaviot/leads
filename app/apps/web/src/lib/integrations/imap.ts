@@ -17,6 +17,7 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import type { SyncedEmail } from "./gmail";
+import { attachmentsFromImap } from "@/lib/inbox/attachment-meta";
 
 /** Max messages pulled in a single poll — a large backlog pages over ticks. */
 const MAX_PER_RUN = 150;
@@ -193,6 +194,8 @@ export async function fetchRecentEmailsImap(
       // reading pane can render an inline event card + accept/decline (INBOX-R12/CAL).
       const calendar =
         parsed.attachments?.find((a) => /^text\/calendar/i.test(a.contentType || ""))?.content?.toString("utf8") || null;
+      // Attachment metadata (filename/type/size/inline) for the reading pane (INBOX-R04).
+      const attachments = attachmentsFromImap(parsed.attachments);
 
       // Normalise mailparser's header Map to a lower-cased record so the
       // inbound classifier can read List-Unsubscribe / Precedence / Auto-Submitted.
@@ -220,6 +223,7 @@ export async function fetchRecentEmailsImap(
         direction,
         headers: Object.keys(headerRecord).length ? headerRecord : null,
         calendar,
+        attachments: attachments.length ? attachments : undefined,
       });
 
       if (++count >= MAX_PER_RUN) break;

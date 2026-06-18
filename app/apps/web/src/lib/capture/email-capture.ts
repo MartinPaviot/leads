@@ -43,6 +43,7 @@ import { inngest } from "@/inngest/client";
 import { classifyInboundSender } from "@/lib/inbound/lead-classification";
 import { stripDangerousHtml } from "@/lib/inbox/sanitize-email";
 import { parseAuthResults } from "@/lib/inbox/sender-auth";
+import type { AttachmentMeta } from "@/lib/inbox/attachment-meta";
 
 /** "John Doe <john@example.com>" -> "john@example.com" (lowercased). */
 export function extractEmailFromHeader(header: string): string {
@@ -101,6 +102,8 @@ export interface InboundEmailInput {
   /** Raw text/calendar (.ics) part of an inbound meeting invite, when the
    *  transport exposes it — parsed for the inline event card (INBOX-R12/CAL). */
   calendar?: string | null;
+  /** Attachment metadata for the reading pane (INBOX-R04). */
+  attachments?: AttachmentMeta[];
 }
 
 export interface InboundCaptureResult {
@@ -390,6 +393,8 @@ export async function captureInboundEmail(
         ...(bodyHtml ? { bodyHtml } : {}),
         // Raw .ics of an inbound invite (INBOX-R12/CAL), capped. Only when present.
         ...(input.calendar ? { calendar: input.calendar.slice(0, 100_000) } : {}),
+        // Attachment metadata (INBOX-R04), only when the mail had attachments.
+        ...(input.attachments?.length ? { attachments: input.attachments } : {}),
         // Sender domain-auth verdict (INBOX-R06) — small, always stored so the
         // reader can tell "unknown" (checked, no verdict) from a real pass/fail.
         senderAuth,

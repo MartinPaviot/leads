@@ -46,6 +46,7 @@ import { ThreadSummarySection } from "./_thread-summary";
 import { ThreadAskSection } from "./_thread-ask";
 import { ThreadNotes } from "./_thread-notes";
 import { ThreadAssignment } from "./_thread-assignment";
+import { AttachmentStrip } from "./_attachments";
 import { shouldSummarize } from "@/lib/inbox/thread-summary-prep";
 import { initialsFor, avatarColorIndex } from "@/lib/inbox/sender-auth";
 import { parseWhen } from "@/lib/inbox/parse-when";
@@ -784,6 +785,7 @@ export function ConversationPane({
                 trustedSenders={trustedSenders}
                 onTrust={(email) => setTrustedSenders((s) => (s.includes(email) ? s : [...s, email]))}
               />
+              <AttachmentStrip attachments={m.attachments} />
             </div>
           </div>
         ))}

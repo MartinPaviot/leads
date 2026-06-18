@@ -14,6 +14,7 @@
 
 import { classifyInboundSender } from "@/lib/inbound/lead-classification";
 import type { SenderAuthStatus } from "@/lib/inbox/sender-auth";
+import { normalizeAttachments, type AttachmentMeta } from "@/lib/inbox/attachment-meta";
 import { checkSla } from "@/lib/inbox/sla";
 import { scoreImportance } from "@/lib/inbox/importance";
 
@@ -75,6 +76,8 @@ export interface ConversationMessage {
   /** Raw .ics of an inbound meeting invite (INBOX-R12/CAL), when present — drives
    *  the inline event card. Null ⇒ not an invite. */
   calendar: string | null;
+  /** Attachment metadata (INBOX-R04) — filename/type/size/inline for the pane strip. */
+  attachments: AttachmentMeta[];
   /** Sender domain-auth verdict (INBOX-R06): "pass" earns a verified badge,
    *  "fail" a caution, "unknown" shows nothing. Outbound is always "unknown". */
   senderVerified: SenderAuthStatus;
@@ -363,6 +366,7 @@ export function buildConversations(input: {
           body: r.rawContent ?? String(meta.snippet ?? ""),
           bodyHtml: typeof meta.bodyHtml === "string" ? meta.bodyHtml : null,
           calendar: typeof meta.calendar === "string" ? meta.calendar : null,
+          attachments: normalizeAttachments(meta.attachments),
           senderVerified:
             (meta.senderAuth as { status?: SenderAuthStatus } | undefined)?.status ?? "unknown",
           at: toIso(r.occurredAt),
@@ -379,6 +383,7 @@ export function buildConversations(input: {
         body: r.bodyText ?? "",
         bodyHtml: null,
         calendar: null,
+        attachments: [],
         senderVerified: "unknown" as const,
         at: toIso(r.sentAt),
         status: r.status,

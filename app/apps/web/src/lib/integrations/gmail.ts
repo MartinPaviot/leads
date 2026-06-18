@@ -6,6 +6,7 @@ import {
   decryptOAuthToken,
   encryptOAuthToken,
 } from "@/lib/crypto/oauth-token-crypto";
+import { attachmentsFromGmailPayload, type AttachmentMeta } from "@/lib/inbox/attachment-meta";
 
 export async function getGmailClient(userId: string) {
   // Get Google OAuth tokens from the database
@@ -79,6 +80,8 @@ export interface SyncedEmail {
   /** Raw `text/calendar` (.ics) part of an inbound meeting invite, when present.
    *  Parsed by parseIcs for the inline event card + accept/decline (INBOX-R12/CAL). */
   calendar?: string | null;
+  /** Attachment metadata (filename/type/size/inline) for the reading pane (INBOX-R04). */
+  attachments?: AttachmentMeta[];
 }
 
 export async function fetchRecentEmails(
@@ -133,6 +136,7 @@ export async function fetchRecentEmails(
       const body = extractBodyFromPayload(detail.data.payload);
       const html = extractHtmlFromPayload(detail.data.payload);
       const calendar = extractCalendarFromPayload(detail.data.payload);
+      const attachments = attachmentsFromGmailPayload(detail.data.payload);
 
       // Determine direction: if user's email is in the From field → outbound
       const fromEmail = extractEmail(from);
@@ -162,6 +166,7 @@ export async function fetchRecentEmails(
         direction,
         headers: Object.keys(headerRecord).length ? headerRecord : null,
         calendar: calendar ? calendar.slice(0, 100000) : null,
+        attachments: attachments.length ? attachments : undefined,
       });
     } catch (err) {
       // Skip messages that fail to fetch (deleted, etc.)

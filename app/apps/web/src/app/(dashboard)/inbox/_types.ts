@@ -52,6 +52,8 @@ export interface ConversationMessage {
   bodyHtml: string | null;
   /** Raw .ics of an inbound meeting invite (INBOX-R12/CAL) — drives the event card. */
   calendar: string | null;
+  /** Attachment metadata (INBOX-R04) — filename/type/size/inline for the pane strip. */
+  attachments?: Array<{ filename: string; contentType: string; size: number; inline: boolean }>;
   /** Sender domain-auth verdict (INBOX-R06): pass → verified badge, fail → caution. */
   senderVerified: "pass" | "fail" | "unknown";
   at: string | null;
