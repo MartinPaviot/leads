@@ -47,3 +47,5 @@ _jwt*.txt
 # Dev screenshot output + numbered root captures (NNN-name.png).
 app/apps/web/screenshots/
 /[0-9][0-9][0-9]-*.png
+
+.vercel
