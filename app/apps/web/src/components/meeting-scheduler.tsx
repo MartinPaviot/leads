@@ -29,7 +29,9 @@ export function MeetingSchedulerCard({
   contactId: string;
   firstName: string;
   onClose: () => void;
-  onBooked?: () => void;
+  /** Fired on a successful booking with the meeting's join link (INBOX-G10), so a
+   *  caller can drop it into an open reply draft. null when the provider returned none. */
+  onBooked?: (joinUrl: string | null) => void;
 }) {
   const { toast } = useToast();
   const [when, setWhen] = useState(defaultWhen);
@@ -94,7 +96,7 @@ export function MeetingSchedulerCard({
       }
       toast(`Visio planifiée avec ${firstName || "le prospect"}.`, "success");
       setTitle("");
-      onBooked?.();
+      onBooked?.(data.joinUrl ?? data.meetLink ?? null);
       // Stay open and reveal the join link instead of closing immediately.
       setBooked({
         joinUrl: data.joinUrl ?? data.meetLink ?? null,

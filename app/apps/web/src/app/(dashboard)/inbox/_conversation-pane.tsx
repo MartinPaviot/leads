@@ -35,6 +35,7 @@ import { timeAgo } from "./_time-ago";
 import { reasonTooltip, type ConversationDetail, type InboxLane } from "./_types";
 import { EmailBody } from "./_email-body";
 import { EventCard } from "./_event-card";
+import { injectMeetingLink } from "@/lib/inbox/meeting-link";
 import { ProspectBriefSection } from "./_prospect-brief";
 import { ThreadSummarySection } from "./_thread-summary";
 import { ThreadAskSection } from "./_thread-ask";
@@ -444,6 +445,10 @@ export function ConversationPane({
             contactId={detail.contact.id}
             firstName={detail.contact.name.split(" ")[0] || ""}
             onClose={() => setSchedOpen(false)}
+            // Drop the sovereign join link straight into an open reply draft (INBOX-G10).
+            onBooked={(joinUrl) => {
+              if (joinUrl) setComposer((c) => (c ? { ...c, body: injectMeetingLink(c.body, joinUrl) } : c));
+            }}
           />
         )}
       </div>
