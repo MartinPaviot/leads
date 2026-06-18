@@ -48,6 +48,7 @@ import { ThreadNotes } from "./_thread-notes";
 import { ThreadAssignment } from "./_thread-assignment";
 import { AttachmentStrip } from "./_attachments";
 import { ThreadLabels } from "./_thread-labels";
+import { ThreadPresence } from "./_thread-presence";
 import { shouldSummarize } from "@/lib/inbox/thread-summary-prep";
 import { initialsFor, avatarColorIndex } from "@/lib/inbox/sender-auth";
 import { parseWhen } from "@/lib/inbox/parse-when";
@@ -432,6 +433,8 @@ export function ConversationPane({
           <ThreadAssignment conversationKey={conv.key} />
           {/* Shared labels (INBOX-X04). */}
           <ThreadLabels conversationKey={conv.key} />
+          {/* Live presence (INBOX-X03) — who else is on this thread. */}
+          <ThreadPresence conversationKey={conv.key} />
           {detail.enrollment && (
             <Button variant="outline" size="sm" onClick={stopSequence} disabled={stopping} className="gap-1.5">
               {stopping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <OctagonX className="h-3.5 w-3.5" />}
