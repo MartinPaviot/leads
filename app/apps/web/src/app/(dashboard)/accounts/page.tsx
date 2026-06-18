@@ -1,7 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { z } from "zod";
 import { Building2, Search, Filter, Plus, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, Trash2, UserPlus, Ban, RotateCcw, Archive, SlidersHorizontal, Layers, type LucideIcon } from "lucide-react";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
 import { useTamStream } from "@/hooks/use-tam-stream";
 import { TamBuildProgress } from "@/components/tam-build-progress";
 import { SignalChip } from "@/components/signal-chip";
@@ -84,6 +87,40 @@ interface Account {
   /** Effective stage computed server-side (manual override > deal-derived > 'new'). */
   lifecycleStage?: string | null;
   lastInteraction: { date: string; summary: string | null } | null;
+}
+
+/* ── CLE-07: page-action helpers (pure, shared) ── */
+
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+
+/** Type a PageAction against its own params schema, then erase P so heterogeneous
+ *  actions live in one PageAction[] (the registry stores PageAction<unknown>). */
+function definePageAction<P>(a: PageAction<P>): PageAction {
+  return a as unknown as PageAction;
+}
+
+/** Human-readable summary of an applyFilter request (for the action result).
+ *  Pure; emoji-free. Count is server-async, so it is not included here. */
+function describeAccountFilters(p: {
+  sourceTab?: "all" | "tam" | "manual";
+  enrichmentPartition?: "all" | "unenriched" | "enriched";
+  industry?: string[]; geography?: string[]; size?: string[]; revenue?: string[]; stage?: string[];
+  score?: string[]; name?: string; domain?: string; linkedin?: "present" | "absent";
+}): string {
+  const parts: string[] = [];
+  if (p.industry?.length) parts.push(p.industry.join("/"));
+  if (p.geography?.length) parts.push(p.geography.join("/"));
+  if (p.size?.length) parts.push("size " + p.size.join("/"));
+  if (p.revenue?.length) parts.push("revenue " + p.revenue.join("/"));
+  if (p.stage?.length) parts.push("stage " + p.stage.join("/"));
+  if (p.score?.length) parts.push(p.score.join("/"));
+  if (p.name) parts.push('name "' + p.name + '"');
+  if (p.domain) parts.push('domain "' + p.domain + '"');
+  if (p.linkedin) parts.push("LinkedIn " + p.linkedin);
+  if (p.enrichmentPartition && p.enrichmentPartition !== "all") parts.push(p.enrichmentPartition);
+  if (p.sourceTab && p.sourceTab !== "all") parts.push(p.sourceTab === "tam" ? "sourced" : "added");
+  return parts.length ? parts.join(", ") : "no filters";
 }
 
 /** Human-readable label rendered inside the signal chip (when true)
@@ -457,29 +494,71 @@ export default function AccountsPage() {
       .catch(() => {});
   }, []);
 
+  // CLE-07 §4: the BuildRequest assembly + tamStream.start of startTamBuild,
+  // parameterized so accounts.startTamBuild can pass icpId / allProfiles /
+  // targetCount explicitly. Keeps the apolloOverrides from the active filters.
+  // One copy of the BuildRequest shape; the button calls it with its own args.
+  const startTamBuildWith = useCallback(
+    async (opts: { icpId?: string; allProfiles?: boolean; targetCount?: number }) => {
+      setStreamBanner(true);
+      // Push the active sector/geography facets straight into the Apollo
+      // sourcing query so "Find more accounts" pulls exactly the slice the
+      // user is filtering on (instead of the full tenant-wide plan).
+      const apolloOverrides: { industries?: string[]; geographies?: string[] } = {};
+      const indVals = columnFilters.industry?.values ?? [];
+      const geoVals = columnFilters.geography?.values ?? [];
+      if (indVals.length > 0) apolloOverrides.industries = indVals;
+      if (geoVals.length > 0) apolloOverrides.geographies = geoVals;
+      const hasOverrides = !!apolloOverrides.industries || !!apolloOverrides.geographies;
+      await tamStream.start({
+        targetCount: opts.targetCount ?? 300,
+        // allProfiles → source from every usable profile (send the full id
+        // list); a specific id → that one profile; neither → legacy planner.
+        ...(opts.allProfiles
+          ? { icpIds: sourceProfiles.map((p) => p.id) }
+          : opts.icpId
+            ? { icpId: opts.icpId }
+            : {}),
+        ...(hasOverrides ? { apolloOverrides } : {}),
+      });
+    },
+    [tamStream, columnFilters, sourceProfiles],
+  );
+
   const startTamBuild = useCallback(async () => {
-    setStreamBanner(true);
-    // Push the active sector/geography facets straight into the Apollo
-    // sourcing query so "Find more accounts" pulls exactly the slice the
-    // user is filtering on (instead of the full tenant-wide plan).
-    const apolloOverrides: { industries?: string[]; geographies?: string[] } = {};
-    const indVals = columnFilters.industry?.values ?? [];
-    const geoVals = columnFilters.geography?.values ?? [];
-    if (indVals.length > 0) apolloOverrides.industries = indVals;
-    if (geoVals.length > 0) apolloOverrides.geographies = geoVals;
-    const hasOverrides = !!apolloOverrides.industries || !!apolloOverrides.geographies;
-    await tamStream.start({
-      targetCount: 300,
-      // "all" → source from every profile (send the full id list); a specific
-      // id → that one profile; neither → legacy tenant-wide planner.
-      ...(sourceIcpId === "all"
-        ? { icpIds: sourceProfiles.map((p) => p.id) }
-        : sourceIcpId
-          ? { icpId: sourceIcpId }
-          : {}),
-      ...(hasOverrides ? { apolloOverrides } : {}),
+    await startTamBuildWith({
+      icpId: sourceIcpId === "all" ? undefined : sourceIcpId ?? undefined,
+      allProfiles: sourceIcpId === "all",
     });
-  }, [tamStream, columnFilters, sourceIcpId, sourceProfiles]);
+  }, [startTamBuildWith, sourceIcpId]);
+
+  // CLE-07 §4: a second caller of the SAME request the SmartSearchBar issues
+  // (POST /api/filters/parse-nl { query, resourceType:"account" },
+  // smart-search-bar.tsx). The bar is untouched; accounts.smartSearch is the
+  // only caller of this helper, applying the result via the bar's own callbacks.
+  const runSmartSearch = useCallback(
+    async (query: string): Promise<{ filters: FilterCondition[]; meta: { reasoning: string; unmatched: string[] } }> => {
+      try {
+        const res = await fetch("/api/filters/parse-nl", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, resourceType: "account" }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { filters: [], meta: { reasoning: "", unmatched: [] } };
+        return {
+          filters: (data?.filters as FilterCondition[] | undefined) ?? [],
+          meta: {
+            reasoning: String(data?.reasoning ?? ""),
+            unmatched: Array.isArray(data?.unmatched) ? data.unmatched : [],
+          },
+        };
+      } catch {
+        return { filters: [], meta: { reasoning: "", unmatched: [] } };
+      }
+    },
+    [],
+  );
 
   // Single "popover open" selector shared across all signal chips in
   // the table. Ensures only one popover is open at a time and it
@@ -777,6 +856,23 @@ export default function AccountsPage() {
     } finally { setCreating(false); }
   }
 
+  // CLE-07 §4: the network body of bulkScoreSelected, parameterized by ids so
+  // both the bulk-bar button and accounts.bulkScore/scoreAccount call the SAME
+  // /api/score chunkedBulkCall (+ refetch). One copy.
+  const scoreByIds = useCallback(
+    async (ids: string[]): Promise<{ total: number; succeeded: number; failed: number }> => {
+      if (ids.length === 0) return { total: 0, succeeded: 0, failed: 0 };
+      const r = await chunkedBulkCall({
+        ids,
+        endpoint: "/api/score",
+        buildPayload: (chunk) => ({ companyIds: chunk }),
+      });
+      if (r.succeeded > 0) await refetchLoadedAccounts();
+      return { total: r.total, succeeded: r.succeeded, failed: r.failed };
+    },
+    [refetchLoadedAccounts],
+  );
+
   // Bulk score the current selection (or all unscored when nothing is
   // selected). Enrichment now runs through the streaming EnrichMenu.
   // The selection is used AS IS — after select-all-matching it can hold ids
@@ -789,12 +885,7 @@ export default function AccountsPage() {
         : accounts.filter((a) => a.score == null).map((a) => a.id);
     if (ids.length === 0) return;
     try {
-      const r = await chunkedBulkCall({
-        ids,
-        endpoint: "/api/score",
-        buildPayload: (chunk) => ({ companyIds: chunk }),
-      });
-      if (r.succeeded > 0) await refetchLoadedAccounts();
+      const r = await scoreByIds(ids);
       toast(
         r.failed === 0
           ? `Scored ${r.succeeded} accounts.`
@@ -862,11 +953,15 @@ export default function AccountsPage() {
     setTimeout(tick, 3_000);
   }
 
-  async function detectSignals() {
-    const ids = accounts.filter((a) => isEnriched(a)).map((a) => a.id);
-    if (ids.length === 0) return;
-    setDetectingSignals(true);
-    try {
+  // CLE-07 §4: the enriched-scoping + /api/signals chunkedBulkCall body of
+  // detectSignals, parameterized by a candidate id set. Scopes to the enriched
+  // subset (the same filter the button used) then runs the batch (+ refetch).
+  // One copy, shared by the button and accounts.bulkDetectSignals.
+  const detectSignalsByIds = useCallback(
+    async (candidateIds: string[]): Promise<{ total: number; succeeded: number; failed: number }> => {
+      const enrichedSet = new Set(accounts.filter((a) => isEnriched(a)).map((a) => a.id));
+      const ids = candidateIds.filter((id) => enrichedSet.has(id));
+      if (ids.length === 0) return { total: 0, succeeded: 0, failed: 0 };
       const result = await chunkedBulkCall({
         ids,
         endpoint: "/api/signals",
@@ -876,20 +971,63 @@ export default function AccountsPage() {
         },
       });
       if (result.succeeded > 0) await refetchLoadedAccounts();
+      return { total: result.total, succeeded: result.succeeded, failed: result.failed };
+    },
+    [accounts, refetchLoadedAccounts, toast],
+  );
+
+  async function detectSignals() {
+    const ids = accounts.filter((a) => isEnriched(a)).map((a) => a.id);
+    if (ids.length === 0) return;
+    setDetectingSignals(true);
+    try {
+      const result = await detectSignalsByIds(ids);
       if (result.failed === 0) {
         toast(`Detected signals for ${result.succeeded} accounts.`, "success");
       } else if (result.succeeded > 0) {
         toast(`Signals for ${result.succeeded} of ${result.total}. ${result.failed} failed.`, "warning");
-        console.warn("accounts: detect-signals partial failure", result.errors);
+        console.warn("accounts: detect-signals partial failure", result.failed);
       } else {
         toast("Failed to detect signals.", "error");
-        console.warn("accounts: detect-signals all chunks failed", result.errors);
+        console.warn("accounts: detect-signals all chunks failed", result.failed);
       }
     } catch (e) {
       toast("Failed to detect signals.", "error");
       console.warn("accounts: detect-signals crashed", e);
     } finally { setDetectingSignals(false); }
   }
+
+  // CLE-07 §4: the 50-id fan-out POST /api/accounts/extract-contacts loop of
+  // extractContactsSelected, parameterized by ids. One copy, shared by the
+  // bulk-bar button and accounts.bulkExtractContacts. Returns the created /
+  // processed totals (or an error) instead of toasting — the button keeps its
+  // own toasts.
+  const extractContactsByIds = useCallback(
+    async (ids: string[]): Promise<{ totalCreated: number; accountsProcessed: number; error?: string }> => {
+      if (ids.length === 0) return { totalCreated: 0, accountsProcessed: 0 };
+      let totalCreated = 0;
+      let accountsProcessed = 0;
+      for (let i = 0; i < ids.length; i += 50) {
+        if (ids.length > 50 && i > 0) {
+          toast(`Extracting contacts ${Math.min(i + 50, ids.length)} / ${ids.length}…`, "info");
+        }
+        const res = await fetch("/api/accounts/extract-contacts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accountIds: ids.slice(i, i + 50) }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (totalCreated > 0) break; // partial run — report what landed
+          return { totalCreated: 0, accountsProcessed: 0, error: data?.error || "Failed to extract contacts." };
+        }
+        totalCreated += data.totalCreated ?? 0;
+        accountsProcessed += data.accountsProcessed ?? 0;
+      }
+      return { totalCreated, accountsProcessed };
+    },
+    [toast],
+  );
 
   // Pull real contacts (Apollo) for the selected accounts and persist
   // them. Deduped server-side against contacts already on each account.
@@ -902,30 +1040,15 @@ export default function AccountsPage() {
     // beyond that) — fan out in 50-id chunks so EVERY selected account gets
     // sourced. The first failed chunk aborts the rest: its cause (sourcing
     // key missing, rate limit) would fail them all the same way.
-    let totalCreated = 0;
-    let accountsProcessed = 0;
     try {
-      for (let i = 0; i < ids.length; i += 50) {
-        if (ids.length > 50 && i > 0) {
-          toast(`Extracting contacts ${Math.min(i + 50, ids.length)} / ${ids.length}…`, "info");
-        }
-        const res = await fetch("/api/accounts/extract-contacts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accountIds: ids.slice(i, i + 50) }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          if (totalCreated > 0) break; // partial run — report what landed below
-          toast(data?.error || "Failed to extract contacts.", "error");
-          return;
-        }
-        totalCreated += data.totalCreated ?? 0;
-        accountsProcessed += data.accountsProcessed ?? 0;
+      const r = await extractContactsByIds(ids);
+      if (r.error) {
+        toast(r.error, "error");
+        return;
       }
-      if (totalCreated > 0) {
+      if (r.totalCreated > 0) {
         toast(
-          `Added ${totalCreated} contact${totalCreated === 1 ? "" : "s"} across ${accountsProcessed} account${accountsProcessed === 1 ? "" : "s"}.`,
+          `Added ${r.totalCreated} contact${r.totalCreated === 1 ? "" : "s"} across ${r.accountsProcessed} account${r.accountsProcessed === 1 ? "" : "s"}.`,
           "success",
         );
       } else {
@@ -1021,6 +1144,25 @@ export default function AccountsPage() {
     }
   }
 
+  // CLE-07 §4: the 500-id-chunk /api/accounts/exclude chunkedBulkCall body of
+  // bulkSetExclusion, parameterized by ids + action (+ refetch). One copy,
+  // shared by the button and accounts.bulkExclude / bulkRestore. Returns the
+  // counts; the button keeps its own toast / setSelectedRows.
+  const setExclusionByIds = useCallback(
+    async (ids: string[], action: "exclude" | "include"): Promise<{ succeeded: number; failed: number }> => {
+      if (ids.length === 0) return { succeeded: 0, failed: 0 };
+      const result = await chunkedBulkCall({
+        ids,
+        chunkSize: 500,
+        endpoint: "/api/accounts/exclude",
+        buildPayload: (chunk) => ({ ids: chunk, action }),
+      });
+      if (result.succeeded > 0) await refetchLoadedAccounts();
+      return { succeeded: result.succeeded, failed: result.failed };
+    },
+    [refetchLoadedAccounts],
+  );
+
   // Exclude ("not a fit") / restore the current selection. Reversible —
   // the row stays (still feeds the TAM-build dedup set so it is never
   // re-sourced) and outbound enrollment is already gated on the flag.
@@ -1030,14 +1172,9 @@ export default function AccountsPage() {
     // The endpoint validates at most 1000 ids per call (rejects beyond, not
     // truncates) — chunk at 500 so a select-all-sized selection still lands
     // in one or a few requests instead of a hard 400.
-    const result = await chunkedBulkCall({
-      ids,
-      chunkSize: 500,
-      endpoint: "/api/accounts/exclude",
-      buildPayload: (chunk) => ({ ids: chunk, action }),
-    });
+    const result = await setExclusionByIds(ids, action);
     if (result.succeeded === 0) {
-      console.warn("accounts: bulk exclusion failed", result.errors);
+      console.warn("accounts: bulk exclusion failed", result.failed);
       toast(action === "exclude" ? "Couldn't exclude." : "Couldn't restore.", "error");
       return;
     }
@@ -1048,7 +1185,7 @@ export default function AccountsPage() {
       result.failed > 0 ? "warning" : "success",
     );
     setSelectedRows(new Set());
-    await refetchLoadedAccounts();
+    // setExclusionByIds already refetched on success.
   }
 
   async function rowSetExclusion(id: string, action: "exclude" | "include") {
@@ -1078,11 +1215,16 @@ export default function AccountsPage() {
   // have persisted yet). Residual non-score NL smart filters only exist
   // client-side (the server can't compute "all matching" for them), so with
   // one active the selection honestly stays the visible rows.
-  async function selectAllMatching() {
+  // Returns the resolved selection set so a programmatic caller (the
+  // accounts.selectAll page action) gets an accurate count without waiting for
+  // a re-render to land in a ref. The button caller ignores the return value —
+  // behaviour-preserving.
+  async function selectAllMatching(): Promise<Set<string>> {
     const visibleIds = filteredAccounts.map((a) => a.id);
-    setSelectedRows(new Set(visibleIds));
-    if (smartFilters.some((c) => c.field !== "score")) return;
-    if (accounts.length >= totalAccounts) return; // every matching row is already loaded
+    const visibleSet = new Set(visibleIds);
+    setSelectedRows(visibleSet);
+    if (smartFilters.some((c) => c.field !== "score")) return visibleSet;
+    if (accounts.length >= totalAccounts) return visibleSet; // every matching row is already loaded
     const result = await selectAllMatchingIds({
       endpoint: "/api/accounts",
       params: listFilterParams(),
@@ -1094,30 +1236,45 @@ export default function AccountsPage() {
     } else if (result.truncated && result.total != null) {
       toast(`Selected the first ${result.ids.size.toLocaleString()} of ${result.total.toLocaleString()} matching accounts.`, "warning");
     }
+    return result.ids;
   }
+
+  // CLE-07 §4: the POST /api/accounts/restore body of restoreAccounts,
+  // parameterized by ids. One copy, shared by the bulk-bar Restore button and
+  // accounts.bulkRestore (Archive view). Returns the count; the button keeps
+  // its own toast / setSelectedRows / refetch.
+  const restoreAccountsResult = useCallback(
+    async (ids: string[]): Promise<{ ok: boolean; restored: number; error?: string }> => {
+      if (ids.length === 0) return { ok: false, restored: 0, error: "No accounts to restore." };
+      try {
+        const res = await fetch("/api/accounts/restore", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids }),
+        });
+        if (!res.ok) return { ok: false, restored: 0, error: "Couldn't restore." };
+        const data = await res.json().catch(() => ({ restored: ids.length }));
+        return { ok: true, restored: data.restored ?? ids.length };
+      } catch (e) {
+        console.warn("accounts: restore failed", e);
+        return { ok: false, restored: 0, error: "Restore failed." };
+      }
+    },
+    [],
+  );
 
   // Restore soft-deleted accounts from the Archive view — clears deleted_at and
   // lifts the suppression so they're eligible for sourcing again.
   async function restoreAccounts(ids: string[]) {
     if (ids.length === 0) return;
-    try {
-      const res = await fetch("/api/accounts/restore", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids }),
-      });
-      if (!res.ok) {
-        toast("Couldn't restore.", "error");
-        return;
-      }
-      const data = await res.json().catch(() => ({ restored: ids.length }));
-      toast(`Restored ${data.restored} account${data.restored === 1 ? "" : "s"}.`, "success");
-      setSelectedRows(new Set());
-      await refetchLoadedAccounts();
-    } catch (e) {
-      console.warn("accounts: restore failed", e);
-      toast("Restore failed.", "error");
+    const r = await restoreAccountsResult(ids);
+    if (!r.ok) {
+      toast(r.error ?? "Restore failed.", "error");
+      return;
     }
+    toast(`Restored ${r.restored} account${r.restored === 1 ? "" : "s"}.`, "success");
+    setSelectedRows(new Set());
+    await refetchLoadedAccounts();
   }
 
   // Open the cascade delete modal — for one row or the whole checkbox
@@ -1169,6 +1326,36 @@ export default function AccountsPage() {
     void openCascadeDelete(ids, label);
   }
 
+  // CLE-07 §4: the DELETE /api/accounts/batch body of performCascadeDelete,
+  // parameterized by the passed ids + cascade keys (NOT the modal's
+  // cascadeTarget). One copy, shared by the cascade modal and
+  // accounts.bulkDelete / deleteAccount (+ refetch on success).
+  const deleteAccountsByIds = useCallback(
+    async (
+      ids: string[],
+      cascade: string[],
+    ): Promise<{ ok: boolean; deleted: number; extra: number; error?: string }> => {
+      if (ids.length === 0) return { ok: false, deleted: 0, extra: 0, error: "No accounts to delete." };
+      try {
+        const res = await fetch("/api/accounts/batch", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids, cascade }),
+        });
+        if (!res.ok) return { ok: false, deleted: 0, extra: 0, error: "Delete failed." };
+        const data = (await res.json().catch(() => ({}))) as { deleted?: number; cascaded?: Record<string, number> };
+        const deleted = data.deleted ?? ids.length;
+        const extra = Object.values(data.cascaded ?? {}).reduce<number>((a, b) => a + (b ?? 0), 0);
+        await refetchLoadedAccounts();
+        return { ok: true, deleted, extra };
+      } catch (e) {
+        console.warn("accounts: cascade delete failed", e);
+        return { ok: false, deleted: 0, extra: 0, error: "Delete failed." };
+      }
+    },
+    [refetchLoadedAccounts],
+  );
+
   // Soft-delete the targeted accounts plus any related sets the user ticked.
   // Routed through the batch endpoint so every delete also writes the
   // suppression ledger (keeps deleted accounts out of future TAM sourcing;
@@ -1176,32 +1363,18 @@ export default function AccountsPage() {
   async function performCascadeDelete(selectedKeys: string[]) {
     if (!cascadeTarget) return;
     setCascadeBusy(true);
-    try {
-      const res = await fetch("/api/accounts/batch", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: cascadeTarget.ids, cascade: selectedKeys }),
-      });
-      if (!res.ok) {
-        toast("Delete failed.", "error");
-        return;
-      }
-      const data = (await res.json().catch(() => ({}))) as { deleted?: number; cascaded?: Record<string, number> };
-      const deleted = data.deleted ?? cascadeTarget.ids.length;
-      const extra = Object.values(data.cascaded ?? {}).reduce<number>((a, b) => a + (b ?? 0), 0);
+    const r = await deleteAccountsByIds(cascadeTarget.ids, selectedKeys);
+    if (!r.ok) {
+      toast(r.error ?? "Delete failed.", "error");
+    } else {
       toast(
-        `Moved ${deleted} account${deleted === 1 ? "" : "s"}${extra > 0 ? ` + ${extra} related record${extra === 1 ? "" : "s"}` : ""} to Archive.`,
+        `Moved ${r.deleted} account${r.deleted === 1 ? "" : "s"}${r.extra > 0 ? ` + ${r.extra} related record${r.extra === 1 ? "" : "s"}` : ""} to Archive.`,
         "success",
       );
       setSelectedRows(new Set());
-      await refetchLoadedAccounts();
-    } catch (e) {
-      toast("Delete failed.", "error");
-      console.warn("accounts: cascade delete failed", e);
-    } finally {
-      setCascadeBusy(false);
-      setCascadeTarget(null);
     }
+    setCascadeBusy(false);
+    setCascadeTarget(null);
   }
 
   // Debounce the search box and push it to the server. The accounts list
@@ -1470,6 +1643,366 @@ export default function AccountsPage() {
   // indeterminate when only part of it is.
   const allVisibleSelected =
     filteredAccounts.length > 0 && filteredAccounts.every((a) => selectedRows.has(a.id));
+
+  // ── CLE-07: register this page's actions for the chat live-executor. The
+  //    registered actions are captured ONCE at mount (CLE-03 keys registration
+  //    by the id list), so each run() reads live state via refs and calls only
+  //    stable setters / useCallback helpers / the §4 extractions above. ──
+  const selectedRef = useRef(selectedRows); selectedRef.current = selectedRows;
+  const viewRef = useRef({ excluded: viewExcluded, deleted: viewDeleted });
+  viewRef.current = { excluded: viewExcluded, deleted: viewDeleted };
+  const profilesRef = useRef(sourceProfiles); profilesRef.current = sourceProfiles;
+  const filteredAccountsRef = useRef(filteredAccounts); filteredAccountsRef.current = filteredAccounts;
+  const smartFiltersRef = useRef(smartFilters); smartFiltersRef.current = smartFilters;
+  // Stable refs to the extracted network helpers / selectAllMatching so the
+  // run()s never close over a stale identity (the helpers are useCallback with
+  // non-empty deps; selectAllMatching is a re-created function declaration).
+  const scoreByIdsRef = useRef(scoreByIds); scoreByIdsRef.current = scoreByIds;
+  const detectSignalsByIdsRef = useRef(detectSignalsByIds); detectSignalsByIdsRef.current = detectSignalsByIds;
+  const extractContactsByIdsRef = useRef(extractContactsByIds); extractContactsByIdsRef.current = extractContactsByIds;
+  const setExclusionByIdsRef = useRef(setExclusionByIds); setExclusionByIdsRef.current = setExclusionByIds;
+  const restoreAccountsResultRef = useRef(restoreAccountsResult); restoreAccountsResultRef.current = restoreAccountsResult;
+  const deleteAccountsByIdsRef = useRef(deleteAccountsByIds); deleteAccountsByIdsRef.current = deleteAccountsByIds;
+  const startTamBuildWithRef = useRef(startTamBuildWith); startTamBuildWithRef.current = startTamBuildWith;
+  const runSmartSearchRef = useRef(runSmartSearch); runSmartSearchRef.current = runSmartSearch;
+  const runEnrichRef = useRef(runEnrich); runEnrichRef.current = runEnrich;
+  const selectAllMatchingRef = useRef(selectAllMatching); selectAllMatchingRef.current = selectAllMatching;
+  const rowSetExclusionRef = useRef(rowSetExclusion); rowSetExclusionRef.current = rowSetExclusion;
+
+  const accountListActions: PageAction[] = useMemo(
+    () => [
+      // ── applyFilter (9 column filters + tab + enrichment partition) ──────
+      definePageAction({
+        id: "accounts.applyFilter",
+        title: "Filter the accounts list",
+        description:
+          "Apply the accounts list filters: source tab (all/sourced(tam)/added(manual)), enrichment partition " +
+          "(all/unenriched/enriched), and the column filters — industry, geography, size, revenue, stage, score " +
+          "grade (A+/A/B/C/D/F), name (text), domain (text), LinkedIn present/absent. Pass clear:true to reset " +
+          "all filters. Replaces the current filter set; runs server-side across ALL accounts, not just the loaded page.",
+        params: z.object({
+          sourceTab: z.enum(["all", "tam", "manual"]).optional(),
+          enrichmentPartition: z.enum(["all", "unenriched", "enriched"]).optional(),
+          industry: z.array(z.string()).optional(),
+          geography: z.array(z.string()).optional(),
+          size: z.array(z.string()).optional(),
+          revenue: z.array(z.string()).optional(),
+          stage: z.array(z.string()).optional(),
+          score: z.array(z.enum(["A+", "A", "B", "C", "D", "F"])).optional(),
+          name: z.string().optional(),
+          domain: z.string().optional(),
+          linkedin: z.enum(["present", "absent"]).optional(),
+          clear: z.boolean().optional(),
+        }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async (p): Promise<PageActionResult> => {
+          if (p.clear) {
+            setColumnFilters({}); setSmartFilters([]); setSmartMeta(null);
+            setFilter("all"); setEnrichmentFilter("all"); setSearchQuery("");
+            return okResult("Cleared all filters.");
+          }
+          if (p.sourceTab) setFilter(p.sourceTab);
+          if (p.enrichmentPartition) setEnrichmentFilter(p.enrichmentPartition);
+          const next: Record<string, ColumnFilterState> = {};
+          if (p.name) next.name = { text: p.name };
+          if (p.domain) next.domain = { text: p.domain };
+          for (const k of ["industry", "geography", "size", "revenue", "stage", "score"] as const) {
+            const vals = p[k]; if (vals?.length) next[k] = { values: vals };
+          }
+          if (p.linkedin) next.linkedin = { presence: p.linkedin === "present" ? "has" : "empty" };
+          if (Object.keys(next).length > 0) setColumnFilters(next);
+          return okResult("Filtered accounts by " + describeAccountFilters(p) + ".");
+        },
+      }),
+      // ── smartSearch (NL -> FilterCondition[] + industry-aware text) ──────
+      definePageAction({
+        id: "accounts.smartSearch",
+        title: "Search accounts",
+        description:
+          "Type into the accounts search box — an industry-aware text match or a natural-language query " +
+          "(e.g. 'SaaS in France, high fit'). Runs server-side across all accounts. Pass an empty query to clear it.",
+        params: z.object({ query: z.string() }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async ({ query }): Promise<PageActionResult> => {
+          const q = query.trim();
+          if (!q) { setSearchQuery(""); setSmartFilters([]); setSmartMeta(null); return okResult("Cleared the account search."); }
+          const r = await runSmartSearchRef.current(q);
+          if (r.filters.length > 0) { setSmartFilters(r.filters); setSmartMeta(r.meta); }
+          else { setSearchQuery(q); }
+          return r.filters.length > 0
+            ? okResult("Applied " + r.filters.length + " smart filter" + (r.filters.length === 1 ? "" : "s") + " (" + (r.meta.reasoning || "matched") + ").", { count: r.filters.length })
+            : okResult('Searched all fields for "' + q + '"; no structured filter applied.', { count: 0 });
+        },
+      }),
+      // ── setView (active / excluded / archived) ──────────────────────────
+      definePageAction({
+        id: "accounts.setView",
+        title: "Switch the accounts view",
+        description:
+          "Switch the accounts view: 'active' (working set), 'excluded' (accounts marked not a fit), " +
+          "or 'archived' (soft-deleted accounts, restorable). Changes nothing persistent.",
+        params: z.object({ view: z.enum(["active", "excluded", "archived"]) }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async ({ view }): Promise<PageActionResult> => {
+          setSelectedRows(new Set());
+          if (view === "excluded") { setViewDeleted(false); setViewExcluded(true); return okResult("Showing accounts marked not a fit."); }
+          if (view === "archived") { setViewExcluded(false); setViewDeleted(true); return okResult("Showing the archive of removed accounts."); }
+          setViewExcluded(false); setViewDeleted(false);
+          return okResult("Showing the active accounts.");
+        },
+      }),
+      // ── selectAll (honest cap) ──────────────────────────────────────────
+      definePageAction({
+        id: "accounts.selectAll",
+        title: "Select all matching accounts",
+        description:
+          "Select every account that matches the active view + filters (not just the loaded page), so a bulk " +
+          "action can run on the whole set. Use before a bulk enrich/score/detect-signals/extract-contacts/" +
+          "exclude/delete. The selection is capped at the server's id limit (up to 50,000) and reports honestly when capped.",
+        params: z.object({ matchingCurrentFilter: z.literal(true) }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async (): Promise<PageActionResult> => {
+          const beforeVisible = filteredAccountsRef.current.length;
+          // selectAllMatching returns the resolved set so the count is accurate
+          // without waiting for the setSelectedRows render to land in the ref.
+          const resolved = await selectAllMatchingRef.current();
+          const n = resolved.size;
+          const hasResidualNl = smartFiltersRef.current.some((c) => c.field !== "score");
+          if (hasResidualNl && n === beforeVisible)
+            return okResult("Selected the " + n + " loaded account" + (n === 1 ? "" : "s") + " (a text/NL filter can't be resolved server-side, so only the loaded rows were selected).", { count: n });
+          return okResult("Selected " + n.toLocaleString() + " matching account" + (n === 1 ? "" : "s") + ".", { count: n });
+        },
+      }),
+      // ── bulkEnrich (credits) ────────────────────────────────────────────
+      definePageAction({
+        id: "accounts.bulkEnrich",
+        title: "Enrich the selected accounts",
+        description:
+          "Enrich every currently-selected account (industry, description, size, etc.) via the streaming enrich. " +
+          "Uses enrichment credits. Select accounts first (accounts.selectAll). Confirms before spending. " +
+          "Optionally pass criteria (the fields to fill) and/or accountIds to override the selection.",
+        params: z.object({ criteria: z.array(z.string()).optional(), accountIds: z.array(z.string()).optional() }),
+        mutating: true, reversible: true, cost: "credits", confirm: "risky",
+        run: async ({ criteria, accountIds }): Promise<PageActionResult> => {
+          const ids = accountIds?.length ? accountIds : Array.from(selectedRef.current);
+          if (ids.length === 0) return errResult("No accounts selected — select some first (or say 'select all matching').");
+          runEnrichRef.current(criteria ?? ["industry", "description"], ids);
+          return okResult("Enriching " + ids.length + " account" + (ids.length === 1 ? "" : "s") + "…", { count: ids.length });
+        },
+      }),
+      // ── bulkScore ───────────────────────────────────────────────────────
+      definePageAction({
+        id: "accounts.bulkScore",
+        title: "Score the selected accounts",
+        description:
+          "Re-score the selected accounts for ICP fit. Select accounts first. Confirms first. " +
+          "(For a whole-library re-score of every account against every profile, use the headless scoring tool — that is not this action.)",
+        params: z.object({ accountIds: z.array(z.string()).optional() }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ accountIds }): Promise<PageActionResult> => {
+          const ids = accountIds?.length ? accountIds : Array.from(selectedRef.current);
+          if (ids.length === 0) return errResult("No accounts selected — select some first (or say 'select all matching').");
+          const r = await scoreByIdsRef.current(ids);
+          return r.failed === 0
+            ? okResult("Scored " + r.succeeded + " account" + (r.succeeded === 1 ? "" : "s") + ".", { count: r.succeeded })
+            : okResult("Scored " + r.succeeded + " of " + r.total + "; " + r.failed + " failed.", { count: r.succeeded });
+        },
+      }),
+      // ── bulkDetectSignals ───────────────────────────────────────────────
+      definePageAction({
+        id: "accounts.bulkDetectSignals",
+        title: "Detect signals for the selected accounts",
+        description:
+          "Detect buying/intent signals for the selected accounts (only the enriched ones are eligible). Confirms first.",
+        params: z.object({ accountIds: z.array(z.string()).optional() }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ accountIds }): Promise<PageActionResult> => {
+          const base = accountIds?.length ? accountIds : Array.from(selectedRef.current);
+          if (base.length === 0) return errResult("No accounts selected — select some first (or say 'select all matching').");
+          const r = await detectSignalsByIdsRef.current(base);
+          return r.failed === 0
+            ? okResult("Detected signals for " + r.succeeded + " account" + (r.succeeded === 1 ? "" : "s") + ".", { count: r.succeeded })
+            : okResult("Detected signals for " + r.succeeded + " of " + r.total + "; " + r.failed + " failed.", { count: r.succeeded });
+        },
+      }),
+      // ── bulkExtractContacts (CREDITS, ALWAYS confirm) ───────────────────
+      definePageAction({
+        id: "accounts.bulkExtractContacts",
+        title: "Extract contacts for the selected accounts",
+        description:
+          "Source real decision-maker contacts (from Apollo) for the selected accounts and add them. Uses credits " +
+          "and can create many contacts. Select accounts first. ALWAYS confirms before spending.",
+        params: z.object({ accountIds: z.array(z.string()).optional() }),
+        mutating: true, reversible: true, cost: "credits", confirm: "always",
+        run: async ({ accountIds }): Promise<PageActionResult> => {
+          const ids = accountIds?.length ? accountIds : Array.from(selectedRef.current);
+          if (ids.length === 0) return errResult("No accounts selected — select some first (or say 'select all matching').");
+          const r = await extractContactsByIdsRef.current(ids);
+          if (r.error) return errResult(r.error);
+          return r.totalCreated > 0
+            ? okResult("Added " + r.totalCreated + " contact" + (r.totalCreated === 1 ? "" : "s") + " across " + r.accountsProcessed + " account" + (r.accountsProcessed === 1 ? "" : "s") + ".", { created: r.totalCreated })
+            : okResult("No new contacts found for the selected accounts.", { created: 0 });
+        },
+      }),
+      // ── bulkExclude ─────────────────────────────────────────────────────
+      definePageAction({
+        id: "accounts.bulkExclude",
+        title: "Mark the selected accounts as not a fit",
+        description: "Exclude the selected accounts ('not a fit'). Reversible (restore later). Confirms first.",
+        params: z.object({ accountIds: z.array(z.string()).optional() }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ accountIds }): Promise<PageActionResult> => {
+          const ids = accountIds?.length ? accountIds : Array.from(selectedRef.current);
+          if (ids.length === 0) return errResult("No accounts selected — select some first (or say 'select all matching').");
+          const r = await setExclusionByIdsRef.current(ids, "exclude");
+          return r.succeeded === 0
+            ? errResult("Couldn't exclude the accounts.")
+            : okResult("Marked " + r.succeeded + " account" + (r.succeeded === 1 ? "" : "s") + " as not a fit." + (r.failed > 0 ? " " + r.failed + " failed." : ""), { count: r.succeeded });
+        },
+      }),
+      // ── bulkRestore (view-dependent) ────────────────────────────────────
+      definePageAction({
+        id: "accounts.bulkRestore",
+        title: "Restore the selected accounts",
+        description:
+          "Restore the selected accounts. In the Excluded view this un-excludes them; in the Archive view it " +
+          "un-deletes them. Confirms first.",
+        params: z.object({ accountIds: z.array(z.string()).optional() }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ accountIds }): Promise<PageActionResult> => {
+          const ids = accountIds?.length ? accountIds : Array.from(selectedRef.current);
+          if (ids.length === 0) return errResult("No accounts selected — select some first.");
+          const { excluded, deleted } = viewRef.current;
+          if (deleted) { const r = await restoreAccountsResultRef.current(ids); return r.ok ? okResult("Restored " + r.restored + " account" + (r.restored === 1 ? "" : "s") + ".") : errResult(r.error ?? "Couldn't restore."); }
+          if (excluded) { const r = await setExclusionByIdsRef.current(ids, "include"); return r.succeeded > 0 ? okResult("Restored " + r.succeeded + " account" + (r.succeeded === 1 ? "" : "s") + ".") : errResult("Couldn't restore."); }
+          return okResult("Nothing to restore in this view.");
+        },
+      }),
+      // ── bulkDelete (DESTRUCTIVE, ALWAYS confirm) ────────────────────────
+      definePageAction({
+        id: "accounts.bulkDelete",
+        title: "Delete the selected accounts",
+        description:
+          "Soft-delete the selected accounts (they move to the Archive and can be restored). Optionally cascade to " +
+          "their contacts, deals, activities, notes, and/or tasks. ALWAYS confirms first.",
+        params: z.object({
+          accountIds: z.array(z.string()).optional(),
+          cascade: z.array(z.enum(["contacts", "deals", "activities", "notes", "tasks"])).optional(),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "always",
+        run: async ({ accountIds, cascade }): Promise<PageActionResult> => {
+          const ids = accountIds?.length ? accountIds : Array.from(selectedRef.current);
+          if (ids.length === 0) return errResult("No accounts selected — select some first (or say 'select all matching').");
+          const r = await deleteAccountsByIdsRef.current(ids, cascade ?? []);
+          return r.ok
+            ? okResult("Moved " + r.deleted + " account" + (r.deleted === 1 ? "" : "s") + (r.extra > 0 ? " + " + r.extra + " related record" + (r.extra === 1 ? "" : "s") : "") + " to Archive.", { deleted: r.deleted })
+            : errResult(r.error ?? "Failed to delete the accounts.");
+        },
+      }),
+      // ── sendToCallMode (navigation) ─────────────────────────────────────
+      definePageAction({
+        id: "accounts.sendToCallMode",
+        title: "Send the selected accounts to Call Mode",
+        description: "Open Call Mode (the softphone) seeded with the selected accounts. Navigates; changes nothing persistent.",
+        params: z.object({ accountIds: z.array(z.string()).optional() }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async ({ accountIds }): Promise<PageActionResult> => {
+          const ids = accountIds?.length ? accountIds : Array.from(selectedRef.current);
+          if (ids.length === 0) return errResult("No accounts selected.");
+          window.location.href = "/call-mode?accounts=" + encodeURIComponent(ids.join(","));
+          return okResult("Opening Call Mode with " + ids.length + " account" + (ids.length === 1 ? "" : "s") + ".", { count: ids.length });
+        },
+      }),
+      // ── enrichAccount (single row, credits) ─────────────────────────────
+      definePageAction({
+        id: "accounts.enrichAccount",
+        title: "Enrich one account",
+        description: "Enrich a single account by id (industry, description, etc.). Uses credits. Confirms first.",
+        params: z.object({ accountId: z.string().min(1), criteria: z.array(z.string()).optional() }),
+        mutating: true, reversible: true, cost: "credits", confirm: "risky",
+        run: async ({ accountId, criteria }): Promise<PageActionResult> => {
+          runEnrichRef.current(criteria ?? ["industry", "description"], [accountId]);
+          return okResult("Enriching the account…");
+        },
+      }),
+      // ── scoreAccount (single row) ───────────────────────────────────────
+      definePageAction({
+        id: "accounts.scoreAccount",
+        title: "Score one account",
+        description: "Re-score a single account by id for ICP fit. Confirms first.",
+        params: z.object({ accountId: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ accountId }): Promise<PageActionResult> => {
+          const r = await scoreByIdsRef.current([accountId]);
+          return r.failed === 0 ? okResult("Scored the account.") : errResult("Couldn't score the account.");
+        },
+      }),
+      // ── excludeAccount (single row) ─────────────────────────────────────
+      definePageAction({
+        id: "accounts.excludeAccount",
+        title: "Mark one account as not a fit (or restore it)",
+        description: "Exclude a single account ('not a fit'), or restore:true to un-exclude it. Confirms first.",
+        params: z.object({ accountId: z.string().min(1), restore: z.boolean().optional() }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ accountId, restore }): Promise<PageActionResult> => {
+          await rowSetExclusionRef.current(accountId, restore ? "include" : "exclude");
+          return okResult(restore ? "Restored the account to the active list." : "Marked the account as not a fit.");
+        },
+      }),
+      // ── deleteAccount (single row, DESTRUCTIVE, ALWAYS confirm) ──────────
+      definePageAction({
+        id: "accounts.deleteAccount",
+        title: "Delete one account",
+        description:
+          "Soft-delete a single account by id (moves to the Archive, restorable). Optionally cascade to its " +
+          "contacts/deals/activities/notes/tasks. ALWAYS confirms first.",
+        params: z.object({
+          accountId: z.string().min(1),
+          cascade: z.array(z.enum(["contacts", "deals", "activities", "notes", "tasks"])).optional(),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "always",
+        run: async ({ accountId, cascade }): Promise<PageActionResult> => {
+          const r = await deleteAccountsByIdsRef.current([accountId], cascade ?? []);
+          return r.ok ? okResult("Moved the account to Archive.") : errResult(r.error ?? "Failed to delete the account.");
+        },
+      }),
+      // ── startTamBuild (CREDITS, ALWAYS confirm) ─────────────────────────
+      definePageAction({
+        id: "accounts.startTamBuild",
+        title: "Build a TAM (source new accounts)",
+        description:
+          "Source new accounts from your ICP and stream them into the list live. Pass icpId for one profile, " +
+          "allProfiles:true for every usable profile, or neither for the tenant-wide planner. Uses sourcing " +
+          "credits and creates many rows. ALWAYS confirms before sourcing.",
+        params: z.object({ icpId: z.string().optional(), allProfiles: z.boolean().optional(), targetCount: z.number().optional() }),
+        mutating: true, reversible: true, cost: "credits", confirm: "always",
+        run: async ({ icpId, allProfiles, targetCount }): Promise<PageActionResult> => {
+          if (icpId && !profilesRef.current.some((p) => p.id === icpId)) return errResult("No such ICP profile.");
+          await startTamBuildWithRef.current({ icpId, allProfiles, targetCount });
+          return okResult("Sourcing new accounts from your ICP — rows stream in live.");
+        },
+      }),
+      // ── openPersonaSearch (opens the NL->ICP modal) ─────────────────────
+      definePageAction({
+        id: "accounts.openPersonaSearch",
+        title: "Describe your ideal accounts (open the persona modal)",
+        description:
+          "Open the 'describe who you want to reach' modal so the user can phrase an ICP in natural language. " +
+          "Opens the modal only; the user reviews and saves it there.",
+        params: z.object({}),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async (): Promise<PageActionResult> => {
+          setShowPersona(true);
+          return okResult("Opened the persona search — describe your ideal accounts and save it there.");
+        },
+      }),
+    ],
+    // Stable id set; run()s read live values via refs and call stable setters /
+    // useCallback helpers (read through refs) — so registration happens once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useRegisterPageActions(accountListActions);
 
   // Per-tab counts shown in parentheses (All / Sourced / Added). The server
   // counts reflect the active column/search/score filters but are independent
