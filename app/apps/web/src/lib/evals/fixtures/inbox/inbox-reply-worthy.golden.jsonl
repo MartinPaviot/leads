@@ -1,0 +1,36 @@
+{"id":"rw-001","scenario":"Machine-sent no-reply notice","input":{"isMachineSent":true,"generalIntent":"automated_no_reply","isBulk":true},"expected":false}
+{"id":"rw-002","scenario":"Machine-sent, but body parses as a question (machine gate must win)","input":{"isMachineSent":true,"generalIntent":"question","isBulk":true},"expected":false}
+{"id":"rw-003","scenario":"Machine-sent system notification","input":{"isMachineSent":true,"generalIntent":"notification","isBulk":true},"expected":false}
+{"id":"rw-004","scenario":"Machine-sent payment receipt","input":{"isMachineSent":true,"generalIntent":"receipt_confirmation","isBulk":true},"expected":false}
+{"id":"rw-005","scenario":"Machine-sent OTP / security code (HubSpot OTP case)","input":{"isMachineSent":true,"generalIntent":"security_account","isBulk":true},"expected":false}
+{"id":"rw-006","scenario":"Machine-sent marketing blast","input":{"isMachineSent":true,"generalIntent":"promotion_newsletter","isBulk":true},"expected":false}
+{"id":"rw-007","scenario":"No-reply automated mail from a human-looking address","input":{"isMachineSent":false,"generalIntent":"automated_no_reply","isBulk":false},"expected":false}
+{"id":"rw-008","scenario":"Newsletter / promotion (not flagged machine, intent disqualifies)","input":{"isMachineSent":false,"generalIntent":"promotion_newsletter","isBulk":false},"expected":false}
+{"id":"rw-009","scenario":"Product notification (digest, mention, alert)","input":{"isMachineSent":false,"generalIntent":"notification","isBulk":false},"expected":false}
+{"id":"rw-010","scenario":"Order/receipt confirmation","input":{"isMachineSent":false,"generalIntent":"receipt_confirmation","isBulk":false},"expected":false}
+{"id":"rw-011","scenario":"Invoice / billing mail","input":{"isMachineSent":false,"generalIntent":"invoice_billing","isBulk":false},"expected":false}
+{"id":"rw-012","scenario":"Account-security notice (no human reply expected)","input":{"isMachineSent":false,"generalIntent":"security_account","isBulk":false},"expected":false}
+{"id":"rw-013","scenario":"Bulk mail with a non-human-response intent (fyi)","input":{"isMachineSent":false,"generalIntent":"fyi_update","isBulk":true},"expected":false}
+{"id":"rw-014","scenario":"Bulk social-style blast","input":{"isMachineSent":false,"generalIntent":"social","isBulk":true},"expected":false}
+{"id":"rw-015","scenario":"Bulk notification (both bulk and no-reply intent)","input":{"isMachineSent":false,"generalIntent":"notification","isBulk":true},"expected":false}
+{"id":"rw-016","scenario":"Human asks a direct question","input":{"isMachineSent":false,"generalIntent":"question","isBulk":false},"expected":true}
+{"id":"rw-017","scenario":"Human requests a meeting","input":{"isMachineSent":false,"generalIntent":"meeting_request","isBulk":false},"expected":true}
+{"id":"rw-018","scenario":"Human proposes scheduling a time","input":{"isMachineSent":false,"generalIntent":"scheduling","isBulk":false},"expected":true}
+{"id":"rw-019","scenario":"Human asks us to take an action","input":{"isMachineSent":false,"generalIntent":"request_action","isBulk":false},"expected":true}
+{"id":"rw-020","scenario":"Prospect reply on a sales thread","input":{"isMachineSent":false,"generalIntent":"sales_reply","isBulk":false},"expected":true}
+{"id":"rw-021","scenario":"Customer support request","input":{"isMachineSent":false,"generalIntent":"support_request","isBulk":false},"expected":true}
+{"id":"rw-022","scenario":"Personal note from a real person","input":{"isMachineSent":false,"generalIntent":"personal","isBulk":false},"expected":true}
+{"id":"rw-023","scenario":"Bulk-flagged but the message is a genuine question (recall-bias exception)","input":{"isMachineSent":false,"generalIntent":"question","isBulk":true},"expected":true}
+{"id":"rw-024","scenario":"Bulk-flagged but a real sales reply (recall-bias exception)","input":{"isMachineSent":false,"generalIntent":"sales_reply","isBulk":true},"expected":true}
+{"id":"rw-025","scenario":"Ambiguous human FYI, not machine, not bulk (recall bias → offer)","input":{"isMachineSent":false,"generalIntent":"fyi_update","isBulk":false},"expected":true}
+{"id":"rw-026","scenario":"Human social note, not bulk (recall bias → offer)","input":{"isMachineSent":false,"generalIntent":"social","isBulk":false},"expected":true}
+{"id":"rw-027","scenario":"Intent could not be determined, human sender (recall bias → offer)","input":{"isMachineSent":false,"generalIntent":null,"isBulk":false},"expected":true}
+{"id":"rw-028","scenario":"Superhuman welcome email (machine-sent onboarding) — affordance must be ABSENT","input":{"isMachineSent":true,"generalIntent":"promotion_newsletter","isBulk":true},"expected":false}
+{"id":"rw-029","scenario":"Resend welcome email (machine-sent) — affordance ABSENT","input":{"isMachineSent":true,"generalIntent":"notification","isBulk":true},"expected":false}
+{"id":"rw-030","scenario":"HubSpot one-time passcode — affordance ABSENT","input":{"isMachineSent":false,"generalIntent":"security_account","isBulk":false},"expected":false}
+{"id":"rw-031","scenario":"Newsletter digest — affordance ABSENT","input":{"isMachineSent":false,"generalIntent":"promotion_newsletter","isBulk":true},"expected":false}
+{"id":"rw-032","scenario":"Real human (Benjamin Mace) reply — affordance PRESENT","input":{"isMachineSent":false,"generalIntent":"question","isBulk":false},"expected":true}
+{"id":"rw-033","scenario":"LinkedIn connection/notification mail — affordance ABSENT","input":{"isMachineSent":true,"generalIntent":"notification","isBulk":true},"expected":false}
+{"id":"rw-034","scenario":"Stripe payment receipt — affordance ABSENT","input":{"isMachineSent":true,"generalIntent":"receipt_confirmation","isBulk":true},"expected":false}
+{"id":"rw-035","scenario":"Calendar invite from a real person — affordance PRESENT","input":{"isMachineSent":false,"generalIntent":"meeting_request","isBulk":false},"expected":true}
+{"id":"rw-036","scenario":"Human cold sales pitch from a real SDR — offer (recall bias, human mail)","input":{"isMachineSent":false,"generalIntent":"sales_reply","isBulk":false},"expected":true}
