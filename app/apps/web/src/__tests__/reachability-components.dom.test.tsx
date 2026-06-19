@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, cleanup, fireEvent, waitFor, screen } from "@testing-library/react";
 import { ReachabilityInfo } from "@/app/(dashboard)/call-mode/_reachability-info";
 import { ReachabilitySummary } from "@/app/(dashboard)/call-mode/_reachability-summary";
 
@@ -21,28 +21,29 @@ describe("ReachabilityInfo (row affordance)", () => {
       />,
     );
     expect(getByLabelText(/Joignabilité/)).toBeTruthy();
-    expect(container.textContent).not.toContain("Mobile suisse"); // hidden until hover
+    // The hover panel is portaled to <body>, so assert against the document.
+    expect(document.body.textContent).not.toContain("Mobile suisse"); // hidden until hover
     fireEvent.mouseEnter(container.firstChild as Element);
-    await waitFor(() => expect(container.textContent).toContain("Mobile suisse"));
+    await waitFor(() => expect(document.body.textContent).toContain("Mobile suisse"));
   });
 
   it("offers a find-mobile action only when there is no number", async () => {
-    const { container, getByText } = render(
+    const { container } = render(
       <ReachabilityInfo delay={0} contactId="c2" phone={null} />,
     );
     fireEvent.mouseEnter(container.firstChild as Element);
-    await waitFor(() => expect(container.textContent).toContain("Pas de mobile"));
-    expect(getByText("Trouver le mobile")).toBeTruthy();
+    await waitFor(() => expect(document.body.textContent).toContain("Pas de mobile"));
+    expect(screen.getByText("Trouver le mobile")).toBeTruthy();
   });
 
   it("fires the enrich request and confirms, without throwing", async () => {
     const fetchMock = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ requested: 1 }) } as Response));
     vi.stubGlobal("fetch", fetchMock);
-    const { container, getByText } = render(<ReachabilityInfo delay={0} contactId="c3" phone={null} />);
+    const { container } = render(<ReachabilityInfo delay={0} contactId="c3" phone={null} />);
     fireEvent.mouseEnter(container.firstChild as Element);
-    await waitFor(() => getByText("Trouver le mobile"));
-    fireEvent.click(getByText("Trouver le mobile"));
-    await waitFor(() => expect(container.textContent).toContain("Demandé"));
+    await waitFor(() => screen.getByText("Trouver le mobile"));
+    fireEvent.click(screen.getByText("Trouver le mobile"));
+    await waitFor(() => expect(document.body.textContent).toContain("Demandé"));
     expect(fetchMock).toHaveBeenCalledWith("/api/contacts/fullenrich-enrich", expect.objectContaining({ method: "POST" }));
   });
 });
