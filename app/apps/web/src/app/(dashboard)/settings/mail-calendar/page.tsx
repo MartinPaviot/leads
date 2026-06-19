@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { signIn } from "next-auth/react";
 import { useSafeFetch } from "@/lib/infra/use-safe-fetch";
 import { SettingsHeader } from "@/components/ui/settings-header";
 import {
@@ -85,6 +84,8 @@ export default function MailCalendarPage() {
   const [cust, setCust] = useState({ email: "", imapHost: "", imapPort: "993", smtpHost: "", smtpPort: "465", password: "", caldavUrl: "" });
   const [connecting, setConnecting] = useState(false);
   const [connectErr, setConnectErr] = useState("");
+  // A1: result of the OAuth-LINK round-trip (?linked=ok|cancelled|error).
+  const [linkedNotice, setLinkedNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Sync preferences
   const [contactCreationMode, setContactCreationMode] = useState("selective");
@@ -128,14 +129,37 @@ export default function MailCalendarPage() {
 
   useEffect(() => { loadData(); }, []);
 
+  // A1: surface the OAuth-LINK result and strip the query param so a refresh
+  // doesn't re-show it. On success, reload so the new mailbox appears.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const linked = params.get("linked");
+    if (!linked) return;
+    if (linked === "ok") {
+      setLinkedNotice({ ok: true, text: "Mailbox connected." });
+      loadData();
+    } else if (linked === "cancelled") {
+      setLinkedNotice({ ok: false, text: "Connection cancelled." });
+    } else {
+      setLinkedNotice({ ok: false, text: "Couldn't connect that mailbox. Please try again." });
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.delete("linked");
+    window.history.replaceState({}, "", url.toString());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /* ---- Actions ---- */
 
+  // A1: ADD-a-mailbox via the OAuth-LINK flow (attaches to the current user),
+  // NOT next-auth signIn (which would swap the session identity). The route
+  // 302s to the provider and the callback returns to ?linked=ok|cancelled|error.
   function connectGoogle() {
-    signIn("google", { callbackUrl: "/settings/mail-calendar" });
+    window.location.href = "/api/settings/mailboxes/oauth-link?provider=gmail";
   }
 
   function connectMicrosoft() {
-    signIn("microsoft-entra-id", { callbackUrl: "/settings/mail-calendar" });
+    window.location.href = "/api/settings/mailboxes/oauth-link?provider=outlook";
   }
 
   async function connectCustom() {
@@ -323,6 +347,22 @@ export default function MailCalendarPage() {
         title="Mail & Calendar"
         subtitle="Manage your connected email accounts, sync preferences, and sending settings."
       />
+
+      {linkedNotice && (
+        <div
+          className="mt-4 flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-[13px]"
+          style={{
+            borderColor: linkedNotice.ok ? "var(--color-success)" : "var(--color-border-default)",
+            background: linkedNotice.ok ? "var(--color-accent-soft)" : "var(--color-bg-card)",
+            color: linkedNotice.ok ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+          }}
+        >
+          <span>{linkedNotice.text}</span>
+          <button onClick={() => setLinkedNotice(null)} style={{ color: "var(--color-text-muted)" }} aria-label="Dismiss">
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* ============================================================ */}
       {/*  SECTION 1 — Connected accounts                              */}
