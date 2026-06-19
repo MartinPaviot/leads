@@ -990,6 +990,7 @@ export default function InboxPage() {
               conversationKey={selectedKey}
               lane={customLaneId ? "attention" : tab === "outbound" || tab === "bundles" ? "attention" : tab}
               replySignal={replySignal}
+              labelSignal={labelSignal}
               onTriage={handleTriage}
               apiRef={paneApiRef}
             />

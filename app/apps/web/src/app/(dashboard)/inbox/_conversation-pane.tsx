@@ -108,6 +108,7 @@ export function ConversationPane({
   conversationKey,
   lane,
   replySignal,
+  labelSignal,
   onTriage,
   apiRef,
 }: {
@@ -115,6 +116,8 @@ export function ConversationPane({
   lane: InboxLane;
   /** Incremented by the page when the user presses `r`. */
   replySignal: number;
+  /** B6: incremented by the page (`l` key / palette) to open the add-label input. */
+  labelSignal?: number;
   onTriage: (key: string, action: "done" | "snooze" | "reopen", snoozeUntil?: string) => Promise<void>;
   /** CLE-14: set by the page to drive reply/book/stop from the chat. */
   apiRef?: Ref<ConversationPaneApi | null>;
@@ -615,7 +618,7 @@ export function ConversationPane({
           {/* Assign to a teammate (INBOX-X01) — shows only when the workspace has 2+ members. */}
           <ThreadAssignment conversationKey={conv.key} />
           {/* Shared labels (INBOX-X04). */}
-          <ThreadLabels conversationKey={conv.key} />
+          <ThreadLabels conversationKey={conv.key} openSignal={labelSignal} />
           {/* Live presence (INBOX-X03) — who else is on this thread. */}
           <ThreadPresence conversationKey={conv.key} />
           {detail.enrollment && (

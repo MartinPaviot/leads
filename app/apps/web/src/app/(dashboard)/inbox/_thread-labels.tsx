@@ -10,7 +10,15 @@ import { useState, useEffect, useId } from "react";
 import { Tag, X, Plus } from "lucide-react";
 import { labelHue } from "@/lib/inbox/labels";
 
-export function ThreadLabels({ conversationKey }: { conversationKey: string }) {
+export function ThreadLabels({
+  conversationKey,
+  openSignal,
+}: {
+  conversationKey: string;
+  /** B6: bumped by the page (`l` key / "Label" palette command) to open the
+   * add-label input on the focused thread; `autoFocus` then focuses it. */
+  openSignal?: number;
+}) {
   const [labels, setLabels] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
@@ -34,6 +42,13 @@ export function ThreadLabels({ conversationKey }: { conversationKey: string }) {
       cancelled = true;
     };
   }, [conversationKey]);
+
+  // Open the add-label input when the page bumps openSignal (`l` key / palette).
+  // Declared AFTER the per-thread reset above so an explicit label-open wins when
+  // both fire; the initial 0/undefined never auto-opens on first render.
+  useEffect(() => {
+    if (openSignal && openSignal > 0) setAdding(true);
+  }, [openSignal]);
 
   async function apply(name: string) {
     const n = name.trim();
