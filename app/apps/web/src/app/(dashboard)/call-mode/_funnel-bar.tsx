@@ -56,10 +56,10 @@ function Cell({
   style?: React.CSSProperties;
 }) {
   return (
-    <div className="px-3 py-1" style={style}>
-      {/* Compact strip: 12px value / 10px label keep the bar a one-line glance. */}
-      <div className="truncate text-[12px] leading-tight">
-        <span className="mr-1.5 text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
+    <div className="px-3 py-0.5" style={style}>
+      {/* Compact strip: 11px value / 9px label keep the bar a thin one-line glance. */}
+      <div className="truncate text-[11px] leading-tight">
+        <span className="mr-1.5 text-[9px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
           {label}
         </span>
         <span className="font-semibold" style={{ color: "var(--color-text-primary)" }}>
@@ -110,7 +110,7 @@ export function CampaignFunnelBar() {
         style={{ background: "var(--color-bg-card)", borderBottom: "1px solid var(--color-border-default)" }}
       >
       {/* Me / Team scope — per-user Call Mode, shareable team totals */}
-      <div className="px-3 py-1" style={{ display: "flex", alignItems: "center" }}>
+      <div className="px-3 py-0.5" style={{ display: "flex", alignItems: "center" }}>
         <div className="flex gap-0.5 rounded-md p-0.5" style={{ background: "var(--color-bg-base)", border: "1px solid var(--color-border-default)" }}>
           {(["me", "team"] as const).map((k) => {
             const active = scope === k;
@@ -119,7 +119,7 @@ export function CampaignFunnelBar() {
                 key={k}
                 type="button"
                 onClick={() => setScope(k)}
-                className="rounded px-2 py-0.5 text-[10px] font-medium transition-colors"
+                className="rounded px-2 py-0.5 text-[9px] font-medium transition-colors"
                 style={{
                   background: active ? "var(--color-accent-soft)" : "transparent",
                   color: active ? "var(--color-accent)" : "var(--color-text-tertiary)",
@@ -187,7 +187,7 @@ export function CampaignFunnelBar() {
         <button
           type="button"
           onClick={() => setShowMetrics(true)}
-          className="ml-auto mr-3 flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors"
+          className="ml-auto mr-3 flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors"
           style={{ color: "var(--color-text-secondary)", border: "1px solid var(--color-border-default)" }}
           onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}

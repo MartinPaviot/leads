@@ -25,7 +25,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Plus, Check, Loader2, Layers, ChevronDown, ArrowDownUp } from "lucide-react";
+import { Plus, Check, Loader2, ChevronDown, ArrowDownUp } from "lucide-react";
 import { Floating } from "@/components/ui/floating";
 import { ACTIVE_SORT_KEYS } from "@/lib/voice/queue-sort";
 import type { CallListSort } from "@/lib/voice/call-lists";
@@ -296,10 +296,9 @@ function AudienceMenu(props: {
         type="button"
         onClick={() => setOpen((o) => !o)}
         title="Audience : quelle cible alimente la file"
-        className="flex h-7 min-w-0 max-w-[180px] items-center gap-1.5 rounded-md border px-2 text-[12px] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]"
+        className="flex h-6 min-w-0 max-w-[140px] items-center gap-1 rounded-md border px-1.5 text-[11px] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]"
         style={{ borderColor: "var(--color-border-default)" }}
       >
-        <Layers size={12} className="shrink-0 text-zinc-400" />
         <span className="truncate">{activeName}</span>
         {busySectorId !== null ? (
           <Loader2 size={12} className="shrink-0 animate-spin text-zinc-400" />
