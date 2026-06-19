@@ -9,6 +9,7 @@ import { ContactCollisionNotice } from "@/components/collision/contact-collision
 import { parseRecipients } from "@/lib/inbox/template-vars";
 import { REWRITE_PRESETS } from "@/lib/inbox/rewrite-presets";
 import { TRANSLATE_LANGUAGES } from "@/lib/inbox/translate-languages";
+import { pickDefaultFrom, mailboxDisplay, type SendableMailbox } from "@/lib/inbox/pick-from-mailbox";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -22,6 +23,8 @@ export interface EmailComposerDraft {
   body: string;
   contactId?: string;
   dealId?: string;
+  /** A2: the seeded send-from mailbox (the thread's own box on a reply). */
+  mailboxId?: string;
 }
 
 interface EmailComposerPanelProps {
@@ -29,6 +32,8 @@ interface EmailComposerPanelProps {
   onClose: () => void;
   /** Called after a successful send with the messageId */
   onSent?: (messageId: string) => void;
+  /** A2: the user's SENDABLE mailboxes for the From selector (empty hides it). */
+  mailboxes?: SendableMailbox[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -186,9 +191,14 @@ function clearDraftFromStorage() {
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
 
-export function EmailComposerPanel({ draft, onClose, onSent }: EmailComposerPanelProps) {
+export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: EmailComposerPanelProps) {
   const { toast } = useToast();
   const [mounted, setMounted] = useState(false);
+
+  // A2: send-from selector. Seeded to the thread's box when still sendable, else
+  // the primary. Server re-resolves + refuses a non-owned/inactive box (403).
+  const [fromMailboxId, setFromMailboxId] = useState<string | undefined>(() => pickDefaultFrom(draft.mailboxId, mailboxes));
+  const [fromOpen, setFromOpen] = useState(false);
 
   // Form state — parseRecipients keeps "Name <email>" and lists tidy.
   const [toEmails, setToEmails] = useState<string[]>(parseRecipients(draft.to || "").valid);
@@ -399,6 +409,7 @@ export function EmailComposerPanel({ draft, onClose, onSent }: EmailComposerPane
           body: editBody,
           contactId: draft.contactId || undefined,
           dealId: draft.dealId || undefined,
+          mailboxId: fromMailboxId || undefined,
         }),
       });
 
@@ -491,6 +502,63 @@ export function EmailComposerPanel({ draft, onClose, onSent }: EmailComposerPane
         )}
 
         {/* Email fields */}
+        {/* A2: From selector — which connected mailbox this leaves from. Default
+            = the thread's own box. One box → static label; many → a menu. */}
+        {mailboxes.length > 0 && (() => {
+          const selected = mailboxes.find((m) => m.id === fromMailboxId) ?? mailboxes[0];
+          return (
+            <div
+              className="flex items-center gap-2 px-4 py-2"
+              style={{ borderBottom: "0.5px solid var(--color-border-default)" }}
+            >
+              <span className="w-12 shrink-0 text-[12px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>
+                From
+              </span>
+              {mailboxes.length === 1 ? (
+                <span className="text-[13px]" style={{ color: "var(--color-text-primary)" }}>
+                  {mailboxDisplay(selected)}
+                </span>
+              ) : (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setFromOpen((v) => !v)}
+                    className="flex items-center gap-1 text-[13px]"
+                    style={{ color: "var(--color-text-primary)" }}
+                  >
+                    {mailboxDisplay(selected)}
+                    <ChevronDown size={12} style={{ color: "var(--color-text-tertiary)" }} />
+                  </button>
+                  {fromOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setFromOpen(false)} />
+                      <div
+                        className="absolute left-0 top-full z-20 mt-1 min-w-[220px] rounded-lg border p-1 shadow-lg"
+                        style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
+                      >
+                        {mailboxes.map((m) => {
+                          const active = m.id === selected.id;
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => { setFromMailboxId(m.id); setFromOpen(false); }}
+                              className="block w-full rounded px-2 py-1.5 text-left text-[12px] transition-colors hover:bg-[var(--color-bg-hover)]"
+                              style={{ color: active ? "var(--color-accent)" : "var(--color-text-primary)" }}
+                            >
+                              {m.label && m.label !== m.address ? `${m.label} <${m.address}>` : m.address}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         <EmailField
           label="To"
           emails={toEmails}
