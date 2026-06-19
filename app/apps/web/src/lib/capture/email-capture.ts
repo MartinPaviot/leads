@@ -41,6 +41,9 @@ import { embedEntity } from "@/lib/ai/embeddings";
 import { ingestEpisode } from "@/lib/ai/context-graph";
 import { inngest } from "@/inngest/client";
 import { classifyInboundSender } from "@/lib/inbound/lead-classification";
+import { stripDangerousHtml } from "@/lib/inbox/sanitize-email";
+import { parseAuthResults } from "@/lib/inbox/sender-auth";
+import type { AttachmentMeta } from "@/lib/inbox/attachment-meta";
 
 /** "John Doe <john@example.com>" -> "john@example.com" (lowercased). */
 export function extractEmailFromHeader(header: string): string {
@@ -83,6 +86,9 @@ export interface InboundEmailInput {
   toHeader?: string | null;
   subject?: string | null;
   text?: string | null;
+  /** Original `text/html` body. Sanitized + stored so the reading pane can
+   *  render real HTML (INBOX-R01/R13). Absent ⇒ text-only render. */
+  html?: string | null;
   messageId?: string | null;
   threadId?: string | null;
   /** When the inbound is a reply to a tracked outbound, its contactId. */
@@ -93,6 +99,11 @@ export interface InboundEmailInput {
    *  machine-sent detection (List-Unsubscribe, Precedence, Auto-Submitted).
    *  Optional + back-compat: absent ⇒ role-local-part detection only. */
   headers?: Record<string, string> | null;
+  /** Raw text/calendar (.ics) part of an inbound meeting invite, when the
+   *  transport exposes it — parsed for the inline event card (INBOX-R12/CAL). */
+  calendar?: string | null;
+  /** Attachment metadata for the reading pane (INBOX-R04). */
+  attachments?: AttachmentMeta[];
 }
 
 export interface InboundCaptureResult {
@@ -341,6 +352,17 @@ export async function captureInboundEmail(
   const mode = getCaptureApprovalMode(settings as unknown as Record<string, unknown>);
   const occurredAt = normalizeSyncDate(input.occurredAt);
 
+  // Retain the sanitized HTML body so the reading pane can render real markup
+  // (links / images / formatting) instead of flattened text (INBOX-R01/R13).
+  // The server pre-strip removes executable/dangerous markup before it is ever
+  // persisted; the pane re-sanitizes against a strict allowlist at render time.
+  // Capped so a hostile or runaway body can't bloat the activity row.
+  const bodyHtml = input.html ? stripDangerousHtml(input.html).slice(0, 500_000) : null;
+
+  // Sender domain-authentication verdict (SPF/DKIM/DMARC) from the receiving
+  // server's header — a stored trust signal for the reading pane (INBOX-R06).
+  const senderAuth = parseAuthResults(input.headers);
+
   const res = await recordCapturedActivity({
     tenantId,
     mode,
@@ -366,6 +388,16 @@ export async function captureInboundEmail(
         to: input.toHeader || null,
         subject: input.subject || null,
         snippet: (input.text || "").slice(0, 200),
+        // Sanitized HTML body for the reading pane (INBOX-R01/R13). Only stored
+        // when present, so text-only mail keeps a lean metadata row.
+        ...(bodyHtml ? { bodyHtml } : {}),
+        // Raw .ics of an inbound invite (INBOX-R12/CAL), capped. Only when present.
+        ...(input.calendar ? { calendar: input.calendar.slice(0, 100_000) } : {}),
+        // Attachment metadata (INBOX-R04), only when the mail had attachments.
+        ...(input.attachments?.length ? { attachments: input.attachments } : {}),
+        // Sender domain-auth verdict (INBOX-R06) — small, always stored so the
+        // reader can tell "unknown" (checked, no verdict) from a real pass/fail.
+        senderAuth,
         // The lead-recognition verdict travels with the activity so every
         // downstream reader (warm-leads, hot-inbounds, inbox lanes) can trust
         // a stored decision rather than re-deriving it. Deterministic-only in

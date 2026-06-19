@@ -25,45 +25,90 @@ import { connectedMailboxes } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 
 export interface InboxScope {
-  /** false → the user has not connected any mailbox in this tenant. */
+  /** false → the user has no readable mailbox in this tenant (own or shared). */
   hasMailbox: boolean;
-  /** Lowercased mailbox addresses the user owns in this tenant. */
+  /** Lowercased mailbox addresses the user can read in this tenant. */
   addresses: Set<string>;
-  /** connected_mailboxes.id values the user owns in this tenant. */
+  /** connected_mailboxes.id values the user can read in this tenant. */
   mailboxIds: Set<string>;
   /**
-   * The user's own mailboxes as {id,address,label} — feeds the per-mailbox
+   * The readable mailboxes as {id,address,label,shared} — feeds the per-mailbox
    * navigation + attribution of the unified inbox (lib/inbox/mailbox-attribution).
-   * Structurally a `MailboxRef[]`; kept as an inline shape here to avoid a
-   * circular import (mailbox-attribution imports `headerAddresses` from here).
+   * `shared` flags a teammate's mailbox surfaced via team inbox (INBOX-X01).
+   * Kept as an inline shape to avoid a circular import (mailbox-attribution
+   * imports `headerAddresses` from here).
    */
-  mailboxes: { id: string; address: string; label: string }[];
+  mailboxes: { id: string; address: string; label: string; shared?: boolean }[];
 }
 
-/** Resolve the signed-in user's own mailbox addresses + ids in this tenant. */
+interface MailboxRow {
+  id: string | null;
+  emailAddress: string | null;
+  displayName: string | null;
+}
+
+/**
+ * Build the scope from the user's own + tenant-shared mailbox rows. Pure +
+ * unit-tested. Own mailboxes win on a duplicate id, so a user's own box is never
+ * mislabelled "shared". Default (no shared rows) is byte-identical to personal.
+ */
+export function buildScopeFromRows(own: MailboxRow[], shared: MailboxRow[]): InboxScope {
+  const addresses = new Set<string>();
+  const mailboxIds = new Set<string>();
+  const mailboxes: { id: string; address: string; label: string; shared?: boolean }[] = [];
+  const seen = new Set<string>();
+  const add = (r: MailboxRow, isShared: boolean) => {
+    if (!r.id || seen.has(r.id)) return;
+    const a = r.emailAddress?.toLowerCase().trim();
+    if (!a) return;
+    seen.add(r.id);
+    mailboxIds.add(r.id);
+    addresses.add(a);
+    mailboxes.push({ id: r.id, address: a, label: r.displayName?.trim() || a, ...(isShared ? { shared: true } : {}) });
+  };
+  for (const r of own) add(r, false);
+  for (const r of shared) add(r, true);
+  return { hasMailbox: mailboxes.length > 0, addresses, mailboxIds, mailboxes };
+}
+
+/**
+ * Mailboxes another member shared with the tenant (INBOX-X01). DEFENSIVE: if the
+ * `shared` column hasn't been migrated in yet the query throws and we return [] —
+ * so the inbox runs identically (personal-only) with or without 0079 applied.
+ */
+async function loadSharedMailboxes(tenantId: string): Promise<MailboxRow[]> {
+  try {
+    return await db
+      .select({
+        id: connectedMailboxes.id,
+        emailAddress: connectedMailboxes.emailAddress,
+        displayName: connectedMailboxes.displayName,
+      })
+      .from(connectedMailboxes)
+      .where(and(eq(connectedMailboxes.tenantId, tenantId), eq(connectedMailboxes.shared, true)));
+  } catch {
+    return [];
+  }
+}
+
+/** Resolve the mailboxes the signed-in user can read: their own + any shared. */
 export async function getInboxScope(
   tenantId: string,
   authUserId: string | null | undefined,
 ): Promise<InboxScope> {
   if (!authUserId) return { hasMailbox: false, addresses: new Set(), mailboxIds: new Set(), mailboxes: [] };
-  const rows = await db
-    .select({
-      id: connectedMailboxes.id,
-      emailAddress: connectedMailboxes.emailAddress,
-      displayName: connectedMailboxes.displayName,
-    })
-    .from(connectedMailboxes)
-    .where(and(eq(connectedMailboxes.tenantId, tenantId), eq(connectedMailboxes.userId, authUserId)));
-  const addresses = new Set<string>();
-  const mailboxIds = new Set<string>();
-  const mailboxes: { id: string; address: string; label: string }[] = [];
-  for (const r of rows) {
-    if (r.id) mailboxIds.add(r.id);
-    const a = r.emailAddress?.toLowerCase().trim();
-    if (a) addresses.add(a);
-    if (r.id && a) mailboxes.push({ id: r.id, address: a, label: r.displayName?.trim() || a });
-  }
-  return { hasMailbox: rows.length > 0, addresses, mailboxIds, mailboxes };
+  const [own, shared] = await Promise.all([
+    db
+      .select({
+        id: connectedMailboxes.id,
+        emailAddress: connectedMailboxes.emailAddress,
+        displayName: connectedMailboxes.displayName,
+      })
+      .from(connectedMailboxes)
+      .where(and(eq(connectedMailboxes.tenantId, tenantId), eq(connectedMailboxes.userId, authUserId))),
+    loadSharedMailboxes(tenantId),
+  ]);
+  return buildScopeFromRows(own, shared);
 }
 
 /**

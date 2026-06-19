@@ -6,6 +6,14 @@ import { buildConversations, laneCounts, type Lane } from "@/lib/inbox/conversat
 import { loadConversationRows, contactNameMap } from "@/lib/inbox/load";
 import { getInboxScope, scopeConversationRows } from "@/lib/inbox/user-scope";
 import { attributeMailbox, indexMailboxes } from "@/lib/inbox/mailbox-attribution";
+import { laneMatches, type MatchCandidate } from "@/lib/inbox/lane-match";
+import { getUserLanes } from "@/lib/inbox/lane-store";
+import { applyLabelFilters } from "@/lib/inbox/filter-match";
+import { getUserFilters } from "@/lib/inbox/filter-store";
+import { bundleConversations } from "@/lib/inbox/bundle";
+import { matchesSearch, isActiveQuery, parseSearchQuery } from "@/lib/inbox/search-match";
+import { selectCatchUp } from "@/lib/inbox/catch-up";
+import { getLastSeen } from "@/lib/inbox/seen-store";
 
 const LANES: Lane[] = ["attention", "handled", "snoozed", "done"];
 const PAGE_SIZE = 30;
@@ -24,6 +32,22 @@ export async function GET(req: Request) {
     // never the whole workspace. No mailbox connected → an empty inbox.
     const scope = await getInboxScope(authCtx.tenantId, authCtx.userId);
     const mailboxIndex = indexMailboxes(scope.mailboxes);
+
+    // Custom smart lanes (INBOX-T01) live in the user_preferences JSONB store.
+    // ?lane=<id> selects one and filters by its saved query (over the already-
+    // scoped set) instead of a built-in lane; never widens visibility.
+    const userLanes = await getUserLanes(authCtx.userId);
+    const userFilters = await getUserFilters(authCtx.userId);
+    const lastSeen = await getLastSeen(authCtx.userId);
+    const customLane = userLanes.find((l) => l.id === laneParam) ?? null;
+    const toLaneCandidate = (row: {
+      c: { fromAddress: string; subject: string };
+      mb: { mailboxAddress: string | null };
+    }): MatchCandidate => ({
+      from: row.c.fromAddress,
+      subject: row.c.subject,
+      mailbox: row.mb.mailboxAddress ?? undefined,
+    });
 
     // Optional per-mailbox filter (?mailbox=<id>) — the unified-inbox cockpit
     // lets the user focus one of their many boxes. Ignored unless it's one
@@ -80,8 +104,77 @@ export async function GET(req: Request) {
         ),
       );
 
-    const inLane = visible.filter(({ c }) => c.lane === lane);
+    // Search (INBOX-Q04): ?q=<operators + free text>. When active it filters
+    // across ALL lanes (you search the whole inbox, not the open lane).
+    const qParam = (url.searchParams.get("q") || "").trim();
+    const parsedQuery = qParam ? parseSearchQuery(qParam) : null;
+    const searching = parsedQuery != null && isActiveQuery(parsedQuery);
+
+    const inLane = searching
+      ? visible.filter((row) =>
+          matchesSearch(
+            {
+              from: row.c.fromAddress,
+              subject: row.c.subject,
+              snippet: row.c.snippet,
+              lane: row.c.lane,
+              at: row.c.lastMessageAt,
+              mailbox: row.mb.mailboxAddress,
+            },
+            parsedQuery!,
+          ),
+        )
+      : customLane
+        ? visible.filter((row) => laneMatches(toLaneCandidate(row), customLane))
+        : visible.filter(({ c }) => c.lane === lane);
     const pageRows = inLane.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+    // Per-custom-lane counts for the tabs (honour "hide when empty").
+    const customLanes = userLanes
+      .map((l) => ({
+        id: l.id,
+        name: l.name,
+        hideWhenEmpty: l.hideWhenEmpty ?? false,
+        count: visible.filter((row) => laneMatches(toLaneCandidate(row), l)).length,
+      }))
+      .filter((l) => !l.hideWhenEmpty || l.count > 0);
+
+    // Newsletter/promo bundling (INBOX-T03): group the bulk, never-replied
+    // senders into one collapsible source each so they can be cleared in a
+    // batch instead of one-by-one. Computed over the visible (scoped) set so
+    // the per-mailbox filter narrows it too. Cheap; always returned.
+    const bundles = bundleConversations(
+      visible
+        .filter(
+          ({ c }) =>
+            c.isBulk &&
+            c.messageCount <= c.inboundCount &&
+            c.lane !== "done" &&
+            c.lane !== "snoozed",
+        )
+        .map(({ c }) => ({
+          key: c.key,
+          fromAddress: c.fromAddress,
+          subject: c.subject,
+          lastMessageAt: c.lastMessageAt,
+          isBulk: c.isBulk,
+          hasOutbound: c.messageCount > c.inboundCount,
+        })),
+    );
+
+    // Catch-me-up (INBOX-S03): how many conversations got a new inbound since
+    // the user was last here. First visit (no lastSeen) ⇒ 0, so we never flood.
+    const catchUpCount = lastSeen
+      ? selectCatchUp(
+          visible.map(({ c }) => ({
+            key: c.key,
+            subject: c.subject,
+            lastInboundAt: c.lastInboundAt,
+            inboundCount: c.inboundCount,
+          })),
+          lastSeen,
+        ).sinceCount
+      : 0;
 
     const names = await contactNameMap(
       authCtx.tenantId,
@@ -99,6 +192,11 @@ export async function GET(req: Request) {
         fromAddress: c.fromAddress,
         snippet: c.snippet,
         reason: c.reason,
+        reasonSource: c.reasonSource,
+        slaHoursOverdue: c.slaHoursOverdue,
+        importanceTier: c.importanceTier,
+        importanceFactors: c.importanceFactors,
+        labels: applyLabelFilters(toLaneCandidate({ c, mb }), userFilters),
         handledNote: c.handledNote,
         lastInboundAt: c.lastInboundAt,
         lastMessageAt: c.lastMessageAt,
@@ -113,6 +211,12 @@ export async function GET(req: Request) {
       mailboxConnected: scope.hasMailbox,
       mailboxes,
       selectedMailbox,
+      customLanes,
+      activeLane: customLane ? customLane.id : lane,
+      bundles,
+      searching,
+      catchUpCount,
+      lastSeen,
     });
   } catch (error) {
     console.error("Failed to load inbox conversations:", error);

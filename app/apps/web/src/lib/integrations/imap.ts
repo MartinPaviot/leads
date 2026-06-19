@@ -17,6 +17,7 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import type { SyncedEmail } from "./gmail";
+import { attachmentsFromImap } from "@/lib/inbox/attachment-meta";
 
 /** Max messages pulled in a single poll — a large backlog pages over ticks. */
 const MAX_PER_RUN = 150;
@@ -28,6 +29,62 @@ export interface ImapMailbox {
   /** Decrypted password (caller decrypts via settings-encryption). */
   password: string;
   imapLastUid?: number | null;
+}
+
+/** Minimal shape of the imapflow ENVELOPE — server-parsed, no mailparser needed. */
+interface ImapEnvelopeAddress {
+  name?: string;
+  address?: string;
+}
+interface ImapEnvelope {
+  date?: Date;
+  subject?: string;
+  messageId?: string;
+  inReplyTo?: string;
+  from?: ImapEnvelopeAddress[];
+  to?: ImapEnvelopeAddress[];
+  cc?: ImapEnvelopeAddress[];
+}
+
+function formatEnvelopeAddr(a: ImapEnvelopeAddress | undefined): string {
+  if (!a) return "";
+  if (a.name && a.address) return `${a.name} <${a.address}>`;
+  return a.address || a.name || "";
+}
+
+function envelopeAddrList(arr: ImapEnvelopeAddress[] | undefined): string[] {
+  if (!arr) return [];
+  return arr.map((a) => (a.address || "").toLowerCase()).filter(Boolean);
+}
+
+/**
+ * Build a degraded `SyncedEmail` from the IMAP ENVELOPE when mailparser throws on
+ * the raw MIME (INBOX-R09). Records headers/subject/from/to with a null HTML body
+ * and a marker header — capture-degraded so the message still appears in the inbox
+ * and in CRM last-interaction, instead of being silently dropped.
+ */
+function degradedFromEnvelope(
+  env: ImapEnvelope | undefined,
+  uid: number,
+  mailboxEmail: string,
+): SyncedEmail {
+  const fromAddr = (env?.from?.[0]?.address || "").toLowerCase();
+  const direction: "inbound" | "outbound" =
+    fromAddr === mailboxEmail.toLowerCase() ? "outbound" : "inbound";
+  return {
+    gmailMessageId: env?.messageId || `imap-${mailboxEmail}-${uid}`,
+    threadId: env?.inReplyTo || env?.messageId || "",
+    from: formatEnvelopeAddr(env?.from?.[0]),
+    to: envelopeAddrList(env?.to),
+    cc: envelopeAddrList(env?.cc),
+    subject: env?.subject || "(unreadable message)",
+    snippet: "",
+    body: "",
+    html: null,
+    date: env?.date || new Date(),
+    direction,
+    headers: { "x-elevay-capture": "degraded" },
+  };
 }
 
 function makeClient(m: { imapHost: string; imapPort: number | null; emailAddress: string; password: string }) {
@@ -112,7 +169,12 @@ export async function fetchRecentEmailsImap(
       try {
         parsed = await simpleParser(msg.source);
       } catch {
-        continue; // skip unparseable MIME rather than fail the whole poll
+        // Capture-degraded instead of silent drop (INBOX-R09): build a record
+        // from the server-parsed ENVELOPE (no mailparser needed) so the message
+        // still lands in the inbox + CRM last-interaction. bodyHtml is null.
+        emails.push(degradedFromEnvelope((msg as { envelope?: ImapEnvelope }).envelope, msg.uid, m.emailAddress));
+        if (++count >= MAX_PER_RUN) break;
+        continue;
       }
 
       const fromText = parsed.from?.text || "";
@@ -121,7 +183,19 @@ export async function fetchRecentEmailsImap(
       const fromEmail = (parsed.from?.value?.[0]?.address || "").toLowerCase();
       const direction: "inbound" | "outbound" =
         fromEmail === m.emailAddress.toLowerCase() ? "outbound" : "inbound";
-      const body = (parsed.text || parsed.html || "").toString();
+      // Keep text and HTML apart: `body` (text-preferred) feeds the snippet and
+      // text fallback, while the original `html` part is retained for the reading
+      // pane to render with fidelity (INBOX-R01/R13). HTML-only mail degrades to
+      // a tag-stripped preview so the list snippet stays readable.
+      const text = (parsed.text || "").toString();
+      const html = (parsed.html || "").toString();
+      const body = text || html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      // Inbound meeting invite: retain the raw text/calendar (.ics) part so the
+      // reading pane can render an inline event card + accept/decline (INBOX-R12/CAL).
+      const calendar =
+        parsed.attachments?.find((a) => /^text\/calendar/i.test(a.contentType || ""))?.content?.toString("utf8") || null;
+      // Attachment metadata (filename/type/size/inline) for the reading pane (INBOX-R04).
+      const attachments = attachmentsFromImap(parsed.attachments);
 
       // Normalise mailparser's header Map to a lower-cased record so the
       // inbound classifier can read List-Unsubscribe / Precedence / Auto-Submitted.
@@ -144,9 +218,12 @@ export async function fetchRecentEmailsImap(
         subject: parsed.subject || "",
         snippet: body.slice(0, 200),
         body,
+        html: html || null,
         date: parsed.date || new Date(),
         direction,
         headers: Object.keys(headerRecord).length ? headerRecord : null,
+        calendar,
+        attachments: attachments.length ? attachments : undefined,
       });
 
       if (++count >= MAX_PER_RUN) break;

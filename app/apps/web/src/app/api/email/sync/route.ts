@@ -142,6 +142,7 @@ export async function POST() {
           toHeader: email.to?.[0] ?? null,
           subject: email.subject,
           text: email.body || email.snippet || null,
+          html: email.html ?? null,
           messageId: email.gmailMessageId,
           threadId: email.threadId,
           occurredAt: email.date,

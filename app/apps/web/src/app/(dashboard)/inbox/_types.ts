@@ -19,6 +19,15 @@ export interface ConversationListItem {
   fromAddress: string;
   snippet: string;
   reason: string;
+  /** Provenance of `reason` for the honest-badge tooltip (INBOX-T08). Null = no badge. */
+  reasonSource: "reply" | "summary" | "sentiment" | "handled" | null;
+  /** Hours overdue past the response SLA when awaiting our reply (INBOX-N04); null otherwise. */
+  slaHoursOverdue: number | null;
+  /** Importance tier 1–4 (1 hottest) that sorts the attention lane + cited factors (INBOX-T04). */
+  importanceTier: 1 | 2 | 3 | 4;
+  importanceFactors: string[];
+  /** Labels applied by the user's deterministic filters (INBOX-T02). */
+  labels: string[];
   handledNote: string | null;
   lastInboundAt: string | null;
   lastMessageAt: string | null;
@@ -39,6 +48,14 @@ export interface ConversationMessage {
   to: string;
   subject: string;
   body: string;
+  /** Sanitized HTML body for fidelity rendering (INBOX-R01). Null ⇒ render text. */
+  bodyHtml: string | null;
+  /** Raw .ics of an inbound meeting invite (INBOX-R12/CAL) — drives the event card. */
+  calendar: string | null;
+  /** Attachment metadata (INBOX-R04) — filename/type/size/inline for the pane strip. */
+  attachments?: Array<{ filename: string; contentType: string; size: number; inline: boolean }>;
+  /** Sender domain-auth verdict (INBOX-R06): pass → verified badge, fail → caution. */
+  senderVerified: "pass" | "fail" | "unknown";
   at: string | null;
   status: string | null;
   stepNumber: number | null;
@@ -62,6 +79,34 @@ export interface ConversationDetail {
   contact: { id: string; name: string; email: string | null } | null;
   enrollment: { id: string; sequenceId: string; sequenceName: string; status: string } | null;
   preparedDraft: { id: string; subject: string; body: string } | null;
+  /** Suggested next action by deal stage + situation (INBOX-G05). Null = nothing sharp to suggest. */
+  nextAction: { action: string; why: string; stage: string | null } | null;
+  /** The contact's most recent real interaction of any channel (INBOX-G03). */
+  lastInteraction: { at: string; type: string } | null;
+  /** Deterministic action items pulled from the inbound text (INBOX-S04). */
+  actionItems: Array<{ text: string; due: string | null }>;
+  /** High-signal entities mentioned in the thread (INBOX-S05). */
+  entities: { amounts: string[]; dates: string[]; phones: string[] };
+  /** Fresh company-level GTM signals — hiring/funding/etc., past-shelf-life dropped (INBOX-G04). */
+  freshSignals?: Array<{ type: string; title: string; description: string }>;
+}
+
+/** Human label for where the badge text came from (INBOX-T08). Undefined = no tooltip. */
+export function reasonTooltip(
+  source: ConversationListItem["reasonSource"],
+): string | undefined {
+  switch (source) {
+    case "reply":
+      return "Reply to your outreach";
+    case "summary":
+      return "AI summary";
+    case "sentiment":
+      return "Reply sentiment";
+    case "handled":
+      return "Handled automatically";
+    default:
+      return undefined;
+  }
 }
 
 export interface LaneCounts {

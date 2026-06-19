@@ -674,6 +674,56 @@
   outline: none;
 }
 
+/* Sanitized email HTML body in the reading pane (INBOX-R01). Scoped so a
+   message's own markup can never break the 400px pane: images and tables are
+   bounded, long tokens wrap, and overflow scrolls instead of pushing layout.
+   The content is allowlist-sanitized before it reaches the DOM. */
+.email-body {
+  max-width: 100%;
+  overflow-x: auto;
+  color: var(--color-text-primary);
+}
+.email-body img {
+  max-width: 100%;
+  height: auto;
+}
+.email-body table {
+  max-width: 100%;
+  border-collapse: collapse;
+}
+.email-body a {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+.email-body blockquote {
+  margin: 0.5em 0;
+  padding-left: 0.75em;
+  border-left: 2px solid var(--color-border-strong);
+  color: var(--color-text-secondary);
+}
+.email-body pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Dark mode: render the authored email on a light "paper" so its own colors
+   (designed for a white background) stay legible instead of clashing with the
+   dark UI (INBOX-R08). The chrome around it — privacy banner, trimmed-content
+   toggle — stays on the app theme. */
+.dark .email-body {
+  background: #ffffff;
+  color: #1a1a2e;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.dark .email-body a {
+  color: #2c6bed;
+}
+.dark .email-body blockquote {
+  color: #4b5563;
+  border-left-color: #d1d5db;
+}
+
 /* ================================================================
    REDUCED MOTION (a11y)
    Honour the OS "reduce motion" preference. Neutralizes continuous and

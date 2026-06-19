@@ -84,16 +84,24 @@ export function MeetingSchedulerCard({
   firstName,
   onClose,
   onBooked,
+  initialWhen,
+  initialTitle,
 }: {
   contactId: string;
   firstName: string;
   onClose: () => void;
-  onBooked?: () => void;
+  /** Fired on a successful booking with the meeting's join link (INBOX-G10), so a
+   *  caller can drop it into an open reply draft. null when the provider returned none. */
+  onBooked?: (joinUrl: string | null) => void;
+  /** Pre-fill the date/time (datetime-local string) — e.g. a slot the prospect proposed (INBOX-CAL02). */
+  initialWhen?: string;
+  /** Pre-fill the meeting title. */
+  initialTitle?: string;
 }) {
   const { toast } = useToast();
-  const [when, setWhen] = useState(defaultWhen);
+  const [when, setWhen] = useState(() => initialWhen || defaultWhen());
   const [duration, setDuration] = useState(45);
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(initialTitle || "");
   const [booking, setBooking] = useState(false);
   // Sovereign Jitsi by default; Google Meet / Teams / Zoom when the prospect
   // needs it (the backend honours it per the connected calendar / config).
@@ -143,7 +151,7 @@ export function MeetingSchedulerCard({
     }
     toast(`Visio planifiée avec ${firstName || "le prospect"}.`, "success");
     setTitle("");
-    onBooked?.();
+    onBooked?.(r.joinUrl ?? null);
     // Stay open and reveal the join link instead of closing immediately.
     setBooked({
       joinUrl: r.joinUrl ?? null,

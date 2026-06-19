@@ -231,6 +231,12 @@ export const connectedMailboxes = pgTable(
     // (same space as auth_account.userId / authCtx.userId). Nullable so legacy
     // rows survive the migration; backfilled by matching email_address.
     userId: text("user_id"),
+    // Team inbox (INBOX-X01): when true, every member of the tenant reads this
+    // mailbox in their unified inbox — the opt-in widening from the default
+    // personal model. Defaults false → byte-identical personal behaviour until a
+    // mailbox is explicitly shared. Read defensively in getInboxScope so the app
+    // is unaffected until the column is migrated in.
+    shared: boolean("shared").notNull().default(false),
     emailAddress: text("email_address").notNull(),
     displayName: text("display_name"),
     provider: text("provider").notNull(), // gmail, outlook, smtp_custom
