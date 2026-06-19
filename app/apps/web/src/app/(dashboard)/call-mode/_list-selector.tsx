@@ -313,7 +313,7 @@ function AudienceMenu(props: {
         open={open}
         placement="bottom-end"
         onClose={() => setOpen(false)}
-        className="min-w-[230px] rounded-lg py-1"
+        className="w-[200px] rounded-lg py-1"
         style={{
           background: "var(--color-bg-card)",
           border: "1px solid var(--color-border-default)",
