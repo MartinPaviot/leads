@@ -121,6 +121,64 @@ export async function markNeedsReauth(
   return { newlyMarked: !already };
 }
 
+/* ------------------------------------------------------------------ */
+/*  A4: per-MAILBOX sync timing/health (key "mb:<mailboxId>")          */
+/*  Sibling namespace to the per-connection needs_reauth key above —   */
+/*  same JSONB store, no migration. The per-connection entry stays the */
+/*  source of truth for the reauth flag; this only adds last-sync.     */
+/* ------------------------------------------------------------------ */
+
+export interface MailboxSyncEntry {
+  lastSyncAt?: string;
+  lastSyncOk?: string;
+  lastSyncError?: string;
+  failingSince?: string;
+}
+
+/** Stable per-mailbox key within a tenant's settings. */
+export function mbKey(mailboxId: string): string {
+  return `mb:${mailboxId}`;
+}
+
+/** Pure read of a mailbox's sync entry (or null). */
+export function getMailboxSyncEntry(settings: unknown, mailboxId: string): MailboxSyncEntry | null {
+  const s = (settings || {}) as SettingsShape & { syncHealth?: Record<string, unknown> };
+  const e = s.syncHealth?.[mbKey(mailboxId)];
+  return e && typeof e === "object" ? (e as MailboxSyncEntry) : null;
+}
+
+async function writeMailboxEntry(tenantId: string, mailboxId: string, entry: MailboxSyncEntry): Promise<void> {
+  const key = mbKey(mailboxId);
+  await db
+    .update(tenants)
+    .set({
+      settings: sql`coalesce(settings, '{}'::jsonb) || jsonb_build_object('syncHealth', coalesce(settings -> 'syncHealth', '{}'::jsonb) || jsonb_build_object(${key}::text, ${JSON.stringify(entry)}::jsonb))`,
+    })
+    .where(eq(tenants.id, tenantId));
+}
+
+/** Record a successful per-mailbox sync: stamp lastSyncAt/lastSyncOk, clear the error. */
+export async function recordMailboxSyncOk(tenantId: string, mailboxId: string): Promise<void> {
+  const nowIso = new Date().toISOString();
+  await writeMailboxEntry(tenantId, mailboxId, { lastSyncAt: nowIso, lastSyncOk: nowIso });
+}
+
+/** Record a TRANSIENT per-mailbox sync failure (not a reauth flag — that path is separate). */
+export async function recordMailboxSyncError(
+  tenantId: string,
+  mailboxId: string,
+  error: string,
+  settings?: unknown,
+): Promise<void> {
+  const nowIso = new Date().toISOString();
+  const prev = settings ? getMailboxSyncEntry(settings, mailboxId) : null;
+  await writeMailboxEntry(tenantId, mailboxId, {
+    lastSyncAt: nowIso,
+    lastSyncError: error.slice(0, 200),
+    failingSince: prev?.failingSince ?? nowIso,
+  });
+}
+
 /** Clear a connection's needs-reauth flag (called on successful reconnect). */
 export async function clearSyncHealth(
   tenantId: string,
