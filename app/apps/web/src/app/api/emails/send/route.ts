@@ -23,10 +23,13 @@ const sendEmailSchema = z.object({
   body: z.string().min(1, "Body is required").max(50_000),
   contactId: z.string().optional(),
   dealId: z.string().optional(),
+  // A2: send from this specific owned+active mailbox (re-resolved server-side).
+  mailboxId: z.string().optional(),
 });
 
 const STATUS_BY_CODE: Record<string, number> = {
   opted_out: 403,
+  blocked: 403,
   plan_limit: 429,
   not_configured: 503,
   send_failed: 502,
@@ -74,6 +77,7 @@ export async function POST(req: Request) {
     body: parsed.body,
     contactId: parsed.contactId,
     dealId: parsed.dealId,
+    mailboxId: parsed.mailboxId,
     source: "composer",
   });
 

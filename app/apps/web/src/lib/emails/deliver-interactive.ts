@@ -46,6 +46,10 @@ export interface DeliverInteractiveInput {
   /** The sending user (APP users.id, i.e. authCtx.appUserId). Their connected
    *  mailbox is used as the sender when present. */
   ownerAppUserId: string | null | undefined;
+  /** A2: send from THIS specific owned+active mailbox. Re-resolved server-side
+   *  with the user/tenant/status filter — a forged/cross-tenant/inactive id is
+   *  refused (code "blocked"), never silently swapped. Absent = first-active. */
+  mailboxId?: string | null;
   to: string;
   cc?: string[];
   bcc?: string[];
@@ -82,12 +86,24 @@ interface OwnerMailbox {
   sentToday: number;
 }
 
+/** A2: a pinned mailbox id was supplied but no owned+active row matches it. */
+type NotOwnedOrInactive = { notOwnedOrInactive: true };
+
 async function resolveOwnerMailbox(
   tenantId: string,
   ownerAppUserId: string | null | undefined,
-): Promise<OwnerMailbox | null> {
+  mailboxId?: string | null,
+): Promise<OwnerMailbox | null | NotOwnedOrInactive> {
   const authUserId = await appToAuthUserId(ownerAppUserId);
   if (!authUserId) return null;
+  const conds = [
+    eq(connectedMailboxes.tenantId, tenantId),
+    eq(connectedMailboxes.status, "active"),
+    eq(connectedMailboxes.userId, authUserId),
+  ];
+  // A2: pin a SPECIFIC box. The ownership+status filter is the whole tenancy
+  // guarantee — a forged/cross-tenant/inactive id simply matches no row.
+  if (mailboxId) conds.push(eq(connectedMailboxes.id, mailboxId));
   const [mb] = await db
     .select({
       id: connectedMailboxes.id,
@@ -100,15 +116,14 @@ async function resolveOwnerMailbox(
       sentToday: connectedMailboxes.sentToday,
     })
     .from(connectedMailboxes)
-    .where(
-      and(
-        eq(connectedMailboxes.tenantId, tenantId),
-        eq(connectedMailboxes.status, "active"),
-        eq(connectedMailboxes.userId, authUserId),
-      ),
-    )
+    .where(and(...conds))
     .limit(1);
-  return mb ?? null;
+  if (!mb) {
+    // A pinned id that didn't resolve = not owned / not active (R4.2/R4.3).
+    // An absent id with no active box = today's null (FALLBACK_FROM path, R4.5).
+    return mailboxId ? { notOwnedOrInactive: true } : null;
+  }
+  return mb;
 }
 
 /** Append the CAN-SPAM unsubscribe footer (plain text) to a body. */
@@ -145,7 +160,18 @@ export async function deliverInteractiveEmail(
   }
 
   // 2. Resolve the sender's own mailbox (needed for the sending-identity cap).
-  const mailbox = await resolveOwnerMailbox(tenantId, input.ownerAppUserId);
+  //    A2: when a specific mailboxId is pinned, refuse with a clean "blocked"
+  //    BEFORE any transport if it is not an owned+active box (R4.2/R4.3). All the
+  //    downstream guardrails below still apply to the resolved box (R4.4).
+  const resolved = await resolveOwnerMailbox(tenantId, input.ownerAppUserId, input.mailboxId);
+  if (resolved && "notOwnedOrInactive" in resolved) {
+    return {
+      ok: false,
+      code: "blocked",
+      error: "That mailbox is not available to send from — it may be disconnected or paused. Pick another.",
+    };
+  }
+  const mailbox = resolved;
 
   // 2b. CLE-13 (item 1): sending-identity gate. Opt-out is handled above (and
   // re-checked here idempotently); this enforces the cold-on-primary rail and
