@@ -17,8 +17,9 @@ import type { SenderAuthStatus } from "@/lib/inbox/sender-auth";
 import { normalizeAttachments, type AttachmentMeta } from "@/lib/inbox/attachment-meta";
 import { checkSla } from "@/lib/inbox/sla";
 import { scoreImportance } from "@/lib/inbox/importance";
-import { resolveGeneralIntent } from "@/lib/inbox/general-intent";
+import { resolveGeneralIntent, type GeneralIntent } from "@/lib/inbox/general-intent";
 import { isReplyWorthy } from "@/lib/inbox/reply-worthy";
+import { resolveSplit, type BuiltInSplit } from "@/lib/inbox/splits";
 
 /** Hours awaiting our reply before a conversation is flagged overdue (INBOX-N04). */
 const SLA_THRESHOLD_HOURS = 24;
@@ -115,6 +116,14 @@ export interface Conversation {
    *  Generate-draft affordance + auto-draft so the AI never drafts on machine/
    *  no-reply/bulk mail. Recall-biased: ambiguous human mail stays worthy. */
   replyWorthy: boolean;
+  /** Resolved general intent (B3) — surfaced (no longer discarded) for the split. */
+  generalIntent: GeneralIntent;
+  /** Attention thread whose latest message is inbound — we owe a reply (B3). */
+  awaitingOurReply: boolean;
+  /** Attention thread whose latest message is outbound — they owe a reply (B3). */
+  awaitingTheirReply: boolean;
+  /** Intention split (B3): needs_reply / follow_ups / promotions / social / other. */
+  split: BuiltInSplit;
   /** What the pipeline did, for the handled lane. Null elsewhere. */
   handledNote: string | null;
   lastInboundAt: string | null;
@@ -441,18 +450,29 @@ export function buildConversations(input: {
       ageHours: lastInAtMs != null ? Math.max(0, (nowMs - lastInAtMs) / 3_600_000) : undefined,
     });
 
-    // B1 selectivity: compute once from the signals this row already carries —
-    // the model intent the sync pipeline persisted (lastInbound.intent), the
-    // machine-sent gate (inboundIsAutomated) and outbound presence. Pure resolver.
+    // B1 selectivity + B3 split: compute once from the signals this row already
+    // carries. resolveGeneralIntent is no longer discarded — B3 reuses it (zero
+    // new classification cost). Pure resolvers.
+    const generalIntent: GeneralIntent = resolveGeneralIntent({
+      modelIntent: lastInbound?.intent?.[0] ?? undefined,
+      isMachineSent: inboundIsAutomated,
+      hasOutbound: g.outbound.length > 0,
+    }).generalIntent;
     const replyWorthy = isReplyWorthy({
       isMachineSent: inboundIsAutomated,
-      generalIntent: resolveGeneralIntent({
-        modelIntent: lastInbound?.intent?.[0] ?? undefined,
-        isMachineSent: inboundIsAutomated,
-        hasOutbound: g.outbound.length > 0,
-      }).generalIntent,
+      generalIntent,
       isBulk: inboundIsAutomated,
     }).replyWorthy;
+    // B3: the mirror of awaitingOurReply — we sent and are awaiting their reply.
+    const awaitingTheirReply = lane === "attention" && lastMessage?.direction === "outbound";
+    const split: BuiltInSplit = resolveSplit({
+      lane,
+      replyWorthy,
+      generalIntent,
+      isBulk: inboundIsAutomated,
+      awaitingOurReply,
+      awaitingTheirReply,
+    }).split;
 
     conversations.push({
       key,
@@ -478,6 +498,10 @@ export function buildConversations(input: {
       importanceFactors: importance.factors.map((f) => f.label),
       isBulk: inboundIsAutomated,
       replyWorthy,
+      generalIntent,
+      awaitingOurReply,
+      awaitingTheirReply,
+      split,
       handledNote,
       lastInboundAt: lastInbound ? toIso(lastInbound.occurredAt) : null,
       lastMessageAt: lastMessage?.at ?? null,
