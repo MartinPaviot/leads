@@ -253,3 +253,65 @@ export async function saveWritingStyle(userId: string, style: Partial<WritingSty
     });
   return clamped;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Derive proposal ("Fill it up for me!") — a transient, reviewable   */
+/*  record that NEVER overwrites the live prompt until accepted (R5.4).*/
+/* ------------------------------------------------------------------ */
+
+const PROPOSAL_KEY = "writing_style_proposal";
+
+export type StyleProposalStatus = "idle" | "pending" | "ready" | "rejected" | "insufficient";
+
+export interface StyleProposal {
+  status: StyleProposalStatus;
+  prompt?: string;
+  aboutMe?: string;
+  signOff?: string;
+  /** Why it is not "ready" (rejected reason / insufficient corpus). */
+  reason?: string;
+  /** ISO timestamp the proposal was written. */
+  at?: string;
+}
+
+export const IDLE_PROPOSAL: StyleProposal = { status: "idle" };
+
+export async function getStyleProposal(userId: string): Promise<StyleProposal> {
+  const [row] = await db
+    .select({ value: userPreferences.value })
+    .from(userPreferences)
+    .where(
+      and(
+        eq(userPreferences.userId, userId),
+        eq(userPreferences.resource, RESOURCE),
+        eq(userPreferences.key, PROPOSAL_KEY),
+      ),
+    )
+    .limit(1);
+  const v = row?.value as Partial<StyleProposal> | undefined;
+  if (!v || typeof v !== "object" || typeof v.status !== "string") return IDLE_PROPOSAL;
+  return v as StyleProposal;
+}
+
+export async function saveStyleProposal(userId: string, proposal: StyleProposal): Promise<StyleProposal> {
+  await db
+    .insert(userPreferences)
+    .values({ userId, resource: RESOURCE, key: PROPOSAL_KEY, value: proposal })
+    .onConflictDoUpdate({
+      target: [userPreferences.userId, userPreferences.resource, userPreferences.key],
+      set: { value: proposal, updatedAt: new Date() },
+    });
+  return proposal;
+}
+
+export async function clearStyleProposal(userId: string): Promise<void> {
+  await db
+    .delete(userPreferences)
+    .where(
+      and(
+        eq(userPreferences.userId, userId),
+        eq(userPreferences.resource, RESOURCE),
+        eq(userPreferences.key, PROPOSAL_KEY),
+      ),
+    );
+}

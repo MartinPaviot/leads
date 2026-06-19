@@ -27,6 +27,7 @@ import { analyzeOutgoingEmail, postInteractionCoaching, analyzeDealEvent, weekly
 import { signalToDealAlert } from "@/inngest/signal-to-deal-alert";
 import { syncSignalsToDeal } from "@/inngest/deal-signal-sync";
 import { dealPropertyLlmSynthesize } from "@/inngest/deal-property-llm-synthesize";
+import { deriveWritingStyle } from "@/inngest/inbox-style-derive";
 import { routeSequenceStepToDraft } from "@/inngest/sequence-draft-router";
 import { cronExpireSequenceDrafts } from "@/inngest/sequence-draft-expiry";
 import { draftRejectionLearner } from "@/inngest/sequence-draft-rejection-learner";
@@ -161,6 +162,7 @@ export const { GET, POST, PUT } = serve({
     signalToDealAlert,
     syncSignalsToDeal,
     dealPropertyLlmSynthesize,
+    deriveWritingStyle,
     autoPipelineStep,
     handleAutoPipelineDraft,
     dailyFounderBrief,

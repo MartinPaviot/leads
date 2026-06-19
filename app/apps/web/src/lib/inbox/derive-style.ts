@@ -98,6 +98,22 @@ export function sanitizeDerivedStyle(text: string, sourceBodies: string[] = []):
 }
 
 /**
+ * Strip quoted reply history so the derive learns the USER's own words, not the
+ * counterparty's (which would also raise the PII-echo risk). Cuts at the first
+ * "On … wrote:" / "-----Original Message-----" header and drops ">"-quoted lines.
+ */
+export function stripQuotedReply(body: string): string {
+  const out: string[] = [];
+  for (const line of (body || "").split("\n")) {
+    if (/^\s*On .+wrote:\s*$/i.test(line)) break;
+    if (/^\s*-+\s*original message\s*-+/i.test(line)) break;
+    if (/^\s*>/.test(line)) continue;
+    out.push(line);
+  }
+  return out.join("\n").trim();
+}
+
+/**
  * The instruction text for the derive model call (R5.1). Pure — the Inngest fn
  * wraps it in tracedGenerateObject with a style-only schema. Caps the corpus so
  * a long mailbox can't blow the prompt budget.

@@ -13,7 +13,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { sanitizeDerivedStyle, buildDerivePrompt } from "@/lib/inbox/derive-style";
+import { sanitizeDerivedStyle, buildDerivePrompt, stripQuotedReply } from "@/lib/inbox/derive-style";
 
 interface GoldenLine {
   id: string;
@@ -122,5 +122,19 @@ describe("buildDerivePrompt — unit", () => {
     const big = ["x".repeat(50000)];
     const p = buildDerivePrompt(big);
     expect(p.length).toBeLessThan(13000);
+  });
+});
+
+describe("stripQuotedReply — unit", () => {
+  it("cuts at an 'On … wrote:' header and keeps the user's own text", () => {
+    const body = "Sounds great, let's do Tuesday.\n\nOn Mon, Jun 16 2026, Sam wrote:\n> can we meet next week?";
+    expect(stripQuotedReply(body)).toBe("Sounds great, let's do Tuesday.");
+  });
+  it("drops > quoted lines and original-message blocks", () => {
+    const body = "Thanks!\n-----Original Message-----\nFrom: someone";
+    expect(stripQuotedReply(body)).toBe("Thanks!");
+  });
+  it("returns trimmed body when there is no quote", () => {
+    expect(stripQuotedReply("  Just my words.  ")).toBe("Just my words.");
   });
 });
