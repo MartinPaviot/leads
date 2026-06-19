@@ -88,3 +88,46 @@ export function attributeMailbox(
   }
   return UNATTRIBUTED;
 }
+
+/**
+ * A4: deterministic primary-mailbox attribution that is STABLE under message
+ * reordering (cross-box delivery can sync the same thread to two boxes in either
+ * order). Rule: among the user's boxes that RECEIVED an inbound, pick the one
+ * whose newest inbound is latest; ties (equal `at`, or no inbound at all) break by
+ * mailboxId ascending; touches no box → UNATTRIBUTED. Same single-row output as
+ * attributeMailbox but order-independent. Pure.
+ */
+export function pickPrimaryMailbox(
+  messages: AttributableMessage[],
+  byAddress: Map<string, MailboxRef>,
+): MailboxAttribution {
+  if (byAddress.size === 0 || messages.length === 0) return UNATTRIBUTED;
+  const latestInboundByBox = new Map<string, { mb: MailboxRef; at: number }>();
+  const touched = new Map<string, MailboxRef>();
+  for (const m of messages) {
+    const header = m.direction === "inbound" ? m.to : m.from;
+    for (const addr of headerAddresses(header)) {
+      const mb = byAddress.get(addr);
+      if (!mb) continue;
+      touched.set(mb.id, mb);
+      if (m.direction === "inbound") {
+        const at = toMs(m.at);
+        const cur = latestInboundByBox.get(mb.id);
+        if (!cur || at > cur.at) latestInboundByBox.set(mb.id, { mb, at });
+      }
+      break; // first matching box address per header
+    }
+  }
+  const byId = (a: MailboxRef, b: MailboxRef) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const inbound = [...latestInboundByBox.values()].sort((a, b) => b.at - a.at || byId(a.mb, b.mb));
+  if (inbound.length > 0) {
+    const w = inbound[0].mb;
+    return { mailboxId: w.id, mailboxAddress: w.address, mailboxLabel: w.label };
+  }
+  const touchedSorted = [...touched.values()].sort(byId);
+  if (touchedSorted.length > 0) {
+    const w = touchedSorted[0];
+    return { mailboxId: w.id, mailboxAddress: w.address, mailboxLabel: w.label };
+  }
+  return UNATTRIBUTED;
+}
