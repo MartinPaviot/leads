@@ -56,7 +56,7 @@ function actions(): PaletteActions & { _calls: Record<string, unknown[][]> } {
 }
 
 const ids = (cmds: { id: string }[]) => cmds.map((c) => c.id);
-const byId = (cmds: { id: string }[], id: string) => cmds.find((c) => c.id === id);
+const byId = <T extends { id: string }>(cmds: T[], id: string): T | undefined => cmds.find((c) => c.id === id);
 
 describe("buildInboxPaletteCommands — baseline (preserved) commands", () => {
   it("always lists the five built-in lanes with the human label + Lane hint", () => {
