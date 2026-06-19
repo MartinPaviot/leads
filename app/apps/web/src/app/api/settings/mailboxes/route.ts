@@ -111,6 +111,8 @@ export async function POST(req: Request) {
       resolvedCaldavUrl = null; // calendar simply stays unavailable
     }
 
+    // Idempotent on (tenant_id, email_address) (A1 R4): a re-connect updates the
+    // existing row in place instead of throwing on the unique constraint (500).
     const [mailbox] = await db
       .insert(connectedMailboxes)
       .values({
@@ -129,6 +131,24 @@ export async function POST(req: Request) {
         domain,
         // The user's existing mailbox is already warm — no cold-start warmup.
         status: "active",
+      })
+      .onConflictDoUpdate({
+        target: [connectedMailboxes.tenantId, connectedMailboxes.emailAddress],
+        set: {
+          userId: authCtx.userId,
+          displayName: displayName || email.split("@")[0],
+          provider: "smtp_custom",
+          eeAccountId,
+          imapHost,
+          imapPort: imapPortN,
+          smtpHost,
+          smtpPort: smtpPortN,
+          secretEncrypted,
+          caldavUrl: resolvedCaldavUrl,
+          domain,
+          status: "active",
+          updatedAt: new Date(),
+        },
       })
       .returning();
 
@@ -211,7 +231,8 @@ export async function POST(req: Request) {
     console.warn("EmailEngine not available, saving mailbox anyway:", err);
   }
 
-  // Save to database
+  // Save to database — idempotent on (tenant_id, email_address) (A1 R4): a
+  // re-link converges on one row instead of throwing on the unique constraint.
   const [mailbox] = await db
     .insert(connectedMailboxes)
     .values({
@@ -224,6 +245,17 @@ export async function POST(req: Request) {
       domain,
       status: "warming_up",
       warmupStartedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [connectedMailboxes.tenantId, connectedMailboxes.emailAddress],
+      set: {
+        userId: authCtx.userId,
+        displayName: displayName || email.split("@")[0],
+        provider,
+        eeAccountId,
+        domain,
+        updatedAt: new Date(),
+      },
     })
     .returning();
 
