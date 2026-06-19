@@ -49,14 +49,18 @@ function Cell({
   children,
   bar,
   style,
+  title,
 }: {
   label: string;
   children: React.ReactNode;
   bar?: { done: number; total: number };
   style?: React.CSSProperties;
+  /** Full "label · value" text shown on hover — the truncated cell is otherwise
+   *  unreadable once it ellipsizes. */
+  title?: string;
 }) {
   return (
-    <div className="px-3 py-1" style={style}>
+    <div className="px-3 py-1" style={style} title={title}>
       {/* Compact strip: 11px value / 9px label keep the bar a thin one-line glance. */}
       <div className="truncate text-[11px] leading-tight">
         <span className="mr-1.5 text-[9px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
@@ -133,30 +137,29 @@ export function CampaignFunnelBar() {
         </div>
       </div>
 
-      <Cell label="Today" bar={{ done: s.progress.callsToday, total: s.progress.dailyQuota }} style={{ minWidth: 100, flex: "1 1 100px" }}>
+      <Cell label="Today" title={`Today · ${s.progress.callsToday} / ${s.progress.dailyQuota} calls`} bar={{ done: s.progress.callsToday, total: s.progress.dailyQuota }} style={{ minWidth: 100, flex: "1 1 100px" }}>
         {s.progress.callsToday}<span style={muted}> / {s.progress.dailyQuota} calls</span>
       </Cell>
 
-      <Cell label="Week" bar={{ done: s.goalDone, total: weekTarget }} style={{ ...divider, minWidth: 110, flex: "1 1 110px" }}>
+      <Cell label="Week" title={`Week · ${s.goalDone} / ${weekTarget} ${noun}`} bar={{ done: s.goalDone, total: weekTarget }} style={{ ...divider, minWidth: 110, flex: "1 1 110px" }}>
         {s.goalDone}<span style={muted}> / {weekTarget} {noun}</span>
       </Cell>
 
-      <Cell label="Meetings" style={{ ...divider, minWidth: 84 }}>
+      <Cell label="Meetings" title={`Meetings · ${s.progress.meetingsWeek} this week`} style={{ ...divider, minWidth: 84 }}>
         {s.progress.meetingsWeek}<span style={muted}> this week</span>
       </Cell>
 
       {/* Connect / NRP — the joignabilité rates the experts watch. NRP made
           first-class per its operational weight; full breakdown in "Détails". */}
-      <Cell label="Connexion / NRP" style={{ ...divider, minWidth: 120 }}>
+      <Cell label="Connexion / NRP" title={`Connexion / NRP · ${fmtPct(connectRate)} connectés · ${fmtPct(nrpRate)} NRP (cette semaine)`} style={{ ...divider, minWidth: 120 }}>
         {fmtPct(connectRate)}
         <span style={muted}> conn · </span>
         <span style={{ color: nrpRate !== null ? "var(--color-error)" : "var(--color-text-primary)" }}>{fmtPct(nrpRate)}</span>
         <span style={muted}> NRP</span>
       </Cell>
 
-      <Cell label="Cadence" style={{ ...divider, minWidth: 150, flex: "1 1 150px" }}>
+      <Cell label="Cadence" title={`Cadence · ${s.cadence.dueToday} due · ${s.cadence.queued} in cadence · ${reached} reached · ${s.cadence.exhausted} exhausted`} style={{ ...divider, minWidth: 150, flex: "1 1 150px" }}>
         <span
-          title={`${s.cadence.dueToday} due · ${s.cadence.queued} in cadence · ${reached} reached · ${s.cadence.exhausted} exhausted`}
           style={{ fontWeight: 400, color: "var(--color-text-secondary)" }}
         >
           {s.cadence.dueToday} due · {s.cadence.queued} in cadence · {reached} reached · {s.cadence.exhausted} exhausted
@@ -164,7 +167,7 @@ export function CampaignFunnelBar() {
       </Cell>
 
       {cov > 0 && (
-        <Cell label="Callable" style={{ ...divider, minWidth: 96 }}>
+        <Cell label="Callable" title={`Callable · ${s.coverage.withPhone} / ${cov} have a phone`} style={{ ...divider, minWidth: 96 }}>
           {s.coverage.withPhone}<span style={muted}> / {cov} have a phone</span>
         </Cell>
       )}
@@ -173,9 +176,8 @@ export function CampaignFunnelBar() {
           line vs without. Hidden until both buckets carry a minimal sample,
           so we never display noise as insight. */}
       {s.scriptImpact && impactDisplayable(s.scriptImpact) && (
-        <Cell label="Script" style={{ ...divider, minWidth: 150 }}>
+        <Cell label="Script" title={`Script · raison ancrée ${s.scriptImpact.withReason.meetings}/${s.scriptImpact.withReason.calls} RDV · sans ${s.scriptImpact.withoutReason.meetings}/${s.scriptImpact.withoutReason.calls}`} style={{ ...divider, minWidth: 150 }}>
           <span
-            title={`raison ancrée ${s.scriptImpact.withReason.meetings}/${s.scriptImpact.withReason.calls} RDV · sans ${s.scriptImpact.withoutReason.meetings}/${s.scriptImpact.withoutReason.calls}`}
             style={{ fontWeight: 400, color: "var(--color-text-secondary)" }}
           >
             raison ancrée {s.scriptImpact.withReason.meetings}/{s.scriptImpact.withReason.calls} RDV · sans {s.scriptImpact.withoutReason.meetings}/{s.scriptImpact.withoutReason.calls}
