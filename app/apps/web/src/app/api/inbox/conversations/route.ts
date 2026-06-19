@@ -6,6 +6,7 @@ import { buildConversations, laneCounts, type Lane } from "@/lib/inbox/conversat
 import { BUILT_IN_SPLITS, resolveCustomSplit } from "@/lib/inbox/splits";
 import { getUserSplits } from "@/lib/inbox/split-store";
 import { getNoiseOverrides } from "@/lib/inbox/noise-override-store";
+import { getMailboxIdentities } from "@/lib/inbox/mailbox-identity";
 import { loadConversationRows, contactNameMap } from "@/lib/inbox/load";
 import { getInboxScope, scopeConversationRows } from "@/lib/inbox/user-scope";
 import { attributeMailbox, indexMailboxes } from "@/lib/inbox/mailbox-attribution";
@@ -80,10 +81,14 @@ export async function GET(req: Request) {
         attentionByMailbox.set(mb.mailboxId, (attentionByMailbox.get(mb.mailboxId) ?? 0) + 1);
       }
     }
+    // A3: overlay the per-mailbox identity display-name (server-side, so the rail,
+    // the From selector and the per-conversation label all read one overridden
+    // value). Precedence: identity.displayName -> connected display_name -> address.
+    const mailboxIdentities = await getMailboxIdentities(authCtx.userId);
     const mailboxes = scope.mailboxes.map((m) => ({
       id: m.id,
       address: m.address,
-      label: m.label,
+      label: mailboxIdentities[m.id]?.displayName?.trim() || m.label,
       attention: attentionByMailbox.get(m.id) ?? 0,
     }));
 
@@ -241,7 +246,7 @@ export async function GET(req: Request) {
         noise: c.noise,
         mailboxId: mb.mailboxId,
         mailboxAddress: mb.mailboxAddress,
-        mailboxLabel: mb.mailboxLabel,
+        mailboxLabel: (mb.mailboxId && mailboxIdentities[mb.mailboxId]?.displayName?.trim()) || mb.mailboxLabel,
       })),
       counts: { ...counts, outbound: Number(outboundCountRow?.count || 0) },
       splits,

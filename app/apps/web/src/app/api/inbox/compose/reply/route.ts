@@ -16,6 +16,8 @@ import {
   buildWritingStylePrompt,
   type RecipientSegment,
 } from "@/lib/inbox/writing-style";
+import { attributeMailbox, indexMailboxes } from "@/lib/inbox/mailbox-attribution";
+import { getMailboxIdentities, buildMailboxVoiceBlock } from "@/lib/inbox/mailbox-identity";
 
 /**
  * Resolve the conversation counterparty into an audience-routing segment (B2 R4.2):
@@ -91,7 +93,13 @@ export async function POST(req: Request) {
     const { prompt: stylePrompt } = buildWritingStylePrompt(style, audienceId);
     const voice = buildVoicePrompt(await getVoicePrefs(authCtx.userId));
     const { prompt: memory } = buildMemoryPrompt(await getInboxMemory(authCtx.userId));
-    const instructions = [stylePrompt, voice, memory].filter(Boolean).join("\n\n");
+    // A3: if the thread's own mailbox has a voice override, layer it on (it wins
+    // for that box; absent → the per-user voice). Scrubbed against auto-send.
+    const threadMailboxId = attributeMailbox(conversation.messages, indexMailboxes(scope.mailboxes)).mailboxId;
+    const mailboxVoice = threadMailboxId
+      ? buildMailboxVoiceBlock((await getMailboxIdentities(authCtx.userId))[threadMailboxId])
+      : "";
+    const instructions = [stylePrompt, voice, memory, mailboxVoice].filter(Boolean).join("\n\n");
 
     const result: ReplyDraft = await composeReply(messages, { instructions });
     return Response.json(result);
