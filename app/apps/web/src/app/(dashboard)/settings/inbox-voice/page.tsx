@@ -26,6 +26,9 @@ interface VoicePrefs {
 export default function InboxVoicePage() {
   const [options, setOptions] = useState<VoiceOption[]>([]);
   const [voice, setVoice] = useState<VoicePrefs>({ tone: "neutral" });
+  // B1: pre-draft reply-worthy threads on open (default off). Persisted by the
+  // same Save action, owner-scoped in user_preferences (resource inbox, key auto_draft).
+  const [autoDraft, setAutoDraft] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -49,15 +52,35 @@ export default function InboxVoicePage() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/inbox/auto-draft")
+      .then((r) => (r.ok ? r.json() : { autoDraft: { enabled: false } }))
+      .then((data: { autoDraft?: { enabled?: boolean } }) => {
+        if (!cancelled) setAutoDraft(data.autoDraft?.enabled === true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function save() {
     setSaving(true);
     setSaved(false);
     try {
-      const r = await fetch("/api/inbox/voice", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(voice),
-      });
+      const [r] = await Promise.all([
+        fetch("/api/inbox/voice", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(voice),
+        }),
+        fetch("/api/inbox/auto-draft", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled: autoDraft }),
+        }),
+      ]);
       if (r.ok) {
         const data = (await r.json()) as { voice?: VoicePrefs };
         if (data.voice) setVoice(data.voice);
@@ -143,6 +166,34 @@ export default function InboxVoicePage() {
           }}
         />
       </div>
+
+      {/* B1 auto-draft toggle (R4.5): pre-draft reply-worthy threads on open.
+          Never overrides selectivity — non-reply-worthy threads never auto-draft. */}
+      <label
+        className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border p-3"
+        style={{
+          borderColor: autoDraft ? "var(--color-accent)" : "var(--color-border-default)",
+          background: autoDraft ? "var(--color-accent-soft)" : "var(--color-bg-card)",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={autoDraft}
+          onChange={() => {
+            setAutoDraft((v) => !v);
+            setSaved(false);
+          }}
+          className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
+        />
+        <span className="min-w-0">
+          <span className="block text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+            Pre-draft replies on open
+          </span>
+          <span className="block text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+            When you open a thread that warrants a reply, prepare a voice-matched draft automatically. It is never sent on its own, and threads that don&apos;t need a reply are left untouched.
+          </span>
+        </span>
+      </label>
 
       <div className="mt-5 flex items-center gap-3">
         <Button size="sm" onClick={() => void save()} disabled={saving} className="gap-1.5">
