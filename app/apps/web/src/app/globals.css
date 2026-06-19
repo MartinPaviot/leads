@@ -28,6 +28,13 @@
   --detail-panel-width: 400px;
   --kanban-column-width: 260px;
 
+  /* === INBOX DENSITY (F1) — the one place inbox chrome reads density from === */
+  --inbox-row-height: 56px;
+  --inbox-row-height-compact: 44px; /* = --table-row-height, the measured Upstream bar */
+  --inbox-sidebar-width: 240px;
+  --inbox-list-width: 360px;
+  --inbox-cta-radius: 10px;
+
   /* === BADGE CATEGORY COLORS (10 hues — derived from brand gradient) === */
   --color-badge-0: #2C6BED;
   --color-badge-0-bg: rgba(44, 107, 237, 0.07);
