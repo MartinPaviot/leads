@@ -358,11 +358,11 @@ export function CallScriptPanel({
         </span>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex min-w-0 gap-2">
         <input value={sector} onChange={(e) => setSector(e.target.value)} placeholder="Secteur"
-          className="flex-1 rounded-md px-2 py-1 text-[12px]" style={inputStyle} />
+          className="min-w-0 flex-1 rounded-md px-2 py-1 text-[12px]" style={inputStyle} />
         <input value={geo} onChange={(e) => setGeo(e.target.value)} placeholder="Géographie"
-          className="flex-1 rounded-md px-2 py-1 text-[12px]" style={inputStyle} />
+          className="min-w-0 flex-1 rounded-md px-2 py-1 text-[12px]" style={inputStyle} />
       </div>
       {!editing && resolvedSector && resolvedVia.length > 0 && (
         <p className="flex items-baseline gap-1 text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
