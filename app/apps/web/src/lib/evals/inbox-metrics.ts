@@ -98,6 +98,88 @@ export interface LabelEvalCase {
 }
 
 /* ------------------------------------------------------------------ */
+/*  C1 draft / refine / summary metrics (pure, no LLM)                 */
+/* ------------------------------------------------------------------ */
+
+/** Raw Levenshtein edit distance between two strings. */
+export function levenshtein(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur: number[] = [i];
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
+/** Normalized edit distance in [0,1]: 0 = identical, 1 = fully different. */
+export function editDistance(a: string, b: string): number {
+  const max = Math.max(a.length, b.length);
+  return max === 0 ? 0 : levenshtein(a, b) / max;
+}
+
+/**
+ * Normalize for fact matching: lowercase + strip `$` and thousands commas so a
+ * fact is counted as preserved whether the model wrote "40000" or "$40,000".
+ */
+function normalizeFact(s: string): string {
+  return (s || "").toLowerCase().replace(/[$,]/g, "");
+}
+
+/**
+ * Fraction of required facts present in the text (case-insensitive, number-format
+ * insensitive). Serves both refine fact-preservation (>= 0.95) and summary
+ * required-fact coverage (>= 0.85). Empty fact list scores 1.
+ */
+export function factCoverage(text: string, facts: string[]): number {
+  if (facts.length === 0) return 1;
+  const t = normalizeFact(text);
+  const kept = facts.filter((f) => t.includes(normalizeFact(f))).length;
+  return kept / facts.length;
+}
+
+/** Count of forbidden "trap" facts that leaked into the text (summary bar: == 0). */
+export function trapFactHits(text: string, trapFacts: string[]): number {
+  const t = normalizeFact(text);
+  return trapFacts.filter((f) => f && t.includes(normalizeFact(f))).length;
+}
+
+export type RefineInstruction =
+  | { kind: "shorter" }
+  | { kind: "longer" }
+  | { kind: "contains"; value: string }
+  | { kind: "excludes"; value: string };
+
+/** Deterministic instruction-adherence check for measurable instruction kinds. */
+export function instructionAdherence(input: string, output: string, instruction: RefineInstruction): boolean {
+  const o = (output || "").toLowerCase();
+  switch (instruction.kind) {
+    case "shorter":
+      return output.length < input.length;
+    case "longer":
+      return output.length > input.length;
+    case "contains":
+      return o.includes((instruction.value || "").toLowerCase());
+    case "excludes":
+      return !o.includes((instruction.value || "").toLowerCase());
+  }
+}
+
+/** Fraction of cited indices that are valid (in [0, msgCount)). Empty cites → 1. */
+export function summaryCitationAccuracy(citations: number[], msgCount: number): number {
+  if (citations.length === 0) return 1;
+  const valid = citations.filter((c) => Number.isInteger(c) && c >= 0 && c < msgCount).length;
+  return valid / citations.length;
+}
+
+/* ------------------------------------------------------------------ */
 /*  B5 ask-agent floor metrics (pure, no LLM)                          */
 /* ------------------------------------------------------------------ */
 
