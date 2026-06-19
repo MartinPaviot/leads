@@ -352,6 +352,40 @@ export function ConversationPane({
     }
   }, [detail, conversationKey, replyTo, toast]);
 
+  // B7 nudge: a gentle pre-drafted follow-up for an awaiting-their-reply thread,
+  // via the SAME /api/inbox/compose/reply route with mode:"nudge" (one generator,
+  // one fail-closed path). Lands in the editable composer; never auto-sent.
+  const generateNudge = useCallback(async () => {
+    if (!detail || !conversationKey) return;
+    const conv = detail.conversation;
+    setReplyTones([]);
+    setDrafting(true);
+    try {
+      const res = await fetch("/api/inbox/compose/reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: conversationKey, mode: "nudge" }),
+      });
+      const data = res.ok ? ((await res.json()) as { subject?: string; text?: string }) : {};
+      const text = (data.text ?? "").trim();
+      if (text) {
+        setComposer((c) => ({
+          to: c?.to ?? replyTo,
+          subject: data.subject?.trim() || c?.subject || `Re: ${conv.subject}`,
+          body: text,
+          contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined,
+        }));
+      } else {
+        // Fail-closed: never fabricate a nudge. Leave an open composer untouched.
+        toast("Couldn't draft a nudge — try again in a moment.", "warning");
+      }
+    } catch {
+      toast("Couldn't draft a nudge — try again in a moment.", "warning");
+    } finally {
+      setDrafting(false);
+    }
+  }, [detail, conversationKey, replyTo, toast]);
+
   // `r` pressed on the page.
   useEffect(() => {
     if (replySignal > 0 && detail && !composer) void openReply();
@@ -566,6 +600,21 @@ export function ConversationPane({
             <Button size="sm" onClick={openReply} disabled={drafting} className="gap-1.5">
               {drafting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
               {drafting ? "Drafting…" : "Reply"}
+            </Button>
+          )}
+          {/* B7: a gentle pre-drafted follow-up, only on awaiting-their-reply threads
+              with a due time (followup is non-null only when awaitingTheirReply). */}
+          {detail.conversation.followup?.dueAt != null && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={generateNudge}
+              disabled={drafting}
+              className="gap-1.5"
+              title="Draft a gentle follow-up — review before sending"
+            >
+              {drafting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlarmClock className="h-3.5 w-3.5" />}
+              Generate nudge
             </Button>
           )}
           {detail.contact && (

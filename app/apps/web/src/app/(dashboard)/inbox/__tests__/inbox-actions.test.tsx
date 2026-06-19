@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, waitFor, cleanup, act } from "@testing-library/react";
+import { render, waitFor, cleanup, act, screen, fireEvent } from "@testing-library/react";
 
 /**
  * CLE-14 — the /inbox page registers its eleven page actions and reuses the
@@ -111,12 +111,14 @@ let triageResponse: () => Response = () => jsonRes({ ok: true });
 let suggestReplyResponse: () => Response = () =>
   jsonRes({ replies: [{ tone: "brief", subject: "Re: Following up on the demo", body: "Happy to walk you through pricing." }] });
 let enrollResponse: () => Response = () => jsonRes({ ok: true });
+let composeReplyResponse: () => Response = () => jsonRes({ subject: "Re: Following up on the demo", text: "Just floating this back up — keen to hear your thoughts." });
 
 function router(url: string, init?: RequestInit): Response {
   const u = String(url);
   const method = init?.method ?? "GET";
   if (u.startsWith("/api/inbox/conversations/detail")) return detailResponse();
   if (u.startsWith("/api/inbox/conversations")) return listResponse();
+  if (u === "/api/inbox/compose/reply" && method === "POST") return composeReplyResponse();
   if (u === "/api/inbox/triage" && method === "POST") return triageResponse();
   if (u === "/api/emails/suggest-reply" && method === "POST") return suggestReplyResponse();
   if (/^\/api\/sequences\/[^/]+\/enroll$/.test(u) && method === "PUT") return enrollResponse();
@@ -146,6 +148,7 @@ beforeEach(() => {
   suggestReplyResponse = () =>
     jsonRes({ replies: [{ tone: "brief", subject: "Re: Following up on the demo", body: "Happy to walk you through pricing." }] });
   enrollResponse = () => jsonRes({ ok: true });
+  composeReplyResponse = () => jsonRes({ subject: "Re: Following up on the demo", text: "Just floating this back up — keen to hear your thoughts." });
 });
 afterEach(() => {
   cleanup();
@@ -352,6 +355,30 @@ describe("CLE-14 /inbox — bookMeeting + stopSequence (lifted pane handlers)", 
     expect(r.ok).toBe(false);
     expect(r.error).toContain("No active sequence");
     expect(callsTo(/^\/api\/sequences\/[^/]+\/enroll$/, "PUT").length).toBe(0);
+  });
+});
+
+describe("B7 /inbox — Generate nudge affordance (B3.2)", () => {
+  const dueFollowup = { dueAt: Date.parse("2026-06-15T09:00:00.000Z"), stage: 1, overdue: true, daysUntilDue: 0, businessDaysOverdue: 3 };
+
+  it("shows Generate nudge on a due awaiting-their-reply thread and POSTs mode:nudge (never sends)", async () => {
+    detailResponse = () =>
+      jsonRes({ ...FIXTURE_DETAIL, conversation: { ...FIXTURE_DETAIL.conversation, followup: dueFollowup } });
+    await mountLoaded();
+    const btn = await screen.findByText("Generate nudge");
+    fireEvent.click(btn);
+    await flush();
+    // Robust against any auto-draft (which POSTs without a mode): count only nudge posts.
+    const nudgePosts = callsTo("/api/inbox/compose/reply").filter((c) => bodyOf(c).mode === "nudge");
+    expect(nudgePosts.length).toBe(1);
+    expect(bodyOf(nudgePosts[0])).toMatchObject({ key: CONV_KEY, mode: "nudge" });
+    // Drafting a nudge sends/triages nothing.
+    expect(callsTo("/api/inbox/triage").length).toBe(0);
+  });
+
+  it("hides Generate nudge when the thread has no due follow-up", async () => {
+    await mountLoaded(); // default detail carries no followup
+    expect(screen.queryByText("Generate nudge")).toBeNull();
   });
 });
 
