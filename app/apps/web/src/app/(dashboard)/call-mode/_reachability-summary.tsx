@@ -39,21 +39,21 @@ export function ReachabilitySummary({ items }: { items: Item[] }) {
   }
 
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-zinc-100 px-4 py-1.5 dark:border-zinc-800/60">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border-default)] px-3 py-1.5 dark:border-zinc-800/60">
       <span className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
         <span className="flex items-center gap-1">
-          <Dot color="#10b981" />
+          <Dot color="var(--color-success)" />
           {s.joignable} prêt{s.joignable === 1 ? "" : "s"}
         </span>
         {s.aVerifier > 0 && (
           <span className="flex items-center gap-1">
-            <Dot color="#f59e0b" />
+            <Dot color="var(--color-warning)" />
             {s.aVerifier} à vérifier
           </span>
         )}
         {s.sansMobile > 0 && (
           <span className="flex items-center gap-1">
-            <Dot color="#a1a1aa" />
+            <Dot color="var(--color-text-muted)" />
             {s.sansMobile} sans mobile
           </span>
         )}
@@ -63,7 +63,7 @@ export function ReachabilitySummary({ items }: { items: Item[] }) {
           type="button"
           onClick={bulk}
           disabled={find === "pending" || find === "done"}
-          className={`shrink-0 rounded border px-2 py-0.5 text-[11px] font-medium transition ${
+          className={`min-w-0 max-w-[60%] shrink-0 truncate rounded-md border px-2 py-0.5 text-[11px] font-medium transition ${
             find === "idle"
               ? "border-zinc-200 text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
               : "border-transparent text-zinc-400"

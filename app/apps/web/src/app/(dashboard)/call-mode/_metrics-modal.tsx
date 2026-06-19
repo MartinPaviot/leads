@@ -71,17 +71,17 @@ interface MetricsResponse {
 }
 
 const OUTCOME_STYLE: Record<keyof Omit<OutcomeCounts, "dials">, { label: string; color: string }> = {
-  meeting_booked: { label: "RDV pris", color: "#16a34a" },
+  meeting_booked: { label: "RDV pris", color: "var(--color-success)" },
   connected: { label: "Connecté", color: "#22c55e" },
   callback_requested: { label: "Rappel demandé", color: "#0ea5e9" },
-  not_interested: { label: "Pas intéressé", color: "#64748b" },
-  voicemail_left: { label: "Répondeur", color: "#f59e0b" },
-  no_answer: { label: "NRP · répond pas", color: "#ef4444" },
+  not_interested: { label: "Pas intéressé", color: "var(--color-text-tertiary)" },
+  voicemail_left: { label: "Répondeur", color: "var(--color-warning)" },
+  no_answer: { label: "NRP · répond pas", color: "var(--color-error)" },
   busy: { label: "Occupé", color: "#eab308" },
   gatekeeper: { label: "Barrage", color: "#a855f7" },
-  wrong_number: { label: "Mauvais numéro", color: "#a1a1aa" },
-  do_not_call: { label: "Ne pas appeler", color: "#52525b" },
-  failed: { label: "Échec technique", color: "#d4d4d8" },
+  wrong_number: { label: "Mauvais numéro", color: "var(--color-text-tertiary)" },
+  do_not_call: { label: "Ne pas appeler", color: "var(--color-text-tertiary)" },
+  failed: { label: "Échec technique", color: "var(--color-text-tertiary)" },
 };
 const OUTCOME_ORDER = Object.keys(OUTCOME_STYLE) as (keyof typeof OUTCOME_STYLE)[];
 
@@ -124,14 +124,14 @@ function Tile({
       className="rounded-lg px-3 py-2.5"
       style={{ background: "var(--color-bg-base)", border: "1px solid var(--color-border-default)" }}
     >
-      <div className="text-[10px] font-medium uppercase tracking-wide" style={muted}>
+      <div className="text-[11px] font-medium uppercase tracking-wide" style={muted}>
         {label}
       </div>
-      <div className="mt-0.5 text-[19px] font-semibold leading-tight" style={{ color: accent ?? "var(--color-text-primary)" }}>
+      <div className="mt-0.5 text-[18px] font-semibold leading-tight" style={{ color: accent ?? "var(--color-text-primary)" }}>
         {value}
       </div>
-      {sub && <div className="text-[11px]" style={{ color: "var(--color-text-secondary)" }}>{sub}</div>}
-      {hint && <div className="mt-0.5 text-[10px]" style={muted}>{hint}</div>}
+      {sub && <div className="text-xs" style={{ color: "var(--color-text-secondary)" }}>{sub}</div>}
+      {hint && <div className="mt-0.5 text-xs" style={muted}>{hint}</div>}
     </div>
   );
 }
@@ -267,11 +267,11 @@ export function CallMetricsModal({
                   hint="repère 75-80 %"
                   accent={showRateColor(showStats.showRate.value)}
                 />
-                <Tile label="No-show" value={String(showStats.noShow)} sub="RDV manqués" accent={showStats.noShow > 0 ? "#d97706" : undefined} />
+                <Tile label="No-show" value={String(showStats.noShow)} sub="RDV manqués" accent={showStats.noShow > 0 ? "var(--color-warning)" : undefined} />
                 <Tile label="À qualifier" value={String(showStats.unknown)} sub="RDV passés non marqués" />
               </div>
             ) : (
-              <p className="text-[12px]" style={muted}>
+              <p className="text-[13px]" style={muted}>
                 Pas encore de RDV qualifiés. Marquez vos RDV passés « tenu / pas venu » dans Meetings pour suivre la présence.
               </p>
             )}
@@ -287,7 +287,7 @@ export function CallMetricsModal({
                 const st = OUTCOME_STYLE[k];
                 const isNrp = k === "no_answer";
                 return (
-                  <div key={k} className="flex items-center gap-1.5 text-[12px]">
+                  <div key={k} className="flex items-center gap-1.5 text-xs">
                     <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: st.color }} />
                     <span style={{ color: isNrp ? "var(--color-text-primary)" : "var(--color-text-secondary)", fontWeight: isNrp ? 600 : 400 }}>
                       {st.label}
@@ -309,7 +309,7 @@ export function CallMetricsModal({
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <Tile label="Appels par connexion" value={fmtRatio(m.dialsPerConnect)} hint="repère ~18" />
               <Tile label="Connexion → RDV" value={fmtPct(m.meetingConversion)} sub={m.meetingConversion.value === null ? `${ctx(m.meetingConversion)} · à venir` : undefined} />
-              <Tile label="NRP" value={fmtPct(m.nrpRate)} sub={m.nrpRate.value === null ? ctx(m.nrpRate) : undefined} accent={m.nrpRate.value !== null ? "#ef4444" : undefined} />
+              <Tile label="NRP" value={fmtPct(m.nrpRate)} sub={m.nrpRate.value === null ? ctx(m.nrpRate) : undefined} accent={m.nrpRate.value !== null ? "var(--color-error)" : undefined} />
               <Tile label="Mauvais numéro" value={fmtPct(m.badNumberRate)} sub="qualité de la data" accent={badNumberColor(m.badNumberRate.value)} />
             </div>
           </Section>
@@ -334,7 +334,7 @@ export function CallMetricsModal({
             {/* Transcript-derived dialogue shape — only once enough connected
                 calls carry a usable transcript (recorded conversations). */}
             {data.conversation && data.conversation.sample >= 5 && (
-              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 <Tile
                   label="Questions / appel"
                   value={data.conversation.avgQuestionsAsked != null ? String(data.conversation.avgQuestionsAsked) : "—"}
@@ -347,7 +347,7 @@ export function CallMetricsModal({
                   hint="garder sous ~1 min"
                   accent={
                     data.conversation.avgLongestMonologueSec != null && data.conversation.avgLongestMonologueSec > 60
-                      ? "#d97706"
+                      ? "var(--color-warning)"
                       : undefined
                   }
                 />
@@ -363,7 +363,7 @@ export function CallMetricsModal({
           {/* ── Quand appeler ── */}
           <Section title="Quand appeler — d'après votre historique">
             {data.timing.bestHours.length === 0 && data.timing.bestDows.length === 0 ? (
-              <p className="text-[12px]" style={muted}>
+              <p className="text-[13px]" style={muted}>
                 Pas encore assez d'appels par tranche horaire pour dégager un créneau fiable.
               </p>
             ) : (
@@ -410,15 +410,15 @@ function BestList({
 }) {
   return (
     <div className="rounded-lg px-3 py-2.5" style={{ background: "var(--color-bg-base)", border: "1px solid var(--color-border-default)" }}>
-      <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wide" style={muted}>
+      <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide" style={muted}>
         {title}
       </div>
       {items.length === 0 ? (
-        <div className="text-[12px]" style={muted}>—</div>
+        <div className="text-xs" style={muted}>—</div>
       ) : (
         <ul className="space-y-1">
           {items.map((b, i) => (
-            <li key={b.key} className="flex items-center justify-between text-[12px]">
+            <li key={b.key} className="flex items-center justify-between text-xs">
               <span style={{ color: "var(--color-text-primary)", fontWeight: i === 0 ? 600 : 400 }}>{render(b)}</span>
               <span className="tabular-nums" style={muted}>
                 {fmtPct(b.connectRate)} · {b.dials} app.
@@ -434,23 +434,23 @@ function BestList({
 // ── Benchmark-aware accent colors (green = on/above target, amber = watch) ──
 function connectColor(v: number | null): string | undefined {
   if (v === null) return undefined;
-  if (v >= BENCHMARKS.connectRate.typical[0]) return "#16a34a";
-  return "#d97706";
+  if (v >= BENCHMARKS.connectRate.typical[0]) return "var(--color-success)";
+  return "var(--color-warning)";
 }
 function showRateColor(v: number | null): string | undefined {
   if (v === null) return undefined;
-  return v >= 0.75 ? "#16a34a" : "#d97706";
+  return v >= 0.75 ? "var(--color-success)" : "var(--color-warning)";
 }
 function dialsPerMeetingColor(v: number | null): string | undefined {
   if (v === null) return undefined;
-  if (v <= BENCHMARKS.dialsPerMeeting.typical[1]) return "#16a34a";
-  return "#d97706";
+  if (v <= BENCHMARKS.dialsPerMeeting.typical[1]) return "var(--color-success)";
+  return "var(--color-warning)";
 }
 function badNumberColor(v: number | null): string | undefined {
   if (v === null) return undefined;
-  return v > 0.1 ? "#d97706" : undefined;
+  return v > 0.1 ? "var(--color-warning)" : undefined;
 }
 function talkRatioColor(v: number | null): string | undefined {
   if (v === null) return undefined;
-  return v >= BENCHMARKS.talkRatioBand[0] && v <= BENCHMARKS.talkRatioBand[1] ? "#16a34a" : "#d97706";
+  return v >= BENCHMARKS.talkRatioBand[0] && v <= BENCHMARKS.talkRatioBand[1] ? "var(--color-success)" : "var(--color-warning)";
 }

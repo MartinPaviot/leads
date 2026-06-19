@@ -175,7 +175,7 @@ export function MeetingSchedulerCard({
 
       {booked ? (
         <div className="space-y-2">
-          <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+          <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
             Invitation envoyée à {firstName || "le prospect"} avec le lien de visio
             {booked.conferencing === "sovereign" ? " souveraine." : "."}
           </p>
@@ -185,7 +185,7 @@ export function MeetingSchedulerCard({
                 readOnly
                 value={booked.joinUrl}
                 onFocus={(e) => e.currentTarget.select()}
-                className="min-w-0 flex-1 rounded-md px-2 py-1 text-[12px] outline-none"
+                className="min-w-0 flex-1 rounded-md px-2 py-1 text-[13px] outline-none"
                 style={{ background: "var(--color-bg-page)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
               />
               <Button size="sm" variant="outline" onClick={copyLink}>
@@ -216,7 +216,7 @@ export function MeetingSchedulerCard({
           <button
             key={d}
             onClick={() => setDuration(d)}
-            className="rounded-md px-2 py-0.5 text-[12px] transition-colors"
+            className="rounded-md px-2 py-0.5 text-[13px] transition-colors"
             style={
               duration === d
                 ? { background: "var(--color-accent)", color: "#fff" }
@@ -228,7 +228,7 @@ export function MeetingSchedulerCard({
         ))}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      <div className="mt-2 flex items-center gap-1.5">
         <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>Visio</span>
         {([
           { key: "sovereign", label: "Visio" },
@@ -240,7 +240,7 @@ export function MeetingSchedulerCard({
             key={opt.key}
             type="button"
             onClick={() => setConferencing(opt.key)}
-            className="rounded-md px-2 py-0.5 text-[12px] transition-colors"
+            className="rounded-md px-2 py-0.5 text-[13px] transition-colors"
             style={
               conferencing === opt.key
                 ? { background: "var(--color-accent)", color: "#fff" }
@@ -265,7 +265,7 @@ export function MeetingSchedulerCard({
           {booking ? "Booking…" : "Confirm"}
         </Button>
       </div>
-      <p className="mt-1.5 text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
+      <p className="mt-1.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
         {conferencing === "sovereign"
           ? "Ajoute l'événement à votre agenda connecté avec un lien de visio souveraine, et invite le contact."
           : "Crée la réunion (Google Meet / Teams / Zoom) selon votre choix et votre agenda connecté, et invite le contact."}

@@ -318,7 +318,7 @@ export function CallScriptPanel({
       className="flex flex-col gap-3 rounded-lg border p-3.5"
       style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
     >
-      <div className="flex items-center gap-2">
+      <div className="sticky top-0 flex items-center gap-2" style={{ background: "var(--color-bg-card)" }}>
         <Phone size={14} style={{ color: "var(--color-accent)" }} />
         <span className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>Script d&apos;appel</span>
         <span className="ml-auto inline-flex items-center gap-1.5">
@@ -359,14 +359,15 @@ export function CallScriptPanel({
       </div>
 
       <div className="flex gap-2">
-        <input value={sector} onChange={(e) => setSector(e.target.value)} placeholder="Secteur (ex. Santé, Fondation)"
+        <input value={sector} onChange={(e) => setSector(e.target.value)} placeholder="Secteur"
           className="flex-1 rounded-md px-2 py-1 text-[12px]" style={inputStyle} />
-        <input value={geo} onChange={(e) => setGeo(e.target.value)} placeholder="Géographie (ex. Genève)"
+        <input value={geo} onChange={(e) => setGeo(e.target.value)} placeholder="Géographie"
           className="flex-1 rounded-md px-2 py-1 text-[12px]" style={inputStyle} />
       </div>
       {!editing && resolvedSector && resolvedVia.length > 0 && (
-        <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
-          Secteur détecté : <span className="font-medium" style={{ color: "var(--color-text-secondary)" }}>{SECTOR_LABEL[resolvedSector] ?? resolvedSector}</span> · via {resolvedVia.join(", ")}
+        <p className="flex items-baseline gap-1 text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
+          <span className="shrink-0">Secteur détecté : <span className="font-medium" style={{ color: "var(--color-text-secondary)" }}>{SECTOR_LABEL[resolvedSector] ?? resolvedSector}</span> · via</span>
+          <span className="min-w-0 flex-1 truncate" title={resolvedVia.join(", ")}>{resolvedVia.join(", ")}</span>
         </p>
       )}
 
@@ -377,11 +378,11 @@ export function CallScriptPanel({
       ) : editing && draft ? (
         // ── Edit mode — simple inline fields ──
         <div className="flex flex-col gap-2.5">
-          <Field label="Accroche — identité + secteur↔sujet ({name} et {line} interpolés)">
+          <Field label="Accroche — identité + secteur↔sujet" helper="{name} et {line} interpolés">
             <textarea value={draft.opener} onChange={(e) => setDraft({ ...draft, opener: e.target.value })}
               rows={2} className="w-full resize-y rounded-md px-2 py-1.5 text-[12.5px]" style={inputStyle} />
           </Field>
-          <Field label="Enjeux (validés un par un en appel — {tool} = outil détecté chez le prospect, masqué sinon)">
+          <Field label="Enjeux" helper="validés un par un en appel — {tool} = outil détecté chez le prospect, masqué sinon">
             <div className="flex flex-col gap-1.5">
               {draft.problems.map((p, i) => {
                 const grounded = draftGrounding.find((g) => g.index === i);
@@ -435,13 +436,13 @@ export function CallScriptPanel({
             </span>
           )}
           {/* Récit-pair — éclairer les 3 enjeux par un pair, jamais frontalement. */}
-          <p className="text-[12px] italic" style={{ color: "var(--color-text-tertiary)" }}>{peerLeadFor(sector)}</p>
+          <p className="text-[13px] italic" style={{ color: "var(--color-text-tertiary)" }}>{peerLeadFor(sector)}</p>
           <div className="flex flex-col gap-1.5">
             {orderedProblems.map(({ idx: i, text: p, viaTool }) => {
               const isMatch = i === floatIdx;
               return (
                 <button key={i} type="button" onClick={() => toggle(i)}
-                  className="flex items-start gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] transition-colors hover:bg-[var(--color-bg-hover)]"
+                  className="flex items-start gap-2 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors hover:bg-[var(--color-bg-hover)]"
                   style={{ color: "var(--color-text-secondary)" }}>
                   <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border"
                     style={{ borderColor: checked.has(i) ? "var(--color-accent)" : "var(--color-border-default)", background: checked.has(i) ? "var(--color-accent)" : "transparent" }}>
@@ -462,13 +463,13 @@ export function CallScriptPanel({
           {view.permissionCheck && (
             <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{view.permissionCheck}</p>
           )}
-          <div className="flex items-start gap-2 rounded-md px-3 py-2 text-[12.5px]"
+          <div className="flex items-start gap-2 rounded-md px-3 py-2 text-[13px]"
             style={{ background: anyChecked ? "var(--color-accent-soft)" : "var(--color-bg-hover)", color: anyChecked ? "var(--color-accent)" : "var(--color-text-tertiary)" }}>
             <CalendarClock size={14} className="mt-0.5 shrink-0" />
             <span>{view.bookingAsk}</span>
           </div>
           {viewNoResp && (
-            <div className="rounded-md px-3 py-2 text-[12.5px]" style={{ background: "var(--color-bg-hover)" }}>
+            <div className="rounded-md px-3 py-2 text-[13px]" style={{ background: "var(--color-bg-hover)" }}>
               <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>Si le prospect dit non</div>
               <span style={{ color: "var(--color-text-primary)" }}>{viewNoResp}</span>
             </div>
@@ -523,9 +524,9 @@ export function CallScriptPanel({
       {!loading && methodGaps.length > 0 && (
         <div
           className="rounded-md border px-3 py-2"
-          style={{ borderColor: "rgba(234,179,8,.35)", background: "rgba(234,179,8,.06)" }}
+          style={{ borderColor: "var(--color-warning)", background: "var(--color-warning-soft)" }}
         >
-          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: "rgb(133,77,14)" }}>
+          <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-warning)" }}>
             <AlertTriangle size={11} />
             Méthode — {methodGaps.length} point{methodGaps.length > 1 ? "s" : ""} à revoir
           </div>
@@ -543,10 +544,11 @@ export function CallScriptPanel({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, helper, children }: { label: string; helper?: string; children: React.ReactNode }) {
   return (
     <div>
       <label className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>{label}</label>
+      {helper && <p className="text-[11px] normal-case" style={{ color: "var(--color-text-tertiary)" }}>{helper}</p>}
       <div className="mt-1">{children}</div>
     </div>
   );

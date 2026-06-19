@@ -121,11 +121,11 @@ export function GoalSection({ value, set }: { value: PlanValue; set: (p: Partial
             min={1}
             value={value.target}
             onChange={(e) => set({ target: Math.max(0, parseInt(e.target.value || "0", 10)) })}
-            className="mt-1.5 w-full rounded-lg px-3 py-2 text-[14px]"
+            className="mt-1.5 w-full rounded-lg px-3 py-2 text-[13px]"
             style={{ background: "var(--color-bg-base)", border: "1px solid var(--color-border-default)", color: "var(--color-text-primary)" }}
           />
         </div>
-        <div className="flex gap-1.5 pb-0.5">
+        <div className="flex gap-1.5">
           {WINDOWS.map((w) => (
             <button key={w.key} type="button" style={segBtn(value.window === w.key)} onClick={() => set({ window: w.key })}>
               {w.label}
@@ -136,7 +136,7 @@ export function GoalSection({ value, set }: { value: PlanValue; set: (p: Partial
 
       <div className="mt-4">
         <label className={labelCls} style={labelStyle}>Working days</label>
-        <div className="mt-1.5 flex gap-1">
+        <div className="mt-1.5 flex flex-wrap gap-1">
           {DAYS.map((d) => {
             const on = value.workingDays.includes(d.i);
             return (
@@ -170,15 +170,15 @@ export function CadenceSection({ value, set }: { value: PlanValue; set: (p: Part
 
       <div className="mt-4">
         <label className={labelCls} style={labelStyle}>Follow-up cadence</label>
-        <div className="mt-1.5 flex items-center gap-1.5 text-[12.5px]" style={{ color: "var(--color-text-secondary)" }}>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
           up to
           <input type="number" min={1} max={20} value={value.maxAttempts}
             onChange={(e) => set({ maxAttempts: Math.min(20, Math.max(1, parseInt(e.target.value || "8", 10))) })}
-            className="w-12 rounded-md px-2 py-1.5 text-center text-[13px]" style={{ background: "var(--color-bg-base)", border: "1px solid var(--color-border-default)", color: "var(--color-text-primary)" }} />
+            className="w-12 rounded-lg px-2 py-1.5 text-center text-[13px]" style={{ background: "var(--color-bg-base)", border: "1px solid var(--color-border-default)", color: "var(--color-text-primary)" }} />
           &times;, over
           <input type="number" min={1} max={60} value={value.windowDays}
             onChange={(e) => set({ windowDays: Math.min(60, Math.max(1, parseInt(e.target.value || "15", 10))) })}
-            className="w-12 rounded-md px-2 py-1.5 text-center text-[13px]" style={{ background: "var(--color-bg-base)", border: "1px solid var(--color-border-default)", color: "var(--color-text-primary)" }} />
+            className="w-12 rounded-lg px-2 py-1.5 text-center text-[13px]" style={{ background: "var(--color-bg-base)", border: "1px solid var(--color-border-default)", color: "var(--color-text-primary)" }} />
           days
         </div>
       </div>

@@ -28,6 +28,7 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  Check,
   Calendar,
   FileText,
   MessageSquare,
@@ -229,11 +230,11 @@ function activityIcon(type: string) {
 function riskTone(level: BrainDeal["riskLevel"]): { bg: string; fg: string; label: string } {
   switch (level) {
     case "high":
-      return { bg: "rgba(220,38,38,.10)", fg: "rgb(185,28,28)", label: "Risque élevé" };
+      return { bg: "var(--color-error-soft)", fg: "var(--color-error)", label: "Risque élevé" };
     case "medium":
-      return { bg: "rgba(234,179,8,.12)", fg: "rgb(133,77,14)", label: "Risque moyen" };
+      return { bg: "var(--color-warning-soft)", fg: "var(--color-warning)", label: "Risque moyen" };
     case "low":
-      return { bg: "rgba(34,197,94,.10)", fg: "rgb(21,128,61)", label: "Risque faible" };
+      return { bg: "var(--color-success-soft)", fg: "var(--color-success)", label: "Risque faible" };
     default:
       return { bg: "var(--color-bg-hover)", fg: "var(--color-text-tertiary)", label: "—" };
   }
@@ -271,7 +272,7 @@ function Section({
 }) {
   return (
     <section>
-      <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+      <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-tertiary)]">
         <Icon className="h-3.5 w-3.5" />
         {title}
         {count != null && count > 0 && (
@@ -356,7 +357,7 @@ function BriefLinkChip({ href, label }: { href: string; label: string }) {
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium text-indigo-600 transition hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950"
+      className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium text-[var(--color-accent)] transition hover:bg-[var(--color-accent-soft)]"
     >
       <LinkedInGlyph className="h-3 w-3" />
       {label}
@@ -388,11 +389,11 @@ function ProspectBriefCard({ contactId }: { contactId: string }) {
     Boolean(person?.background) || careerLines.length > 0 || Boolean(person?.headline);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
+    <div className="overflow-hidden rounded-xl border border-[var(--color-border-default)]">
       {/* Le prospect */}
       <div className="px-4 py-2.5">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">
+          <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
             <Users className="h-3.5 w-3.5" />
             Le prospect
           </div>
@@ -600,7 +601,7 @@ export function PreCallBrief({
       <ContactCollisionNotice contactId={selected.contactId} lang="fr" />
 
       {/* ── Expert brief: situational intelligence (the script lives on the right) ── */}
-      <div className="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
+      <div className="overflow-hidden rounded-xl border border-[var(--color-border-default)]">
         <div
           className="flex items-center gap-2.5 px-4 py-2.5"
           style={{ background: focal?.isChampion ? "rgba(217,119,6,.07)" : isSenior ? "rgba(16,185,129,.07)" : "rgba(99,102,241,.05)" }}
@@ -611,11 +612,11 @@ export function PreCallBrief({
             <Target className="h-4 w-4 shrink-0" style={{ color: isSenior ? "rgb(16,185,129)" : "rgb(99,102,241)" }} />
           )}
           <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Autorité</div>
-            <p className="truncate text-[13px] font-medium leading-snug text-zinc-800 dark:text-zinc-100">
-              {authorityLabel}
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-tertiary)]">Autorité</div>
+            <p className="flex min-w-0 items-baseline gap-1 text-[13px] font-medium leading-snug text-zinc-800 dark:text-zinc-100">
+              <span className="min-w-0 shrink-0 truncate">{authorityLabel}</span>
               {displayTitle && (
-                <span className="font-normal text-zinc-500"> · {displayTitle}</span>
+                <span className="min-w-0 truncate font-normal text-zinc-500">· {displayTitle}</span>
               )}
             </p>
             {/* We verify the role ourselves on LinkedIn (no "à confirmer"
@@ -646,12 +647,12 @@ export function PreCallBrief({
           {focal?.intentTrend && <IntentTrend trend={focal.intentTrend} />}
         </div>
         <div
-          className="divide-y divide-zinc-100 dark:divide-zinc-800"
+          className="divide-y divide-[var(--color-border-default)]"
           style={{ borderTop: "1px solid var(--color-border-default)" }}
         >
           {/* Signaux — the concrete why-now, promoted (was a single buried line) */}
           <div className="px-4 py-2.5">
-            <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">
+            <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
               <Radio className="h-3.5 w-3.5" />
               {signals.length > 0 ? "Signaux — pourquoi maintenant" : "Pourquoi maintenant"}
             </div>
@@ -664,7 +665,7 @@ export function PreCallBrief({
                       <Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${sig.hot ? "text-emerald-500" : "text-zinc-400"}`} />
                       <span className="min-w-0 flex-1 text-[13px] leading-snug text-zinc-800 dark:text-zinc-100">{sig.text}</span>
                       <span
-                        className="shrink-0 rounded-sm px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide"
+                        className="shrink-0 rounded-md px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide"
                         style={{ background: "var(--color-bg-hover)", color: "var(--color-text-tertiary)" }}
                       >
                         {sig.tag}
@@ -692,7 +693,7 @@ export function PreCallBrief({
           <button
             onClick={onEnrich}
             disabled={enriching}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium text-indigo-600 transition hover:bg-indigo-50 disabled:opacity-60 dark:text-indigo-300 dark:hover:bg-indigo-950"
+            className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium text-[var(--color-accent)] transition hover:bg-[var(--color-accent-soft)] disabled:opacity-60"
           >
             <Zap className="h-3 w-3" />
             {enriching ? "Enrichissement…" : "Enrichir ce contact"}
@@ -725,7 +726,7 @@ export function PreCallBrief({
       {/* ── Collapsible full dossier — the dense reference, one click away ── */}
       <button
         onClick={() => setShowDossier((v) => !v)}
-        className="flex w-full items-center justify-between rounded-lg border border-zinc-200 px-3 py-2 text-[12px] font-medium text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
+        className="flex w-full items-center justify-between rounded-lg border border-[var(--color-border-default)] px-3 py-2 text-[12px] font-medium text-zinc-600 transition hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-900"
       >
         <span>Dossier complet — historique, deals, paysage</span>
         <ChevronDown className={`h-4 w-4 transition-transform ${showDossier ? "rotate-180" : ""}`} />
@@ -820,7 +821,7 @@ function HeroBullet({
     <div className="flex items-start gap-2.5 px-4 py-2.5">
       <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-400" />
       <div className="min-w-0 flex-1">
-        <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">{label}</div>
+        <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">{label}</div>
         <p className="mt-0.5 text-[13px] leading-snug text-zinc-700 dark:text-zinc-300">{value}</p>
       </div>
       {trend && <IntentTrend trend={trend} />}
@@ -831,7 +832,7 @@ function HeroBullet({
 function DealRow({ deal }: { deal: BrainDeal }) {
   const tone = riskTone(deal.riskLevel);
   return (
-    <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
+    <div className="rounded-lg border border-[var(--color-border-default)] p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{deal.name}</span>
         <span className="shrink-0 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{formatValue(deal.value)}</span>
@@ -842,7 +843,7 @@ function DealRow({ deal }: { deal: BrainDeal }) {
           <span className="rounded-full px-2 py-0.5" style={{ background: tone.bg, color: tone.fg }}>{tone.label}</span>
         )}
         {deal.stallProbability != null && deal.stallProbability >= 0.5 && (
-          <span className="rounded-full px-2 py-0.5" style={{ background: "rgba(234,179,8,.12)", color: "rgb(133,77,14)" }}>
+          <span className="rounded-full px-2 py-0.5" style={{ background: "var(--color-warning-soft)", color: "var(--color-warning)" }}>
             Stall {Math.round(deal.stallProbability * 100)}%
           </span>
         )}
@@ -913,7 +914,7 @@ export function AccountBrainPanel({
               href={`https://${company.domain}`}
               target="_blank"
               rel="noreferrer"
-              className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-indigo-500 hover:underline"
+              className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-[var(--color-accent)] hover:underline"
             >
               <Globe className="h-3 w-3" />
               {company.domain}
@@ -946,7 +947,7 @@ export function AccountBrainPanel({
                   <Avatar name={name} size="sm" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="truncate text-sm text-zinc-800 group-hover:text-indigo-600 dark:text-zinc-200 dark:group-hover:text-indigo-300">{name}</span>
+                      <span className="truncate text-sm text-zinc-800 group-hover:text-[var(--color-accent)] dark:text-zinc-200">{name}</span>
                       {c.isChampion && <Crown className="h-3 w-3 shrink-0 text-amber-500" />}
                     </div>
                     <div className="truncate text-[11px] text-zinc-400">{c.title ?? "—"}</div>
@@ -954,7 +955,7 @@ export function AccountBrainPanel({
                   {c.intentScore != null && (
                     <span className="shrink-0 text-[11px] font-medium text-zinc-500">{Math.round(c.intentScore * 100)}</span>
                   )}
-                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-300 transition group-hover:text-indigo-500" />
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-300 transition group-hover:text-[var(--color-accent)]" />
                 </Link>
               );
             })}
@@ -968,7 +969,7 @@ export function AccountBrainPanel({
           <div className="space-y-2">
             {dossier?.recommendedApproach?.bestContact && (
               <div className="flex items-center gap-1.5 text-[12px] text-zinc-500">
-                <Target className="h-3 w-3 text-indigo-500" />
+                <Target className="h-3 w-3 text-[var(--color-accent)]" />
                 Meilleur interlocuteur: {dossier.recommendedApproach.bestContact}
               </div>
             )}
@@ -984,7 +985,7 @@ export function AccountBrainPanel({
                     href={l.linkedin}
                     target="_blank"
                     rel="noreferrer"
-                    className="shrink-0 text-zinc-400 transition hover:text-indigo-500"
+                    className="shrink-0 text-zinc-400 transition hover:text-[var(--color-accent)]"
                     title="Profil LinkedIn"
                   >
                     <LinkedInGlyph className="h-4 w-4" />
@@ -1088,9 +1089,9 @@ export function InCallContext({
   return (
     <div className="flex h-full flex-col">
       {/* Pinned — the line to say, the angle, why now */}
-      <div className="shrink-0 space-y-3 border-b border-zinc-200 p-4 dark:border-zinc-800">
+      <div className="shrink-0 space-y-3 border-b border-[var(--color-border-default)] p-4">
         <div>
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-accent)]">
             <MessageSquare className="h-3.5 w-3.5" />
             À dire maintenant
           </div>
@@ -1130,7 +1131,7 @@ export function InCallContext({
 
       {/* Live objection coaching — stacks as the prospect pushes back */}
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-tertiary)]">
           <Swords className="h-3.5 w-3.5" />
           Réponses aux objections
           {ordered.length > 0 && <span className="text-zinc-400">· {ordered.length}</span>}
@@ -1145,7 +1146,7 @@ export function InCallContext({
             {ordered.map((card) => (
               <div
                 key={card.ts}
-                className="rounded-lg border border-zinc-200 p-2.5 dark:border-zinc-800"
+                className="rounded-lg border border-[var(--color-border-default)] p-2.5"
               >
                 <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
                   {card.label}
@@ -1158,7 +1159,7 @@ export function InCallContext({
                     {card.suggestedResponses.map((r, i) => (
                       <li
                         key={i}
-                        className="rounded bg-zinc-50 px-2 py-1.5 text-[12px] leading-snug text-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-300"
+                        className="rounded-md bg-zinc-50 px-2 py-1.5 text-[12px] leading-snug text-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-300"
                       >
                         {r}
                       </li>
@@ -1213,7 +1214,7 @@ export function LiveTranscript({
   return (
     <div className="flex h-full flex-col">
       {/* Status bar */}
-      <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 px-6 py-2.5">
+      <div className="flex items-center justify-between border-b border-[var(--color-border-default)] px-6 py-2.5">
         <div className="flex items-center gap-2 text-[12px]">
           {ended ? (
             <>
@@ -1295,8 +1296,8 @@ export function LiveTranscript({
       {/* Post-call execution — what the methodology heard, the moment it
           matters. Deterministic (words said or not), one drill max. */}
       {ended && lever && (
-        <div className="shrink-0 border-t border-zinc-200 px-6 py-3 dark:border-zinc-800">
-          <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+        <div className="shrink-0 border-t border-[var(--color-border-default)] px-6 py-3">
+          <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-tertiary)]">
             Exécution
             <span className="font-normal normal-case tracking-normal text-zinc-400">
               vous avez parlé {lever.talkRatioPct}% (cible ~55%)
@@ -1313,27 +1314,27 @@ export function LiveTranscript({
                 key={label}
                 className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]"
                 style={{
-                  background: ok ? "rgba(34,197,94,.08)" : "var(--color-bg-hover)",
-                  color: ok ? "rgb(21,128,61)" : "var(--color-text-tertiary)",
+                  background: ok ? "var(--color-success-soft)" : "var(--color-bg-hover)",
+                  color: ok ? "var(--color-success)" : "var(--color-text-tertiary)",
                 }}
               >
-                {ok ? "✓" : "—"} {label}
+                {ok ? <Check className="h-3 w-3" /> : <Minus className="h-3 w-3" />} {label}
               </span>
             ))}
             {lever.bannedOpener && (
-              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]" style={{ background: "rgba(220,38,38,.08)", color: "rgb(185,28,28)" }}>
+              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]" style={{ background: "var(--color-error-soft)", color: "var(--color-error)" }}>
                 Accroche bannie
               </span>
             )}
             {lever.deferUsed && (
-              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]" style={{ background: "rgba(234,179,8,.10)", color: "rgb(133,77,14)" }}>
+              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]" style={{ background: "var(--color-warning-soft)", color: "var(--color-warning)" }}>
                 Créneau déféré
               </span>
             )}
           </div>
           {lever.drill && (
             <p className="mt-1.5 text-[11px] leading-snug" style={{ color: "var(--color-text-secondary)" }}>
-              <span className="font-medium" style={{ color: "rgb(133,77,14)" }}>À travailler : {DRILL_COPY[lever.drill].label}</span>
+              <span className="font-medium" style={{ color: "var(--color-warning)" }}>À travailler : {DRILL_COPY[lever.drill].label}</span>
               <span style={{ color: "var(--color-text-tertiary)" }}> — {DRILL_COPY[lever.drill].hint}</span>
             </p>
           )}
@@ -1342,7 +1343,7 @@ export function LiveTranscript({
 
       {/* Post-call objections review */}
       {ended && coaching.length > 0 && (
-        <div className="max-h-56 shrink-0 overflow-y-auto border-t border-zinc-200 px-6 py-3 dark:border-zinc-800">
+        <div className="max-h-56 shrink-0 overflow-y-auto border-t border-[var(--color-border-default)] px-6 py-3">
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
             Objections rencontrées · {coaching.length}
           </div>
@@ -1350,7 +1351,7 @@ export function LiveTranscript({
             {coaching.map((card) => (
               <div
                 key={card.ts}
-                className="rounded-lg border border-zinc-200 p-2.5 dark:border-zinc-800"
+                className="rounded-lg border border-[var(--color-border-default)] p-2.5"
               >
                 <div className="text-[11px] font-medium text-zinc-500">{card.label}</div>
                 <div className="mt-0.5 text-[13px] italic text-zinc-600 dark:text-zinc-400">

@@ -59,8 +59,8 @@ function Cell({
     <div className="px-3.5 py-1.5" style={style}>
       {/* text-[13px] on the line keeps its strut equal to the value's line box,
           so the strip height matches the previous flex layout exactly */}
-      <div className="truncate text-[13px]">
-        <span className="mr-1.5 text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
+      <div className="truncate text-sm">
+        <span className="mr-1.5 text-xs font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
           {label}
         </span>
         <span className="font-semibold" style={{ color: "var(--color-text-primary)" }}>
@@ -120,7 +120,7 @@ export function CampaignFunnelBar() {
                 key={k}
                 type="button"
                 onClick={() => setScope(k)}
-                className="rounded px-2 py-0.5 text-[11px] font-medium transition-colors"
+                className="rounded px-2 py-0.5 text-xs font-medium transition-colors"
                 style={{
                   background: active ? "var(--color-accent-soft)" : "transparent",
                   color: active ? "var(--color-accent)" : "var(--color-text-tertiary)",
@@ -151,12 +151,15 @@ export function CampaignFunnelBar() {
       <Cell label="Connexion / NRP" style={{ ...divider, minWidth: 150 }}>
         {fmtPct(connectRate)}
         <span style={muted}> conn · </span>
-        <span style={{ color: nrpRate !== null ? "rgb(185,28,28)" : "var(--color-text-primary)" }}>{fmtPct(nrpRate)}</span>
+        <span style={{ color: nrpRate !== null ? "var(--color-error)" : "var(--color-text-primary)" }}>{fmtPct(nrpRate)}</span>
         <span style={muted}> NRP</span>
       </Cell>
 
       <Cell label="Cadence" style={{ ...divider, minWidth: 200, flex: "1 1 200px" }}>
-        <span style={{ fontWeight: 400, fontSize: "12px", color: "var(--color-text-secondary)" }}>
+        <span
+          title={`${s.cadence.dueToday} due · ${s.cadence.queued} in cadence · ${reached} reached · ${s.cadence.exhausted} exhausted`}
+          style={{ fontWeight: 400, color: "var(--color-text-secondary)" }}
+        >
           {s.cadence.dueToday} due · {s.cadence.queued} in cadence · {reached} reached · {s.cadence.exhausted} exhausted
         </span>
       </Cell>
@@ -172,7 +175,10 @@ export function CampaignFunnelBar() {
           so we never display noise as insight. */}
       {s.scriptImpact && impactDisplayable(s.scriptImpact) && (
         <Cell label="Script" style={{ ...divider, minWidth: 210 }}>
-          <span style={{ fontWeight: 400, fontSize: "12px", color: "var(--color-text-secondary)" }}>
+          <span
+            title={`raison ancrée ${s.scriptImpact.withReason.meetings}/${s.scriptImpact.withReason.calls} RDV · sans ${s.scriptImpact.withoutReason.meetings}/${s.scriptImpact.withoutReason.calls}`}
+            style={{ fontWeight: 400, color: "var(--color-text-secondary)" }}
+          >
             raison ancrée {s.scriptImpact.withReason.meetings}/{s.scriptImpact.withReason.calls} RDV · sans {s.scriptImpact.withoutReason.meetings}/{s.scriptImpact.withoutReason.calls}
           </span>
         </Cell>
@@ -182,7 +188,7 @@ export function CampaignFunnelBar() {
         <button
           type="button"
           onClick={() => setShowMetrics(true)}
-          className="ml-auto mr-3 flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
+          className="ml-auto mr-3 flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
           style={{ color: "var(--color-text-secondary)", border: "1px solid var(--color-border-default)" }}
           onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}

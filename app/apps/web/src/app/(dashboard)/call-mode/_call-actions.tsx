@@ -106,7 +106,7 @@ export function CallActions({
   );
 
   return (
-    <div className="px-4 py-3">
+    <div className="px-6 py-3">
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" onClick={writeEmail} disabled={drafting} className="gap-1.5">
           {drafting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}

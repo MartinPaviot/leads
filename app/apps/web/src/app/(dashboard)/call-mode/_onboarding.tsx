@@ -192,7 +192,7 @@ export function CallModeOnboarding({
             </div>
 
             {voiceReady === false && (
-              <div className="mt-3 rounded-lg px-3.5 py-2.5 text-[12.5px]" style={{ background: "var(--color-warning-soft)", color: "var(--color-warning)" }}>
+              <div className="mt-3 rounded-lg px-3.5 py-3 text-[13px]" style={{ background: "var(--color-warning-soft)", color: "var(--color-warning)" }}>
                 Connect a phone number to start dialing — <a href="/settings/sending-infrastructure" className="font-medium underline">Settings → Voice</a>.
               </div>
             )}

@@ -259,11 +259,11 @@ function ResizeHandle({ onDelta, side }: { onDelta: (dx: number) => void; side: 
     >
       <div className="absolute inset-y-0 -left-1 w-2 cursor-col-resize" />
       <div
-        className={`pointer-events-none absolute inset-y-0 w-px bg-transparent transition-colors group-hover:bg-indigo-400 ${
+        className={`pointer-events-none absolute inset-y-0 w-px bg-transparent transition-colors group-hover:bg-[var(--color-accent)] ${
           side === "left" ? "-left-px" : "left-0"
         }`}
       />
-      <div className="pointer-events-none absolute left-1/2 top-1/2 flex h-7 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded border border-zinc-200 bg-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="pointer-events-none absolute left-1/2 top-1/2 flex h-7 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded border bg-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 dark:bg-zinc-900" style={{ borderColor: "var(--color-border-default)" }}>
         <MoveHorizontal size={12} className="text-zinc-400" />
       </div>
     </div>
@@ -1546,8 +1546,8 @@ export default function CallModePage() {
 
       {/* ───── LEFT — Queue: full in prep, thin strip when live ───── */}
       <aside
-        className={`relative shrink-0 overflow-hidden border-r border-zinc-200 dark:border-zinc-800 ${inCall ? "transition-[width] duration-300 ease-out" : ""}`}
-        style={{ width: inCall ? 64 : colW.left }}
+        className={`relative shrink-0 overflow-hidden border-r ${inCall ? "transition-[width] duration-300 ease-out" : ""}`}
+        style={{ width: inCall ? 72 : colW.left, borderColor: "var(--color-border-default)" }}
       >
         {/* Full queue (prep) — fixed 320px so it slides out cleanly under the clip */}
         <div
@@ -1578,13 +1578,17 @@ export default function CallModePage() {
           </div>
         )}
         {accountScope > 0 && (
-          <div className="flex items-center justify-between gap-2 border-b border-indigo-100 bg-indigo-50/60 px-4 py-2 text-[12px] dark:border-indigo-900/40 dark:bg-indigo-950/30">
-            <span className="text-indigo-700 dark:text-indigo-300">
+          <div
+            className="flex items-center justify-between gap-2 border-b px-4 py-2 text-[12px]"
+            style={{ background: "var(--color-accent-soft)", borderColor: "var(--color-accent)" }}
+          >
+            <span style={{ color: "var(--color-accent)" }}>
               Filtered to {accountScope} account{accountScope === 1 ? "" : "s"}
             </span>
             <a
               href="/call-mode"
-              className="font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+              className="font-medium hover:underline"
+              style={{ color: "var(--color-accent)" }}
             >
               Show all
             </a>
@@ -1708,14 +1712,14 @@ export default function CallModePage() {
             <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
               {filteredQueue.length}
             </div>
-            <div className="text-[9px] font-medium uppercase tracking-wide text-zinc-400">
+            <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">
               en file
             </div>
           </div>
           {nextUp && (
             <div className="flex flex-col items-center gap-1">
               <div className="h-px w-6 bg-zinc-200 dark:bg-zinc-800" />
-              <span className="mt-1 text-[9px] font-medium uppercase tracking-wide text-zinc-400">
+              <span className="mt-1 text-[10px] font-medium uppercase tracking-wide text-zinc-400">
                 après
               </span>
               <CompanyLogo
@@ -1742,7 +1746,7 @@ export default function CallModePage() {
       <main className="flex-1 min-w-0 flex flex-col">
         {selected ? (
           <>
-            <div className="border-b border-zinc-200 dark:border-zinc-800 px-6 py-2.5">
+            <div className="border-b px-6 py-2.5" style={{ borderColor: "var(--color-border-default)" }}>
               <div className="flex items-center justify-between gap-4">
                 <div className="flex min-w-0 items-center gap-2.5">
                   <CompanyLogo
@@ -1754,7 +1758,7 @@ export default function CallModePage() {
                     <h1 className="truncate text-[17px] font-semibold leading-tight text-zinc-900 dark:text-zinc-50">
                       {selected.contactName}
                     </h1>
-                    <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[12.5px] text-zinc-500 dark:text-zinc-400">
+                    <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
                       <span className="truncate">
                         {selected.title ?? "—"}
                         {selected.companyName ? ` · ${selected.companyName}` : ""}
@@ -1783,9 +1787,9 @@ export default function CallModePage() {
                 <div
                   className="mt-3 rounded-md p-2.5 text-[12px] flex items-center justify-between"
                   style={{
-                    background: "rgba(234,179,8,.08)",
-                    border: "1px solid rgba(234,179,8,.3)",
-                    color: "rgb(133,77,14)",
+                    background: "var(--color-warning-soft)",
+                    border: "1px solid var(--color-warning)",
+                    color: "var(--color-warning)",
                   }}
                 >
                   <span>
@@ -1808,9 +1812,9 @@ export default function CallModePage() {
                 <div
                   className="mt-3 rounded-md p-2.5 text-[12px]"
                   style={{
-                    background: "rgba(34,197,94,.08)",
-                    border: "1px solid rgba(34,197,94,.3)",
-                    color: "rgb(21,128,61)",
+                    background: "var(--color-success-soft)",
+                    border: "1px solid var(--color-success)",
+                    color: "var(--color-success)",
                   }}
                 >
                   Voicemail dropped. The line hangs up automatically.
