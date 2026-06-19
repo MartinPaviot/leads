@@ -28,7 +28,8 @@ import { LaneChip } from "./_lane-chip";
 import { CaptureReviewDrawer } from "./_capture-review";
 import { OutboundTable, type OutboundTableApi } from "./_outbound-table";
 import { BundlesView } from "./_bundles-view";
-import { CommandPalette, type PaletteCommand } from "./_command-palette";
+import { CommandPalette } from "./_command-palette";
+import { buildInboxPaletteCommands, type PaletteCommand } from "@/lib/inbox/palette-commands";
 import { MailboxRail } from "./_mailbox-rail";
 import type { ConversationListItem, InboxLane, LaneCounts, MailboxSummary, SplitCount } from "./_types";
 import type { BundleSource } from "@/lib/inbox/bundle";
@@ -103,6 +104,8 @@ export default function InboxPage() {
   const [total, setTotal] = useState(0);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [replySignal, setReplySignal] = useState(0);
+  // B6: bump to open the focused thread's add-label input (mirrors replySignal).
+  const [labelSignal, setLabelSignal] = useState(0);
   // Cmd/Ctrl+K command palette (INBOX-K01).
   const [paletteOpen, setPaletteOpen] = useState(false);
   // Bulk multi-select (INBOX-T09): x toggles, Shift+x ranges, Esc clears.
@@ -708,75 +711,57 @@ export default function InboxPage() {
 
   // Palette commands: jump to a lane, act on the current conversation, or open
   // any loaded conversation by fuzzy name/subject. Rebuilt as those inputs move.
-  const paletteCommands = useMemo<PaletteCommand[]>(() => {
-    const cmds: PaletteCommand[] = [];
-    (["attention", "snoozed", "done", "handled", "outbound"] as const).forEach((t) =>
-      cmds.push({
-        id: `lane:${t}`,
-        label: `Go to ${TAB_LABELS[t]}`,
-        hint: "Lane",
-        run: () => {
-          setCustomLaneId(null);
-          setTab(t);
+  const paletteCommands = useMemo<PaletteCommand[]>(
+    () =>
+      buildInboxPaletteCommands(
+        {
+          // Raw built-in tab — act:done/snooze gate on it exactly as before; the
+          // split list is gated to the real attention lane at this call site.
+          tab,
+          selectedKey,
+          conversations,
+          customLanes,
+          bundleTotal,
+          mailboxes,
+          splits: customLaneId === null && tab === "attention" ? splitCounts : [],
+          mailboxConnected,
+          tabLabels: TAB_LABELS,
         },
-      }),
-    );
-    if (bundleTotal > 0) {
-      cmds.push({
-        id: "lane:bundles",
-        label: "Go to Bundles",
-        hint: "Lane",
-        run: () => {
-          setCustomLaneId(null);
-          setTab("bundles");
+        {
+          goToLane: (t) => {
+            setCustomLaneId(null);
+            setTab(t);
+          },
+          goToBundles: () => {
+            setCustomLaneId(null);
+            setTab("bundles");
+          },
+          goToCustomLane: (id) => setCustomLaneId(id),
+          switchMailbox: (id) => setSelectedMailbox(id),
+          openConversation: (key) => setSelectedKey(key),
+          markDone: (key) => void handleTriage(key, "done"),
+          snooze1Day: (key) =>
+            void handleTriage(key, "snooze", new Date(Date.now() + 86_400_000).toISOString()),
+          reply: () => setReplySignal((n) => n + 1),
+          book: () => paneApiRef.current?.bookMeeting(),
+          stop: () => {
+            void (async () => {
+              const api = paneApiRef.current;
+              if (!api) return;
+              const r = await api.stopSequence();
+              toast(
+                r.ok ? "Stopped the sequence for this contact." : r.error ?? "No active sequence on this conversation.",
+                r.ok ? "success" : "error",
+              );
+            })();
+          },
+          label: () => setLabelSignal((n) => n + 1),
+          goToSplit: (id) => setActiveSplit(id),
+          connectMailbox: () => router.push("/settings/mail-calendar"),
         },
-      });
-    }
-    customLanes.forEach((l) =>
-      cmds.push({ id: `lane:${l.id}`, label: `Go to ${l.name}`, hint: "Lane", run: () => setCustomLaneId(l.id) }),
-    );
-    // Mailbox quick-switch from the palette (INBOX-K05) — mirrors the m+digit
-    // shortcut. Only when there's a chooser, i.e. 2+ connected mailboxes.
-    if (mailboxes.length >= 2) {
-      cmds.push({
-        id: "mailbox:all",
-        label: "Switch to All inboxes",
-        hint: "Mailbox",
-        run: () => setSelectedMailbox(null),
-      });
-      mailboxes.forEach((m) =>
-        cmds.push({
-          id: `mailbox:${m.id}`,
-          label: `Switch to ${m.label || m.address}`,
-          hint: "Mailbox",
-          run: () => setSelectedMailbox(m.id),
-        }),
-      );
-    }
-    if (selectedKey && (tab === "attention" || tab === "snoozed")) {
-      cmds.push({
-        id: "act:done",
-        label: "Mark current conversation done",
-        hint: "Action",
-        run: () => void handleTriage(selectedKey, "done"),
-      });
-      cmds.push({
-        id: "act:snooze",
-        label: "Snooze current conversation for 1 day",
-        hint: "Action",
-        run: () => void handleTriage(selectedKey, "snooze", new Date(Date.now() + 86_400_000).toISOString()),
-      });
-    }
-    conversations.forEach((c) =>
-      cmds.push({
-        id: `conv:${c.key}`,
-        label: `${c.displayName} — ${c.subject}`,
-        hint: "Open",
-        run: () => setSelectedKey(c.key),
-      }),
-    );
-    return cmds;
-  }, [conversations, customLanes, bundleTotal, selectedKey, tab, handleTriage, mailboxes]);
+      ),
+    [conversations, customLanes, customLaneId, bundleTotal, selectedKey, tab, handleTriage, mailboxes, splitCounts, mailboxConnected, toast, router],
+  );
 
   return (
     <div className="flex h-full flex-col animate-content-in">

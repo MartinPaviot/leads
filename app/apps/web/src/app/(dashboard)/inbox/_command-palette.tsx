@@ -8,20 +8,11 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { fuzzyRank } from "@/lib/inbox/fuzzy";
+import type { PaletteCommand } from "@/lib/inbox/palette-commands";
 
-export interface PaletteCommand {
-  id: string;
-  label: string;
-  /** Right-aligned secondary text, e.g. "Lane" / "Action" / "Open". */
-  hint?: string;
-  /**
-   * Single-key shortcut for this verb (e.g. "e", "r", "s"), shown as a `kbd`
-   * glyph so the palette doubles as the shortcuts cheat-sheet (B6 R1.5/R4.1).
-   * Display-only — the actual key binding lives in the page keydown listener.
-   */
-  shortcut?: string;
-  run: () => void;
-}
+// Re-export so existing `./_command-palette` importers keep resolving the type;
+// the canonical definition + the pure builder live in lib/inbox/palette-commands.
+export type { PaletteCommand };
 
 export function CommandPalette({
   open,
