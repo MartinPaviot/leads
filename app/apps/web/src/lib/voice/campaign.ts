@@ -475,6 +475,11 @@ export async function getTodaysCallList(tenantId: string, now: Date = new Date()
     eq(callCampaignTargets.listedOn, today),
     inArray(callCampaignTargets.status, ["queued", "in_progress"]),
     isNull(contacts.deletedAt),
+    // No phone, no call: a prospect without a dialable number must never
+    // surface in Call Mode — even one queued before its number was cleared,
+    // or enqueued by an older path. Mirrors generateDailyCallList's enqueue
+    // filter so the read can't reintroduce what the write excludes.
+    sql`${contacts.phone} IS NOT NULL AND ${contacts.phone} <> ''`,
     // Honest freshness: a contact the rep flagged as having left this role
     // drops out of the dial list (don't waste a call on a stale title).
     sql`(${contacts.properties} ->> ${ROLE_OBSOLETE_KEY}) IS NULL`,

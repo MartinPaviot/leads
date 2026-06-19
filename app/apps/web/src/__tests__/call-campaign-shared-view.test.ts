@@ -112,6 +112,27 @@ describe("GET /api/calls/campaign shared-cockpit fallback", () => {
     expect(mockGetTodaysCallList).toHaveBeenCalledWith(TENANT, expect.any(Date), MARTIN);
   });
 
+  it("excludes prospects with no dialable phone from the queue (no number, no call)", async () => {
+    mockGetAuthContext.mockResolvedValue({ tenantId: TENANT, appUserId: MARTIN, userId: "auth-martin", role: "admin" });
+    const base = {
+      targetId: "t", campaignId: "camp-1", status: "queued", attemptCount: 0,
+      nextAttemptAt: null, lastOutcome: null, firstName: "A", lastName: "B",
+      title: "CEO", companyId: null, score: 80, lastEnrichedAt: null, properties: {},
+    };
+    mockGetTodaysCallList.mockResolvedValue([
+      { ...base, contactId: "c-nophone", phone: null },
+      { ...base, contactId: "c-empty", phone: "   " },
+      { ...base, contactId: "c-withphone", phone: "+41790000000" },
+    ]);
+    selectQueue.push([martinCampaign], [{ n: 120 }]); // own campaign hit, then callableCount
+
+    const res = await GET();
+    const body = await res.json();
+
+    const ids = (body.calls as Array<{ contactId: string }>).map((c) => c.contactId);
+    expect(ids).toEqual(["c-withphone"]);
+  });
+
   it("no campaign anywhere in the tenant still onboards", async () => {
     mockGetAuthContext.mockResolvedValue({ tenantId: TENANT, appUserId: PAUL, userId: "auth-paul", role: "member" });
     selectQueue.push(

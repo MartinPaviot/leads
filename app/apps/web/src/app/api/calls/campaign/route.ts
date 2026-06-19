@@ -78,7 +78,10 @@ async function getActiveCampaign(tenantId: string, ownerId: string) {
 
 /** Today's targets for one rep, mapped to the cockpit's queue-item shape. */
 async function todayQueue(tenantId: string, ownerId: string) {
-  const rows = await getTodaysCallList(tenantId, new Date(), ownerId);
+  const all = await getTodaysCallList(tenantId, new Date(), ownerId);
+  // Defence in depth (the query already filters phone): never surface a prospect
+  // without a dialable number, even one whose phone was cleared after enqueue.
+  const rows = all.filter((r) => r.phone != null && r.phone.trim() !== "");
   const companyIds = [...new Set(rows.map((r) => r.companyId).filter(Boolean))] as string[];
   const cmap: Record<string, { name: string; domain: string | null }> = {};
   if (companyIds.length > 0) {
