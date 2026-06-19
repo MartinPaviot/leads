@@ -94,7 +94,6 @@ export function CampaignFunnelBar() {
 
   const noun = s.goal ? GOAL_NOUN[s.goal.type] : "calls";
   const reached = s.cadence.connected + s.cadence.converted;
-  const cov = s.coverage.targets;
   const divider = { borderLeft: "1px solid var(--color-border-default)" } as React.CSSProperties;
   const weekTarget = s.goal?.target ?? s.campaign.weeklyTarget;
 
@@ -165,12 +164,6 @@ export function CampaignFunnelBar() {
           {s.cadence.dueToday} due · {s.cadence.queued} in cadence · {reached} reached · {s.cadence.exhausted} exhausted
         </span>
       </Cell>
-
-      {cov > 0 && (
-        <Cell label="Callable" title={`Callable · ${s.coverage.withPhone} / ${cov} have a phone`} style={{ ...divider, minWidth: 96 }}>
-          {s.coverage.withPhone}<span style={muted}> / {cov} have a phone</span>
-        </Cell>
-      )}
 
       {/* Script impact — meetings from calls dialled WITH a grounded reason
           line vs without. Hidden until both buckets carry a minimal sample,
