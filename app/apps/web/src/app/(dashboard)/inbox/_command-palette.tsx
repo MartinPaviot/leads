@@ -14,6 +14,12 @@ export interface PaletteCommand {
   label: string;
   /** Right-aligned secondary text, e.g. "Lane" / "Action" / "Open". */
   hint?: string;
+  /**
+   * Single-key shortcut for this verb (e.g. "e", "r", "s"), shown as a `kbd`
+   * glyph so the palette doubles as the shortcuts cheat-sheet (B6 R1.5/R4.1).
+   * Display-only — the actual key binding lives in the page keydown listener.
+   */
+  shortcut?: string;
   run: () => void;
 }
 
@@ -113,11 +119,21 @@ export function CommandPalette({
                 <span className="truncate text-[13px]" style={{ color: "var(--color-text-primary)" }}>
                   {cmd.label}
                 </span>
-                {cmd.hint && (
-                  <span className="shrink-0 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-                    {cmd.hint}
-                  </span>
-                )}
+                <span className="flex shrink-0 items-center gap-2">
+                  {cmd.shortcut && (
+                    <kbd
+                      className="rounded px-1.5 py-0.5 text-[10px] font-medium leading-none"
+                      style={{ background: "var(--color-bg-hover)", color: "var(--color-text-tertiary)" }}
+                    >
+                      {cmd.shortcut}
+                    </kbd>
+                  )}
+                  {cmd.hint && (
+                    <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                      {cmd.hint}
+                    </span>
+                  )}
+                </span>
               </button>
             ))
           )}
