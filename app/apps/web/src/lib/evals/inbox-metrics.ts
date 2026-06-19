@@ -54,6 +54,43 @@ export function replyWorthyPR(cases: ReplyWorthyEvalCase[]): PrecisionRecall {
   return { precision, recall, tp, fp, fn, tn, support: cases.length };
 }
 
+/** One scored noise case (B4): predicted demote vs the hand label. */
+export interface NoiseEvalCase {
+  predicted: boolean;
+  expected: boolean;
+}
+
+export interface NoiseMetrics extends PrecisionRecall {
+  /** The cardinal sin: of the mail that should be KEPT, the fraction wrongly demoted. */
+  falseDemoteRate: number;
+  /** Count of mail that should be kept (expected noise = false). */
+  keptTotal: number;
+}
+
+/**
+ * Noise demotion metrics (positive class = noise). The load-bearing bar is
+ * falseDemoteRate (a kept thread wrongly demoted = the founder loses real mail);
+ * precision guards against demoting too aggressively. Vacuous-1/0 on empty
+ * denominators; the gate asserts a minimum support so that can't mask a gap.
+ */
+export function noiseMetrics(cases: NoiseEvalCase[]): NoiseMetrics {
+  let tp = 0;
+  let fp = 0;
+  let fn = 0;
+  let tn = 0;
+  for (const c of cases) {
+    if (c.predicted && c.expected) tp++;
+    else if (c.predicted && !c.expected) fp++; // a false demote (cardinal sin)
+    else if (!c.predicted && c.expected) fn++;
+    else tn++;
+  }
+  const keptTotal = fp + tn; // expected-keep cases
+  const precision = tp + fp === 0 ? 1 : tp / (tp + fp);
+  const recall = tp + fn === 0 ? 1 : tp / (tp + fn);
+  const falseDemoteRate = keptTotal === 0 ? 0 : fp / keptTotal;
+  return { precision, recall, tp, fp, fn, tn, support: cases.length, falseDemoteRate, keptTotal };
+}
+
 /** One scored multi-class case: a predicted label vs the hand label (B3 splits). */
 export interface LabelEvalCase {
   predicted: string;
