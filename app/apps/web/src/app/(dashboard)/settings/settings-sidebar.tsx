@@ -33,6 +33,7 @@ import {
   Library,
   Send,
   PenLine,
+  AtSign,
 } from "lucide-react";
 import { BILLING_PAGE_ENABLED } from "@/lib/billing/page-visibility";
 import { EVALS_PAGE_ENABLED, MCP_PAGE_ENABLED } from "@/lib/settings/admin-tools-visibility";
@@ -72,6 +73,7 @@ const settingsNav: NavSection[] = [
       { label: "ICP", href: "/settings/icp", icon: Target },
       { label: "Product & Voice", href: "/settings/product", icon: Package },
       { label: "Writing Style", href: "/settings/writing-style", icon: PenLine },
+      { label: "Mailbox identity", href: "/settings/mailbox-identity", icon: AtSign },
       { label: "Mail & Calendar", href: "/settings/mail-calendar", icon: Mail },
       { label: "Sending infrastructure", href: "/settings/sending-infrastructure", icon: Send },
       { label: "Capture approvals", href: "/settings/capture-approvals", icon: Inbox },
