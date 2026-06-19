@@ -179,6 +179,39 @@ describe("lanes", () => {
     expect(convs[0].lane).toBe("handled");
     expect(convs[0].handledNote).toContain("Bounced");
   });
+
+  it("routes an automated/role sender (noreply@) to handled — never attention", () => {
+    const convs = buildConversations({
+      inbound: [
+        inbound({
+          id: "i1",
+          threadId: "t1",
+          metadata: { from: "Infomaniak <no-reply@infomaniak.com>", to: "martin@pilae.ch" },
+        }),
+      ],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].lane).toBe("handled");
+    expect(convs[0].handledNote).toContain("Automated");
+  });
+
+  it("keeps a human sender in attention (role detection doesn't over-match)", () => {
+    const convs = buildConversations({
+      inbound: [
+        inbound({
+          id: "i1",
+          threadId: "t1",
+          metadata: { from: "Anna Keller <anna.keller@romandco.ch>", to: "martin@pilae.ch" },
+        }),
+      ],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].lane).toBe("attention");
+  });
 });
 
 describe("triage state machine (computed reopen)", () => {
@@ -293,14 +326,15 @@ describe("priority + ordering + reasons", () => {
     expect(convs[0].reason).toBe("Meeting request");
   });
 
-  it("falls back to sentiment for the reason when no label matches", () => {
+  it("uses sentiment for the reason only on a genuine reply (has outbound)", () => {
     const convs = buildConversations({
       inbound: [inbound({ id: "i1", threadId: "t1", sentiment: "positive" })],
-      outbound: [],
+      outbound: [outbound({ id: "o1", threadId: "t1" })],
       triage: [],
       now: NOW,
     });
     expect(convs[0].reason).toBe("Positive reply");
+    expect(convs[0].reasonSource).toBe("sentiment");
   });
 
   it("ties within a bucket break by freshest inbound first", () => {
@@ -314,6 +348,81 @@ describe("priority + ordering + reasons", () => {
       now: NOW,
     });
     expect(convs.map((c) => c.key)).toEqual(["t-new", "t-old"]);
+  });
+});
+
+describe("honest badge (INBOX-T08)", () => {
+  it("never shows a sales-reply label on general inbound (no outbound)", () => {
+    // intent ["introduction"] maps to "Introduction" — but with no outbound this
+    // is not a reply to us, so we must not assert a sales meaning on it.
+    const convs = buildConversations({
+      inbound: [inbound({ id: "i1", threadId: "t1", intent: ["introduction"] })],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].reason).toBe("");
+    expect(convs[0].reasonSource).toBeNull();
+  });
+
+  it("never emits the bare 'Replied' fallback", () => {
+    const convs = buildConversations({
+      inbound: [inbound({ id: "i1", threadId: "t1", sentiment: "neutral", intent: [] })],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].reason).toBe("");
+    expect(convs[0].reason).not.toBe("Replied");
+  });
+
+  it("shows the cached AI summary line for general inbound when present", () => {
+    const convs = buildConversations({
+      inbound: [
+        inbound({
+          id: "i1",
+          threadId: "t1",
+          // anna.keller@ is a confirmed human sender (stays in attention), so the
+          // summary path — not the automated-handled path — is exercised.
+          metadata: { from: "anna.keller@romandco.ch", aiSummaryLine: "Login code from your hosting provider" },
+        }),
+      ],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].reason).toBe("Login code from your hosting provider");
+    expect(convs[0].reasonSource).toBe("summary");
+  });
+
+  it("maps a real sequence-reply classification to friendly text", () => {
+    const convs = buildConversations({
+      inbound: [inbound({ id: "i1", threadId: "t1", intent: ["pricing_inquiry"] })],
+      outbound: [outbound({ id: "o1", threadId: "t1" })],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].reason).toBe("Asked about pricing");
+    expect(convs[0].reasonSource).toBe("reply");
+  });
+
+  it("a real label beats both summary and sentiment on a reply", () => {
+    const convs = buildConversations({
+      inbound: [
+        inbound({
+          id: "i1",
+          threadId: "t1",
+          sentiment: "positive",
+          intent: ["meeting_request"],
+          metadata: { from: "prospect@acme.ch", aiSummaryLine: "should be ignored" },
+        }),
+      ],
+      outbound: [outbound({ id: "o1", threadId: "t1" })],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].reason).toBe("Meeting request");
+    expect(convs[0].reasonSource).toBe("reply");
   });
 });
 
@@ -360,6 +469,60 @@ describe("content extraction", () => {
     expect(convs[0].snippet).not.toContain("\n");
   });
 
+  it("threads the captured HTML body onto inbound messages (INBOX-R01)", () => {
+    const convs = buildConversations({
+      inbound: [
+        inbound({
+          id: "i1",
+          threadId: "t1",
+          metadata: { from: "p@acme.ch", bodyHtml: "<p>Hello <b>world</b></p>" },
+        }),
+      ],
+      outbound: [outbound({ id: "o1", threadId: "t1" })],
+      triage: [],
+      now: NOW,
+    });
+    const inboundMsg = convs[0].messages.find((m) => m.direction === "inbound")!;
+    const outboundMsg = convs[0].messages.find((m) => m.direction === "outbound")!;
+    expect(inboundMsg.bodyHtml).toBe("<p>Hello <b>world</b></p>");
+    expect(outboundMsg.bodyHtml).toBeNull(); // outbound is composed as text
+  });
+
+  it("leaves bodyHtml null for inbound with no HTML part", () => {
+    const convs = buildConversations({
+      inbound: [inbound({ id: "i1", threadId: "t1" })],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].messages[0].bodyHtml).toBeNull();
+  });
+
+  it("threads the sender domain-auth verdict onto messages (INBOX-R06)", () => {
+    const convs = buildConversations({
+      inbound: [
+        inbound({ id: "i1", threadId: "t1", metadata: { from: "p@acme.ch", senderAuth: { status: "pass" } } }),
+      ],
+      outbound: [outbound({ id: "o1", threadId: "t1" })],
+      triage: [],
+      now: NOW,
+    });
+    const inboundMsg = convs[0].messages.find((m) => m.direction === "inbound")!;
+    const outboundMsg = convs[0].messages.find((m) => m.direction === "outbound")!;
+    expect(inboundMsg.senderVerified).toBe("pass");
+    expect(outboundMsg.senderVerified).toBe("unknown"); // our own sent mail
+  });
+
+  it("defaults senderVerified to unknown when no auth verdict was captured", () => {
+    const convs = buildConversations({
+      inbound: [inbound({ id: "i1", threadId: "t1" })],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].messages[0].senderVerified).toBe("unknown");
+  });
+
   it("counts lanes", () => {
     const convs = buildConversations({
       inbound: [
@@ -371,5 +534,95 @@ describe("content extraction", () => {
       now: NOW,
     });
     expect(laneCounts(convs)).toEqual({ attention: 1, handled: 1, snoozed: 0, done: 0 });
+  });
+});
+
+describe("response SLA (INBOX-N04)", () => {
+  it("flags an attention conversation awaiting our reply past the threshold", () => {
+    const convs = buildConversations({
+      inbound: [inbound({ id: "i1", threadId: "t1", occurredAt: "2026-06-08T10:00:00Z" })], // ~50h before NOW
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].slaHoursOverdue).not.toBeNull();
+    expect(convs[0].slaHoursOverdue!).toBeGreaterThan(0);
+  });
+
+  it("does not flag a conversation within the SLA window", () => {
+    const convs = buildConversations({
+      inbound: [inbound({ id: "i1", threadId: "t1", occurredAt: "2026-06-10T10:00:00Z" })], // 2h before NOW
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].slaHoursOverdue).toBeNull();
+  });
+
+  it("does not flag when we replied last (not awaiting our reply)", () => {
+    const convs = buildConversations({
+      inbound: [inbound({ id: "i1", threadId: "t1", occurredAt: "2026-06-08T10:00:00Z" })],
+      outbound: [outbound({ id: "o1", threadId: "t1", sentAt: "2026-06-09T10:00:00Z" })],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].slaHoursOverdue).toBeNull();
+  });
+
+  it("does not flag handled conversations", () => {
+    const convs = buildConversations({
+      inbound: [inbound({ id: "i1", threadId: "t1", occurredAt: "2026-06-08T10:00:00Z", intent: ["out_of_office"] })],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].lane).toBe("handled");
+    expect(convs[0].slaHoursOverdue).toBeNull();
+  });
+});
+
+describe("importance ranking (INBOX-T04)", () => {
+  it("scores a hot intent above the bottom and pins automated senders to tier 4", () => {
+    const convs = buildConversations({
+      inbound: [
+        inbound({ id: "i1", threadId: "t-hot", intent: ["meeting_request"] }),
+        inbound({
+          id: "i2",
+          threadId: "t-auto",
+          metadata: { from: "Infomaniak <no-reply@infomaniak.com>", to: "m@pilae.ch" },
+        }),
+      ],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    const hot = convs.find((c) => c.key === "t-hot")!;
+    const auto = convs.find((c) => c.key === "t-auto")!;
+    expect(hot.importanceTier).toBeLessThan(4);
+    expect(hot.importanceFactors.length).toBeGreaterThan(0); // cited, never opaque
+    expect(auto.importanceTier).toBe(4);
+    expect(auto.importanceScore).toBe(0);
+  });
+});
+
+describe("bulk bundling flag (INBOX-T03)", () => {
+  it("flags automated/bulk senders isBulk and leaves real threads alone", () => {
+    const convs = buildConversations({
+      inbound: [
+        inbound({ id: "i1", threadId: "t-human", intent: ["meeting_request"] }),
+        inbound({
+          id: "i2",
+          threadId: "t-bulk",
+          metadata: { from: "Acme Newsletter <no-reply@news.acme.com>", to: "m@pilae.ch" },
+        }),
+      ],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    const human = convs.find((c) => c.key === "t-human")!;
+    const bulk = convs.find((c) => c.key === "t-bulk")!;
+    expect(bulk.isBulk).toBe(true); // feeds the Bundles view
+    expect(human.isBulk).toBe(false); // a real reply never gets bundled away
   });
 });

@@ -1,8 +1,9 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { activities, tasks } from "@/db/schema";
-import { eq, and, inArray, isNull } from "drizzle-orm";
+import { activities, tasks, deals, contacts, companies, coachingInsights } from "@/db/schema";
+import { eq, and, inArray, isNull, desc } from "drizzle-orm";
 import { logger } from "@/lib/observability/logger";
+import { resolveMeetingCrmTargets } from "@/lib/meetings/meeting-crm";
 import { z } from "zod";
 
 export async function GET(
@@ -60,6 +61,66 @@ export async function GET(
     followUpDraft = { subject: "", body: rawDraft };
   }
 
+  // ── CRM intelligence linked to this meeting ──────────────────────────────
+  // Resolve the same deal / company / contact the meeting writer targets
+  // (lib/meetings/meeting-crm.ts) so the page shows exactly what was written —
+  // the MEDDPICC scorecard, account intel and contact profile (with
+  // Approve/Dismiss in review mode), the very same call-intel components.
+  const targets = await resolveMeetingCrmTargets(authCtx.tenantId, {
+    dealId: typeof meta.dealId === "string" ? meta.dealId : null,
+    contactId: activity.entityType === "contact" ? activity.entityId : null,
+  });
+
+  let dealRow: { id: string; properties: Record<string, unknown> } | null = null;
+  if (targets.dealId) {
+    const [row] = await db
+      .select({ id: deals.id, properties: deals.properties })
+      .from(deals)
+      .where(and(eq(deals.id, targets.dealId), eq(deals.tenantId, authCtx.tenantId), isNull(deals.deletedAt)))
+      .limit(1);
+    dealRow = row ? { id: row.id, properties: (row.properties ?? {}) as Record<string, unknown> } : null;
+  }
+
+  let companyRow: { id: string; properties: Record<string, unknown> } | null = null;
+  if (targets.companyId) {
+    const [row] = await db
+      .select({ id: companies.id, properties: companies.properties })
+      .from(companies)
+      .where(and(eq(companies.id, targets.companyId), eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)))
+      .limit(1);
+    companyRow = row ? { id: row.id, properties: (row.properties ?? {}) as Record<string, unknown> } : null;
+  }
+
+  let contactRow: { id: string; properties: Record<string, unknown> } | null = null;
+  if (targets.contactId) {
+    const [row] = await db
+      .select({ id: contacts.id, properties: contacts.properties })
+      .from(contacts)
+      .where(and(eq(contacts.id, targets.contactId), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
+      .limit(1);
+    contactRow = row ? { id: row.id, properties: (row.properties ?? {}) as Record<string, unknown> } : null;
+  }
+
+  // Post-meeting coaching debrief — the row scoreInteraction wrote for THIS
+  // meeting activity (orphaned until now). Newest post_interaction wins.
+  const [coachingRow] = await db
+    .select({
+      score: coachingInsights.score,
+      category: coachingInsights.category,
+      summary: coachingInsights.summary,
+      detail: coachingInsights.detail,
+      suggestion: coachingInsights.suggestion,
+      createdAt: coachingInsights.createdAt,
+    })
+    .from(coachingInsights)
+    .where(and(
+      eq(coachingInsights.tenantId, authCtx.tenantId),
+      eq(coachingInsights.activityId, id),
+      eq(coachingInsights.insightType, "post_interaction"),
+    ))
+    .orderBy(desc(coachingInsights.createdAt))
+    .limit(1);
+
   return Response.json({
     meeting: {
       id: activity.id,
@@ -88,6 +149,22 @@ export async function GET(
     followUpSentAt: meta.followUpSentAt || null,
     tasks: linkedTasks,
     matchedContacts: meta.matchedContacts || [],
+    // Qualification + intel surfaced on the meeting record (Claap parity).
+    crm: {
+      deal: dealRow,
+      company: companyRow,
+      contact: contactRow,
+    },
+    coaching: coachingRow
+      ? {
+          score: coachingRow.score,
+          category: coachingRow.category,
+          summary: coachingRow.summary,
+          detail: coachingRow.detail,
+          suggestion: coachingRow.suggestion,
+          createdAt: coachingRow.createdAt,
+        }
+      : null,
   });
 }
 

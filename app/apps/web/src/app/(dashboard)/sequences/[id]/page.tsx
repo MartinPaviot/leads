@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, use } from "react";
 import { useRouter } from "next/navigation";
+import { z } from "zod";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
@@ -11,11 +12,24 @@ import { CampaignWizard } from "@/components/campaign-wizard";
 import { DestructiveConfirm } from "@/components/ui/destructive-confirm";
 import { useToast } from "@/components/ui/toast";
 import { useCan } from "@/components/role-provider";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
 import {
   Zap, ArrowLeft, Mail, Clock, Users, Play, Pause,
   ChevronDown, ChevronRight, Loader2, FileText, Send,
   Edit2, Trash2, BarChart3, Check, X, Download,
 } from "lucide-react";
+
+/* ── CLE-14: page-action helpers (pure, shared) ── */
+
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+
+/** Type a PageAction against its own params schema, then erase P so heterogeneous
+ *  actions live in one PageAction[] (the registry stores PageAction<unknown>). */
+function definePageAction<P>(a: PageAction<P>): PageAction {
+  return a as unknown as PageAction;
+}
 
 interface Step {
   id: string;
@@ -143,32 +157,52 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
     return () => clearInterval(interval);
   }, [campaignStatus, id, fetchSequence]);
 
+  // CLE-14: the single network body shared by the Pause/Resume button AND the
+  // sequences.pause / sequences.resume actions (AC-NODUP — one PUT URL, one place).
+  const setSequenceStatus = useCallback(
+    async (status: "paused" | "active"): Promise<{ ok: boolean; error?: string }> => {
+      setUpdatingStatus(true);
+      try {
+        const res = await fetch(`/api/sequences/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          return { ok: false, error: (body as { error?: string }).error || `HTTP ${res.status}` };
+        }
+        await fetchSequence();
+        return { ok: true };
+      } catch (e) {
+        console.warn("sequence-detail: status update failed", e);
+        return { ok: false, error: e instanceof Error ? e.message : "network error" };
+      } finally {
+        setUpdatingStatus(false);
+      }
+    },
+    [id, fetchSequence],
+  );
+
   async function toggleStatus() {
     if (!sequence) return;
-    setUpdatingStatus(true);
     const newStatus = sequence.status === "active" ? "paused" : "active";
-    try {
-      await fetch(`/api/sequences/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      fetchSequence();
-    } catch (e) {
-      console.warn("sequence-detail: status toggle failed", e);
-    }
-    setUpdatingStatus(false);
+    await setSequenceStatus(newStatus);
   }
 
-  async function launchCampaign() {
+  async function launchCampaign(): Promise<{ ok: boolean; error?: string }> {
     try {
       const res = await fetch(`/api/campaigns/${id}/launch`, { method: "POST" });
       if (res.ok) {
         setCampaignStatus("launched");
         fetchSequence();
+        return { ok: true };
       }
+      const body = await res.json().catch(() => ({}));
+      return { ok: false, error: (body as { error?: string }).error || `HTTP ${res.status}` };
     } catch (e) {
       console.warn("sequence-detail: launch failed", e);
+      return { ok: false, error: e instanceof Error ? e.message : "network error" };
     }
   }
 
@@ -209,9 +243,41 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
     setStepDraft(null);
   }
 
+  // CLE-14: the single PATCH body shared by the Save button AND the
+  // sequences.editStep action (AC-NODUP). Sends only the provided fields.
+  const saveStepFields = useCallback(
+    async (
+      stepId: string,
+      fields: { subjectTemplate?: string; bodyTemplate?: string; delayDays?: number },
+    ): Promise<{ ok: boolean; error?: string }> => {
+      const changes: Record<string, unknown> = {};
+      if (fields.subjectTemplate !== undefined) changes.subjectTemplate = fields.subjectTemplate;
+      if (fields.bodyTemplate !== undefined) changes.bodyTemplate = fields.bodyTemplate;
+      if (fields.delayDays !== undefined && fields.delayDays >= 0) changes.delayDays = fields.delayDays;
+      if (Object.keys(changes).length === 0) return { ok: true };
+      try {
+        const res = await fetch(`/api/sequences/${id}/steps/${stepId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(changes),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          return { ok: false, error: (body as { error?: string }).error || `HTTP ${res.status}` };
+        }
+        await fetchSequence();
+        return { ok: true };
+      } catch (e) {
+        console.warn("sequence-detail: saveStepFields failed", e);
+        return { ok: false, error: e instanceof Error ? e.message : "network error" };
+      }
+    },
+    [id, fetchSequence],
+  );
+
   async function saveStep(step: Step) {
     if (!stepDraft) return;
-    const changes: Record<string, unknown> = {};
+    const changes: { subjectTemplate?: string; bodyTemplate?: string; delayDays?: number } = {};
     if (stepDraft.subjectTemplate.trim() !== step.subjectTemplate) changes.subjectTemplate = stepDraft.subjectTemplate.trim();
     if (stepDraft.bodyTemplate.trim() !== step.bodyTemplate) changes.bodyTemplate = stepDraft.bodyTemplate.trim();
     if (stepDraft.delayDays !== step.delayDays && stepDraft.delayDays >= 0) changes.delayDays = stepDraft.delayDays;
@@ -220,26 +286,14 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
       return;
     }
     setSavingStep(true);
-    try {
-      const res = await fetch(`/api/sequences/${id}/steps/${step.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(changes),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        toast((body as { error?: string }).error || "Failed to update step.", "error");
-        return;
-      }
+    const r = await saveStepFields(step.id, changes);
+    if (r.ok) {
       toast("Step updated.", "success");
       cancelEditStep();
-      await fetchSequence();
-    } catch (e) {
-      console.warn("sequence-detail: saveStep failed", e);
-      toast("Failed to update step — network error.", "error");
-    } finally {
-      setSavingStep(false);
+    } else {
+      toast(r.error || "Failed to update step.", "error");
     }
+    setSavingStep(false);
   }
 
   async function deleteStep(stepId: string) {
@@ -259,6 +313,177 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
       toast("Failed to delete step — network error.", "error");
     }
   }
+
+  // CLE-14: collapse the three inline enroll PUTs (Pause / Resume / Stop) into a
+  // single network body shared by the 3 row buttons AND the 3 enroll* actions
+  // (AC-NODUP — the /enroll PUT URL appears exactly once now).
+  const setEnrollmentStatus = useCallback(
+    async (
+      enrollmentId: string,
+      status: "paused" | "active" | "completed",
+    ): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const res = await fetch(`/api/sequences/${id}/enroll`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enrollmentId, status }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          return { ok: false, error: (body as { error?: string }).error || `HTTP ${res.status}` };
+        }
+        await fetchSequence();
+        return { ok: true };
+      } catch (e) {
+        console.warn("sequence-detail: setEnrollmentStatus failed", e);
+        return { ok: false, error: e instanceof Error ? e.message : "network error" };
+      }
+    },
+    [id, fetchSequence],
+  );
+
+  // ── CLE-14: register this detail page's actions for the chat live-executor.
+  //    Declared UNCONDITIONALLY above the loading/!sequence early returns so the
+  //    hook order is stable. run()s reuse the extracted helpers above; live refs
+  //    keep the id set stable so registration happens once (CLE-03 §3.1). ──
+  const sequenceIdRef = useRef(id); sequenceIdRef.current = id;
+  const stepsRef = useRef(steps); stepsRef.current = steps;
+  const enrollmentsRef = useRef(enrollments); enrollmentsRef.current = enrollments;
+  const setSequenceStatusRef = useRef(setSequenceStatus); setSequenceStatusRef.current = setSequenceStatus;
+  const saveStepFieldsRef = useRef(saveStepFields); saveStepFieldsRef.current = saveStepFields;
+  const setEnrollmentStatusRef = useRef(setEnrollmentStatus); setEnrollmentStatusRef.current = setEnrollmentStatus;
+  const deleteStepRef = useRef(deleteStep); deleteStepRef.current = deleteStep;
+  const launchCampaignRef = useRef(launchCampaign); launchCampaignRef.current = launchCampaign;
+
+  const sequenceDetailActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "sequences.pause",
+        title: "Pause this sequence",
+        description:
+          "Pause the open sequence — queued sends stop until it is resumed. Use when the user wants to pause this campaign.",
+        params: z.object({ sequenceId: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ sequenceId }): Promise<PageActionResult> => {
+          if (sequenceId !== sequenceIdRef.current) return errResult("That sequence is not the one open here.");
+          const r = await setSequenceStatusRef.current("paused");
+          return r.ok ? okResult("Paused the sequence.") : errResult(r.error ?? "Failed to pause the sequence.");
+        },
+      }),
+      definePageAction({
+        id: "sequences.resume",
+        title: "Resume this sequence",
+        description:
+          "Resume the open paused sequence — queued sends will go out again. Use when the user wants to resume this campaign.",
+        params: z.object({ sequenceId: z.string().min(1) }),
+        mutating: true, outbound: true, reversible: true, cost: "free", confirm: "always",
+        run: async ({ sequenceId }): Promise<PageActionResult> => {
+          if (sequenceId !== sequenceIdRef.current) return errResult("That sequence is not the one open here.");
+          const r = await setSequenceStatusRef.current("active");
+          return r.ok ? okResult("Resumed the sequence - queued sends will go out.") : errResult(r.error ?? "Failed to resume the sequence.");
+        },
+      }),
+      definePageAction({
+        id: "sequences.editStep",
+        title: "Edit a sequence step",
+        description:
+          "Edit one step of the open sequence — set the subject template, body template, and/or the delay (business " +
+          "days after the previous step). Use when the user wants to change the wording or timing of a step.",
+        params: z.object({
+          sequenceId: z.string().min(1),
+          stepId: z.string().min(1),
+          subjectTemplate: z.string().optional(),
+          bodyTemplate: z.string().optional(),
+          delayDays: z.number().int().min(0).optional(),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ sequenceId, stepId, subjectTemplate, bodyTemplate, delayDays }): Promise<PageActionResult> => {
+          if (sequenceId !== sequenceIdRef.current) return errResult("That sequence is not the one open here.");
+          if (!stepsRef.current.some((s) => s.id === stepId)) return errResult(`Step ${stepId} is not in this sequence.`);
+          const r = await saveStepFieldsRef.current(stepId, { subjectTemplate, bodyTemplate, delayDays });
+          return r.ok ? okResult("Updated the step.") : errResult(r.error ?? "Failed to update the step.");
+        },
+      }),
+      definePageAction({
+        id: "sequences.deleteStep",
+        title: "Delete a sequence step",
+        description:
+          "Delete one step of the open sequence. Queued emails for the step won't be sent; already-sent emails are " +
+          "unaffected. This cannot be undone. Use when the user wants to remove a step.",
+        params: z.object({ sequenceId: z.string().min(1), stepId: z.string().min(1) }),
+        mutating: true, reversible: false, cost: "free", confirm: "always",
+        run: async ({ sequenceId, stepId }): Promise<PageActionResult> => {
+          if (sequenceId !== sequenceIdRef.current) return errResult("That sequence is not the one open here.");
+          if (!stepsRef.current.some((s) => s.id === stepId)) return errResult(`Step ${stepId} is not in this sequence.`);
+          await deleteStepRef.current(stepId);
+          return okResult("Deleted the step.");
+        },
+      }),
+      definePageAction({
+        id: "sequences.enrollPause",
+        title: "Pause an enrollment",
+        description:
+          "Pause one enrolled contact in the open sequence — that contact's next sends stop. Use when the user wants " +
+          "to pause a specific person's enrollment.",
+        params: z.object({ sequenceId: z.string().min(1), enrollmentId: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ sequenceId, enrollmentId }): Promise<PageActionResult> => {
+          if (sequenceId !== sequenceIdRef.current) return errResult("That sequence is not the one open here.");
+          if (!enrollmentsRef.current.some((e) => e.id === enrollmentId)) return errResult(`Enrollment ${enrollmentId} is not in this sequence.`);
+          const r = await setEnrollmentStatusRef.current(enrollmentId, "paused");
+          return r.ok ? okResult("Paused that enrollment.") : errResult(r.error ?? "Failed to pause the enrollment.");
+        },
+      }),
+      definePageAction({
+        id: "sequences.enrollResume",
+        title: "Resume an enrollment",
+        description:
+          "Resume one paused enrolled contact in the open sequence — queued sends for that contact will go out. Use " +
+          "when the user wants to resume a specific person's enrollment.",
+        params: z.object({ sequenceId: z.string().min(1), enrollmentId: z.string().min(1) }),
+        mutating: true, outbound: true, reversible: true, cost: "free", confirm: "always",
+        run: async ({ sequenceId, enrollmentId }): Promise<PageActionResult> => {
+          if (sequenceId !== sequenceIdRef.current) return errResult("That sequence is not the one open here.");
+          if (!enrollmentsRef.current.some((e) => e.id === enrollmentId)) return errResult(`Enrollment ${enrollmentId} is not in this sequence.`);
+          const r = await setEnrollmentStatusRef.current(enrollmentId, "active");
+          return r.ok ? okResult("Resumed that enrollment.") : errResult(r.error ?? "Failed to resume the enrollment.");
+        },
+      }),
+      definePageAction({
+        id: "sequences.enrollStop",
+        title: "Stop an enrollment",
+        description:
+          "Stop (complete) one enrolled contact in the open sequence — no further sends for that contact. Use when " +
+          "the user wants to stop/finish a specific person's enrollment.",
+        params: z.object({ sequenceId: z.string().min(1), enrollmentId: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ sequenceId, enrollmentId }): Promise<PageActionResult> => {
+          if (sequenceId !== sequenceIdRef.current) return errResult("That sequence is not the one open here.");
+          if (!enrollmentsRef.current.some((e) => e.id === enrollmentId)) return errResult(`Enrollment ${enrollmentId} is not in this sequence.`);
+          const r = await setEnrollmentStatusRef.current(enrollmentId, "completed");
+          return r.ok ? okResult("Stopped that enrollment.") : errResult(r.error ?? "Failed to stop the enrollment.");
+        },
+      }),
+      definePageAction({
+        id: "sequences.launch",
+        title: "Launch the prepared campaign",
+        description:
+          "Launch the open campaign — queued emails begin sending. Use when the campaign is ready and the user wants " +
+          "to launch it. This triggers outbound email and cannot be undone.",
+        params: z.object({ sequenceId: z.string().min(1) }),
+        mutating: true, outbound: true, reversible: false, cost: "free", confirm: "always",
+        run: async ({ sequenceId }): Promise<PageActionResult> => {
+          if (sequenceId !== sequenceIdRef.current) return errResult("That sequence is not the one open here.");
+          const r = await launchCampaignRef.current();
+          return r.ok ? okResult("Campaign launched - queued emails will send.") : errResult(r.error ?? "Failed to launch the campaign.");
+        },
+      }),
+    ],
+    // Stable id set; run() reads live values via refs. Register once (CLE-03).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useRegisterPageActions(sequenceDetailActions);
 
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--color-text-tertiary)" }} /></div>;
   if (!sequence) return <div className="p-6 text-sm" style={{ color: "var(--color-error)" }}>Sequence not found</div>;
@@ -596,10 +821,7 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
                             <div className="flex gap-1">
                               {e.status === "active" && (
                                 <button
-                                  onClick={async () => {
-                                    await fetch(`/api/sequences/${id}/enroll`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enrollmentId: e.id, status: "paused" }) });
-                                    fetchSequence();
-                                  }}
+                                  onClick={() => setEnrollmentStatus(e.id, "paused")}
                                   className="rounded px-2 py-0.5 text-[11px] font-medium"
                                   style={{ background: "var(--color-warning-soft)", color: "var(--color-warning)" }}
                                 >
@@ -608,10 +830,7 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
                               )}
                               {e.status === "paused" && (
                                 <button
-                                  onClick={async () => {
-                                    await fetch(`/api/sequences/${id}/enroll`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enrollmentId: e.id, status: "active" }) });
-                                    fetchSequence();
-                                  }}
+                                  onClick={() => setEnrollmentStatus(e.id, "active")}
                                   className="rounded px-2 py-0.5 text-[11px] font-medium"
                                   style={{ background: "var(--color-success-soft)", color: "var(--color-success)" }}
                                 >
@@ -620,10 +839,7 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
                               )}
                               {(e.status === "active" || e.status === "paused") && (
                                 <button
-                                  onClick={async () => {
-                                    await fetch(`/api/sequences/${id}/enroll`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enrollmentId: e.id, status: "completed" }) });
-                                    fetchSequence();
-                                  }}
+                                  onClick={() => setEnrollmentStatus(e.id, "completed")}
                                   className="rounded px-2 py-0.5 text-[11px] font-medium"
                                   style={{ background: "var(--color-error-soft)", color: "var(--color-error)" }}
                                 >

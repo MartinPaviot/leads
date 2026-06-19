@@ -12,6 +12,15 @@
  * See _specs/inbox-triage/design.md.
  */
 
+import { classifyInboundSender } from "@/lib/inbound/lead-classification";
+import type { SenderAuthStatus } from "@/lib/inbox/sender-auth";
+import { normalizeAttachments, type AttachmentMeta } from "@/lib/inbox/attachment-meta";
+import { checkSla } from "@/lib/inbox/sla";
+import { scoreImportance } from "@/lib/inbox/importance";
+
+/** Hours awaiting our reply before a conversation is flagged overdue (INBOX-N04). */
+const SLA_THRESHOLD_HOURS = 24;
+
 export interface InboundRow {
   id: string;
   threadId: string | null;
@@ -51,6 +60,9 @@ export interface TriageRow {
 
 export type Lane = "attention" | "handled" | "snoozed" | "done";
 
+/** Where a conversation's `reason` line came from — drives the honest-badge tooltip (INBOX-T08). */
+export type ReasonSource = "reply" | "summary" | "sentiment" | "handled" | null;
+
 export interface ConversationMessage {
   id: string;
   direction: "inbound" | "outbound";
@@ -58,6 +70,17 @@ export interface ConversationMessage {
   to: string;
   subject: string;
   body: string;
+  /** Sanitized HTML body for fidelity rendering (INBOX-R01). Null ⇒ render `body`
+   *  as text. Inbound only today; outbound is composed as text. */
+  bodyHtml: string | null;
+  /** Raw .ics of an inbound meeting invite (INBOX-R12/CAL), when present — drives
+   *  the inline event card. Null ⇒ not an invite. */
+  calendar: string | null;
+  /** Attachment metadata (INBOX-R04) — filename/type/size/inline for the pane strip. */
+  attachments: AttachmentMeta[];
+  /** Sender domain-auth verdict (INBOX-R06): "pass" earns a verified badge,
+   *  "fail" a caution, "unknown" shows nothing. Outbound is always "unknown". */
+  senderVerified: SenderAuthStatus;
   at: string | null;
   status: string | null;
   stepNumber: number | null;
@@ -74,6 +97,18 @@ export interface Conversation {
   fromAddress: string;
   snippet: string;
   reason: string;
+  /** Provenance of `reason`, for the honest-badge tooltip. Null when there is no badge. */
+  reasonSource: ReasonSource;
+  /** Hours overdue if we're past the response SLA on a conversation awaiting our
+   *  reply (INBOX-N04); null when not awaiting us or within the SLA. */
+  slaHoursOverdue: number | null;
+  /** Explainable importance (INBOX-T04): 0–100 score, coarse 1–4 tier (1 hottest)
+   *  that the attention lane sorts on, and the cited contributing factors. */
+  importanceScore: number;
+  importanceTier: 1 | 2 | 3 | 4;
+  importanceFactors: string[];
+  /** Last inbound is automated/bulk — drives newsletter/promo bundling (INBOX-T03). */
+  isBulk: boolean;
   /** What the pipeline did, for the handled lane. Null elsewhere. */
   handledNote: string | null;
   lastInboundAt: string | null;
@@ -252,11 +287,23 @@ export function buildConversations(input: {
       }
     }
 
+    // An automated/role sender (noreply@, notifications@, newsletter@…) never
+    // needs a human reply, so it must never sit in the "attention" lane — not
+    // in the Inbox, nor in the dashboard "Needs you" which reads this lane.
+    // Treat it as handled. See _specs/inbound-lead-recognition/.
+    const lastInboundFrom = String((lastInbound?.metadata as Record<string, unknown> | null)?.from ?? "");
+    const inboundIsAutomated =
+      !!lastInbound && classifyInboundSender({ fromHeader: lastInboundFrom }).isMachineSent;
+
     let lane: Lane;
     let handledNote: string | null = null;
-    if (handledLabel || (g.inbound.length === 0 && bounced)) {
+    if (handledLabel || inboundIsAutomated || (g.inbound.length === 0 && bounced)) {
       lane = "handled";
-      handledNote = HANDLED_NOTES[handledLabel ?? "bounced"] ?? HANDLED_NOTES.bounced;
+      handledNote = handledLabel
+        ? HANDLED_NOTES[handledLabel] ?? HANDLED_NOTES.bounced
+        : inboundIsAutomated
+          ? "Automated sender — no reply needed"
+          : HANDLED_NOTES.bounced;
     } else if (triageState === "done") {
       lane = "done";
     } else if (triageState === "snoozed") {
@@ -267,20 +314,44 @@ export function buildConversations(input: {
 
     const priority = Math.min(4, ...labels.map((l) => PRIORITY_BY_LABEL[l] ?? 4));
 
+    // Honest badge (INBOX-T08): a sales-reply label ("Asked about pricing",
+    // "Introduction", "Forwarded internally"…) is only legitimate on a genuine
+    // reply to one of OUR outbound emails. On general or automated inbound we
+    // never guess a sales meaning — we show a neutral AI summary line when one
+    // was cached (INBOX-S02), otherwise nothing. The bare "Replied" fallback is
+    // never emitted: an empty reason renders no badge, which is honest.
+    const aiSummaryLine =
+      typeof (lastInbound?.metadata as Record<string, unknown> | null)?.aiSummaryLine === "string"
+        ? ((lastInbound!.metadata as Record<string, unknown>).aiSummaryLine as string).trim()
+        : "";
+
     let reason: string;
+    let reasonSource: ReasonSource;
     if (lane === "handled") {
       reason = handledNote ?? "Handled";
+      reasonSource = "handled";
     } else {
-      const reasonLabel = [...labels].sort(
-        (a, b) => (PRIORITY_BY_LABEL[a] ?? 4) - (PRIORITY_BY_LABEL[b] ?? 4),
-      )[0];
-      reason =
-        (reasonLabel && REASON_BY_LABEL[reasonLabel]) ||
-        (lastInbound?.sentiment === "positive"
-          ? "Positive reply"
-          : lastInbound?.sentiment === "negative"
-            ? "Negative reply"
-            : "Replied");
+      const hasOutbound = g.outbound.length > 0;
+      const reasonLabel = hasOutbound
+        ? [...labels].sort((a, b) => (PRIORITY_BY_LABEL[a] ?? 4) - (PRIORITY_BY_LABEL[b] ?? 4))[0]
+        : undefined;
+      const mappedLabel = reasonLabel ? REASON_BY_LABEL[reasonLabel] : undefined;
+      if (mappedLabel) {
+        reason = mappedLabel;
+        reasonSource = "reply";
+      } else if (aiSummaryLine) {
+        reason = aiSummaryLine;
+        reasonSource = "summary";
+      } else if (hasOutbound && lastInbound?.sentiment === "positive") {
+        reason = "Positive reply";
+        reasonSource = "sentiment";
+      } else if (hasOutbound && lastInbound?.sentiment === "negative") {
+        reason = "Negative reply";
+        reasonSource = "sentiment";
+      } else {
+        reason = "";
+        reasonSource = null;
+      }
     }
 
     const messages: ConversationMessage[] = [
@@ -293,6 +364,11 @@ export function buildConversations(input: {
           to: String(meta.to ?? ""),
           subject: r.summary ?? String(meta.subject ?? ""),
           body: r.rawContent ?? String(meta.snippet ?? ""),
+          bodyHtml: typeof meta.bodyHtml === "string" ? meta.bodyHtml : null,
+          calendar: typeof meta.calendar === "string" ? meta.calendar : null,
+          attachments: normalizeAttachments(meta.attachments),
+          senderVerified:
+            (meta.senderAuth as { status?: SenderAuthStatus } | undefined)?.status ?? "unknown",
           at: toIso(r.occurredAt),
           status: null,
           stepNumber: null,
@@ -305,6 +381,10 @@ export function buildConversations(input: {
         to: r.toAddress,
         subject: r.subject,
         body: r.bodyText ?? "",
+        bodyHtml: null,
+        calendar: null,
+        attachments: [],
+        senderVerified: "unknown" as const,
         at: toIso(r.sentAt),
         status: r.status,
         stepNumber: r.stepNumber,
@@ -324,6 +404,37 @@ export function buildConversations(input: {
     const lastInboundMeta = (lastInbound?.metadata ?? {}) as Record<string, unknown>;
     const lastMessage = messages[messages.length - 1] ?? null;
 
+    // Response SLA (INBOX-N04): overdue only when we're the ones who owe a reply
+    // (the latest message is inbound) on an active conversation, past the threshold.
+    const awaitingOurReply = lane === "attention" && lastMessage?.direction === "inbound";
+    const sla = checkSla({
+      awaitingOurReply,
+      lastInboundAt: lastInbound ? toMs(lastInbound.occurredAt) : null,
+      now: nowMs,
+      thresholdHours: SLA_THRESHOLD_HOURS,
+    });
+    const slaHoursOverdue = sla.breached ? sla.hoursOver : null;
+
+    // Importance (INBOX-T04): rank the attention lane by revenue relevance from
+    // already-persisted signals — intent, urgency/sentiment trend, recency — with
+    // automated senders pinned to the bottom. hasOpenDeal/seniority are residual
+    // (need a deal + role lookup); cited factors drive the "why important" tooltip.
+    const intel = (intelligence ?? {}) as Record<string, unknown>;
+    const lastInAtMs = lastInbound ? toMs(lastInbound.occurredAt) : null;
+    const importance = scoreImportance({
+      intentLabel: [...labels].sort((a, b) => (PRIORITY_BY_LABEL[a] ?? 4) - (PRIORITY_BY_LABEL[b] ?? 4))[0] ?? null,
+      urgencyLevel:
+        typeof intel.urgencyLevel === "string"
+          ? (intel.urgencyLevel as "none" | "low" | "medium" | "high")
+          : null,
+      sentimentTrend:
+        typeof intel.sentimentTrend === "string"
+          ? (intel.sentimentTrend as "improving" | "declining" | "stable")
+          : null,
+      isAutomated: inboundIsAutomated,
+      ageHours: lastInAtMs != null ? Math.max(0, (nowMs - lastInAtMs) / 3_600_000) : undefined,
+    });
+
     conversations.push({
       key,
       lane,
@@ -341,6 +452,12 @@ export function buildConversations(input: {
           lastOutbound?.bodyText,
       ),
       reason,
+      reasonSource,
+      slaHoursOverdue,
+      importanceScore: importance.score,
+      importanceTier: importance.tier,
+      importanceFactors: importance.factors.map((f) => f.label),
+      isBulk: inboundIsAutomated,
       handledNote,
       lastInboundAt: lastInbound ? toIso(lastInbound.occurredAt) : null,
       lastMessageAt: lastMessage?.at ?? null,
@@ -354,11 +471,13 @@ export function buildConversations(input: {
   return sortConversations(conversations);
 }
 
-/** Attention: priority bucket then freshest inbound. Other lanes: freshest first. */
+/** Attention: importance tier, then finer score, then freshest inbound (INBOX-T04).
+ *  Other lanes: freshest first. */
 export function sortConversations(conversations: Conversation[]): Conversation[] {
   return [...conversations].sort((a, b) => {
-    if (a.lane === "attention" && b.lane === "attention" && a.priority !== b.priority) {
-      return a.priority - b.priority;
+    if (a.lane === "attention" && b.lane === "attention") {
+      if (a.importanceTier !== b.importanceTier) return a.importanceTier - b.importanceTier;
+      if (a.importanceScore !== b.importanceScore) return b.importanceScore - a.importanceScore;
     }
     const aMs = a.lastInboundAt ?? a.lastMessageAt ?? "";
     const bMs = b.lastInboundAt ?? b.lastMessageAt ?? "";

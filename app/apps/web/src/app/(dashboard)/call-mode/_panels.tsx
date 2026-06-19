@@ -65,6 +65,7 @@ import { pickReplaceableTools } from "@/lib/tech-detect/replaceable";
 import { scoreTranscriptLevers, DRILL_COPY } from "@/lib/voice/lever-scoring";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { ContactCollisionNotice } from "@/components/collision/contact-collision-notice";
+import { requestRoleObsolete } from "./_find-mobile";
 
 // lucide dropped brand glyphs — inline the LinkedIn mark (same path the
 // Accounts page uses) so the Direction section stays on-brand.
@@ -495,14 +496,12 @@ export function PreCallBrief({
   const [markingLeft, setMarkingLeft] = useState(false);
   async function markRoleObsolete() {
     setMarkingLeft(true);
-    try {
-      await fetch(`/api/contacts/${selected.contactId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roleObsolete: true }),
-      });
+    // CLE-09 §4: the PUT now lives in the shared requestRoleObsolete so the
+    // brief button and the agent path issue one identical request.
+    const r = await requestRoleObsolete(selected.contactId);
+    if (r.ok) {
       onRoleObsolete?.(selected.contactId);
-    } catch {
+    } else {
       setMarkingLeft(false);
     }
   }

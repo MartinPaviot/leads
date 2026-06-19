@@ -11,7 +11,7 @@ export function buildUndoTools(ctx: ToolContext) {
   return {
     undoLastAction: makeTool({
       description:
-        "Undo the most recent reversible action taken by the chat (contact/account/deal/note/task create or update, or a delete with a stored snapshot). Scoped to the current user. Returns { ok: true, reversedAction } on success or { error } if nothing to undo or the snapshot isn't reversible. Use when the user says 'undo that', 'revert', 'take it back'.",
+        "Undo the most recent reversible action taken by the chat: a CRM create/update/delete with a stored snapshot, a reversible page action (re-runs its inverse live on the page), or an outbound email still inside its send window (cancels it before it leaves). Scoped to the current user. Returns { reverted } on success or { error } if there is nothing to undo, the snapshot isn't reversible, or an outbound email was already sent past its window (it can't be unsent). Use when the user says 'undo that', 'revert', 'take it back', 'cancel that email'.",
       inputSchema: z.object({
         eventId: z
           .string()
@@ -29,11 +29,17 @@ export function buildUndoTools(ctx: ToolContext) {
         }
         const result = await reverseToolCall(tenantId, userId, eventId);
         if (!result.ok) return { error: result.error };
+        // CLE-11: a Page Action reversal returns an invokeAction directive (the
+        // inverse runs on the live page). Spread it so the dock dispatches it —
+        // the same shape invokePageAction returns. Outbound cancels and
+        // server-owned reversals carry no directive → plain { reverted }.
+        const { directive } = result;
         return {
           reverted: {
             eventId,
             reversedAction: result.reversedAction,
           },
+          ...(directive ?? {}),
         };
       },
     }),

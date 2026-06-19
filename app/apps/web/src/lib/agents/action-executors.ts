@@ -22,8 +22,8 @@
  */
 
 import { db } from "@/db";
-import { tasks, deals, companies, contacts } from "@/db/schema";
-import { and, eq, isNull, ne } from "drizzle-orm";
+import { tasks, deals, companies, contacts, sequences, sequenceEnrollments } from "@/db/schema";
+import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { deliverInteractiveEmail } from "@/lib/emails/deliver-interactive";
 
 export interface ExecutableAction {
@@ -110,6 +110,21 @@ export function emailIntentFromPayload(
   return { ok: true, subject: str(payload.subject) ?? "Following up", body };
 }
 
+/** Parse a deferred sequence-enrollment payload (recorded by signalAutoEnroll,
+ *  CLE-13) into a validated target, or null if it lacks a sequenceId or any
+ *  contactId. This is the "validated param schema" the LLM-only enroll case was
+ *  fail-closed waiting for. Exported for unit testing without a DB. */
+export function enrollmentTargetsFromPayload(
+  payload: Record<string, unknown>,
+): { sequenceId: string; contactIds: string[] } | null {
+  const sequenceId = str(payload.sequenceId);
+  const contactIds = Array.isArray(payload.contactIds)
+    ? payload.contactIds.filter((c): c is string => typeof c === "string" && c.trim().length > 0)
+    : [];
+  if (!sequenceId || contactIds.length === 0) return null;
+  return { sequenceId, contactIds };
+}
+
 // ── Executor ────────────────────────────────────────────────────────
 
 export async function executeAgentAction(
@@ -177,6 +192,58 @@ export async function executeAgentAction(
       });
       if (res.ok) return { ok: true, detail: `Email sent to ${contact.email} via ${res.via}` };
       return { ok: false, error: `${res.code}: ${res.error}` };
+    }
+
+    case "sequence-enrollment": {
+      // CLE-13: a deferred signal->sequence enrollment, recorded by
+      // signalAutoEnroll with a STRUCTURED payload, so it is validated here (not
+      // the fail-closed unstructured case below). Human-gated (runs only on the
+      // founder's approval); idempotent; tenant-scoped. The first-step sends it
+      // triggers still pass the CLE-10 gate + CLE-13 send guardrails at send time.
+      const target = enrollmentTargetsFromPayload(p);
+      if (!target) return { ok: false, error: "enrollment payload missing sequenceId or contactIds" };
+      const [seq] = await db
+        .select({ id: sequences.id })
+        .from(sequences)
+        .where(and(eq(sequences.id, target.sequenceId), eq(sequences.tenantId, tenantId)))
+        .limit(1);
+      if (!seq) return { ok: false, error: "sequence not found for this tenant" };
+      // Re-validate every contact belongs to THIS tenant and isn't soft-deleted.
+      // The payload is a stored-then-replayed snapshot and sequenceEnrollments has
+      // no tenantId column, so the contact FK is the only tenant anchor — the
+      // executor is the trust boundary, exactly like create_deal / send_followup.
+      const validContacts = await db
+        .select({ id: contacts.id })
+        .from(contacts)
+        .where(and(inArray(contacts.id, target.contactIds), eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt)));
+      const validIds = new Set(validContacts.map((c) => c.id));
+      let enrolled = 0;
+      for (const contactId of target.contactIds) {
+        if (!validIds.has(contactId)) continue; // not this tenant's, or soft-deleted
+        // Idempotent: skip a contact already enrolled in this sequence (any status).
+        const [existing] = await db
+          .select({ id: sequenceEnrollments.id })
+          .from(sequenceEnrollments)
+          .where(and(eq(sequenceEnrollments.sequenceId, target.sequenceId), eq(sequenceEnrollments.contactId, contactId)))
+          .limit(1);
+        if (existing) continue;
+        await db.insert(sequenceEnrollments).values({
+          sequenceId: target.sequenceId,
+          contactId,
+          status: "active",
+          currentStep: 1,
+          nextStepAt: new Date(),
+        });
+        enrolled++;
+      }
+      const name = str(p.sequenceName) ?? "the sequence";
+      // Skipped = already-enrolled + any contact that failed the tenant/deletedAt
+      // re-validation (so the count stays honest, not just "already enrolled").
+      const skipped = target.contactIds.length - enrolled;
+      return {
+        ok: true,
+        detail: `Enrolled ${enrolled} contact${enrolled === 1 ? "" : "s"} in ${name}${skipped > 0 ? ` (${skipped} skipped)` : ""}.`,
+      };
     }
 
     // LLM-only, lower-frequency types — fail closed until each carries a

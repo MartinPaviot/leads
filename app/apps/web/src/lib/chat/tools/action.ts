@@ -475,7 +475,7 @@ RULES:
 
     bookMeeting: makeTool({
       description:
-        "Book a calendar meeting with a contact via the user's connected Google Calendar. Creates a Google Meet link, sends invite to the contact, and logs a meeting_scheduled activity. Requires the user's Google Calendar to be connected.",
+        "Book a calendar meeting with a contact on the user's connected calendar (CalDAV, Microsoft, or Google). Generates a sovereign open-source visio link (never Google Meet or Teams), sends the invite to the contact, and logs a meeting_scheduled activity. Requires a connected calendar.",
       inputSchema: z.object({
         contactId: z.string().describe("Contact ID to invite"),
         startTime: z
@@ -483,9 +483,17 @@ RULES:
           .describe("ISO datetime string for the meeting start (e.g. 2026-04-20T15:00:00Z)"),
         durationMinutes: z.number().optional().describe("Duration in minutes (default 30)"),
         title: z.string().optional().describe("Meeting title (default 'Meeting with <contact>')"),
+        conferencing: z
+          .enum(["sovereign", "google_meet", "teams", "zoom"])
+          .optional()
+          .describe(
+            "'sovereign' (default) = open-source Jitsi visio; 'google_meet' / 'teams' = the calendar's native conference; 'zoom' = Zoom if configured. Unavailable choices fall back to sovereign.",
+          ),
       }),
       execute: async (input) => {
-        const { createCalendarEvent } = await import("@/lib/integrations/meeting-booking");
+        const { bookSovereignMeeting, CalendarNotConnectedError } = await import(
+          "@/lib/integrations/calendar-write"
+        );
 
         const [contact] = await db
           .select()
@@ -499,15 +507,27 @@ RULES:
         const contactName =
           [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "Prospect";
 
-        const event = await createCalendarEvent(ctx.authCtx.userId, {
-          contactEmail: contact.email,
-          contactName,
-          startTime: new Date(input.startTime),
-          durationMinutes: input.durationMinutes || 30,
-          title: input.title || `Meeting with ${contactName}`,
-        });
-        if (!event) {
-          return { error: "Failed to create calendar event — is Google Calendar connected?" };
+        let booking;
+        try {
+          booking = await bookSovereignMeeting({
+            userId: ctx.authCtx.userId,
+            tenantId,
+            contactEmail: contact.email,
+            contactName,
+            startTime: new Date(input.startTime),
+            durationMinutes: input.durationMinutes || 30,
+            title: input.title || `Rendez-vous avec ${contactName}`,
+            roomPrefix: "rdv",
+            conferencing: input.conferencing,
+          });
+        } catch (err) {
+          if (err instanceof CalendarNotConnectedError) {
+            return {
+              error:
+                "Aucun agenda connecté (Google, Microsoft ou CalDAV) — connecte-le dans Réglages → Mail & Calendar.",
+            };
+          }
+          throw err;
         }
 
         await db.insert(activities).values({
@@ -519,10 +539,14 @@ RULES:
           activityType: "meeting_scheduled",
           channel: "meeting",
           direction: "outbound",
-          summary: `Meeting booked: ${input.title || `Meeting with ${contactName}`}`,
+          summary: `Meeting booked: ${input.title || `Rendez-vous avec ${contactName}`}`,
           metadata: {
-            eventId: event.eventId,
-            meetLink: event.meetLink,
+            eventId: booking.eventId,
+            joinUrl: booking.joinUrl,
+            meetLink: booking.joinUrl,
+            calendarProvider: booking.provider,
+            conferencing: booking.conferencing,
+            roomName: booking.roomName,
             startTime: input.startTime,
             durationMinutes: input.durationMinutes || 30,
           },
@@ -530,9 +554,12 @@ RULES:
 
         return {
           booked: {
-            eventId: event.eventId,
-            meetLink: event.meetLink,
-            calendarLink: event.htmlLink,
+            eventId: booking.eventId,
+            joinUrl: booking.joinUrl,
+            meetLink: booking.joinUrl,
+            calendarLink: booking.calendarLink,
+            provider: booking.provider,
+            conferencing: booking.conferencing,
             contactName,
             contactEmail: contact.email,
             startTime: input.startTime,

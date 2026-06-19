@@ -37,8 +37,8 @@ import {
   type IcpFitCell,
 } from "@/lib/icp/criteria-engine";
 import { SOURCING_ONLY_FIELD_KEYS } from "@/lib/icp/field-catalog";
-import { buildCompanyContext, type CompanyContext } from "@/lib/icp/company-context";
-import { PRIMARY_FIT_THRESHOLD, type ActiveIcp } from "@/lib/icp/fit-recompute-core";
+import { buildCompanyContext, customExtra, type CompanyContext } from "@/lib/icp/company-context";
+import { PRIMARY_FIT_THRESHOLD, loadCustomFieldDefs, type ActiveIcp } from "@/lib/icp/fit-recompute-core";
 import { getGrade } from "@/lib/scoring/scoring";
 import {
   personaVocabulary,
@@ -177,6 +177,9 @@ async function scoreContactIcpChunk(
         )
     : [];
   const companyById = new Map(companyRows.map((c) => [c.id, c]));
+  // Custom_property defs (e.g. institution flag) so company custom criteria
+  // evaluate for the contact's company too.
+  const customFields = await loadCustomFieldDefs(tenantId);
 
   const anySeniorityCriteria = activeIcps.some((icp) =>
     icp.criteria.some((c) => c.fieldKey === "person_seniorities"),
@@ -254,12 +257,15 @@ async function scoreContactIcpChunk(
   for (const contact of rows) {
     const company = contact.companyId ? companyById.get(contact.companyId) : undefined;
     const companyCtx = company
-      ? buildCompanyContext({
-          industry: company.industry,
-          size: company.size,
-          revenue: company.revenue,
-          properties: company.properties as Record<string, unknown> | null,
-        })
+      ? buildCompanyContext(
+          {
+            industry: company.industry,
+            size: company.size,
+            revenue: company.revenue,
+            properties: company.properties as Record<string, unknown> | null,
+          },
+          customExtra(company.properties as Record<string, unknown> | null, customFields),
+        )
       : {};
     const ctx = buildContactContext(companyCtx, {
       properties: contact.properties as Record<string, unknown> | null,

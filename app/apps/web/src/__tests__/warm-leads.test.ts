@@ -116,6 +116,7 @@ describe("rankWarmLeads", () => {
         activityCount: 8,
         lastActivityAt: new Date(now - 3 * day),
         inboundCount: 4,
+        outboundCount: 4,
         lastSummary: "Thanks for the follow-up, let's circle back next month",
       },
       {
@@ -131,6 +132,7 @@ describe("rankWarmLeads", () => {
         activityCount: 2,
         lastActivityAt: new Date(now - 60 * day),
         inboundCount: 1,
+        outboundCount: 1,
         lastSummary: "Thanks for reaching out",
       },
     ]);
@@ -191,6 +193,162 @@ describe("rankWarmLeads", () => {
     expect(leads).toEqual([]);
   });
 
+  it("excludes role/automated sender addresses even when recent (noreply@)", async () => {
+    getSettingsMock.mockResolvedValue({});
+    const now = Date.now();
+    setRows([
+      {
+        contactId: "vendor-noreply",
+        firstName: "Stripe",
+        lastName: null,
+        email: "noreply@stripe.com",
+        title: null,
+        companyId: "cmpS",
+        companyName: "Stripe",
+        companyDomain: "stripe.com",
+        industry: null,
+        activityCount: 6,
+        lastActivityAt: new Date(now - 86_400_000),
+        inboundCount: 6,
+        outboundCount: 0,
+        lastSummary: "Your receipt from Stripe",
+      },
+    ]);
+    const leads = await rankWarmLeads("t1");
+    expect(leads).toEqual([]);
+  });
+
+  it("excludes unsolicited off-ICP inbound but keeps a two-way conversation", async () => {
+    getSettingsMock.mockResolvedValue({
+      targetSeniorities: ["VP"],
+      targetIndustries: ["Computer Software"],
+    });
+    const now = Date.now();
+    setRows([
+      {
+        // human who replied to us once (two-way) — kept despite being off-ICP
+        contactId: "two-way",
+        firstName: "Marc",
+        lastName: "Roux",
+        email: "marc@romandco.ch",
+        title: "Office Manager",
+        companyId: "c1",
+        companyName: "Romand Co",
+        companyDomain: "romandco.ch",
+        industry: "Facilities",
+        activityCount: 4,
+        lastActivityAt: new Date(now - 2 * 86_400_000),
+        inboundCount: 2,
+        outboundCount: 2,
+        lastSummary: "Re: votre offre",
+      },
+      {
+        // unsolicited (no outbound), off-ICP human — excluded by the ICP floor
+        contactId: "unsolicited-officp",
+        firstName: "Random",
+        lastName: "Person",
+        email: "random@othercorp.com",
+        title: "Student",
+        companyId: "c2",
+        companyName: "Other Corp",
+        companyDomain: "othercorp.com",
+        industry: "Education",
+        activityCount: 1,
+        lastActivityAt: new Date(now - 86_400_000),
+        inboundCount: 1,
+        outboundCount: 0,
+        lastSummary: "Question",
+      },
+    ]);
+    const leads = await rankWarmLeads("t1");
+    expect(leads).toHaveLength(1);
+    expect(leads[0].contactId).toBe("two-way");
+  });
+
+  it("keeps an unsolicited inbound that DOES fit the ICP (floor passed)", async () => {
+    getSettingsMock.mockResolvedValue({
+      targetSeniorities: ["VP"],
+      targetIndustries: ["Computer Software"],
+    });
+    const now = Date.now();
+    setRows([
+      {
+        contactId: "cold-inbound-icp",
+        firstName: "Jeanne",
+        lastName: "Favre",
+        email: "jeanne@softwareco.ch",
+        title: "VP Operations",
+        companyId: "c3",
+        companyName: "Software Co",
+        companyDomain: "softwareco.ch",
+        industry: "Computer Software",
+        activityCount: 1,
+        lastActivityAt: new Date(now - 86_400_000),
+        inboundCount: 1,
+        outboundCount: 0,
+        lastSummary: "Interested in your product",
+      },
+    ]);
+    const leads = await rankWarmLeads("t1");
+    expect(leads).toHaveLength(1);
+    expect(leads[0].contactId).toBe("cold-inbound-icp");
+  });
+
+  it("excludes a contact the user marked 'not a lead' (human override, tranche 3)", async () => {
+    getSettingsMock.mockResolvedValue({});
+    const now = Date.now();
+    setRows([
+      {
+        // would normally qualify (human address, two-way, recent inbound)…
+        contactId: "marked-not-lead",
+        firstName: "Marked",
+        lastName: "Notlead",
+        email: "real.human@romandco.ch",
+        title: null,
+        companyId: "c1",
+        properties: { leadFeedback: { isLead: false, at: "2026-06-16T00:00:00Z" } },
+        companyName: "Romand Co",
+        companyDomain: "romandco.ch",
+        industry: null,
+        activityCount: 4,
+        lastActivityAt: new Date(now - 86_400_000),
+        inboundCount: 2,
+        outboundCount: 2,
+        lastSummary: "Re: hello",
+      },
+    ]);
+    const leads = await rankWarmLeads("t1");
+    expect(leads).toEqual([]); // …but the human verdict hides it
+  });
+
+  it("excludes a contact the LLM ruled not-a-lead (persisted relationship verdict)", async () => {
+    getSettingsMock.mockResolvedValue({});
+    const now = Date.now();
+    setRows([
+      {
+        contactId: "llm-vendor",
+        firstName: "Vendor",
+        lastName: "Person",
+        email: "person@some-vendor.com",
+        title: null,
+        companyId: "c2",
+        properties: {
+          leadRelationship: { isInboundLead: false, relationshipToUs: "vendor", reason: "Vendor we pay.", at: "2026-06-16T00:00:00Z" },
+        },
+        companyName: "Some Vendor",
+        companyDomain: "some-vendor.com",
+        industry: null,
+        activityCount: 3,
+        lastActivityAt: new Date(now - 86_400_000),
+        inboundCount: 2,
+        outboundCount: 2,
+        lastSummary: "Your subscription",
+      },
+    ]);
+    const leads = await rankWarmLeads("t1");
+    expect(leads).toEqual([]);
+  });
+
   it("caches results for 5 minutes within the same tenant", async () => {
     getSettingsMock.mockResolvedValue({});
     const now = Date.now();
@@ -208,6 +366,7 @@ describe("rankWarmLeads", () => {
         activityCount: 3,
         lastActivityAt: new Date(now - 2 * 86_400_000),
         inboundCount: 2,
+        outboundCount: 2,
         lastSummary: null,
       },
     ]);

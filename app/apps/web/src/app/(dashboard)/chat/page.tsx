@@ -14,6 +14,8 @@ import { StreamingSkeleton } from "@/components/chat/streaming-skeleton";
 import { FollowUpPills, extractFollowUps } from "@/components/chat/follow-up-pills";
 import { CopyButton } from "@/components/chat/copy-button";
 import { useUiDirectives, runUiDirective } from "@/components/chat/use-ui-directives";
+import { useActionConfirmCards, ActionConfirmCards } from "@/components/chat/chat-action-cards";
+import { highlightEntity } from "@/lib/chat/page-actions/registry";
 import type { UiDirective } from "@/lib/chat/ui-directives";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -66,13 +68,22 @@ export default function ChatPage() {
   // Command layer: execute UI directives carried on tool results (open a
   // record/view, or the composer) exactly once per turn. Replayed thread
   // history has no tool parts, so loading an old chat never auto-navigates.
+  const actionConfirm = useActionConfirmCards(chat);
   const onDirective = useCallback(
     (d: UiDirective) =>
       runUiDirective(d, {
         navigate: (p) => router.push(p),
         openComposer: (draft) => setEmailComposer(draft),
+        // The /chat page sends no manifest, so it dispatches no page actions in
+        // practice; wiring this keeps the shared executor's ctx uniform.
+        sendActionResult: (text) => chat.sendMessage({ text }),
+        enqueueConfirm: (cd) => actionConfirm.enqueueConfirm(cd),
+        // CLE-15: the /chat page mounts no entity locators, so highlights here
+        // are silent no-ops (correct) — wired for ctx uniformity. The immediate
+        // highlightEntity is fine: an unresolved anchor simply does nothing.
+        highlight: (anchor) => highlightEntity(anchor),
       }),
-    [router],
+    [router, chat, actionConfirm],
   );
   useUiDirectives(chat, onDirective);
   const [firstName, setFirstName] = useState<string>("");
@@ -829,8 +840,29 @@ export default function ChatPage() {
             </div>
           ))}
 
-          {/* Streaming skeleton */}
-          {chat.status === "streaming" && <StreamingSkeleton />}
+          {/* Thinking indicator — show it from the moment the request is
+              submitted until the assistant emits visible text. This fills the
+              gap the old `=== "streaming"` check missed (status is "submitted"
+              between send and the first token, so nothing showed), and also the
+              pre-first-token streaming window (e.g. while tools run). Once text
+              streams, the text itself is the cue, so the skeleton hides. */}
+          {(() => {
+            const last = chat.messages[chat.messages.length - 1];
+            const assistantText =
+              last?.role === "assistant"
+                ? last.parts
+                    .filter((p) => p.type === "text")
+                    .map((p) => ("text" in p ? p.text : ""))
+                    .join("")
+                : "";
+            const thinking =
+              (chat.status === "submitted" || chat.status === "streaming") &&
+              assistantText.trim() === "";
+            return thinking ? <StreamingSkeleton /> : null;
+          })()}
+
+          {/* CLE-05: pending page-action confirm cards (one per invocationId). */}
+          <ActionConfirmCards controller={actionConfirm} />
 
           <div ref={messagesEndRef} />
         </div>

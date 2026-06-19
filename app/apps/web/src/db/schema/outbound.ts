@@ -213,6 +213,12 @@ export const outboundStatusEnum = pgEnum("outbound_status", [
   "bounced",
   "failed",
   "skipped",
+  // CLE-11 outbound undo window: a send placed on a cancellable hold ("held")
+  // until holdUntil elapses (then released → queued by the cron), or canceled
+  // by an undo within the window ("canceled"). Inert unless a tenant sets a
+  // non-zero outboundUndoWindowSeconds.
+  "held",
+  "canceled",
 ]);
 
 export const connectedMailboxes = pgTable(
@@ -225,6 +231,12 @@ export const connectedMailboxes = pgTable(
     // (same space as auth_account.userId / authCtx.userId). Nullable so legacy
     // rows survive the migration; backfilled by matching email_address.
     userId: text("user_id"),
+    // Team inbox (INBOX-X01): when true, every member of the tenant reads this
+    // mailbox in their unified inbox — the opt-in widening from the default
+    // personal model. Defaults false → byte-identical personal behaviour until a
+    // mailbox is explicitly shared. Read defensively in getInboxScope so the app
+    // is unaffected until the column is migrated in.
+    shared: boolean("shared").notNull().default(false),
     emailAddress: text("email_address").notNull(),
     displayName: text("display_name"),
     provider: text("provider").notNull(), // gmail, outlook, smtp_custom
@@ -292,6 +304,10 @@ export const outboundEmails = pgTable(
     inReplyTo: text("in_reply_to"),
     status: outboundStatusEnum("status").default("draft"),
     queuedAt: timestamp("queued_at", { withTimezone: true }),
+    // CLE-11: when status="held", the moment the cancellable send window
+    // closes. The cron releases (held → queued) once now() >= hold_until.
+    // Null for every non-held row (default behaviour, window 0).
+    holdUntil: timestamp("hold_until", { withTimezone: true }),
     sentAt: timestamp("sent_at", { withTimezone: true }),
     deliveredAt: timestamp("delivered_at", { withTimezone: true }),
     openedAt: timestamp("opened_at", { withTimezone: true }),
@@ -314,6 +330,9 @@ export const outboundEmails = pgTable(
     index("outbound_thread_idx").on(table.threadId),
     index("outbound_enrollment_idx").on(table.enrollmentId),
     index("outbound_sent_idx").on(table.sentAt),
+    // CLE-11: makes the cron's release scan (status='held' AND hold_until<=now)
+    // and the queued fetch cheap.
+    index("outbound_hold_idx").on(table.status, table.holdUntil),
   ]
 );
 

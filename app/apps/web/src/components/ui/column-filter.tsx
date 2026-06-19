@@ -16,6 +16,14 @@ import { ListFilter, Search, X, Check } from "lucide-react";
  */
 export type ColumnFilterKind = "text" | "enum" | "presence";
 
+/** An enum option whose stable wire value differs from its display label
+ *  (e.g. the Phone filter sends the dial code "41" but shows "Suisse · +41").
+ *  Plain `string` options remain supported — they use the value as the label. */
+export interface ColumnFilterOption {
+  value: string;
+  label: string;
+}
+
 export interface ColumnFilterState {
   text?: string;
   values?: string[];
@@ -32,6 +40,7 @@ export function ColumnFilter({
   label,
   kind,
   options = [],
+  counts,
   state,
   onChange,
   open,
@@ -39,8 +48,12 @@ export function ColumnFilter({
 }: {
   label: string;
   kind: ColumnFilterKind;
-  /** Distinct values for an enum filter (already de-duped + sorted). */
-  options?: string[];
+  /** Distinct values for an enum filter (already de-duped + sorted). Strings,
+   *  or `{ value, label }` when the wire value differs from the display label. */
+  options?: Array<string | ColumnFilterOption>;
+  /** Per-value row counts (value → N) for an enum filter, shown as "(N)" next
+   *  to each option so the user gets an order of magnitude before picking. */
+  counts?: Record<string, number>;
   state: ColumnFilterState | undefined;
   onChange: (next: ColumnFilterState | undefined) => void;
   open: boolean;
@@ -69,11 +82,20 @@ export function ColumnFilter({
     };
   }, [open, onOpenChange]);
 
+  // Normalize to { value, label } so plain-string and labelled options share
+  // one render path. Memoized on the raw `options` reference.
+  const normOptions = useMemo<ColumnFilterOption[]>(
+    () => options.map((o) => (typeof o === "string" ? { value: o, label: o } : o)),
+    [options],
+  );
+
   const filteredOptions = useMemo(() => {
     const q = optionQuery.trim().toLowerCase();
-    if (!q) return options;
-    return options.filter((o) => o.toLowerCase().includes(q));
-  }, [options, optionQuery]);
+    if (!q) return normOptions;
+    return normOptions.filter(
+      (o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q),
+    );
+  }, [normOptions, optionQuery]);
 
   const selected = useMemo(() => new Set(state?.values ?? []), [state?.values]);
 
@@ -180,7 +202,7 @@ export function ColumnFilter({
 
           {kind === "enum" && (
             <>
-              {options.length > 8 && (
+              {normOptions.length > 8 && (
                 <div className="relative mb-1.5 flex items-center">
                   <Search size={12} className="absolute left-2" style={{ color: "var(--color-text-muted)" }} />
                   <input
@@ -215,12 +237,12 @@ export function ColumnFilter({
                   </p>
                 ) : (
                   filteredOptions.map((opt) => {
-                    const isSel = selected.has(opt);
+                    const isSel = selected.has(opt.value);
                     return (
                       <button
-                        key={opt}
+                        key={opt.value}
                         type="button"
-                        onClick={() => toggleValue(opt)}
+                        onClick={() => toggleValue(opt.value)}
                         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] transition-colors hover:bg-[var(--color-bg-hover)]"
                         style={{ color: "var(--color-text-secondary)" }}
                       >
@@ -233,7 +255,15 @@ export function ColumnFilter({
                         >
                           {isSel && <Check size={10} color="#fff" />}
                         </span>
-                        <span className="truncate">{opt}</span>
+                        <span className="flex-1 truncate">{opt.label}</span>
+                        {counts && counts[opt.value] != null && (
+                          <span
+                            className="shrink-0 tabular-nums text-[11px]"
+                            style={{ color: "var(--color-text-tertiary)" }}
+                          >
+                            ({counts[opt.value].toLocaleString()})
+                          </span>
+                        )}
                       </button>
                     );
                   })

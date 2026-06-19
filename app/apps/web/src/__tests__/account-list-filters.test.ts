@@ -22,8 +22,9 @@ describe("parseAccountListFilters", () => {
   it("defaults to an empty/neutral filter set", () => {
     const f = parseAccountListFilters(P(""));
     expect(f).toEqual({
-      industries: [], geographies: [], sizes: [], revenues: [], stages: [], grades: [],
-      linkedin: null, name: null, domain: null, tab: "all", scoreMin: null, scoreMax: null,
+      industries: [], geographies: [], regions: [], sizes: [], revenues: [], stages: [], grades: [],
+      contactReach: [], recency: [], families: [],
+      enriched: null, linkedin: null, name: null, domain: null, tab: "all", scoreMin: null, scoreMax: null,
     });
     expect(hasActiveAccountFilters(f)).toBe(false);
   });
@@ -47,6 +48,13 @@ describe("parseAccountListFilters", () => {
     expect(parseAccountListFilters(P("fLinkedin=nope")).linkedin).toBe(null);
   });
 
+  it("normalizes the enrichment partition to yes/no/null", () => {
+    expect(parseAccountListFilters(P("fEnriched=no")).enriched).toBe("no");
+    expect(parseAccountListFilters(P("fEnriched=yes")).enriched).toBe("yes");
+    expect(parseAccountListFilters(P("fEnriched=maybe")).enriched).toBe(null);
+    expect(parseAccountListFilters(P("")).enriched).toBe(null);
+  });
+
   it("parses numeric score bounds and rejects non-numbers", () => {
     const f = parseAccountListFilters(P("fScoreMin=70&fScoreMax=90"));
     expect(f.scoreMin).toBe(70);
@@ -66,6 +74,7 @@ describe("parseAccountListFilters", () => {
     expect(hasActiveAccountFilters(parseAccountListFilters(P("fScoreMin=70")))).toBe(true);
     expect(hasActiveAccountFilters(parseAccountListFilters(P("tab=tam")))).toBe(true);
     expect(hasActiveAccountFilters(parseAccountListFilters(P("fLinkedin=has")))).toBe(true);
+    expect(hasActiveAccountFilters(parseAccountListFilters(P("fEnriched=no")))).toBe(true);
   });
 });
 

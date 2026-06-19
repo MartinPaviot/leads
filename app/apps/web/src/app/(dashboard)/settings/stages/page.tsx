@@ -1,9 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { SettingsHeader } from "@/components/ui/settings-header";
 import { Card, CardBody } from "@/components/ui/card";
+import { z } from "zod";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+
+/* CLE-14: page-action helpers (pure, shared) */
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+function definePageAction<P>(a: PageAction<P>): PageAction { return a as unknown as PageAction; }
 
 interface Stage {
   id: string;
@@ -50,22 +58,90 @@ export default function StagesSettingsPage() {
     setStages(stages.filter((s) => s.id !== id));
   }
 
+  /**
+   * CLE-14 — the single PUT path for the whole stage list, shared by the Save
+   * button and the chat action. Drops nameless rows (as the button always did),
+   * mirrors the result into local state, and returns {ok,error?} so the action
+   * run can report without duplicating the fetch.
+   */
+  const saveStagesValue = useCallback(
+    async (next: Stage[]): Promise<{ ok: boolean; error?: string; saved: Stage[] }> => {
+      const valid = next.filter((s) => s.name.trim());
+      setSaving(true);
+      setError("");
+      try {
+        const res = await fetch("/api/settings/stages", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stages: valid }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return { ok: true, saved: valid };
+      } catch {
+        setError("Failed to save stages");
+        return { ok: false, error: "Failed to save stages", saved: valid };
+      } finally {
+        setSaving(false);
+      }
+    },
+    [],
+  );
+
   async function saveStages() {
-    const valid = stages.filter((s) => s.name.trim());
-    setSaving(true);
-    setError("");
-    try {
-      await fetch("/api/settings/stages", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stages: valid }),
-      });
-    } catch {
-      setError("Failed to save stages");
-    } finally {
-      setSaving(false);
-    }
+    await saveStagesValue(stages);
   }
+
+  // CLE-14: register this page's one SAFE config action. Reuses
+  // saveStagesValue (the same whole-list PUT the Save button uses).
+  const stagesActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "settings.editPipelineStages",
+        title: "Edit the pipeline stages",
+        description:
+          "Replace the full set of pipeline stages (whole-list PUT). Each stage has a name (required) and " +
+          "optional id, description, category ('in_progress' | 'done'), aiFillMode ('auto' | 'suggest' | 'off'), " +
+          "and wipLimit. Use when the user wants to add, rename, reorder, or remove pipeline stages.",
+        params: z.object({
+          stages: z
+            .array(
+              z.object({
+                id: z.string().optional(),
+                name: z.string().min(1),
+                description: z.string().optional(),
+                category: z.string().optional(),
+                aiFillMode: z.string().optional(),
+                wipLimit: z.number().int().positive().optional(),
+              }),
+            )
+            .min(1),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ stages: next }): Promise<PageActionResult> => {
+          // Normalise the loosely-typed action input into the page's Stage shape,
+          // filling ids/defaults so the saved list round-trips.
+          const normalised: Stage[] = next.map((s) => ({
+            id: s.id && s.id.trim() ? s.id : crypto.randomUUID(),
+            name: s.name,
+            description: s.description ?? "",
+            category: s.category === "done" ? "done" : "in_progress",
+            aiFillMode:
+              s.aiFillMode === "auto" || s.aiFillMode === "off" ? s.aiFillMode : "suggest",
+            wipLimit: s.wipLimit ?? null,
+          }));
+          setStages(normalised);
+          const r = await saveStagesValue(normalised);
+          if (!r.ok) return errResult(r.error ?? "Failed to update the pipeline.");
+          const n = r.saved.length;
+          if (n === 0) return errResult("Every stage needs a name.");
+          return okResult(`Pipeline updated - ${n} stage${n === 1 ? "" : "s"}.`);
+        },
+      }),
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [saveStagesValue],
+  );
+  useRegisterPageActions(stagesActions);
 
   const inProgress = stages.filter((s) => s.category === "in_progress");
   const done = stages.filter((s) => s.category === "done");

@@ -18,6 +18,11 @@ export interface ScriptContext {
   viaTool: boolean;
   /** The detected replaceable tool shown, if any. */
   tool: string | null;
+  /** Sector resolved by the waterfall — lets the loop learn PER sector. */
+  sector?: string | null;
+  /** Semantic key of the enjeu led with (ia | cout | souverainete) — the
+   *  outcome is attributed to it (which enjeu books per sector). */
+  enjeuKey?: string | null;
 }
 
 export interface ImpactBucket {

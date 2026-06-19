@@ -72,6 +72,47 @@ describe("readSprintAudience", () => {
     const a = readSprintAudience({ audience: { industries: ["banking"], personas: [] } });
     expect(a?.label).toBe("sprint");
   });
+
+  it("parses the extended segment facets and trims/dedupes them", () => {
+    const a = readSprintAudience({
+      audience: {
+        label: "fit + signals",
+        industries: [],
+        personas: [],
+        signals: ["funding", "funding", " "],
+        phoneType: ["mobile"],
+        fitMin: 70,
+        freshnessDays: 30,
+        dealValueMin: 5000,
+      },
+    });
+    expect(a).toEqual({
+      label: "fit + signals",
+      industries: [],
+      personas: [],
+      signals: ["funding"],
+      phoneType: ["mobile"],
+      fitMin: 70,
+      freshnessDays: 30,
+      dealValueMin: 5000,
+    });
+  });
+
+  it("treats a facet-only segment (no industry/persona) as valid, not null", () => {
+    expect(readSprintAudience({ audience: { fitMin: 80 } })?.fitMin).toBe(80);
+    expect(readSprintAudience({ audience: { signals: ["hiring"] } })?.signals).toEqual(["hiring"]);
+  });
+
+  it("drops malformed numeric facets and stays null when every facet is empty/invalid", () => {
+    expect(
+      readSprintAudience({ audience: { fitMin: -3, freshnessDays: "x", dealValueMin: NaN } }),
+    ).toBeNull();
+  });
+
+  it("omits extended facets from the shape when absent (sprint-only is unchanged)", () => {
+    const a = readSprintAudience({ audience: { industries: ["banking"], personas: [] } });
+    expect(a).toEqual({ label: "sprint", industries: ["banking"], personas: [] });
+  });
 });
 
 describe("sprintAudienceConditions", () => {
@@ -83,6 +124,26 @@ describe("sprintAudienceConditions", () => {
       sprintAudienceConditions({ ...base, industries: ["banking"], personas: ["CEO"] }),
     ).toHaveLength(2);
     expect(sprintAudienceConditions(base)).toHaveLength(0);
+  });
+
+  it("emits a condition for each extended facet", () => {
+    expect(sprintAudienceConditions({ ...base, signals: ["funding"] })).toHaveLength(1);
+    expect(sprintAudienceConditions({ ...base, phoneType: ["mobile"] })).toHaveLength(1);
+    expect(sprintAudienceConditions({ ...base, fitMin: 70 })).toHaveLength(1);
+    expect(sprintAudienceConditions({ ...base, freshnessDays: 30 })).toHaveLength(1);
+    expect(sprintAudienceConditions({ ...base, dealValueMin: 5000 })).toHaveLength(1);
+  });
+
+  it("combines base + extended facets additively", () => {
+    expect(
+      sprintAudienceConditions({
+        ...base,
+        industries: ["banking"],
+        personas: ["CEO"],
+        signals: ["funding"],
+        fitMin: 70,
+      }),
+    ).toHaveLength(4);
   });
 });
 

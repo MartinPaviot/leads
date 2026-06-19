@@ -2,7 +2,11 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Factory, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, Trash2, Archive, RotateCcw, Loader2, type LucideIcon } from "lucide-react";
+import { z } from "zod";
+import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Factory, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, Trash2, Archive, RotateCcw, Loader2, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions, useRegisterEntityLocator, cssEscape } from "@/lib/chat/page-actions/registry";
+import type { EntityLocator } from "@/lib/chat/page-actions/registry";
 import { SmartImport } from "@/components/smart-import";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { displayScore, ENRICHMENT_COLORS } from "@/lib/util/ui-utils";
@@ -24,6 +28,10 @@ import { ColumnFilter, isColumnFilterActive, type ColumnFilterKind, type ColumnF
 import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-delete-modal";
 import { chunkedBulkCall } from "@/lib/infra/chunk-bulk";
 import { selectAllMatchingIds } from "@/lib/infra/select-all-matching";
+import { phoneRegionLabel, PHONE_REGION_NONE, PHONE_REGION_UNKNOWN } from "@/lib/contacts/phone-region";
+import { FiltersPanel, panelActiveCount, type PanelSection } from "@/components/ui/filters-panel";
+import { seniorityLabel, compareSeniority } from "@/lib/contacts/seniority";
+import { recencyLabel, RECENCY_BUCKETS } from "@/lib/contacts/recency";
 
 function LinkedInIcon({ size = 13 }: { size?: number }) {
   return (
@@ -52,6 +60,36 @@ interface Contact {
 }
 
 type EnrichStatus = "idle" | "enriching" | "done" | "failed";
+
+/* ── CLE-08: page-action helpers (pure, shared) ── */
+
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+
+/** Type a PageAction against its own params schema, then erase P so heterogeneous
+ *  actions live in one PageAction[] (the registry stores PageAction<unknown>). */
+function definePageAction<P>(a: PageAction<P>): PageAction {
+  return a as unknown as PageAction;
+}
+
+/** Human-readable summary of an applyFilter request (for the action result).
+ *  Pure; emoji-free. Count is server-async, so it is not included here. */
+function describeContactFilters(p: {
+  contact?: string; companyName?: string[]; industry?: string[]; email?: string;
+  title?: string[]; linkedin?: "present" | "absent"; phone?: string[];
+  score?: string[];
+}): string {
+  const parts: string[] = [];
+  if (p.contact) parts.push('name "' + p.contact + '"');
+  if (p.companyName?.length) parts.push("company " + p.companyName.join("/"));
+  if (p.industry?.length) parts.push("industry " + p.industry.join("/"));
+  if (p.email) parts.push('email "' + p.email + '"');
+  if (p.title?.length) parts.push("title " + p.title.join("/"));
+  if (p.linkedin) parts.push("LinkedIn " + p.linkedin);
+  if (p.phone?.length) parts.push("phone region " + p.phone.join("/"));
+  if (p.score?.length) parts.push("score " + p.score.join("/"));
+  return parts.length ? parts.join(", ") : "no filters";
+}
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -113,6 +151,13 @@ export default function ContactsPage() {
   // Per-column header filters (Notion / Excel style), parity with Accounts.
   const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilterState>>({});
   const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null);
+  // Dedicated "Filtres" panel — houses the segment filters with no column home
+  // (recency, seniority, region, sector family). Reads/writes `columnFilters`.
+  const [showFilters, setShowFilters] = useState(false);
+  // Sector-family facet (LLM-classified) — fetched lazily when the panel opens,
+  // so the multi-second classification never blocks the contacts list.
+  const [familyFacet, setFamilyFacet] = useState<Array<{ key: string; label: string; count: number }> | null>(null);
+  const [familyLoading, setFamilyLoading] = useState(false);
   // Column filters run server-side (debounced) so they span ALL contacts, not
   // just the loaded 50-row page. Company options also come from the server.
   const [debouncedColumnFilters, setDebouncedColumnFilters] = useState<Record<string, ColumnFilterState>>({});
@@ -123,6 +168,9 @@ export default function ContactsPage() {
   // Distinct company industries (frequency-ordered, with contact counts) —
   // options for the Industry column filter, Accounts-parity.
   const [serverIndustryOptions, setServerIndustryOptions] = useState<Array<{ industry: string; count: number }>>([]);
+  // Per-value row counts keyed by the column's filterKey (companyName / industry
+  // / title / score), for the "(N)" shown next to every value in the dropdowns.
+  const [serverFilterCounts, setServerFilterCounts] = useState<Record<string, Record<string, number>> | null>(null);
   // Deletes — single row AND the checkbox selection — go through the cascade
   // modal (lets the user also delete the contacts' activities/notes/tasks in
   // one step). Everything is soft-delete, recoverable from Archive.
@@ -148,7 +196,13 @@ export default function ContactsPage() {
     if (vals("companyName").length) params.set("fCompany", vals("companyName").join(","));
     if (vals("score").length) params.set("fGrade", vals("score").join(","));
     if (pres("linkedin")) params.set("fLinkedin", pres("linkedin")!);
-    if (pres("phone")) params.set("fPhone", pres("phone")!);
+    // Phone is now a region multi-select (dial codes + none/unknown) → fPhoneRegion.
+    if (vals("phone").length) params.set("fPhoneRegion", vals("phone").join(","));
+    // Panel filters (no column home): seniority + engagement recency + region.
+    if (vals("seniority").length) params.set("fSeniority", vals("seniority").join(","));
+    if (vals("recency").length) params.set("fRecency", vals("recency").join(","));
+    if (vals("region").length) params.set("fRegion", vals("region").join(","));
+    if (vals("family").length) params.set("fFamily", vals("family").join(","));
     // Industry column filter -> the contact's company industry (server-side,
     // same subquery shape as fCompany).
     if (vals("industry").length) params.set("fIndustry", vals("industry").join(","));
@@ -186,6 +240,7 @@ export default function ContactsPage() {
         if (data.filterOptions?.companies) setServerCompanyOptions(data.filterOptions.companies);
         if (data.filterOptions?.titles) setServerTitleOptions(data.filterOptions.titles);
         if (data.filterOptions?.industries) setServerIndustryOptions(data.filterOptions.industries);
+        if (data.filterCounts) setServerFilterCounts(data.filterCounts);
       }
     } catch (e) {
       console.warn("contacts: list fetch failed", e);
@@ -212,6 +267,7 @@ export default function ContactsPage() {
           if (data.filterOptions?.companies) setServerCompanyOptions(data.filterOptions.companies);
           if (data.filterOptions?.titles) setServerTitleOptions(data.filterOptions.titles);
           if (data.filterOptions?.industries) setServerIndustryOptions(data.filterOptions.industries);
+          if (data.filterCounts) setServerFilterCounts(data.filterCounts);
         }
       }
       setContacts(all);
@@ -316,29 +372,44 @@ export default function ContactsPage() {
     }
   }
 
+  // CLE-08 §4: the POST /api/contacts body of handleCreateContact, parameterized
+  // by the request body so both the create-modal button and contacts.createContact
+  // issue the SAME request (+ refetch on success). One copy. The button keeps its
+  // own toast / setShowCreate / setCreateForm reset.
+  const submitCreateContact = useCallback(
+    async (body: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const res = await fetch("/api/contacts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (res.ok) {
+          await refetchLoadedContacts();
+          return { ok: true };
+        }
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        return { ok: false, error: data.error || "Failed to create contact" };
+      } catch {
+        return { ok: false, error: "Failed to create contact" };
+      }
+    },
+    [refetchLoadedContacts],
+  );
+
   // Create contact
   async function handleCreateContact() {
     if (!createForm.firstName && !createForm.email) {
       toast("First name or email required", "error");
       return;
     }
-    try {
-      const res = await fetch("/api/contacts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createForm),
-      });
-      if (res.ok) {
-        toast("Contact created", "success");
-        setShowCreate(false);
-        setCreateForm({ firstName: "", lastName: "", email: "", title: "", companyName: "" });
-        refetchLoadedContacts();
-      } else {
-        const data = await res.json();
-        toast(data.error || "Failed to create contact", "error");
-      }
-    } catch {
-      toast("Failed to create contact", "error");
+    const r = await submitCreateContact(createForm);
+    if (r.ok) {
+      toast("Contact created", "success");
+      setShowCreate(false);
+      setCreateForm({ firstName: "", lastName: "", email: "", title: "", companyName: "" });
+    } else {
+      toast(r.error || "Failed to create contact", "error");
     }
   }
 
@@ -410,6 +481,52 @@ export default function ContactsPage() {
     void openCascadeDelete(ids, label);
   }
 
+  // CLE-08 §4: the per-id DELETE /api/contacts/:id { cascade } wave loop, lifted
+  // verbatim from performCascadeDelete and parameterized by the ids + cascade keys
+  // (NOT the modal's cascadeTarget). One copy of the delete loop, shared by the
+  // cascade modal (button path) and contacts.bulkDelete (agent path). Returns the
+  // counters; the caller owns its own toast / selection reset / refetch.
+  const deleteContactsByIds = useCallback(
+    async (
+      ids: string[],
+      cascade: string[],
+    ): Promise<{ deleted: number; errors: number; extra: number; firstError: string | null }> => {
+      let deleted = 0;
+      let errors = 0;
+      let extra = 0;
+      let firstError: string | null = null;
+      const WAVE = 6;
+      for (let i = 0; i < ids.length; i += WAVE) {
+        await Promise.all(
+          ids.slice(i, i + WAVE).map(async (id) => {
+            try {
+              const res = await fetch(`/api/contacts/${id}`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ cascade }),
+              });
+              if (res.ok) {
+                deleted++;
+                const data = (await res.json().catch(() => ({}))) as { cascaded?: Record<string, number> };
+                extra += Object.values(data.cascaded ?? {}).reduce<number>((a, b) => a + (b ?? 0), 0);
+              } else {
+                errors++;
+                if (!firstError) {
+                  const data = (await res.json().catch(() => ({}))) as { error?: string };
+                  firstError = data.error ?? null;
+                }
+              }
+            } catch {
+              errors++;
+            }
+          }),
+        );
+      }
+      return { deleted, errors, extra, firstError };
+    },
+    [],
+  );
+
   // Soft-delete the targeted contacts plus any related sets the user ticked.
   // Per-contact requests so each keeps its own delete timestamp (symmetric
   // restore) and a 409 (active sequence enrollment) only blocks that contact.
@@ -419,37 +536,7 @@ export default function ContactsPage() {
   async function performCascadeDelete(selectedKeys: string[]) {
     if (!cascadeTarget) return;
     setCascadeBusy(true);
-    let deleted = 0;
-    let errors = 0;
-    let extra = 0;
-    let firstError: string | null = null;
-    const WAVE = 6;
-    for (let i = 0; i < cascadeTarget.ids.length; i += WAVE) {
-      await Promise.all(
-        cascadeTarget.ids.slice(i, i + WAVE).map(async (id) => {
-          try {
-            const res = await fetch(`/api/contacts/${id}`, {
-              method: "DELETE",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ cascade: selectedKeys }),
-            });
-            if (res.ok) {
-              deleted++;
-              const data = (await res.json().catch(() => ({}))) as { cascaded?: Record<string, number> };
-              extra += Object.values(data.cascaded ?? {}).reduce<number>((a, b) => a + (b ?? 0), 0);
-            } else {
-              errors++;
-              if (!firstError) {
-                const data = (await res.json().catch(() => ({}))) as { error?: string };
-                firstError = data.error ?? null;
-              }
-            }
-          } catch {
-            errors++;
-          }
-        }),
-      );
-    }
+    const { deleted, errors, extra, firstError } = await deleteContactsByIds(cascadeTarget.ids, selectedKeys);
     setCascadeBusy(false);
     setCascadeTarget(null);
     if (deleted > 0) {
@@ -463,6 +550,25 @@ export default function ContactsPage() {
       toast(firstError || `Delete failed for ${errors} contact${errors > 1 ? "s" : ""}`, "error");
     }
   }
+
+  // CLE-08 §4: the agent path's delete — runs the SAME per-id DELETE loop as the
+  // cascade modal, on the LIVE selection, without re-opening the count-preview
+  // modal (CLE-05's confirm card is already the agent's confirmation surface).
+  // Returns a uniform result the contacts.bulkDelete run() surfaces.
+  const deleteSelectedContacts = useCallback(
+    async (cascade: string[]): Promise<{ ok: boolean; deleted: number; error?: string }> => {
+      const ids = Array.from(selectedRows);
+      if (ids.length === 0) return { ok: false, deleted: 0, error: "Select some contacts first." };
+      const { deleted, errors, firstError } = await deleteContactsByIds(ids, cascade);
+      if (deleted > 0) {
+        setSelectedRows(new Set());
+        await refetchLoadedContacts();
+        return { ok: true, deleted };
+      }
+      return { ok: false, deleted: 0, error: firstError || `Delete failed for ${errors} contact${errors > 1 ? "s" : ""}` };
+    },
+    [selectedRows, deleteContactsByIds, refetchLoadedContacts],
+  );
 
   // K2 — bulk actions that operate on the current selection. Enrich
   // reuses the single-shot endpoint; merge navigates to a dedicated
@@ -583,11 +689,16 @@ export default function ContactsPage() {
   // ids arrive. Residual non-score NL smart filters only exist client-side
   // (the server can't compute "all matching" for them), so with one active
   // the selection honestly stays the visible rows.
-  async function selectAllMatching() {
+  // Returns the resolved selection set so a programmatic caller (the
+  // contacts.selectAll page action) gets an accurate count without waiting for a
+  // re-render to land in a ref. The checkbox caller ignores the return value —
+  // behaviour-preserving.
+  async function selectAllMatching(): Promise<Set<string>> {
     const visibleIds = filteredContacts.map((c) => c.id);
-    setSelectedRows(new Set(visibleIds));
-    if (smartFilters.some((c) => c.field !== "score")) return;
-    if (contacts.length >= totalContacts) return; // every matching row is already loaded
+    const visibleSet = new Set(visibleIds);
+    setSelectedRows(visibleSet);
+    if (smartFilters.some((c) => c.field !== "score")) return visibleSet;
+    if (contacts.length >= totalContacts) return visibleSet; // every matching row is already loaded
     const result = await selectAllMatchingIds({
       endpoint: "/api/contacts",
       params: serializeContactFilters(),
@@ -599,6 +710,7 @@ export default function ContactsPage() {
     } else if (result.truncated && result.total != null) {
       toast(`Selected the first ${result.ids.size.toLocaleString()} of ${result.total.toLocaleString()} matching contacts.`, "warning");
     }
+    return result.ids;
   }
 
   // Header column-filter config — label + kind drive the <ColumnFilter>
@@ -615,19 +727,103 @@ export default function ContactsPage() {
     // user picks the precise roles instead of guessing a substring.
     title: { label: "Title", kind: "enum" },
     linkedin: { label: "LinkedIn", kind: "presence" },
-    phone: { label: "Phone", kind: "presence" },
+    // Phone is filtered by country dial code (+41 / +33 / …) plus a "Sans
+    // numéro" bucket — richer than has/empty, and what a romand rep needs to
+    // split Swiss prospects from French noise. Server-computed (fPhoneRegion).
+    phone: { label: "Phone", kind: "enum" },
     score: { label: "Score", kind: "enum" },
   };
 
   // Enum filter options come from the server now: company names across ALL
   // contacts (not just the loaded page, which would hide values the server can
   // still filter on), and grades are a fixed scale.
-  const columnOptions = useMemo<Record<string, string[]>>(() => ({
-    companyName: serverCompanyOptions,
-    title: serverTitleOptions,
-    industry: serverIndustryOptions.map((o) => o.industry),
-    score: ["A+", "A", "B", "C", "D", "F"],
-  }), [serverCompanyOptions, serverTitleOptions, serverIndustryOptions]);
+  const columnOptions = useMemo<Record<string, Array<string | { value: string; label: string }>>>(() => {
+    // Phone-region options come from the server facet counts: dial codes
+    // ordered by frequency, with the "Sans numéro"/"Indicatif inconnu" buckets
+    // pinned last. Labels via the SSOT so "41" shows as "Suisse · +41".
+    const phoneCounts = serverFilterCounts?.phone ?? {};
+    const phoneRegions = Object.keys(phoneCounts)
+      .sort((a, b) => {
+        const sa = a === PHONE_REGION_NONE || a === PHONE_REGION_UNKNOWN ? 1 : 0;
+        const sb = b === PHONE_REGION_NONE || b === PHONE_REGION_UNKNOWN ? 1 : 0;
+        if (sa !== sb) return sa - sb;
+        return (phoneCounts[b] ?? 0) - (phoneCounts[a] ?? 0);
+      })
+      .map((key) => ({ value: key, label: phoneRegionLabel(key) }));
+    return {
+      companyName: serverCompanyOptions,
+      title: serverTitleOptions,
+      industry: serverIndustryOptions.map((o) => o.industry),
+      score: ["A+", "A", "B", "C", "D", "F"],
+      phone: phoneRegions,
+    };
+  }, [serverCompanyOptions, serverTitleOptions, serverIndustryOptions, serverFilterCounts]);
+
+  // Sections for the dedicated Filters panel — segment filters with no column
+  // home. Phone reuses the column options; seniority/recency come from their
+  // own server facet counts. Empty facets render "Aucune valeur".
+  const filterSections = useMemo<PanelSection[]>(() => {
+    const seniorityCounts = serverFilterCounts?.seniority ?? {};
+    const seniorityOpts = Object.keys(seniorityCounts)
+      .sort(compareSeniority)
+      .map((k) => ({ value: k, label: seniorityLabel(k) }));
+    const recencyCounts = serverFilterCounts?.recency ?? {};
+    const recencyOpts = RECENCY_BUCKETS.filter((b) => recencyCounts[b] != null).map((b) => ({
+      value: b as string,
+      label: recencyLabel(b),
+    }));
+    const regionCounts = serverFilterCounts?.region ?? {};
+    const regionOpts = Object.keys(regionCounts)
+      .sort((a, b) => (regionCounts[b] ?? 0) - (regionCounts[a] ?? 0))
+      .map((v) => ({ value: v, label: v }));
+    const famList = familyFacet ?? [];
+    const familyOpts = famList.map((f) => ({ value: f.key, label: f.label }));
+    const familyCountsObj = Object.fromEntries(famList.map((f) => [f.key, f.count]));
+    return [
+      {
+        title: "Secteur",
+        filters: [
+          { key: "family", label: "Famille sectorielle", options: familyOpts, counts: familyCountsObj, hint: familyLoading ? "Classement des secteurs…" : "Regroupe les industries en familles (santé, public, non-profit…)" },
+        ],
+      },
+      {
+        title: "Géographie",
+        filters: [
+          { key: "region", label: "Région / canton", options: regionOpts, counts: regionCounts, hint: "Romandie : Geneva, Vaud, Valais, Neuchâtel, Fribourg, Jura" },
+        ],
+      },
+      {
+        title: "Joignabilité",
+        filters: [
+          { key: "phone", label: "Indicatif téléphone", options: columnOptions.phone ?? [], counts: serverFilterCounts?.phone },
+        ],
+      },
+      {
+        title: "Engagement",
+        filters: [
+          { key: "recency", label: "Dernier contact", options: recencyOpts, counts: recencyCounts, hint: "Dernier échange réel — email, appel ou RDV" },
+        ],
+      },
+      {
+        title: "Persona",
+        filters: [
+          { key: "seniority", label: "Séniorité", options: seniorityOpts, counts: seniorityCounts },
+        ],
+      },
+    ];
+  }, [columnOptions, serverFilterCounts, familyFacet, familyLoading]);
+  const panelActive = panelActiveCount(filterSections, columnFilters);
+
+  // Lazy-load the sector-family facet the first time the Filtres panel opens.
+  useEffect(() => {
+    if (!showFilters || familyFacet !== null || familyLoading) return;
+    setFamilyLoading(true);
+    fetch("/api/industry-families?entity=contact")
+      .then((r) => (r.ok ? r.json() : { families: [] }))
+      .then((d) => setFamilyFacet(d.families ?? []))
+      .catch(() => setFamilyFacet([]))
+      .finally(() => setFamilyLoading(false));
+  }, [showFilters, familyFacet, familyLoading]);
 
   // Column filters now run server-side (see fetchContacts -> /api/contacts), so
   // `contacts` is already the filtered + paginated set. Only the NL smart
@@ -663,8 +859,264 @@ export default function ContactsPage() {
   const allVisibleSelected =
     filteredContacts.length > 0 && filteredContacts.every((c) => selectedRows.has(c.id));
 
+  // ── CLE-08: register this page's actions for the chat live-executor. The
+  //    registered actions are captured ONCE at mount (CLE-03 keys registration
+  //    by the id list), so each run() reads live state via refs and calls only
+  //    stable setters / useCallback helpers / the §4 extractions above. ──
+  const selectedRef = useRef(selectedRows); selectedRef.current = selectedRows;
+  const scoringRef = useRef(scoringAll); scoringRef.current = scoringAll;
+  // Stable refs to the extracted helpers / re-created function declarations so a
+  // run() never closes over a stale identity.
+  const selectAllMatchingRef = useRef(selectAllMatching); selectAllMatchingRef.current = selectAllMatching;
+  const bulkEnrichSelectedRef = useRef(bulkEnrichSelected); bulkEnrichSelectedRef.current = bulkEnrichSelected;
+  const bulkFindMobileRef = useRef(bulkFindMobile); bulkFindMobileRef.current = bulkFindMobile;
+  const bulkMergeSelectedRef = useRef(bulkMergeSelected); bulkMergeSelectedRef.current = bulkMergeSelected;
+  const restoreContactsRef = useRef(restoreContacts); restoreContactsRef.current = restoreContacts;
+  const scoreAllContactsRef = useRef(scoreAllContacts); scoreAllContactsRef.current = scoreAllContacts;
+  const deleteSelectedContactsRef = useRef(deleteSelectedContacts); deleteSelectedContactsRef.current = deleteSelectedContacts;
+  const submitCreateContactRef = useRef(submitCreateContact); submitCreateContactRef.current = submitCreateContact;
+
+  const contactListActions: PageAction[] = useMemo(
+    () => [
+      // ── applyFilter (the 8 columns) ─────────────────────────────────────
+      definePageAction({
+        id: "contacts.applyFilter",
+        title: "Filter the contacts list",
+        description:
+          "Apply the contacts list's column filters: contact name (text), company (names), industry, email " +
+          "(text), title (one or more), LinkedIn present/absent, phone region (dial codes like +33 / +41, or none / unknown), score grade " +
+          "(A+/A/B/C/D/F). Replaces the current column-filter set. Use when the user wants to narrow the list. " +
+          "It runs server-side across ALL contacts, not just the loaded page.",
+        params: z.object({
+          contact: z.string().optional(),
+          companyName: z.array(z.string()).optional(),
+          industry: z.array(z.string()).optional(),
+          email: z.string().optional(),
+          title: z.array(z.string()).optional(),
+          linkedin: z.enum(["present", "absent"]).optional(),
+          phone: z.array(z.string()).optional(),
+          score: z.array(z.enum(["A+", "A", "B", "C", "D", "F"])).optional(),
+        }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async (p): Promise<PageActionResult> => {
+          const next: Record<string, ColumnFilterState> = {};
+          if (p.contact) next.contact = { text: p.contact };
+          if (p.email) next.email = { text: p.email };
+          if (p.title?.length) next.title = { values: p.title };
+          if (p.companyName?.length) next.companyName = { values: p.companyName };
+          if (p.industry?.length) next.industry = { values: p.industry };
+          if (p.score?.length) next.score = { values: p.score };
+          if (p.linkedin) next.linkedin = { presence: p.linkedin === "present" ? "has" : "empty" };
+          if (p.phone?.length) next.phone = { values: p.phone };
+          setColumnFilters(next);
+          return okResult("Filtered contacts by " + describeContactFilters(p) + ".");
+        },
+      }),
+      // ── smartSearch ─────────────────────────────────────────────────────
+      definePageAction({
+        id: "contacts.smartSearch",
+        title: "Search contacts",
+        description:
+          "Type into the contacts search box — a name/email match or a natural-language query " +
+          "(e.g. 'CTOs at fintech'). Runs server-side across all contacts. Pass an empty query to clear it.",
+        params: z.object({ query: z.string() }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async ({ query }): Promise<PageActionResult> => {
+          setSearchQuery(query);
+          return query.trim()
+            ? okResult('Searching contacts for "' + query.trim() + '".')
+            : okResult("Cleared the contact search.");
+        },
+      }),
+      // ── selectAll ───────────────────────────────────────────────────────
+      definePageAction({
+        id: "contacts.selectAll",
+        title: "Select all matching contacts",
+        description:
+          "Select every contact that matches the active filters/search (not just the loaded page), so a bulk " +
+          "action can run on the whole set. Use before a bulk enrich/find-mobile/merge/delete.",
+        params: z.object({ matchingCurrentFilter: z.boolean().optional() }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async (): Promise<PageActionResult> => {
+          const resolved = await selectAllMatchingRef.current();
+          const n = resolved.size;
+          return okResult("Selected " + n + " matching contact" + (n === 1 ? "" : "s") + ".", { count: n });
+        },
+      }),
+      // ── bulkEnrich (credits) ────────────────────────────────────────────
+      definePageAction({
+        id: "contacts.bulkEnrich",
+        title: "Enrich the selected contacts",
+        description:
+          "Enrich every currently-selected contact (titles, seniority, LinkedIn, etc.). Uses enrichment credits. " +
+          "Select contacts first (contacts.selectAll). Confirms before spending.",
+        params: z.object({}),
+        mutating: true, reversible: true, cost: "credits", confirm: "risky",
+        run: async (): Promise<PageActionResult> => {
+          const before = selectedRef.current.size;
+          if (before === 0) return errResult("Select some contacts first.");
+          await bulkEnrichSelectedRef.current();
+          return okResult("Enriched the selected contacts (" + before + " requested) — see the rows for per-contact status.", { count: before });
+        },
+      }),
+      // ── bulkFindMobile (credits, FullEnrich) ────────────────────────────
+      definePageAction({
+        id: "contacts.bulkFindMobile",
+        title: "Find mobiles for the selected contacts",
+        description:
+          "Run the deep mobile/email enrichment (FullEnrich) on the selected contacts. Uses credits; results " +
+          "arrive asynchronously as they're found. Runs 100 contacts per submission. Confirms before spending.",
+        params: z.object({}),
+        mutating: true, reversible: true, cost: "credits", confirm: "risky",
+        run: async (): Promise<PageActionResult> => {
+          const n = selectedRef.current.size;
+          if (n === 0) return errResult("Select some contacts first.");
+          await bulkFindMobileRef.current();
+          const run = Math.min(n, 100);
+          return okResult(
+            "Searching mobiles for " + run + " contact" + (run === 1 ? "" : "s") +
+            " — phones and emails appear as they're found." + (n > 100 ? " Run again for the remaining " + (n - 100) + "." : ""),
+            { count: run },
+          );
+        },
+      }),
+      // ── bulkMerge (navigates to merge; ≥2) ──────────────────────────────
+      definePageAction({
+        id: "contacts.bulkMerge",
+        title: "Merge the selected contacts",
+        description:
+          "Open the merge picker for the selected contacts (need at least 2). You pick the survivor there; " +
+          "merging is destructive downstream and is confirmed on the merge page.",
+        params: z.object({}),
+        mutating: false, reversible: true, cost: "free", confirm: "risky",
+        run: async (): Promise<PageActionResult> => {
+          const n = selectedRef.current.size;
+          if (n < 2) return errResult("Select at least 2 contacts to merge.");
+          bulkMergeSelectedRef.current();
+          return okResult("Opened the merge picker for " + n + " contacts.", { count: n });
+        },
+      }),
+      // ── bulkDelete (destructive, always confirm) ────────────────────────
+      definePageAction({
+        id: "contacts.bulkDelete",
+        title: "Delete the selected contacts",
+        description:
+          "Soft-delete the selected contacts (they move to the Archive and can be restored). Optionally cascade " +
+          "to their activities, notes, and/or tasks. Always asks for confirmation first.",
+        params: z.object({ cascade: z.array(z.enum(["activities", "notes", "tasks"])).optional() }),
+        mutating: true, reversible: true, cost: "free", confirm: "always",
+        run: async ({ cascade }): Promise<PageActionResult> => {
+          if (selectedRef.current.size === 0) return errResult("Select some contacts first.");
+          const r = await deleteSelectedContactsRef.current(cascade ?? []);
+          return r.ok
+            ? okResult("Moved " + r.deleted + " contact" + (r.deleted === 1 ? "" : "s") + " to Archive.", { deleted: r.deleted })
+            : errResult(r.error ?? "Failed to delete the contacts.");
+        },
+      }),
+      // ── bulkRestore (reversible) ────────────────────────────────────────
+      definePageAction({
+        id: "contacts.bulkRestore",
+        title: "Restore the selected contacts",
+        description: "Bring the selected soft-deleted contacts back from the Archive.",
+        params: z.object({}),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async (): Promise<PageActionResult> => {
+          const ids = Array.from(selectedRef.current);
+          if (ids.length === 0) return errResult("Select some contacts first.");
+          await restoreContactsRef.current(ids);
+          return okResult("Restored " + ids.length + " contact" + (ids.length === 1 ? "" : "s") + ".", { count: ids.length });
+        },
+      }),
+      // ── scoreAll (tenant-wide, risky) ───────────────────────────────────
+      definePageAction({
+        id: "contacts.scoreAll",
+        title: "Score all contacts",
+        description:
+          "Recompute ICP fit for EVERY contact against your ICP profiles (one tenant-wide run). " +
+          "Use when the user wants the whole base re-scored. Confirms first.",
+        params: z.object({}),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async (): Promise<PageActionResult> => {
+          if (scoringRef.current) return errResult("A scoring run is already in progress.");
+          await scoreAllContactsRef.current();
+          return okResult("Scored your contacts against your ICP profiles.");
+        },
+      }),
+      // ── createContact (risky) ───────────────────────────────────────────
+      definePageAction({
+        id: "contacts.createContact",
+        title: "Create a contact",
+        description:
+          "Create a new contact. Provide at least a first name or an email; optionally last name, title, " +
+          "and the company to link (companyId). Use when the user wants to add a person.",
+        params: z.object({
+          firstName: z.string().optional(),
+          lastName: z.string().optional(),
+          email: z.string().optional(),
+          title: z.string().optional(),
+          companyId: z.string().optional(),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async (p): Promise<PageActionResult> => {
+          if (!p.firstName?.trim() && !p.email?.trim()) return errResult("First name or email required.");
+          const body: Record<string, unknown> = {};
+          if (p.firstName) body.firstName = p.firstName;
+          if (p.lastName) body.lastName = p.lastName;
+          if (p.email) body.email = p.email;
+          if (p.title) body.title = p.title;
+          if (p.companyId) body.companyId = p.companyId;
+          const r = await submitCreateContactRef.current(body);
+          const name = [p.firstName, p.lastName].filter(Boolean).join(" ") || p.email || "the contact";
+          return r.ok ? okResult("Created contact " + name + ".") : errResult(r.error ?? "Failed to create contact.");
+        },
+      }),
+      // ── openImport (HUMAN-BOUND: opens the CSV picker only) ──────────────
+      definePageAction({
+        id: "contacts.openImport",
+        title: "Open the CSV import picker",
+        description:
+          "Open the CSV file picker so the user can import contacts. NOTE: you can OPEN the picker but you " +
+          "CANNOT choose the file — the user must pick it in the dialog. Tell them the picker is open.",
+        params: z.object({}),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async (): Promise<PageActionResult> => {
+          fileRef.current?.click();
+          return okResult("Opened the CSV picker — choose a file to import (I can't pick the file for you).");
+        },
+      }),
+      // ── openSmartImport (HUMAN-BOUND: opens the modal only) ──────────────
+      definePageAction({
+        id: "contacts.openSmartImport",
+        title: "Open Smart Import",
+        description:
+          "Open the guided Smart Import modal so the user can map and import a CSV. You can OPEN it but the " +
+          "user chooses and uploads the file. Tell them it's open.",
+        params: z.object({}),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async (): Promise<PageActionResult> => {
+          setShowSmartImport(true);
+          return okResult("Opened Smart Import — choose a CSV to map and import.");
+        },
+      }),
+    ],
+    // Stable id set; run()s read live state via refs / stable setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useRegisterPageActions(contactListActions);
+
+  // CLE-15 — let the chat pulse a specific contact row (e.g. one it navigates
+  // to). Each <tr> carries data-cle-entity; the locator resolves an id to the
+  // live row. Null-safe when the row is filtered out or not mounted.
+  const surfaceContainerRef = useRef<HTMLDivElement>(null);
+  const contactsLocate = useCallback<EntityLocator>(
+    (a) => surfaceContainerRef.current?.querySelector<HTMLElement>(`[data-cle-entity="${cssEscape(a.entityId)}"]`) ?? null,
+    [],
+  );
+  useRegisterEntityLocator("contacts", contactsLocate);
+
   return (
-    <div className="flex h-full flex-col animate-content-in">
+    <div ref={surfaceContainerRef} className="flex h-full flex-col animate-content-in">
       <BulkActionsBar
         count={selectedRows.size}
         onClear={() => setSelectedRows(new Set())}
@@ -763,6 +1215,24 @@ export default function ContactsPage() {
         >
           All ({totalContacts})
         </button>
+        <button
+          type="button"
+          onClick={() => setShowFilters(true)}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
+          style={{
+            background: panelActive > 0 ? "var(--color-accent-soft)" : "transparent",
+            color: panelActive > 0 ? "var(--color-accent)" : "var(--color-text-tertiary)",
+          }}
+          title="Filtres avancés — joignabilité, engagement, persona"
+        >
+          <SlidersHorizontal size={12} />
+          Filtres
+          {panelActive > 0 && (
+            <span className="rounded-full px-1.5 text-[10px] font-medium tabular-nums" style={{ background: "var(--color-accent)", color: "#fff" }}>
+              {panelActive}
+            </span>
+          )}
+        </button>
         {(() => {
           const activeKeys = Object.keys(columnFilters).filter((k) => isColumnFilterActive(columnFilters[k]));
           if (activeKeys.length === 0) return null;
@@ -774,7 +1244,7 @@ export default function ContactsPage() {
               style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
             >
               <X size={12} />
-              {activeKeys.length} column filter{activeKeys.length === 1 ? "" : "s"} — clear
+              {activeKeys.length} filtre{activeKeys.length === 1 ? "" : "s"} actif{activeKeys.length === 1 ? "" : "s"} — effacer
             </button>
           );
         })()}
@@ -807,6 +1277,20 @@ export default function ContactsPage() {
           />
         </div>
       </FilterBar>
+      <FiltersPanel
+        open={showFilters}
+        onOpenChange={setShowFilters}
+        sections={filterSections}
+        state={columnFilters}
+        onChange={(key, next) =>
+          setColumnFilters((prev) => {
+            const n = { ...prev };
+            if (next) n[key] = next;
+            else delete n[key];
+            return n;
+          })
+        }
+      />
       <ActiveFiltersChips
         filters={smartFilters}
         reasoning={smartMeta?.reasoning}
@@ -921,6 +1405,7 @@ export default function ContactsPage() {
                           label={fcfg.label}
                           kind={fcfg.kind}
                           options={columnOptions[col.filterKey]}
+                          counts={serverFilterCounts?.[col.filterKey]}
                           state={columnFilters[col.filterKey]}
                           onChange={(next) =>
                             setColumnFilters((prev) => {
@@ -947,6 +1432,7 @@ export default function ContactsPage() {
                 return (
                   <tr
                     key={contact.id}
+                    data-cle-entity={contact.id}
                     data-selected={selectedRows.has(contact.id) ? "true" : undefined}
                     className="cursor-pointer"
                     onClick={() => router.push(`/contacts/${contact.id}`)}

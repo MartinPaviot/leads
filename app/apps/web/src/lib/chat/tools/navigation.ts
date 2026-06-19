@@ -26,6 +26,18 @@ const RECORD_ROUTES = {
   meeting: (id: string) => `/meetings/${id}`,
 } as const;
 
+/**
+ * CLE-15: entityType -> the highlight scope the destination page registers its
+ * locator under (the plural surface key). Lets a landed record pulse itself once
+ * the page (CLE-06..09/CLE-14) registers a locator; until then a silent no-op.
+ */
+const HIGHLIGHT_SCOPE: Record<keyof typeof RECORD_ROUTES, string> = {
+  account: "accounts",
+  contact: "contacts",
+  deal: "opportunities",
+  meeting: "meetings",
+};
+
 /** Canonical list views → path. Aliases are normalised in `openListView`. */
 const LIST_VIEWS: Record<string, string> = {
   accounts: "/accounts",
@@ -116,7 +128,10 @@ export function buildNavigationTools(ctx: ToolContext) {
         const path = RECORD_ROUTES[entityType](id);
         return {
           opened: { entityType, id, name, path },
-          ...navigateDirective(path, name ?? undefined),
+          // CLE-15: pulse the record on arrival. The detail page registering a
+          // locator for `id` is CLE-07/CLE-14; until then this is a no-op and the
+          // navigation works exactly as before.
+          ...navigateDirective(path, name ?? undefined, { entityId: id, scope: HIGHLIGHT_SCOPE[entityType] }),
         };
       },
     }),

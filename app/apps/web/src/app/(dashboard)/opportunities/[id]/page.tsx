@@ -1,8 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { z } from "zod";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions, useRegisterEntityLocator, cssEscape } from "@/lib/chat/page-actions/registry";
+import type { EntityLocator } from "@/lib/chat/page-actions/registry";
 import {
   ArrowRight, Gauge, Sparkles, TrendingUp, TrendingDown, Minus,
   AlertTriangle, Calendar, Send, Users, Shield, ShieldAlert, ShieldCheck,
@@ -135,6 +139,12 @@ interface WinLossAnalysis {
   };
   lessonsLearned: string[];
   recommendedChanges: string[];
+}
+
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+function definePageAction<P>(a: PageAction<P>): PageAction {
+  return a as unknown as PageAction;
 }
 
 export default function DealDetailPage() {
@@ -275,31 +285,84 @@ export default function DealDetailPage() {
     fetchIntel();
   }, [dealId, fetchIntel, fetchDealIntel]);
 
+  // ── CLE-06: live mirrors + a parameterized auto-progress helper shared by the
+  //    button handler AND the registered page action (one network copy). ──
+  const suggestionRef = useRef(suggestion); suggestionRef.current = suggestion;
+  const dealRef = useRef(deal); dealRef.current = deal;
+
+  const applySuggestionResult = useCallback(
+    async (): Promise<{ ok: boolean; nextStage?: string; error?: string }> => {
+      const sug = suggestionRef.current;
+      if (!sug) return { ok: false, error: "There is no stage suggestion to apply for this deal." };
+      setApplyingStage(true);
+      try {
+        const res = await fetch(`/api/opportunities/${dealId}/auto-progress`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apply: true }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          return { ok: false, error: (body as { error?: string }).error || "Failed to advance stage." };
+        }
+        setDeal((prev) => (prev ? { ...prev, stage: sug.next } : prev));
+        setSuggestion(null);
+        await fetchIntel();
+        return { ok: true, nextStage: sug.next };
+      } catch (e) {
+        console.warn("opps-detail: applySuggestion failed", e);
+        return { ok: false, error: "Failed to advance stage — network error." };
+      } finally {
+        setApplyingStage(false);
+      }
+    },
+    [dealId, fetchIntel],
+  );
+
   async function applySuggestion() {
     if (!suggestion) return;
-    setApplyingStage(true);
-    try {
-      const res = await fetch(`/api/opportunities/${dealId}/auto-progress`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apply: true }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        toast((body as { error?: string }).error || "Failed to advance stage.", "error");
-        return;
-      }
-      toast(`Advanced to ${suggestion.next}.`, "success");
-      setDeal((prev) => (prev ? { ...prev, stage: suggestion.next } : prev));
-      setSuggestion(null);
-      await fetchIntel();
-    } catch (e) {
-      console.warn("opps-detail: applySuggestion failed", e);
-      toast("Failed to advance stage — network error.", "error");
-    } finally {
-      setApplyingStage(false);
-    }
+    const r = await applySuggestionResult();
+    if (r.ok) toast(`Advanced to ${r.nextStage}.`, "success");
+    else toast(r.error || "Failed to advance stage.", "error");
   }
+
+  const opportunityDetailActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "opportunities.autoProgress",
+        title: "Advance this deal to its suggested stage",
+        description:
+          "Apply the suggested next-stage advance for the deal currently open. Only works when a suggestion is " +
+          "shown. Use when the user agrees to move the deal forward as suggested.",
+        params: z.object({ dealId: z.string().min(1), apply: z.literal(true) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async (p): Promise<PageActionResult> => {
+          if (p.dealId !== dealId) return errResult("That deal is not the one open here.");
+          if (!suggestionRef.current) return errResult("There is no stage suggestion to apply for this deal.");
+          const r = await applySuggestionResult();
+          return r.ok
+            ? okResult(`Advanced ${dealRef.current?.name ?? "the deal"} to ${r.nextStage}.`)
+            : errResult(r.error ?? "Couldn't advance the deal.");
+        },
+      }),
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dealId],
+  );
+  useRegisterPageActions(opportunityDetailActions);
+
+  // CLE-15 — pulse this record's header when the chat navigates here
+  // (openRecord emits navigate.highlight). The header carries data-cle-entity;
+  // the locator resolves the open deal id to it. Null-safe before the deal loads.
+  const detailContainerRef = useRef<HTMLDivElement>(null);
+  const dealDetailLocate = useCallback<EntityLocator>(
+    (a) =>
+      a.entityId === dealId
+        ? detailContainerRef.current?.querySelector<HTMLElement>(`[data-cle-entity="${cssEscape(a.entityId)}"]`) ?? null
+        : null,
+    [dealId],
+  );
+  useRegisterEntityLocator("opportunities", dealDetailLocate);
 
   async function createFollowUpTask(intervention: SuggestedIntervention) {
     try {
@@ -355,7 +418,7 @@ export default function DealDetailPage() {
   const isClosed = deal.stage === "won" || deal.stage === "lost";
 
   return (
-    <div className="flex h-full">
+    <div ref={detailContainerRef} className="flex h-full">
       <div className="flex-1 overflow-auto p-6">
         <Breadcrumbs
           items={[
@@ -365,7 +428,7 @@ export default function DealDetailPage() {
         />
 
         <div className="mt-4 flex items-center gap-3">
-          <h1 className="text-xl font-semibold">{deal.name}</h1>
+          <h1 className="text-xl font-semibold" data-cle-entity={deal.id}>{deal.name}</h1>
           <Badge variant={stageBadgeVariant[deal.stage] || "neutral"} size="md">
             {deal.stage.toUpperCase()}
           </Badge>

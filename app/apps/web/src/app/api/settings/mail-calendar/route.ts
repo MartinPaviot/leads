@@ -1,4 +1,5 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
+import { requireCapabilityForRequest } from "@/lib/auth/permissions";
 import { db } from "@/db";
 import { authAccounts, connectedMailboxes, tenants } from "@/db/schema";
 import { eq, and, ne } from "drizzle-orm";
@@ -201,6 +202,12 @@ export async function GET() {
 export async function PUT(req: Request) {
   const authCtx = await getAuthContext();
   if (!authCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  // CLE-12 — unified matrix gate on the fresh DB role. Mail/calendar workspace
+  // config is admin-only (settings:write); previously this PUT had NO role
+  // gate, so any member could change it (gap closed, access NARROWED).
+  const denied = requireCapabilityForRequest(authCtx, req);
+  if (denied) return denied;
 
   let body: Record<string, unknown>;
   try {

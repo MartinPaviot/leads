@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { z } from "zod";
 import { Check, X, Pencil, TrendingUp, TrendingDown, Minus, Gauge, Mail, Send, Phone } from "lucide-react";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions, useRegisterEntityLocator, cssEscape } from "@/lib/chat/page-actions/registry";
+import type { EntityLocator } from "@/lib/chat/page-actions/registry";
 import { EmailComposerPanel } from "@/components/email-composer-panel";
 import type { EmailComposerDraft } from "@/components/email-composer-panel";
 import { Button } from "@/components/ui/button";
@@ -62,6 +66,26 @@ interface Activity {
   actorName?: string | null;
 }
 
+/* ── CLE-08: page-action helpers (pure, shared) ── */
+
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+
+/** Type a PageAction against its own params schema, then erase P so heterogeneous
+ *  actions live in one PageAction[] (the registry stores PageAction<unknown>). */
+function definePageAction<P>(a: PageAction<P>): PageAction {
+  return a as unknown as PageAction;
+}
+
+/** Pure predicate: is a post-call qualification proposal pending on this contact?
+ *  Mirrors the `pending` signal ContactCallProfile/usePendingReview reads
+ *  (`properties.pendingCallProfile`, call-intel.tsx). Lets the call-intel actions
+ *  fail cleanly (E-11) instead of POSTing a no-op review. */
+function hasPendingCallProfile(contact: { properties: Record<string, unknown> } | null): boolean {
+  const pending = contact?.properties?.pendingCallProfile;
+  return pending != null && typeof pending === "object";
+}
+
 export default function ContactDetailPage() {
   const params = useParams();
   const contactId = params.id as string;
@@ -114,12 +138,12 @@ export default function ContactDetailPage() {
     }
   }
 
-  // S7 — start a call to this contact, mirroring the hot-to-call flow:
-  // POST /api/calls/start, then land on the live softphone. Voice-config
-  // and DNC/quiet-hours errors surface as toasts; navigation only on success.
-  async function startCall() {
-    if (!contact) return;
-    setDialing(true);
+  // CLE-08 §4: the POST /api/calls/start + server error-code mapping of startCall,
+  // extracted so both the human "Call" button and contacts.call issue the SAME
+  // request and surface the SAME messages. Returns { ok, error } (the agent path)
+  // and, on success, navigates to the live softphone — exactly as the button did.
+  // One copy of the request + code branches.
+  const startCallResult = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
     try {
       const res = await fetch("/api/calls/start", {
         method: "POST",
@@ -128,21 +152,236 @@ export default function ContactDetailPage() {
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
       if (!res.ok) {
-        if (data.code === "voice_not_configured") toast("Voice not configured — add Twilio creds in Settings.", "error");
-        else if (data.code === "no_phone") toast("Contact has no phone number.", "error");
-        else if (data.code === "dnc") toast("Contact is on the Do Not Call list.", "error");
-        else if (data.code === "quiet_hours") toast("Outside quiet-hours for this contact's timezone.", "error");
-        else toast(data.error ?? `Call failed (${res.status})`, "error");
-        return;
+        const msg =
+          data.code === "voice_not_configured" ? "Voice not configured — add Twilio creds in Settings."
+            : data.code === "no_phone" ? "Contact has no phone number."
+            : data.code === "dnc" ? "Contact is on the Do Not Call list."
+            : data.code === "quiet_hours" ? "Outside quiet-hours for this contact's timezone."
+            : data.error ?? `Call failed (${res.status})`;
+        return { ok: false, error: msg };
       }
-      toast("Call initiated — ringing…", "success");
       router.push("/call-mode");
+      return { ok: true };
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Network error", "error");
-    } finally {
-      setDialing(false);
+      return { ok: false, error: err instanceof Error ? err.message : "Network error" };
     }
+  }, [contactId, router]);
+
+  // S7 — start a call to this contact, mirroring the hot-to-call flow:
+  // POST /api/calls/start, then land on the live softphone. Voice-config
+  // and DNC/quiet-hours errors surface as toasts; navigation only on success.
+  async function startCall() {
+    if (!contact) return;
+    setDialing(true);
+    const r = await startCallResult();
+    if (r.ok) toast("Call initiated — ringing…", "success");
+    else toast(r.error ?? "Call failed", "error");
+    setDialing(false);
   }
+
+  // Reassign the owner — optimistic PUT. Hoisted ABOVE the early returns (it used
+  // to sit between them) as a useCallback so a registered action's run() can call
+  // it unconditionally. Same endpoint/body/optimistic update as before; the
+  // OwnerSelect below still calls it directly — behaviour-preserving.
+  const reassignContactOwner = useCallback(
+    async (ownerId: string | null) => {
+      setContact((prev) => (prev ? { ...prev, ownerId } : prev)); // optimistic
+      try {
+        await fetch(`/api/contacts/${contactId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ownerId }),
+        });
+      } catch {
+        /* optimistic; the select already reflects the choice */
+      }
+    },
+    [contactId],
+  );
+
+  // CLE-08 §4: a second caller of the call-intel review REST contract — the SAME
+  // request ContactCallProfile/usePendingReview.act issues (call-intel.tsx). The
+  // server owns the live-vs-pending merge; this adds no business logic.
+  const reviewCallIntel = useCallback(
+    async (action: "approve" | "dismiss"): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const res = await fetch("/api/call-intel/review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ entityType: "contact", entityId: contactId, action }),
+        });
+        if (!res.ok) return { ok: false, error: "Couldn't update the proposal." };
+        return { ok: true };
+      } catch {
+        return { ok: false, error: "Couldn't update the proposal." };
+      }
+    },
+    [contactId],
+  );
+
+  // ── CLE-08: live refs + the contacts detail registration. The actions are
+  //    captured once at mount; their run()s read live state via these refs and
+  //    call the stable useCallbacks above. Registered unconditionally (before the
+  //    early returns), so the manifest reflects /contacts/[id] the moment it
+  //    mounts; each run() guards on the id matching the open contact (E-1). ──
+  const contactIdConst = contactId;
+  const contactRef = useRef(contact); contactRef.current = contact;
+  const activitiesRef = useRef(activities); activitiesRef.current = activities;
+  const updateFieldRef = useRef(updateField); updateFieldRef.current = updateField;
+  const startCallResultRef = useRef(startCallResult); startCallResultRef.current = startCallResult;
+
+  const contactDetailActions: PageAction[] = useMemo(
+    () => [
+      // ── updateField (inline edit: title / email / phone) ────────────────
+      definePageAction({
+        id: "contacts.updateField",
+        title: "Edit a field on this contact",
+        description:
+          "Inline-edit the open contact's title, email, or phone. Use when the user wants to fix or set one of these.",
+        params: z.object({
+          id: z.string().min(1),
+          field: z.enum(["title", "email", "phone"]),
+          value: z.string(),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ id, field, value }): Promise<PageActionResult> => {
+          if (id !== contactIdConst) return errResult("That contact is not the one open here.");
+          const okSaved = await updateFieldRef.current(field, value);
+          return okSaved
+            ? okResult('Updated ' + field + ' to "' + value.trim() + '".', { highlight: { entityId: id, scope: "contacts", field } })
+            : errResult(field === "email" ? "That doesn't look like a valid email address." : "Couldn't save that change.");
+        },
+      }),
+      // ── reassignOwner ───────────────────────────────────────────────────
+      definePageAction({
+        id: "contacts.reassignOwner",
+        title: "Reassign this contact's owner",
+        description: "Set or clear the member responsible for the open contact. Pass ownerId (or null to un-assign).",
+        params: z.object({ id: z.string().min(1), ownerId: z.string().nullable() }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ id, ownerId }): Promise<PageActionResult> => {
+          if (id !== contactIdConst) return errResult("That contact is not the one open here.");
+          await reassignContactOwner(ownerId);
+          return okResult(ownerId ? "Reassigned the contact." : "Un-assigned the contact.");
+        },
+      }),
+      // ── call (outbound START; always confirm) ───────────────────────────
+      definePageAction({
+        id: "contacts.call",
+        title: "Call this contact",
+        description:
+          "Start a phone call to the open contact and take the user to the live softphone. This PLACES an outbound " +
+          "call (always confirmed). It only STARTS the call — answering, hanging up, voicemail and in-call notes are " +
+          "done by the user on the softphone, not by you.",
+        params: z.object({ id: z.string().min(1) }),
+        mutating: true, outbound: true, reversible: false, cost: "free", confirm: "always",
+        run: async ({ id }): Promise<PageActionResult> => {
+          if (id !== contactIdConst) return errResult("That contact is not the one open here.");
+          const c = contactRef.current;
+          const name = [c?.firstName, c?.lastName].filter(Boolean).join(" ") || "the contact";
+          const r = await startCallResultRef.current();
+          return r.ok ? okResult("Calling " + name + " — taking you to the softphone.")
+                      : errResult(r.error ?? "Couldn't start the call.");
+        },
+      }),
+      // ── sendEmail (opens the composer; not a send) ──────────────────────
+      definePageAction({
+        id: "contacts.sendEmail",
+        title: "Draft an email to this contact",
+        description:
+          "Open the email composer pre-filled for the open contact. This OPENS the composer (does not send) — the " +
+          "user reviews and sends. Optionally pass a draft {subject, body, to}.",
+        params: z.object({
+          id: z.string().min(1),
+          draft: z.object({ subject: z.string().optional(), body: z.string().optional(), to: z.string().optional() }).optional(),
+        }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async ({ id, draft }): Promise<PageActionResult> => {
+          if (id !== contactIdConst) return errResult("That contact is not the one open here.");
+          const c = contactRef.current;
+          const to = draft?.to ?? c?.email ?? "";
+          if (!to) return errResult("This contact has no email address.");
+          setEmailComposer({
+            to,
+            subject: draft?.subject ?? "",
+            body: draft?.body ?? ("Hi " + (c?.firstName || "there") + ",\n\n"),
+            contactId: contactIdConst,
+          });
+          return okResult("Opened the email composer — review and send.");
+        },
+      }),
+      // ── suggestReply (opens the composer from an inbound activity) ───────
+      definePageAction({
+        id: "contacts.suggestReply",
+        title: "Suggest a reply to an inbound email",
+        description:
+          "Open the composer pre-filled as a reply to one of this contact's inbound emails (by activityId). " +
+          "Opens the composer; the user edits and sends.",
+        params: z.object({ id: z.string().min(1), activityId: z.string().min(1) }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async ({ id, activityId }): Promise<PageActionResult> => {
+          if (id !== contactIdConst) return errResult("That contact is not the one open here.");
+          const c = contactRef.current;
+          const act = activitiesRef.current.find((a) => a.id === activityId);
+          if (!act) return errResult("That activity isn't on this contact.");
+          setEmailComposer({
+            to: c?.email || "",
+            subject: "Re: " + (act.summary?.slice(0, 50) || "your email"),
+            body: "Hi " + (c?.firstName || "there") + ",\n\nThanks for your email. " +
+              (act.summary ? 'Regarding "' + act.summary.slice(0, 80) + '..." — ' : "") + "\n\nBest regards",
+            contactId: contactIdConst,
+          });
+          return okResult("Opened a suggested reply — edit and send.");
+        },
+      }),
+      // ── approveCallIntel / dismissCallIntel ─────────────────────────────
+      definePageAction({
+        id: "contacts.approveCallIntel",
+        title: "Approve the call-intel proposal",
+        description:
+          "Apply the post-call qualification proposal pending on this contact (role/disposition captured from the last call). " +
+          "Only works when a proposal is pending.",
+        params: z.object({ id: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ id }): Promise<PageActionResult> => {
+          if (id !== contactIdConst) return errResult("That contact is not the one open here.");
+          if (!hasPendingCallProfile(contactRef.current)) return errResult("There's no pending call-intel proposal on this contact.");
+          const r = await reviewCallIntel("approve");
+          return r.ok ? okResult("Applied the call-intel proposal to the contact.") : errResult(r.error ?? "Couldn't update the proposal.");
+        },
+      }),
+      definePageAction({
+        id: "contacts.dismissCallIntel",
+        title: "Dismiss the call-intel proposal",
+        description: "Dismiss the post-call qualification proposal pending on this contact. Only works when one is pending.",
+        params: z.object({ id: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ id }): Promise<PageActionResult> => {
+          if (id !== contactIdConst) return errResult("That contact is not the one open here.");
+          if (!hasPendingCallProfile(contactRef.current)) return errResult("There's no pending call-intel proposal on this contact.");
+          const r = await reviewCallIntel("dismiss");
+          return r.ok ? okResult("Dismissed the call-intel proposal.") : errResult(r.error ?? "Couldn't update the proposal.");
+        },
+      }),
+    ],
+    // Stable id set; contact/activities read via refs, handlers via stable useCallbacks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [contactIdConst],
+  );
+  useRegisterPageActions(contactDetailActions);
+
+  // CLE-15 — pulse this record's header when the chat navigates here, or after a
+  // field edit (contacts.updateField returns data.highlight for this id). The
+  // header carries data-cle-entity. Null-safe before the contact loads.
+  const detailContainerRef = useRef<HTMLDivElement>(null);
+  const contactDetailLocate = useCallback<EntityLocator>(
+    (a) =>
+      a.entityId === contactIdConst
+        ? detailContainerRef.current?.querySelector<HTMLElement>(`[data-cle-entity="${cssEscape(a.entityId)}"]`) ?? null
+        : null,
+    [contactIdConst],
+  );
+  useRegisterEntityLocator("contacts", contactDetailLocate);
 
   useEffect(() => {
     async function load() {
@@ -212,18 +451,6 @@ export default function ContactDetailPage() {
   }, [contactId]);
 
   if (loading) return <DetailPageSkeleton avatar="circle" />;
-  async function reassignContactOwner(ownerId: string | null) {
-    setContact((prev) => (prev ? { ...prev, ownerId } : prev)); // optimistic
-    try {
-      await fetch(`/api/contacts/${contactId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ownerId }),
-      });
-    } catch {
-      /* optimistic; the select already reflects the choice */
-    }
-  }
 
   if (!contact) return <p className="p-6 text-sm text-red-400">Contact not found</p>;
 
@@ -232,7 +459,7 @@ export default function ContactDetailPage() {
     (contact.lastName?.charAt(0) || "").toUpperCase();
 
   return (
-    <div className="flex h-full flex-col lg:flex-row">
+    <div ref={detailContainerRef} className="flex h-full flex-col lg:flex-row">
       {/* Main content */}
       <div className="flex-1 overflow-auto p-6">
         <Breadcrumbs
@@ -252,7 +479,7 @@ export default function ContactDetailPage() {
             {initials}
           </div>
           <div className="flex-1">
-            <h1 className="text-xl font-semibold">{name}</h1>
+            <h1 className="text-xl font-semibold" data-cle-entity={contactIdConst}>{name}</h1>
             <p className="text-sm text-[var(--color-text-secondary)]">
               {contact.title || "No title"} {contact.email ? `\u00b7 ${contact.email}` : ""}
               {(() => {

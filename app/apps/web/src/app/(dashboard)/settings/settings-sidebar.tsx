@@ -30,9 +30,12 @@ import {
   Radio,
   Inbox,
   Package,
+  Library,
+  Send,
 } from "lucide-react";
 import { BILLING_PAGE_ENABLED } from "@/lib/billing/page-visibility";
 import { EVALS_PAGE_ENABLED, MCP_PAGE_ENABLED } from "@/lib/settings/admin-tools-visibility";
+import { DOCS_PAGE_ENABLED } from "@/lib/docs/page-visibility";
 
 interface NavItem {
   label: string;
@@ -68,6 +71,7 @@ const settingsNav: NavSection[] = [
       { label: "ICP", href: "/settings/icp", icon: Target },
       { label: "Product & Voice", href: "/settings/product", icon: Package },
       { label: "Mail & Calendar", href: "/settings/mail-calendar", icon: Mail },
+      { label: "Sending infrastructure", href: "/settings/sending-infrastructure", icon: Send },
       { label: "Capture approvals", href: "/settings/capture-approvals", icon: Inbox },
       { label: "Members", href: "/settings/members", icon: Users },
       { label: "Knowledge", href: "/settings/knowledge", icon: BookOpen },
@@ -82,6 +86,14 @@ const settingsNav: NavSection[] = [
       { label: "Recording", href: "/settings/recording", icon: Video, ready: false },
       { label: "Signals", href: "/settings/signals", icon: Radio, ready: false },
       { label: "Workflows", href: "/settings/workflows", icon: Workflow, ready: false },
+    ],
+  },
+  {
+    label: "Resources",
+    items: [
+      // Dev-only: methodology docs, 404s in production builds
+      // (lib/docs/page-visibility.ts).
+      { label: "Documentation", href: "/settings/docs", icon: Library, ready: DOCS_PAGE_ENABLED },
     ],
   },
   {

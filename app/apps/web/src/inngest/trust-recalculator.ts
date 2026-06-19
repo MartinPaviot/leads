@@ -3,6 +3,14 @@
  *
  * Runs weekly, queries outcome data for each tenant, recomputes
  * effective thresholds, and persists them to tenant settings.
+ *
+ * CLE-16: `recalculateThresholds` now (a) skips the hard-excluded outbound
+ * classes (never writes a learnable bar for them), (b) updates incrementally
+ * from the previous learned value (bounded [0.5, 1.0]), (c) folds CLE-11
+ * reversal/bounce as a bad-outcome signal, and (d) emits a structured
+ * `learned-threshold.update` log line per changed class. The cadence (weekly,
+ * Mon 04:00 UTC) and the per-tenant isolation are unchanged — the new signal +
+ * observability live inside the function the cron already calls per tenant.
  */
 
 import { inngest } from "./client";

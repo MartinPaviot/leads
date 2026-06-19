@@ -17,7 +17,7 @@ import { db } from "@/db";
 import { deals, tasks, contacts, companies, tenants } from "@/db/schema";
 import { and, eq, isNull, inArray, desc, sql } from "drizzle-orm";
 import type { CallNotes } from "./extraction-schema";
-import { getCaptureApprovalMode } from "@/lib/capture/approval";
+import { getFieldApprovalMode } from "@/lib/capture/approval";
 import { logDealEvent } from "@/lib/deals/log-deal-event";
 
 const OPEN_STAGES = ["lead", "qualification", "demo", "trial", "proposal", "negotiation"] as const;
@@ -86,12 +86,13 @@ export async function applyCallToCrm(args: ApplyCallArgs): Promise<ApplyCallResu
     .from(tenants)
     .where(eq(tenants.id, tenantId))
     .limit(1);
-  const reviewMode =
-    getCaptureApprovalMode(tenantRow?.settings as Record<string, unknown> | null) === "review";
-  const mKey = reviewMode ? "pendingMeddic" : "meddic";
-  const eKey = reviewMode ? "pendingEvidence" : "evidence";
-  const ciKey = reviewMode ? "pendingCallIntel" : "callIntel";
-  const cpKey = reviewMode ? "pendingCallProfile" : "callProfile";
+  // Per-field auto/review (hybrid workflow) — each fact follows its own mode,
+  // so review can wait on MEDDPICC while account intel syncs live.
+  const settings = tenantRow?.settings as Record<string, unknown> | null;
+  const mKey = getFieldApprovalMode(settings, "meddic") === "review" ? "pendingMeddic" : "meddic";
+  const eKey = getFieldApprovalMode(settings, "evidence") === "review" ? "pendingEvidence" : "evidence";
+  const ciKey = getFieldApprovalMode(settings, "callIntel") === "review" ? "pendingCallIntel" : "callIntel";
+  const cpKey = getFieldApprovalMode(settings, "callProfile") === "review" ? "pendingCallProfile" : "callProfile";
 
   const outcome = notes.outcome;
   const bs = notes.buyingSignals;

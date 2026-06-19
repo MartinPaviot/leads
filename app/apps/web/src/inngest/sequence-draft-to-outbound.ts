@@ -39,7 +39,12 @@ import {
 } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { decideDispatch } from "@/lib/sequence-drafts/dispatch-decision";
-import type { DraftStatus } from "@/lib/sequence-drafts/state-machine";
+import { canTransition, type DraftStatus } from "@/lib/sequence-drafts/state-machine";
+import {
+  collectCitationUrls,
+  decideCitationGate,
+} from "@/lib/sequence-drafts/citations";
+import { verifySignalUrlsBatch } from "@/lib/signals/url-verifier-cache";
 import { logger } from "@/lib/observability/logger";
 
 type DispatchEvent = {
@@ -77,6 +82,7 @@ export const sequenceDraftToOutbound = inngest.createFunction(
         bodyHtml: sequenceDrafts.bodyHtml,
         bodyText: sequenceDrafts.bodyText,
         status: sequenceDrafts.status,
+        personalizationSources: sequenceDrafts.personalizationSources,
       })
       .from(sequenceDrafts)
       .where(
@@ -116,6 +122,53 @@ export const sequenceDraftToOutbound = inngest.createFunction(
         channel: draftChannel,
         status: draft.status,
       };
+    }
+
+    // OUT-02 citation gate: re-verify every URL the personalization
+    // cites at T-0 of the send. URLs were verified at GENERATION
+    // time, but a job posting pulled or a blog post deleted between
+    // approval and send turns the message into a detectable lie.
+    // Fail-closed: any unverified source recalls the draft to the
+    // founder's review queue with the reason (state-machine `recall`).
+    // Applies to phone scripts too — a script cites sources as well.
+    const citationUrls = collectCitationUrls(draft.personalizationSources);
+    if (citationUrls.length > 0) {
+      const verifications = await step.run("verify-citations", async () => {
+        const results = await verifySignalUrlsBatch(citationUrls);
+        return results.map((r) => ({
+          url: r.url,
+          verified: r.status === "verified",
+          reason: r.reason,
+        }));
+      });
+
+      const gate = decideCitationGate(verifications);
+      if (!gate.ok) {
+        const recall = canTransition(draft.status as DraftStatus, "recall");
+        if (recall.allowed) {
+          await step.run("recall-draft", async () => {
+            await db
+              .update(sequenceDrafts)
+              .set({
+                status: recall.nextStatus,
+                reviewReason: gate.reviewReason,
+                reviewedAt: new Date(),
+                scheduledSendAt: null,
+                updatedAt: new Date(),
+              })
+              .where(eq(sequenceDrafts.id, draftId));
+          });
+        }
+        logger.warn("sequence-draft-to-outbound.stale_citation", {
+          draftId,
+          deadUrls: gate.deadUrls,
+        });
+        return {
+          skipped: "stale_citation",
+          draftId,
+          deadUrls: gate.deadUrls,
+        };
+      }
     }
 
     // B (task) — phone_task branch. Emits phone/task-queued with the

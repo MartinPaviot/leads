@@ -1,0 +1,210 @@
+{
+  "initiative": "chat-live-executor",
+  "goal": "Make the chat a true task executor able to act live on every page (do-everything-on-demand) via a declarative Page Action Registry + a single unified control plane.",
+  "constitution": "_specs/chat-live-executor/README.md",
+  "audit": "_research/chat-task-executor-audit-2026-06-16.md",
+  "spec_audit": "_specs/chat-live-executor/_SPEC-AUDIT.md",
+  "conventions": {
+    "spec_folder": "_specs/CLE-NN-shortname/",
+    "spec_files": ["requirements.md", "design.md", "tasks.md"],
+    "branch": "feat/CLE-NN-shortname",
+    "commit_trailer": "Co-Authored-By: Rippletide <admin@rippletide.com>",
+    "merge_rule": "merge to main only on Phase 6 PASS"
+  },
+  "features": [
+    {
+      "id": "CLE-00-approval-gate-rewire",
+      "phase": 0,
+      "title": "Reparer le garde-fou d'approbation mort-cable",
+      "depends_on": [],
+      "milestone": "M0",
+      "checkpoint": false,
+      "completeness_target": 10,
+      "summary": "route.ts passe agentApprovalMode brut (v2 'review-each') alors que les outils testent === 'ask' (v1). Lire via readApprovalMode() comme SSOT dans la route + brancher create/update tools sur l'enum v2. Carte-proposition rebranchee. Tests de regression sur le mode.",
+      "primary_files": ["app/apps/web/src/app/api/chat/route.ts", "app/apps/web/src/lib/chat/tools/create.ts", "app/apps/web/src/lib/guardrails/approval-mode.ts", "app/apps/web/src/lib/prompts/chat-system-prompt.ts"]
+    },
+    {
+      "id": "CLE-01-tool-routing-reconcile",
+      "phase": 0,
+      "title": "Reconcilier les maps tool-router/orchestrator avec les 158 outils reels + drift-guard",
+      "depends_on": [],
+      "milestone": "M0",
+      "checkpoint": false,
+      "completeness_target": 10,
+      "summary": "Corriger le commentaire '126'->158, router les ~38 outils non-mappes, retirer/traiter les 3 outils fantomes, et ajouter un test qui ASSERTE que tout outil de buildAllChatTools appartient a un groupe (anti-derive futur).",
+      "primary_files": ["app/apps/web/src/lib/chat/tool-router.ts", "app/apps/web/src/lib/agents/orchestrator.ts", "app/apps/web/src/lib/chat/tools/index.ts"]
+    },
+    {
+      "id": "CLE-02-custom-skill-bridge",
+      "phase": 0,
+      "title": "Bridge custom-skills vers le chat (ou retrait formel des fantomes)",
+      "depends_on": ["CLE-01-tool-routing-reconcile"],
+      "milestone": "M0",
+      "checkpoint": false,
+      "completeness_target": 9,
+      "summary": "Decider et implementer: soit construire runCustomSkill/listCustomSkills/forkSkill comme vrais makeTool branches sur skills/custom/executor.ts, soit retirer proprement les references fantomes du router et du system-prompt. Recommandation: construire le bridge (les custom skills existent en DB et via REST).",
+      "primary_files": ["app/apps/web/src/skills/custom/executor.ts", "app/apps/web/src/lib/chat/tools/skills.ts", "app/apps/web/src/lib/prompts/chat-system-prompt.ts"]
+    },
+    {
+      "id": "CLE-03-action-directive-and-registry",
+      "phase": 1,
+      "title": "PAR core: directive invokeAction + registre client + hook + dispatch + round-trip",
+      "depends_on": [],
+      "milestone": "M1",
+      "checkpoint": false,
+      "completeness_target": 10,
+      "summary": "Etendre l'union UiDirective avec 'invokeAction' (contrat 3.1). Implementer le registre client (3.3), le type PageAction (3.2), le hook useRegisterPageActions, getActionManifest, runRegisteredAction. Brancher la branche 'invokeAction' dans use-ui-directives. Implementer le canal de resultat (3.5) avec l'enveloppe figee. Smoke action de test.",
+      "primary_files": ["app/apps/web/src/lib/chat/ui-directives.ts", "app/apps/web/src/components/chat/use-ui-directives.ts", "app/apps/web/src/lib/chat/page-actions/registry.ts", "app/apps/web/src/lib/chat/page-actions/types.ts", "app/apps/web/src/components/chat/chat-dock.tsx"]
+    },
+    {
+      "id": "CLE-04-page-action-tools",
+      "phase": 1,
+      "title": "Outils serveur listPageActions/invokePageAction + plumbing + heuristique prompt",
+      "depends_on": ["CLE-03-action-directive-and-registry"],
+      "milestone": "M1",
+      "checkpoint": false,
+      "completeness_target": 10,
+      "summary": "Nouveaux outils serveur (3.4) qui lisent le manifest passe dans le body, valident params contre paramsJsonSchema, passent par decideAction (stub avant CLE-10) et emettent invokeActionDirective. Plumbing du manifest dans le POST. Integration capability-resolver + tool-router. Addendum system-prompt pour l'heuristique a deux niveaux (3.6).",
+      "primary_files": ["app/apps/web/src/lib/chat/tools/page-actions.ts", "app/apps/web/src/app/api/chat/route.ts", "app/apps/web/src/lib/chat/tools/index.ts", "app/apps/web/src/lib/agents/capability-resolver.ts", "app/apps/web/src/lib/prompts/chat-system-prompt.ts"]
+    },
+    {
+      "id": "CLE-05-action-confirmation-ux",
+      "phase": 1,
+      "title": "UX confirmation/preview/edit-params des actions de page",
+      "depends_on": ["CLE-03-action-directive-and-registry", "CLE-04-page-action-tools"],
+      "milestone": "M1",
+      "checkpoint": false,
+      "completeness_target": 9,
+      "summary": "Quand requireConfirm=true, rendre une carte d'action editable (params previsualises, modifiables) avant execution; sur Approve -> runRegisteredAction. Reutiliser et corriger le pattern proposal-card (chat-action-cards) et le selecteur 'Ask every time/Auto-run' aujourd'hui cosmetique. Surlignage de la cible apres execution.",
+      "primary_files": ["app/apps/web/src/components/chat/chat-action-cards.tsx", "app/apps/web/src/components/chat/action-card.tsx", "app/apps/web/src/components/chat/use-ui-directives.ts"]
+    },
+    {
+      "id": "CLE-06-register-opportunities",
+      "phase": 1,
+      "title": "Enregistrer les actions de /opportunities (page pilote)",
+      "depends_on": ["CLE-04-page-action-tools", "CLE-05-action-confirmation-ux"],
+      "milestone": "M1",
+      "checkpoint": false,
+      "completeness_target": 9,
+      "summary": "Declarer: moveStage (+ close-reason Won/Lost), createDeal, applyFilter, toggleView (board/table/archive), autoProgress(apply), delete/restore, analyzePipeline. Reutiliser les handlers existants de la page. Tests de chaque action.",
+      "primary_files": ["app/apps/web/src/app/(dashboard)/opportunities/page.tsx", "app/apps/web/src/app/(dashboard)/opportunities/[id]/page.tsx"]
+    },
+    {
+      "id": "CLE-07-register-accounts",
+      "phase": 1,
+      "title": "Enregistrer les actions de /accounts (liste + detail)",
+      "depends_on": ["CLE-04-page-action-tools", "CLE-05-action-confirmation-ux"],
+      "milestone": "M1",
+      "checkpoint": false,
+      "completeness_target": 9,
+      "summary": "Declarer: applyFilter (9 colonnes), smartSearch, toggleView (excluded/archive), selectAllMatching + bulk (enrich/score/signals/extractContacts/exclude/delete/callMode), startTamBuild, openPersonaSearch, single enrich/score, inline field edit. Reutiliser handlers existants.",
+      "primary_files": ["app/apps/web/src/app/(dashboard)/accounts/page.tsx", "app/apps/web/src/app/(dashboard)/accounts/[id]/page.tsx"]
+    },
+    {
+      "id": "CLE-08-register-contacts",
+      "phase": 1,
+      "title": "Enregistrer les actions de /contacts (liste + detail)",
+      "depends_on": ["CLE-04-page-action-tools", "CLE-05-action-confirmation-ux"],
+      "milestone": "M1",
+      "checkpoint": false,
+      "completeness_target": 9,
+      "summary": "Declarer: applyFilter (8 colonnes), smartSearch, openImport/openSmartImport, selectAllMatching + bulk (enrich/findMobile/merge/delete/restore), scoreAll, createContact, inline edit (title/email/phone), call, sendEmail. Reutiliser handlers existants.",
+      "primary_files": ["app/apps/web/src/app/(dashboard)/contacts/page.tsx", "app/apps/web/src/app/(dashboard)/contacts/[id]/page.tsx"]
+    },
+    {
+      "id": "CLE-09-register-call-mode",
+      "phase": 1,
+      "title": "Enregistrer les actions de /call-mode (hors dial/recorder)",
+      "depends_on": ["CLE-04-page-action-tools", "CLE-05-action-confirmation-ux"],
+      "milestone": "M1",
+      "checkpoint": false,
+      "completeness_target": 8,
+      "summary": "Declarer: activateSectorList/activateAllIcp, createSectorList(phrase), editPlan, fromNumberPick, byDayView, sortQueue, scriptRegenerate/scriptEdit, rowEnrich/rowFindMobile, roleObsolete, writeEmailDraft, bookMeeting. EXCLURE explicitement dial/hangup/voicemail/disposition (human-bound, contrat 2).",
+      "primary_files": ["app/apps/web/src/app/(dashboard)/call-mode/page.tsx", "app/apps/web/src/app/(dashboard)/call-mode/_list-selector.tsx", "app/apps/web/src/app/(dashboard)/call-mode/_call-actions.tsx", "app/apps/web/src/app/(dashboard)/call-mode/_call-script.tsx"]
+    },
+    {
+      "id": "CLE-10-unified-approval-plane",
+      "phase": 2,
+      "title": "Plan de controle unifie: decideAction + collapse des 4 vocabulaires",
+      "depends_on": ["CLE-00-approval-gate-rewire", "CLE-04-page-action-tools"],
+      "milestone": "M2",
+      "checkpoint": false,
+      "completeness_target": 9,
+      "summary": "Implementer decideAction (3.5bis) comme seule autorite. Brancher: outils chat create/update, invokePageAction, boucles background (agent-reactor/autonomous-pipeline cessent de re-implementer leur mapping). Mapper/depricier autonomyConfig.level sur agentApprovalMode v2. Doc de migration.",
+      "primary_files": ["app/apps/web/src/lib/guardrails/decide-action.ts", "app/apps/web/src/lib/guardrails/approval-mode.ts", "app/apps/web/src/lib/chat/tools/create.ts", "app/apps/web/src/lib/chat/tools/update.ts", "app/apps/web/src/inngest/agent-reactor.ts", "app/apps/web/src/inngest/autonomous-pipeline.ts"]
+    },
+    {
+      "id": "CLE-11-audit-undo-extension",
+      "phase": 2,
+      "title": "Etendre audit tool_call_events + undo aux actions PAR + outbound (fenetre d'undo)",
+      "depends_on": ["CLE-04-page-action-tools", "CLE-10-unified-approval-plane"],
+      "milestone": "M2",
+      "checkpoint": false,
+      "completeness_target": 8,
+      "summary": "Enregistrer chaque invokePageAction mutant dans tool_call_events. Implementer la 'fenetre d'undo' pour le sortant: envoi programme avec delai annulable (=unsend de facto) cable au worker d'envoi. undoLastAction reconnait les actions PAR reversibles.",
+      "primary_files": ["app/apps/web/src/lib/chat/tool-call-log.ts", "app/apps/web/src/lib/chat/tools/undo.ts", "app/apps/web/src/lib/chat/tools/page-actions.ts", "app/apps/web/src/inngest/email-send-worker.ts"]
+    },
+    {
+      "id": "CLE-12-unified-permission-matrix",
+      "phase": 2,
+      "title": "Matrice de permissions unique (middleware + capability-resolver + PAR)",
+      "depends_on": ["CLE-04-page-action-tools", "CLE-10-unified-approval-plane"],
+      "milestone": "M2",
+      "checkpoint": false,
+      "completeness_target": 8,
+      "summary": "Une SSOT role x action (etendre lib/auth/permissions.ts) consommee par: middleware (viewer + admin/member), capability-resolver (gating outils), et invokePageAction (gating actions). Combler le partiel admin/member sur les routes d'ecriture courantes via un garde partage.",
+      "primary_files": ["app/apps/web/src/lib/auth/permissions.ts", "app/apps/web/src/lib/auth/viewer-guard.ts", "app/apps/web/src/lib/agents/capability-resolver.ts", "app/apps/web/src/middleware.ts"]
+    },
+    {
+      "id": "CLE-13-send-guardrail-hardening",
+      "phase": 2,
+      "title": "Durcissement des guardrails sortant",
+      "depends_on": ["CLE-10-unified-approval-plane"],
+      "milestone": "M2",
+      "checkpoint": false,
+      "completeness_target": 8,
+      "summary": "Brancher enforceSendingIdentity (orphelin) aux 5 chokepoints d'envoi; fermer signalAutoEnroll (ajout decideAction); appliquer opt-out sur cron SMTP + route meeting-follow-up; fenetres horaires en TZ tenant (pas UTC). Tests des points d'application.",
+      "primary_files": ["app/apps/web/src/lib/guardrails/sending-identity.ts", "app/apps/web/src/inngest/signal-to-sequence.ts", "app/apps/web/src/lib/emails/outbound-smtp-send.ts", "app/apps/web/src/inngest/email-send-worker.ts"]
+    },
+    {
+      "id": "CLE-14-register-remaining-pages",
+      "phase": 3,
+      "title": "Sweep de parite: enregistrer les pages restantes",
+      "depends_on": ["CLE-06-register-opportunities", "CLE-07-register-accounts", "CLE-08-register-contacts", "CLE-09-register-call-mode"],
+      "milestone": "M3",
+      "checkpoint": false,
+      "completeness_target": 8,
+      "summary": "Appliquer le pattern PAR a: inbox (triage/reply/snooze/book/stop-seq), meetings (notes edit/follow-up/share/prep/intel-approve; PAS recorder), sequences+wizard (steps/enroll/launch/approve-all/review), tasks, knowledge, proposals (mapping/fill/regenerate; PAS upload/download), home, settings cluster.",
+      "primary_files": ["app/apps/web/src/app/(dashboard)/inbox/page.tsx", "app/apps/web/src/app/(dashboard)/meetings/[id]/page.tsx", "app/apps/web/src/app/(dashboard)/sequences/[id]/page.tsx", "app/apps/web/src/app/(dashboard)/tasks/page.tsx"]
+    },
+    {
+      "id": "CLE-15-actuation-visibility",
+      "phase": 3,
+      "title": "Visibilite de l'actionnement: narrate+actuate + surlignage + degradation off-web",
+      "depends_on": ["CLE-04-page-action-tools"],
+      "milestone": "M3",
+      "checkpoint": false,
+      "completeness_target": 8,
+      "summary": "Mode 'narrate+actuate': un resultat headless peut naviguer + surligner la cible. Surlignage post-action de l'element change. Degradation propre off-web (Slack/MCP): si pas de manifest, masquer les actions de page et l'expliquer.",
+      "primary_files": ["app/apps/web/src/components/chat/use-ui-directives.ts", "app/apps/web/src/lib/chat/page-actions/registry.ts", "app/apps/web/src/lib/chat/tools/page-actions.ts"]
+    },
+    {
+      "id": "CLE-16-autonomy-level-wiring",
+      "phase": 4,
+      "title": "Cabler reellement le niveau d'autonomie via le plan unifie",
+      "depends_on": ["CLE-10-unified-approval-plane", "CLE-11-audit-undo-extension"],
+      "milestone": "M4",
+      "checkpoint": false,
+      "completeness_target": 7,
+      "summary": "Faire en sorte que autonomyConfig.level (copilot/guided/autonomous/strategic) pilote REELLEMENT decideAction (mapping documente niveau->disposition par classe d'action). Seuils de confiance appris (F005) integres. Trust score gate la montee de niveau.",
+      "primary_files": ["app/apps/web/src/app/api/settings/autonomy/route.ts", "app/apps/web/src/lib/guardrails/decide-action.ts", "app/apps/web/src/lib/guardrails/approval-mode.ts"]
+    }
+  ],
+  "milestones": [
+    { "id": "M0", "after": "CLE-02-custom-skill-bridge", "checkpoint": true, "goal": "Base de correctness: garde-fou approbation rebranche, routage tools fiable, custom-skills tranches." },
+    { "id": "M1", "after": "CLE-09-register-call-mode", "checkpoint": true, "goal": "PAR live sur 4 pages riches: le chat actionne opportunities/accounts/contacts/call-mode sous les yeux de l'utilisateur." },
+    { "id": "M2", "after": "CLE-13-send-guardrail-hardening", "checkpoint": true, "goal": "Plan de controle unifie: une decision, un journal/undo, une matrice de permissions, guardrails sortant durcis." },
+    { "id": "M3", "after": "CLE-15-actuation-visibility", "checkpoint": false, "goal": "Parite etendue a toutes les pages + visibilite de l'actionnement." },
+    { "id": "M4", "after": "CLE-16-autonomy-level-wiring", "checkpoint": false, "goal": "Autonomie reelle pilotee par le niveau configure." }
+  ]
+}

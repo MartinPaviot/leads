@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { tenants, contacts, connectedMailboxes } from "@/db/schema";
 import { usageEvents } from "@/db/billing-schema";
 import { eq, and, gte, isNull, sql } from "drizzle-orm";
+import { BILLING_PAGE_ENABLED } from "./page-visibility";
 
 // ── Plan tier definitions ──────────────────────────────────────────
 // -1 means unlimited for that resource.
@@ -88,6 +89,17 @@ export async function checkPlanLimit(
   tenantId: string,
   resource: LimitedResource,
 ): Promise<PlanLimitResult> {
+  // 0. Billing is gated off in prod (BILLING_PAGE_ENABLED, same flag as the
+  //    /settings/billing page). While it's off there is no way for a user to
+  //    upgrade, so enforcing quotas hard-blocks real usage with no recourse —
+  //    e.g. the chat 403'd at 100 AI queries/mo on the default `trial` plan
+  //    (no Stripe subscription -> resolvePlan defaults to trial). Don't enforce
+  //    until billing is live; flip BILLING_PAGE_ENABLED and limits resume.
+  //    (NODE_ENV !== "production" in dev/test, so enforcement stays testable.)
+  if (!BILLING_PAGE_ENABLED) {
+    return { allowed: true, current: 0, limit: -1, plan: "unmetered" };
+  }
+
   // 1. Read tenant plan
   const [tenant] = await db
     .select({ plan: tenants.plan })

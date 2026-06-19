@@ -8,6 +8,9 @@ import { embedEntity, contactToText } from "@/lib/ai/embeddings";
 import { extractDomain } from "@/lib/util/email";
 import { checkPlanLimit } from "@/lib/billing/plan-limits";
 import { apiError } from "@/lib/infra/api-errors";
+import { phoneRegionKeySql } from "@/lib/contacts/phone-region";
+import { recencyBucketSql } from "@/lib/contacts/recency";
+import { classifyIndustryFamilies, familiesToIndustries } from "@/lib/search/industry-family";
 import { z } from "zod";
 
 const createContactSchema = z.object({
@@ -118,6 +121,20 @@ export async function GET(req: Request) {
     const fGrade = (url.searchParams.get("fGrade") || "").split(",").map((s) => s.trim()).filter(Boolean);
     const fLinkedin = url.searchParams.get("fLinkedin"); // "has" | "empty"
     const fPhone = url.searchParams.get("fPhone"); // "has" | "empty"
+    // Phone region — multi-select of country dial codes ("41", "33", …) plus
+    // the "none"/"unknown" sentinels. Computed in SQL from the phone-region
+    // SSOT so it spans ALL contacts (the list paginates), not just the page.
+    const fPhoneRegion = (url.searchParams.get("fPhoneRegion") || "").split(",").map((s) => s.trim()).filter(Boolean);
+    // Persona: Apollo seniority tier stored at properties.seniority (raw keys).
+    const fSeniority = (url.searchParams.get("fSeniority") || "").split(",").map((s) => s.trim()).filter(Boolean);
+    // Engagement recency bucket (never / 7 / 30 / 90 / old), computed in SQL
+    // from the last real interaction — the never-contacted / stalled split.
+    const fRecency = (url.searchParams.get("fRecency") || "").split(",").map((s) => s.trim()).filter(Boolean);
+    // Region / canton — the contact's company state (properties.state), e.g.
+    // Geneva / Vaud / Valais. Same self-contained company subquery as fIndustry.
+    const fRegion = (url.searchParams.get("fRegion") || "").split(",").map((s) => s.trim()).filter(Boolean);
+    // Sector family — resolved to the company industries via the LLM classifier.
+    const fFamily = (url.searchParams.get("fFamily") || "").split(",").map((s) => s.trim()).filter(Boolean);
 
     if (fName) conds.push(sql`(coalesce(${contacts.firstName}, '') || ' ' || coalesce(${contacts.lastName}, '')) ILIKE ${"%" + fName + "%"}`);
     if (fEmail) conds.push(sql`${contacts.email} ILIKE ${"%" + fEmail + "%"}`);
@@ -162,6 +179,42 @@ export async function GET(req: Request) {
     if (fLinkedin === "empty") conds.push(sql`(${contacts.linkedinUrl} IS NULL OR ${contacts.linkedinUrl} = '')`);
     if (fPhone === "has") conds.push(sql`(${contacts.phone} IS NOT NULL AND ${contacts.phone} <> '')`);
     if (fPhone === "empty") conds.push(sql`(${contacts.phone} IS NULL OR ${contacts.phone} = '')`);
+    if (fPhoneRegion.length > 0) {
+      const regionExpr = sql.raw(phoneRegionKeySql('"contacts"."phone"'));
+      conds.push(sql`(${regionExpr}) = ANY(ARRAY[${sql.join(fPhoneRegion.map((r) => sql`${r}`), sql`, `)}]::text[])`);
+    }
+    if (fSeniority.length > 0) {
+      conds.push(sql`${contacts.properties}->>'seniority' = ANY(ARRAY[${sql.join(fSeniority.map((s) => sql`${s}`), sql`, `)}]::text[])`);
+    }
+    if (fRecency.length > 0) {
+      const recencyExpr = sql.raw(recencyBucketSql());
+      conds.push(sql`(${recencyExpr}) = ANY(ARRAY[${sql.join(fRecency.map((r) => sql`${r}`), sql`, `)}]::text[])`);
+    }
+    if (fRegion.length > 0) {
+      conds.push(sql`${contacts.companyId} IN (
+        SELECT id FROM companies
+        WHERE tenant_id = ${authCtx.tenantId} AND deleted_at IS NULL
+          AND btrim(properties->>'state') = ANY(ARRAY[${sql.join(fRegion.map((r) => sql`${r}`), sql`, `)}]::text[])
+      )`);
+    }
+    if (fFamily.length > 0) {
+      const indRows = await db
+        .selectDistinct({ industry: companies.industry })
+        .from(companies)
+        .where(and(eq(companies.tenantId, authCtx.tenantId), isNull(companies.deletedAt)));
+      const industries = indRows.map((r) => r.industry).filter((x): x is string => !!x);
+      const famMap = await classifyIndustryFamilies(industries, authCtx.tenantId);
+      const inds = familiesToIndustries(famMap, fFamily);
+      conds.push(
+        inds.length > 0
+          ? sql`${contacts.companyId} IN (
+              SELECT id FROM companies
+              WHERE tenant_id = ${authCtx.tenantId} AND deleted_at IS NULL
+                AND industry = ANY(ARRAY[${sql.join(inds.map((i) => sql`${i}`), sql`, `)}]::text[])
+            )`
+          : sql`false`,
+      );
+    }
 
     // Smart-filter score threshold (e.g. "high fit" -> score >= 70), applied
     // server-side so the count reflects it — parity with /api/accounts.
@@ -275,16 +328,23 @@ export async function GET(req: Request) {
 
     // Company filter options — distinct company names across ALL the tenant's
     // (non-deleted) contacts, so the header dropdown isn't limited to the
-    // loaded page. Grades are a fixed scale, so the page hardcodes those.
+    // loaded page, each with its contact count so the menu shows "(N)" next to
+    // every value. Grades are a fixed scale, so the page hardcodes those.
     let companyOptions: string[] = [];
+    let companyCounts: Record<string, number> = {};
     try {
-      const optRows = await db
-        .selectDistinct({ name: companies.name })
-        .from(companies)
-        .innerJoin(contacts, eq(contacts.companyId, companies.id))
-        .where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt), isNull(companies.deletedAt)))
-        .orderBy(companies.name);
-      companyOptions = optRows.map((r) => r.name).filter((n): n is string => !!n);
+      const rows = await db.execute(sql`
+        SELECT co.name AS name, count(*)::int AS count
+        FROM contacts c
+        JOIN companies co ON co.id = c.company_id
+        WHERE c.tenant_id = ${authCtx.tenantId} AND c.deleted_at IS NULL
+          AND co.deleted_at IS NULL AND co.name IS NOT NULL AND co.name <> ''
+        GROUP BY co.name
+        ORDER BY co.name ASC
+      `);
+      const list = (rows as unknown as Array<{ name: string; count: number }>);
+      companyOptions = list.map((r) => r.name);
+      companyCounts = Object.fromEntries(list.map((r) => [r.name, Number(r.count)]));
     } catch (e) {
       console.warn("Failed to fetch contact company options:", e);
     }
@@ -310,22 +370,127 @@ export async function GET(req: Request) {
     }
 
     // Title filter options — distinct titles across ALL contacts, frequency-
-    // ordered so the common roles sit on top of the dropdown. Capped: the
-    // dropdown has its own search-within for the long tail.
+    // ordered so the common roles sit on top of the dropdown, each with its
+    // contact count for the "(N)" badge. Capped: the dropdown has its own
+    // search-within for the long tail.
     let titleOptions: string[] = [];
+    let titleCounts: Record<string, number> = {};
     try {
       const rows = await db.execute(sql`
-        SELECT title FROM contacts
+        SELECT title, count(*)::int AS count FROM contacts
         WHERE tenant_id = ${authCtx.tenantId} AND deleted_at IS NULL
           AND title IS NOT NULL AND title <> ''
         GROUP BY title
         ORDER BY count(*) DESC, title ASC
         LIMIT 60
       `);
-      titleOptions = (rows as unknown as Array<{ title: string }>).map((r) => r.title);
+      const list = (rows as unknown as Array<{ title: string; count: number }>);
+      titleOptions = list.map((r) => r.title);
+      titleCounts = Object.fromEntries(list.map((r) => [r.title, Number(r.count)]));
     } catch (e) {
       console.warn("Failed to fetch contact title options:", e);
     }
+
+    // Grade band counts (A+ … F) over ALL the tenant's scored contacts, mirroring
+    // the getGrade() ladder the fGrade filter uses, for the Score column "(N)".
+    let scoreCounts: Record<string, number> = {};
+    try {
+      const rows = await db.execute(sql`
+        SELECT CASE
+          WHEN round(score) >= 90 THEN 'A+'
+          WHEN round(score) >= 80 THEN 'A'
+          WHEN round(score) >= 60 THEN 'B'
+          WHEN round(score) >= 40 THEN 'C'
+          WHEN round(score) >= 20 THEN 'D'
+          WHEN round(score) >= 0 THEN 'F'
+          ELSE NULL END AS grade, count(*)::int AS count
+        FROM contacts
+        WHERE tenant_id = ${authCtx.tenantId} AND deleted_at IS NULL AND score IS NOT NULL
+        GROUP BY 1
+      `);
+      for (const r of rows as unknown as Array<{ grade: string | null; count: number }>) {
+        if (r.grade) scoreCounts[r.grade] = Number(r.count);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch contact grade counts:", e);
+    }
+
+    // Phone-region band counts (dial code / none / unknown) over the active
+    // view, mirroring phoneRegionKeySql, for the Phone column "(N)" + the
+    // dropdown's option list. Same SSOT the fPhoneRegion filter uses.
+    const phoneRegionCounts: Record<string, number> = {};
+    try {
+      const regionExpr = sql.raw(phoneRegionKeySql('"contacts"."phone"'));
+      const rows = await db.execute(sql`
+        SELECT ${regionExpr} AS region, count(*)::int AS count
+        FROM contacts
+        WHERE tenant_id = ${authCtx.tenantId}
+          AND ${showDeleted ? sql`deleted_at IS NOT NULL` : sql`deleted_at IS NULL`}
+        GROUP BY 1
+      `);
+      for (const r of rows as unknown as Array<{ region: string | null; count: number }>) {
+        if (r.region) phoneRegionCounts[r.region] = Number(r.count);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch contact phone-region counts:", e);
+    }
+
+    // Seniority band counts (raw Apollo tier keys) over the active view, for the
+    // Persona filter's option list + "(N)".
+    const seniorityCounts: Record<string, number> = {};
+    try {
+      const rows = await db.execute(sql`
+        SELECT ${contacts.properties}->>'seniority' AS s, count(*)::int AS count
+        FROM contacts
+        WHERE tenant_id = ${authCtx.tenantId}
+          AND ${showDeleted ? sql`deleted_at IS NOT NULL` : sql`deleted_at IS NULL`}
+          AND ${contacts.properties}->>'seniority' IS NOT NULL AND ${contacts.properties}->>'seniority' <> ''
+        GROUP BY 1
+      `);
+      for (const r of rows as unknown as Array<{ s: string | null; count: number }>) {
+        if (r.s) seniorityCounts[r.s] = Number(r.count);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch contact seniority counts:", e);
+    }
+
+    // Engagement-recency bucket counts (never / 7 / 30 / 90 / old), mirroring
+    // recencyBucketSql, for the "Dernier contact" filter.
+    const recencyCounts: Record<string, number> = {};
+    try {
+      const recencyExpr = sql.raw(recencyBucketSql());
+      const rows = await db.execute(sql`
+        SELECT ${recencyExpr} AS bucket, count(*)::int AS count
+        FROM contacts
+        WHERE tenant_id = ${authCtx.tenantId}
+          AND ${showDeleted ? sql`deleted_at IS NOT NULL` : sql`deleted_at IS NULL`}
+        GROUP BY 1
+      `);
+      for (const r of rows as unknown as Array<{ bucket: string | null; count: number }>) {
+        if (r.bucket) recencyCounts[r.bucket] = Number(r.count);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch contact recency counts:", e);
+    }
+
+    // Region / canton counts — the contacts' company state, for the Géographie
+    // filter's options + "(N)".
+    const regionCounts: Record<string, number> = {};
+    try {
+      const rows = await db.execute(sql`
+        SELECT btrim(co.properties->>'state') AS r, count(*)::int AS count
+        FROM contacts c JOIN companies co ON co.id = c.company_id
+        WHERE c.tenant_id = ${authCtx.tenantId} AND c.deleted_at IS NULL AND co.deleted_at IS NULL
+          AND btrim(coalesce(co.properties->>'state','')) <> ''
+        GROUP BY 1
+      `);
+      for (const r of rows as unknown as Array<{ r: string | null; count: number }>) {
+        if (r.r) regionCounts[r.r] = Number(r.count);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch contact region counts:", e);
+    }
+
 
     // Canonical paginated shape (items + legacy `contacts`) plus server-sourced
     // filter options for the header dropdowns.
@@ -335,6 +500,18 @@ export async function GET(req: Request) {
       contacts: enrichedContacts,
       pagination: { page, pageSize, total, totalPages, hasMore: page * pageSize < total },
       filterOptions: { companies: companyOptions, industries: industryOptions, titles: titleOptions },
+      // Per-value row counts keyed by the table's filterKey, so each header
+      // dropdown can show "(N)" next to every value.
+      filterCounts: {
+        companyName: companyCounts,
+        industry: Object.fromEntries(industryOptions.map((o) => [o.industry, o.count])),
+        title: titleCounts,
+        score: scoreCounts,
+        phone: phoneRegionCounts,
+        seniority: seniorityCounts,
+        recency: recencyCounts,
+        region: regionCounts,
+      },
     });
   } catch (error) {
     console.error("Failed to fetch contacts:", error);

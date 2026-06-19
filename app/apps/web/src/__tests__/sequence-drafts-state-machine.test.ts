@@ -142,3 +142,25 @@ describe("validateRejectionReason", () => {
     expect(r.ok).toBe(true);
   });
 });
+
+describe("canTransition — recall (OUT-02 citation gate)", () => {
+  it("allows approved → pending_approval (source died between approval and send)", () => {
+    const r = canTransition("approved", "recall");
+    expect(r.allowed).toBe(true);
+    expect(r.nextStatus).toBe("pending_approval");
+  });
+
+  it.each<DraftStatus>(["pending_approval", "rejected", "expired", "sent"])(
+    "rejects recall from %s (idempotent like expire)",
+    (from) => {
+      const r = canTransition(from, "recall");
+      expect(r.allowed).toBe(false);
+      expect(r.nextStatus).toBe(from);
+    },
+  );
+
+  it("a recalled draft is actionable again (not terminal)", () => {
+    const r = canTransition("approved", "recall");
+    expect(isTerminal(r.nextStatus)).toBe(false);
+  });
+});

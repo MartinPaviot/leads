@@ -223,6 +223,13 @@ export interface UpdateCampaignArgs {
    * whole ICP ranked by fit); omit to leave it untouched.
    */
   audience?: SprintAudience | null;
+  /**
+   * Which sector call_list is active (call-lists, _specs/call-lists), stored on
+   * targetFilter.activeListId so the cockpit selector can highlight it. `null`
+   * clears it (back to a system list); omit to leave it untouched. The active
+   * list's segment is passed separately as `audience` (what the top-up reads).
+   */
+  activeListId?: string | null;
 }
 
 /**
@@ -272,6 +279,10 @@ export async function updateCallCampaign(args: UpdateCampaignArgs) {
   if (args.audience !== undefined) {
     if (args.audience === null) delete nextFilter.audience;
     else nextFilter.audience = args.audience;
+  }
+  if (args.activeListId !== undefined) {
+    if (args.activeListId === null) delete nextFilter.activeListId;
+    else nextFilter.activeListId = args.activeListId;
   }
   patch.targetFilter = nextFilter;
 
@@ -476,6 +487,7 @@ export async function getTodaysCallList(tenantId: string, now: Date = new Date()
       contactId: callCampaignTargets.contactId,
       status: callCampaignTargets.status,
       attemptCount: callCampaignTargets.attemptCount,
+      nextAttemptAt: callCampaignTargets.nextAttemptAt,
       lastOutcome: callCampaignTargets.lastOutcome,
       firstName: contacts.firstName,
       lastName: contacts.lastName,

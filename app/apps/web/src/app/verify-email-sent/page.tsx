@@ -5,6 +5,7 @@ import { BodyScrollUnlock } from "@/components/auth/body-scroll-unlock";
 import { sanitizeCallbackUrl } from "@/lib/auth/auth-callback";
 import { resolveInboxDeepLinks } from "@/lib/emails/inbox-deep-links";
 import { ResendVerifyButton } from "./resend-button";
+import { ProviderIcon } from "./provider-icon";
 
 /**
  * S2 / S7 — "Check your inbox" page shown right after sign-up.
@@ -71,12 +72,14 @@ export default async function VerifyEmailSentPage({
                 href={link.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-lg px-4 py-2.5 text-[13px] font-medium transition-opacity hover:opacity-90"
+                className="auth-button flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[13px] font-medium transition-all duration-150"
                 style={{
-                  background: "var(--color-accent)",
-                  color: "white",
+                  background: "var(--color-bg-card)",
+                  color: "var(--color-text-primary)",
+                  border: "1px solid var(--color-border-default)",
                 }}
               >
+                <ProviderIcon provider={link.provider} />
                 {link.label}
               </a>
             ))}

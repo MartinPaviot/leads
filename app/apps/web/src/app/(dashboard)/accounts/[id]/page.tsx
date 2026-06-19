@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { z } from "zod";
 import { Users, DollarSign, ClipboardList, Swords, Sparkles, RefreshCw } from "lucide-react";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions, useRegisterEntityLocator, cssEscape } from "@/lib/chat/page-actions/registry";
+import type { EntityLocator } from "@/lib/chat/page-actions/registry";
 import { IntelligenceBrief } from "@/components/intelligence-brief";
 import { CompanyDossier } from "@/components/company-dossier";
 import { AccountCallIntel } from "@/components/call-intel";
@@ -15,6 +19,26 @@ import { DetailPageSkeleton } from "@/components/ui/skeleton";
 import { OwnerSelect } from "@/components/owner-select";
 import { useToast } from "@/components/ui/toast";
 import { displayScore } from "@/lib/util/ui-utils";
+
+/* ── CLE-07: page-action helpers (pure, shared) ── */
+
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+
+/** Type a PageAction against its own params schema, then erase P so heterogeneous
+ *  actions live in one PageAction[] (the registry stores PageAction<unknown>). */
+function definePageAction<P>(a: PageAction<P>): PageAction {
+  return a as unknown as PageAction;
+}
+
+/** Pure predicate: is a post-call proposal pending on this account? Mirrors the
+ *  `usingPending` signal AccountCallIntel/usePendingReview reads
+ *  (call-intel.tsx). Lets the call-intel actions fail cleanly (E-10) instead
+ *  of POSTing a no-op review. */
+function hasPendingCallIntel(account: { properties: Record<string, unknown> | null } | null): boolean {
+  const pending = account?.properties?.pendingCallIntel;
+  return pending != null && typeof pending === "object";
+}
 
 interface Account {
   id: string;
@@ -91,13 +115,195 @@ export default function AccountDetailPage() {
     }
   }
 
+  // ── CLE-07: behaviour-preserving extractions, hoisted ABOVE the early
+  //    returns so a registered action's run() can call them unconditionally.
+  //    The JSX field-edit / summary-refresh handlers below are rewired to
+  //    call these — exactly one copy of each PUT/POST. ──
+
+  /** The inline firmographic-field PUT, extracted from the field onKeyDown.
+   *  Same endpoint/body/optimistic update as before. */
+  const saveField = useCallback(
+    async (field: string, value: string | null): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const res = await fetch(`/api/accounts/${accountId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ [field]: value ?? null }),
+        });
+        if (!res.ok) return { ok: false, error: "Couldn't save that change." };
+        setAccount((prev) => (prev ? { ...prev, [field]: value ?? null } : prev));
+        return { ok: true };
+      } catch {
+        return { ok: false, error: "Couldn't save that change." };
+      }
+    },
+    [accountId],
+  );
+
+  /** The AI-summary refresh POST, extracted from the refresh button onClick.
+   *  Same endpoint/state writes; the toast stays on the button path. */
+  const refreshSummary = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await fetch(`/api/accounts/${accountId}/generate-summary`, { method: "POST" });
+      if (!res.ok) {
+        const e = (await res.json().catch(() => ({}))) as { error?: string };
+        return { ok: false, error: e.error || "Failed to refresh summary" };
+      }
+      const data = await res.json();
+      setAiSummary(data.ai_account_summary);
+      setAiHowTheyMakeMoney(data.ai_how_they_make_money);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Failed to refresh summary" };
+    }
+  }, [accountId]);
+
+  /** A second caller of the call-intel review REST contract — the SAME request
+   *  AccountCallIntel/usePendingReview.act issues (call-intel.tsx). The server
+   *  owns the live-vs-pending merge; this adds no business logic. */
+  const reviewCallIntel = useCallback(
+    async (action: "approve" | "dismiss"): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const res = await fetch("/api/call-intel/review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ entityType: "company", entityId: accountId, action }),
+        });
+        if (!res.ok) return { ok: false, error: "Couldn't update the proposal." };
+        return { ok: true };
+      } catch {
+        return { ok: false, error: "Couldn't update the proposal." };
+      }
+    },
+    [accountId],
+  );
+
+  // ── CLE-07: live refs + the dossier-card registration ref. The actions are
+  //    captured once at mount; their run()s read live state via these refs. ──
+  const accountIdConst = accountId;
+  const accountRef = useRef(account);
+  accountRef.current = account;
+  const dossierApiRef = useRef<{ generate: () => Promise<void>; hasDomain: boolean } | null>(null);
+  const registerDossierApi = useCallback(
+    (api: { generate: () => Promise<void>; hasDomain: boolean }) => {
+      dossierApiRef.current = api;
+    },
+    [],
+  );
+
+  const accountDetailActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "accounts.updateField",
+        title: "Edit a field on this account",
+        description:
+          "Inline-edit the open account's name, domain, industry, size, or revenue. Use when the user wants to fix or set one of these.",
+        params: z.object({
+          accountId: z.string().min(1),
+          field: z.enum(["name", "domain", "industry", "size", "revenue"]),
+          value: z.string().nullable(),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ accountId: aId, field, value }): Promise<PageActionResult> => {
+          if (aId !== accountIdConst) return errResult("That account is not the one open here.");
+          const r = await saveField(field, value);
+          return r.ok ? okResult(`Set ${field} to "${value ?? ""}".`) : errResult(r.error ?? "Couldn't save that change.");
+        },
+      }),
+      definePageAction({
+        id: "accounts.reassignOwner",
+        title: "Reassign this account's owner",
+        description: "Set or clear the member responsible for the open account. Pass ownerId (or null to un-assign).",
+        params: z.object({ accountId: z.string().min(1), ownerId: z.string().nullable() }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ accountId: aId, ownerId }): Promise<PageActionResult> => {
+          if (aId !== accountIdConst) return errResult("That account is not the one open here.");
+          await reassignAccountOwner(ownerId);
+          return okResult(ownerId ? "Reassigned the account." : "Un-assigned the account.");
+        },
+      }),
+      definePageAction({
+        id: "accounts.refreshSummary",
+        title: "Refresh this account's AI summary",
+        description: "Regenerate the AI summary for the open account. Confirms first.",
+        params: z.object({ accountId: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ accountId: aId }): Promise<PageActionResult> => {
+          if (aId !== accountIdConst) return errResult("That account is not the one open here.");
+          const r = await refreshSummary();
+          return r.ok ? okResult("Refreshed the account summary.") : errResult(r.error ?? "Couldn't refresh the summary.");
+        },
+      }),
+      definePageAction({
+        id: "accounts.generateDossier",
+        title: "Generate this account's research dossier",
+        description:
+          "Generate (or refresh) the research dossier for the open account — leadership, funding, tech stack, " +
+          "competitive landscape, outreach recommendations. Needs a domain on the account. Confirms first.",
+        params: z.object({ accountId: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ accountId: aId }): Promise<PageActionResult> => {
+          if (aId !== accountIdConst) return errResult("That account is not the one open here.");
+          const api = dossierApiRef.current;
+          if (!api || !api.hasDomain) return errResult("This account has no domain, so a dossier can't be generated.");
+          await api.generate();
+          return okResult("Generating the research dossier — it appears on the account shortly.");
+        },
+      }),
+      definePageAction({
+        id: "accounts.approveCallIntel",
+        title: "Approve the account call-intel proposal",
+        description:
+          "Apply the post-call proposal pending on this account (stack / competitors / triggers captured from the last call). " +
+          "Only works when a proposal is pending.",
+        params: z.object({ accountId: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ accountId: aId }): Promise<PageActionResult> => {
+          if (aId !== accountIdConst) return errResult("That account is not the one open here.");
+          if (!hasPendingCallIntel(accountRef.current)) return errResult("There is no pending call intel to approve.");
+          const r = await reviewCallIntel("approve");
+          return r.ok ? okResult("Applied the call intel to the account.") : errResult(r.error ?? "Couldn't update the proposal.");
+        },
+      }),
+      definePageAction({
+        id: "accounts.dismissCallIntel",
+        title: "Dismiss the account call-intel proposal",
+        description: "Dismiss the post-call proposal pending on this account. Only works when one is pending.",
+        params: z.object({ accountId: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ accountId: aId }): Promise<PageActionResult> => {
+          if (aId !== accountIdConst) return errResult("That account is not the one open here.");
+          if (!hasPendingCallIntel(accountRef.current)) return errResult("There is no pending call intel to dismiss.");
+          const r = await reviewCallIntel("dismiss");
+          return r.ok ? okResult("Dismissed the call-intel proposal.") : errResult(r.error ?? "Couldn't update the proposal.");
+        },
+      }),
+    ],
+    // Stable id set; run()s read live state via refs / stable useCallbacks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [accountIdConst],
+  );
+  useRegisterPageActions(accountDetailActions);
+
+  // CLE-15 — pulse this record's header when the chat navigates here
+  // (openRecord emits navigate.highlight). Null-safe before the account loads.
+  const detailContainerRef = useRef<HTMLDivElement>(null);
+  const accountDetailLocate = useCallback<EntityLocator>(
+    (a) =>
+      a.entityId === accountIdConst
+        ? detailContainerRef.current?.querySelector<HTMLElement>(`[data-cle-entity="${cssEscape(a.entityId)}"]`) ?? null
+        : null,
+    [accountIdConst],
+  );
+  useRegisterEntityLocator("accounts", accountDetailLocate);
+
   if (loading) return <DetailPageSkeleton avatar="square" />;
   if (!account) return <p className="p-6 text-sm text-red-400">Account not found</p>;
 
   const initial = account.name.charAt(0).toUpperCase();
 
   return (
-    <div className="flex h-full flex-col lg:flex-row">
+    <div ref={detailContainerRef} className="flex h-full flex-col lg:flex-row">
       {/* Main content */}
       <div className="flex-1 overflow-auto p-6">
         <Breadcrumbs
@@ -112,7 +318,7 @@ export default function AccountDetailPage() {
             {initial}
           </div>
           <div className="flex-1">
-            <h1 className="text-xl font-semibold">{account.name}</h1>
+            <h1 className="text-xl font-semibold" data-cle-entity={account.id}>{account.name}</h1>
             <p className="text-sm text-[var(--color-text-secondary)]">
               {account.domain || "No domain"} {account.industry ? `· ${account.industry}` : ""}
             </p>
@@ -161,24 +367,9 @@ export default function AccountDetailPage() {
               <button
                 onClick={async () => {
                   setRefreshingSummary(true);
-                  try {
-                    const res = await fetch(`/api/accounts/${accountId}/generate-summary`, {
-                      method: "POST",
-                    });
-                    if (res.ok) {
-                      const data = await res.json();
-                      setAiSummary(data.ai_account_summary);
-                      setAiHowTheyMakeMoney(data.ai_how_they_make_money);
-                      toast("Summary refreshed", "success");
-                    } else {
-                      const err = await res.json().catch(() => ({}));
-                      toast(err.error || "Failed to refresh summary", "error");
-                    }
-                  } catch {
-                    toast("Failed to refresh summary", "error");
-                  } finally {
-                    setRefreshingSummary(false);
-                  }
+                  const r = await refreshSummary();
+                  toast(r.ok ? "Summary refreshed" : (r.error || "Failed to refresh summary"), r.ok ? "success" : "error");
+                  setRefreshingSummary(false);
                 }}
                 disabled={refreshingSummary}
                 className="p-1 rounded transition-colors hover:bg-[var(--color-bg-hover)]"
@@ -273,6 +464,7 @@ export default function AccountDetailPage() {
             accountId={accountId}
             accountDomain={account.domain}
             accountName={account.name}
+            onRegister={registerDossierApi}
           />
         </div>
 
@@ -367,12 +559,7 @@ export default function AccountDetailPage() {
                     onChange={(e) => setEditValue(e.target.value)}
                     onKeyDown={async (e) => {
                       if (e.key === "Enter") {
-                        await fetch(`/api/accounts/${accountId}`, {
-                          method: "PUT",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ [field.key]: editValue || null }),
-                        });
-                        setAccount((prev) => prev ? { ...prev, [field.key]: editValue || null } : prev);
+                        await saveField(field.key, editValue || null);
                         setEditingField(null);
                       } else if (e.key === "Escape") {
                         setEditingField(null);

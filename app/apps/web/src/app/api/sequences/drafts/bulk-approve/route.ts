@@ -23,6 +23,7 @@
  */
 
 import { getAuthContext } from "@/lib/auth/auth-utils";
+import { requireCapabilityForRequest } from "@/lib/auth/permissions";
 import { db } from "@/db";
 import { sequenceDrafts, sequenceEnrollments, sequenceSteps } from "@/db/schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
@@ -40,6 +41,11 @@ export async function POST(req: Request) {
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // CLE-12 — unified matrix gate on the fresh DB role. Bulk-approving drafts
+  // under /api/sequences requires sequences:write (member+).
+  const denied = requireCapabilityForRequest(authCtx, req);
+  if (denied) return denied;
 
   let body: { ids?: unknown; scheduledSendAt?: string } = {};
   try {

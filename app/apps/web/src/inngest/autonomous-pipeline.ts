@@ -22,6 +22,7 @@ import {
   notifications,
   users,
   agentReactions,
+  autonomyConfig,
 } from "@/db/schema";
 import { and, eq, notInArray, desc, gte } from "drizzle-orm";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -30,6 +31,7 @@ import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { ageInStage } from "@/lib/deals/deal-helpers";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
+import { buildEffectiveThresholdMap } from "@/lib/guardrails/level-behavior";
 
 function getLLMModel() {
   if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-6");
@@ -92,10 +94,33 @@ export const autoPipelineStep = inngest.createFunction(
     for (const [tenantId, userIds] of tenantMap) {
       await step.run(`pipeline-${tenantId}`, async () => {
         const settings = await getTenantSettings(tenantId);
-        const { readApprovalMode } = await import(
+        const { resolveEffectiveMode, enforceAgentApprovalMode } = await import(
           "@/lib/guardrails/approval-mode"
         );
-        const approvalMode = readApprovalMode(settings);
+        const { getTrustScore } = await import("@/lib/campaign-engine/trust-score");
+        // CLE-10: effective mode is derived from the autonomy LEVEL when a row
+        // exists (level is authoritative, §4.3), else falls back to the stored
+        // agentApprovalMode. Single read path — no bespoke per-mode map here.
+        const [autoRow] = await db
+          .select({ level: autonomyConfig.level })
+          .from(autonomyConfig)
+          .where(eq(autonomyConfig.tenantId, tenantId))
+          .limit(1);
+        const trust = await getTrustScore(tenantId);
+        const { mode: approvalMode, relaxThresholds } = resolveEffectiveMode({
+          settings: settings ?? { agentApprovalMode: "review-each" },
+          level: autoRow?.level as import("@/lib/campaign-engine/types").AutonomyLevel | undefined,
+          trustOverall: trust.overall,
+        });
+
+        // CLE-16 §9 — fold level/trust/relaxation + learned thresholds into the
+        // ONE map decideAction reads (extra.learnedThresholds). The builder
+        // ceiling-forces excluded outbound/paid classes, so even here in the
+        // background an outbound bar can never be lowered. Signature unchanged.
+        const learnedThresholds = buildEffectiveThresholdMap({
+          learned: settings?.learnedThresholds,
+          relaxThresholds,
+        });
 
         const model = getLLMModel();
         if (!model) return;
@@ -230,21 +255,23 @@ ${daysSinceActivity < 2 ? "Recent activity detected — likely HOLD unless there
           const d = decision.object;
           summary.dealsAssessed++;
 
-          // WS-1 — map v2 approval modes to this pipeline's historical
-          // "shouldExecute" semantics. The pipeline's decisions are
-          // typed differently from generic guarded-actions (CREATE_TASK,
-          // SEND_FOLLOWUP, etc.), so we don't route through
-          // enforceAgentApprovalMode here — we keep the per-mode ruleset
-          // that the pipeline already encodes and just move it to v2
-          // vocabulary. auto-high-confidence matches the legacy "auto"
-          // threshold (≥0.7). batch-daily pairs with the legacy "ask"
-          // threshold (≥0.9 except sends). review-each never auto-executes.
-          const shouldExecute =
-            approvalMode === "auto-high-confidence"
-              ? d.confidence >= 0.7
-              : approvalMode === "batch-daily"
-                ? d.confidence >= 0.9 && d.action !== "SEND_FOLLOWUP"
-                : false; // review-each = always require human approval
+          // CLE-10 — route the execute/defer decision through the SAME core as
+          // chat and the reactor (req AC-19). The bespoke per-mode ternary is
+          // gone. Map this pipeline's action vocabulary to a GuardedAction:
+          //   CREATE_TASK              → task-create (reversible, non-outbound)
+          //   SEND_FOLLOWUP / SCHEDULE_MEETING / RE_ENGAGE → email-send (outbound)
+          // Under `auto-high-confidence` an outbound action now returns confirm →
+          // allowed:false → the pipeline DEFERS it (creates the review task) instead
+          // of sending. This is the intended "no silent outbound" posture (§6.3);
+          // the previous code already excluded SEND_FOLLOWUP from batch-daily
+          // auto-exec, so this only tightens auto-high-confidence.
+          const guarded = d.action === "CREATE_TASK" ? "task-create" : "email-send";
+          const shouldExecute = enforceAgentApprovalMode({
+            mode: approvalMode,
+            action: guarded,
+            confidence: d.confidence,
+            learnedThresholds,
+          }).allowed;
 
           if (d.action === "HOLD") {
             actions.push({

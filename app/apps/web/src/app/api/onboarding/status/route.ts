@@ -1,6 +1,6 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { companies, contacts, authAccounts, tenants, authUsers, pendingInvites } from "@/db/schema";
+import { companies, contacts, authAccounts, tenants, authUsers } from "@/db/schema";
 import { eq, and, sql, isNull } from "drizzle-orm";
 import { hasUsableIcp, type TenantSettings } from "@/lib/config/tenant-settings";
 
@@ -51,6 +51,7 @@ export async function GET() {
     .where(eq(tenants.id, authCtx.tenantId));
 
   const settings = (tenant?.settings || {}) as Record<string, unknown>;
+  const ts = (tenant?.settings || {}) as TenantSettings;
   const onboardingCompleted = !!settings.onboardingCompleted;
   const rawCurrentStep =
     typeof settings.onboardingCurrentStep === "string"
@@ -75,32 +76,16 @@ export async function GET() {
     .where(eq(authUsers.id, authCtx.userId))
     .limit(1);
 
-  // Invite-aware suppression: a user who JOINED VIA INVITE into a workspace
-  // that is already established (has accounts or a usable ICP) lands on the
-  // briefing, not the setup modal — someone else already set the workspace
-  // up, and `onboardingCompleted` being false only means nobody finished
-  // the modal (setup often happens through /settings/icp or sourcing).
-  //
-  // Deliberately scoped to invited users (T0.1): the founder mid-wizard
-  // keeps resume behavior even after the async TAM build starts inserting
-  // accounts, because no accepted invite points at them. An invitee landing
-  // in an EMPTY workspace still gets the modal — someone has to set it up.
-  const established = accounts > 0 || hasUsableIcp(settings as TenantSettings);
-  let joinedViaInvite = false;
-  if (!onboardingCompleted && established) {
-    const [acceptedInvite] = await db
-      .select({ id: pendingInvites.id })
-      .from(pendingInvites)
-      .where(
-        and(
-          eq(pendingInvites.tenantId, authCtx.tenantId),
-          eq(pendingInvites.status, "accepted"),
-          eq(pendingInvites.acceptedByUserId, authCtx.appUserId),
-        ),
-      )
-      .limit(1);
-    joinedViaInvite = !!acceptedInvite;
-  }
+  // A workspace that is already in use does not need the onboarding modal:
+  // it would re-collect what's set and (worse) a blank confirmation card
+  // could overwrite it. "In use" = has accounts OR a usable ICP. This is
+  // true for the founder who set up their ICP AND for teammates invited
+  // into an already-configured workspace, so it replaces the old
+  // invite-scoped suppression with one rule for everyone. A genuinely
+  // fresh tenant (no accounts, no ICP, not completed) still gets the
+  // modal. `hasUsableIcp` reads the flat target* keys the rank-1 ICP
+  // profile mirrors.
+  const established = accounts > 0 || hasUsableIcp(ts);
 
   return Response.json({
     isNew,
@@ -109,7 +94,7 @@ export async function GET() {
     hasGoogle,
     hasMicrosoft,
     hasEmail: hasGoogle || hasMicrosoft,
-    needsOnboarding: !onboardingCompleted && !(established && joinedViaInvite),
+    needsOnboarding: !onboardingCompleted && !established,
     onboardingCurrentStep,
     email: authUser?.email,
     name: authUser?.name || null,
@@ -117,5 +102,29 @@ export async function GET() {
     // call from the wizard uses this stable internal user ID so events
     // correlate with the server-side ttfaa_started emission.
     userId: authCtx.userId,
+    // Existing config snapshot — the onboarding card seeds itself from this
+    // so it shows what the tenant already has (instead of a blank "here's
+    // what I picked up about you") and a no-edit confirm re-sends the real
+    // values rather than wiping them.
+    companyDomain: ts.companyDomain ?? "",
+    productDescription: ts.productDescription ?? "",
+    aiTone: ts.aiTone ?? "Direct",
+    targeting: {
+      industries: ts.targetIndustries ?? [],
+      keywords: ts.targetKeywords ?? [],
+      companySizes: ts.targetCompanySizes ?? [],
+      geographies: ts.targetGeographies ?? [],
+      excludeGeographies: ts.excludeGeographies ?? [],
+      technologies: ts.targetTechnologies ?? [],
+      revenueMin: ts.targetRevenueMin ?? null,
+      revenueMax: ts.targetRevenueMax ?? null,
+      fundingRecencyDays: ts.fundingRecencyDays ?? null,
+      totalFundingMin: ts.totalFundingMin ?? null,
+      totalFundingMax: ts.totalFundingMax ?? null,
+      minJobOpenings: ts.minJobOpenings ?? null,
+      hiringTitles: ts.hiringTitles ?? [],
+      targetSeniorities: ts.targetSeniorities ?? [],
+      targetDepartments: ts.targetDepartments ?? [],
+    },
   });
 }

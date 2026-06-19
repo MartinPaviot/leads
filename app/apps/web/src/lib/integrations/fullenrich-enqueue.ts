@@ -17,6 +17,7 @@ import {
   requestFullEnrichBulk,
   fullEnrichWebhookUrl,
   type FullEnrichItem,
+  type FullEnrichField,
 } from "@/lib/integrations/fullenrich-client";
 
 export type FullEnrichEnqueueResult =
@@ -36,8 +37,10 @@ export async function enqueueFullEnrichForContacts(params: {
   tenantId: string;
   contactIds: string[];
   baseUrl: string;
+  /** Lookup targets; defaults to mobile + work email inside the client. */
+  enrichFields?: FullEnrichField[];
 }): Promise<FullEnrichEnqueueResult> {
-  const { tenantId, baseUrl } = params;
+  const { tenantId, baseUrl, enrichFields } = params;
   const contactIds = params.contactIds
     .filter((x): x is string => typeof x === "string")
     .slice(0, 100);
@@ -97,6 +100,7 @@ export async function enqueueFullEnrichForContacts(params: {
     const { id } = await requestFullEnrichBulk({
       items,
       webhookUrl,
+      enrichFields,
       name: `Elevay ${tenantId.slice(0, 8)} ${new Date().toISOString().slice(0, 10)}`,
     });
     return { ok: true, enrichmentId: id, requested: items.length, skipped: rows.length - items.length };

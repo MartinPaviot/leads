@@ -10,6 +10,7 @@ import { db } from "@/db";
 import { contacts, companies, activities, knowledgeEntries } from "@/db/schema";
 import { eq, and, desc, or } from "drizzle-orm";
 import { getTenantSettings, type KnowledgeEntry } from "@/lib/config/tenant-settings";
+import { isSignalFresh } from "@/lib/signals/freshness";
 
 export interface ProspectSignal {
   type: string;
@@ -130,10 +131,14 @@ export async function buildProspectContext(
         country: props.country || null,
       };
 
-      // Extract signals (high + medium only)
+      // Extract signals (high + medium only). A signal past its shelf life is
+      // dropped before it reaches the LLM — a stale trigger cited in a draft
+      // is the tell of automation (lib/signals/freshness.ts). Entries without
+      // a detectedAt are kept (cannot prove staleness).
       if (Array.isArray(props.signals)) {
         signals = props.signals
           .filter((s: any) => s.relevance === "high" || s.relevance === "medium")
+          .filter((s: any) => isSignalFresh(String(s.type ?? ""), s.detectedAt ?? null))
           .map((s: any) => ({
             type: s.type,
             title: s.title,

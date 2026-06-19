@@ -8,6 +8,10 @@ vi.mock("@/lib/auth/auth-utils", () => ({
 
 vi.mock("@/lib/auth/permissions", () => ({
   requirePermission: vi.fn(() => null),
+  // CLE-12 — the route now also calls the shared matrix guard. Stub it to
+  // allow (null) so these tests stay focused on the invite/email behaviour;
+  // the guard's own role-gating is covered in route-capability.test.ts.
+  requireCapabilityForRequest: vi.fn(() => null),
 }));
 
 vi.mock("@/lib/auth/invite-token", () => ({

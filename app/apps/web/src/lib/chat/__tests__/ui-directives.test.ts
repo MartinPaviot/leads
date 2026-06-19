@@ -3,7 +3,9 @@ import {
   parseUiDirective,
   navigateDirective,
   composeEmailDirective,
+  invokeActionDirective,
   UI_DIRECTIVE_KEY,
+  type InvokeActionDirective,
 } from "../ui-directives";
 
 /**
@@ -109,5 +111,63 @@ describe("parseUiDirective — malformed / absent", () => {
   it("returns null for an unknown directive kind", () => {
     expect(parseUiDirective({ [UI_DIRECTIVE_KEY]: { kind: "explode" } })).toBeNull();
     expect(parseUiDirective({ [UI_DIRECTIVE_KEY]: "not-an-object" })).toBeNull();
+  });
+});
+
+describe("invokeActionDirective ↔ parseUiDirective (CLE-03)", () => {
+  it("builder places the directive under the _uiDirective key", () => {
+    const d = invokeActionDirective("inv-1", "opportunities.moveStage", { dealId: "d1", stage: "won" }, true);
+    expect(d[UI_DIRECTIVE_KEY]).toEqual({
+      kind: "invokeAction",
+      invocationId: "inv-1",
+      actionId: "opportunities.moveStage",
+      params: { dealId: "d1", stage: "won" },
+      requireConfirm: true,
+    });
+  });
+
+  it("round-trips a well-formed invokeAction (ignoring sibling human fields)", () => {
+    const result = { ...invokeActionDirective("inv-1", "a.b", { x: 1 }, false), human: "ran it" };
+    expect(parseUiDirective(result)).toEqual({
+      kind: "invokeAction",
+      invocationId: "inv-1",
+      actionId: "a.b",
+      params: { x: 1 },
+      requireConfirm: false,
+    });
+  });
+
+  it("rejects a missing invocationId or actionId", () => {
+    expect(
+      parseUiDirective({ [UI_DIRECTIVE_KEY]: { kind: "invokeAction", actionId: "a.b", params: {}, requireConfirm: false } }),
+    ).toBeNull();
+    expect(
+      parseUiDirective({ [UI_DIRECTIVE_KEY]: { kind: "invokeAction", invocationId: "i", params: {}, requireConfirm: false } }),
+    ).toBeNull();
+  });
+
+  it("rejects non-object params and non-boolean requireConfirm", () => {
+    expect(
+      parseUiDirective({ [UI_DIRECTIVE_KEY]: { kind: "invokeAction", invocationId: "i", actionId: "a.b", params: "nope", requireConfirm: false } }),
+    ).toBeNull();
+    expect(
+      parseUiDirective({ [UI_DIRECTIVE_KEY]: { kind: "invokeAction", invocationId: "i", actionId: "a.b", params: {}, requireConfirm: "yes" } }),
+    ).toBeNull();
+  });
+});
+
+describe("InvokeActionDirective alias (CLE-05 Task 0)", () => {
+  it("is the invokeAction arm with the four fields and a boolean requireConfirm", () => {
+    // Compiles only if the alias resolves to the invokeAction arm of the union.
+    const d = {
+      kind: "invokeAction",
+      invocationId: "i",
+      actionId: "a.b",
+      params: { x: 1 },
+      requireConfirm: true,
+    } satisfies InvokeActionDirective;
+    const rc: boolean = d.requireConfirm;
+    expect(rc).toBe(true);
+    expect(d.kind).toBe("invokeAction");
   });
 });

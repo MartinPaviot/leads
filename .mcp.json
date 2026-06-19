@@ -10,10 +10,6 @@
         "@upstash/context7-mcp@latest"
       ],
       "env": {}
-    },
-    "rippletide": {
-      "type": "http",
-      "url": "https://mcp.rippletide.com/mcp?agentId=16c0c77f-9b25-4118-8969-6fe72ccd6e5d"
     }
   }
 }

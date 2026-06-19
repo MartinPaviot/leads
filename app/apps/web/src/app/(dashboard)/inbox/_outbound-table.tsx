@@ -6,7 +6,8 @@
  * pagination. Triage lives in the conversation lanes, not here.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useImperativeHandle } from "react";
+import type { Ref } from "react";
 import { Mail, MailCheck, Clock, Sparkles, Loader2, Inbox } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -38,7 +39,18 @@ interface OutboundEmail {
 
 type OutboundFilter = "all" | "replied" | "awaiting" | "bounced";
 
-export function OutboundTable() {
+/**
+ * CLE-14 §lift: the imperative handle OutboundTable exposes to the Inbox page
+ * so the registered `inbox.setOutboundFilter` action runs the SAME state change
+ * the filter buttons run (setFilter + reset to page 1). The page reads this via
+ * `apiRef`; it is non-null only while the Outbound tab is open (this component
+ * mounted), so the action degrades cleanly when the outbound lane is closed.
+ */
+export interface OutboundTableApi {
+  setFilter: (filter: OutboundFilter) => void;
+}
+
+export function OutboundTable({ apiRef }: { apiRef?: Ref<OutboundTableApi | null> }) {
   const { toast } = useToast();
   const [emails, setEmails] = useState<OutboundEmail[]>([]);
   const [counts, setCounts] = useState({ total: 0, replied: 0, awaiting: 0, bounced: 0 });
@@ -50,6 +62,20 @@ export function OutboundTable() {
   const [composer, setComposer] = useState<EmailComposerDraft | null>(null);
 
   const pageSize = 30;
+
+  // CLE-14 §lift: expose setFilter so the chat action runs the same change the
+  // filter buttons run (switch filter + reset to page 1). One copy of the state
+  // transition; the buttons below still call setFilter/setPage directly.
+  useImperativeHandle(
+    apiRef,
+    (): OutboundTableApi => ({
+      setFilter: (f: OutboundFilter) => {
+        setFilter(f);
+        setPage(1);
+      },
+    }),
+    [],
+  );
 
   useEffect(() => {
     setLoading(true);

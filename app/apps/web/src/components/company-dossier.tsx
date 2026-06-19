@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -80,9 +80,16 @@ interface CompanyDossierProps {
   accountId: string;
   accountDomain: string | null;
   accountName: string;
+  /**
+   * CLE-07: optional registration seam so a page action can drive THIS card's
+   * own `generateDossier` (spinner/poll/refresh stay identical). Additive — the
+   * card renders identically when the prop is not passed. The page captures the
+   * api into a ref and `accounts.generateDossier.run` calls `api.generate()`.
+   */
+  onRegister?: (api: { generate: () => Promise<void>; hasDomain: boolean }) => void;
 }
 
-export function CompanyDossier({ accountId, accountDomain, accountName }: CompanyDossierProps) {
+export function CompanyDossier({ accountId, accountDomain, accountName, onRegister }: CompanyDossierProps) {
   const [dossier, setDossier] = useState<Dossier | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -97,6 +104,14 @@ export function CompanyDossier({ accountId, accountDomain, accountName }: Compan
     }
     fetchDossier();
   }, [accountDomain]);
+
+  // CLE-07: expose this card's own generateDossier + hasDomain to the page once
+  // (and whenever the domain flips). Reads via a ref-stable callback so the
+  // generate path is exactly the button's path — no duplicated POST.
+  const generateRef = useRef<() => Promise<void>>(async () => {});
+  useEffect(() => {
+    onRegister?.({ generate: () => generateRef.current(), hasDomain: !!accountDomain });
+  }, [onRegister, accountDomain]);
 
   async function fetchDossier() {
     if (!accountDomain) return;
@@ -143,6 +158,9 @@ export function CompanyDossier({ accountId, accountDomain, accountName }: Compan
       setGenerating(false);
     }
   }
+  // CLE-07: keep the registration ref pointed at the live generateDossier so the
+  // action drives the exact same handler the button does.
+  generateRef.current = generateDossier;
 
   async function refreshDossier() {
     if (!accountDomain) return;

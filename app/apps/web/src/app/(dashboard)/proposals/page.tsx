@@ -1,7 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { FileText } from "lucide-react";
+import { z } from "zod";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
 import {
   DATA_KEYS,
   type Component,
@@ -64,6 +67,31 @@ interface DealOption {
   stage: string | null;
 }
 
+/* ── CLE-14: page-action helpers (pure, shared) ── */
+
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+
+/** Type a PageAction against its own params schema, then erase P so heterogeneous
+ *  actions live in one PageAction[] (the registry stores PageAction<unknown>). */
+function definePageAction<P>(a: PageAction<P>): PageAction {
+  return a as unknown as PageAction;
+}
+
+/**
+ * CLE-14 — the IDs we INTENTIONALLY do NOT register. A proposal TEMPLATE upload is
+ * a native OS file dialog plus a multipart byte stream; a proposal DOWNLOAD is a
+ * native browser download (the server streams the assembled .docx/.pptx/.pdf). The
+ * agent can NEVER pick a local file nor receive raw bytes, so the SUBMIT/STREAM
+ * verbs are human-bound. The safe edges are `proposals.openTemplateUpload` (opens
+ * the picker only — the human chooses the file) and `proposals.openDownload`
+ * (navigates the browser to the download URL — the browser streams, not the agent).
+ * A boundary test (proposals-actions.boundary.test.ts) asserts the registered id
+ * set is disjoint from this — registering any of these would be a boundary breach.
+ */
+// PROPOSALS_EXCLUDED_IDS moved to ./_excluded-ids (a Next page.tsx may only export
+// the default component + route config).
+
 export default function ProposalsPage() {
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [selected, setSelected] = useState<TemplateDetail | null>(null);
@@ -87,6 +115,13 @@ export default function ProposalsPage() {
   } | null>(null);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [regenerating, setRegenerating] = useState<string | null>(null);
+
+  // CLE-14: live mirrors so the chat actions (registered once) read current state
+  // without re-registering on every render. `draft`/`filled`/`edits` are read by
+  // confirmMapping/regenerate/saveEdits; the rest of state is passed as params.
+  const draftRef = useRef(draft); draftRef.current = draft;
+  const filledRef = useRef(filled); filledRef.current = filled;
+  const editsRef = useRef(edits); editsRef.current = edits;
 
   const loadList = useCallback(async () => {
     const res = await fetch("/api/proposals/templates");
@@ -201,135 +236,307 @@ export default function ProposalsPage() {
     );
   }
 
+  // CLE-14: result-returning core of the "Confirm mapping" button. PATCHes the
+  // template's componentMap and refreshes. Returns {ok,error?} so the chat action
+  // and the button share ONE fetch (AC-NODUP) — the button discards the result.
+  const confirmMapping = useCallback(
+    async (templateId: string, map: ComponentMap | null): Promise<{ ok: boolean; error?: string }> => {
+      if (!templateId || !map) return { ok: false, error: "Nothing to confirm." };
+      setBusy(true);
+      setNotice(null);
+      const res = await fetch(`/api/proposals/templates/${templateId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ componentMap: map }),
+      });
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      setBusy(false);
+      if (!res.ok) {
+        const msg =
+          d.error === "invalid_map"
+            ? "Every component needs a label, and every field needs a data source."
+            : "Could not save the mapping.";
+        setNotice(msg);
+        return { ok: false, error: msg };
+      }
+      setNotice("Template mapped. Draft a proposal from a deal below.");
+      await loadList();
+      await openTemplate(templateId);
+      return { ok: true };
+    },
+    [loadList, openTemplate],
+  );
+
   async function confirmMap() {
     if (!selected || !draft) return;
-    setBusy(true);
-    setNotice(null);
-    const res = await fetch(`/api/proposals/templates/${selected.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ componentMap: draft }),
-    });
-    const d = (await res.json().catch(() => ({}))) as { error?: string };
-    setBusy(false);
-    if (!res.ok) {
-      setNotice(
-        d.error === "invalid_map"
-          ? "Every component needs a label, and every field needs a data source."
-          : "Could not save the mapping.",
-      );
-      return;
-    }
-    setNotice("Template mapped. Draft a proposal from a deal below.");
-    await loadList();
-    await openTemplate(selected.id);
+    await confirmMapping(selected.id, draft);
   }
+
+  // CLE-14: result-returning core of the "Draft proposal" button. POSTs the deal
+  // to the template fill endpoint and stores the filled draft. Returns {ok,error?}
+  // so the chat action and the button share ONE fetch (AC-NODUP).
+  const fillFromDeal = useCallback(
+    async (templateId: string, deal: string): Promise<{ ok: boolean; error?: string }> => {
+      if (!templateId || !deal.trim()) return { ok: false, error: "A deal is required." };
+      setFilling(true);
+      setNotice(null);
+      setFilled(null);
+      setEdits({});
+      const res = await fetch(`/api/proposals/templates/${templateId}/fill`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dealId: deal.trim() }),
+      });
+      const d = (await res.json().catch(() => ({}))) as {
+        proposalId?: string;
+        components?: FilledComponent[];
+        unmappedSections?: string[];
+        error?: string;
+        message?: string;
+        userSuggestion?: string;
+      };
+      setFilling(false);
+      if (!res.ok) {
+        const msg =
+          d.error === "deal_not_found"
+            ? "No deal found with that id."
+            : d.error === "template_not_mapped"
+              ? "Confirm the mapping before drafting."
+              : d.userSuggestion ?? d.message ?? "Drafting failed.";
+        setNotice(msg);
+        return { ok: false, error: msg };
+      }
+      setFilled({
+        proposalId: d.proposalId ?? "",
+        components: d.components ?? [],
+        unmappedSections: d.unmappedSections ?? [],
+      });
+      return { ok: true };
+    },
+    [],
+  );
 
   async function runFill() {
     if (!selected || !dealId.trim()) return;
-    setFilling(true);
-    setNotice(null);
-    setFilled(null);
-    setEdits({});
-    const res = await fetch(`/api/proposals/templates/${selected.id}/fill`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dealId: dealId.trim() }),
-    });
-    const d = (await res.json().catch(() => ({}))) as {
-      proposalId?: string;
-      components?: FilledComponent[];
-      unmappedSections?: string[];
-      error?: string;
-      message?: string;
-      userSuggestion?: string;
-    };
-    setFilling(false);
-    if (!res.ok) {
-      setNotice(
-        d.error === "deal_not_found"
-          ? "No deal found with that id."
-          : d.error === "template_not_mapped"
-            ? "Confirm the mapping before drafting."
-            : d.userSuggestion ?? d.message ?? "Drafting failed.",
-      );
-      return;
-    }
-    setFilled({
-      proposalId: d.proposalId ?? "",
-      components: d.components ?? [],
-      unmappedSections: d.unmappedSections ?? [],
-    });
+    await fillFromDeal(selected.id, dealId);
   }
 
-  async function saveEdits() {
-    if (!filled || Object.keys(edits).length === 0) return;
-    const components = Object.entries(edits).map(([componentId, content]) => ({ componentId, content }));
-    const res = await fetch(`/api/proposals/${filled.proposalId}`, {
+  // CLE-14: result-returning. Both the "Save edits" button and the chat action
+  // call this; it surfaces {ok,error?} from the single PATCH.
+  const saveEdits = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    const f = filledRef.current;
+    if (!f || Object.keys(editsRef.current).length === 0) return { ok: false, error: "No edits to save." };
+    const ed = editsRef.current;
+    const components = Object.entries(ed).map(([componentId, content]) => ({ componentId, content }));
+    const res = await fetch(`/api/proposals/${f.proposalId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ components }),
     });
     if (!res.ok) {
       setNotice("Could not save edits.");
-      return;
+      return { ok: false, error: "Could not save edits." };
     }
-    setFilled((f) =>
-      f
+    setFilled((prev) =>
+      prev
         ? {
-            ...f,
-            components: f.components.map((c) =>
-              edits[c.componentId] != null ? { ...c, content: edits[c.componentId] } : c,
+            ...prev,
+            components: prev.components.map((c) =>
+              ed[c.componentId] != null ? { ...c, content: ed[c.componentId] } : c,
             ),
           }
-        : f,
+        : prev,
     );
     setEdits({});
     setNotice("Edits saved — the download reflects your changes.");
+    return { ok: true };
+  }, []);
+
+  // CLE-14: result-returning. `componentId` plus an optional `guidance`; when no
+  // guidance is passed the button asks for it via prompt() (the chat action passes
+  // guidance directly so it never prompts). One POST, shared by button + action.
+  const regenerateOne = useCallback(
+    async (componentId: string, guidance?: string): Promise<{ ok: boolean; error?: string }> => {
+      const f = filledRef.current;
+      if (!f) return { ok: false, error: "Draft a proposal first." };
+      setRegenerating(componentId);
+      setNotice(null);
+      const res = await fetch(`/api/proposals/${f.proposalId}/components/${componentId}/regenerate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guidance: guidance || undefined }),
+      });
+      const d = (await res.json().catch(() => ({}))) as Partial<FilledComponent> & { error?: string; userSuggestion?: string };
+      setRegenerating(null);
+      if (!res.ok) {
+        const msg = d.userSuggestion ?? (d.error === "deal_not_found" ? "Deal not found." : "Re-draft failed.");
+        setNotice(msg);
+        return { ok: false, error: msg };
+      }
+      setFilled((prev) =>
+        prev
+          ? {
+              ...prev,
+              components: prev.components.map((c) =>
+                c.componentId === componentId
+                  ? {
+                      ...c,
+                      content: d.content ?? c.content,
+                      confidence: d.confidence ?? c.confidence,
+                      abstained: d.abstained ?? c.abstained,
+                      citations: d.citations ?? c.citations,
+                      supportRatio: d.supportRatio ?? c.supportRatio,
+                      unsupported: d.unsupported ?? c.unsupported,
+                    }
+                  : c,
+              ),
+            }
+          : prev,
+      );
+      setEdits((m) => {
+        const next = { ...m };
+        delete next[componentId];
+        return next;
+      });
+      return { ok: true };
+    },
+    [],
+  );
+
+  // The button keeps the prompt() guidance step; the chat action passes guidance.
+  function regenerateOneFromButton(componentId: string) {
+    const guidance = window.prompt("Optional guidance for this re-draft (leave blank for a plain redo):") ?? undefined;
+    void regenerateOne(componentId, guidance || undefined);
   }
 
-  async function regenerateOne(componentId: string) {
-    if (!filled) return;
-    const guidance = window.prompt("Optional guidance for this re-draft (leave blank for a plain redo):") ?? undefined;
-    setRegenerating(componentId);
-    setNotice(null);
-    const res = await fetch(`/api/proposals/${filled.proposalId}/components/${componentId}/regenerate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ guidance: guidance || undefined }),
-    });
-    const d = (await res.json().catch(() => ({}))) as Partial<FilledComponent> & { error?: string; userSuggestion?: string };
-    setRegenerating(null);
-    if (!res.ok) {
-      setNotice(d.userSuggestion ?? (d.error === "deal_not_found" ? "Deal not found." : "Re-draft failed."));
-      return;
-    }
-    setFilled((f) =>
-      f
-        ? {
-            ...f,
-            components: f.components.map((c) =>
-              c.componentId === componentId
-                ? {
-                    ...c,
-                    content: d.content ?? c.content,
-                    confidence: d.confidence ?? c.confidence,
-                    abstained: d.abstained ?? c.abstained,
-                    citations: d.citations ?? c.citations,
-                    supportRatio: d.supportRatio ?? c.supportRatio,
-                    unsupported: d.unsupported ?? c.unsupported,
-                  }
-                : c,
-            ),
-          }
-        : f,
-    );
-    setEdits((m) => {
-      const next = { ...m };
-      delete next[componentId];
-      return next;
-    });
-  }
+  // ── CLE-14: register this page's actions for the chat live-executor. run()s
+  //    reuse the result-returning helpers above; live values via refs. Stable id
+  //    set ([]), so registration happens once. UPLOAD-SUBMIT and DOWNLOAD-STREAM
+  //    are NEVER registered (see PROPOSALS_EXCLUDED_IDS); the two safe edges below
+  //    only OPEN the native picker / NAVIGATE to the download URL. ──
+  const proposalActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "proposals.draftFromDeal",
+        title: "Draft a proposal from a deal",
+        description:
+          "Draft a proposal by filling a mapped template with a deal's data (company, deal value, recent " +
+          "activity). Requires the template id and a deal id. Use when the user names a template and a deal.",
+        params: z.object({ templateId: z.string().min(1), dealId: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ templateId, dealId: deal }): Promise<PageActionResult> => {
+          if (!deal.trim()) return errResult("A deal is required.");
+          const r = await fillFromDeal(templateId, deal.trim());
+          return r.ok ? okResult("Drafted a proposal from the deal.") : errResult(r.error ?? "Drafting failed.");
+        },
+      }),
+      definePageAction({
+        id: "proposals.confirmMapping",
+        title: "Confirm the template mapping",
+        description:
+          "Confirm the current draft component mapping for a template (saves the labels/data-sources the user " +
+          "reviewed). Use after the user has edited the detected components and wants to lock the mapping in.",
+        params: z.object({ templateId: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ templateId }): Promise<PageActionResult> => {
+          const r = await confirmMapping(templateId, draftRef.current);
+          return r.ok ? okResult("Confirmed the template mapping.") : errResult(r.error ?? "Could not save the mapping.");
+        },
+      }),
+      definePageAction({
+        id: "proposals.editComponentMap",
+        title: "Edit a component in the mapping",
+        description:
+          "Edit one component in the draft mapping by its row index: change its kind (section/field), label, " +
+          "data source key, or confidence. Client-side only — pair with confirmMapping to persist.",
+        params: z.object({
+          index: z.number().int().min(0),
+          kind: z.string().optional(),
+          label: z.string().optional(),
+          dataKey: z.string().optional(),
+          confidence: z.number().optional(),
+        }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async ({ index, kind, label, dataKey, confidence }): Promise<PageActionResult> => {
+          const map = draftRef.current;
+          if (!map || index >= map.components.length) return errResult(`No component at index ${index}.`);
+          const patch: Partial<Component> = {};
+          if (kind !== undefined) patch.kind = kind as Component["kind"];
+          if (label !== undefined) patch.label = label;
+          if (dataKey !== undefined) patch.dataKey = dataKey;
+          if (confidence !== undefined) patch.confidence = confidence as unknown as Component["confidence"];
+          patchComponent(index, patch);
+          return okResult("Updated the component mapping.");
+        },
+      }),
+      definePageAction({
+        id: "proposals.regenerateComponent",
+        title: "Regenerate a proposal component",
+        description:
+          "Re-draft one component of the filled proposal (optionally with guidance, e.g. 'shorter' or 'mention " +
+          "their SOC 2'). Requires the proposal id and the component id. Use when the user wants a redo.",
+        params: z.object({
+          proposalId: z.string().min(1),
+          componentId: z.string().min(1),
+          guidance: z.string().optional(),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ componentId, guidance }): Promise<PageActionResult> => {
+          if (!filledRef.current) return errResult("Draft a proposal first.");
+          const r = await regenerateOne(componentId, guidance);
+          return r.ok ? okResult("Regenerated the component.") : errResult(r.error ?? "Re-draft failed.");
+        },
+      }),
+      definePageAction({
+        id: "proposals.saveEdits",
+        title: "Save proposal edits",
+        description:
+          "Save the user's text edits to the filled proposal's components so the download reflects them. Use " +
+          "after the user has edited component text and wants to persist it.",
+        params: z.object({ proposalId: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async (): Promise<PageActionResult> => {
+          if (!filledRef.current || Object.keys(editsRef.current).length === 0) return errResult("No edits to save.");
+          const r = await saveEdits();
+          return r.ok ? okResult("Saved your edits.") : errResult(r.error ?? "Could not save edits.");
+        },
+      }),
+      // ── openTemplateUpload (SAFE EDGE: opens the native picker only) ──────────
+      definePageAction({
+        id: "proposals.openTemplateUpload",
+        title: "Open the template file picker",
+        description:
+          "Open the file picker so the user can upload a .docx/.pptx proposal template. NOTE: you can OPEN the " +
+          "picker but you CANNOT choose the file — the user must pick it in the dialog. Tell them the picker is open.",
+        params: z.object({}),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async (): Promise<PageActionResult> => {
+          fileRef.current?.click();
+          return okResult("Opened the template picker - choose a .docx/.pptx (I can't pick the file for you).");
+        },
+      }),
+      // ── openDownload (SAFE EDGE: navigates the browser to the download URL) ───
+      definePageAction({
+        id: "proposals.openDownload",
+        title: "Download a proposal",
+        description:
+          "Download a filled proposal — navigates the browser to the download URL (the browser, not the agent, " +
+          "receives the file). Defaults to the layout-faithful .docx/.pptx; pass format:'pdf' for a clean PDF.",
+        params: z.object({ proposalId: z.string().min(1), format: z.enum(["docx", "pdf"]).optional() }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async ({ proposalId, format }): Promise<PageActionResult> => {
+          const url = "/api/proposals/" + proposalId + "/download" + (format === "pdf" ? "?as=pdf" : "");
+          window.location.href = url;
+          return okResult("Downloading the proposal" + (format === "pdf" ? " (PDF)" : "") + ".");
+        },
+      }),
+    ],
+    // Stable id set; run() reads live values via refs and calls stable
+    // useCallback helpers — so registration happens once (CLE-03/CLE-14).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useRegisterPageActions(proposalActions);
 
   return (
     <div className="flex h-full flex-col" style={{ background: "var(--color-bg-page)" }}>
@@ -664,7 +871,7 @@ export default function ProposalsPage() {
                           )}
                           <div className="mt-1.5">
                             <button
-                              onClick={() => void regenerateOne(c.componentId)}
+                              onClick={() => regenerateOneFromButton(c.componentId)}
                               disabled={regenerating === c.componentId}
                               className="text-[11px] underline"
                               style={{ color: "var(--color-text-tertiary)" }}

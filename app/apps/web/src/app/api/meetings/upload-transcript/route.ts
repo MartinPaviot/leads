@@ -2,7 +2,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities } from "@/db/schema";
 import { eq, and, sql, isNull } from "drizzle-orm";
-import OpenAI from "openai";
+import { transcribeAudio, transcriptionConfigured } from "@/lib/integrations/transcribe";
 
 function parseVTTorSRT(content: string): string {
   return content
@@ -41,19 +41,14 @@ export async function POST(req: Request) {
           return Response.json({ error: "Audio file too large. Max 25MB." }, { status: 400 });
         }
 
-        if (!process.env.OPENAI_API_KEY) {
-          return Response.json({ error: "OpenAI API key required for audio transcription" }, { status: 500 });
+        if (!transcriptionConfigured()) {
+          return Response.json(
+            { error: "Transcription not configured (set WHISPER_BASE_URL for a sovereign endpoint, or OPENAI_API_KEY)" },
+            { status: 500 },
+          );
         }
 
-        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-        const transcription = await openai.audio.transcriptions.create({
-          model: "gpt-4o-mini-transcribe",
-          file: file,
-          response_format: "verbose_json",
-        });
-
-        transcript = transcription.text;
+        transcript = await transcribeAudio(file);
       } else if (isSubtitle) {
         const text = await file.text();
         transcript = parseVTTorSRT(text);

@@ -126,6 +126,95 @@ describe("fetchRecentEmailsImap", () => {
     );
     expect(emails[0].gmailMessageId).toBe("imap-me@org.ch-5");
   });
+
+  it("capture-degrades a malformed-MIME message from the envelope instead of dropping it (R09)", async () => {
+    fetchYield.mockReturnValue(asyncGen([
+      {
+        uid: 20,
+        source: Buffer.from("garbage"),
+        envelope: {
+          subject: "Broken but recorded",
+          messageId: "<broken@x>",
+          date: new Date("2026-02-02"),
+          from: [{ name: "Cust", address: "cust@acme.com" }],
+          to: [{ address: "me@org.ch" }],
+        },
+      },
+    ]));
+    simpleParser.mockRejectedValueOnce(new Error("bad MIME"));
+
+    const { emails, maxUid } = await fetchRecentEmailsImap(
+      { emailAddress: "me@org.ch", imapHost: "h", imapPort: 993, password: "pw", imapLastUid: 0 },
+      30,
+    );
+
+    expect(emails).toHaveLength(1); // recorded, not dropped
+    expect(maxUid).toBe(20);
+    const e = emails[0];
+    expect(e.gmailMessageId).toBe("<broken@x>");
+    expect(e.subject).toBe("Broken but recorded");
+    expect(e.html).toBeNull();
+    expect(e.direction).toBe("inbound");
+    expect(e.to).toEqual(["me@org.ch"]);
+    expect(e.headers).toMatchObject({ "x-elevay-capture": "degraded" });
+  });
+
+  it("capture-degrades even without an envelope, using a synthetic dedup key (R09)", async () => {
+    fetchYield.mockReturnValue(asyncGen([{ uid: 7, source: Buffer.from("x") }]));
+    simpleParser.mockRejectedValueOnce(new Error("bad MIME"));
+
+    const { emails } = await fetchRecentEmailsImap(
+      { emailAddress: "me@org.ch", imapHost: "h", imapPort: 993, password: "pw", imapLastUid: 0 },
+      30,
+    );
+
+    expect(emails).toHaveLength(1);
+    expect(emails[0].gmailMessageId).toBe("imap-me@org.ch-7");
+    expect(emails[0].subject).toBe("(unreadable message)");
+    expect(emails[0].html).toBeNull();
+  });
+
+  it("captures the inbound text/calendar (.ics) part of an invite (R12/CAL)", async () => {
+    fetchYield.mockReturnValue(asyncGen([{ uid: 30, source: Buffer.from("raw") }]));
+    simpleParser.mockResolvedValueOnce({
+      messageId: "<inv@x>",
+      from: { text: "Org <org@acme.com>", value: [{ address: "org@acme.com" }] },
+      to: { value: [{ address: "me@org.ch" }] },
+      subject: "Invite: Sync",
+      text: "You are invited.",
+      date: new Date("2026-03-01"),
+      attachments: [
+        { contentType: "application/octet-stream", content: Buffer.from("nope") },
+        { contentType: "text/calendar; method=REQUEST", content: Buffer.from("BEGIN:VEVENT\r\nSUMMARY:Sync\r\nEND:VEVENT") },
+      ],
+    });
+
+    const { emails } = await fetchRecentEmailsImap(
+      { emailAddress: "me@org.ch", imapHost: "h", imapPort: 993, password: "pw", imapLastUid: 0 },
+      30,
+    );
+
+    expect(emails).toHaveLength(1);
+    expect(emails[0].calendar).toContain("BEGIN:VEVENT");
+    expect(emails[0].calendar).toContain("SUMMARY:Sync");
+  });
+
+  it("leaves calendar null when there is no text/calendar part", async () => {
+    fetchYield.mockReturnValue(asyncGen([{ uid: 31, source: Buffer.from("raw") }]));
+    simpleParser.mockResolvedValueOnce({
+      messageId: "<plain@x>",
+      from: { text: "A <a@b.com>", value: [{ address: "a@b.com" }] },
+      to: { value: [{ address: "me@org.ch" }] },
+      subject: "Hi",
+      text: "no invite",
+      date: new Date(),
+    });
+    const { emails } = await fetchRecentEmailsImap(
+      { emailAddress: "me@org.ch", imapHost: "h", imapPort: 993, password: "pw", imapLastUid: 0 },
+      30,
+    );
+    expect(emails[0].calendar ?? null).toBeNull();
+  });
 });
 
 describe("sendViaSmtp / verifySmtp", () => {

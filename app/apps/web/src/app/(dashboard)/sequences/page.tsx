@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,19 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { CampaignWizard } from "@/components/campaign-wizard";
 import { Zap, Plus, Send, Users, Mail, Play, ThumbsDown, Loader2, FlaskConical } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+
+/* ── CLE-14: page-action helpers (pure, shared) ── */
+
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+
+/** Type a PageAction against its own params schema, then erase P so heterogeneous
+ *  actions live in one PageAction[] (the registry stores PageAction<unknown>). */
+function definePageAction<P>(a: PageAction<P>): PageAction {
+  return a as unknown as PageAction;
+}
 
 interface Sequence {
   id: string;
@@ -105,6 +119,63 @@ export default function CampaignsPage() {
 
   const totalEmails = (stats: Record<string, number>) =>
     Object.values(stats).reduce((sum, n) => sum + n, 0);
+
+  // ── CLE-14: register this page's actions for the chat live-executor. run()s
+  //    reuse the existing handlers above; live values via refs so the stable id
+  //    set registers once (CLE-03 §3.1). ──
+  const sequencesRef = useRef(sequences); sequencesRef.current = sequences;
+  const transitionStatusRef = useRef(transitionStatus); transitionStatusRef.current = transitionStatus;
+  const sequenceListActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "sequences.createCampaign",
+        title: "Open the campaign wizard",
+        description:
+          "Open the new-campaign wizard so the user can pick targets, generate emails, review and launch. " +
+          "Use when the user wants to create or start building a campaign. Opens the wizard; it does not send anything.",
+        params: z.object({}),
+        mutating: false, cost: "free", confirm: "never",
+        run: async (): Promise<PageActionResult> => {
+          setShowWizard(true);
+          return okResult("Opened the campaign wizard.");
+        },
+      }),
+      definePageAction({
+        id: "sequences.startProposed",
+        title: "Start a proposed campaign",
+        description:
+          "Approve an AI-proposed (draft) campaign and start it — flips it to active so the worker begins sending. " +
+          "Use when the user wants to approve/start a proposed sequence shown in the list.",
+        params: z.object({ sequenceId: z.string().min(1) }),
+        mutating: true, outbound: true, reversible: true, cost: "free", confirm: "always",
+        run: async ({ sequenceId }): Promise<PageActionResult> => {
+          const seq = sequencesRef.current.find((s) => s.id === sequenceId);
+          if (!seq) return errResult(`Sequence ${sequenceId} is not in the current list.`);
+          await transitionStatusRef.current(sequenceId, "active");
+          return okResult("Campaign started - sending begins on the next tick.");
+        },
+      }),
+      definePageAction({
+        id: "sequences.rejectProposed",
+        title: "Reject a proposed campaign",
+        description:
+          "Reject an AI-proposed (draft) campaign — archives it (non-destructive, re-openable from the archive). " +
+          "Use when the user wants to reject/dismiss a proposed sequence shown in the list.",
+        params: z.object({ sequenceId: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ sequenceId }): Promise<PageActionResult> => {
+          const seq = sequencesRef.current.find((s) => s.id === sequenceId);
+          if (!seq) return errResult(`Sequence ${sequenceId} is not in the current list.`);
+          await transitionStatusRef.current(sequenceId, "archived");
+          return okResult("Archived the proposed sequence.");
+        },
+      }),
+    ],
+    // Stable id set; run() reads live values via refs. Register once (CLE-03).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useRegisterPageActions(sequenceListActions);
 
   return (
     <div className="flex h-full flex-col animate-content-in">

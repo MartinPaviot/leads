@@ -1,7 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { z } from "zod";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions, useRegisterEntityLocator, cssEscape } from "@/lib/chat/page-actions/registry";
+import type { EntityLocator } from "@/lib/chat/page-actions/registry";
 import {
   CircleDot, Plus, BarChart3, ChevronDown, ChevronUp,
   Search, X, Building2, User, Calendar, DollarSign, Clock,
@@ -133,6 +137,59 @@ function formatCloseDate(s: string | null): string | null {
   return fmt;
 }
 
+/* ── CLE-06: page-action helpers (pure, shared) ── */
+
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+
+/** Type a PageAction against its own params schema, then erase P so heterogeneous
+ *  actions live in one PageAction[] (the registry stores PageAction<unknown>). */
+function definePageAction<P>(a: PageAction<P>): PageAction {
+  return a as unknown as PageAction;
+}
+
+/** The board/table filter predicate — shared by `filteredDeals` and the
+ *  registered `applyFilter` action's count, so the two can never diverge. */
+function matchesDealFilters(d: Deal, filters: ActiveFilter[], stalledOnly: boolean): boolean {
+  if (stalledOnly) {
+    const age = ageInStage(d.updatedAt, d.stage);
+    if (!age || (age.bucket !== "stalled" && age.bucket !== "frozen")) return false;
+  }
+  for (const f of filters) {
+    if (f.field === "stage" && d.stage !== f.value) return false;
+    if (f.field === "companyName" && !(d.companyName?.toLowerCase().includes(f.value.toLowerCase()))) return false;
+    if (f.field === "owner") {
+      const n = `${d.ownerFirstName || ""} ${d.ownerLastName || ""}`.trim().toLowerCase();
+      if (!n.includes(f.value.toLowerCase())) return false;
+    }
+    if (f.field === "value" && f.op === "gte" && (d.value || 0) < Number(f.value)) return false;
+    if (f.field === "value" && f.op === "lte" && (d.value || 0) > Number(f.value)) return false;
+    if (f.field === "expectedCloseDate" && f.op === "lte" && d.expectedCloseDate && new Date(d.expectedCloseDate) > new Date(f.value)) return false;
+    if (f.field === "risk") {
+      const r = (d.properties as Record<string, unknown>)?.riskLevel as string || "none";
+      if (r !== f.value) return false;
+    }
+  }
+  return true;
+}
+
+/** Human-readable summary of an applyFilter request (for the action result). */
+function describeFilters(p: {
+  stage?: string; owner?: string; minValue?: number; maxValue?: number;
+  closeDateBefore?: string; risk?: string; stalledOnly?: boolean; search?: string;
+}): string {
+  const parts: string[] = [];
+  if (p.stage) parts.push(`stage ${p.stage}`);
+  if (p.owner) parts.push(`owner ${p.owner}`);
+  if (p.minValue != null) parts.push(`value >= ${p.minValue}`);
+  if (p.maxValue != null) parts.push(`value <= ${p.maxValue}`);
+  if (p.closeDateBefore) parts.push(`closing by ${p.closeDateBefore}`);
+  if (p.risk) parts.push(`risk ${p.risk}`);
+  if (p.stalledOnly) parts.push("stalled only");
+  if (p.search) parts.push(`search "${p.search}"`);
+  return parts.length ? parts.join(", ") : "no filters";
+}
+
 /* ── Main Component ── */
 
 export default function OpportunitiesPage() {
@@ -255,26 +312,145 @@ export default function OpportunitiesPage() {
     }
   }, []);
 
+  // ── CLE-06: live mirrors + parameterized network helpers. The registered
+  //    page actions are captured once on mount (CLE-03 keys registration by the
+  //    id list), so their run() must read current state via refs and call these
+  //    stable helpers — never a stale closure. Each helper is the SINGLE copy of
+  //    its network call; the button/drag handlers below delegate to it. ──
+  const surfaceContainerRef = useRef<HTMLDivElement>(null); // CLE-15 highlight scope (spans board + table)
+  const dealsRef = useRef(deals); dealsRef.current = deals;
+  const stalledOnlyRef = useRef(stalledOnly); stalledOnlyRef.current = stalledOnly;
+  const viewDeletedRef = useRef(viewDeleted); viewDeletedRef.current = viewDeleted;
+  const showForecastRef = useRef(showForecast); showForecastRef.current = showForecast;
+  const showAnalyticsRef = useRef(showAnalytics); showAnalyticsRef.current = showAnalytics;
+  const forecastRef = useRef(forecast); forecastRef.current = forecast;
+  const fetchDealsRef = useRef(fetchDeals); fetchDealsRef.current = fetchDeals;
+  const stagesRef = useRef<Array<{ id: string }>>([]); // assigned below, after activeStages is computed
+
+  const submitCreate = useCallback(
+    async (input: {
+      name: string; stage: string; value?: number; companyId?: string;
+      contactId?: string; expectedCloseDate?: string; ownerId?: string;
+    }): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const r = await fetch("/api/opportunities", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: input.name, stage: input.stage,
+            value: input.value, companyId: input.companyId || undefined,
+            contactId: input.contactId || undefined,
+            expectedCloseDate: input.expectedCloseDate || undefined,
+            ownerId: input.ownerId || undefined,
+          }),
+        });
+        if (!r.ok) {
+          const b = (await r.json().catch(() => ({}))) as { error?: string };
+          return { ok: false, error: b.error ?? "Failed to create opportunity." };
+        }
+        fetchDealsRef.current(); fetchAnalytics();
+        return { ok: true };
+      } catch (e) {
+        console.warn("opportunities: create failed", e);
+        return { ok: false, error: "Failed to create opportunity." };
+      }
+    },
+    [fetchAnalytics],
+  );
+
+  const deleteDeals = useCallback(
+    async (
+      ids: string[],
+      cascade: string[],
+    ): Promise<{ ok: boolean; okCount: number; failed: number; extra: number; error?: string }> => {
+      if (ids.length === 0) return { ok: false, okCount: 0, failed: 0, extra: 0, error: "No deals to delete." };
+      const prev = dealsRef.current;
+      const idSet = new Set(ids);
+      setDeals((p) => p.filter((d) => !idSet.has(d.id)));
+      try {
+        const results = await Promise.all(
+          ids.map((id) =>
+            fetch(`/api/opportunities/${id}`, {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ cascade }),
+            })
+              .then(async (r) => {
+                if (!r.ok) return null;
+                const data = (await r.json().catch(() => ({}))) as { cascaded?: Record<string, number> };
+                return Object.values(data.cascaded ?? {}).reduce<number>((a, b) => a + (b ?? 0), 0);
+              })
+              .catch(() => null),
+          ),
+        );
+        const okArr = results.filter((r): r is number => r !== null);
+        const failed = results.length - okArr.length;
+        const extra = okArr.reduce((a, b) => a + b, 0);
+        if (okArr.length === 0) {
+          setDeals(prev);
+          return { ok: false, okCount: 0, failed, extra: 0, error: "Failed to delete." };
+        }
+        if (failed > 0) fetchDealsRef.current();
+        fetchAnalytics();
+        return { ok: true, okCount: okArr.length, failed, extra };
+      } catch (e) {
+        setDeals(prev);
+        console.warn("opportunities: cascade delete failed", e);
+        return { ok: false, okCount: 0, failed: ids.length, extra: 0, error: "Failed to delete." };
+      }
+    },
+    [fetchAnalytics],
+  );
+
+  const restoreDealsResult = useCallback(
+    async (ids: string[]): Promise<{ ok: boolean; restored?: number; error?: string }> => {
+      if (ids.length === 0) return { ok: false, error: "No deals to restore." };
+      try {
+        const res = await fetch("/api/opportunities/restore", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids }),
+        });
+        if (!res.ok) return { ok: false, error: "Couldn't restore." };
+        const data = await res.json().catch(() => ({ restored: ids.length }));
+        await fetchDealsRef.current();
+        return { ok: true, restored: (data as { restored?: number }).restored ?? ids.length };
+      } catch (e) {
+        console.warn("opportunities: restore failed", e);
+        return { ok: false, error: "Couldn't restore." };
+      }
+    },
+    [],
+  );
+
+  const analyzeDealsByIds = useCallback(
+    async (ids: string[]): Promise<{ ok: boolean; error?: string }> => {
+      if (ids.length === 0) return { ok: false, error: "No deals to analyze." };
+      try {
+        const r = await fetch("/api/deals/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dealIds: ids }),
+        });
+        if (!r.ok) return { ok: false, error: "Failed to analyze deals." };
+        await fetchDealsRef.current(); await fetchAnalytics();
+        return { ok: true };
+      } catch (e) {
+        console.warn("opportunities: analyze failed", e);
+        return { ok: false, error: "Failed to analyze deals." };
+      }
+    },
+    [fetchAnalytics],
+  );
+
   // Restore soft-deleted opportunities from the Archive view — clears
   // deleted_at and brings back the activities/notes/tasks cascade-deleted with
   // each deal (matched by the shared delete timestamp).
   async function restoreDeals(ids: string[]) {
     if (ids.length === 0) return;
-    try {
-      const res = await fetch("/api/opportunities/restore", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids }),
-      });
-      if (!res.ok) { toast("Couldn't restore.", "error"); return; }
-      const data = await res.json().catch(() => ({ restored: ids.length }));
-      toast(`Restored ${data.restored} opportunit${data.restored === 1 ? "y" : "ies"}.`, "success");
-      setSelectedRows(new Set());
-      await fetchDeals();
-    } catch (e) {
-      console.warn("opportunities: restore failed", e);
-      toast("Couldn't restore.", "error");
-    }
+    const r = await restoreDealsResult(ids);
+    if (!r.ok) { toast("Couldn't restore.", "error"); return; }
+    toast(`Restored ${r.restored} opportunit${r.restored === 1 ? "y" : "ies"}.`, "success");
+    setSelectedRows(new Set());
   }
 
   useEffect(() => { fetchDeals(); }, [fetchDeals]);
@@ -314,46 +490,23 @@ export default function OpportunitiesPage() {
     e.preventDefault();
     if (!newName.trim()) return;
     setCreating(true);
-    try {
-      const r = await fetch("/api/opportunities", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newName.trim(), stage: createStage,
-          value: newValue ? parseInt(newValue) : undefined,
-          companyId: newAccountId || undefined, contactId: newContactId || undefined,
-          expectedCloseDate: newCloseDate || undefined,
-          ownerId: newOwnerId || undefined,
-        }),
-      });
-      if (r.ok) {
-        setShowCreate(false); fetchDeals(); fetchAnalytics();
-      } else {
-        toast("Failed to create opportunity", "error");
-      }
-    } catch (e) {
-      toast("Failed to create opportunity", "error");
-      console.warn("opportunities: create failed", e);
-    } finally { setCreating(false); }
+    const r = await submitCreate({
+      name: newName.trim(), stage: createStage,
+      value: newValue ? parseInt(newValue) : undefined,
+      companyId: newAccountId || undefined, contactId: newContactId || undefined,
+      expectedCloseDate: newCloseDate || undefined, ownerId: newOwnerId || undefined,
+    });
+    if (r.ok) setShowCreate(false);
+    else toast("Failed to create opportunity", "error");
+    setCreating(false);
   }
 
   async function analyzeDeals() {
     if (deals.length === 0) return;
     setAnalyzing(true);
-    try {
-      const r = await fetch("/api/deals/analyze", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dealIds: deals.map((d) => d.id) }),
-      });
-      if (r.ok) {
-        await fetchDeals(); await fetchAnalytics();
-        toast("Deal analysis complete", "success");
-      } else {
-        toast("Failed to analyze deals", "error");
-      }
-    } catch (e) {
-      toast("Failed to analyze deals", "error");
-      console.warn("opportunities: analyze failed", e);
-    } finally { setAnalyzing(false); }
+    const r = await analyzeDealsByIds(deals.map((d) => d.id));
+    toast(r.ok ? "Deal analysis complete" : "Failed to analyze deals", r.ok ? "success" : "error");
+    setAnalyzing(false);
   }
 
   /* ── Drag & drop ── */
@@ -478,51 +631,18 @@ export default function OpportunitiesPage() {
     if (!cascadeTarget) return;
     const ids = cascadeTarget.ids;
     setCascadeBusy(true);
-    const prev = deals;
-    const idSet = new Set(ids);
-    setDeals((p) => p.filter((d) => !idSet.has(d.id)));
-    try {
-      const results = await Promise.all(
-        ids.map((id) =>
-          fetch(`/api/opportunities/${id}`, {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ cascade: selectedKeys }),
-          })
-            .then(async (r) => {
-              if (!r.ok) return null;
-              const data = (await r.json().catch(() => ({}))) as { cascaded?: Record<string, number> };
-              return Object.values(data.cascaded ?? {}).reduce<number>((a, b) => a + (b ?? 0), 0);
-            })
-            .catch(() => null),
-        ),
+    const r = await deleteDeals(ids, selectedKeys);
+    if (!r.ok) {
+      toast("Failed to delete opportunit" + (ids.length === 1 ? "y" : "ies"), "error");
+    } else {
+      toast(
+        `Moved ${r.okCount} opportunit${r.okCount === 1 ? "y" : "ies"}${r.extra > 0 ? ` + ${r.extra} related record${r.extra === 1 ? "" : "s"}` : ""} to Archive${r.failed > 0 ? ` (${r.failed} failed)` : ""}.`,
+        r.failed > 0 ? "warning" : "success",
       );
-      const ok = results.filter((r): r is number => r !== null);
-      const failed = results.length - ok.length;
-      const extra = ok.reduce((a, b) => a + b, 0);
-      if (ok.length === 0) {
-        setDeals(prev);
-        toast("Failed to delete opportunit" + (ids.length === 1 ? "y" : "ies"), "error");
-      } else {
-        if (failed > 0) {
-          // Re-sync from server so the rows that failed to delete reappear.
-          fetchDeals();
-        }
-        toast(
-          `Moved ${ok.length} opportunit${ok.length === 1 ? "y" : "ies"}${extra > 0 ? ` + ${extra} related record${extra === 1 ? "" : "s"}` : ""} to Archive${failed > 0 ? ` (${failed} failed)` : ""}.`,
-          failed > 0 ? "warning" : "success",
-        );
-        setSelectedRows(new Set());
-        fetchAnalytics();
-      }
-    } catch (e) {
-      setDeals(prev);
-      toast("Failed to delete opportunities", "error");
-      console.warn("opportunities: cascade delete failed", e);
-    } finally {
-      setCascadeBusy(false);
-      setCascadeTarget(null);
+      setSelectedRows(new Set());
     }
+    setCascadeBusy(false);
+    setCascadeTarget(null);
   }
 
   /* ── Computed ── */
@@ -535,37 +655,234 @@ export default function OpportunitiesPage() {
 
   const stageOptions = activeStages.map((s) => ({ value: s.id, label: s.name }));
 
-  // Filter
-  const filteredDeals = deals.filter((d) => {
-    // Text/sector search is server-side now (industry-aware via the same LLM
-    // resolver), so the loaded `deals` are already the matched set — no
-    // client-side text re-filter here (which would wrongly drop deals matched
-    // only by their company's industry, e.g. "medical" -> a Spineart deal).
-    // Y12 — "Stalled" preset: only deals whose age-in-stage falls in
-    // the stalled / frozen buckets (>= 14 days). Won/Lost are excluded
-    // because ageInStage returns null for closed stages, so the filter
-    // naturally hides them.
-    if (stalledOnly) {
-      const age = ageInStage(d.updatedAt, d.stage);
-      if (!age || (age.bucket !== "stalled" && age.bucket !== "frozen")) return false;
-    }
-    for (const f of activeFilters) {
-      if (f.field === "stage" && d.stage !== f.value) return false;
-      if (f.field === "companyName" && !(d.companyName?.toLowerCase().includes(f.value.toLowerCase()))) return false;
-      if (f.field === "owner") {
-        const n = `${d.ownerFirstName || ""} ${d.ownerLastName || ""}`.trim().toLowerCase();
-        if (!n.includes(f.value.toLowerCase())) return false;
-      }
-      if (f.field === "value" && f.op === "gte" && (d.value || 0) < Number(f.value)) return false;
-      if (f.field === "value" && f.op === "lte" && (d.value || 0) > Number(f.value)) return false;
-      if (f.field === "expectedCloseDate" && f.op === "lte" && d.expectedCloseDate && new Date(d.expectedCloseDate) > new Date(f.value)) return false;
-      if (f.field === "risk") {
-        const r = (d.properties as Record<string, unknown>)?.riskLevel as string || "none";
-        if (r !== f.value) return false;
-      }
-    }
-    return true;
-  });
+  // ── CLE-06: register this page's actions for the chat live-executor. run()s
+  //    reuse the existing handlers/extractions above; live values via refs. ──
+  stagesRef.current = activeStages;
+  const opportunityListActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "opportunities.moveStage",
+        title: "Move a deal to a stage",
+        description:
+          "Move one deal on the board to a pipeline stage (e.g. demo, negotiation, won, lost). " +
+          "Moving to Won or Lost requires a close reason; pass closeReason {reason, note?} to set it, " +
+          "otherwise the user is asked to pick one. Use when the user names a deal and a target stage.",
+        params: z.object({
+          dealId: z.string().min(1),
+          stage: z.string().min(1),
+          closeReason: z.object({ reason: z.string().min(1), note: z.string().optional() }).optional(),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ dealId, stage, closeReason }): Promise<PageActionResult> => {
+          const list = dealsRef.current;
+          const deal = list.find((d) => d.id === dealId);
+          if (!deal) return errResult(`Deal ${dealId} is not in the current view.`);
+          const valid = stagesRef.current.some((s) => s.id === stage) || (STAGES as readonly string[]).includes(stage);
+          if (!valid) return errResult(`Unknown stage "${stage}".`);
+          if (deal.stage === stage) return okResult(`${deal.name} is already in ${stage}.`);
+          const lower = stage.toLowerCase();
+          const prev = [...list];
+          setDeals((p) => p.map((d) => (d.id === dealId ? { ...d, stage } : d)));
+          if (lower === "won" || lower === "lost") {
+            if (!closeReason) {
+              setPendingClose({ dealId, outcome: lower as "won" | "lost", prev });
+              return errResult(
+                "close_reason_required",
+                `Moved ${deal.name} toward ${stage} — pick a close reason in the dialog to confirm.`,
+              );
+            }
+            if (closeReason.reason === "other" && !closeReason.note?.trim()) {
+              setDeals(prev);
+              return errResult('A note is required when the reason is "other".');
+            }
+            // Commit with the canonical lowercase "won"/"lost" (the pipeline's
+            // closed-stage ids); the optimistic setDeals above used the raw stage.
+            await commitStageChange(dealId, lower, prev, { reason: closeReason.reason, note: closeReason.note?.trim() ?? null });
+            return okResult(`Marked ${deal.name} ${lower === "won" ? "Won" : "Lost"} (${closeReason.reason}).`, {
+              highlight: { entityId: dealId, scope: "opportunities", field: "stage" },
+            });
+          }
+          await commitStageChange(dealId, stage, prev);
+          const moved = dealsRef.current.find((d) => d.id === dealId);
+          return moved?.stage === stage
+            ? okResult(`Moved ${deal.name} to ${stage}.`, { highlight: { entityId: dealId, scope: "opportunities", field: "stage" } })
+            : errResult(`The move to ${stage} did not persist; it has been rolled back.`);
+        },
+      }),
+      definePageAction({
+        id: "opportunities.createDeal",
+        title: "Create an opportunity",
+        description:
+          "Create a new deal on the pipeline. Name is required; optionally set the account, contact, stage " +
+          "(defaults to lead), value, expected close date, owner. Use when the user wants to add a deal.",
+        params: z.object({
+          name: z.string().min(1),
+          accountId: z.string().optional(),
+          contactId: z.string().optional(),
+          stage: z.string().optional(),
+          value: z.number().optional(),
+          expectedCloseDate: z.string().optional(),
+          ownerId: z.string().optional(),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async (p): Promise<PageActionResult> => {
+          const name = p.name.trim();
+          if (!name) return errResult("A deal name is required.");
+          const stage = p.stage && stagesRef.current.some((s) => s.id === p.stage) ? p.stage : "lead";
+          const r = await submitCreate({
+            name, stage, value: p.value, companyId: p.accountId, contactId: p.contactId,
+            expectedCloseDate: p.expectedCloseDate, ownerId: p.ownerId,
+          });
+          return r.ok ? okResult(`Created opportunity "${name}".`) : errResult(r.error ?? "Failed to create opportunity.");
+        },
+      }),
+      definePageAction({
+        id: "opportunities.applyFilter",
+        title: "Filter the pipeline",
+        description:
+          "Apply visible filters to the board/table: stage, owner, min/max value, close-date-before, risk level, " +
+          "stalled-only (deals 14+ days in stage), and a text/sector search. Replaces the current filter set.",
+        params: z.object({
+          stage: z.string().optional(),
+          owner: z.string().optional(),
+          minValue: z.number().optional(),
+          maxValue: z.number().optional(),
+          closeDateBefore: z.string().optional(),
+          risk: z.enum(["high", "medium", "low", "none"]).optional(),
+          stalledOnly: z.boolean().optional(),
+          search: z.string().optional(),
+        }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async (p): Promise<PageActionResult> => {
+          const next: ActiveFilter[] = [];
+          if (p.stage) next.push({ field: "stage", label: `Stage: ${p.stage}`, op: "eq", value: p.stage });
+          if (p.owner) next.push({ field: "owner", label: `Owner: ${p.owner}`, op: "eq", value: p.owner });
+          if (p.minValue != null) next.push({ field: "value", label: `Value >= ${p.minValue}`, op: "gte", value: String(p.minValue) });
+          if (p.maxValue != null) next.push({ field: "value", label: `Value <= ${p.maxValue}`, op: "lte", value: String(p.maxValue) });
+          if (p.closeDateBefore) next.push({ field: "expectedCloseDate", label: `Close <= ${p.closeDateBefore}`, op: "lte", value: p.closeDateBefore });
+          if (p.risk) next.push({ field: "risk", label: `Risk: ${p.risk}`, op: "eq", value: p.risk });
+          setActiveFilters(next);
+          if (p.stalledOnly != null) setStalledOnly(p.stalledOnly);
+          if (p.search != null) setSearchQuery(p.search);
+          const stalled = p.stalledOnly ?? stalledOnlyRef.current;
+          const count = dealsRef.current.filter((d) => matchesDealFilters(d, next, stalled)).length;
+          const desc = describeFilters(p);
+          return okResult(
+            count === 0 ? `No deals match (${desc}).` : `Filtered to ${count} deal${count === 1 ? "" : "s"} (${desc}).`,
+            { count },
+          );
+        },
+      }),
+      definePageAction({
+        id: "opportunities.setView",
+        title: "Switch the pipeline view",
+        description: "Switch between the board (kanban) and table layouts; optionally show the archive of removed deals.",
+        params: z.object({ view: z.enum(["board", "table"]), archived: z.boolean().optional() }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async ({ view, archived }): Promise<PageActionResult> => {
+          if (archived) {
+            setViewDeleted(true); setViewMode("table"); setSelectedRows(new Set());
+            setShowAnalytics(false); setShowForecast(false);
+            return okResult("Showing the archive (table).");
+          }
+          if (viewDeletedRef.current) setViewDeleted(false);
+          setViewMode(view);
+          return okResult(`Switched to ${view} view.`);
+        },
+      }),
+      definePageAction({
+        id: "opportunities.delete",
+        title: "Delete an opportunity",
+        description:
+          "Soft-delete a deal (it moves to the archive and can be restored). Optionally cascade to the deal's " +
+          "activities, notes, and/or tasks. Always asks for confirmation first.",
+        params: z.object({
+          dealId: z.string().min(1),
+          cascade: z.array(z.enum(["activities", "notes", "tasks"])).optional(),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "always",
+        run: async ({ dealId, cascade }): Promise<PageActionResult> => {
+          const deal = dealsRef.current.find((d) => d.id === dealId);
+          if (!deal) return errResult(`Deal ${dealId} is not in the current view.`);
+          const r = await deleteDeals([dealId], cascade ?? []);
+          return r.ok ? okResult(`Moved ${deal.name} to Archive.`) : errResult(r.error ?? "Failed to delete the opportunity.");
+        },
+      }),
+      definePageAction({
+        id: "opportunities.restore",
+        title: "Restore an archived opportunity",
+        description: "Bring a soft-deleted deal back from the archive.",
+        params: z.object({ dealId: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ dealId }): Promise<PageActionResult> => {
+          const r = await restoreDealsResult([dealId]);
+          return r.ok ? okResult("Restored the opportunity.") : errResult(r.error ?? "Couldn't restore.");
+        },
+      }),
+      definePageAction({
+        id: "opportunities.analyzePipeline",
+        title: "Analyze the pipeline",
+        description:
+          "Run AI deal analysis over the loaded deals (or a specific set of deal ids) — refreshes risk, next steps " +
+          "and stage signals. Use when the user asks to analyze or score the pipeline.",
+        params: z.object({ dealIds: z.array(z.string()).optional() }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ dealIds }): Promise<PageActionResult> => {
+          const ids = dealIds ?? dealsRef.current.map((d) => d.id);
+          if (ids.length === 0) return errResult("No deals to analyze.", "No deals to analyze.");
+          const r = await analyzeDealsByIds(ids);
+          return r.ok
+            ? okResult(`Analyzed ${ids.length} deal${ids.length === 1 ? "" : "s"}.`)
+            : errResult(r.error ?? "Failed to analyze deals.");
+        },
+      }),
+      definePageAction({
+        id: "opportunities.toggleForecast",
+        title: "Show or hide the forecast",
+        description: "Open or close the revenue-forecast panel.",
+        params: z.object({ open: z.boolean().optional() }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async ({ open }): Promise<PageActionResult> => {
+          const next = open ?? !showForecastRef.current;
+          setShowForecast(next);
+          if (next && !forecastRef.current) fetchForecast();
+          return okResult(next ? "Opened the forecast." : "Closed the forecast.");
+        },
+      }),
+      definePageAction({
+        id: "opportunities.toggleAnalytics",
+        title: "Show or hide analytics",
+        description: "Open or close the pipeline analytics KPI strip.",
+        params: z.object({ open: z.boolean().optional() }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async ({ open }): Promise<PageActionResult> => {
+          const next = open ?? !showAnalyticsRef.current;
+          setShowAnalytics(next);
+          return okResult(next ? "Opened analytics." : "Closed analytics.");
+        },
+      }),
+    ],
+    // Stable id set; run() reads live values via refs and calls stable
+    // setters/useCallback helpers — so registration happens once (CLE-03).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useRegisterPageActions(opportunityListActions);
+
+  // CLE-15 — let the chat pulse a specific deal (the moved deal, or a record the
+  // chat navigates to). The locator resolves an id to whichever node renders it
+  // in the CURRENT view (board card or table row both carry data-cle-entity).
+  // Null-safe: returns null when the deal is filtered out or not mounted.
+  const opportunitiesLocate = useCallback<EntityLocator>(
+    (a) => surfaceContainerRef.current?.querySelector<HTMLElement>(`[data-cle-entity="${cssEscape(a.entityId)}"]`) ?? null,
+    [],
+  );
+  useRegisterEntityLocator("opportunities", opportunitiesLocate);
+
+  // Filter. Text/sector search is server-side (industry-aware), so the loaded
+  // `deals` are already the matched set — the client predicate only applies the
+  // stalled preset + active chips. Shared with the applyFilter action's count.
+  const filteredDeals = deals.filter((d) => matchesDealFilters(d, activeFilters, stalledOnly));
 
   // Y12 — precompute the preset's current-tenant hit count so the
   // toggle button shows "Stalled (7)" instead of forcing the user to
@@ -792,7 +1109,7 @@ export default function OpportunitiesPage() {
   /* ── Render ── */
 
   return (
-    <div className="flex h-full flex-col animate-content-in" style={{ background: "var(--color-bg-card)" }}>
+    <div ref={surfaceContainerRef} className="flex h-full flex-col animate-content-in" style={{ background: "var(--color-bg-card)" }}>
       {/* Multi-select bar (table view) — appears when rows are checked. */}
       <BulkActionsBar
         count={selectedRows.size}
@@ -1228,7 +1545,7 @@ export default function OpportunitiesPage() {
               </thead>
               <tbody>
                 {sortedDeals.map((deal) => (
-                  <tr key={deal.id} data-selected={selectedRows.has(deal.id) ? "true" : undefined} onClick={() => handleCardClick(deal.id)} className="cursor-pointer transition-colors" style={{ borderBottom: "1px solid var(--color-border-default)", background: selectedRows.has(deal.id) ? "var(--color-bg-selected, var(--color-bg-hover))" : undefined }}
+                  <tr key={deal.id} data-cle-entity={deal.id} data-selected={selectedRows.has(deal.id) ? "true" : undefined} onClick={() => handleCardClick(deal.id)} className="cursor-pointer transition-colors" style={{ borderBottom: "1px solid var(--color-border-default)", background: selectedRows.has(deal.id) ? "var(--color-bg-selected, var(--color-bg-hover))" : undefined }}
                     onMouseEnter={(e) => { if (!selectedRows.has(deal.id)) e.currentTarget.style.background = "var(--color-bg-hover)"; }} onMouseLeave={(e) => { if (!selectedRows.has(deal.id)) e.currentTarget.style.background = "transparent"; }}>
                     <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                       <input
@@ -1394,7 +1711,7 @@ export default function OpportunitiesPage() {
                   {/* Cards */}
                   <div className="flex-1 space-y-2 overflow-y-auto p-2">
                     {stageDeals.map((deal) => (
-                      <div key={deal.id} draggable
+                      <div key={deal.id} data-cle-entity={deal.id} draggable
                         onDragStart={(e) => handleDragStart(e, deal.id)}
                         onDragEnd={handleDragEnd}
                         onClick={() => handleCardClick(deal.id)}

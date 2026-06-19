@@ -13,8 +13,10 @@ import { db } from "@/db";
 import { companies, contacts, deals, activities, notes, chatMemories, knowledgeEntries } from "@/db/schema";
 import { and, eq, desc, sql, or, isNull } from "drizzle-orm";
 import { getTenantSettings, deriveTargetRoles, type TenantSettings } from "@/lib/config/tenant-settings";
+import { readApprovalMode, chatCreateDisposition } from "@/lib/guardrails/approval-mode";
 import { buildChatSystemPrompt } from "@/lib/prompts/chat-system-prompt";
 import { buildAllChatTools, type ToolContext } from "@/lib/chat/tools";
+import type { PageActionManifest } from "@/lib/chat/page-actions/types";
 import { resolveCapabilities, type SurfaceContext } from "@/lib/agents/capability-resolver";
 import { routeTools } from "@/lib/chat/tool-router";
 import { orchestrate } from "@/lib/agents/orchestrator";
@@ -404,6 +406,7 @@ export async function POST(req: Request) {
     contextId,
     surface: surfaceInput,
     threadId,
+    pageActions,
   }: {
     messages: UIMessage[];
     contextType?: string;
@@ -415,6 +418,11 @@ export async function POST(req: Request) {
      * propose durable memories from recent conversation history.
      */
     threadId?: string;
+    /**
+     * CLE-04: the current page's action manifest (CLE-03's dock put it on the
+     * wire). Absent off-web (Slack/MCP) or on the /chat page (no dock).
+     */
+    pageActions?: PageActionManifest;
   } = await req.json();
 
   // If the Anthropic circuit breaker is open, skip straight to OpenAI
@@ -552,7 +560,12 @@ export async function POST(req: Request) {
       }
     })(),
     (async () => {
-      return tenantSettings.agentApprovalMode || "auto";
+      // SSOT coercion — collapses legacy ("ask"/"auto"/"manual"/"off") and v2 values to
+      // the canonical v2 enum. Was `tenantSettings.agentApprovalMode || "auto"`, which
+      // leaked a raw value that create tools + the prompt mis-tested as `=== "ask"`
+      // (CLE-00 dead-wire bug: prod default is "review-each", so the proposal branch
+      // never fired and creates mutated immediately).
+      return readApprovalMode(tenantSettings);
     })(),
     // Load persistent memories for this user
     (async () => {
@@ -606,6 +619,7 @@ export async function POST(req: Request) {
     authCtx,
     settings: tenantSettings,
     agentApprovalMode,
+    pageActionManifest: pageActions, // CLE-04
   };
   const allTools = buildAllChatTools(toolCtx);
   const resolved = resolveCapabilities(allTools, {
@@ -662,7 +676,7 @@ export async function POST(req: Request) {
         knowledgeContext,
         memoriesContext,
         workQueueContext,
-        agentApprovalMode,
+        approvalRequiresReview: chatCreateDisposition(agentApprovalMode) === "proposal",
         userName: tenantSettings.onboardingCompanyName || undefined,
         preferredLanguage: tenantSettings.language || undefined,
       }) + resolved.surfacePromptAddendum + specialistPromptAddendum;

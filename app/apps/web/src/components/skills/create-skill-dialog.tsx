@@ -4,7 +4,7 @@ import { useState } from "react";
 import { X, Plus, Trash2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { SkillEntry } from "@/app/(dashboard)/skills/page";
+import type { SkillEntry } from "@/app/(dashboard)/skills/_types";
 
 interface CreateSkillDialogProps {
   forkSource: SkillEntry | null;

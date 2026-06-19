@@ -19,6 +19,8 @@ import {
   type KpiMetrics,
   type Actualite,
 } from "@/lib/home/up-next";
+import { isExcludedAsLead } from "@/lib/inbound/lead-status";
+import { classifyInboundSender } from "@/lib/inbound/lead-classification";
 
 /**
  * `/api/home/up-next` — the founder's dashboard in one read: KPIs + a cross-page
@@ -91,8 +93,31 @@ async function loadReplies(
       await loadConversationRows(tenantId),
       scope,
     );
-    return buildConversations({ inbound, outbound, triage })
-      .filter((c) => c.lane === "attention")
+    const attention = buildConversations({ inbound, outbound, triage }).filter(
+      (c) => c.lane === "attention",
+    );
+    // Exclude a conversation when (a) the user/LLM ruled the contact "not a
+    // lead", or (b) the contact's address is an automated/role sender
+    // (noreply@…). We classify on the CONTACT EMAIL, not metadata.from: legacy
+    // inbound rows lost their From header (clobber bug #260), so the
+    // buildConversations machine→handled gate can't see it — but the contact
+    // email still can. See _specs/inbound-lead-recognition/.
+    const cids = [...new Set(attention.map((c) => c.contactId).filter((x): x is string => !!x))];
+    const excludedIds = new Set<string>();
+    if (cids.length) {
+      const rows = await db
+        .select({ id: contacts.id, email: contacts.email, properties: contacts.properties })
+        .from(contacts)
+        .where(and(eq(contacts.tenantId, tenantId), inArray(contacts.id, cids)));
+      for (const r of rows) {
+        const machine = r.email ? classifyInboundSender({ fromHeader: r.email }).isMachineSent : false;
+        if (machine || isExcludedAsLead(r.properties as Record<string, unknown> | null)) {
+          excludedIds.add(r.id);
+        }
+      }
+    }
+    return attention
+      .filter((c) => !(c.contactId && excludedIds.has(c.contactId)))
       .slice(0, 25)
       .map((c) => ({
         conversationKey: c.key,
@@ -299,6 +324,18 @@ async function loadActualites(tenantId: string): Promise<Actualite[]> {
     const items: Actualite[] = [];
 
     for (const a of acts) {
+      // Skip automated/role inbound (noreply@, notifications@…) — a "reply"
+      // from a service the user subscribes to is not a feed-worthy event
+      // (inbound-lead audit, tranche 3).
+      if (a.activityType === "email_received") {
+        // Prefer the From header; fall back to the resolved contact name/email
+        // (legacy rows lost their From header — clobber bug #260).
+        const meta = a.metadata as Record<string, unknown> | null;
+        const senderHint =
+          String(meta?.from ?? "") ||
+          (a.entityType === "contact" && a.entityId ? nameMap.get(a.entityId) ?? "" : "");
+        if (senderHint && classifyInboundSender({ fromHeader: senderHint }).isMachineSent) continue;
+      }
       const who = a.entityType === "contact" && a.entityId ? nameMap.get(a.entityId) ?? null : null;
       const href = a.entityType === "contact" && a.entityId ? `/contacts/${a.entityId}` : null;
       if (a.activityType === "email_received" || a.activityType === "email_replied") {

@@ -18,7 +18,6 @@
 @theme {
   /* === TYPOGRAPHY === */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --font-display: 'Fraunces', 'Georgia', serif;
   --font-mono: 'JetBrains Mono', 'DM Mono', monospace;
 
   /* === LAYOUT === */
@@ -303,6 +302,11 @@
     background: var(--color-border-strong);
   }
 }
+
+/* Hide scrollbars within a subtree — the landing's scaled product shots show
+   the whole UI at once and must never reveal a scrollbar (H or V). */
+.no-scrollbars, .no-scrollbars * { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbars::-webkit-scrollbar, .no-scrollbars *::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
 /* ================================================================
    SUBTLE GRID BACKGROUND — main content area only
@@ -668,4 +672,113 @@
 }
 :focus:not(:focus-visible) {
   outline: none;
+}
+
+/* Sanitized email HTML body in the reading pane (INBOX-R01). Scoped so a
+   message's own markup can never break the 400px pane: images and tables are
+   bounded, long tokens wrap, and overflow scrolls instead of pushing layout.
+   The content is allowlist-sanitized before it reaches the DOM. */
+.email-body {
+  max-width: 100%;
+  overflow-x: auto;
+  color: var(--color-text-primary);
+}
+.email-body img {
+  max-width: 100%;
+  height: auto;
+}
+.email-body table {
+  max-width: 100%;
+  border-collapse: collapse;
+}
+.email-body a {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+.email-body blockquote {
+  margin: 0.5em 0;
+  padding-left: 0.75em;
+  border-left: 2px solid var(--color-border-strong);
+  color: var(--color-text-secondary);
+}
+.email-body pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Dark mode: render the authored email on a light "paper" so its own colors
+   (designed for a white background) stay legible instead of clashing with the
+   dark UI (INBOX-R08). The chrome around it — privacy banner, trimmed-content
+   toggle — stays on the app theme. */
+.dark .email-body {
+  background: #ffffff;
+  color: #1a1a2e;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.dark .email-body a {
+  color: #2c6bed;
+}
+.dark .email-body blockquote {
+  color: #4b5563;
+  border-left-color: #d1d5db;
+}
+
+/* ================================================================
+   REDUCED MOTION (a11y)
+   Honour the OS "reduce motion" preference. Neutralizes continuous and
+   entrance CSS animations (skeleton shimmer, gradient-text, spinners,
+   toasts, modals, slide-overs) and long transitions. Framer-motion
+   components in (marketing) are gated separately via useReducedMotion().
+   ================================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ================================================================
+   CLE-15 — post-action highlight pulse
+   Scoped, self-contained, no dependency. Emphasis is NOT color-only:
+   a solid outline + box-shadow ring + a soft background tint, so it is
+   perceivable without color vision. The JS (registry.ts) picks the
+   animated or the --static class; this owns the look. color-mix degrades
+   to the plain outline where unsupported.
+   ================================================================ */
+@keyframes cle-highlight-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--color-accent);
+    background-color: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  }
+  60% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 45%, transparent);
+    background-color: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    background-color: transparent;
+  }
+}
+.cle-entity-highlight {
+  animation: cle-highlight-pulse 1.6s ease-out 1; /* matches HIGHLIGHT_MS; 1 iteration, then clears */
+  border-radius: 6px; /* soft, matches table/card radii */
+}
+/* Static fallback: an instant solid emphasis with NO animation, removed by JS after the window. */
+.cle-entity-highlight--static {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -1px;
+  background-color: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+/* Belt-and-braces: even if JS adds the animated class, kill motion under reduce. */
+@media (prefers-reduced-motion: reduce) {
+  .cle-entity-highlight {
+    animation: none;
+    outline: 2px solid var(--color-accent);
+    outline-offset: -1px;
+  }
 }

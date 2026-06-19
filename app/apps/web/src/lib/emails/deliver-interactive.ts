@@ -36,6 +36,7 @@ import { checkPlanLimit } from "@/lib/billing/plan-limits";
 import { trackUsage } from "@/lib/billing/billing";
 import { logger } from "@/lib/observability/logger";
 import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
+import { evaluateSend } from "@/lib/guardrails/sending-gate";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FALLBACK_FROM = process.env.INVITE_FROM_ADDRESS || "Elevay <outbound@resend.dev>";
@@ -47,6 +48,7 @@ export interface DeliverInteractiveInput {
   ownerAppUserId: string | null | undefined;
   to: string;
   cc?: string[];
+  bcc?: string[];
   subject: string;
   /** Plain-text body (the composer + follow-up drafts are plain text). */
   body: string;
@@ -54,13 +56,18 @@ export interface DeliverInteractiveInput {
   dealId?: string | null;
   /** Tag for the activity record, e.g. "composer" | "meeting_follow_up". */
   source?: string;
+  /** Attach an iCalendar part (e.g. an RSVP REPLY) — passed to the transport. */
+  icsInvite?: { method: "REQUEST" | "PUBLISH" | "CANCEL" | "REPLY"; content: string; filename?: string };
+  /** Skip the CAN-SPAM unsubscribe footer/header — for transactional sends
+   *  (an RSVP reply to a meeting organizer is not marketing). */
+  skipUnsubscribe?: boolean;
 }
 
 export type DeliverInteractiveResult =
   | { ok: true; messageId: string; via: "smtp" | "resend"; fromAddress: string }
   | {
       ok: false;
-      code: "opted_out" | "plan_limit" | "not_configured" | "send_failed" | "test_mode";
+      code: "opted_out" | "blocked" | "plan_limit" | "not_configured" | "send_failed" | "test_mode";
       error: string;
     };
 
@@ -72,6 +79,7 @@ interface OwnerMailbox {
   smtpHost: string | null;
   smtpPort: number | null;
   secretEncrypted: string | null;
+  sentToday: number;
 }
 
 async function resolveOwnerMailbox(
@@ -89,6 +97,7 @@ async function resolveOwnerMailbox(
       smtpHost: connectedMailboxes.smtpHost,
       smtpPort: connectedMailboxes.smtpPort,
       secretEncrypted: connectedMailboxes.secretEncrypted,
+      sentToday: connectedMailboxes.sentToday,
     })
     .from(connectedMailboxes)
     .where(
@@ -135,7 +144,24 @@ export async function deliverInteractiveEmail(
     return { ok: false, code: "opted_out", error: `${to} has unsubscribed and can't be emailed.` };
   }
 
-  // 2. Plan limit (monthly emails).
+  // 2. Resolve the sender's own mailbox (needed for the sending-identity cap).
+  const mailbox = await resolveOwnerMailbox(tenantId, input.ownerAppUserId);
+
+  // 2b. CLE-13 (item 1): sending-identity gate. Opt-out is handled above (and
+  // re-checked here idempotently); this enforces the cold-on-primary rail and
+  // the primary daily cap that were never applied on the interactive path.
+  const interactiveGate = await evaluateSend({
+    tenantId,
+    toAddress: to,
+    sentTodayFromPrimary: mailbox?.sentToday ?? 0,
+  });
+  if (!interactiveGate.send) {
+    return interactiveGate.code === "opted_out"
+      ? { ok: false, code: "opted_out", error: interactiveGate.reason }
+      : { ok: false, code: "blocked", error: interactiveGate.reason };
+  }
+
+  // 3. Plan limit (monthly emails).
   const planCheck = await checkPlanLimit(tenantId, "emails");
   if (!planCheck.allowed) {
     return {
@@ -145,12 +171,9 @@ export async function deliverInteractiveEmail(
     };
   }
 
-  // 3. Resolve the sender's own mailbox.
-  const mailbox = await resolveOwnerMailbox(tenantId, input.ownerAppUserId);
-
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.elevay.dev";
   const unsubUrl = buildUnsubscribeUrl(appUrl, tenantId, to);
-  const text = withFooter(body, unsubUrl);
+  const text = input.skipUnsubscribe ? body : withFooter(body, unsubUrl);
 
   const useSmtp = shouldUseOwnerSmtp(mailbox);
   const fromAddress =
@@ -174,7 +197,14 @@ export async function deliverInteractiveEmail(
           password,
           displayName: mailbox.displayName,
         },
-        { to, subject, text, cc: input.cc && input.cc.length > 0 ? input.cc.join(", ") : undefined },
+        {
+          to,
+          subject,
+          text,
+          cc: input.cc && input.cc.length > 0 ? input.cc.join(", ") : undefined,
+          bcc: input.bcc && input.bcc.length > 0 ? input.bcc.join(", ") : undefined,
+          icsInvite: input.icsInvite,
+        },
       );
       messageId = res.messageId;
       via = "smtp";
@@ -186,9 +216,13 @@ export async function deliverInteractiveEmail(
         from: fromAddress,
         to: [to],
         cc: input.cc && input.cc.length > 0 ? input.cc : undefined,
+        bcc: input.bcc && input.bcc.length > 0 ? input.bcc : undefined,
         subject,
         text,
-        headers: { "List-Unsubscribe": `<${unsubUrl}>` },
+        attachments: input.icsInvite
+          ? [{ filename: input.icsInvite.filename || "reply.ics", content: Buffer.from(input.icsInvite.content) }]
+          : undefined,
+        headers: input.skipUnsubscribe ? undefined : { "List-Unsubscribe": `<${unsubUrl}>` },
       });
       if (error) return { ok: false, code: "send_failed", error: error.message };
       messageId = data?.id || crypto.randomUUID();

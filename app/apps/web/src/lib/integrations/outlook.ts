@@ -67,7 +67,9 @@ async function getAccessToken(userId: string): Promise<string | null> {
         client_secret: process.env.MICROSOFT_CLIENT_SECRET!,
         refresh_token: refreshToken,
         grant_type: "refresh_token",
-        scope: "openid email profile offline_access Mail.Read Calendars.Read",
+        // Mirror auth.ts: Calendars.ReadWrite so a refreshed token can also
+        // create events (sovereign visio booking), not just read.
+        scope: "openid email profile offline_access Mail.Read Calendars.ReadWrite",
       }),
     });
 
@@ -101,7 +103,7 @@ export async function fetchOutlookEmails(
 
   try {
     const res = await fetch(
-      `${GRAPH_BASE}/me/messages?$filter=receivedDateTime ge ${since}&$top=100&$orderby=receivedDateTime desc&$select=id,conversationId,subject,from,toRecipients,bodyPreview,receivedDateTime`,
+      `${GRAPH_BASE}/me/messages?$filter=receivedDateTime ge ${since}&$top=100&$orderby=receivedDateTime desc&$select=id,conversationId,subject,from,toRecipients,bodyPreview,receivedDateTime,internetMessageHeaders`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
@@ -118,6 +120,14 @@ export async function fetchOutlookEmails(
       );
       const isInbound = fromEmail.toLowerCase() !== userEmail.toLowerCase();
 
+      // Microsoft Graph returns RFC headers as {name,value}[] under
+      // internetMessageHeaders (now $select'd) — normalise to a lower-cased
+      // record for the inbound classifier (List-Unsubscribe / Precedence / …).
+      const headerRecord: Record<string, string> = {};
+      for (const h of (msg.internetMessageHeaders || [])) {
+        if (h?.name && h?.value) headerRecord[String(h.name).toLowerCase()] = String(h.value);
+      }
+
       return {
         gmailMessageId: msg.id, // MS message ID stored in this field
         threadId: msg.conversationId || msg.id,
@@ -127,6 +137,7 @@ export async function fetchOutlookEmails(
         snippet: msg.bodyPreview || "",
         date: new Date(msg.receivedDateTime),
         direction: isInbound ? "inbound" as const : "outbound" as const,
+        headers: Object.keys(headerRecord).length ? headerRecord : null,
       };
     });
   } catch (err) {

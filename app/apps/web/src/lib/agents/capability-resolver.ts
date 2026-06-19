@@ -13,8 +13,19 @@
  */
 
 import { getToolGroup } from "@/lib/chat/tool-router";
+import { capabilityForTool, hasPermission } from "@/lib/auth/permissions";
 
-/** Tools that require role === "admin". */
+/**
+ * Tools that required role === "admin" BEFORE CLE-12.
+ *
+ * As of CLE-12 the admin-only verdict is DERIVED from the matrix
+ * (`toolAdminOnly` below) — `permissions.ts` is the source of truth, not this
+ * Set. The Set is retained ONLY as the expected-value fixture for the keystone
+ * parity test (capability-resolver.parity.test.ts), which asserts the derived
+ * verdict reproduces this list for every tool (with the single declared
+ * INTENTIONAL_DELTA: deleteKnowledgeEntry, now knowledge:write -> admin-only).
+ * Do not add new entries here; map the tool in TOOL_CAPABILITY instead.
+ */
 export const ADMIN_ONLY_TOOLS = new Set<string>([
   // Workspace config
   "updateICP",
@@ -141,15 +152,63 @@ export const VIEWER_DENIED_TOOLS = new Set<string>([
 ]);
 
 /**
- * Fail-closed allowlist for viewers: a tool must belong to an allowed
- * group AND not be denied by name. Unknown tools (no group mapping yet)
- * are dropped for viewers — the opposite of the router's fail-open
- * default for members, on purpose.
+ * Tools reachable by viewers even though their group is NOT in
+ * VIEWER_ALLOWED_GROUPS, because per-action gating happens downstream.
+ * invokePageAction is the gateway to page actions; it refuses mutating/outbound
+ * actions for viewers INSIDE the tool via decideAction (CLE-04), so a viewer can
+ * still drive read-only page actions (applyFilter, toggleView) and gets a correct
+ * per-action reason rather than a blanket "no tools". CLE-12 generalizes this.
  */
-export function isViewerAllowedTool(name: string): boolean {
+export const VIEWER_GATEWAY_TOOLS = new Set<string>([
+  "invokePageAction",
+]);
+
+/**
+ * LEGACY viewer allowlist (pre-CLE-12): a tool must belong to an allowed group
+ * AND not be denied by name. Retained ONLY as the parity-test fixture — the
+ * live verdict is `toolViewerAllowed` below, derived from the matrix.
+ */
+export function legacyIsViewerAllowed(name: string): boolean {
   if (VIEWER_DENIED_TOOLS.has(name)) return false;
+  if (VIEWER_GATEWAY_TOOLS.has(name)) return true; // CLE-04 — gateway, gated per-action by decideAction
   const group = getToolGroup(name);
   return !!group && VIEWER_ALLOWED_GROUPS.has(group);
+}
+
+/**
+ * CLE-12 — admin-only verdict DERIVED from the matrix: a tool is admin-only iff
+ * the role policy reserves its capability to admin (member lacks it, admin has
+ * it). No capability mapping -> not admin-only (read/compute or member-write).
+ */
+export function toolAdminOnly(name: string): boolean {
+  const cap = capabilityForTool(name);
+  return !!cap && hasPermission("admin", cap) && !hasPermission("member", cap);
+}
+
+/**
+ * CLE-12 — viewer verdict DERIVED from the matrix, preserving the two legacy
+ * carve-outs: the CLE-04 gateway tool stays reachable, and an UNMAPPED read
+ * tool stays viewer-OK via the same group fallback VIEWER_ALLOWED_GROUPS used.
+ * A mapped tool's verdict is the matrix's: viewers hold only read capabilities,
+ * so any tool mapped to a write/outbound/delete capability is dropped.
+ */
+export function toolViewerAllowed(name: string): boolean {
+  if (VIEWER_GATEWAY_TOOLS.has(name)) return true; // CLE-04 — gated per-action by decideAction
+  const cap = capabilityForTool(name);
+  if (cap) return hasPermission("viewer", cap); // matrix verdict
+  // No mapped capability -> treat as read/compute; keep the group fallback so
+  // an unmapped read tool stays viewer-OK exactly as VIEWER_ALLOWED_GROUPS did.
+  const group = getToolGroup(name);
+  return !!group && VIEWER_ALLOWED_GROUPS.has(group);
+}
+
+/**
+ * Back-compat export: the live viewer verdict. Existing callers/tests that
+ * import `isViewerAllowedTool` keep working and now read the matrix-derived
+ * verdict (CLE-12).
+ */
+export function isViewerAllowedTool(name: string): boolean {
+  return toolViewerAllowed(name);
 }
 
 const VIEWER_PROMPT_ADDENDUM =
@@ -175,12 +234,13 @@ export function resolveCapabilities<T>(
   const dropped: Array<{ name: string; reason: string }> = [];
 
   for (const [name, tool] of Object.entries(allTools)) {
-    // Viewer first: read-only allowlist beats every other rule.
-    if (isViewer && !isViewerAllowedTool(name)) {
+    // Viewer first: read-only allowlist beats every other rule (matrix-derived).
+    if (isViewer && !toolViewerAllowed(name)) {
       dropped.push({ name, reason: "viewer:read-only" });
       continue;
     }
-    if (ADMIN_ONLY_TOOLS.has(name) && !isAdmin) {
+    // Admin-only verdict DERIVED from the matrix (CLE-12), not the legacy Set.
+    if (toolAdminOnly(name) && !isAdmin) {
       dropped.push({ name, reason: "admin-only" });
       continue;
     }

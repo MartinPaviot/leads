@@ -6,7 +6,7 @@
  */
 
 import { withAuthRLS } from "@/lib/auth/auth-utils";
-import { requirePermission } from "@/lib/auth/permissions";
+import { requirePermission, requireCapabilityForRequest } from "@/lib/auth/permissions";
 import { db } from "@/db";
 import { phoneNumberPool } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -35,6 +35,10 @@ export async function POST(req: Request) {
     // Buying a number charges the Twilio account — admin-only money action.
     const denied = requirePermission(authCtx.role, "billing:manage");
     if (denied) return denied;
+    // CLE-12 — belt-and-braces matrix gate (outbound:paid; admin) on the fresh
+    // DB role, resolved from the same route map the middleware uses.
+    const capDenied = requireCapabilityForRequest(authCtx, req);
+    if (capDenied) return capDenied;
 
     const provider = getVoiceProvider();
     if (!provider) {
@@ -121,6 +125,10 @@ export async function DELETE(req: Request) {
     // Releasing a pool number changes what the whole team can dial from.
     const denied = requirePermission(authCtx.role, "billing:manage");
     if (denied) return denied;
+    // CLE-12 — belt-and-braces matrix gate (outbound:paid; admin) on the fresh
+    // DB role, resolved from the same route map the middleware uses.
+    const capDenied = requireCapabilityForRequest(authCtx, req);
+    if (capDenied) return capDenied;
 
     const url = new URL(req.url);
     const e164 = url.searchParams.get("e164");

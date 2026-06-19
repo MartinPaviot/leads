@@ -18,7 +18,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useInView, useReducedMotion } from "framer-motion";
+import { m, useInView, useReducedMotion } from "framer-motion";
 import { Lock } from "lucide-react";
 
 /* Per-item entrance for the logo strips: each mark settles in with a tiny
@@ -227,7 +227,7 @@ export function IntegrationsStrip() {
   ];
   const { ref, live, reduced } = useStripReveal();
   return (
-    <motion.div
+    <m.div
       ref={ref}
       aria-hidden="true"
       className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4"
@@ -236,7 +236,7 @@ export function IntegrationsStrip() {
       variants={{ visible: { transition: { staggerChildren: reduced ? 0 : 0.06 } } }}
     >
       {items.map((i) => (
-        <motion.div
+        <m.div
           key={i.l}
           className="flex items-center gap-2 transition-transform duration-150 hover:-translate-y-0.5"
           variants={stripItemV}
@@ -244,9 +244,9 @@ export function IntegrationsStrip() {
         >
           <Logo src={i.src} name={i.l} size={24} rounded="rounded-md" bordered={false} />
           <span className="text-[13px] font-medium text-[#475569]">{i.l}</span>
-        </motion.div>
+        </m.div>
       ))}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -268,7 +268,7 @@ export function BuiltOnStrip() {
   ];
   const { ref, live, reduced } = useStripReveal();
   return (
-    <motion.div
+    <m.div
       ref={ref}
       aria-hidden="true"
       className="flex flex-wrap items-center justify-center gap-x-7 gap-y-5 sm:gap-x-10"
@@ -277,7 +277,7 @@ export function BuiltOnStrip() {
       variants={{ visible: { transition: { staggerChildren: reduced ? 0 : 0.06 } } }}
     >
       {items.map((i) => (
-        <motion.div key={i.l} className="group flex items-center gap-2.5" variants={stripItemV} transition={{ type: "spring", stiffness: 300, damping: 24 }}>
+        <m.div key={i.l} className="group flex items-center gap-2.5" variants={stripItemV} transition={{ type: "spring", stiffness: 300, damping: 24 }}>
           <span className="relative inline-flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md">
             <span style={{ fontSize: 12, fontWeight: 700, color: "#AEB4C0", letterSpacing: "-0.03em" }}>{i.l.charAt(0)}</span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -295,8 +295,8 @@ export function BuiltOnStrip() {
             <span className="text-[13.5px] font-semibold tracking-tight text-[#3A4252]">{i.l}</span>
             <span className="mt-[3px] text-[10.5px] font-medium uppercase tracking-wider text-[#AEB4C0]">{i.w}</span>
           </span>
-        </motion.div>
+        </m.div>
       ))}
-    </motion.div>
+    </m.div>
   );
 }

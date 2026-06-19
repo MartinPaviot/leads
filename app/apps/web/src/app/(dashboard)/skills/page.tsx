@@ -9,24 +9,9 @@ import { CreateSkillDialog } from "@/components/skills/create-skill-dialog";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { Plus } from "lucide-react";
-
-export interface SkillEntry {
-  id: string;
-  slug: string;
-  name: string;
-  description: string;
-  category: string;
-  scope: "system" | "workspace" | "user";
-  isEditable: boolean;
-  useCount: number;
-  lastUsedAt: string | null;
-  hasSteps: boolean;
-  steps?: string[];
-  constraints?: string[];
-  parameters?: string[];
-  guidelines?: string;
-  costEstimate?: string;
-}
+// SkillEntry lives in ./_types (a Next page.tsx may only export the default
+// component + route config — a named/type export here fails next build).
+import type { SkillEntry } from "./_types";
 
 type ViewMode = "list" | "explore";
 

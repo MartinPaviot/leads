@@ -21,12 +21,20 @@ export interface OutgoingMessage {
   to: string;
   /** Optional CC recipients, comma-separated. */
   cc?: string;
+  /** Optional BCC recipients, comma-separated. */
+  bcc?: string;
   subject: string;
   html?: string;
   text?: string;
   /** RFC Message-ID of the message we're replying to (threading). */
   inReplyTo?: string | null;
   references?: string | null;
+  /**
+   * Attach an iCalendar invitation (text/calendar). Used when booking a
+   * meeting on a CalDAV calendar, which — unlike Google/Microsoft — does not
+   * email the attendee itself, so we send the REQUEST ourselves.
+   */
+  icsInvite?: { method: "REQUEST" | "PUBLISH" | "CANCEL" | "REPLY"; content: string; filename?: string };
 }
 
 function makeTransport(c: SmtpCreds) {
@@ -67,11 +75,19 @@ export async function sendViaSmtp(
       from,
       to: msg.to,
       cc: msg.cc || undefined,
+      bcc: msg.bcc || undefined,
       subject: msg.subject,
       html: msg.html,
       text: msg.text || stripHtml(msg.html || ""),
       inReplyTo: msg.inReplyTo || undefined,
       references: msg.references || msg.inReplyTo || undefined,
+      icalEvent: msg.icsInvite
+        ? {
+            method: msg.icsInvite.method,
+            filename: msg.icsInvite.filename || "invite.ics",
+            content: msg.icsInvite.content,
+          }
+        : undefined,
     });
     return { messageId: info.messageId };
   } catch (err) {

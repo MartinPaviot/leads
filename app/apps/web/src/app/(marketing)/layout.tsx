@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { LazyMotionProvider } from "./_components/lazy-motion-provider";
+
 export const metadata: Metadata = {
   title: "Elevay: Your Revenue Engine for Founder-Led Sales",
   description:
@@ -58,7 +60,7 @@ export default function MarketingLayout({
         // safe to use dangerouslySetInnerHTML here.
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
       />
-      {children}
+      <LazyMotionProvider>{children}</LazyMotionProvider>
     </>
   );
 }

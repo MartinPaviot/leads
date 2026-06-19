@@ -5,7 +5,7 @@ import { Play, GitFork, Pencil, Trash2, Wand2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
-import type { SkillEntry } from "@/app/(dashboard)/skills/page";
+import type { SkillEntry } from "@/app/(dashboard)/skills/_types";
 
 interface SkillDetailProps {
   skill: SkillEntry;

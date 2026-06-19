@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown, ChevronRight, Wand2 } from "lucide-react";
-import type { SkillEntry } from "@/app/(dashboard)/skills/page";
+import type { SkillEntry } from "@/app/(dashboard)/skills/_types";
 
 interface SkillSidebarProps {
   systemSkills: SkillEntry[];

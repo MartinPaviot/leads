@@ -13,7 +13,7 @@ import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
-import { defaultScriptFields, type ScriptFields } from "./call-scripts";
+import { defaultScriptFields, defaultScriptFieldsForKey, type ScriptFields } from "./call-scripts";
 import type { GenEvidenceItem } from "./prospect-evidence";
 
 /** One generated enjeu: prospect-grounded iff it cites an evidence id. */
@@ -98,7 +98,7 @@ export interface StoredScript extends ScriptFields {
  * exists, else the tenant default ('' sector), else the code defaults seeded
  * with the best sector match. Never throws — the cockpit always gets a script.
  */
-export async function loadTenantScript(tenantId: string, sector?: string | null): Promise<StoredScript> {
+export async function loadTenantScript(tenantId: string, sector?: string | null, defaultKey?: string | null): Promise<StoredScript> {
   const key = norm(sector);
   const rows = await db.select().from(callScripts).where(eq(callScripts.tenantId, tenantId));
   const exact = key ? rows.find((r) => r.sector === key) : undefined;
@@ -115,7 +115,10 @@ export async function loadTenantScript(tenantId: string, sector?: string | null)
       origin: row.origin,
     };
   }
-  return { ...defaultScriptFields(sector), sector: key, origin: "default" };
+  // No saved script → defaults for the resolved key (from the signal waterfall),
+  // else fall back to substring on the sector string.
+  const fields = defaultKey ? defaultScriptFieldsForKey(defaultKey) : defaultScriptFields(sector);
+  return { ...fields, sector: key, origin: "default" };
 }
 
 /** Save the rep's script for a (tenant, sector). Upsert on the unique key. */
@@ -220,18 +223,18 @@ Grounding rules (hard): at least ONE enjeu must be specific to THIS prospect and
     const { object } = await tracedGenerateObject({
       model,
       schema: z.object({
-        opener: z.string().describe("Permission gate: greeting + who you are (rep + company) + a '2 minutes ?' ask. MUST keep the {name} placeholder. One sentence, no pitch, no listed problems."),
+        opener: z.string().describe("Opener: greeting + MINIMAL identity ('Martin Paviot, cofondateur de Pilae, une société lausannoise' — NOT 'startup', it lowers status with conservative Swiss buyers) + the prospect's SECTOR tied to our subject (the {line} placeholder) + a permission ask ('je vous appelle pas pour vous dérouler un pitch, juste voir si c'est un sujet chez vous, ça vous convient ?' — no 'deux minutes', it reads as telemarketing). MUST keep BOTH the {name} and {line} placeholders. NO self-description of the product, NEVER tell the buyer they overpay or are behind."),
         problems: z
           .array(
             z.object({
-              text: z.string().describe("One concrete pain this segment/prospect feels, that the product removes. Validated ONE AT A TIME."),
+              text: z.string().describe("One of the 3 core enjeux as a RÉCIT-PAIR: a quoted peer voice (« Beaucoup nous disent : \"…\" ») then a two-door validation baked into the SAME string (« …, chez vous c'est déjà le cas, ou pas encore ? »). Never frontal, never accusatory — the prospect recognises himself. ONE at a time. Pilae's 3 angles, by maturity: terrain = IA arrivée par la bande / licences payées pour tout le monde / données hors-CH; orga mûre = retard IA / facture SaaS qui dérape / souveraineté."),
               evidenceRef: z.string().nullable().describe("The PROSPECT EVIDENCE id this enjeu is built on (e.g. 'E1'), or null when sector-generic."),
             }),
           )
           .min(1)
           .max(3),
-        permissionCheck: z.string().describe("Short question checking whether the enjeu is a current topic for them, e.g. 'Est-ce que c'est un sujet chez vous en ce moment ?'."),
-        bookingAsk: z.string().describe("Propose to meet (~45 min) to go deeper, offering day/time options; mention they leave with something concrete even without a follow-up."),
+        permissionCheck: z.string().describe("Leave EMPTY (\"\") — the validation now travels inside each enjeu (the two-door question). Only fill for a single shared fallback question."),
+        bookingAsk: z.string().describe("Propose a 45 min-1h VIDEO meeting, offering TWO concrete time windows (e.g. 'lundi entre 14h et 18h, ou jeudi entre 9h et 12h'); de-risk it (rien à préparer, they leave with a costed read even without a follow-up). No phone discovery."),
       }),
       prompt: `Write a permission-based cold-call script in French (Suisse romande), for a salesperson selling this product:
 
@@ -240,7 +243,7 @@ SALES MOTION: ${ctx.salesMotion || "(n/a)"}
 KEY CHALLENGE WE SOLVE: ${ctx.challenge || "(n/a)"}
 TARGET SEGMENT — sector: ${ctx.sector || "(générique)"}; sizes: ${ctx.sizes.join(", ") || "n/a"}; geographies: ${ctx.geographies.join(", ") || "n/a"}; persona/roles: ${ctx.persona || "décideur"}; tech in place we replace: ${ctx.technologies.join(", ") || "n/a"}.${evidenceBlock}
 
-Methodology (strict, permission-based — locked by the founder): the cold call is short (2-3 min); its ONLY job is to earn a YES to a ~45-min deep-dive. Flow: (1) opener = a permission gate — greeting + who you are + "vous avez 2 minutes ?", NO pitch and NO listed problems; (2) then present ONE enjeu at a time as a hypothesis the prospect validates ("est-ce un sujet chez vous ?"), the rep iterates up to 3 until one lands; (3) propose the meeting with day/time options. ${postureLine} Talk to decision-makers first. Use "vous". No emojis. Sound natural, like a peer with one real reason to call — never a stack of techniques. Never claim a certification the company doesn't have. The opener MUST keep the {name} placeholder so it interpolates per call (do not put {sector}/{geo} in the opener).${playbookBlock}`,
+Methodology (strict — founder cold call, Benjamin Douablin, adapted: NO discovery on the phone — the only job is to BOOK the meeting): short call (2-3 min). Flow: (1) OPENER = greeting + MINIMAL identity (just "une société lausannoise", NO product description, avoid "startup") + the prospect's SECTOR tied to our subject (the {line} placeholder, e.g. "je me concentre en ce moment sur les EMS romands : utiliser l'IA en interne sans que les données des résidents partent à l'étranger") + a permission ask ("je vous appelle pas pour un pitch, juste voir si c'est un sujet chez vous, ça vous convient ?"). The opener never pitches and NEVER tells the buyer he overpays or is behind; (2) after the OK, a half-sentence (IA interne / automatisations open source, hébergées en Suisse, à l'usage), then illuminate the pains through a RÉCIT-PAIR — a QUOTED peer voice ("Beaucoup nous disent : '…'"), never frontally — ONE enjeu at a time, each followed by a TWO-DOOR validation that lets the prospect place himself without judgment ("…, chez vous c'est déjà le cas, ou pas encore ?"); iterate up to 3, stop at the first that lands; (3) as soon as one lands, propose a 45 min-1h VIDEO meeting with two concrete time windows. ${postureLine} Ton suisse: sober, factual, modest, no number thrown on the phone, we propose and never lecture. Talk to decision-makers first. Use "vous". No emojis. Sound like a founder with one real reason to call, not a stack of techniques. Never claim a certification the company doesn't have. The opener MUST keep BOTH the {name} and {line} placeholders so they interpolate per call (do NOT put {sector}/{geo} in the opener, do NOT use {reason}).${playbookBlock}`,
       _trace: { agentId: "call-script-generate", tenantId, inputPreview: `${sector.slice(0, 60)}|ev:${evidence.length}|${posture}` },
     });
 

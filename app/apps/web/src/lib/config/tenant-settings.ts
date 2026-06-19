@@ -45,6 +45,16 @@ export interface TenantSettings {
   aiTone?: string;
   primaryChallenge?: string;
 
+  // ── Revenue goal (forecast) ──
+  /**
+   * Revenue target, same unit as deal ACV (project + platform summed).
+   * Consumed by GET /api/analytics/forecast to compute goal coverage and name
+   * the binding bottleneck (demand vs conversion vs capacity). Absent or 0 →
+   * the forecast falls back to the demand-first prior and says so honestly.
+   * `amount` is a tolerated legacy alias for `monthly` on the read path.
+   */
+  revenueGoal?: { monthly?: number; amount?: number; updatedAt?: string };
+
   /**
    * The user's own cap-table investors (funds, angels, accelerators).
    * Used by the `investor-overlap` signal to flag target accounts that
@@ -237,6 +247,17 @@ export interface TenantSettings {
   /** Max sends per calendar day from the user's primary mailbox when
    *  `sendingMailboxMode === "primary-with-caps"`. Default 20. */
   sendingDailyCapPrimary?: number;
+  /**
+   * CLE-11 outbound undo window (de-facto unsend), in SECONDS. When > 0, an
+   * outbound action whose disposition is "execute" is enqueued on a cancellable
+   * hold (status="held", hold_until = now + this) instead of being queued
+   * immediately; the cron releases it once the window elapses, and an undo
+   * within the window cancels it before it leaves. Default 0 (backwards-safe:
+   * no hold, today's behaviour exactly). Read it through
+   * `readOutboundUndoWindowSeconds()` which coerces malformed/out-of-range
+   * values back to the default. Recommended range when enabled: 30–60s.
+   */
+  outboundUndoWindowSeconds?: number;
   /** When false (default), cold outreach from the primary inbox is
    *  blocked and routed to the scaling-path prompt instead. */
   sendingAllowColdOnPrimary?: boolean;
@@ -245,9 +266,28 @@ export interface TenantSettings {
    *  Instantly via `external-connected`. */
   instantlyCredentialsEncrypted?: string;
 
+  /**
+   * F005 / CLE-16 — learned per-action confidence thresholds, keyed by
+   * `GuardedAction`. Produced by `recalculateThresholds`
+   * (lib/guardrails/learned-trust.ts) from F003 `action_outcomes` + the CLE-11
+   * reversal/bounce signal, bounded to [0.5, 1.0]. Read back via
+   * `computeEffectiveThresholds`/`getEffectiveThreshold` and folded into the
+   * `decideAction` `extra.learnedThresholds` map by the background callers
+   * (always through `buildEffectiveThresholdMap`, which ceiling-forces the
+   * hard-excluded outbound/paid/destructive classes — they NEVER carry a learned
+   * key, design §3.3). jsonb-backed config; no DB migration. Never lowers a bar
+   * for an action the core refuses to auto-execute. */
+  learnedThresholds?: Record<string, number>;
+  /** ISO timestamp of the last `recalculateThresholds` write. Observability
+   *  marker for the weekly trust recalc; paired with `learnedThresholds`. */
+  trustStatsUpdatedAt?: string;
+
   /** Progressive-autonomy trust score, 0.0 - 1.0. Drives nudge thresholds.
    *  See lib/guardrails/trust-score.ts. Never write directly — use the
-   *  helpers so the audit trail in `trust_events` stays in sync. */
+   *  helpers so the audit trail in `trust_events` stays in sync.
+   *  NOTE (CLE-16 §4.4): this 0–1 "nudge" score is DISTINCT from the 0–100
+   *  `systemTrustScore.overall` gate score used by the autonomy level gate +
+   *  strategic relaxation. Do not conflate them. */
   trustScore?: number;
   /** ISO timestamp of the last positive trust event (approved_no_edit or
    *  approved_with_edit). Used by applyTrustDecay() to reduce stale scores
@@ -424,7 +464,11 @@ export interface CustomObjectTypeDef {
 
 // ── Defaults ──
 
-const DEFAULTS: Required<Pick<
+// CLE-13 (T1): exported so the shared sending-gate (lib/guardrails/sending-gate.ts)
+// reads the SAME sending defaults the `getTenantSettings` merge applies, with no
+// value change. `getTenantSettings` always merges these in, so a tenant with no
+// explicit sending config still gets `primary-with-caps` / cap 20 / cold-blocked.
+export const DEFAULTS: Required<Pick<
   TenantSettings,
   | "aiTone"
   | "salesMotion"

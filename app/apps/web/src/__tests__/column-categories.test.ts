@@ -4,6 +4,8 @@ import {
   DEFAULT_VISIBLE_CATEGORY_KEYS,
   getColumnCategory,
   enrichCriteriaForCategories,
+  isCategoryAvailable,
+  buildPickerModel,
 } from "@/lib/accounts/column-categories";
 
 describe("column categories catalog", () => {
@@ -51,5 +53,42 @@ describe("column categories catalog", () => {
       "field:custom-1", // unknown -> excluded
     ]);
     expect(got.sort()).toEqual(["funding", "technologies"].sort());
+  });
+
+  it("greys out the unconnected Crunchbase signal, keeps everything else available", () => {
+    for (const c of COLUMN_CATEGORIES) {
+      const expected = c.key !== "signal:funding_crunchbase";
+      expect(c.available, `${c.key} availability`).toBe(expected);
+    }
+    expect(isCategoryAvailable("signal:funding_crunchbase")).toBe(false);
+    expect(isCategoryAvailable("signal:funding_recent")).toBe(true);
+    // Unknown (dynamic) keys are available — their column is already shown.
+    expect(isCategoryAvailable("custom-signal:anything")).toBe(true);
+  });
+
+  it("never names a data provider in a user-facing source line", () => {
+    const provider = /\b(apollo|crunchbase|lusha|sirene|zeliq|pappers|datagma)\b/i;
+    for (const c of COLUMN_CATEGORIES) {
+      expect(c.source, `${c.key} leaks a provider: "${c.source}"`).not.toMatch(provider);
+    }
+  });
+
+  it("buildPickerModel threads availability: Crunchbase greyed, dynamics live", () => {
+    const { categories } = buildPickerModel({
+      visible: new Set<string>(),
+      hidden: new Set<string>(),
+      dynamic: {
+        customSignals: [{ id: "s1", name: "Press mention" }],
+        signalTypes: ["news_event"],
+        customFields: [{ id: "f1", name: "Account note" }],
+      },
+    });
+    const byKey = new Map(categories.map((c) => [c.key, c]));
+    expect(byKey.get("signal:funding_crunchbase")?.available).toBe(false);
+    expect(byKey.get("signal:funding_recent")?.available).toBe(true);
+    // Dynamic columns are always selectable (availability omitted/true).
+    expect(byKey.get("custom-signal:s1")?.available).not.toBe(false);
+    expect(byKey.get("signal-type:news_event")?.available).not.toBe(false);
+    expect(byKey.get("custom-field:f1")?.available).not.toBe(false);
   });
 });

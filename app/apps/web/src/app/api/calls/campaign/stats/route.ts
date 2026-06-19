@@ -18,6 +18,7 @@ import { db } from "@/db";
 import { callCampaigns } from "@/db/schema";
 import { and, eq, desc, sql } from "drizzle-orm";
 import { segmentImpact } from "@/lib/voice/script-context";
+import { CONNECT_OUTCOMES } from "@/lib/voice/call-metrics";
 
 function startOfTodayUTC(now = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -69,20 +70,23 @@ export async function GET(req: Request) {
     const dailyQuota = campaigns.reduce((a, c) => a + (c.dailyQuota ?? 0), 0);
     const weeklyTarget = campaigns.reduce((a, c) => a + (c.weeklyTarget ?? 0), 0);
     const idList = sql.join(campaigns.map((c) => sql`${c.id}`), sql`, `);
+    // Connect = reached the target human (SSOT, shared with /api/calls/metrics).
+    const connectList = sql.join(CONNECT_OUTCOMES.map((o) => sql`${o}`), sql`, `);
 
     // Calls progress — this rep's own (me) or the whole team (team).
     const progressRows = (await db.execute(sql`
       SELECT
         count(*) FILTER (WHERE started_at >= ${today.toISOString()})::int AS calls_today,
         count(*) FILTER (WHERE started_at >= ${weekStart.toISOString()})::int AS calls_week,
-        count(*) FILTER (WHERE started_at >= ${weekStart.toISOString()} AND outcome IN ('connected','meeting_booked','callback_requested'))::int AS connects_week,
+        count(*) FILTER (WHERE started_at >= ${weekStart.toISOString()} AND outcome IN (${connectList}))::int AS connects_week,
+        count(*) FILTER (WHERE started_at >= ${weekStart.toISOString()} AND outcome = 'no_answer')::int AS no_answer_week,
         count(*) FILTER (WHERE started_at >= ${weekStart.toISOString()} AND outcome = 'meeting_booked')::int AS meetings_week,
         count(*) FILTER (WHERE started_at >= ${weekStart.toISOString()} AND script_context->>'reasonSource' IS NOT NULL)::int AS reason_calls_week,
         count(*) FILTER (WHERE started_at >= ${weekStart.toISOString()} AND script_context->>'reasonSource' IS NOT NULL AND outcome = 'meeting_booked')::int AS reason_meetings_week
       FROM calls
       WHERE tenant_id = ${tenantId}${scope === "me" ? sql` AND user_id = ${userId}` : sql``}
-    `)) as unknown as Array<{ calls_today: number; calls_week: number; connects_week: number; meetings_week: number; reason_calls_week: number; reason_meetings_week: number }>;
-    const p = progressRows[0] ?? { calls_today: 0, calls_week: 0, connects_week: 0, meetings_week: 0, reason_calls_week: 0, reason_meetings_week: 0 };
+    `)) as unknown as Array<{ calls_today: number; calls_week: number; connects_week: number; no_answer_week: number; meetings_week: number; reason_calls_week: number; reason_meetings_week: number }>;
+    const p = progressRows[0] ?? { calls_today: 0, calls_week: 0, connects_week: 0, no_answer_week: 0, meetings_week: 0, reason_calls_week: 0, reason_meetings_week: 0 };
 
     // Cadence breakdown by target status (+ due today), across the in-scope campaigns.
     const cadenceRows = (await db.execute(sql`
@@ -136,6 +140,7 @@ export async function GET(req: Request) {
         callsToday: p.calls_today,
         callsWeek: p.calls_week,
         connectsWeek: p.connects_week,
+        noAnswerWeek: p.no_answer_week,
         meetingsWeek: p.meetings_week,
         dailyQuota,
       },

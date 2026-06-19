@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Input, Textarea } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SettingsHeader } from "@/components/ui/settings-header";
 import { Radio, Plus, Loader2, Check } from "lucide-react";
+import { z } from "zod";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+
+/* CLE-14: page-action helpers (pure, shared) */
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+function definePageAction<P>(a: PageAction<P>): PageAction { return a as unknown as PageAction; }
 
 interface CustomSignal {
   id: string;
@@ -37,7 +45,7 @@ export default function CustomSignalsPage() {
   const [error, setError] = useState("");
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       const res = await fetch("/api/custom-signals");
       if (!res.ok) return;
@@ -47,11 +55,11 @@ export default function CustomSignalsPage() {
     } catch {
       setLoaded(true);
     }
-  }
+  }, []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   // Poll every 5s while any signal is still backfilling so the chip
   // flips from "Backfilling…" to "Ready" without a page refresh.
@@ -60,40 +68,79 @@ export default function CustomSignalsPage() {
     if (!hasPending) return;
     const t = setInterval(load, 5000);
     return () => clearInterval(t);
-  }, [signals]);
+  }, [signals, load]);
+
+  /**
+   * CLE-14 — the single POST path for creating a signal, shared by the form
+   * submit and the chat action. Sets the new id / clears the form / reloads the
+   * list on success, returns {ok,error?} so callers report without duplicating
+   * the fetch. Validation (name + 3-char description) lives here so both paths
+   * enforce it identically.
+   */
+  const createSignal = useCallback(
+    async (rawName: string, rawDescription: string): Promise<{ ok: boolean; error?: string }> => {
+      const name = rawName.trim();
+      const description = rawDescription.trim();
+      if (name.length === 0 || description.length < 3) {
+        return { ok: false, error: "Give the signal a name and describe what to detect." };
+      }
+      setCreating(true);
+      try {
+        const res = await fetch("/api/custom-signals", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, description }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          return { ok: false, error: body.error || `Failed to create (HTTP ${res.status})` };
+        }
+        setJustCreatedId(body.signal?.id ?? null);
+        setName("");
+        setDescription("");
+        await load();
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: (e as Error).message };
+      } finally {
+        setCreating(false);
+      }
+    },
+    [load],
+  );
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (name.trim().length === 0 || description.trim().length < 3) {
-      setError("Give the signal a name and describe what to detect.");
-      return;
-    }
-    setCreating(true);
-    try {
-      const res = await fetch("/api/custom-signals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          description: description.trim(),
-        }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(body.error || `Failed to create (HTTP ${res.status})`);
-        return;
-      }
-      setJustCreatedId(body.signal?.id ?? null);
-      setName("");
-      setDescription("");
-      await load();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setCreating(false);
-    }
+    const r = await createSignal(name, description);
+    if (!r.ok && r.error) setError(r.error);
   }
+
+  // CLE-14: register this page's one SAFE config action. Reuses createSignal
+  // (the same POST the form uses). Signal DELETE is not exposed in the UI, so
+  // no delete action is registered. Called unconditionally, before the early
+  // `if (!loaded) return null` below.
+  const signalsActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "settings.addSignal",
+        title: "Add a custom signal",
+        description:
+          "Create a custom boolean signal that becomes a column on every account. Give it a name and a " +
+          "plain-language description of what to detect; the detection plan is generated and backfilled " +
+          "against the whole TAM. Use when the user wants to track a new attribute across accounts.",
+        params: z.object({ name: z.string().min(1), description: z.string().min(1) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ name: n, description: d }): Promise<PageActionResult> => {
+          const r = await createSignal(n.trim(), d.trim());
+          return r.ok ? okResult(`Added the "${n.trim()}" signal.`) : errResult(r.error ?? "Failed to add the signal.");
+        },
+      }),
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [createSignal],
+  );
+  useRegisterPageActions(signalsActions);
 
   if (!loaded) return null;
 

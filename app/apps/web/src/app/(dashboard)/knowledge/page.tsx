@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { z } from "zod";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
 import { BookOpen } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -13,6 +16,17 @@ import {
   KnowledgeDetailEmpty,
 } from "@/components/knowledge/knowledge-detail";
 import { AddKnowledgeDialog } from "@/components/knowledge/add-knowledge-dialog";
+
+/* ── CLE-14: page-action helpers (pure, shared) ── */
+
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+
+/** Type a PageAction against its own params schema, then erase P so heterogeneous
+ *  actions live in one PageAction[] (the registry stores PageAction<unknown>). */
+function definePageAction<P>(a: PageAction<P>): PageAction {
+  return a as unknown as PageAction;
+}
 
 export default function KnowledgePage() {
   const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
@@ -50,6 +64,78 @@ export default function KnowledgePage() {
       )
     : entries;
 
+  // ── CLE-14: result-returning network extractions. These are the SINGLE copy
+  //    of each request; both the throwing UI handlers below and the registered
+  //    chat actions call them. The throwing handlers preserve the child
+  //    contract (KnowledgeDetail/AddKnowledgeDialog rely on throw-on-error). ──
+  const createEntry = useCallback(
+    async (input: {
+      title: string;
+      content: string;
+      scope: string;
+      category: string;
+    }): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const res = await fetch("/api/settings/knowledge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          return { ok: false, error: err.error || "Failed to create entry" };
+        }
+        const { entry } = await res.json();
+        await fetchEntries();
+        if (entry?.id) setSelectedId(entry.id);
+        return { ok: true };
+      } catch {
+        return { ok: false, error: "Failed to create entry" };
+      }
+    },
+    [fetchEntries]
+  );
+
+  const saveEntryFields = useCallback(
+    async (
+      id: string,
+      fields: { title?: string; content?: string; category?: string }
+    ): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const res = await fetch("/api/settings/knowledge", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, ...fields }),
+        });
+        if (!res.ok) return { ok: false, error: "Failed to save" };
+        await fetchEntries();
+        return { ok: true };
+      } catch {
+        return { ok: false, error: "Failed to save" };
+      }
+    },
+    [fetchEntries]
+  );
+
+  const deleteEntryResult = useCallback(
+    async (id: string): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const res = await fetch(`/api/settings/knowledge?id=${id}`, {
+          method: "DELETE",
+        });
+        if (!res.ok) return { ok: false, error: "Failed to delete" };
+        if (selectedId === id) setSelectedId(null);
+        await fetchEntries();
+        return { ok: true };
+      } catch {
+        return { ok: false, error: "Failed to delete" };
+      }
+    },
+    [selectedId, fetchEntries]
+  );
+
+  // Throwing handlers preserved for the child components (they await + rely on
+  // throw-on-error). Each is a thin wrapper over the single network copy.
   const handleAddEntry = useCallback(
     async (data: {
       title: string;
@@ -57,22 +143,10 @@ export default function KnowledgePage() {
       scope: string;
       category: string;
     }) => {
-      const res = await fetch("/api/settings/knowledge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Failed to create entry");
-      }
-      const { entry } = await res.json();
-      // Refetch to get the full list in correct order
-      await fetchEntries();
-      // Select the newly created entry
-      if (entry?.id) setSelectedId(entry.id);
+      const r = await createEntry(data);
+      if (!r.ok) throw new Error(r.error || "Failed to create entry");
     },
-    [fetchEntries]
+    [createEntry]
   );
 
   const handleSaveEntry = useCallback(
@@ -80,32 +154,102 @@ export default function KnowledgePage() {
       id: string,
       updates: { title?: string; content?: string; category?: string }
     ) => {
-      const res = await fetch("/api/settings/knowledge", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, ...updates }),
-      });
-      if (!res.ok) {
-        throw new Error("Failed to save");
-      }
-      await fetchEntries();
+      const r = await saveEntryFields(id, updates);
+      if (!r.ok) throw new Error(r.error || "Failed to save");
     },
-    [fetchEntries]
+    [saveEntryFields]
   );
 
   const handleDeleteEntry = useCallback(
     async (id: string) => {
-      const res = await fetch(`/api/settings/knowledge?id=${id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        throw new Error("Failed to delete");
-      }
-      if (selectedId === id) setSelectedId(null);
-      await fetchEntries();
+      const r = await deleteEntryResult(id);
+      if (!r.ok) throw new Error(r.error || "Failed to delete");
     },
-    [selectedId, fetchEntries]
+    [deleteEntryResult]
   );
+
+  // ── CLE-14: register this page's actions for the chat live-executor. run()s
+  //    reuse the result-returning extractions above. The save/delete/search
+  //    actions key off ids the user supplies, so no live list-ref is needed.
+  //    Registered UNCONDITIONALLY, above the loading early-return. ──
+  const knowledgeActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "knowledge.addEntry",
+        title: "Add a knowledge entry",
+        description:
+          "Create a new knowledge-base entry (title + content). Scope defaults to workspace, " +
+          "category to general. Use when the user wants to teach the assistant something.",
+        params: z.object({
+          title: z.string().min(1),
+          content: z.string().min(1),
+          scope: z.string().optional(),
+          category: z.string().optional(),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ title, content, scope, category }): Promise<PageActionResult> => {
+          const t = title.trim();
+          const r = await createEntry({
+            title: t,
+            content,
+            scope: scope ?? "workspace",
+            category: category ?? "general",
+          });
+          return r.ok ? okResult(`Added knowledge entry "${t}".`) : errResult(r.error ?? "Failed to create entry.");
+        },
+      }),
+      definePageAction({
+        id: "knowledge.saveEntry",
+        title: "Edit a knowledge entry",
+        description:
+          "Update an existing knowledge entry's title, content, and/or category. " +
+          "Use when the user wants to revise an entry.",
+        params: z.object({
+          id: z.string().min(1),
+          title: z.string().optional(),
+          content: z.string().optional(),
+          category: z.string().optional(),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ id, title, content, category }): Promise<PageActionResult> => {
+          const r = await saveEntryFields(id, { title, content, category });
+          return r.ok ? okResult("Saved the entry.") : errResult(r.error ?? "Failed to save the entry.");
+        },
+      }),
+      definePageAction({
+        id: "knowledge.deleteEntry",
+        title: "Delete a knowledge entry",
+        description:
+          "Permanently delete a knowledge entry. This cannot be undone, so it always confirms first.",
+        params: z.object({ id: z.string().min(1) }),
+        mutating: true, reversible: false, cost: "free", confirm: "always",
+        run: async ({ id }): Promise<PageActionResult> => {
+          const r = await deleteEntryResult(id);
+          return r.ok ? okResult("Deleted the entry.") : errResult(r.error ?? "Failed to delete the entry.");
+        },
+      }),
+      definePageAction({
+        id: "knowledge.search",
+        title: "Search the knowledge base",
+        description:
+          "Filter the knowledge list by a free-text query (matches title, content, category). " +
+          "Pass an empty query to clear the search.",
+        params: z.object({ query: z.string() }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async ({ query }): Promise<PageActionResult> => {
+          setQuery(query);
+          return query.trim()
+            ? okResult(`Searching knowledge for "${query}".`)
+            : okResult("Cleared the search.");
+        },
+      }),
+    ],
+    // Stable id set; run() reads live values via refs and calls stable
+    // useCallback helpers / setters — registration happens once (CLE-03).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useRegisterPageActions(knowledgeActions);
 
   if (loading) {
     return (

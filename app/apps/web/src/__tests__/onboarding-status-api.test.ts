@@ -17,7 +17,6 @@ vi.mock("@/db/schema", () => ({
   authAccounts: { id: "id", userId: "userId", provider: "provider" },
   authUsers: { id: "id", email: "email", name: "name" },
   tenants: { id: "id", settings: "settings" },
-  pendingInvites: { id: "id", tenantId: "tenantId", status: "status", acceptedByUserId: "acceptedByUserId" },
 }));
 
 vi.mock("drizzle-orm", () => ({
@@ -34,15 +33,15 @@ const statusModule = await import("@/app/api/onboarding/status/route");
 
 /**
  * Mocks a sequence of db.select().from().where()... chains matching the route's
- * query order:
+ * query order. The route makes exactly six queries — suppression is now a pure
+ * settings/accounts computation (established = accounts>0 || usable ICP), so
+ * there is no conditional invite lookup any more:
  *   1. count companies
  *   2. count contacts
  *   3. google account (where+limit)
  *   4. microsoft account (where+limit)
  *   5. tenant settings (where)
  *   6. auth user (where+limit)
- *   7. accepted invite (where+limit) — only consumed when the route runs the
- *      invite-aware suppression query (!onboardingCompleted && established)
  */
 function mockSelectChain({
   accountCount,
@@ -52,7 +51,6 @@ function mockSelectChain({
   tenantSettings,
   userEmail,
   userName,
-  acceptedInvite = false,
 }: {
   accountCount: number;
   contactCount: number;
@@ -61,8 +59,6 @@ function mockSelectChain({
   tenantSettings: Record<string, unknown>;
   userEmail?: string;
   userName?: string | null;
-  /** The current user has an accepted invite into the current tenant. */
-  acceptedInvite?: boolean;
 }) {
   const whereTerminal = (value: unknown) => vi.fn().mockResolvedValue(value);
   const limitTerminal = (value: unknown) => ({
@@ -102,20 +98,14 @@ function mockSelectChain({
           userEmail ? [{ email: userEmail, name: userName ?? null }] : []
         )),
       }),
-    } as never)
-    .mockReturnValueOnce({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue(limitTerminal(acceptedInvite ? [{ id: "inv-1" }] : [])),
-      }),
     } as never);
 }
 
 describe("GET /api/onboarding/status", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // clearAllMocks does NOT drain the mockReturnValueOnce queue — a test
-    // whose route run skips the conditional invite query (query 7) would
-    // leak its unconsumed mock into the next test's chain. Reset fully.
+    // clearAllMocks does NOT drain the mockReturnValueOnce queue — reset the
+    // select mock fully so no unconsumed chain leaks into the next test.
     vi.mocked(db.select).mockReset();
   });
 
@@ -125,7 +115,10 @@ describe("GET /api/onboarding/status", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns needsOnboarding=true when onboardingCompleted=false even with 150 accounts (T0.1 regression)", async () => {
+  it("suppresses the modal when the workspace is in use (accounts) even if onboardingCompleted is unset", async () => {
+    // The real-world bug: a founder who sourced accounts but never finished
+    // the modal was shown it on every load because onboardingCompleted was
+    // never written. A workspace with accounts is established → no modal.
     vi.mocked(getAuthContext).mockResolvedValue({
       userId: "u1",
       tenantId: "t1",
@@ -143,9 +136,33 @@ describe("GET /api/onboarding/status", () => {
 
     const res = await statusModule.GET();
     const data = await res.json();
-    expect(data.needsOnboarding).toBe(true);
+    expect(data.needsOnboarding).toBe(false);
     expect(data.isNew).toBe(false);
     expect(data.accounts).toBe(150);
+  });
+
+  it("keeps the modal for a fresh tenant: no accounts, no ICP, not completed", async () => {
+    vi.mocked(getAuthContext).mockResolvedValue({
+      userId: "u1",
+      tenantId: "t1",
+      appUserId: "u1",
+      role: "admin",
+    });
+    mockSelectChain({
+      accountCount: 0,
+      contactCount: 0,
+      google: false,
+      microsoft: false,
+      tenantSettings: { onboardingCompleted: false },
+      userEmail: "founder@example.com",
+    });
+
+    const res = await statusModule.GET();
+    const data = await res.json();
+    expect(data.needsOnboarding).toBe(true);
+    expect(data.isNew).toBe(true);
+    // Exactly six queries — no conditional invite lookup.
+    expect(vi.mocked(db.select)).toHaveBeenCalledTimes(6);
   });
 
   it("returns needsOnboarding=false when onboardingCompleted=true even with 0 accounts (T0.1 regression)", async () => {
@@ -269,7 +286,6 @@ describe("GET /api/onboarding/status", () => {
       microsoft: false,
       tenantSettings: { onboardingCompleted: false },
       userEmail: "invitee@example.com",
-      acceptedInvite: true,
     });
 
     const res = await statusModule.GET();
@@ -292,7 +308,6 @@ describe("GET /api/onboarding/status", () => {
       microsoft: false,
       tenantSettings: { onboardingCompleted: false, targetIndustries: ["Nonprofit"] },
       userEmail: "invitee@example.com",
-      acceptedInvite: true,
     });
 
     const res = await statusModule.GET();
@@ -316,14 +331,51 @@ describe("GET /api/onboarding/status", () => {
       microsoft: false,
       tenantSettings: { onboardingCompleted: false },
       userEmail: "invitee@example.com",
-      acceptedInvite: true,
     });
 
     const res = await statusModule.GET();
     const data = await res.json();
     expect(data.needsOnboarding).toBe(true);
-    // The invite lookup is short-circuited: 0 accounts + no ICP means the
-    // workspace isn't established, so only the 6 base queries ran.
+    // 0 accounts + no ICP means the workspace isn't established. Six base
+    // queries, no conditional invite lookup.
     expect(vi.mocked(db.select)).toHaveBeenCalledTimes(6);
+  });
+
+  it("returns the existing-config snapshot the card seeds from", async () => {
+    vi.mocked(getAuthContext).mockResolvedValue({
+      userId: "u1",
+      tenantId: "t1",
+      appUserId: "u1",
+      role: "admin",
+    });
+    mockSelectChain({
+      accountCount: 0,
+      contactCount: 0,
+      google: false,
+      microsoft: false,
+      tenantSettings: {
+        onboardingCompleted: false,
+        companyDomain: "pilae.ch",
+        productDescription: "Sovereign open-source ops",
+        aiTone: "Direct",
+        targetIndustries: ["Nonprofit", "Hospital & Health Care"],
+        targetGeographies: ["Vaud", "Geneva"],
+        targetSeniorities: ["C-Suite"],
+        targetRevenueMin: 1000000,
+      },
+      userEmail: "founder@pilae.ch",
+    });
+
+    const res = await statusModule.GET();
+    const data = await res.json();
+    expect(data.companyDomain).toBe("pilae.ch");
+    expect(data.productDescription).toBe("Sovereign open-source ops");
+    expect(data.aiTone).toBe("Direct");
+    expect(data.targeting.industries).toEqual(["Nonprofit", "Hospital & Health Care"]);
+    expect(data.targeting.geographies).toEqual(["Vaud", "Geneva"]);
+    expect(data.targeting.targetSeniorities).toEqual(["C-Suite"]);
+    expect(data.targeting.revenueMin).toBe(1000000);
+    // Has a usable ICP → no modal even though onboardingCompleted is false.
+    expect(data.needsOnboarding).toBe(false);
   });
 });

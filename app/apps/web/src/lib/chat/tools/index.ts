@@ -22,6 +22,8 @@ import { buildCallTools } from "./calls";
 import { buildNavigationTools } from "./navigation";
 import { buildReadGapTools } from "./read-gaps";
 import { buildKnowledgeTools } from "./knowledge";
+import { buildCustomSkillTools } from "./custom-skills";
+import { buildPageActionTools } from "./page-actions";
 
 export type { ToolContext } from "./context";
 export { makeTool } from "./context";
@@ -51,5 +53,7 @@ export function buildAllChatTools(ctx: ToolContext) {
     ...buildNavigationTools(ctx),
     ...buildReadGapTools(ctx),
     ...buildKnowledgeTools(ctx),
+    ...buildCustomSkillTools(ctx),
+    ...buildPageActionTools(ctx),
   };
 }

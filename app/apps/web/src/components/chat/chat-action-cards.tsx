@@ -1,11 +1,16 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { parseUiToolParts } from "@/components/tool-call-panel";
 import { ActionCard, parseToolResultForCard } from "@/components/action-card";
+import { runRegisteredAction, highlightEntity } from "@/lib/chat/page-actions/registry";
+import type { PageActionResult } from "@/lib/chat/page-actions/types";
+import type { InvokeActionDirective } from "@/lib/chat/ui-directives";
+import { encodeActionResult, maybeHighlightFromResult } from "@/components/chat/use-ui-directives";
+import { ActionConfirmCard, type ConfirmStatus } from "./action-confirm-card";
 
 /**
  * Shared action-card approval flow for every chat surface (the full /chat
@@ -222,6 +227,126 @@ export function MessageActionCards({
           />
         );
       })}
+    </>
+  );
+}
+
+/* ================================================================== */
+/*  CLE-05 — Page-action confirmation cards                            */
+/*  A SECOND, distinct controller for `invokeAction` directives whose  */
+/*  requireConfirm is true. Unlike the create-card flow above (which   */
+/*  POSTs to REST), page actions run on the CLIENT via the registry    */
+/*  (runRegisteredAction) and round-trip a result envelope. Single-    */
+/*  sourced here so the dock AND the /chat page share one impl.        */
+/* ================================================================== */
+
+interface PendingConfirm {
+  directive: InvokeActionDirective; // invocationId, actionId, params, requireConfirm:true
+  status: ConfirmStatus;
+  resultSummary?: string;
+  error?: string;
+}
+
+export interface ActionConfirmController {
+  pending: PendingConfirm[]; // render order; one card per invocationId
+  enqueueConfirm: (d: InvokeActionDirective) => void;
+  approveActionCard: (invocationId: string, editedParams: Record<string, unknown>) => Promise<void>;
+  dismissActionCard: (invocationId: string) => void;
+}
+
+export function useActionConfirmCards(chat: ChatSender): ActionConfirmController {
+  const [byId, setById] = useState<Record<string, PendingConfirm>>({});
+  const [order, setOrder] = useState<string[]>([]);
+  // SSOT for the status machine: mutated synchronously so a double-click is seen
+  // before React flushes (mirrors the dock's surfaceRef pattern). setById mirrors
+  // it for rendering.
+  const byIdRef = useRef<Record<string, PendingConfirm>>({});
+
+  const roundTrip = useCallback(
+    (invocationId: string, r: PageActionResult) => {
+      chat.sendMessage({ text: encodeActionResult(invocationId, r) });
+    },
+    [chat],
+  );
+
+  const enqueueConfirm = useCallback((d: InvokeActionDirective) => {
+    if (byIdRef.current[d.invocationId]) return; // E-5: idempotent per invocationId
+    byIdRef.current = { ...byIdRef.current, [d.invocationId]: { directive: d, status: "pending" } };
+    setById(byIdRef.current);
+    setOrder((prev) => (prev.includes(d.invocationId) ? prev : [...prev, d.invocationId]));
+  }, []);
+
+  const approveActionCard = useCallback(
+    async (invocationId: string, editedParams: Record<string, unknown>) => {
+      const cur = byIdRef.current[invocationId];
+      // AC-8/E-4 single-flight: only a pending or failed (Retry) card may run.
+      if (!cur || (cur.status !== "pending" && cur.status !== "failed")) return;
+      // Mark running synchronously BEFORE awaiting so a second click no-ops.
+      byIdRef.current = { ...byIdRef.current, [invocationId]: { ...cur, status: "running", error: undefined } };
+      setById(byIdRef.current);
+
+      // runRegisteredAction re-validates params against the live Zod schema (AC-5)
+      // and never throws (CLE-03 §2.3) — so no try/catch is needed here.
+      const result = await runRegisteredAction(cur.directive.actionId, editedParams);
+      roundTrip(invocationId, result); // AC-2: success OR error envelope round-trips
+      // CLE-15: pulse the affected element if the result named one. Import
+      // highlightEntity directly (module-level) so the controller signature is
+      // not widened. A failed run pulses nothing (maybeHighlightFromResult guards).
+      maybeHighlightFromResult(result, highlightEntity);
+
+      const prev = byIdRef.current[invocationId];
+      byIdRef.current = {
+        ...byIdRef.current,
+        [invocationId]: {
+          ...prev,
+          status: result.ok ? "done" : "failed", // E-3: failed keeps Retry
+          resultSummary: result.summary,
+          error: result.error,
+        },
+      };
+      setById(byIdRef.current);
+    },
+    [roundTrip],
+  );
+
+  const dismissActionCard = useCallback(
+    (invocationId: string) => {
+      const cur = byIdRef.current[invocationId];
+      // AC-8: ignore dismiss while running or after a terminal state.
+      if (!cur || cur.status === "running" || cur.status === "done" || cur.status === "dismissed") return;
+      byIdRef.current = { ...byIdRef.current, [invocationId]: { ...cur, status: "dismissed" } };
+      setById(byIdRef.current);
+      // AC-3: round-trip an explicit cancelled envelope through the same codec.
+      roundTrip(invocationId, { ok: false, summary: "Cancelled by the user.", error: "cancelled" });
+    },
+    [roundTrip],
+  );
+
+  const pending = order.map((id) => byId[id]).filter(Boolean) as PendingConfirm[];
+  return { pending, enqueueConfirm, approveActionCard, dismissActionCard };
+}
+
+/**
+ * Render the pending page-action confirm cards (one per invocationId). Rendered
+ * once per surface near MessageActionCards — it reads the controller queue, not
+ * a specific message's parts, so a card survives re-renders and never
+ * double-mounts (E-5).
+ */
+export function ActionConfirmCards({ controller }: { controller: ActionConfirmController }) {
+  if (controller.pending.length === 0) return null;
+  return (
+    <>
+      {controller.pending.map((p) => (
+        <ActionConfirmCard
+          key={p.directive.invocationId}
+          directive={p.directive}
+          status={p.status}
+          resultSummary={p.resultSummary}
+          error={p.error}
+          onApprove={(edited) => controller.approveActionCard(p.directive.invocationId, edited)}
+          onDismiss={() => controller.dismissActionCard(p.directive.invocationId)}
+        />
+      ))}
     </>
   );
 }

@@ -11,15 +11,22 @@ import {
 import { ChatMarkdown } from "@/components/chat-markdown";
 import { ElevayMark } from "@/components/ui/elevay-mark";
 import { ToolCallGroup, parseUiToolParts } from "@/components/tool-call-panel";
-import { useChatActionCards, MessageActionCards } from "@/components/chat/chat-action-cards";
+import {
+  useChatActionCards,
+  MessageActionCards,
+  useActionConfirmCards,
+  ActionConfirmCards,
+} from "@/components/chat/chat-action-cards";
 import { FollowUpPills, extractFollowUps } from "@/components/chat/follow-up-pills";
 import { StreamingSkeleton } from "@/components/chat/streaming-skeleton";
 import { CopyButton } from "@/components/chat/copy-button";
 import { EmailComposerPanel, type EmailComposerDraft } from "@/components/email-composer-panel";
 import { trackEvent } from "@/components/posthog-provider";
+import { useToast } from "@/components/ui/toast";
 import { deriveSurface, type SurfaceIcon } from "@/lib/chat/surface-from-path";
 import { useUiDirectives, runUiDirective } from "@/components/chat/use-ui-directives";
-import type { UiDirective } from "@/lib/chat/ui-directives";
+import { getActionManifest, locateEntity, highlightEntity } from "@/lib/chat/page-actions/registry";
+import type { UiDirective, HighlightAnchor } from "@/lib/chat/ui-directives";
 
 const ICONS: Record<SurfaceIcon, typeof Compass> = {
   building: Building2,
@@ -79,10 +86,32 @@ export function ChatDock() {
   const surfaceRef = useRef(surface);
   surfaceRef.current = surface;
 
+  // Live page-action manifest for the transport body. The dock outlives any
+  // route, so read it at send time (like surfaceRef). Refreshed each render —
+  // cheap, and reflects the current page's mount/unmount registrations.
+  const manifestRef = useRef(getActionManifest());
+  useEffect(() => {
+    manifestRef.current = getActionManifest();
+  });
+
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState(false); // drives the enter transition
   const [localInput, setLocalInput] = useState("");
   const [emailComposer, setEmailComposer] = useState<EmailComposerDraft | null>(null);
+
+  // Persistence: the dock writes its conversation to a chat thread so it shows
+  // up in the sidebar "Recent chats" history and survives a reload — the same
+  // mechanism the full /chat page uses. Without this the dock was purely
+  // in-memory: nothing ever reached chatThreads, so dock chats never appeared
+  // in history and were lost on reload. threadId is created lazily on the first
+  // completed exchange; threadIdRef mirrors it so the transport body (a stable
+  // closure) and the async save path read the live value.
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const threadIdRef = useRef<string | null>(null);
+  threadIdRef.current = threadId;
+  const [lastSavedCount, setLastSavedCount] = useState(0);
+  const savingRef = useRef(false);
+  const { toast } = useToast();
 
   const transport = useMemo(
     () =>
@@ -90,27 +119,61 @@ export function ChatDock() {
         api: "/api/chat",
         credentials: "include",
         // Resolvable body — re-evaluated on every request so the chat is
-        // scoped to whatever page the user is on right now.
+        // scoped to whatever page the user is on right now, and carries the
+        // live threadId (once created) so /api/chat can run memory extraction.
         body: () => {
           const s = surfaceRef.current;
-          return s.contextType ? { contextType: s.contextType, contextId: s.contextId } : {};
+          const payload: Record<string, unknown> = {};
+          if (s.contextType) {
+            payload.contextType = s.contextType;
+            payload.contextId = s.contextId;
+          }
+          if (threadIdRef.current) payload.threadId = threadIdRef.current;
+          const manifest = manifestRef.current;
+          if (manifest.length > 0) payload.pageActions = manifest; // CLE-03: current page's actions
+          return payload;
         },
       }),
     [],
   );
   const chat = useChat({ transport });
   const actionCards = useChatActionCards(chat);
+  const actionConfirm = useActionConfirmCards(chat);
 
   // Command layer: when a tool result carries a UI directive (open a record /
-  // view, or the composer), execute it once. Navigation keeps the dock mounted
-  // (it lives in the dashboard layout), so the conversation persists.
+  // view, the composer, or a page action), execute it once. Navigation keeps the
+  // dock mounted (it lives in the dashboard layout), so the conversation persists.
   const onDirective = useCallback(
     (d: UiDirective) =>
       runUiDirective(d, {
         navigate: (p) => router.push(p),
         openComposer: (draft) => setEmailComposer(draft),
+        sendActionResult: (text) => chat.sendMessage({ text }),
+        enqueueConfirm: (cd) => actionConfirm.enqueueConfirm(cd),
+        // CLE-15: pulse the affected element. A PAR-result highlight fires
+        // immediately (we're on the page already). A narrate-actuate navigate
+        // highlight needs a short bounded poll because router.push is async —
+        // the target page mounts and registers its locator on a later tick.
+        highlight: (anchor: HighlightAnchor | HighlightAnchor[], opts?: { afterNavigation?: boolean }) => {
+          if (!opts?.afterNavigation) {
+            highlightEntity(anchor);
+            return;
+          }
+          const first = Array.isArray(anchor) ? anchor[0] : anchor;
+          if (!first) return;
+          let tries = 0;
+          const tick = () => {
+            if (locateEntity(first)) {
+              highlightEntity(anchor); // resolved -> pulse all
+              return;
+            }
+            if (++tries >= 12) return; // ~12 × 100ms = 1.2s budget, then silent no-op
+            window.setTimeout(tick, 100);
+          };
+          tick();
+        },
       }),
-    [router],
+    [router, chat, actionConfirm],
   );
   useUiDirectives(chat, onDirective);
 
@@ -162,6 +225,87 @@ export function ChatDock() {
     el.style.overflowY = el.scrollHeight > MAX ? "auto" : "hidden";
   }, [localInput]);
 
+  // Persist the conversation to a thread after the assistant finishes. Creates
+  // the thread on the first exchange (scoped to the current page context), then
+  // appends each new turn — identical to the /chat page's saveMessages, reusing
+  // the same /api/chat/threads endpoints. Failures are non-fatal: the dock keeps
+  // working in-memory and we surface a quiet toast.
+  const saveMessages = useCallback(async () => {
+    if (chat.status === "streaming") return;
+    if (chat.messages.length <= lastSavedCount) return;
+    // Re-entrancy guard — a double-invoked save (React StrictMode in dev, or a
+    // rapid re-render before lastSavedCount commits) would persist the same
+    // exchange twice. Serialize so each turn is written exactly once.
+    if (savingRef.current) return;
+    savingRef.current = true;
+    try {
+      const newMessages = chat.messages.slice(lastSavedCount);
+      if (newMessages.length === 0) return;
+
+      const messagesToSave = newMessages.map((m) => ({
+        role: m.role,
+        content: partsToText(m.parts),
+      }));
+
+      const firstUserMsg = chat.messages.find((m) => m.role === "user");
+      const title = firstUserMsg ? partsToText(firstUserMsg.parts).slice(0, 100) : undefined;
+
+      if (!threadIdRef.current) {
+        // Create the thread, scoped to whatever page the dock was on.
+        const s = surfaceRef.current;
+        const res = await fetch("/api/chat/threads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, contextType: s.contextType, contextId: s.contextId }),
+        });
+        if (!res.ok) {
+          toast("Couldn't save this chat to your history.", "warning");
+          console.warn("chat-dock: create thread failed", { status: res.status });
+          return;
+        }
+        const data = await res.json();
+        const newThreadId = data.thread.id as string;
+        threadIdRef.current = newThreadId; // sync ref now so the next send carries it
+        setThreadId(newThreadId);
+
+        const appendRes = await fetch(`/api/chat/threads/${newThreadId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: messagesToSave, title }),
+        });
+        if (!appendRes.ok) {
+          toast("Chat started but messages didn't save to history.", "warning");
+          console.warn("chat-dock: append-to-new-thread failed", { status: appendRes.status });
+          return;
+        }
+      } else {
+        const res = await fetch(`/api/chat/threads/${threadIdRef.current}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: messagesToSave }),
+        });
+        if (!res.ok) {
+          toast("New messages failed to save to your history.", "warning");
+          console.warn("chat-dock: append-to-existing-thread failed", { status: res.status });
+          return;
+        }
+      }
+
+      setLastSavedCount(chat.messages.length);
+    } catch (err) {
+      console.warn("chat-dock: saveMessages threw", err);
+    } finally {
+      savingRef.current = false;
+    }
+  }, [chat.messages, chat.status, lastSavedCount, toast]);
+
+  // Trigger the save once streaming completes and there are unsaved turns.
+  useEffect(() => {
+    if (chat.status === "ready" && chat.messages.length > lastSavedCount) {
+      saveMessages();
+    }
+  }, [chat.status, chat.messages.length, lastSavedCount, saveMessages]);
+
   function send(text: string) {
     const t = text.trim();
     if (!t || chat.status === "streaming") return;
@@ -182,6 +326,9 @@ export function ChatDock() {
   function newChat() {
     chat.setMessages([]);
     setLocalInput("");
+    setThreadId(null);
+    threadIdRef.current = null;
+    setLastSavedCount(0);
     inputRef.current?.focus();
   }
 
@@ -260,7 +407,7 @@ export function ChatDock() {
               </button>
             )}
             <button
-              onClick={() => router.push("/chat")}
+              onClick={() => router.push(threadId ? `/chat?thread=${threadId}` : "/chat")}
               aria-label="Open full chat"
               title="Open full chat"
               className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-bg-hover)]"
@@ -382,9 +529,28 @@ export function ChatDock() {
                   </div>
                 );
               })}
-              {chat.status === "streaming" && <StreamingSkeleton />}
+              {/* Thinking indicator from submit until the assistant emits
+                  visible text — fills the "submitted" gap (nothing showed
+                  before the first token) and the pre-first-token window; hides
+                  once text streams. */}
+              {(() => {
+                const last = chat.messages[chat.messages.length - 1];
+                const assistantText =
+                  last?.role === "assistant"
+                    ? last.parts
+                        .filter((p) => p.type === "text")
+                        .map((p) => ("text" in p ? p.text : ""))
+                        .join("")
+                    : "";
+                const thinking =
+                  (chat.status === "submitted" || chat.status === "streaming") &&
+                  assistantText.trim() === "";
+                return thinking ? <StreamingSkeleton /> : null;
+              })()}
             </>
           )}
+          {/* CLE-05: pending page-action confirm cards (one per invocationId). */}
+          <ActionConfirmCards controller={actionConfirm} />
           <div ref={messagesEndRef} />
         </div>
 

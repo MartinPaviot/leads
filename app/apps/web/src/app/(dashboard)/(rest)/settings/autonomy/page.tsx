@@ -6,6 +6,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { useToast } from "@/components/ui/toast";
 import { Shield, Zap, Brain, Rocket, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { LEVEL_BEHAVIOR } from "@/lib/guardrails/level-behavior";
 
 type AutonomyLevel = "copilot" | "guided" | "autonomous" | "strategic";
 
@@ -20,17 +21,48 @@ interface TrustScoreState {
   shouldDowngrade: boolean;
 }
 
-const LEVELS: { id: AutonomyLevel; label: string; description: string; icon: typeof Shield }[] = [
-  { id: "copilot", label: "Copilot", description: "I approve everything before it sends", icon: Shield },
-  { id: "guided", label: "Guided", description: "Auto-send cold emails after 2h, ask me for replies & intros", icon: Zap },
-  { id: "autonomous", label: "Autonomous", description: "Handle everything, escalate edge cases", icon: Brain },
-  { id: "strategic", label: "Strategic", description: "Also decide who to target and when", icon: Rocket },
-];
+interface ThresholdInfo {
+  static: number;
+  current: number;
+  source: "static" | "learned" | "relaxed";
+  excluded: boolean;
+}
+
+// CLE-16 — the level copy is the SSOT LEVEL_BEHAVIOR map (the copy-match test
+// asserts equality), so marketing copy can never drift from real behaviour.
+// Icons stay here (presentational only).
+const LEVEL_ICONS: Record<AutonomyLevel, typeof Shield> = {
+  copilot: Shield,
+  guided: Zap,
+  autonomous: Brain,
+  strategic: Rocket,
+};
+
+const LEVELS: { id: AutonomyLevel; label: string; description: string; icon: typeof Shield }[] = (
+  ["copilot", "guided", "autonomous", "strategic"] as AutonomyLevel[]
+).map((id) => ({
+  id,
+  label: LEVEL_BEHAVIOR[id].label,
+  description: LEVEL_BEHAVIOR[id].behavior,
+  icon: LEVEL_ICONS[id],
+}));
+
+// Human label per GuardedAction for the threshold block.
+const ACTION_LABELS: Record<string, string> = {
+  "email-send": "Sending an email",
+  "email-reply": "Replying to an email",
+  "contact-create": "Creating a contact",
+  "contact-update": "Updating a contact",
+  "deal-stage-change": "Changing a deal stage",
+  "task-create": "Creating a task",
+  "sequence-enrollment": "Enrolling in a sequence",
+};
 
 export default function AutonomySettingsPage() {
   const { toast } = useToast();
   const [level, setLevel] = useState<AutonomyLevel>("copilot");
   const [trustScore, setTrustScore] = useState<TrustScoreState | null>(null);
+  const [thresholds, setThresholds] = useState<Record<string, ThresholdInfo> | null>(null);
   const [guardrails, setGuardrails] = useState({
     maxEmailsPerDay: 40,
     maxNewProspectsPerWeek: 25,
@@ -56,6 +88,7 @@ export default function AutonomySettingsPage() {
           });
         }
         setTrustScore(data.trustScore);
+        setThresholds(data.thresholds ?? null);
       }
     } catch {
       // silent
@@ -177,6 +210,52 @@ export default function AutonomySettingsPage() {
           </div>
         </CardBody>
       </Card>
+
+      {/* Learned thresholds (CLE-16 §5.3 observability) — current vs static
+          confidence bar per action, so the founder can see WHY the agent asks
+          more or less. Secondary styling. */}
+      {thresholds && (
+        <Card>
+          <CardBody>
+            <p className="text-[13px] font-medium mb-1" style={{ color: "var(--color-text-primary)" }}>
+              Confidence thresholds
+            </p>
+            <p className="text-[11px] mb-3" style={{ color: "var(--color-text-tertiary)" }}>
+              How confident the agent must be to act without asking. Lowers as it earns trust on a kind of
+              action, rises if it gets one wrong. Sends, irreversible changes, and anything that costs money
+              always wait for you.
+            </p>
+            <div className="space-y-1.5">
+              {Object.entries(thresholds).map(([action, info]) => {
+                const pct = (n: number) => `${Math.round(n * 100)}%`;
+                const movedFromStatic = !info.excluded && info.current !== info.static;
+                return (
+                  <div key={action} className="flex items-center justify-between">
+                    <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+                      {ACTION_LABELS[action] ?? action}
+                    </span>
+                    <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                      {info.excluded ? (
+                        "always asks"
+                      ) : (
+                        <>
+                          asks above {pct(info.current)}
+                          {movedFromStatic && (
+                            <span style={{ opacity: 0.7 }}>
+                              {" "}
+                              ({info.source}, was {pct(info.static)})
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardBody>
+        </Card>
+      )}
 
       {/* Guardrails */}
       <Card>

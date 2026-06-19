@@ -1,0 +1,196 @@
+{
+  "accounts": {
+    "title": "Accounts",
+    "buttons": [
+      "More",
+      "Find more accounts",
+      "Create account",
+      "All (886)",
+      "Sourced (749)",
+      "Added (137)",
+      "SOPHiA GENETICS",
+      "TutorsPlus",
+      "FIBA",
+      "Naef Immobilier",
+      "Four Seasons Hotel des Bergues",
+      "Torfellini",
+      "INDUNI & CIE S.A.",
+      "Fondation de Verdeil",
+      "INVEST",
+      "EI Groupe",
+      "Sparta",
+      "Sparfell",
+      "Gétaz-Miauton",
+      "BIAR Sampling Systems",
+      "APO Group",
+      "Vipa Group",
+      "PROMAN Suisse",
+      "Croix-Rouge genevoise",
+      "Olenex",
+      "ESL Education",
+      "Xpollens",
+      "IXM",
+      "Edipresse Group",
+      "Gedeon Richter - PregLem S.A.",
+      "Ivy Partners",
+      "Kangoo Jumps",
+      "LMT Coin",
+      "DECATHLON SWITZERLAND",
+      "Palexpo",
+      "Sensimed SA",
+      "Dufour Aerospace",
+      "Adent Cliniques Dentaires",
+      "Clinique Générale-Beaulieu",
+      "UNI Global Union",
+      "Smartpoint",
+      "pharmacieplus",
+      "Bringhen Group",
+      "Retraites Populaires",
+      "Neural Concept"
+    ],
+    "ths": [
+      "(icon)",
+      "Account",
+      "Website",
+      "(icon)",
+      "Industry",
+      "Geography",
+      "Size",
+      "Revenue",
+      "Stage",
+      "Score",
+      "Last Interaction",
+      "Connected to",
+      "(icon)"
+    ],
+    "sections": [],
+    "firstRowCells": [
+      "",
+      "SGSOPHiA GENETICS",
+      "sophiagenetics.com",
+      "",
+      "research",
+      "Switzerland",
+      "100-1000",
+      "77.3M",
+      "new",
+      "—",
+      "—",
+      "Unassigned",
+      ""
+    ],
+    "rowCount": 200,
+    "bodyLen": 24517
+  },
+  "up-next": {
+    "title": "Up next",
+    "buttons": [
+      "36 contacts added2d"
+    ],
+    "ths": [],
+    "sections": [
+      "Pipeline",
+      "Active deals",
+      "Calls booked",
+      "Replies",
+      "Outreach",
+      "Win rate",
+      "Activity",
+      "Needs you"
+    ],
+    "firstRowCells": [],
+    "rowCount": 0,
+    "bodyLen": 1068
+  },
+  "opportunities": {
+    "title": "Opportunities",
+    "buttons": [
+      "Forecast",
+      "Analytics",
+      "Analyze Pipeline",
+      "Create Opportunity",
+      "Archive",
+      "Filter",
+      "Stalled",
+      "Display",
+      "Board",
+      "Table",
+      "Create opportunity"
+    ],
+    "ths": [],
+    "sections": [
+      "Pipeline",
+      "Won",
+      "Win Rate",
+      "Avg Deal",
+      "Velocity",
+      "At Risk"
+    ],
+    "firstRowCells": [],
+    "rowCount": 0,
+    "bodyLen": 960
+  },
+  "campaigns": {
+    "title": "Campaigns",
+    "buttons": [
+      "New campaign",
+      "Create your first campaign"
+    ],
+    "ths": [],
+    "sections": [
+      "Beta"
+    ],
+    "firstRowCells": [],
+    "rowCount": 0,
+    "bodyLen": 836
+  },
+  "meetings": {
+    "title": "Meetings",
+    "buttons": [
+      "Manage calendars"
+    ],
+    "ths": [],
+    "sections": [
+      "Beta"
+    ],
+    "firstRowCells": [],
+    "rowCount": 0,
+    "bodyLen": 730
+  },
+  "chat": {
+    "title": "Good evening",
+    "buttons": [
+      "Give me a pipeline summary",
+      "What should I focus on today?"
+    ],
+    "ths": [],
+    "sections": [],
+    "firstRowCells": [],
+    "rowCount": 0,
+    "bodyLen": 698
+  },
+  "call-mode": {
+    "title": "Call Mode",
+    "buttons": [
+      "From+33 6 38 34 52 31AUTO",
+      "Edit plan",
+      "Me",
+      "Team",
+      "All",
+      "High intent"
+    ],
+    "ths": [],
+    "sections": [
+      "Beta",
+      "Today",
+      "Week",
+      "Meetings",
+      "Cadence",
+      "Callable",
+      "en file"
+    ],
+    "firstRowCells": [],
+    "rowCount": 0,
+    "bodyLen": 933
+  }
+}

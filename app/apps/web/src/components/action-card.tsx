@@ -239,22 +239,10 @@ export function ActionCard({
           className="flex items-center gap-2 px-3 py-2"
           style={{ borderTop: "0.5px solid var(--color-border-default)" }}
         >
-          {/* Permission dropdown */}
-          <select
-            className="rounded-md px-1.5 py-1 text-[11px]"
-            style={{
-              color: "var(--color-text-muted)",
-              background: "var(--color-bg-muted)",
-              border: "0.5px solid var(--color-border-default)",
-              cursor: "pointer",
-              outline: "none",
-            }}
-            defaultValue="ask"
-            title="Approval mode for similar actions"
-          >
-            <option value="ask">Ask every time</option>
-            <option value="auto">Auto-run</option>
-          </select>
+          {/* CLE-05 (AC-10): the dead approval-mode dropdown was removed — its
+              value was never read, and a client-only per-action autonomy toggle
+              would be a fifth approval vocabulary. The real lever is
+              decideAction / approval-mode (CLE-10/CLE-16). */}
           <div className="ml-auto flex items-center gap-2">
             <button
               onClick={onDismiss}

@@ -18,7 +18,10 @@ import { activities, captureApprovals } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 
 export type CaptureKind = "email" | "meeting" | "call";
-export type CaptureApprovalMode = "auto" | "review";
+export type CaptureApprovalMode = "auto" | "review" | "hybrid";
+
+/** The CRM qualification facts that hybrid mode can gate independently. */
+export type CaptureFieldKey = "meddic" | "evidence" | "callIntel" | "callProfile";
 
 type ActivityInsert = typeof activities.$inferInsert;
 
@@ -27,7 +30,28 @@ export function getCaptureApprovalMode(
   settings: Record<string, unknown> | null | undefined,
 ): CaptureApprovalMode {
   const m = String(settings?.captureApprovalMode ?? "").toLowerCase();
-  return m === "review" ? "review" : "auto";
+  return m === "review" ? "review" : m === "hybrid" ? "hybrid" : "auto";
+}
+
+/**
+ * Per-field auto/review resolution for the qualification facts the call & meeting
+ * writers produce — Claap's third CRM-sync workflow. 'review' gates every field;
+ * 'auto' gates none; 'hybrid' follows settings.captureFieldModes (a per-field
+ * "auto" | "review" map; fields not listed default to auto). The activity capture
+ * itself (recordCapturedActivity) treats hybrid as auto — the interaction lands,
+ * only the sensitive fields wait.
+ */
+export function getFieldApprovalMode(
+  settings: Record<string, unknown> | null | undefined,
+  field: CaptureFieldKey,
+): "auto" | "review" {
+  const overall = String(settings?.captureApprovalMode ?? "").toLowerCase();
+  if (overall === "review") return "review";
+  if (overall === "hybrid") {
+    const map = (settings?.captureFieldModes ?? {}) as Record<string, unknown>;
+    return String(map[field] ?? "").toLowerCase() === "review" ? "review" : "auto";
+  }
+  return "auto";
 }
 
 export interface RecordCaptureArgs {

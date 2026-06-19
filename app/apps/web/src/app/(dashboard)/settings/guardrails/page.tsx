@@ -1,11 +1,31 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Shield, ShieldCheck, ShieldAlert, Loader2, Save } from "lucide-react";
 import { SettingsHeader } from "@/components/ui/settings-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { z } from "zod";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+
+/* CLE-14: page-action helpers (pure, shared) */
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+function definePageAction<P>(a: PageAction<P>): PageAction { return a as unknown as PageAction; }
+
+/**
+ * CLE-14 — the settings actions we INTENTIONALLY do NOT register, ever. Two
+ * classes are strictly human-bound:
+ *  - security: password change + MFA enroll/disable are credential ceremonies
+ *    that must stay with the human (no agent path may touch auth factors);
+ *  - money: billing / plan upgrade / payment-method updates spend real money
+ *    and live behind the human only.
+ * A boundary test asserts the registered settings id set is DISJOINT from this.
+ */
+// SETTINGS_EXCLUDED_IDS moved to ./_excluded-ids (a Next page.tsx may only export
+// the default component + route config).
 
 /**
  * Settings → Guardrails — the consolidated page for approval mode,
@@ -103,28 +123,67 @@ export default function GuardrailsSettingsPage() {
     void load();
   }, [load]);
 
-  async function saveApprovalMode(mode: ApprovalModeV2) {
-    setSaving(true);
-    const prev = approvalMode;
-    setApprovalMode(mode); // optimistic
-    try {
-      const res = await fetch("/api/settings/workspace", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentApprovalMode: mode }),
-      });
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+  /**
+   * CLE-14 — the single fetch path shared by the Save button and the chat
+   * action. Optimistic with rollback; returns {ok,error?} so the page-action
+   * run can report success/failure without re-reading the form or duplicating
+   * the PUT. The UI keeps toasting via the wrapper below.
+   */
+  const saveApprovalModeValue = useCallback(
+    async (mode: ApprovalModeV2): Promise<{ ok: boolean; error?: string }> => {
+      setSaving(true);
+      const prev = approvalMode;
+      setApprovalMode(mode); // optimistic
+      try {
+        const res = await fetch("/api/settings/workspace", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agentApprovalMode: mode }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return { ok: true };
+      } catch (err) {
+        console.warn("guardrails: save failed", err);
+        setApprovalMode(prev); // rollback
+        return { ok: false, error: err instanceof Error ? err.message : "Couldn't save approval mode" };
+      } finally {
+        setSaving(false);
       }
-      toast("Approval mode updated", "success");
-    } catch (err) {
-      console.warn("guardrails: save failed", err);
-      setApprovalMode(prev); // rollback
-      toast("Couldn't save approval mode", "error");
-    } finally {
-      setSaving(false);
-    }
+    },
+    [approvalMode],
+  );
+
+  async function saveApprovalMode(mode: ApprovalModeV2) {
+    const r = await saveApprovalModeValue(mode);
+    if (r.ok) toast("Approval mode updated", "success");
+    else toast("Couldn't save approval mode", "error");
   }
+
+  // CLE-14: register this page's one SAFE config action for the chat
+  // live-executor. Reuses saveApprovalModeValue (the same PUT the buttons use).
+  const guardrailsActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "settings.setApprovalMode",
+        title: "Set the agent approval mode",
+        description:
+          "Set how much the agent must ask before acting: 'review-each' (approve every action), " +
+          "'batch-daily' (queue actions for one daily review), or 'auto-high-confidence' (auto-send " +
+          "high-confidence drafts, hold borderline ones). Use when the user wants to change trust/autonomy.",
+        params: z.object({ mode: z.enum(["review-each", "batch-daily", "auto-high-confidence"]) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ mode }): Promise<PageActionResult> => {
+          const r = await saveApprovalModeValue(mode);
+          return r.ok ? okResult(`Approval mode set to ${mode}.`) : errResult(r.error ?? "Couldn't save approval mode.");
+        },
+      }),
+    ],
+    // run() reaches the latest saveApprovalModeValue via the identity below; the
+    // id set is stable so registration happens once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [saveApprovalModeValue],
+  );
+  useRegisterPageActions(guardrailsActions);
 
   return (
     <>

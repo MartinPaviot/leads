@@ -12,6 +12,9 @@ vi.mock("@/lib/auth/auth-utils", () => ({
 
 vi.mock("@/lib/auth/permissions", () => ({
   requirePermission: vi.fn(() => null),
+  // CLE-12 — the knowledge route now also calls the shared matrix guard.
+  // Stub it to allow (null); its role-gating is covered in route-capability.test.ts.
+  requireCapabilityForRequest: vi.fn(() => null),
 }));
 
 vi.mock("@/db", () => ({

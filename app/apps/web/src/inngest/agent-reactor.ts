@@ -26,6 +26,7 @@ import {
   deals,
   activities,
   users,
+  autonomyConfig,
 } from "@/db/schema";
 import { and, eq, gte, notInArray, sql } from "drizzle-orm";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -34,9 +35,12 @@ import { z } from "zod";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
 import {
   enforceAgentApprovalMode,
-  readApprovalMode,
+  resolveEffectiveMode,
   type GuardedAction,
 } from "@/lib/guardrails/approval-mode";
+import { buildEffectiveThresholdMap } from "@/lib/guardrails/level-behavior";
+import { getTrustScore } from "@/lib/campaign-engine/trust-score";
+import type { AutonomyLevel } from "@/lib/campaign-engine/types";
 import { recordAgentAction, DEFAULT_EMAIL_GRACE_MS } from "@/lib/agents/agent-actions";
 import { loadReactorContext } from "@/lib/agent-reactor/context-loader";
 import {
@@ -158,7 +162,29 @@ export const agentReactor = inngest.createFunction(
     // ── Step 4: Dispatch actions ──
     const dispatchResult = await step.run("dispatch", async () => {
       const settings = await getTenantSettings(data.tenantId);
-      const mode = readApprovalMode(settings ?? { agentApprovalMode: "review-each" });
+
+      // CLE-16 §9 — the autonomy LEVEL is authoritative for the effective mode
+      // (level → mode + relaxThresholds via resolveEffectiveMode, CLE-10),
+      // falling back to the stored agentApprovalMode for row-less tenants. Then
+      // fold level/trust/relax + learned thresholds into the ONE map
+      // decideAction reads. The builder ceiling-forces excluded outbound/paid
+      // classes, so the reactor can never lower an outbound bar. Signature
+      // unchanged.
+      const [autoRow] = await db
+        .select({ level: autonomyConfig.level })
+        .from(autonomyConfig)
+        .where(eq(autonomyConfig.tenantId, data.tenantId))
+        .limit(1);
+      const trust = await getTrustScore(data.tenantId);
+      const { mode, relaxThresholds } = resolveEffectiveMode({
+        settings: settings ?? { agentApprovalMode: "review-each" },
+        level: autoRow?.level as AutonomyLevel | undefined,
+        trustOverall: trust.overall,
+      });
+      const learnedThresholds = buildEffectiveThresholdMap({
+        learned: settings?.learnedThresholds,
+        relaxThresholds,
+      });
 
       // Load admin userId so deferred actions appear in the approval UI
       const [adminUser] = await db.select({ id: users.id }).from(users)
@@ -187,6 +213,7 @@ export const agentReactor = inngest.createFunction(
           mode,
           action: guardedAction,
           confidence: decision.decision.confidence,
+          learnedThresholds,
         });
 
         if (approvalResult.allowed) {

@@ -7,15 +7,30 @@
 import { db } from "@/db";
 import { activities, outboundEmails, contacts, inboxTriage } from "@/db/schema";
 import { and, eq, desc, isNull, isNotNull, inArray } from "drizzle-orm";
+import { withTenantTx } from "@/db/rls";
 
 // Assembly is in-memory over the most recent slice of the mailbox. 500
 // each side covers months of founder-led volume; older threads simply
 // age out of triage (they remain on the contact timeline).
 const ROW_CAP = 500;
 
-export async function loadConversationRows(tenantId: string) {
-  const [inboundRows, outboundRows, triageRows] = await Promise.all([
-    db
+/**
+ * INBOX-P05 / R-08b foundation: when INBOX_RLS_TX=1, run the inbox reads inside
+ * withTenantTx so `app.tenant_id` is bound and the DB-level RLS policies (0074)
+ * enforce isolation. Behavior-neutral under 0074's fallback (no context → still
+ * allow), and OFF by default so the core read path is byte-identical until Martin
+ * enables + verifies it in staging — the prerequisite for the strict flip
+ * (drop the fallback; see OCEANS-DISPOSITION.md). Uses the blessed transaction-
+ * scoped set_config(...,true) primitive, NOT the session form that caused the
+ * 2026-06-10 outage.
+ */
+const RLS_TX = process.env.INBOX_RLS_TX === "1";
+
+type Executor = typeof db;
+
+async function fetchConversationRows(exec: Executor, tenantId: string) {
+  return Promise.all([
+    exec
       .select({
         id: activities.id,
         threadId: activities.threadId,
@@ -38,7 +53,7 @@ export async function loadConversationRows(tenantId: string) {
       )
       .orderBy(desc(activities.occurredAt))
       .limit(ROW_CAP),
-    db
+    exec
       .select({
         id: outboundEmails.id,
         threadId: outboundEmails.threadId,
@@ -60,7 +75,7 @@ export async function loadConversationRows(tenantId: string) {
       .where(and(eq(outboundEmails.tenantId, tenantId), isNotNull(outboundEmails.sentAt)))
       .orderBy(desc(outboundEmails.sentAt))
       .limit(ROW_CAP),
-    db
+    exec
       .select({
         conversationKey: inboxTriage.conversationKey,
         status: inboxTriage.status,
@@ -71,6 +86,12 @@ export async function loadConversationRows(tenantId: string) {
       .from(inboxTriage)
       .where(eq(inboxTriage.tenantId, tenantId)),
   ]);
+}
+
+export async function loadConversationRows(tenantId: string) {
+  const [inboundRows, outboundRows, triageRows] = RLS_TX
+    ? await withTenantTx(tenantId, (tx) => fetchConversationRows(tx as unknown as Executor, tenantId))
+    : await fetchConversationRows(db, tenantId);
 
   const inbound = inboundRows.map((r) => ({
     id: r.id,

@@ -31,12 +31,8 @@ export interface CampaignRow {
   targetFilter?: unknown;
 }
 
-interface QueueItem {
-  contactId: string;
-}
-
 /** Recover the editable plan from the persisted campaign + its targetFilter snapshot. */
-function initialFromCampaign(c: CampaignRow): Partial<PlanValue> {
+export function initialFromCampaign(c: CampaignRow): Partial<PlanValue> {
   const tf = (c.targetFilter ?? {}) as {
     goal?: { type?: GoalType; target?: number; window?: GoalWindow };
     listFrequency?: "daily" | "weekly";
@@ -57,11 +53,13 @@ function initialFromCampaign(c: CampaignRow): Partial<PlanValue> {
 export function EditCampaignModal({
   campaign,
   onClose,
-  onUpdated,
+  onSave,
 }: {
   campaign: CampaignRow;
   onClose: () => void;
-  onUpdated: (data: { campaign: CampaignRow; calls: QueueItem[] }) => void;
+  /** CLE-09 §4: the page owns the one copy of the PATCH (patchPlan); the modal
+   *  builds the payload from its controls and delegates the request to it. */
+  onSave: (payload: unknown) => Promise<{ ok: boolean; perDay?: number; error?: string }>;
 }) {
   const { toast } = useToast();
   const { value, set, daysPerWeek, perDay, payload } = useCallPlan(initialFromCampaign(campaign));
@@ -69,25 +67,14 @@ export function EditCampaignModal({
 
   async function save() {
     setSubmitting(true);
-    try {
-      const res = await fetch("/api/calls/campaign", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast(data.error || "Couldn't update the plan", "error");
-        return;
-      }
-      toast("Calling plan updated", "success");
-      onUpdated({ campaign: data.campaign, calls: data.calls || [] });
-      onClose();
-    } catch {
-      toast("Network error — try again", "error");
-    } finally {
-      setSubmitting(false);
+    const r = await onSave(payload);
+    setSubmitting(false);
+    if (!r.ok) {
+      toast(r.error || "Couldn't update the plan", "error");
+      return;
     }
+    toast("Calling plan updated", "success");
+    onClose();
   }
 
   return (

@@ -30,6 +30,34 @@ describe("Avatar — image present", () => {
   });
 });
 
+describe("Avatar — shape", () => {
+  it("defaults to a circular frame (people)", () => {
+    const { container } = render(<Avatar src="/photo.png" name="Martin Paviot" />);
+    const img = container.querySelector("img");
+    expect(img!.className).toContain("rounded-full");
+  });
+
+  it("renders a workspace logo un-rounded so the mark is not clipped", () => {
+    // A brand/workspace logo must show as-is: a circular crop would clip the
+    // corners of a non-circular mark and alter it.
+    const { container } = render(
+      <Avatar src="/api/settings/workspace/logo?v=1" name="Pilae" shape="square" />,
+    );
+    const img = container.querySelector("img");
+    expect(img!.className).not.toContain("rounded-full");
+    expect(img!.className).toContain("rounded-none");
+  });
+
+  it("keeps the no-image initials bubble round even when shape is square", () => {
+    // `shape` governs the uploaded logo only — the no-logo placeholder stays a
+    // soft round bubble, so a workspace without a logo is unchanged.
+    const { container } = render(<Avatar name="Pilae" shape="square" />);
+    const bubble = container.querySelector("div");
+    expect(bubble!.className).toContain("rounded-full");
+    expect(bubble!.className).not.toContain("rounded-none");
+  });
+});
+
 describe("Avatar — no image", () => {
   it("renders gradient initials", () => {
     const { container } = render(<Avatar name="Martin Paviot" />);

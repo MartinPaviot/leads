@@ -143,6 +143,27 @@ export async function ensureVoiceTables(): Promise<void> {
       )
     `;
     await sql`CREATE UNIQUE INDEX IF NOT EXISTS voice_usage_tenant_month_idx ON voice_usage_monthly (tenant_id, year_month)`;
+
+    // ── call_lists (sector segments for "To call now", _specs/call-lists) ──
+    // No FK constraints here (mirrors the rest of this ensure: columns are
+    // plain text so creation order never matters). The 0076 hand-written
+    // migration carries the REFERENCES for fresh prod environments.
+    await sql`
+      CREATE TABLE IF NOT EXISTS call_lists (
+        id            text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        tenant_id     text NOT NULL,
+        campaign_id   text NOT NULL,
+        owner_id      text,
+        name          text NOT NULL,
+        kind          text NOT NULL DEFAULT 'sector',
+        segment       jsonb NOT NULL DEFAULT '{}'::jsonb,
+        sort          text NOT NULL DEFAULT 'fit',
+        created_at    timestamptz DEFAULT now(),
+        updated_at    timestamptz DEFAULT now()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS call_lists_tenant_campaign_idx ON call_lists (tenant_id, campaign_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS call_lists_owner_idx ON call_lists (tenant_id, owner_id)`;
   } catch (err) {
     console.warn(
       "[ensureVoiceTables] setup error:",

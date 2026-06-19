@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Wand2, Play, GitFork } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { SkillEntry } from "@/app/(dashboard)/skills/page";
+import type { SkillEntry } from "@/app/(dashboard)/skills/_types";
 
 interface ExploreGridProps {
   skills: SkillEntry[];

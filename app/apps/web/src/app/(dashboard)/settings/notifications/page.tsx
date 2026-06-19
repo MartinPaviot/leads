@@ -1,12 +1,20 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { SettingsHeader } from "@/components/ui/settings-header";
 import { Input, Toggle } from "@/components/ui/input";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useSafeFetch } from "@/lib/infra/use-safe-fetch";
+import { z } from "zod";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+
+/* CLE-14: page-action helpers (pure, shared) */
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+function definePageAction<P>(a: PageAction<P>): PageAction { return a as unknown as PageAction; }
 
 interface NotificationPref {
   key: string;
@@ -62,21 +70,35 @@ export default function NotificationsSettingsPage() {
     });
   }, [sfetch]);
 
-  // Save preferences to API
+  /**
+   * CLE-14 — the single PUT path shared by the Save button, the channel
+   * toggles, and the chat action. Returns {ok,error?} so the action run can
+   * report without re-reading the form or duplicating the fetch.
+   */
+  const putPreferences = useCallback(
+    async (updatedPrefs: NotificationPref[]): Promise<{ ok: boolean; error?: string }> => {
+      setSaving(true);
+      const preferences: Record<string, { email: boolean; inApp: boolean; slack: boolean }> = {};
+      for (const p of updatedPrefs) {
+        preferences[p.key] = { email: p.email, inApp: p.inApp, slack: p.slack };
+      }
+      const { error } = await sfetch("/api/notifications/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferences, slackWebhook }),
+        errorMessage: "Failed to save notification preferences",
+      });
+      setSaving(false);
+      return error ? { ok: false, error } : { ok: true };
+    },
+    [slackWebhook, sfetch],
+  );
+
+  // Save preferences to API (whole-form; keeps the existing void signature for
+  // the Slack Save button + toggles which don't read the result).
   const save = useCallback(async (updatedPrefs: NotificationPref[]) => {
-    setSaving(true);
-    const preferences: Record<string, { email: boolean; inApp: boolean; slack: boolean }> = {};
-    for (const p of updatedPrefs) {
-      preferences[p.key] = { email: p.email, inApp: p.inApp, slack: p.slack };
-    }
-    await sfetch("/api/notifications/preferences", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ preferences, slackWebhook }),
-      errorMessage: "Failed to save notification preferences",
-    });
-    setSaving(false);
-  }, [slackWebhook, sfetch]);
+    await putPreferences(updatedPrefs);
+  }, [putPreferences]);
 
   function toggle(key: string, channel: "email" | "inApp" | "slack") {
     const updated = prefs.map((p) =>
@@ -85,6 +107,57 @@ export default function NotificationsSettingsPage() {
     setPrefs(updated);
     save(updated);
   }
+
+  /**
+   * CLE-14 — flip ONE channel on ONE preference to an explicit value, then PUT
+   * the resulting map (no whole-form re-read). Used by the chat action; mirrors
+   * what `toggle` does for a click. Unknown key -> {ok:false}, no PUT.
+   */
+  const setNotificationPref = useCallback(
+    async (
+      key: string,
+      channel: "email" | "inApp" | "slack",
+      enabled: boolean,
+    ): Promise<{ ok: boolean; error?: string }> => {
+      if (!prefs.some((p) => p.key === key)) {
+        return { ok: false, error: `Unknown notification "${key}".` };
+      }
+      const updated = prefs.map((p) => (p.key === key ? { ...p, [channel]: enabled } : p));
+      setPrefs(updated);
+      return putPreferences(updated);
+    },
+    [prefs, putPreferences],
+  );
+
+  // CLE-14: register this page's one SAFE config action. Reuses
+  // setNotificationPref, which PUTs through the same endpoint the toggles use.
+  const notificationActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "settings.updateNotificationPrefs",
+        title: "Update a notification preference",
+        description:
+          "Enable or disable one notification channel (email, inApp, or slack) for one notification type " +
+          "(key, e.g. deal_risk, deal_won, task_due, sequence_reply). Use when the user wants to turn a " +
+          "specific notification on or off on a given channel.",
+        params: z.object({
+          key: z.string().min(1),
+          channel: z.enum(["email", "inApp", "slack"]),
+          enabled: z.boolean(),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ key, channel, enabled }): Promise<PageActionResult> => {
+          const r = await setNotificationPref(key, channel, enabled);
+          return r.ok
+            ? okResult(`${enabled ? "Enabled" : "Disabled"} ${channel} notifications for ${key}.`)
+            : errResult(r.error ?? "Couldn't update the notification preference.");
+        },
+      }),
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [setNotificationPref],
+  );
+  useRegisterPageActions(notificationActions);
 
   const categories = [...new Set(prefs.map((p) => p.category))];
   const slackConnected = !!slackWebhook;

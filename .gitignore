@@ -22,6 +22,8 @@ test-results/
 app/apps/admin/next-env.d.ts
 _inngest-*.log
 .claude/scheduled_tasks.lock
+# Per-machine local settings (allowlist, outputStyle) — never commit
+.claude/settings.local.json
 _research/raw/lightfield-extraction/edge-profile/
 
 # Regenerated dev/build/redeploy server logs
@@ -47,3 +49,8 @@ _jwt*.txt
 # Dev screenshot output + numbered root captures (NNN-name.png).
 app/apps/web/screenshots/
 /[0-9][0-9][0-9]-*.png
+
+.vercel
+
+# Supabase CLI scratch (linked-project state) — machine-local
+supabase/.temp/

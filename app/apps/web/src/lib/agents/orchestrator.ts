@@ -2,7 +2,7 @@
  * Multi-Agent Orchestrator
  *
  * Routes complex queries to specialist sub-agents instead of
- * dumping 126 tools on a single model. Based on Anthropic's
+ * dumping ~160 tools on a single model. Based on Anthropic's
  * "Multi-Agent Research System" architecture.
  *
  * Specialists:
@@ -18,7 +18,7 @@
  * 3. Merges specialist responses into a unified reply
  * 4. Falls back to the full agent if classification is uncertain
  *
- * This reduces per-request tool count from 126 to ~15-25,
+ * This reduces per-request tool count from ~160 to ~15-25,
  * improving quality and cutting token cost by ~70%.
  */
 
@@ -68,6 +68,8 @@ const TOOL_GROUP_MAP: Record<string, string> = {
   listSharedPrompts: "query", deleteSharedPrompt: "query",
   // navigation + command layer (always-available via "query")
   openRecord: "query", openListView: "query", composeEmail: "query",
+  // page actions (page-actions.ts)
+  listPageActions: "query", invokePageAction: "action",
   // read-gap tools
   querySequences: "query", getMailboxHealth: "query", queryProposals: "query",
   // create
@@ -91,6 +93,8 @@ const TOOL_GROUP_MAP: Record<string, string> = {
   updateWorkflows: "update", updateMemberRole: "update",
   updateMailboxSettings: "update", updateMailCalendarIntegration: "update",
   updateCustomObjectType: "update",
+  // workflow (workflow.ts) — NL automation config
+  createWorkflow: "update", listWorkflows: "update", deleteWorkflow: "update",
   // action
   draftEmail: "action", generateFollowUpEmail: "action",
   suggestEmailReply: "action", autoProgressDeal: "action",
@@ -102,12 +106,21 @@ const TOOL_GROUP_MAP: Record<string, string> = {
   runAiAttribute: "action", deleteComment: "action",
   deleteSequenceStep: "action", mergeContacts: "action",
   applyCallSprint: "action", enrichCallSprint: "action",
+  // import (import.ts)
+  analyzeCSVForImport: "action", executeImport: "action",
   // intelligence
   getDealCoaching: "intelligence", getAccountIntelligence: "intelligence",
   generateMeetingPrep: "intelligence", getMeetingNotes: "intelligence",
+  getBuyerIntentScore: "intelligence", getDealsAtRisk: "intelligence",
+  getWinLossAnalysis: "intelligence",
+  // research / forecast / stakeholder (analysis-class)
+  buildCompanyDossier: "intelligence", getRevenueForcast: "intelligence",
+  mapDealStakeholders: "intelligence",
+  // code execution
+  executeCode: "intelligence",
   // coaching
   getCoachingInsights: "coaching", getMyPerformance: "coaching",
-  searchExactWords: "coaching",
+  searchExactWords: "coaching", searchTranscripts: "coaching",
   // skills
   analyzePipeline: "skills", scanSignals: "skills",
   generateBattlecard: "skills", researchCompetitor: "skills",
@@ -122,6 +135,9 @@ const TOOL_GROUP_MAP: Record<string, string> = {
   checkHiringSignals: "skills", detectLeadershipChanges: "skills",
   scopePoC: "skills", draftProposal: "skills",
   handleObjection: "skills", reEngageStalledDeal: "skills",
+  listProposalTemplates: "skills", fillProposal: "skills",
+  // custom skills (become real tools in CLE-02)
+  runCustomSkill: "skills", listCustomSkills: "skills", forkSkill: "skills",
   // memory
   exploreGraph: "memory", rememberContext: "memory",
   recallMemories: "memory", forgetMemory: "memory",
@@ -139,6 +155,21 @@ const TOOL_GROUP_MAP: Record<string, string> = {
   // graph-reasoning (new)
   exploreRelationships: "memory",
 };
+
+/**
+ * Group for a tool in the orchestrator's mirror map. Exported for the
+ * drift-guard test (CLE-01) so the two routing maps can be asserted in sync.
+ */
+export function getOrchestratorToolGroup(name: string): string | undefined {
+  return TOOL_GROUP_MAP[name];
+}
+
+/** All tool names present in the orchestrator mirror map. Exported for the
+ *  drift-guard test (CLE-01) so both maps' key sets can be compared without
+ *  importing the AI-heavy tool registry. */
+export function getOrchestratorToolNames(): string[] {
+  return Object.keys(TOOL_GROUP_MAP);
+}
 
 // ── Intent Classification (fast, no LLM) ───────────────────
 //

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Flame, ArrowUpRight, AlertCircle } from "lucide-react";
+import { Flame, ArrowUpRight, AlertCircle, X } from "lucide-react";
 
 /**
  * Hot Inbounds Widget — surfaces newly-arrived demo-form leads who
@@ -65,6 +65,24 @@ export function HotInboundsWidget() {
     };
   }, []);
 
+  const markNotALead = async (item: HotInbound) => {
+    if (!item.contactId) return;
+    // Optimistic: drop the row. The human verdict overrides upstream stages
+    // (see lib/inbound/lead-status.ts).
+    setItems((prev) =>
+      prev ? prev.filter((i) => i.notificationId !== item.notificationId) : prev,
+    );
+    try {
+      await fetch(`/api/contacts/${item.contactId}/lead-feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isLead: false }),
+      });
+    } catch {
+      /* optimistic — a later refresh re-derives the list */
+    }
+  };
+
   if (loading) {
     return (
       <div
@@ -123,10 +141,10 @@ export function HotInboundsWidget() {
         {items.map((item) => {
           const href = item.contactId ? `/contacts/${item.contactId}` : "#";
           return (
-            <li key={item.notificationId}>
+            <li key={item.notificationId} className="flex items-center gap-1">
               <Link
                 href={href}
-                className="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-[var(--color-bg-hover)]"
+                className="flex flex-1 items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-[var(--color-bg-hover)]"
               >
                 <div
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold uppercase"
@@ -176,6 +194,18 @@ export function HotInboundsWidget() {
                   <ArrowUpRight size={11} />
                 </div>
               </Link>
+              {item.contactId && (
+                <button
+                  type="button"
+                  onClick={() => void markNotALead(item)}
+                  title="Not a lead — hide"
+                  aria-label="Not a lead"
+                  className="shrink-0 rounded p-1 transition-colors hover:bg-[var(--color-bg-hover)]"
+                  style={{ color: "var(--color-text-tertiary)" }}
+                >
+                  <X size={12} />
+                </button>
+              )}
             </li>
           );
         })}

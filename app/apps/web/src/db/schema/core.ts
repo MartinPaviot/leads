@@ -309,6 +309,26 @@ export const notes = pgTable(
   ]
 );
 
+// Live thread presence for the team inbox (INBOX-X03): who is viewing/drafting a
+// conversation right now. One row per (tenant, conversation, user), refreshed by
+// a heartbeat; a viewer is "active" while last_seen_at is recent. Read defensively
+// (try/catch) so the inbox runs identically until this table is migrated in.
+export const inboxPresence = pgTable(
+  "inbox_presence",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    conversationKey: text("conversation_key").notNull(),
+    userId: text("user_id").notNull(),
+    state: text("state").notNull().default("viewing"), // "viewing" | "drafting"
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("inbox_presence_uniq").on(table.tenantId, table.conversationKey, table.userId),
+    index("inbox_presence_key_idx").on(table.tenantId, table.conversationKey),
+  ]
+);
+
 export const tasks = pgTable(
   "tasks",
   {

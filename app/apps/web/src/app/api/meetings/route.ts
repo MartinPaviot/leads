@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { activities, authAccounts, companies, contacts, connectedMailboxes } from "@/db/schema";
 import { eq, and, sql, isNull, isNotNull } from "drizzle-orm";
 import { logger } from "@/lib/observability/logger";
+import { resolveAttendance } from "@/lib/meetings/attendance";
 
 /**
  * GET /api/meetings
@@ -169,6 +170,9 @@ export async function GET(req: Request) {
                 })),
                 location: m.location,
                 meetingLink: m.meetingLink,
+                // The calendar owner this activity was materialised from, so a
+                // per-rep show rate ("me") can attribute meetings later.
+                calendarUserId: authCtx.userId,
               },
             })
             .returning();
@@ -214,6 +218,14 @@ export async function GET(req: Request) {
         notes: meta.structuredNotes || null,
         recordingUrl: meta.recordingUrl || null,
         recallStatus: meta.recordingStatus || null,
+        // Resolved attendance for the show rate: explicit rep mark first, then
+        // cancelled, then "recorded ⇒ held", else unknown (past) / scheduled.
+        attendance: resolveAttendance({
+          explicit: meta.attendance ?? null,
+          calendarStatus: m.status,
+          isPast,
+          recorded: !!meta.hasTranscript || !!meta.structuredNotes || !!meta.recordingUrl,
+        }),
         activityId: activity?.id || null,
         // Filled by the CRM-matching pass below — the account this meeting is
         // with and which attendees are known contacts.

@@ -14,6 +14,7 @@ import { activities, tenants, users, contacts, notetakerExposures, meetingOptOut
 import { eq, and, inArray } from "drizzle-orm";
 import { createBot, type RecallBot } from "@/lib/integrations/recall";
 import { decideBrandingMode, type BrandingDecision } from "@/lib/recording/branding";
+import { isSovereignRecordingEnabled, isSovereignVisioUrl } from "@/lib/recording/sovereign-recording";
 import { sendNotification } from "@/lib/emails/notifications";
 import { generateOptOutToken } from "@/lib/recording/opt-out-token";
 
@@ -83,7 +84,7 @@ export function classifyBotError(
 
 export type DeploymentOutcome =
   | { status: "created"; bot: RecallBot; decision: BrandingDecision }
-  | { status: "skipped"; reason: "opted_out" | "attendee_opted_out" | "missing_link" | "missing_activity" | "already_scheduled"; decision: BrandingDecision | null }
+  | { status: "skipped"; reason: "opted_out" | "attendee_opted_out" | "missing_link" | "missing_activity" | "already_scheduled" | "sovereign_path"; decision: BrandingDecision | null }
   | { status: "failed"; reason: BotErrorCategory; error: string; decision: BrandingDecision | null };
 
 export async function createBotForActivity(
@@ -99,6 +100,17 @@ export async function createBotForActivity(
   if (!activity) return { status: "skipped", reason: "missing_activity", decision: null };
 
   const meta = (activity.metadata || {}) as Record<string, unknown>;
+
+  // Sovereign visios (rooms on our own Jitsi host) are recorded by self-hosted
+  // Jibri, never the US Recall.ai bot. Check before the missing-link guard
+  // because our booking stores the room under `joinUrl`, not `meetingLink`.
+  if (isSovereignRecordingEnabled()) {
+    const sovUrl = (meta.joinUrl || meta.meetLink || meta.meetingLink) as string | undefined;
+    if (isSovereignVisioUrl(sovUrl)) {
+      return { status: "skipped", reason: "sovereign_path", decision: null };
+    }
+  }
+
   const meetingLink = meta.meetingLink as string | undefined;
   if (!meetingLink) return { status: "skipped", reason: "missing_link", decision: null };
   if (meta.recallBotId) return { status: "skipped", reason: "already_scheduled", decision: null };

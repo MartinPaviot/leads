@@ -20,6 +20,7 @@ import { sendViaSmtp } from "@/lib/integrations/smtp-send";
 import { decryptSecret } from "@/lib/crypto/settings-encryption";
 import { logger } from "@/lib/observability/logger";
 import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
+import { evaluateSend } from "@/lib/guardrails/sending-gate";
 
 const BATCH = 25;
 
@@ -89,7 +90,7 @@ export const dispatchOutboundSmtp = inngest.createFunction(
 
         // Atomic claim: queued -> sending. 0 rows ⇒ a concurrent run already
         // took it; skip without sending. This is what makes the event trigger
-        // safe — multiple concurrent invocations can't send the same row.
+        // safe — multiple concurrent invocations can't send the same row (#231).
         const claimed = await db
           .update(outboundEmails)
           .set({ status: "sending", updatedAt: new Date() })
@@ -106,6 +107,39 @@ export const dispatchOutboundSmtp = inngest.createFunction(
               status: "failed",
               failedAt: new Date(),
               errorMessage: recipientBlockReason(o.toAddress),
+              updatedAt: new Date(),
+            })
+            .where(eq(outboundEmails.id, o.id));
+          return "failed";
+        }
+
+        // CLE-13 (items 1 + 3): opt-out/suppression + sending-identity gate, run
+        // AFTER the atomic claim. primary-cap-hit RE-QUEUES the claimed row (so a
+        // later pass retries once capacity frees) — mirroring the Resend worker;
+        // every other block (opt-out / cold / managed) fails it with the reason.
+        const smtpGate = await evaluateSend({
+          tenantId: o.tenantId,
+          toAddress: o.toAddress,
+          sentTodayFromPrimary: mb.sentToday ?? 0,
+        });
+        if (!smtpGate.send) {
+          if (smtpGate.code === "primary-cap-hit") {
+            await db
+              .update(outboundEmails)
+              .set({
+                status: "queued",
+                errorMessage: smtpGate.reason,
+                updatedAt: new Date(),
+              })
+              .where(eq(outboundEmails.id, o.id));
+            return "skipped";
+          }
+          await db
+            .update(outboundEmails)
+            .set({
+              status: "failed",
+              failedAt: new Date(),
+              errorMessage: smtpGate.reason,
               updatedAt: new Date(),
             })
             .where(eq(outboundEmails.id, o.id));

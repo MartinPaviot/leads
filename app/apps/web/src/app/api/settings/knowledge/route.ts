@@ -1,4 +1,5 @@
 import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { requireCapabilityForRequest } from "@/lib/auth/permissions";
 import { db } from "@/db";
 import { knowledgeEntries } from "@/db/schema";
 import { eq, and, or, desc } from "drizzle-orm";
@@ -146,6 +147,12 @@ export async function PUT(req: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // CLE-12 — unified matrix gate on the fresh DB role. Editing knowledge is
+  // admin-only (knowledge:write); previously this PUT had NO role gate (only
+  // POST did), so any member could edit entries (gap closed, access NARROWED).
+  const denied = requireCapabilityForRequest(authCtx, req);
+  if (denied) return denied;
+
   try {
     const body = await req.json();
     const { id, title, content, category, stages } = body as {
@@ -231,6 +238,12 @@ export async function DELETE(req: Request) {
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // CLE-12 — unified matrix gate on the fresh DB role. Deleting knowledge is
+  // admin-only (knowledge:write); previously this DELETE had NO role gate, so
+  // any member could delete entries (gap closed, access NARROWED).
+  const denied = requireCapabilityForRequest(authCtx, req);
+  if (denied) return denied;
 
   try {
     const url = new URL(req.url, "http://localhost");

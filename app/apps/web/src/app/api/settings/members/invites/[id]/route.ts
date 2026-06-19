@@ -1,4 +1,5 @@
 import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
+import { requireCapabilityForRequest } from "@/lib/auth/permissions";
 import { db } from "@/db";
 import { pendingInvites, tenants, users } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -13,6 +14,9 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   if (!authCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const adminCheck = requireAdmin(authCtx);
   if (adminCheck) return adminCheck;
+  // CLE-12 — belt-and-braces matrix gate on the fresh DB role (members:manage).
+  const denied = requireCapabilityForRequest(authCtx, req);
+  if (denied) return denied;
 
   const { id } = await params;
   const result = await db
@@ -44,6 +48,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!authCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const adminCheck = requireAdmin(authCtx);
   if (adminCheck) return adminCheck;
+  // CLE-12 — belt-and-braces matrix gate on the fresh DB role (members:invite).
+  const denied = requireCapabilityForRequest(authCtx, req);
+  if (denied) return denied;
 
   const body = (await req.json().catch(() => ({}))) as { action?: unknown };
   const linkOnly = body.action === "link";

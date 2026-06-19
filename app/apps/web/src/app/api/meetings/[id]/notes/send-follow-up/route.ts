@@ -3,10 +3,12 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, contacts } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth/auth-utils";
+import { requireCapabilityForRequest } from "@/lib/auth/permissions";
 import { logger } from "@/lib/observability/logger";
 import { Resend } from "resend";
 import { buildCtaFootersForActivity, appendFooterIfExternal } from "@/lib/recording/cta";
 import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
+import { evaluateSend } from "@/lib/guardrails/sending-gate";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -25,11 +27,16 @@ const FROM_ADDRESS =
  * recorded back into metadata for audit.
  */
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const authCtx = await getAuthContext();
   if (!authCtx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // CLE-12 — unified matrix gate on the fresh DB role. Sending a meeting
+  // follow-up under /api/meetings requires deals:write (member+).
+  const denied = requireCapabilityForRequest(authCtx, req);
+  if (denied) return denied;
 
   const { id } = await params;
 
@@ -104,12 +111,36 @@ export async function POST(
   // Test-mode guardrail — only contact allowlisted addresses while test
   // mode is on. Blocked recipients are dropped; if every recipient is
   // blocked, the follow-up is not sent.
-  const toEmails = resolvedEmails.filter((e) => isRecipientAllowed(e));
-  if (toEmails.length === 0) {
+  const allowedByTestMode = resolvedEmails.filter((e) => isRecipientAllowed(e));
+  if (allowedByTestMode.length === 0) {
     return NextResponse.json(
       { error: recipientBlockReason(resolvedEmails[0] ?? "a recipient") },
       { status: 403 }
     );
+  }
+
+  // CLE-13 (items 1 + 3): opt-out/suppression + sending-identity gate. This
+  // route had NO opt-out check before — drop every suppressed/blocked recipient
+  // (hard-bounce covered via the same email_optouts lookup). The route sends via
+  // the system FROM_ADDRESS, so sentTodayFromPrimary is moot (0): opt-out + cold
+  // + mode are the load-bearing gates here. If every recipient is blocked, the
+  // follow-up is not sent and followUpSentAt stays unset (403).
+  const gateResults = await Promise.all(
+    allowedByTestMode.map(async (e) => ({
+      email: e,
+      outcome: await evaluateSend({
+        tenantId: authCtx.tenantId,
+        toAddress: e,
+        sentTodayFromPrimary: 0,
+      }),
+    })),
+  );
+  const toEmails = gateResults.filter((r) => r.outcome.send).map((r) => r.email);
+  if (toEmails.length === 0) {
+    const firstReason =
+      gateResults.find((r) => !r.outcome.send)?.outcome.reason ??
+      "No sendable recipients for this meeting.";
+    return NextResponse.json({ error: firstReason }, { status: 403 });
   }
 
   // WS-1: per-recipient CTA footer for externals with exposures. Non-fatal

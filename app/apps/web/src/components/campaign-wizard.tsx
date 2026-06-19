@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -9,6 +10,33 @@ import {
 } from "lucide-react";
 import { INDUSTRIES, COMPANY_SIZES, GEOGRAPHIES, DECISION_MAKER_ROLES } from "@/lib/config/icp-constants";
 import { sanitizeHtml } from "@/lib/infra/sanitize-html";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+
+/* ── CLE-14: page-action helpers (pure, shared) ── */
+
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+
+/** Type a PageAction against its own params schema, then erase P so heterogeneous
+ *  actions live in one PageAction[] (the registry stores PageAction<unknown>). */
+function definePageAction<P>(a: PageAction<P>): PageAction {
+  return a as unknown as PageAction;
+}
+
+/**
+ * CLE-14 — the wizard IDs we INTENTIONALLY do NOT register. The wizard's
+ * "Approve all" (approveAll) and "Launch campaign" (launchCampaign) handlers are
+ * SEND-BEARING: they queue/dispatch real outbound email. The agent PREPARES and
+ * NAVIGATES the wizard (sequences.wizardAdvance moves steps); the human APPROVES
+ * and LAUNCHES. A boundary test asserts the registered wizard set is disjoint
+ * from this — adding any of these would be a parity breach (README §2).
+ */
+export const SEQUENCES_WIZARD_EXCLUDED_IDS = [
+  "sequences.wizardApproveAll",
+  "sequences.wizardLaunch",
+  "sequences.wizardSend",
+] as const;
 
 const pill = "rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all duration-150 cursor-pointer select-none";
 
@@ -289,6 +317,33 @@ export function CampaignWizard({ onClose, onComplete, sequenceId: existingSequen
       console.warn("campaign-wizard: launch failed", e);
     }
   }
+
+  // ── CLE-14: register the wizard's NON-send page action. Registers on mount,
+  //    clears on unmount (the wizard is a conditional child). setStep is stable
+  //    (useState). It NEVER calls approveAll/launchCampaign (those are human-bound;
+  //    see SEQUENCES_WIZARD_EXCLUDED_IDS). ──
+  const wizardActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "sequences.wizardAdvance",
+        title: "Move the campaign wizard to a step",
+        description:
+          "Navigate the open campaign wizard to one of its steps (targets, generating, review, launch). " +
+          "Use to move the user forward/back in the wizard. This only changes the visible step; it never " +
+          "approves drafts or launches the campaign.",
+        params: z.object({ to: z.enum(["targets", "generating", "review", "launch"]) }),
+        mutating: false, cost: "free", confirm: "never",
+        run: async ({ to }): Promise<PageActionResult> => {
+          setStep(to);
+          return okResult(`Moved to the ${to} step.`);
+        },
+      }),
+    ],
+    // Stable single-id set; setStep is a stable useState setter. Register once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useRegisterPageActions(wizardActions);
 
   // ── Stage labels ──
   const stageLabels: Record<string, string> = {

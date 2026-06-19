@@ -21,8 +21,10 @@ export async function GET() {
     .from(tenants)
     .where(eq(tenants.id, authCtx.tenantId))
     .limit(1);
-  const mode = getCaptureApprovalMode(tenant?.settings as Record<string, unknown> | null);
-  return Response.json({ approvals, mode });
+  const settings = tenant?.settings as Record<string, unknown> | null;
+  const mode = getCaptureApprovalMode(settings);
+  const fieldModes = (settings?.captureFieldModes as Record<string, unknown> | undefined) ?? null;
+  return Response.json({ approvals, mode, fieldModes });
 }
 
 export async function PATCH(req: Request) {
@@ -31,8 +33,20 @@ export async function PATCH(req: Request) {
 
   const body = await req.json().catch(() => ({}));
   const mode = String(body.mode ?? "").toLowerCase();
-  if (mode !== "auto" && mode !== "review") {
-    return Response.json({ error: "mode must be 'auto' or 'review'" }, { status: 400 });
+  if (mode !== "auto" && mode !== "review" && mode !== "hybrid") {
+    return Response.json({ error: "mode must be 'auto', 'review' or 'hybrid'" }, { status: 400 });
+  }
+
+  // Optional per-field map for hybrid mode. Only the four known CRM facts are
+  // accepted, values clamped to 'auto' | 'review'.
+  const FIELD_KEYS = ["meddic", "evidence", "callIntel", "callProfile"] as const;
+  let fieldModes: Record<string, "auto" | "review"> | undefined;
+  if (body.fieldModes && typeof body.fieldModes === "object") {
+    fieldModes = {};
+    for (const k of FIELD_KEYS) {
+      const v = String((body.fieldModes as Record<string, unknown>)[k] ?? "").toLowerCase();
+      if (v === "review" || v === "auto") fieldModes[k] = v;
+    }
   }
 
   const [tenant] = await db
@@ -43,10 +57,17 @@ export async function PATCH(req: Request) {
   if (!tenant) return Response.json({ error: "Workspace not found" }, { status: 404 });
 
   const current = (tenant.settings || {}) as Record<string, unknown>;
+  const nextSettings: Record<string, unknown> = { ...current, captureApprovalMode: mode };
+  if (fieldModes) {
+    nextSettings.captureFieldModes = {
+      ...((current.captureFieldModes as Record<string, unknown>) || {}),
+      ...fieldModes,
+    };
+  }
   await db
     .update(tenants)
-    .set({ settings: { ...current, captureApprovalMode: mode }, updatedAt: new Date() })
+    .set({ settings: nextSettings, updatedAt: new Date() })
     .where(eq(tenants.id, authCtx.tenantId));
 
-  return Response.json({ success: true, mode });
+  return Response.json({ success: true, mode, fieldModes: nextSettings.captureFieldModes ?? null });
 }

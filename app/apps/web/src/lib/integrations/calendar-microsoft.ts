@@ -7,6 +7,15 @@ import {
   encryptOAuthToken,
 } from "@/lib/crypto/oauth-token-crypto";
 
+/**
+ * The full set of Microsoft Graph scopes we request. Calendars.ReadWrite (up
+ * from .Read) is what lets us CREATE events — booking a sovereign visio writes
+ * an event carrying our Jitsi link. Bumping this forces existing Microsoft
+ * connections to reconnect once to grant write access.
+ */
+const MS_OAUTH_SCOPE =
+  "openid email profile offline_access Mail.Read Calendars.ReadWrite";
+
 async function getMicrosoftTokens(userId: string) {
   const [account] = await db
     .select()
@@ -32,7 +41,7 @@ async function refreshMicrosoftToken(userId: string, refreshToken: string): Prom
       client_secret: process.env.MICROSOFT_CLIENT_SECRET!,
       grant_type: "refresh_token",
       refresh_token: refreshToken,
-      scope: "openid email profile offline_access Calendars.Read",
+      scope: MS_OAUTH_SCOPE,
     }),
   });
 
@@ -56,6 +65,24 @@ async function refreshMicrosoftToken(userId: string, refreshToken: string): Prom
     );
 
   return data.access_token;
+}
+
+/**
+ * Return a valid Microsoft Graph access token for the user, refreshing it if
+ * it's within 60s of expiry. Null when the user has no Microsoft connection.
+ * Shared by the read (meetings sync) and write (event creation) paths.
+ */
+export async function getMicrosoftAccessToken(userId: string): Promise<string | null> {
+  const account = await getMicrosoftTokens(userId);
+  if (!account?.access_token) return null;
+  let accessToken = account.access_token;
+  if (account.expires_at && account.expires_at * 1000 < Date.now() + 60_000) {
+    if (!account.refresh_token) return null;
+    const refreshed = await refreshMicrosoftToken(userId, account.refresh_token);
+    if (!refreshed) return null;
+    accessToken = refreshed;
+  }
+  return accessToken;
 }
 
 async function graphFetch(url: string, accessToken: string): Promise<Response> {

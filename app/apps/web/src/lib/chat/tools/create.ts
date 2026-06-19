@@ -23,11 +23,33 @@ import {
 } from "@/lib/config/tenant-settings";
 import { logToolCall } from "@/lib/chat/tool-call-log";
 import { logDealEvent } from "@/lib/deals/log-deal-event";
+import { decideAction } from "@/lib/guardrails/decide-action";
 import { makeTool, type ToolContext } from "./context";
 
 export function buildCreateTools(ctx: ToolContext) {
   const { tenantId, userId, agentApprovalMode, authCtx } = ctx;
   const isAdmin = authCtx.role === "admin";
+  // CLE-10: the chat create tools route through the SINGLE authority `decideAction`
+  // (absorbing CLE-00's chatCreateDisposition). A create is a reversible mutation the
+  // user explicitly requested → confidence 1 so `auto-high-confidence` executes
+  // immediately (preserves the legacy "auto" create UX). One decision drives BOTH the
+  // description copy AND the execute guard, so the two can never drift (the original
+  // CLE-00 bug was two independent `=== "ask"` literal tests).
+  //   - refuse  → viewer floor (AC-1): return { error }, no write.
+  //   - execute → immediate write.
+  //   - confirm | queue → proposal card (UNCHANGED shape — chat-action-cards.tsx).
+  const role = (authCtx.role ?? "member") as "admin" | "member" | "viewer";
+  const createDecision = decideAction(
+    {
+      action: { mutating: true, reversible: true, outbound: false, cost: "free", confirm: "never" },
+      approvalMode: agentApprovalMode,
+      role,
+      confidence: 1,
+    },
+    { actionKey: "contact-create" },
+  );
+  const refuseCreate = createDecision.disposition === "refuse";
+  const proposeFirst = createDecision.disposition !== "execute" && !refuseCreate;
 
   const createContactSchema = z.object({
     firstName: z.string().optional(),
@@ -55,12 +77,15 @@ export function buildCreateTools(ctx: ToolContext) {
   return {
     createContact: makeTool({
       description:
-        agentApprovalMode === "ask"
+        proposeFirst
           ? "Propose creating a new contact. Returns a proposal card that the user must approve before the record is created."
           : "Create a new contact in the CRM. Use when the user asks to add a contact.",
       inputSchema: createContactSchema,
       execute: async (input) => {
-        if (agentApprovalMode === "ask") {
+        if (refuseCreate) {
+          return { error: `Cannot create contact: ${createDecision.reason}.` };
+        }
+        if (proposeFirst) {
           return {
             proposal: true,
             action: "createContact",
@@ -93,12 +118,15 @@ export function buildCreateTools(ctx: ToolContext) {
 
     createAccount: makeTool({
       description:
-        agentApprovalMode === "ask"
+        proposeFirst
           ? "Propose creating a new account. Returns a proposal card that the user must approve before the record is created."
           : "Create a new account/company in the CRM.",
       inputSchema: createAccountSchema,
       execute: async (input) => {
-        if (agentApprovalMode === "ask") {
+        if (refuseCreate) {
+          return { error: `Cannot create account: ${createDecision.reason}.` };
+        }
+        if (proposeFirst) {
           return {
             proposal: true,
             action: "createAccount",
@@ -125,12 +153,15 @@ export function buildCreateTools(ctx: ToolContext) {
 
     createDeal: makeTool({
       description:
-        agentApprovalMode === "ask"
+        proposeFirst
           ? "Propose creating a new deal. Returns a proposal card that the user must approve before the record is created."
           : "Create a new deal/opportunity in the CRM.",
       inputSchema: createDealSchema,
       execute: async (input) => {
-        if (agentApprovalMode === "ask") {
+        if (refuseCreate) {
+          return { error: `Cannot create deal: ${createDecision.reason}.` };
+        }
+        if (proposeFirst) {
           return {
             proposal: true,
             action: "createDeal",

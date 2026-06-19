@@ -30,6 +30,12 @@ import {
 import { and, eq, notInArray, inArray, desc } from "drizzle-orm";
 import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
 import { isCompanyEligible } from "@/lib/sequences/enrollment-eligibility";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
+import {
+  enforceAgentApprovalMode,
+  readApprovalMode,
+} from "@/lib/guardrails/approval-mode";
+import { recordAgentAction } from "@/lib/agents/agent-actions";
 
 export const signalAutoEnroll = inngest.createFunction(
   {
@@ -208,7 +214,54 @@ export const signalAutoEnroll = inngest.createFunction(
       return { skipped: true, reason: "All contacts already enrolled" };
     }
 
-    // 5. Enroll contacts
+    // 4.5 CLE-13 (item 2): approval gate via the SINGLE authority. Runs AFTER
+    // all eligibility checks (open deal, anti-ICP, contacts-with-email, active
+    // sequence, not-already-enrolled) and BEFORE the first write, so an
+    // ineligible signal is still cheaply short-circuited and a gated one
+    // produces no partial enrollment (AC-2.5). `sequence-enrollment` is
+    // outbound + confirm:always in CLE-10's metadata, so decideAction returns
+    // confirm/queue under EVERY mode — it never auto-executes inline (AC-2.1-2.4,
+    // CLE-10 design §6.1). On any non-execute disposition we DEFER: record a
+    // pending agent action in the "Needs you" lane and skip the enroll/deal/notify.
+    const gate = await step.run("approval-gate", async () => {
+      const settings = await getTenantSettings(tenantId);
+      const mode = readApprovalMode(settings ?? { agentApprovalMode: "review-each" });
+      // A fresh buying signal is high-confidence, but confidence only affects
+      // the reason text here — outbound+confirm:always never flips to execute.
+      return enforceAgentApprovalMode({
+        mode,
+        action: "sequence-enrollment",
+        confidence: 0.9,
+      });
+    });
+
+    if (!gate.allowed) {
+      await step.run("defer-enroll", async () => {
+        await recordAgentAction({
+          tenantId,
+          actionType: "sequence-enrollment",
+          awaitingApproval: true,
+          payload: {
+            companyId,
+            companyName,
+            signalType,
+            signalTitle,
+            sequenceId: activeSequence.id,
+            sequenceName: activeSequence.name,
+            contactIds: toEnroll.map((c: { id: string }) => c.id),
+            queueAs: gate.queueAs,
+            reason: gate.reason,
+          },
+        });
+      });
+      return {
+        skipped: true,
+        deferred: true,
+        reason: `Enrollment gated: ${gate.reason}`,
+      };
+    }
+
+    // 5. Enroll contacts (only reached when the authority returns execute).
     let enrolled = 0;
     await step.run("enroll-contacts", async () => {
       for (const contact of toEnroll) {

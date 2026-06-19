@@ -17,6 +17,12 @@
  * excluded — they're the opposite of "warm". Same for contacts whose
  * domain is in `DEFAULT_IGNORED_DOMAINS`.
  *
+ * Lead-recognition filter (see _specs/inbound-lead-recognition/): mail FROM a
+ * service the user subscribes to is not a lead, so we additionally exclude
+ * (1) role/automated sender addresses (noreply@, notifications@, newsletter@…)
+ * and (2) unsolicited inbound (no outbound from us) that does not clear the
+ * ICP-fit floor. A two-way conversation (we replied ≥ once) bypasses the floor.
+ *
  * Ephemeral per-tenant cache keyed by tenantId + 5min TTL avoids
  * repeat inbox scans when the dashboard mounts/rehydrates.
  */
@@ -25,6 +31,8 @@ import { db } from "@/db";
 import { activities, contacts, companies } from "@/db/schema";
 import { and, eq, gte, isNotNull, sql } from "drizzle-orm";
 import { getTenantSettings, buildIgnoredDomains } from "@/lib/config/tenant-settings";
+import { classifyInboundSender } from "@/lib/inbound/lead-classification";
+import { isExcludedAsLead } from "@/lib/inbound/lead-status";
 
 export interface WarmLead {
   contactId: string;
@@ -82,12 +90,14 @@ export async function rankWarmLeads(
       email: contacts.email,
       title: contacts.title,
       companyId: contacts.companyId,
+      properties: contacts.properties,
       companyName: companies.name,
       companyDomain: companies.domain,
       industry: companies.industry,
       activityCount: sql<number>`count(${activities.id})::int`,
       lastActivityAt: sql<Date>`max(${activities.occurredAt})`,
       inboundCount: sql<number>`sum(case when ${activities.direction} = 'inbound' then 1 else 0 end)::int`,
+      outboundCount: sql<number>`sum(case when ${activities.direction} = 'outbound' then 1 else 0 end)::int`,
       lastSummary: sql<string | null>`(array_agg(${activities.summary} order by ${activities.occurredAt} desc))[1]`,
     })
     .from(activities)
@@ -108,6 +118,7 @@ export async function rankWarmLeads(
       contacts.email,
       contacts.title,
       contacts.companyId,
+      contacts.properties,
       companies.name,
       companies.domain,
       companies.industry,
@@ -120,9 +131,19 @@ export async function rankWarmLeads(
     if (!r.email) continue;
     const emailDomain = r.email.split("@")[1]?.toLowerCase() ?? "";
     if (ignored.has(emailDomain)) continue;
+    // Human-in-the-loop / LLM verdict (tranche 3): the user marked this "not a
+    // lead", or the relationship classifier ruled it a vendor/recruiter. Human
+    // override wins — see lib/inbound/lead-status.ts.
+    if (isExcludedAsLead(r.properties as Record<string, unknown> | null)) continue;
     // Must have at least one inbound activity — otherwise it's a cold
     // contact the user hasn't actually talked to.
     if ((r.inboundCount ?? 0) < 1) continue;
+
+    // Lead-recognition gate 1 (see _specs/inbound-lead-recognition/): a
+    // role/automated sender address (noreply@, notifications@, newsletter@…)
+    // is mail received FROM a service the user subscribes to, not a person —
+    // never a warm lead, however recent.
+    if (classifyInboundSender({ fromHeader: r.email }).isMachineSent) continue;
 
     const lastAt = r.lastActivityAt ? new Date(r.lastActivityAt) : null;
     if (!lastAt || Number.isNaN(lastAt.getTime())) continue;
@@ -143,6 +164,13 @@ export async function rankWarmLeads(
       (industryLower && targetedIndustries.has(industryLower))
         ? 1
         : 0.5;
+
+    // Lead-recognition gate 2: unsolicited inbound (we never sent anything to
+    // them) is only "warm" if the person actually fits the ICP — here ICP is a
+    // FLOOR, not just a 0.5/1 score weight. A genuine two-way conversation (we
+    // replied at least once) is intrinsically warm and bypasses the floor.
+    const twoWay = (r.outboundCount ?? 0) >= 1;
+    if (!twoWay && icpFit < 1) continue;
 
     const rankScore = 0.4 * recencyScore + 0.3 * depthScore + 0.3 * icpFit;
 

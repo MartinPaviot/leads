@@ -74,19 +74,27 @@ export function segBtn(active: boolean): React.CSSProperties {
 const labelCls = "text-[11px] font-medium uppercase tracking-wide";
 const labelStyle = { color: "var(--color-text-tertiary)" } as React.CSSProperties;
 
-/** Controlled state + derived numbers + the API payload, shared by both surfaces. */
-export function useCallPlan(initial?: Partial<PlanValue> | null) {
-  const [value, setValue] = useState<PlanValue>({ ...DEFAULT_PLAN, ...(initial ?? {}) });
-  const set = (patch: Partial<PlanValue>) => setValue((v) => ({ ...v, ...patch }));
+/** The PATCH /api/calls/campaign payload shape — built from a PlanValue, shared
+ *  by useCallPlan (the form) and the CLE-09 editPlan action (built from a
+ *  campaign + a partial edit), so the request body never drifts. */
+export function planPayload(value: PlanValue) {
   const daysPerWeek = Math.max(1, value.workingDays.length);
-  const perDay = dailyCalls(value.type, value.target, value.window, daysPerWeek);
-  const payload = {
+  return {
     goal: { type: value.type, target: value.target, window: value.window, daysPerWeek },
     maxAttempts: value.maxAttempts,
     windowDays: value.windowDays,
     listFrequency: value.listFrequency,
     workingDays: value.workingDays,
   };
+}
+
+/** Controlled state + derived numbers + the API payload, shared by both surfaces. */
+export function useCallPlan(initial?: Partial<PlanValue> | null) {
+  const [value, setValue] = useState<PlanValue>({ ...DEFAULT_PLAN, ...(initial ?? {}) });
+  const set = (patch: Partial<PlanValue>) => setValue((v) => ({ ...v, ...patch }));
+  const daysPerWeek = Math.max(1, value.workingDays.length);
+  const perDay = dailyCalls(value.type, value.target, value.window, daysPerWeek);
+  const payload = planPayload(value);
   return { value, set, daysPerWeek, perDay, payload };
 }
 

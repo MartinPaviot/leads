@@ -16,8 +16,9 @@
  * sequence enrollments hit their next step.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import { z } from "zod";
 import {
   SequenceDraftList,
   type DraftListItem,
@@ -26,8 +27,21 @@ import { SequenceDraftPreview } from "@/components/sequence-draft-preview";
 import { SequenceDraftRejectModal } from "@/components/sequence-draft-reject-modal";
 import { useToast } from "@/components/ui/toast";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
 
 const POLL_INTERVAL_MS = 30_000;
+
+/* ── CLE-14: page-action helpers (pure, shared) ── */
+
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+
+/** Type a PageAction against its own params schema, then erase P so heterogeneous
+ *  actions live in one PageAction[] (the registry stores PageAction<unknown>). */
+function definePageAction<P>(a: PageAction<P>): PageAction {
+  return a as unknown as PageAction;
+}
 
 export default function ReviewQueuePage() {
   const { toast } = useToast();
@@ -148,82 +162,123 @@ export default function ReviewQueuePage() {
     });
   }
 
+  // CLE-14: the single bulk-approve network body shared by the action-bar button
+  // AND the sequences.reviewBulkApprove action (AC-NODUP). Updates the list +
+  // selection on success; surfaces the atomic-rollback / missing cases as toasts.
+  const bulkApproveDrafts = useCallback(
+    async (ids: string[]): Promise<{ ok: boolean; approved?: string[]; error?: string }> => {
+      try {
+        const res = await fetch("/api/sequences/drafts/bulk-approve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          approved?: string[];
+          error?: string;
+          failures?: Array<{ id: string; reason: string }>;
+          missingIds?: string[];
+        };
+        if (!res.ok) {
+          let msg: string;
+          if (res.status === 409 && Array.isArray(data.failures)) {
+            msg = `Batch rolled back: ${data.failures.length} draft(s) cannot be approved.`;
+          } else if (res.status === 404 && Array.isArray(data.missingIds)) {
+            msg = `${data.missingIds.length} draft(s) not found — refresh and retry.`;
+          } else {
+            msg = data.error ?? `Bulk approve failed (${res.status})`;
+          }
+          toast(msg, "error");
+          return { ok: false, error: msg };
+        }
+        const approved = data.approved ?? ids;
+        const approvedSet = new Set(approved);
+        setDrafts((prev) => prev.filter((d) => !approvedSet.has(d.id)));
+        setSelectedIds(new Set());
+        setSelectedDraftId((cur) => (cur && approvedSet.has(cur) ? null : cur));
+        return { ok: true, approved };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Network error";
+        toast(msg, "error");
+        return { ok: false, error: msg };
+      }
+    },
+    [toast],
+  );
+
+  // CLE-14: the single approve network body shared by the preview's Approve
+  // button AND the sequences.reviewApprove action (AC-NODUP).
+  const approveDraft = useCallback(
+    async (draftId: string, version: number): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const res = await fetch(`/api/sequences/drafts/${draftId}/approve`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ version }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          return { ok: false, error: (data as { error?: string }).error ?? `Approve failed (${res.status})` };
+        }
+        setDrafts((prev) => prev.filter((d) => d.id !== draftId));
+        setSelectedDraftId((cur) => (cur === draftId ? null : cur));
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : "Network error" };
+      }
+    },
+    [],
+  );
+
+  // CLE-14: the single reject network body shared by the reject modal AND the
+  // sequences.reviewReject action (AC-NODUP). `version` is the draft's numeric
+  // version stamp (optimistic-concurrency guard the API expects).
+  const rejectDraft = useCallback(
+    async (
+      draftId: string,
+      body: { reason: string; version: number; pauseEnrollment: boolean },
+    ): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const res = await fetch(`/api/sequences/drafts/${draftId}/reject`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reason: body.reason,
+            pauseEnrollment: body.pauseEnrollment,
+            version: body.version,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          return { ok: false, error: (data as { error?: string }).error ?? `Reject failed (${res.status})` };
+        }
+        setDrafts((prev) => prev.filter((d) => d.id !== draftId));
+        setSelectedDraftId((cur) => (cur === draftId ? null : cur));
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : "Network error" };
+      }
+    },
+    [],
+  );
+
   async function handleBulkApprove() {
     if (selectedIds.size === 0) return;
     setBulkApproving(true);
-    try {
-      const ids = Array.from(selectedIds);
-      const res = await fetch("/api/sequences/drafts/bulk-approve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        approved?: string[];
-        error?: string;
-        failures?: Array<{ id: string; reason: string }>;
-        missingIds?: string[];
-      };
-      if (!res.ok) {
-        if (res.status === 409 && Array.isArray(data.failures)) {
-          toast(
-            `Batch rolled back: ${data.failures.length} draft(s) cannot be approved.`,
-            "error",
-          );
-        } else if (res.status === 404 && Array.isArray(data.missingIds)) {
-          toast(
-            `${data.missingIds.length} draft(s) not found — refresh and retry.`,
-            "error",
-          );
-        } else {
-          toast(data.error ?? `Bulk approve failed (${res.status})`, "error");
-        }
-        return;
-      }
-      const approvedCount = data.approved?.length ?? ids.length;
-      toast(
-        `${approvedCount} draft${approvedCount > 1 ? "s" : ""} approved.`,
-        "success",
-      );
-      const approvedSet = new Set(data.approved ?? ids);
-      setDrafts((prev) => prev.filter((d) => !approvedSet.has(d.id)));
-      setSelectedIds(new Set());
-      if (selectedDraftId && approvedSet.has(selectedDraftId)) {
-        setSelectedDraftId(null);
-      }
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Network error", "error");
-    } finally {
-      setBulkApproving(false);
+    const ids = Array.from(selectedIds);
+    const r = await bulkApproveDrafts(ids);
+    if (r.ok) {
+      const approvedCount = r.approved?.length ?? ids.length;
+      toast(`${approvedCount} draft${approvedCount > 1 ? "s" : ""} approved.`, "success");
     }
+    setBulkApproving(false);
   }
 
   async function handleApprove() {
     if (!selectedDraft) return;
-    try {
-      const res = await fetch(
-        `/api/sequences/drafts/${selectedDraft.id}/approve`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ version: selectedDraft.version }),
-        },
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast(
-          (data as { error?: string }).error ?? `Approve failed (${res.status})`,
-          "error",
-        );
-        return;
-      }
-      toast("Approved — queued for send.", "success");
-      // Drop the approved draft from the pending list.
-      setDrafts((prev) => prev.filter((d) => d.id !== selectedDraft.id));
-      setSelectedDraftId(null);
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Network error", "error");
-    }
+    const r = await approveDraft(selectedDraft.id, selectedDraft.version);
+    if (r.ok) toast("Approved — queued for send.", "success");
+    else toast(r.error ?? "Approve failed.", "error");
   }
 
   async function submitReject(args: {
@@ -231,43 +286,15 @@ export default function ReviewQueuePage() {
     pauseEnrollment: boolean;
   }) {
     if (!selectedDraft) return { ok: false, error: "No draft selected" };
-    try {
-      const res = await fetch(
-        `/api/sequences/drafts/${selectedDraft.id}/reject`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            reason: args.reason,
-            pauseEnrollment: args.pauseEnrollment,
-            version: selectedDraft.version,
-          }),
-        },
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        return {
-          ok: false,
-          error:
-            (data as { error?: string }).error ??
-            `Reject failed (${res.status})`,
-        };
-      }
-      toast(
-        args.pauseEnrollment
-          ? "Rejected — enrollment paused."
-          : "Rejected.",
-        "success",
-      );
-      setDrafts((prev) => prev.filter((d) => d.id !== selectedDraft.id));
-      setSelectedDraftId(null);
-      return { ok: true };
-    } catch (err) {
-      return {
-        ok: false,
-        error: err instanceof Error ? err.message : "Network error",
-      };
+    const r = await rejectDraft(selectedDraft.id, {
+      reason: args.reason,
+      version: selectedDraft.version,
+      pauseEnrollment: args.pauseEnrollment,
+    });
+    if (r.ok) {
+      toast(args.pauseEnrollment ? "Rejected — enrollment paused." : "Rejected.", "success");
     }
+    return r;
   }
 
   function handleEditSaved(updated: DraftListItem) {
@@ -276,6 +303,95 @@ export default function ReviewQueuePage() {
     );
     toast("Draft updated.", "success");
   }
+
+  // ── CLE-14: register this review page's actions for the chat live-executor.
+  //    run()s reuse the extracted network bodies above; live refs keep the id set
+  //    stable so registration happens once (CLE-03 §3.1). ──
+  const draftsRef = useRef(drafts); draftsRef.current = drafts;
+  const bulkApproveDraftsRef = useRef(bulkApproveDrafts); bulkApproveDraftsRef.current = bulkApproveDrafts;
+  const approveDraftRef = useRef(approveDraft); approveDraftRef.current = approveDraft;
+  const rejectDraftRef = useRef(rejectDraft); rejectDraftRef.current = rejectDraft;
+
+  const reviewActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "sequences.reviewBulkApprove",
+        title: "Bulk-approve drafts",
+        description:
+          "Approve several pending draft emails at once — atomic: if any can't transition, the whole batch rolls back. " +
+          "Approved drafts queue for send. Use when the user wants to approve multiple drafts in the review queue.",
+        params: z.object({ ids: z.array(z.string().min(1)).min(1) }),
+        mutating: true, outbound: true, reversible: true, cost: "free", confirm: "always",
+        run: async ({ ids }): Promise<PageActionResult> => {
+          const r = await bulkApproveDraftsRef.current(ids);
+          if (!r.ok) return errResult(r.error ?? "Bulk approve failed.");
+          const n = r.approved?.length ?? ids.length;
+          return okResult(`Approved ${n} draft${n === 1 ? "" : "s"} - queued for send.`, { approved: r.approved });
+        },
+      }),
+      definePageAction({
+        id: "sequences.reviewApprove",
+        title: "Approve a draft",
+        description:
+          "Approve one pending draft email — it queues for send. The version stamp is the draft's optimistic-concurrency " +
+          "guard. Use when the user wants to approve the selected/named draft.",
+        params: z.object({ draftId: z.string().min(1), version: z.union([z.string(), z.number()]) }),
+        mutating: true, outbound: true, reversible: true, cost: "free", confirm: "always",
+        run: async ({ draftId, version }): Promise<PageActionResult> => {
+          const draft = draftsRef.current.find((d) => d.id === draftId);
+          if (!draft) return errResult(`Draft ${draftId} is not in the review queue.`);
+          const r = await approveDraftRef.current(draftId, Number(version));
+          return r.ok ? okResult("Draft approved - queued for send.") : errResult(r.error ?? "Approve failed.");
+        },
+      }),
+      definePageAction({
+        id: "sequences.reviewReject",
+        title: "Reject a draft",
+        description:
+          "Reject one pending draft email with a reason — the reason feeds the optimizer. Optionally pause the contact's " +
+          "enrollment. Use when the user wants to reject the selected/named draft.",
+        params: z.object({
+          draftId: z.string().min(1),
+          version: z.union([z.string(), z.number()]),
+          reason: z.string().min(1),
+          pauseEnrollment: z.boolean().optional(),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ draftId, version, reason, pauseEnrollment }): Promise<PageActionResult> => {
+          const draft = draftsRef.current.find((d) => d.id === draftId);
+          if (!draft) return errResult(`Draft ${draftId} is not in the review queue.`);
+          const r = await rejectDraftRef.current(draftId, {
+            reason,
+            version: Number(version),
+            pauseEnrollment: pauseEnrollment ?? false,
+          });
+          return r.ok ? okResult("Draft rejected.") : errResult(r.error ?? "Reject failed.");
+        },
+      }),
+      definePageAction({
+        id: "sequences.reviewEdit",
+        title: "Open a draft to edit",
+        description:
+          "Open one draft in the preview pane so the user can edit it inline. Use when the user wants to edit/view a " +
+          "specific draft. This only opens the editor; it does not approve, reject, or send anything.",
+        params: z.object({ draftId: z.string().min(1) }),
+        mutating: false, cost: "free", confirm: "never",
+        run: async ({ draftId }): Promise<PageActionResult> => {
+          const draft = draftsRef.current.find((d) => d.id === draftId);
+          if (!draft) return errResult(`Draft ${draftId} is not in the review queue.`);
+          // The inline editor lives inside SequenceDraftPreview, which mounts for
+          // the selected draft. Selecting the draft is the page-owned affordance
+          // that opens it (there is no separate open-editor-by-id setter).
+          setSelectedDraftId(draftId);
+          return okResult("Opened the draft editor.");
+        },
+      }),
+    ],
+    // Stable id set; run() reads live values via refs. Register once (CLE-03).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useRegisterPageActions(reviewActions);
 
   return (
     <div className="flex h-full flex-col">

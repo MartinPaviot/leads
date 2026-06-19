@@ -14,9 +14,9 @@ import { Loader2, X } from "lucide-react";
  *   - an optional `step` label so multi-step agents (chat, deal
  *     coach, churn-risk batch) name what's happening in plain English
  *
- * The dot animation honours `prefers-reduced-motion` via the parent
- * `body { @media (prefers-reduced-motion: reduce) }` rules already
- * shipped in `globals.css`.
+ * The spinner honours `prefers-reduced-motion`: the global
+ * `@media (prefers-reduced-motion: reduce)` reset in `globals.css`
+ * neutralizes its `animate-spin` for users who request reduced motion.
  */
 export interface AIThinkingProps {
   /** Optional textual hint about what the AI is doing right now. */

@@ -40,6 +40,10 @@ import {
 import { embedEntity } from "@/lib/ai/embeddings";
 import { ingestEpisode } from "@/lib/ai/context-graph";
 import { inngest } from "@/inngest/client";
+import { classifyInboundSender } from "@/lib/inbound/lead-classification";
+import { stripDangerousHtml } from "@/lib/inbox/sanitize-email";
+import { parseAuthResults } from "@/lib/inbox/sender-auth";
+import type { AttachmentMeta } from "@/lib/inbox/attachment-meta";
 
 /** "John Doe <john@example.com>" -> "john@example.com" (lowercased). */
 export function extractEmailFromHeader(header: string): string {
@@ -82,12 +86,24 @@ export interface InboundEmailInput {
   toHeader?: string | null;
   subject?: string | null;
   text?: string | null;
+  /** Original `text/html` body. Sanitized + stored so the reading pane can
+   *  render real HTML (INBOX-R01/R13). Absent ⇒ text-only render. */
+  html?: string | null;
   messageId?: string | null;
   threadId?: string | null;
   /** When the inbound is a reply to a tracked outbound, its contactId. */
   knownContactId?: string | null;
   /** May be an ISO string when the caller crossed an Inngest step boundary. */
   occurredAt?: Date | string;
+  /** Raw RFC headers when the call-site has them (EmailEngine/IMAP). Drives
+   *  machine-sent detection (List-Unsubscribe, Precedence, Auto-Submitted).
+   *  Optional + back-compat: absent ⇒ role-local-part detection only. */
+  headers?: Record<string, string> | null;
+  /** Raw text/calendar (.ics) part of an inbound meeting invite, when the
+   *  transport exposes it — parsed for the inline event card (INBOX-R12/CAL). */
+  calendar?: string | null;
+  /** Attachment metadata for the reading pane (INBOX-R04). */
+  attachments?: AttachmentMeta[];
 }
 
 export interface InboundCaptureResult {
@@ -178,6 +194,16 @@ export async function captureInboundEmail(
   const senderEmail = extractEmailFromHeader(input.fromHeader || "");
   const messageId = input.messageId || null;
 
+  // Classify the sender (human vs machine) up front: this is recorded on the
+  // activity so the timeline stays complete, AND it gates auto-creation below
+  // so a `noreply@`/newsletter sender never becomes a first-class lead-contact.
+  const classification = classifyInboundSender({
+    fromHeader: input.fromHeader || "",
+    subject: input.subject,
+    text: input.text,
+    headers: input.headers,
+  });
+
   // Idempotency: skip if this messageId is already captured for the tenant.
   // The batch pull paths historically keyed dedup on metadata.gmailMessageId,
   // so honour both keys — a message captured by one path must never be
@@ -255,9 +281,19 @@ export async function captureInboundEmail(
     // interaction the product promises to capture — create the contact under
     // that account even in "selective" mode (only "disabled" opts out).
     // Senders at unknown companies still require an explicit opt-in mode.
+    //
+    // Machine-sent gate: a `noreply@`/newsletter/automated sender is never
+    // promoted to a first-class person-contact (no fabricated "Noreply"
+    // contact, no `contact/created` → no enrich/qualify/"Hot inbound" fan-out).
+    // The activity is still captured below — attached to the company when the
+    // domain is already known, otherwise left unresolved. A sender that
+    // resolves to an EXISTING contact is unaffected (this branch only runs for
+    // unknown senders), so a known human is captured even if one message of
+    // theirs happens to be automated.
     const createContact =
-      shouldAutoCreateContact(settings.contactCreationMode, "inbound") ||
-      (!!existingCo && settings.contactCreationMode !== "disabled");
+      !classification.isMachineSent &&
+      (shouldAutoCreateContact(settings.contactCreationMode, "inbound") ||
+        (!!existingCo && settings.contactCreationMode !== "disabled"));
 
     if (createContact) {
       if (!resolvedCompanyId) {
@@ -286,7 +322,14 @@ export async function captureInboundEmail(
       contactCreated = true;
       companyId = newContact.companyId;
       void inngest
-        .send({ name: "contact/created", data: { contactId: newContact.id, tenantId } })
+        .send({
+          name: "contact/created",
+          // Tag the origin so the qualify handler runs the inbound relationship
+          // gate (prospect vs vendor/recruiter) before any "Hot inbound"
+          // notification — and so sourced/imported contacts never masquerade as
+          // inbound. See _specs/inbound-lead-recognition/.
+          data: { contactId: newContact.id, tenantId, source: "inbound_email" },
+        })
         .catch(() => {});
     } else {
       companyId = resolvedCompanyId;
@@ -308,6 +351,17 @@ export async function captureInboundEmail(
 
   const mode = getCaptureApprovalMode(settings as unknown as Record<string, unknown>);
   const occurredAt = normalizeSyncDate(input.occurredAt);
+
+  // Retain the sanitized HTML body so the reading pane can render real markup
+  // (links / images / formatting) instead of flattened text (INBOX-R01/R13).
+  // The server pre-strip removes executable/dangerous markup before it is ever
+  // persisted; the pane re-sanitizes against a strict allowlist at render time.
+  // Capped so a hostile or runaway body can't bloat the activity row.
+  const bodyHtml = input.html ? stripDangerousHtml(input.html).slice(0, 500_000) : null;
+
+  // Sender domain-authentication verdict (SPF/DKIM/DMARC) from the receiving
+  // server's header — a stored trust signal for the reading pane (INBOX-R06).
+  const senderAuth = parseAuthResults(input.headers);
 
   const res = await recordCapturedActivity({
     tenantId,
@@ -334,6 +388,29 @@ export async function captureInboundEmail(
         to: input.toHeader || null,
         subject: input.subject || null,
         snippet: (input.text || "").slice(0, 200),
+        // Sanitized HTML body for the reading pane (INBOX-R01/R13). Only stored
+        // when present, so text-only mail keeps a lean metadata row.
+        ...(bodyHtml ? { bodyHtml } : {}),
+        // Raw .ics of an inbound invite (INBOX-R12/CAL), capped. Only when present.
+        ...(input.calendar ? { calendar: input.calendar.slice(0, 100_000) } : {}),
+        // Attachment metadata (INBOX-R04), only when the mail had attachments.
+        ...(input.attachments?.length ? { attachments: input.attachments } : {}),
+        // Sender domain-auth verdict (INBOX-R06) — small, always stored so the
+        // reader can tell "unknown" (checked, no verdict) from a real pass/fail.
+        senderAuth,
+        // The lead-recognition verdict travels with the activity so every
+        // downstream reader (warm-leads, hot-inbounds, inbox lanes) can trust
+        // a stored decision rather than re-deriving it. Deterministic-only in
+        // tranche 1; the LLM relationship verdict (`isInboundLead`) lands in
+        // tranche 2. See `_specs/inbound-lead-recognition/`.
+        leadClassification: {
+          senderType: classification.senderType,
+          isMachineSent: classification.isMachineSent,
+          isBulk: classification.isBulk,
+          isRoleAddress: classification.isRoleAddress,
+          reasons: classification.reasons,
+          classifier: "deterministic-v1",
+        },
       },
     },
     summary: input.subject || null,
