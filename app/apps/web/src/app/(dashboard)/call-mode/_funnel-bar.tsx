@@ -56,7 +56,7 @@ function Cell({
   style?: React.CSSProperties;
 }) {
   return (
-    <div className="px-3 py-0.5" style={style}>
+    <div className="px-3 py-1" style={style}>
       {/* Compact strip: 11px value / 9px label keep the bar a thin one-line glance. */}
       <div className="truncate text-[11px] leading-tight">
         <span className="mr-1.5 text-[9px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
