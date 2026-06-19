@@ -55,6 +55,7 @@ import { initialsFor, avatarColorIndex } from "@/lib/inbox/sender-auth";
 import { parseWhen } from "@/lib/inbox/parse-when";
 import { dirOf } from "@/lib/inbox/text-direction";
 import { decodeDisplay } from "@/lib/inbox/text-decode";
+import { type SendableMailbox } from "@/lib/inbox/pick-from-mailbox";
 
 const SNOOZE_OPTIONS: Array<{ label: string; until: () => Date }> = [
   {
@@ -133,6 +134,8 @@ export function ConversationPane({
   const [replyTones, setReplyTones] = useState<Array<{ tone: string; subject: string; body: string }>>([]);
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [autoDraftOn, setAutoDraftOn] = useState(false);
+  // A2: the user's SENDABLE mailboxes for the composer From selector.
+  const [sendableMailboxes, setSendableMailboxes] = useState<SendableMailbox[]>([]);
   const snoozeRef = useRef<HTMLDivElement>(null);
   // B1: at most one auto-draft per thread open (keyed by conversation key).
   const autoDraftedFor = useRef<string | null>(null);
@@ -176,6 +179,26 @@ export function ConversationPane({
       .then((r) => (r.ok ? r.json() : { autoDraft: { enabled: false } }))
       .then((d: { autoDraft?: { enabled?: boolean } }) => {
         if (!cancelled) setAutoDraftOn(d.autoDraft?.enabled === true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load the user's SENDABLE mailboxes once (A2) — own + active only, for the
+  // composer From selector. Created_at-ordered so [0] is the primary default.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/settings/mailboxes")
+      .then((r) => (r.ok ? r.json() : { mailboxes: [] }))
+      .then((d: { mailboxes?: Array<{ id: string; emailAddress: string; displayName: string | null; status: string }> }) => {
+        if (cancelled || !Array.isArray(d.mailboxes)) return;
+        setSendableMailboxes(
+          d.mailboxes
+            .filter((m) => m.status === "active")
+            .map((m) => ({ id: m.id, address: m.emailAddress, label: m.displayName || m.emailAddress })),
+        );
       })
       .catch(() => {});
     return () => {
@@ -252,13 +275,13 @@ export function ConversationPane({
         to: replyTo,
         subject: detail.preparedDraft.subject || `Re: ${conv.subject}`,
         body: detail.preparedDraft.body,
-        contactId: detail.contact?.id,
+        contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined,
       });
       return;
     }
     const lastInbound = [...conv.messages].reverse().find((m) => m.direction === "inbound");
     if (!lastInbound?.body) {
-      setComposer({ to: replyTo, subject: `Re: ${conv.subject}`, body: "", contactId: detail.contact?.id });
+      setComposer({ to: replyTo, subject: `Re: ${conv.subject}`, body: "", contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined });
       return;
     }
     setDrafting(true);
@@ -281,11 +304,11 @@ export function ConversationPane({
         to: replyTo,
         subject: brief?.subject ?? `Re: ${conv.subject}`,
         body: brief?.body ?? "",
-        contactId: detail.contact?.id,
+        contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined,
       });
       if (!brief) toast("Couldn't suggest a reply — opening a blank composer.", "warning");
     } catch {
-      setComposer({ to: replyTo, subject: `Re: ${conv.subject}`, body: "", contactId: detail.contact?.id });
+      setComposer({ to: replyTo, subject: `Re: ${conv.subject}`, body: "", contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined });
       toast("Couldn't suggest a reply — opening a blank composer.", "warning");
     } finally {
       setDrafting(false);
@@ -315,16 +338,16 @@ export function ConversationPane({
           to: c?.to ?? replyTo,
           subject: data.subject?.trim() || c?.subject || `Re: ${conv.subject}`,
           body: text,
-          contactId: detail.contact?.id,
+          contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined,
         }));
       } else {
         // Fail-closed (R1.6): never fabricate. Leave an open composer's body
         // untouched; if none is open, open a blank one so the user can still write.
-        setComposer((c) => c ?? { to: replyTo, subject: `Re: ${conv.subject}`, body: "", contactId: detail.contact?.id });
+        setComposer((c) => c ?? { to: replyTo, subject: `Re: ${conv.subject}`, body: "", contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined });
         toast("Couldn't draft a reply — opening a blank composer.", "warning");
       }
     } catch {
-      setComposer((c) => c ?? { to: replyTo, subject: `Re: ${conv.subject}`, body: "", contactId: detail.contact?.id });
+      setComposer((c) => c ?? { to: replyTo, subject: `Re: ${conv.subject}`, body: "", contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined });
       toast("Couldn't draft a reply — opening a blank composer.", "warning");
     } finally {
       setDrafting(false);
@@ -981,6 +1004,7 @@ export function ConversationPane({
           />
           <EmailComposerPanel
             draft={composer}
+            mailboxes={sendableMailboxes}
             onClose={() => {
               setComposer(null);
               setReplyTones([]);
