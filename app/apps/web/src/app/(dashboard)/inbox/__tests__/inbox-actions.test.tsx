@@ -58,6 +58,11 @@ function listItem(over: Record<string, unknown> = {}) {
     fromAddress: "marie@ems.ch",
     snippet: "Thanks for the call",
     reason: "Replied to your sequence",
+    reasonSource: "reply",
+    slaHoursOverdue: null,
+    importanceTier: 1,
+    importanceFactors: [],
+    labels: [],
     handledNote: null,
     lastInboundAt: "2026-06-17T10:00:00.000Z",
     lastMessageAt: "2026-06-17T10:00:00.000Z",
@@ -92,6 +97,10 @@ const FIXTURE_DETAIL = {
   contact: { id: "ct-1", name: "Marie Dubois", email: "marie@ems.ch" },
   enrollment: { id: "enr-1", sequenceId: "seq-9", sequenceName: "Q3 push", status: "active" },
   preparedDraft: null,
+  nextAction: null,
+  lastInteraction: null,
+  actionItems: [],
+  entities: { amounts: [], dates: [], phones: [] },
 };
 
 let fetchMock: ReturnType<typeof vi.fn>;
