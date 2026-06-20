@@ -43,6 +43,7 @@ import { type Snippet } from "@/lib/inbox/snippets";
 import { SnippetBar } from "./_snippet-bar";
 import { extractSenderEmail } from "@/lib/inbox/image-trust";
 import { ProspectBriefSection } from "./_prospect-brief";
+import { IntelligencePanel } from "./_intelligence-panel";
 import { ThreadSummarySection } from "./_thread-summary";
 import { ThreadAskSection } from "./_thread-ask";
 import { ThreadNotes } from "./_thread-notes";
@@ -526,6 +527,16 @@ export function ConversationPane({
 
   const conv = detail.conversation;
   const intel = conv.intelligence;
+  // LT-2: badge count for the collapsed Intelligence panel — how many high-signal
+  // sections it holds (brief is contact-driven; the rest are pipeline data). The
+  // panel stays collapsed by default so the email reads first (Upstream feel).
+  const intelCount =
+    (detail.contact ? 1 : 0) +
+    (detail.freshSignals && detail.freshSignals.length > 0 ? 1 : 0) +
+    (detail.actionItems.length > 0 ? 1 : 0) +
+    (detail.entities.amounts.length + detail.entities.dates.length + detail.entities.phones.length > 0 ? 1 : 0) +
+    (conv.handledNote ? 1 : 0) +
+    (intel && ((intel.signals?.length ?? 0) > 0 || (intel.objections?.length ?? 0) > 0 || (intel.nextSteps?.length ?? 0) > 0) ? 1 : 0);
   const triageable = lane === "attention" || lane === "snoozed";
 
   return (
@@ -534,28 +545,10 @@ export function ConversationPane({
       <div className="border-b px-4 py-3" style={{ borderColor: "var(--color-border-default)" }}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              {detail.contact ? (
-                <Link
-                  href={`/contacts/${detail.contact.id}`}
-                  className="truncate text-[14px] font-semibold hover:underline"
-                  style={{ color: "var(--color-text-primary)" }}
-                >
-                  {detail.contact.name}
-                </Link>
-              ) : (
-                <span className="truncate text-[14px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
-                  {conv.displayName}
-                </span>
-              )}
-              {conv.fromAddress && (
-                <span className="truncate text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-                  {conv.fromAddress}
-                </span>
-              )}
-            </div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-              <span className="truncate text-[12px]" style={{ color: "var(--color-text-secondary)" }} dir={dirOf(decodeDisplay(conv.subject))}>
+            {/* Subject leads (Upstream hierarchy): the thread title is the
+                prominent element; the sender drops to a secondary line below. */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[17px] font-semibold leading-tight" style={{ color: "var(--color-text-primary)" }} dir={dirOf(decodeDisplay(conv.subject))}>
                 {decodeDisplay(conv.subject)}
               </span>
               {conv.reason && (
@@ -574,6 +567,26 @@ export function ConversationPane({
               )}
               {intel?.sentimentTrend === "declining" && (
                 <Badge variant="warning" size="sm">Sentiment declining</Badge>
+              )}
+            </div>
+            <div className="mt-1 flex items-center gap-2">
+              {detail.contact ? (
+                <Link
+                  href={`/contacts/${detail.contact.id}`}
+                  className="truncate text-[13px] font-medium hover:underline"
+                  style={{ color: "var(--color-text-secondary)" }}
+                >
+                  {detail.contact.name}
+                </Link>
+              ) : (
+                <span className="truncate text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
+                  {conv.displayName}
+                </span>
+              )}
+              {conv.fromAddress && (
+                <span className="truncate text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                  {conv.fromAddress}
+                </span>
               )}
             </div>
             {/* Last interaction of any channel (INBOX-G03) — recency beyond this thread. */}
@@ -806,6 +819,99 @@ export function ConversationPane({
           </div>
         )}
 
+        {/* ── Agent-prepared reply (condensed, actionable — stays above the email) ── */}
+        {detail.preparedDraft && (
+          <div
+            className="mb-3 rounded-lg border p-3"
+            style={{ borderColor: "var(--color-accent)", background: "var(--color-accent-soft)" }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-accent)" }}>
+                <Sparkles size={12} /> Prepared reply
+              </span>
+              <Button size="sm" onClick={openReply}>Edit &amp; send</Button>
+            </div>
+            <p className="mt-1.5 line-clamp-3 whitespace-pre-wrap text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+              {detail.preparedDraft.body}
+            </p>
+          </div>
+        )}
+
+        {/* ── Messages FIRST (email-first, Upstream feel): the email reads before
+             the intelligence stack, which is collapsed below. ── */}
+        {conv.messages.map((m, i) => (
+          <div
+            key={m.id}
+            id={`thread-msg-${i}`}
+            className="mb-2.5 rounded-lg border p-3"
+            style={{
+              borderColor: "var(--color-border-default)",
+              background: m.direction === "inbound" ? "var(--color-bg-card)" : "transparent",
+              marginLeft: m.direction === "outbound" ? "24px" : "0",
+            }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex min-w-0 items-center gap-1.5 text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+                {m.direction === "inbound" && (
+                  <span
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold"
+                    style={{
+                      background: `var(--color-badge-${avatarColorIndex(m.from || conv.displayName)}-bg)`,
+                      color: `var(--color-badge-${avatarColorIndex(m.from || conv.displayName)})`,
+                    }}
+                    aria-hidden
+                  >
+                    {initialsFor(m.from || conv.displayName)}
+                  </span>
+                )}
+                <span className="truncate">
+                  {m.direction === "inbound" ? m.from || conv.displayName : "You"}
+                </span>
+                {m.direction === "inbound" && m.senderVerified === "pass" && (
+                  <ShieldCheck
+                    size={13}
+                    className="shrink-0"
+                    style={{ color: "var(--color-success)" }}
+                    aria-label="Sender domain verified (SPF/DKIM/DMARC)"
+                  />
+                )}
+                {m.direction === "inbound" && m.senderVerified === "fail" && (
+                  <ShieldAlert
+                    size={13}
+                    className="shrink-0"
+                    style={{ color: "var(--color-warning)" }}
+                    aria-label="Sender failed domain authentication"
+                  />
+                )}
+                {m.direction === "outbound" && m.stepNumber ? (
+                  <span className="ml-1.5 font-normal" style={{ color: "var(--color-text-tertiary)" }}>
+                    Step {m.stepNumber}
+                  </span>
+                ) : null}
+              </span>
+              <span className="shrink-0 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                {m.at ? timeAgo(m.at) : ""}
+              </span>
+            </div>
+            {m.subject && m.subject !== conv.subject && (
+              <div className="mt-0.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }} dir={dirOf(decodeDisplay(m.subject))}>{decodeDisplay(m.subject)}</div>
+            )}
+            <div className="mt-1.5">
+              <EventCard ics={m.calendar} conversationKey={conv.key} />
+              <EmailBody
+                html={m.bodyHtml}
+                text={m.body || "(empty message)"}
+                senderEmail={extractSenderEmail(m.from)}
+                trustedSenders={trustedSenders}
+                onTrust={(email) => setTrustedSenders((s) => (s.includes(email) ? s : [...s, email]))}
+              />
+              <AttachmentStrip attachments={m.attachments} />
+            </div>
+          </div>
+        ))}
+
+        {/* ── Intelligence (collapsed by default — one click away from the email) ── */}
+        <IntelligencePanel key={conversationKey ?? ""} count={intelCount}>
         {/* ── Fresh GTM signals (INBOX-G04): the contact's company-level buying
              signals (hiring / funding / …), past-shelf-life ones already dropped. ── */}
         {detail.freshSignals && detail.freshSignals.length > 0 && (
@@ -900,24 +1006,6 @@ export function ConversationPane({
           </div>
         )}
 
-        {/* ── Agent-prepared reply ── */}
-        {detail.preparedDraft && (
-          <div
-            className="mb-3 rounded-lg border p-3"
-            style={{ borderColor: "var(--color-accent)", background: "var(--color-accent-soft)" }}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-accent)" }}>
-                <Sparkles size={12} /> Prepared reply
-              </span>
-              <Button size="sm" onClick={openReply}>Edit &amp; send</Button>
-            </div>
-            <p className="mt-1.5 line-clamp-3 whitespace-pre-wrap text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-              {detail.preparedDraft.body}
-            </p>
-          </div>
-        )}
-
         {/* ── Thread intelligence (only what the pipeline persisted) ── */}
         {intel && ((intel.signals?.length ?? 0) > 0 || (intel.objections?.length ?? 0) > 0 || (intel.nextSteps?.length ?? 0) > 0) && (
           <div
@@ -964,78 +1052,7 @@ export function ConversationPane({
             )}
           </div>
         )}
-
-        {/* ── Messages, chronological, full bodies ── */}
-        {conv.messages.map((m, i) => (
-          <div
-            key={m.id}
-            id={`thread-msg-${i}`}
-            className="mb-2.5 rounded-lg border p-3"
-            style={{
-              borderColor: "var(--color-border-default)",
-              background: m.direction === "inbound" ? "var(--color-bg-card)" : "transparent",
-              marginLeft: m.direction === "outbound" ? "24px" : "0",
-            }}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex min-w-0 items-center gap-1.5 text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-                {m.direction === "inbound" && (
-                  <span
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold"
-                    style={{
-                      background: `var(--color-badge-${avatarColorIndex(m.from || conv.displayName)}-bg)`,
-                      color: `var(--color-badge-${avatarColorIndex(m.from || conv.displayName)})`,
-                    }}
-                    aria-hidden
-                  >
-                    {initialsFor(m.from || conv.displayName)}
-                  </span>
-                )}
-                <span className="truncate">
-                  {m.direction === "inbound" ? m.from || conv.displayName : "You"}
-                </span>
-                {m.direction === "inbound" && m.senderVerified === "pass" && (
-                  <ShieldCheck
-                    size={13}
-                    className="shrink-0"
-                    style={{ color: "var(--color-success)" }}
-                    aria-label="Sender domain verified (SPF/DKIM/DMARC)"
-                  />
-                )}
-                {m.direction === "inbound" && m.senderVerified === "fail" && (
-                  <ShieldAlert
-                    size={13}
-                    className="shrink-0"
-                    style={{ color: "var(--color-warning)" }}
-                    aria-label="Sender failed domain authentication"
-                  />
-                )}
-                {m.direction === "outbound" && m.stepNumber ? (
-                  <span className="ml-1.5 font-normal" style={{ color: "var(--color-text-tertiary)" }}>
-                    Step {m.stepNumber}
-                  </span>
-                ) : null}
-              </span>
-              <span className="shrink-0 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-                {m.at ? timeAgo(m.at) : ""}
-              </span>
-            </div>
-            {m.subject && m.subject !== conv.subject && (
-              <div className="mt-0.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }} dir={dirOf(decodeDisplay(m.subject))}>{decodeDisplay(m.subject)}</div>
-            )}
-            <div className="mt-1.5">
-              <EventCard ics={m.calendar} conversationKey={conv.key} />
-              <EmailBody
-                html={m.bodyHtml}
-                text={m.body || "(empty message)"}
-                senderEmail={extractSenderEmail(m.from)}
-                trustedSenders={trustedSenders}
-                onTrust={(email) => setTrustedSenders((s) => (s.includes(email) ? s : [...s, email]))}
-              />
-              <AttachmentStrip attachments={m.attachments} />
-            </div>
-          </div>
-        ))}
+        </IntelligencePanel>
       </div>
 
       {composer && (
