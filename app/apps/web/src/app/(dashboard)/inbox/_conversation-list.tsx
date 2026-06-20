@@ -5,7 +5,7 @@
  * this component owns the empty state, hover-intent prefetch, and load-more.
  */
 
-import { useRef } from "react";
+import { useRef, useCallback } from "react";
 import { Inbox, CheckCircle2, AlarmClock, Bot, SearchX } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -71,16 +71,18 @@ export function ConversationList({
   // rests on its row ~150ms, so a click/keyboard-open renders instantly. One
   // timer for the whole list — only the last-hovered row is in flight.
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const armPrefetch = (key: string) => {
+  // F2: stable identities (they close over the ref only) so InboxRow's React.memo
+  // isn't broken by a fresh hover closure every render.
+  const armPrefetch = useCallback((key: string) => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
     hoverTimer.current = setTimeout(() => prefetchDetail(key), 150);
-  };
-  const cancelPrefetch = () => {
+  }, []);
+  const cancelPrefetch = useCallback(() => {
     if (hoverTimer.current) {
       clearTimeout(hoverTimer.current);
       hoverTimer.current = null;
     }
-  };
+  }, []);
 
   if (conversations.length === 0) {
     // F3 R3.4/R3.5: an empty result under an active search is "no matches" (with a
@@ -118,8 +120,8 @@ export function ConversationList({
           showMailbox={showMailbox}
           onSelect={onSelect}
           onToggleSelect={onToggleSelect}
-          onMouseEnter={() => armPrefetch(c.key)}
-          onMouseLeave={cancelPrefetch}
+          onHoverStart={armPrefetch}
+          onHoverEnd={cancelPrefetch}
         />
       ))}
 

@@ -9,6 +9,7 @@
  * checkbox, avatar, priority dot, reason, labels, SLA, "received on" chip).
  */
 
+import { memo } from "react";
 import { AlarmClock, Mail, CheckSquare, Square } from "lucide-react";
 import { timeAgo } from "./_time-ago";
 import { reasonTooltip, type ConversationListItem, type InboxLane } from "./_types";
@@ -24,7 +25,7 @@ function priorityDot(priority: number): string {
   return "var(--color-text-muted)";
 }
 
-export function InboxRow({
+export const InboxRow = memo(function InboxRow({
   item,
   lane,
   selected,
@@ -33,8 +34,8 @@ export function InboxRow({
   showMailbox = false,
   onSelect,
   onToggleSelect,
-  onMouseEnter,
-  onMouseLeave,
+  onHoverStart,
+  onHoverEnd,
 }: {
   item: ConversationListItem;
   lane: InboxLane;
@@ -44,8 +45,10 @@ export function InboxRow({
   showMailbox?: boolean;
   onSelect: (key: string) => void;
   onToggleSelect?: (key: string, shift: boolean) => void;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
+  // F2: key-passing hover handlers so the list can pass ONE stable ref to every
+  // row (the row applies its own key), keeping React.memo effective.
+  onHoverStart?: (key: string) => void;
+  onHoverEnd?: () => void;
 }) {
   const c = item;
   const when = c.lastInboundAt ?? c.lastMessageAt;
@@ -55,8 +58,8 @@ export function InboxRow({
   return (
     <button
       onClick={() => onSelect(c.key)}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
+      onMouseEnter={() => onHoverStart?.(c.key)}
+      onMouseLeave={onHoverEnd}
       className="group block w-full border-b px-3.5 py-2.5 text-left transition-colors"
       style={{
         minHeight: "var(--inbox-row-height)",
@@ -173,4 +176,4 @@ export function InboxRow({
       </div>
     </button>
   );
-}
+});
