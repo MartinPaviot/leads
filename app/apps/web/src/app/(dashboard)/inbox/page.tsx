@@ -13,8 +13,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
-import { Inbox, Mail, Search, X, AlertCircle } from "lucide-react";
-import { PageHeader, FilterBar } from "@/components/ui/page-header";
+import { Mail, AlertCircle } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -22,8 +21,6 @@ import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types
 import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
 import { ConversationList } from "./_conversation-list";
 import { ConversationPane, type ConversationPaneApi } from "./_conversation-pane";
-import { SplitTabs } from "./_split-tabs";
-import { LaneChip } from "./_lane-chip";
 import { CaptureReviewDrawer } from "./_capture-review";
 import { OutboundTable, type OutboundTableApi } from "./_outbound-table";
 import { BundlesView } from "./_bundles-view";
@@ -31,6 +28,7 @@ import { CommandPalette } from "./_command-palette";
 import { buildInboxPaletteCommands, type PaletteCommand } from "@/lib/inbox/palette-commands";
 import { tomorrowMorning } from "@/lib/inbox/snooze-presets";
 import { MailboxRail } from "./_mailbox-rail";
+import { InboxFolders } from "./_inbox-folders";
 import { InboxListSkeleton } from "./_skeleton";
 import { pickListState } from "@/lib/inbox/list-state";
 import { createLoadGuard } from "@/lib/inbox/load-guard";
@@ -71,9 +69,6 @@ const TAB_LABELS: Record<Tab, string> = {
   bundles: "Bundles",
 };
 
-// Built-in lane tabs. "bundles" is rendered separately (only when non-empty),
-// so it's excluded here — that keeps `counts[t]` exhaustively typed.
-const TABS: Exclude<Tab, "bundles">[] = ["attention", "snoozed", "done", "handled", "outbound"];
 
 export default function InboxPage() {
   const { toast } = useToast();
@@ -813,104 +808,39 @@ export default function InboxPage() {
   );
 
   return (
-    <div className="flex h-full flex-col animate-content-in">
-      <PageHeader
-        icon={<Inbox size={16} />}
-        title="Inbox"
-        subtitle={
-          counts.attention > 0
-            ? `${counts.attention} conversation${counts.attention === 1 ? "" : "s"} need${counts.attention === 1 ? "s" : ""} your attention`
-            : "All caught up"
-        }
-      />
-
-      <FilterBar>
-        <div className="flex w-full items-center gap-3">
-        <div className="flex flex-wrap gap-0.5">
-          {TABS.map((t) => (
-            <LaneChip
-              key={t}
-              label={TAB_LABELS[t]}
-              count={counts[t]}
-              active={customLaneId === null && tab === t}
-              onClick={() => {
-                setCustomLaneId(null);
-                setActiveSplit(null);
-                setTab(t);
-              }}
-            />
-          ))}
-          {customLanes.map((l) => (
-            <LaneChip
-              key={l.id}
-              label={l.name}
-              count={l.count}
-              active={customLaneId === l.id}
-              onClick={() => {
-                setActiveSplit(null);
-                setCustomLaneId(l.id);
-              }}
-            />
-          ))}
-          {bundleTotal > 0 && (
-            <LaneChip
-              label="Bundles"
-              count={bundleTotal}
-              active={customLaneId === null && tab === "bundles"}
-              onClick={() => {
-                setCustomLaneId(null);
-                setActiveSplit(null);
-                setTab("bundles");
-              }}
-            />
-          )}
-          <button
-            onClick={() => void handleNewLane()}
-            className="rounded-md px-2 py-1 text-[12px] font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
-            style={{ color: "var(--color-text-tertiary)" }}
-            title="Create a lane from a sender domain"
-          >
-            + New lane
-          </button>
-        </div>
-
-        {/* Search (INBOX-Q04): operators from:/to:/subject:/before:/after:/is: + free text. */}
-        <div className="relative ml-auto shrink-0">
-          <Search
-            size={13}
-            className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2"
-            style={{ color: "var(--color-text-muted)" }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search — from: subject: is:unread"
-            className="w-60 rounded-md border py-1 pl-7 pr-7 text-[12px] outline-none"
-            style={{
-              borderColor: "var(--color-border-default)",
-              background: "var(--color-bg-page)",
-              color: "var(--color-text-primary)",
-            }}
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2"
-              style={{ color: "var(--color-text-muted)" }}
-              title="Clear search"
-            >
-              <X size={12} />
-            </button>
-          )}
-        </div>
-        </div>
-      </FilterBar>
-
-      {/* B3: intention splits sub-segment the attention lane only. */}
-      {tab === "attention" && !customLaneId && splitCounts.length > 0 && (
-        <SplitTabs splits={splitCounts} active={activeSplit} onSelect={setActiveSplit} onCreate={handleNewSplit} />
+    <div className="flex h-full animate-content-in">
+      {/* Left: mailbox folders + Splits (the Upstream IA). */}
+      {mailboxConnected && (
+        <InboxFolders
+          tab={customLaneId ? "attention" : tab}
+          customLaneId={customLaneId}
+          activeSplit={activeSplit}
+          counts={counts}
+          splitCounts={splitCounts}
+          customLanes={customLanes}
+          bundleTotal={bundleTotal}
+          search={search}
+          onSearch={setSearch}
+          onSelectLane={(l) => {
+            setCustomLaneId(null);
+            setActiveSplit(null);
+            setTab(l);
+          }}
+          onSelectSplit={(id) => {
+            setCustomLaneId(null);
+            setTab("attention");
+            setActiveSplit(id);
+          }}
+          onSelectCustomLane={(id) => {
+            setActiveSplit(null);
+            setCustomLaneId(id);
+          }}
+          onNewLane={() => void handleNewLane()}
+          onNewSplit={handleNewSplit}
+        />
       )}
 
+      <div className="flex min-w-0 flex-1 flex-col">
       {!mailboxConnected ? (
         <div className="flex flex-1 items-center justify-center">
           <EmptyState
@@ -1070,6 +1000,8 @@ export default function InboxPage() {
           </div>
         </div>
       )}
+
+      </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={paletteCommands} />
     </div>
