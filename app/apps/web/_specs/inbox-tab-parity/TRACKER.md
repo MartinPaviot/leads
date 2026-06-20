@@ -34,7 +34,25 @@ tests green. Remaining: compose-new (needs the From-selector, now unblocked), Sp
 folders, URL routes, star-leading + per-row Draft badge — all data-limited for visual verify
 (account has only 3 noise mails).
 
-**Done this session: foundational category model + Tabs 1/2/3/4/5/6** (commits 036878eb,
+**UI craft pass (2026-06-20, founder: "tu es à côté de la plaque sur l'UI").** Seeded
+realistic test mail (`scripts/_seed-inbox-test.ts`, test tenant, cleanable) → finally saw
+a POPULATED inbox + drove the AI + measured. Fixes, all live-verified + committed:
+- Primary bug (split==="other" excluded reply-worthy mail → Inbox empty) → Primary = all
+  except Promotions/Social/Noise (865fbc16). Seeded 4 person threads now show.
+- **Full-width calm list** (ba9cbf1c): no auto-open the 1st row (lands on full-width list,
+  pane opens on click); SLA/follow-up pills → hover-revealed sober text (no alarm panel).
+- **One dot + light catch-up banner** (f8a64c30): dropped the orange priority dot (importance
+  still sorts); catch-up banner de-emphasised.
+- **Soft right-edge fade** on rows (483c39e9/a9c17895): maskImage gradient, not a hard "…".
+- **Pixel checklist** measured (PIXEL-CHECKLIST.md) + 1-2px fixes (bb1d4cd9): date/tab/sidebar → 14px.
+- **No-fabrication eval + fix** (3ede4857): AI invented "$4,800/month" → unsourcedAmounts detector
+  + compose-reply prompt defer + LLM-tier gate (0 fabrications), wired into eval:run.
+- **mailboxes 500 fix** (6408238d): prod-schema `shared` column → resilient select fallback.
+Reading view verified email-first with real data (OURS-thread-realdata.png). Remaining UI:
+thread toolbar overflow (busy action row — the risky 3-widget refactor), compose-new,
+Spam/Trash, URL routes, star-leading.
+
+**Done earlier: foundational category model + Tabs 1/2/3/4/5/6** (commits 036878eb,
 a77b3bb0). The category-tab reshape (handled mail surfaces, noise overrides) fixed 4/5/6
 together. Remaining real-gap work: Tab 7 Starred (star position + Draft badge + header),
 Tab 12 Spam/Trash (missing), and the cross-cutting items (routes, per-folder header,
