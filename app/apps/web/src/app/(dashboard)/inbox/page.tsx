@@ -362,10 +362,11 @@ export default function InboxPage() {
     }).catch(() => {});
   }, [selectedKey, conversations]);
 
-  // Reconcile the selection whenever the list changes: a pending deep-link
-  // wins when its thread is listed; otherwise keep the current selection if
-  // still listed, else fall back to the first row. (Single place — list
-  // updaters stay side-effect free.)
+  // Reconcile the selection whenever the list changes: a pending deep-link wins
+  // when its thread is listed; otherwise keep the current selection if still
+  // listed, else clear it. We do NOT auto-open the first row — Upstream (and every
+  // real email client) lands on the FULL-WIDTH list, opening the reading pane only
+  // on an explicit click. Auto-selecting cramped the list behind a half-empty pane.
   useEffect(() => {
     const wanted = wantedKeyRef.current;
     if (wanted && conversations.some((c) => c.key === wanted)) {
@@ -373,9 +374,7 @@ export default function InboxPage() {
       setSelectedKey(wanted);
       return;
     }
-    setSelectedKey((sel) =>
-      sel && conversations.some((c) => c.key === sel) ? sel : conversations[0]?.key ?? null,
-    );
+    setSelectedKey((sel) => (sel && conversations.some((c) => c.key === sel) ? sel : null));
   }, [conversations]);
 
   // Deep-linked thread not in the attention lane (already triaged)? Probe the

@@ -75,9 +75,9 @@ describe("InboxRow (F1)", () => {
     expect(onSelect).toHaveBeenCalledWith("k1");
   });
 
-  it("renders the SLA-overdue chip when overdue", () => {
-    render(<InboxRow item={sample({ slaHoursOverdue: 30 })} lane="attention" selected={false} multiSelected={false} hasSelection={false} onSelect={vi.fn()} />);
-    expect(screen.getByText(/overdue/)).toBeTruthy();
+  it("renders the SLA-overdue indicator when overdue (calm: hours, hover-revealed)", () => {
+    render(<InboxRow item={sample({ slaHoursOverdue: 5 })} lane="attention" selected={false} multiSelected={false} hasSelection={false} onSelect={vi.fn()} />);
+    expect(screen.getByText("5h")).toBeTruthy(); // concise "5h" (no loud "overdue" pill)
   });
 
   it("star toggle: fires onToggleStar with the flipped state, without selecting the row", () => {
@@ -117,8 +117,8 @@ describe("InboxRow follow-up chip (B7 B2.3)", () => {
   });
 
   it("never renders both the SLA chip and the follow-up chip", () => {
-    render(<InboxRow item={sample({ slaHoursOverdue: 30, followup: overdue })} {...props} />);
-    expect(screen.getByText("1d overdue")).toBeTruthy(); // SLA wins
+    render(<InboxRow item={sample({ slaHoursOverdue: 5, followup: overdue })} {...props} />);
+    expect(screen.getByText("5h")).toBeTruthy(); // SLA wins
     expect(screen.queryByText(/Follow up/)).toBeNull(); // follow-up suppressed
   });
 });

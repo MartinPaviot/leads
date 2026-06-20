@@ -171,12 +171,18 @@ async function flush() {
 }
 
 /** Mount the inbox and wait until its actions are registered, then flush the
- *  pending fetches so the list loads, a conversation auto-selects, and the pane
- *  loads its detail (populating paneApiRef). */
+ *  pending fetches so the list loads. The inbox no longer auto-selects the first
+ *  row (Upstream full-width-list-first), so we OPEN the conversation explicitly
+ *  (click its row) — that mounts the pane + loads its detail (populating paneApiRef). */
 async function mountLoaded() {
   mountPage();
   await waitFor(() => {
     expect(getActionManifest().map((a) => a.id)).toContain("inbox.triageDone");
+  });
+  await flush();
+  await act(async () => {
+    const row = document.querySelector("[data-conversation-key]") as HTMLElement | null;
+    if (row) fireEvent.click(row);
   });
   await flush();
 }

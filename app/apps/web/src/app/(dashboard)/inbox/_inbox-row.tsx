@@ -141,27 +141,23 @@ export const InboxRow = memo(function InboxRow({
         )}
         {c.slaHoursOverdue != null && (
           <span
-            className="flex items-center gap-1 rounded px-1 text-[10px] font-medium"
-            style={{ background: "var(--color-warning-soft)", color: "var(--color-warning)" }}
+            className="flex items-center gap-1 text-[12px] opacity-0 transition-opacity group-hover:opacity-100"
+            style={{ color: "var(--color-warning)" }}
             title="Awaiting your reply, past the response SLA"
           >
-            <AlarmClock size={10} className="shrink-0" />
+            <AlarmClock size={11} className="shrink-0" />
             {c.slaHoursOverdue >= 24
-              ? `${Math.round(c.slaHoursOverdue / 24)}d overdue`
-              : `${Math.round(c.slaHoursOverdue)}h overdue`}
+              ? `${Math.round(c.slaHoursOverdue / 24)}d`
+              : `${Math.round(c.slaHoursOverdue)}h`}
           </span>
         )}
         {followupText && (
           <span
-            className="flex items-center gap-1 rounded px-1 text-[10px] font-medium"
-            style={
-              c.followup?.overdue
-                ? { background: "var(--color-warning-soft)", color: "var(--color-warning)" }
-                : { color: "var(--color-text-tertiary)" }
-            }
+            className="flex items-center gap-1 text-[12px] opacity-0 transition-opacity group-hover:opacity-100"
+            style={{ color: c.followup?.overdue ? "var(--color-warning)" : "var(--color-text-tertiary)" }}
             title="Awaiting their reply — a gentle follow-up is due"
           >
-            <AlarmClock size={10} className="shrink-0" />
+            <AlarmClock size={11} className="shrink-0" />
             {followupText}
           </span>
         )}
