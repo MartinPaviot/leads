@@ -18,16 +18,36 @@ export async function GET() {
   }
 
   // Personal: a user only sees the mailboxes they own.
-  const mailboxes = await db
-    .select()
-    .from(connectedMailboxes)
-    .where(
-      and(
-        eq(connectedMailboxes.tenantId, authCtx.tenantId),
-        eq(connectedMailboxes.userId, authCtx.userId),
-      ),
-    )
-    .orderBy(connectedMailboxes.createdAt);
+  const where = and(
+    eq(connectedMailboxes.tenantId, authCtx.tenantId),
+    eq(connectedMailboxes.userId, authCtx.userId),
+  );
+  // A worktree dev server can point at a prod DB that is BEHIND the Drizzle schema
+  // (e.g. the `shared` column isn't deployed yet) — `select()` of every column then
+  // 500s with `column "..." does not exist`, which emptied the inbox From-selector
+  // and broke this page. Fall back to a core, always-present subset so it keeps
+  // working instead of 500ing. (See reference_prod-schema-behind-drizzle.)
+  let mailboxes;
+  try {
+    mailboxes = await db.select().from(connectedMailboxes).where(where).orderBy(connectedMailboxes.createdAt);
+  } catch {
+    mailboxes = await db
+      .select({
+        id: connectedMailboxes.id,
+        tenantId: connectedMailboxes.tenantId,
+        userId: connectedMailboxes.userId,
+        emailAddress: connectedMailboxes.emailAddress,
+        displayName: connectedMailboxes.displayName,
+        provider: connectedMailboxes.provider,
+        status: connectedMailboxes.status,
+        domain: connectedMailboxes.domain,
+        createdAt: connectedMailboxes.createdAt,
+        updatedAt: connectedMailboxes.updatedAt,
+      })
+      .from(connectedMailboxes)
+      .where(where)
+      .orderBy(connectedMailboxes.createdAt);
+  }
 
   return Response.json({ mailboxes });
 }
