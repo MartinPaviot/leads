@@ -733,7 +733,7 @@ export function ConversationPane({
                       {SNOOZE_OPTIONS.map((opt) => (
                         <button
                           key={opt.label}
-                          className="block w-full px-3 py-1.5 text-left text-[12px] transition-colors hover:underline"
+                          className="block w-full rounded px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-[var(--color-bg-hover)]"
                           style={{ color: "var(--color-text-primary)" }}
                           onClick={() => {
                             setSnoozeOpen(false);

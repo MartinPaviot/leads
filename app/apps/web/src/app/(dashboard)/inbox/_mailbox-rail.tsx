@@ -86,17 +86,13 @@ function RailRow({
   return (
     <button
       onClick={onClick}
-      className="mx-1.5 flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors"
-      style={{
-        background: active ? "var(--color-accent-soft)" : "transparent",
-        boxShadow: active ? "inset 2px 0 0 var(--color-accent)" : "none",
-      }}
-      onMouseEnter={(e) => {
-        if (!active) e.currentTarget.style.background = "var(--color-bg-hover)";
-      }}
-      onMouseLeave={(e) => {
-        if (!active) e.currentTarget.style.background = "transparent";
-      }}
+      // F3 B7: hover via CSS (not an imperative style.background mutation) so the
+      // hover survives a re-render. Inline background would beat a hover: class, so
+      // the background lives entirely in classes here.
+      className={`mx-1.5 flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
+        active ? "bg-[var(--color-accent-soft)]" : "hover:bg-[var(--color-bg-hover)]"
+      }`}
+      style={{ boxShadow: active ? "inset 2px 0 0 var(--color-accent)" : "none" }}
     >
       <span
         className="shrink-0"

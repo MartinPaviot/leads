@@ -119,7 +119,7 @@ export function EventCard({ ics, conversationKey }: { ics: string | null; conver
                 disabled={!repliable || pending !== null}
                 onClick={() => void rsvp(choice)}
                 title={repliable ? `RSVP ${label}` : "This invitation can't be answered"}
-                className="flex items-center gap-1 rounded px-2 py-0.5 disabled:opacity-50"
+                className="flex items-center gap-1 rounded px-2 py-0.5 transition-colors hover:bg-[var(--color-bg-hover)] disabled:opacity-50 disabled:hover:bg-transparent"
                 style={{ border: "1px solid var(--color-border-default)", color: "var(--color-text-secondary)" }}
               >
                 {pending === choice ? (
