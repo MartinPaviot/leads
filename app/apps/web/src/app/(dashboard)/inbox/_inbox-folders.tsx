@@ -16,11 +16,11 @@ import type { SplitCount } from "@/lib/inbox/splits";
 type LaneId = InboxLane | "outbound" | "bundles";
 
 const LANE_META: Record<LaneId, { label: string; icon: React.ReactNode }> = {
-  attention: { label: "Needs attention", icon: <Inbox size={15} /> },
+  attention: { label: "Inbox", icon: <Inbox size={15} /> },
   snoozed: { label: "Snoozed", icon: <AlarmClock size={15} /> },
   done: { label: "Done", icon: <CheckCircle2 size={15} /> },
   handled: { label: "Handled", icon: <Bot size={15} /> },
-  outbound: { label: "Outbound", icon: <Send size={15} /> },
+  outbound: { label: "Sent", icon: <Send size={15} /> },
   bundles: { label: "Bundles", icon: <Layers size={15} /> },
 };
 
@@ -116,6 +116,7 @@ export function InboxFolders({
   onNewSplit: () => void;
 }) {
   const onBuiltIn = customLaneId === null;
+  const splitCount = (id: string) => splitCounts.find((s) => s.id === id)?.count ?? 0;
   const lane = (id: LaneId, count?: number) => (
     <FolderRow
       key={id}
@@ -151,37 +152,32 @@ export function InboxFolders({
       </div>
 
       <div className="flex-1 px-1.5 pb-3">
-        {/* Mailbox folders */}
+        {/* Upstream order: Inbox, the intention folders, then the email folders.
+            Promotions/Social/Noise live ONLY in the top split strip, not here. */}
         {lane("attention", counts.attention)}
+        <FolderRow
+          icon={SPLIT_ICON.needs_reply}
+          label="Needs Reply"
+          count={splitCount("needs_reply")}
+          active={onBuiltIn && tab === "attention" && activeSplit === "needs_reply"}
+          onClick={() => onSelectSplit("needs_reply")}
+        />
+        <FolderRow
+          icon={SPLIT_ICON.follow_ups}
+          label="Follow Ups"
+          count={splitCount("follow_ups")}
+          active={onBuiltIn && tab === "attention" && activeSplit === "follow_ups"}
+          onClick={() => onSelectSplit("follow_ups")}
+        />
+
+        <div className="my-1.5 border-t" style={{ borderColor: "var(--color-border-default)" }} />
         {lane("snoozed", counts.snoozed)}
         {lane("outbound")}
+
+        <div className="my-1.5 border-t" style={{ borderColor: "var(--color-border-default)" }} />
         {lane("done", counts.done)}
         {lane("handled", counts.handled)}
         {bundleTotal > 0 && lane("bundles", bundleTotal)}
-
-        {/* Intention / category Splits (the triage win, surfaced as folders) */}
-        {splitCounts.length > 0 && (
-          <>
-            <GroupLabel>Splits</GroupLabel>
-            {splitCounts.map((s) => (
-              <FolderRow
-                key={s.id}
-                icon={SPLIT_ICON[s.id] ?? <Inbox size={15} />}
-                label={s.name}
-                count={s.count}
-                active={onBuiltIn && tab === "attention" && activeSplit === s.id}
-                onClick={() => onSelectSplit(s.id)}
-              />
-            ))}
-            <button
-              onClick={onNewSplit}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] transition-colors hover:bg-[var(--color-bg-hover)]"
-              style={{ color: "var(--color-text-tertiary)" }}
-            >
-              <Plus size={14} /> New split
-            </button>
-          </>
-        )}
 
         {/* Custom lanes */}
         {customLanes.length > 0 && (
