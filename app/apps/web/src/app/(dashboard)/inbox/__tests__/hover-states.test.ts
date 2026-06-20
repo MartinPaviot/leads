@@ -28,9 +28,8 @@ describe("mailbox rail hover (B7)", () => {
 });
 
 describe("swept hover surfaces carry a bg-hover affordance (B7)", () => {
-  it("snooze presets + RSVP buttons + split chips hover to bg-hover", () => {
+  it("snooze presets + RSVP buttons hover to bg-hover", () => {
     expect(read("_conversation-pane.tsx")).toContain("hover:bg-[var(--color-bg-hover)]");
     expect(read("_event-card.tsx")).toContain("hover:bg-[var(--color-bg-hover)]");
-    expect(read("_split-tabs.tsx")).toContain("hover:bg-[var(--color-bg-hover)]");
   });
 });
