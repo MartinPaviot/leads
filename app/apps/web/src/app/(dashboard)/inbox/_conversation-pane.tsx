@@ -843,10 +843,12 @@ export function ConversationPane({
           <div
             key={m.id}
             id={`thread-msg-${i}`}
-            className="mb-2.5 rounded-lg border p-3"
+            className="mb-1 px-1 py-3"
             style={{
-              borderColor: "var(--color-border-default)",
-              background: m.direction === "inbound" ? "var(--color-bg-card)" : "transparent",
+              // Open message (Upstream) — no bordered card; messages separated by a
+              // hairline. Outbound keeps a subtle indent so sent ≠ received.
+              borderBottom: i < conv.messages.length - 1 ? "1px solid var(--color-border-default)" : "none",
+              background: "transparent",
               marginLeft: m.direction === "outbound" ? "24px" : "0",
             }}
           >
