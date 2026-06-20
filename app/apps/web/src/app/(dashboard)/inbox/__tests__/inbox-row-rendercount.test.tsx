@@ -36,6 +36,7 @@ function makeRows(n: number): ConversationListItem[] {
     slaHoursOverdue: null,
     followup: null,
     starred: false,
+    unread: false,
     importanceTier: 1,
     importanceFactors: [],
     labels: [],

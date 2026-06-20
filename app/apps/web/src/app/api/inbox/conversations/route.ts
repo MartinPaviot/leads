@@ -8,6 +8,7 @@ import { isFollowupDue } from "@/lib/inbox/followup-due";
 import { getUserSplits } from "@/lib/inbox/split-store";
 import { getNoiseOverrides } from "@/lib/inbox/noise-override-store";
 import { getStarredKeys } from "@/lib/inbox/starred-store";
+import { getReadMap, isUnread } from "@/lib/inbox/read-store";
 import { getMailboxIdentities } from "@/lib/inbox/mailbox-identity";
 import { loadConversationRows, contactNameMap } from "@/lib/inbox/load";
 import { getInboxScope, scopeConversationRows } from "@/lib/inbox/user-scope";
@@ -48,6 +49,9 @@ export async function GET(req: Request) {
     const BUILT_IN_SPLIT_IDS = new Set<string>(BUILT_IN_SPLITS.map((b) => b.id));
     const lastSeen = await getLastSeen(authCtx.userId);
     const starredKeys = new Set(await getStarredKeys(authCtx.userId));
+    const readMap = await getReadMap(authCtx.userId);
+    const unreadOf = (c: { key: string; lastInboundAt: string | null; lastMessageAt: string | null }) =>
+      isUnread(readMap[c.key], c.lastInboundAt ?? c.lastMessageAt);
 
     // Drafts / Scheduled (Upstream is:draft / is:scheduled). A reply draft
     // (status="draft") or a held send (status="held" + future holdUntil) is
@@ -311,6 +315,7 @@ export async function GET(req: Request) {
         slaHoursOverdue: c.slaHoursOverdue,
         followup: c.followup,
         starred: starredKeys.has(c.key),
+        unread: unreadOf(c),
         importanceTier: c.importanceTier,
         importanceFactors: c.importanceFactors,
         labels: applyLabelFilters(toLaneCandidate({ c, mb }), userFilters),
@@ -335,6 +340,8 @@ export async function GET(req: Request) {
       allMailCount: visible.length,
       // Inbox/Primary count (Upstream model): primary-category mail in the inbox (noise excluded).
       primaryCount: visible.filter(({ c }) => c.split === "other" && !c.noise && c.lane !== "done" && c.lane !== "snoozed").length,
+      // Unread primary mail (the Upstream Inbox badge = unread count, not total).
+      unreadCount: visible.filter(({ c }) => c.split === "other" && !c.noise && c.lane !== "done" && c.lane !== "snoozed" && unreadOf(c)).length,
       pagination: { page, pageSize: PAGE_SIZE, total: inLane.length },
       mailboxConnected: scope.hasMailbox,
       mailboxes,

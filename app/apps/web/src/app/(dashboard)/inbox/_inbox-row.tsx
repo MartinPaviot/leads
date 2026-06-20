@@ -94,8 +94,13 @@ export const InboxRow = memo(function InboxRow({
           {multiSelected ? <CheckSquare size={15} /> : <Square size={15} />}
         </span>
       )}
+      {/* Unread dot (Upstream): a fixed 8px leading slot so read/unread rows stay
+          column-aligned; the blue dot shows only when unread. */}
+      <span className="flex h-2 w-2 shrink-0 items-center justify-center" aria-hidden>
+        {c.unread && <span className="h-2 w-2 rounded-full" style={{ background: "var(--color-accent)" }} />}
+      </span>
       <SenderAvatar name={decodeDisplay(c.displayName)} email={c.fromAddress} size={22} />
-      {/* One truncated line: Sender (700) · Subject (700) · snippet (muted). */}
+      {/* One truncated line: Sender · Subject · snippet (bold when unread, Upstream). */}
       <div className="min-w-0 flex-1 truncate text-[14px]" style={{ color: "var(--color-text-primary)" }}>
         {lane === "attention" && (
           <span
@@ -104,8 +109,8 @@ export const InboxRow = memo(function InboxRow({
             title={c.importanceFactors.length ? `Importance: ${c.importanceFactors.join(" · ")}` : undefined}
           />
         )}
-        <span className="font-semibold">{decodeDisplay(c.displayName)}</span>
-        <span className="font-medium" dir={dirOf(decodeDisplay(c.subject))}>
+        <span className={c.unread ? "font-bold" : "font-normal"}>{decodeDisplay(c.displayName)}</span>
+        <span className={c.unread ? "font-medium" : "font-normal"} dir={dirOf(decodeDisplay(c.subject))}>
           {"  "}
           {decodeDisplay(c.subject)}
         </span>

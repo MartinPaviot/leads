@@ -33,6 +33,8 @@ export interface ConversationListItem {
   followup: FollowupDue | null;
   /** Whether the user starred this conversation (Upstream is:starred). */
   starred: boolean;
+  /** Unread = never opened, or a newer message arrived since (Upstream unread dot + bold). */
+  unread: boolean;
   /** Importance tier 1–4 (1 hottest) that sorts the attention lane + cited factors (INBOX-T04). */
   importanceTier: 1 | 2 | 3 | 4;
   importanceFactors: string[];

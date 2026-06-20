@@ -19,6 +19,7 @@ function sample(over: Partial<ConversationListItem> = {}): ConversationListItem 
     slaHoursOverdue: null,
     followup: null,
     starred: false,
+    unread: true,
     importanceTier: 1,
     importanceFactors: ["recent reply"],
     labels: [],
@@ -37,17 +38,22 @@ function sample(over: Partial<ConversationListItem> = {}): ConversationListItem 
 }
 
 describe("InboxRow (F1)", () => {
-  it("renders sender (semibold), subject (medium), snippet, timestamp on one 14px line", () => {
-    const { container } = render(<InboxRow item={sample()} lane="attention" selected={false} multiSelected={false} hasSelection={false} onSelect={vi.fn()} />);
-    // Upstream calm hierarchy: sender stands out (semibold), subject is regular
-    // (medium), snippet is muted — not the old everything-bold heavy row.
+  it("renders an UNREAD row bold (Upstream), subject medium, snippet, on one 14px line", () => {
+    const { container } = render(<InboxRow item={sample({ unread: true })} lane="attention" selected={false} multiSelected={false} hasSelection={false} onSelect={vi.fn()} />);
+    // Upstream: unread → sender bold + subject medium; read → both normal.
     const sender = screen.getByText("Jane Doe");
-    expect(sender.className).toMatch(/font-semibold/);
+    expect(sender.className).toMatch(/font-bold/);
     const subject = screen.getByText("Re: pricing question");
     expect(subject.className).toMatch(/font-medium/);
     expect(screen.getByText("Thanks — can you confirm the annual number?")).toBeTruthy();
     // The whole primary line is a single 14px truncating row.
     expect(container.querySelector(".text-\\[14px\\].truncate")).toBeTruthy();
+  });
+
+  it("renders a READ row in normal weight (no unread emphasis)", () => {
+    render(<InboxRow item={sample({ unread: false })} lane="attention" selected={false} multiSelected={false} hasSelection={false} onSelect={vi.fn()} />);
+    expect(screen.getByText("Jane Doe").className).toMatch(/font-normal/);
+    expect(screen.getByText("Re: pricing question").className).toMatch(/font-normal/);
   });
 
   it("checkbox is hidden at rest, shown when multi-selected", () => {

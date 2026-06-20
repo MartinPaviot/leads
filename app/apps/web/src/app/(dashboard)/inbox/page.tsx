@@ -108,6 +108,8 @@ export default function InboxPage() {
   const [counts, setCounts] = useState<LaneCounts>({ attention: 0, snoozed: 0, done: 0, handled: 0, outbound: 0 });
   // Inbox/Primary count (Upstream email-client model: primary mail in the inbox).
   const [primaryCount, setPrimaryCount] = useState(0);
+  // Unread primary mail — drives the Inbox folder badge (Upstream shows unread, not total).
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
@@ -201,6 +203,7 @@ export default function InboxPage() {
           scheduledCount?: number;
           allMailCount?: number;
           primaryCount?: number;
+          unreadCount?: number;
           bundles?: BundleSource[];
           catchUpCount?: number;
           lastSeen?: string | null;
@@ -225,6 +228,7 @@ export default function InboxPage() {
         }
         setCounts(data.counts);
         setPrimaryCount(data.primaryCount ?? 0);
+        setUnreadCount(data.unreadCount ?? 0);
         setTotal(data.pagination.total);
         setConversations((prev) => (append ? [...prev, ...data.conversations] : data.conversations));
       } catch (err) {
@@ -341,6 +345,22 @@ export default function InboxPage() {
       setTab("attention");
     }
   }, [tab, customLaneId, bundles.length, loading]);
+
+  // Mark a conversation read on open (Upstream): clear its unread dot in the list
+  // optimistically + persist read-up-to its last message (a later reply re-marks it
+  // unread server-side). Guarded on c.unread so it runs once per open, no loop.
+  useEffect(() => {
+    if (!selectedKey) return;
+    const conv = conversations.find((c) => c.key === selectedKey);
+    if (!conv || !conv.unread) return;
+    setConversations((prev) => prev.map((c) => (c.key === selectedKey ? { ...c, unread: false } : c)));
+    const at = conv.lastInboundAt ?? conv.lastMessageAt ?? undefined;
+    void fetch("/api/inbox/read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: selectedKey, at }),
+    }).catch(() => {});
+  }, [selectedKey, conversations]);
 
   // Reconcile the selection whenever the list changes: a pending deep-link
   // wins when its thread is listed; otherwise keep the current selection if
@@ -880,9 +900,9 @@ export default function InboxPage() {
           tab={customLaneId ? "attention" : tab}
           customLaneId={customLaneId}
           activeSplit={activeSplit}
-          // The Inbox row reflects the primary-mail count (Upstream model), not the
-          // old attention-only subset; other lane counts are unchanged.
-          counts={{ ...counts, attention: primaryCount }}
+          // The Inbox row badge = UNREAD primary mail (Upstream shows unread, not
+          // total); other lane counts are unchanged.
+          counts={{ ...counts, attention: unreadCount }}
           splitCounts={splitCounts}
           customLanes={customLanes}
           bundleTotal={bundleTotal}
