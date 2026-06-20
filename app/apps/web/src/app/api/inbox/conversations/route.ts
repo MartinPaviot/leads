@@ -183,13 +183,13 @@ export async function GET(req: Request) {
       : laneParam === "all"
         ? visible // All Mail — every conversation, no lane filter (still owner-scoped)
       : laneParam === "primary"
-        // Inbox/Primary = the primary-category mail that lives in the inbox, the
-        // Upstream email-client model: split="other" (Promotions/Social/Noise are
-        // carved into their own tabs), excluding archived (done) + snoozed, but
-        // INCLUDING handled — a caught-up mail still belongs in the inbox (vs the
-        // old triage-only "attention" view that hid it). Order = the importance/
-        // recency ranking already on `visible` (our GTM edge, kept).
-        ? visible.filter(({ c }) => c.split === "other" && !c.noise && c.lane !== "done" && c.lane !== "snoozed")
+        // Inbox/Primary = the primary mail that lives in the inbox, the Upstream
+        // email-client model: everything EXCEPT the Gmail categories (Promotions/
+        // Social) + Noise — so needs-reply and follow-up threads (which are OVERLAYS,
+        // not exclusive categories) DO appear in the inbox. Excludes archived (done)
+        // + snoozed, but INCLUDES handled (a caught-up mail still belongs in the
+        // inbox). Order = the importance/recency ranking already on `visible`.
+        ? visible.filter(({ c }) => c.split !== "promotions" && c.split !== "social" && !c.noise && c.lane !== "done" && c.lane !== "snoozed")
       : customLane
         ? visible.filter((row) => laneMatches(toLaneCandidate(row), customLane))
         : splitParam
@@ -338,10 +338,10 @@ export async function GET(req: Request) {
       draftsCount: visible.filter(({ c }) => draftThreadIds.has(c.key)).length,
       scheduledCount: visible.filter(({ c }) => scheduledThreadIds.has(c.key)).length,
       allMailCount: visible.length,
-      // Inbox/Primary count (Upstream model): primary-category mail in the inbox (noise excluded).
-      primaryCount: visible.filter(({ c }) => c.split === "other" && !c.noise && c.lane !== "done" && c.lane !== "snoozed").length,
+      // Inbox/Primary count (Upstream model): all inbox mail except Promotions/Social/Noise.
+      primaryCount: visible.filter(({ c }) => c.split !== "promotions" && c.split !== "social" && !c.noise && c.lane !== "done" && c.lane !== "snoozed").length,
       // Unread primary mail (the Upstream Inbox badge = unread count, not total).
-      unreadCount: visible.filter(({ c }) => c.split === "other" && !c.noise && c.lane !== "done" && c.lane !== "snoozed" && unreadOf(c)).length,
+      unreadCount: visible.filter(({ c }) => c.split !== "promotions" && c.split !== "social" && !c.noise && c.lane !== "done" && c.lane !== "snoozed" && unreadOf(c)).length,
       pagination: { page, pageSize: PAGE_SIZE, total: inLane.length },
       mailboxConnected: scope.hasMailbox,
       mailboxes,
