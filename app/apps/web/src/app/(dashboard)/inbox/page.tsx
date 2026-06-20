@@ -13,7 +13,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
-import { Inbox, Mail, AlertCircle, Search, X } from "lucide-react";
+import { Inbox, Mail, AlertCircle, Search, X, PenSquare } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,8 @@ import { CommandPalette } from "./_command-palette";
 import { buildInboxPaletteCommands, type PaletteCommand } from "@/lib/inbox/palette-commands";
 import { tomorrowMorning } from "@/lib/inbox/snooze-presets";
 import { InboxFolders } from "./_inbox-folders";
+import { EmailComposerPanel } from "@/components/email-composer-panel";
+import { type SendableMailbox } from "@/lib/inbox/pick-from-mailbox";
 import { SplitStrip } from "./_split-strip";
 import { InboxListSkeleton } from "./_skeleton";
 import { pickListState } from "@/lib/inbox/list-state";
@@ -110,6 +112,9 @@ export default function InboxPage() {
   const [primaryCount, setPrimaryCount] = useState(0);
   // Unread primary mail — drives the Inbox folder badge (Upstream shows unread, not total).
   const [unreadCount, setUnreadCount] = useState(0);
+  // Compose a NEW email (Upstream pencil) — overlay composer, blank draft.
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [sendableMailboxes, setSendableMailboxes] = useState<SendableMailbox[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
@@ -361,6 +366,26 @@ export default function InboxPage() {
       body: JSON.stringify({ key: selectedKey, at }),
     }).catch(() => {});
   }, [selectedKey, conversations]);
+
+  // Load the user's sendable mailboxes once (for the compose-new From selector).
+  // The route now degrades past the prod-schema gap, so this returns 200.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/settings/mailboxes")
+      .then((r) => (r.ok ? r.json() : { mailboxes: [] }))
+      .then((d: { mailboxes?: Array<{ id: string; emailAddress: string; displayName: string | null; status: string }> }) => {
+        if (cancelled || !Array.isArray(d.mailboxes)) return;
+        setSendableMailboxes(
+          d.mailboxes
+            .filter((m) => m.status === "active")
+            .map((m) => ({ id: m.id, address: m.emailAddress, label: m.displayName?.trim() || m.emailAddress })),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Reconcile the selection whenever the list changes: a pending deep-link wins
   // when its thread is listed; otherwise keep the current selection if still
@@ -935,6 +960,9 @@ export default function InboxPage() {
       {/* Top full-width search bar (Upstream): spans the content area. */}
       {mailboxConnected && (
         <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: "var(--color-border-default)" }}>
+          <Button size="sm" onClick={() => setComposeOpen(true)} className="shrink-0 gap-1.5" title="Compose a new email">
+            <PenSquare size={14} /> Compose
+          </Button>
           <div className="relative flex-1">
             <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--color-text-muted)" }} />
             <input
@@ -1119,6 +1147,19 @@ export default function InboxPage() {
       </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={paletteCommands} />
+
+      {/* Compose a NEW email (Upstream pencil) — blank overlay composer. */}
+      {composeOpen && (
+        <EmailComposerPanel
+          draft={{ to: "", subject: "", body: "", mailboxId: sendableMailboxes[0]?.id }}
+          mailboxes={sendableMailboxes}
+          onClose={() => setComposeOpen(false)}
+          onSent={() => {
+            setComposeOpen(false);
+            toast("Email sent.", "success");
+          }}
+        />
+      )}
     </div>
   );
 }
