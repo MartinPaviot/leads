@@ -106,6 +106,8 @@ export default function InboxPage() {
   const [bundles, setBundles] = useState<BundleSource[]>([]);
   const [clearingBundle, setClearingBundle] = useState<string | null>(null);
   const [counts, setCounts] = useState<LaneCounts>({ attention: 0, snoozed: 0, done: 0, handled: 0, outbound: 0 });
+  // Inbox/Primary count (Upstream email-client model: primary mail in the inbox).
+  const [primaryCount, setPrimaryCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
@@ -173,9 +175,14 @@ export default function InboxPage() {
         if (pendingTriage.current) await pendingTriage.current.catch(() => {});
         const mailboxQuery = selectedMailbox ? `&mailbox=${encodeURIComponent(selectedMailbox)}` : "";
         const searchQuery = debouncedSearch ? `&q=${encodeURIComponent(debouncedSearch)}` : "";
-        // B3: only sub-segment the attention lane (splits don't apply to a custom lane).
-        const splitQuery = activeSplit && lane === "attention" ? `&split=${activeSplit}` : "";
-        const res = await fetch(`/api/inbox/conversations?lane=${lane}&page=${pageNum}${mailboxQuery}${searchQuery}${splitQuery}`, {
+        // Inbox/Primary → the email-client primary view (lane=primary): the default
+        // Inbox (no split) and the "Primary" split both show all primary-category mail
+        // in the inbox, not just the triage attention subset (Upstream model).
+        const isPrimaryView = lane === "attention" && (!activeSplit || activeSplit === "other");
+        const effLane = isPrimaryView ? "primary" : lane;
+        // B3: only sub-segment the attention lane (not a custom lane / the primary view).
+        const splitQuery = activeSplit && lane === "attention" && !isPrimaryView ? `&split=${activeSplit}` : "";
+        const res = await fetch(`/api/inbox/conversations?lane=${effLane}&page=${pageNum}${mailboxQuery}${searchQuery}${splitQuery}`, {
           signal: append ? undefined : abortRef.current?.signal,
         });
         if (!res.ok) throw new Error(`${res.status}`);
@@ -193,6 +200,7 @@ export default function InboxPage() {
           draftsCount?: number;
           scheduledCount?: number;
           allMailCount?: number;
+          primaryCount?: number;
           bundles?: BundleSource[];
           catchUpCount?: number;
           lastSeen?: string | null;
@@ -216,6 +224,7 @@ export default function InboxPage() {
           void fetch("/api/inbox/seen", { method: "POST" }).catch(() => {});
         }
         setCounts(data.counts);
+        setPrimaryCount(data.primaryCount ?? 0);
         setTotal(data.pagination.total);
         setConversations((prev) => (append ? [...prev, ...data.conversations] : data.conversations));
       } catch (err) {
@@ -845,8 +854,8 @@ export default function InboxPage() {
         icon={<Inbox size={16} />}
         title="Inbox"
         subtitle={
-          counts.attention > 0
-            ? `${counts.attention} conversation${counts.attention === 1 ? "" : "s"} need${counts.attention === 1 ? "s" : ""} your attention`
+          primaryCount > 0
+            ? `${primaryCount} conversation${primaryCount === 1 ? "" : "s"}`
             : "All caught up"
         }
       />
@@ -858,7 +867,9 @@ export default function InboxPage() {
           tab={customLaneId ? "attention" : tab}
           customLaneId={customLaneId}
           activeSplit={activeSplit}
-          counts={counts}
+          // The Inbox row reflects the primary-mail count (Upstream model), not the
+          // old attention-only subset; other lane counts are unchanged.
+          counts={{ ...counts, attention: primaryCount }}
           splitCounts={splitCounts}
           customLanes={customLanes}
           bundleTotal={bundleTotal}

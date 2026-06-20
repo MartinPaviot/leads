@@ -178,21 +178,34 @@ export async function GET(req: Request) {
         ? visible.filter(({ c }) => scheduledThreadIds.has(c.key)) // Upstream is:scheduled
       : laneParam === "all"
         ? visible // All Mail — every conversation, no lane filter (still owner-scoped)
+      : laneParam === "primary"
+        // Inbox/Primary = the primary-category mail that lives in the inbox, the
+        // Upstream email-client model: split="other" (Promotions/Social/Noise are
+        // carved into their own tabs), excluding archived (done) + snoozed, but
+        // INCLUDING handled — a caught-up mail still belongs in the inbox (vs the
+        // old triage-only "attention" view that hid it). Order = the importance/
+        // recency ranking already on `visible` (our GTM edge, kept).
+        ? visible.filter(({ c }) => c.split === "other" && !c.noise && c.lane !== "done" && c.lane !== "snoozed")
       : customLane
         ? visible.filter((row) => laneMatches(toLaneCandidate(row), customLane))
         : splitParam
           ? visible.filter(({ c }) =>
-              c.lane === "attention" &&
+              // Category tabs show the whole INBOX set (attention + handled), not just
+              // the attention subset — a caught-up/handled mail still sits in its
+              // category (Upstream email-client model). done/snoozed stay excluded.
+              c.lane !== "done" && c.lane !== "snoozed" &&
               // "noise" is a pseudo-split over the demotion flag; "follow_ups" is
               // realigned to Upstream (DUE follow-ups via B7, not all awaiting-reply);
               // other built-in ids match c.split; else a custom per-sender split.
+              // Noise overrides category (Upstream model): a noisy mail shows ONLY in
+              // the Noise tab (+ All Mail), never in Primary/Promotions/Social/custom.
               (splitParam === "noise"
                 ? c.noise
-                : splitParam === "follow_ups"
+                : !c.noise && (splitParam === "follow_ups"
                   ? isFollowupDue(c.followup)
                   : BUILT_IN_SPLIT_IDS.has(splitParam)
                     ? c.split === splitParam
-                    : resolveCustomSplit(c.fromAddress, userSplits)?.id === splitParam),
+                    : resolveCustomSplit(c.fromAddress, userSplits)?.id === splitParam)),
             )
           : visible.filter(({ c }) => c.lane === lane);
     const pageRows = inLane.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -207,10 +220,11 @@ export async function GET(req: Request) {
       }))
       .filter((l) => !l.hideWhenEmpty || l.count > 0);
 
-    // B3: built-in intention-split counts over the attention lane (each
-    // conversation resolves to exactly one, so these sum to the attention total),
-    // then the user's custom per-sender splits (honouring hideWhenEmpty).
-    const attentionRows = visible.filter(({ c }) => c.lane === "attention");
+    // Built-in category-split counts over the INBOX set (attention + handled, i.e.
+    // lane ∉ {done, snoozed}) so a caught-up/handled mail still counts toward its
+    // category (Upstream model) — matching the split-tab filter above. Then the
+    // user's custom per-sender splits (honouring hideWhenEmpty).
+    const inboxRows = visible.filter(({ c }) => c.lane !== "done" && c.lane !== "snoozed");
     const builtInSplitCounts = BUILT_IN_SPLITS.map((b) => ({
       id: b.id,
       name: b.name,
@@ -218,15 +232,15 @@ export async function GET(req: Request) {
       // (B7), not every awaiting-their-reply thread.
       count:
         b.id === "follow_ups"
-          ? attentionRows.filter(({ c }) => isFollowupDue(c.followup)).length
-          : attentionRows.filter(({ c }) => c.split === b.id).length,
+          ? inboxRows.filter(({ c }) => !c.noise && isFollowupDue(c.followup)).length
+          : inboxRows.filter(({ c }) => !c.noise && c.split === b.id).length,
     }));
     const customSplitCounts = userSplits
       .map((s) => ({
         id: s.id,
         name: s.name,
         hideWhenEmpty: s.hideWhenEmpty ?? false,
-        count: attentionRows.filter(({ c }) => resolveCustomSplit(c.fromAddress, userSplits)?.id === s.id).length,
+        count: inboxRows.filter(({ c }) => !c.noise && resolveCustomSplit(c.fromAddress, userSplits)?.id === s.id).length,
       }))
       .filter((s) => !s.hideWhenEmpty || s.count > 0)
       .map(({ id, name, count }) => ({ id, name, count }));
@@ -311,6 +325,8 @@ export async function GET(req: Request) {
       draftsCount: visible.filter(({ c }) => draftThreadIds.has(c.key)).length,
       scheduledCount: visible.filter(({ c }) => scheduledThreadIds.has(c.key)).length,
       allMailCount: visible.length,
+      // Inbox/Primary count (Upstream model): primary-category mail in the inbox (noise excluded).
+      primaryCount: visible.filter(({ c }) => c.split === "other" && !c.noise && c.lane !== "done" && c.lane !== "snoozed").length,
       pagination: { page, pageSize: PAGE_SIZE, total: inLane.length },
       mailboxConnected: scope.hasMailbox,
       mailboxes,
