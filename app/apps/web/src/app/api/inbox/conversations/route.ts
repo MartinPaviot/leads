@@ -147,13 +147,16 @@ export async function GET(req: Request) {
         : splitParam
           ? visible.filter(({ c }) =>
               c.lane === "attention" &&
-              // "noise" is a pseudo-split over the demotion flag (a Noise tab);
-              // built-in ids match c.split; otherwise a custom per-sender split.
+              // "noise" is a pseudo-split over the demotion flag; "follow_ups" is
+              // realigned to Upstream (DUE follow-ups via B7, not all awaiting-reply);
+              // other built-in ids match c.split; else a custom per-sender split.
               (splitParam === "noise"
                 ? c.noise
-                : BUILT_IN_SPLIT_IDS.has(splitParam)
-                  ? c.split === splitParam
-                  : resolveCustomSplit(c.fromAddress, userSplits)?.id === splitParam),
+                : splitParam === "follow_ups"
+                  ? isFollowupDue(c.followup)
+                  : BUILT_IN_SPLIT_IDS.has(splitParam)
+                    ? c.split === splitParam
+                    : resolveCustomSplit(c.fromAddress, userSplits)?.id === splitParam),
             )
           : visible.filter(({ c }) => c.lane === lane);
     const pageRows = inLane.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -175,7 +178,12 @@ export async function GET(req: Request) {
     const builtInSplitCounts = BUILT_IN_SPLITS.map((b) => ({
       id: b.id,
       name: b.name,
-      count: attentionRows.filter(({ c }) => c.split === b.id).length,
+      // Follow Ups is realigned to Upstream: the threads with a DUE follow-up
+      // (B7), not every awaiting-their-reply thread.
+      count:
+        b.id === "follow_ups"
+          ? attentionRows.filter(({ c }) => isFollowupDue(c.followup)).length
+          : attentionRows.filter(({ c }) => c.split === b.id).length,
     }));
     const customSplitCounts = userSplits
       .map((s) => ({
