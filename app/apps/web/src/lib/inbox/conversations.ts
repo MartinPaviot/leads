@@ -171,6 +171,10 @@ const PRIORITY_BY_LABEL: Record<string, number> = {
   not_interested: 3,
 };
 
+/** Order labels hottest-first (lowest priority number wins). F2: hoisted so the
+ *  highest-priority label is sorted once per conversation, not twice. */
+const byPriorityAsc = (a: string, b: string) => (PRIORITY_BY_LABEL[a] ?? 4) - (PRIORITY_BY_LABEL[b] ?? 4);
+
 const REASON_BY_LABEL: Record<string, string> = {
   meeting_request: "Meeting request",
   demo_request: "Asked for a demo",
@@ -341,6 +345,9 @@ export function buildConversations(input: {
     }
 
     const priority = Math.min(4, ...labels.map((l) => PRIORITY_BY_LABEL[l] ?? 4));
+    // F2: the highest-priority label, sorted once and reused for the reason badge
+    // and the importance intent (was an identical [...labels].sort() in both).
+    const topLabel = labels.length ? [...labels].sort(byPriorityAsc)[0] : undefined;
 
     // Honest badge (INBOX-T08): a sales-reply label ("Asked about pricing",
     // "Introduction", "Forwarded internally"…) is only legitimate on a genuine
@@ -360,9 +367,7 @@ export function buildConversations(input: {
       reasonSource = "handled";
     } else {
       const hasOutbound = g.outbound.length > 0;
-      const reasonLabel = hasOutbound
-        ? [...labels].sort((a, b) => (PRIORITY_BY_LABEL[a] ?? 4) - (PRIORITY_BY_LABEL[b] ?? 4))[0]
-        : undefined;
+      const reasonLabel = hasOutbound ? topLabel : undefined;
       const mappedLabel = reasonLabel ? REASON_BY_LABEL[reasonLabel] : undefined;
       if (mappedLabel) {
         reason = mappedLabel;
@@ -450,7 +455,7 @@ export function buildConversations(input: {
     const intel = (intelligence ?? {}) as Record<string, unknown>;
     const lastInAtMs = lastInbound ? toMs(lastInbound.occurredAt) : null;
     const importance = scoreImportance({
-      intentLabel: [...labels].sort((a, b) => (PRIORITY_BY_LABEL[a] ?? 4) - (PRIORITY_BY_LABEL[b] ?? 4))[0] ?? null,
+      intentLabel: topLabel ?? null,
       urgencyLevel:
         typeof intel.urgencyLevel === "string"
           ? (intel.urgencyLevel as "none" | "low" | "medium" | "high")
