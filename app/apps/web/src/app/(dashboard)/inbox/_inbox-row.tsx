@@ -99,8 +99,9 @@ export const InboxRow = memo(function InboxRow({
         style={{
           color: "var(--color-text-primary)",
           // Upstream-style soft fade on the right edge instead of a hard "…" cut.
-          maskImage: "linear-gradient(to right, #000 calc(100% - 28px), transparent)",
-          WebkitMaskImage: "linear-gradient(to right, #000 calc(100% - 28px), transparent)",
+          // `black`/`transparent` are mask alpha keywords (not theme colours).
+          maskImage: "linear-gradient(to right, black calc(100% - 28px), transparent)",
+          WebkitMaskImage: "linear-gradient(to right, black calc(100% - 28px), transparent)",
         }}
       >
         {/* One leading indicator only (Upstream): the unread dot before the avatar.
