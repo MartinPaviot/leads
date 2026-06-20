@@ -36,14 +36,15 @@ function sample(over: Partial<ConversationListItem> = {}): ConversationListItem 
 }
 
 describe("InboxRow (F1)", () => {
-  it("renders sender (14/700), subject, snippet, timestamp", () => {
-    render(<InboxRow item={sample()} lane="attention" selected={false} multiSelected={false} hasSelection={false} onSelect={vi.fn()} />);
+  it("renders sender (bold), subject (bold), snippet, timestamp on one 14px line", () => {
+    const { container } = render(<InboxRow item={sample()} lane="attention" selected={false} multiSelected={false} hasSelection={false} onSelect={vi.fn()} />);
     const sender = screen.getByText("Jane Doe");
-    expect(sender.className).toMatch(/text-\[14px\]/);
     expect(sender.className).toMatch(/font-bold/);
     const subject = screen.getByText("Re: pricing question");
-    expect(subject.className).toMatch(/font-semibold/);
-    expect(screen.getByText(/confirm the annual number/)).toBeTruthy();
+    expect(subject.className).toMatch(/font-bold/); // sender AND subject bold (Upstream)
+    expect(screen.getByText("Thanks — can you confirm the annual number?")).toBeTruthy();
+    // The whole primary line is a single 14px truncating row.
+    expect(container.querySelector(".text-\\[14px\\].truncate")).toBeTruthy();
   });
 
   it("checkbox is hidden at rest, shown when multi-selected", () => {

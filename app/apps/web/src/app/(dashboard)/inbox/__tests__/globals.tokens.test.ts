@@ -10,8 +10,8 @@ const css = readFileSync(GLOBALS, "utf8");
 
 describe("F1 inbox density tokens (globals.css)", () => {
   const expected: Record<string, string> = {
-    "--inbox-row-height": "56px",
-    "--inbox-row-height-compact": "44px",
+    "--inbox-row-height": "44px",
+    "--inbox-row-height-compact": "40px",
     "--inbox-sidebar-width": "240px",
     "--inbox-list-width": "360px",
     "--inbox-cta-radius": "10px",
