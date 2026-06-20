@@ -30,6 +30,7 @@ import { buildInboxPaletteCommands, type PaletteCommand } from "@/lib/inbox/pale
 import { tomorrowMorning } from "@/lib/inbox/snooze-presets";
 import { MailboxRail } from "./_mailbox-rail";
 import { InboxFolders } from "./_inbox-folders";
+import { SplitStrip } from "./_split-strip";
 import { InboxListSkeleton } from "./_skeleton";
 import { pickListState } from "@/lib/inbox/list-state";
 import { createLoadGuard } from "@/lib/inbox/load-guard";
@@ -83,6 +84,7 @@ export default function InboxPage() {
   // ?split= (a built-in id or a custom-split UUID).
   const [activeSplit, setActiveSplit] = useState<string | null>(null);
   const [splitCounts, setSplitCounts] = useState<SplitCount[]>([]);
+  const [noiseCount, setNoiseCount] = useState(0);
   // The inbox is personal; false once a lane load confirms the user has no
   // connected mailbox of their own. Defaults true to avoid flashing the
   // connect card before the first response.
@@ -179,6 +181,7 @@ export default function InboxPage() {
           selectedMailbox?: string | null;
           customLanes?: Array<{ id: string; name: string; hideWhenEmpty: boolean; count: number }>;
           splits?: SplitCount[];
+          noiseCount?: number;
           bundles?: BundleSource[];
           catchUpCount?: number;
           lastSeen?: string | null;
@@ -188,6 +191,7 @@ export default function InboxPage() {
         if (data.mailboxes) setMailboxes(data.mailboxes);
         setCustomLanes(data.customLanes ?? []);
         setSplitCounts(data.splits ?? []);
+        setNoiseCount(data.noiseCount ?? 0);
         setBundles(data.bundles ?? []);
         setCatchUpCount(data.catchUpCount ?? 0);
         // First visit (no marker yet): stamp it once so future visits compute
@@ -853,6 +857,10 @@ export default function InboxPage() {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
+      {/* Second nav axis: the split-tab strip (attention lane only). */}
+      {mailboxConnected && tab === "attention" && !customLaneId && (
+        <SplitStrip splits={splitCounts} noiseCount={noiseCount} active={activeSplit} onSelect={setActiveSplit} />
+      )}
       {!mailboxConnected ? (
         <div className="flex flex-1 items-center justify-center">
           <EmptyState

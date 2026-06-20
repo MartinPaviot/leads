@@ -143,9 +143,13 @@ export async function GET(req: Request) {
         : splitParam
           ? visible.filter(({ c }) =>
               c.lane === "attention" &&
-              (BUILT_IN_SPLIT_IDS.has(splitParam)
-                ? c.split === splitParam
-                : resolveCustomSplit(c.fromAddress, userSplits)?.id === splitParam),
+              // "noise" is a pseudo-split over the demotion flag (a Noise tab);
+              // built-in ids match c.split; otherwise a custom per-sender split.
+              (splitParam === "noise"
+                ? c.noise
+                : BUILT_IN_SPLIT_IDS.has(splitParam)
+                  ? c.split === splitParam
+                  : resolveCustomSplit(c.fromAddress, userSplits)?.id === splitParam),
             )
           : visible.filter(({ c }) => c.lane === lane);
     const pageRows = inLane.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);

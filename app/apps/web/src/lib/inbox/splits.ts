@@ -30,13 +30,17 @@ export interface SplitResult {
   reasons: string[];
 }
 
-/** Ordered, with display copy. "other" is the fallthrough bucket. */
+/**
+ * Ordered for the split-tab strip, Upstream order. The `other` id is the
+ * fallthrough bucket — surfaced as "Primary" (the main mail that isn't a
+ * reply/follow-up/promo/social) and shown FIRST, like Upstream's Primary tab.
+ */
 export const BUILT_IN_SPLITS: ReadonlyArray<{ id: BuiltInSplit; name: string }> = [
+  { id: "other", name: "Primary" },
   { id: "needs_reply", name: "Needs Reply" },
   { id: "follow_ups", name: "Follow Ups" },
   { id: "promotions", name: "Promotions" },
   { id: "social", name: "Social" },
-  { id: "other", name: "Other" },
 ];
 
 /**
