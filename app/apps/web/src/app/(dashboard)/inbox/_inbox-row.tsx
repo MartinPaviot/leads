@@ -94,7 +94,15 @@ export const InboxRow = memo(function InboxRow({
       </span>
       <SenderAvatar name={decodeDisplay(c.displayName)} email={c.fromAddress} size={22} />
       {/* One truncated line: Sender · Subject · snippet (bold when unread, Upstream). */}
-      <div className="min-w-0 flex-1 truncate text-[14px]" style={{ color: "var(--color-text-primary)" }}>
+      <div
+        className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-[14px]"
+        style={{
+          color: "var(--color-text-primary)",
+          // Upstream-style soft fade on the right edge instead of a hard "…" cut.
+          maskImage: "linear-gradient(to right, #000 calc(100% - 28px), transparent)",
+          WebkitMaskImage: "linear-gradient(to right, #000 calc(100% - 28px), transparent)",
+        }}
+      >
         {/* One leading indicator only (Upstream): the unread dot before the avatar.
             Importance still ranks the list order (hottest first) — no second per-row dot. */}
         <span className={c.unread ? "font-bold" : "font-normal"}>{decodeDisplay(c.displayName)}</span>

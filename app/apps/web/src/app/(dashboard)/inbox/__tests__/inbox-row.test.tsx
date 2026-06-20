@@ -46,8 +46,8 @@ describe("InboxRow (F1)", () => {
     const subject = screen.getByText("Re: pricing question");
     expect(subject.className).toMatch(/font-medium/);
     expect(screen.getByText("Thanks — can you confirm the annual number?")).toBeTruthy();
-    // The whole primary line is a single 14px truncating row.
-    expect(container.querySelector(".text-\\[14px\\].truncate")).toBeTruthy();
+    // The whole primary line is a single 14px clipped row (soft right-edge fade).
+    expect(container.querySelector(".text-\\[14px\\].overflow-hidden")).toBeTruthy();
   });
 
   it("renders a READ row in normal weight (no unread emphasis)", () => {
