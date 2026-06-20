@@ -358,6 +358,34 @@ describe("CLE-14 /inbox — bookMeeting + stopSequence (lifted pane handlers)", 
   });
 });
 
+describe("F3 /inbox — pane error vs missing (B5)", () => {
+  it("a failed detail fetch shows the pane error + Retry, not 'no longer available'", async () => {
+    detailResponse = () => jsonRes({ error: "boom" }, false, 500);
+    await mountLoaded();
+    expect(await screen.findByText(/Couldn.t load this conversation/)).toBeTruthy();
+    expect(screen.getByText("Retry")).toBeTruthy();
+    expect(screen.queryByText("This conversation is no longer available.")).toBeNull();
+  });
+
+  it("a resolved-but-absent detail shows 'no longer available' (missing, not error)", async () => {
+    detailResponse = () => jsonRes(null);
+    await mountLoaded();
+    expect(await screen.findByText("This conversation is no longer available.")).toBeTruthy();
+    expect(screen.queryByText(/Couldn.t load this conversation/)).toBeNull();
+  });
+
+  it("pane Retry re-fetches and recovers the thread", async () => {
+    detailResponse = () => jsonRes({ error: "boom" }, false, 500);
+    await mountLoaded();
+    const retry = await screen.findByText("Retry");
+    detailResponse = () => jsonRes(FIXTURE_DETAIL);
+    fireEvent.click(retry);
+    await flush();
+    expect(screen.queryByText(/Couldn.t load this conversation/)).toBeNull();
+    expect(screen.getByText(/can we talk pricing/)).toBeTruthy(); // thread body rendered
+  });
+});
+
 describe("F3 /inbox — list error state (B3)", () => {
   it("a failed list load shows the error EmptyState + Retry, not a misleading empty lane", async () => {
     listResponse = () => jsonRes({ error: "boom" }, false, 500);

@@ -57,6 +57,7 @@ import { dirOf } from "@/lib/inbox/text-direction";
 import { decodeDisplay } from "@/lib/inbox/text-decode";
 import { type SendableMailbox } from "@/lib/inbox/pick-from-mailbox";
 import { tomorrowMorning, inThreeDays, nextMonday } from "@/lib/inbox/snooze-presets";
+import { pickPaneState } from "@/lib/inbox/list-state";
 
 // The presets live in lib/inbox/snooze-presets (pure, unit-tested) so the popover
 // and the `s` keyboard shortcut resolve to the SAME instant (B6.4).
@@ -104,6 +105,10 @@ export function ConversationPane({
   const { toast } = useToast();
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  // F3: the detail fetch rejected (network/5xx) — distinct from a resolved-but-
+  // absent thread, so the pane can offer Retry instead of "no longer available".
+  const [paneError, setPaneError] = useState(false);
+  const [detailRetry, setDetailRetry] = useState(0);
   const [composer, setComposer] = useState<EmailComposerDraft | null>(null);
   const [usedDraftId, setUsedDraftId] = useState<string | null>(null);
   const [drafting, setDrafting] = useState(false);
@@ -224,6 +229,7 @@ export function ConversationPane({
     setSchedOpen(false);
     setSnoozeOpen(false);
     setUsedDraftId(null);
+    setPaneError(false); // clear the error as a new key (or a retry) begins
     if (!conversationKey) {
       setDetail(null);
       return;
@@ -242,7 +248,11 @@ export function ConversationPane({
         if (!cancelled) setDetail(data as ConversationDetail);
       })
       .catch(() => {
-        if (!cancelled) setDetail(null);
+        // F3: a fetch failure is an ERROR (retryable), not a deleted thread.
+        if (!cancelled) {
+          setDetail(null);
+          setPaneError(true);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -250,7 +260,7 @@ export function ConversationPane({
     return () => {
       cancelled = true;
     };
-  }, [conversationKey]);
+  }, [conversationKey, detailRetry]);
 
   const replyTo =
     detail?.conversation.fromAddress || detail?.contact?.email || "";
@@ -483,16 +493,33 @@ export function ConversationPane({
     );
   }
 
-  if (loading || !detail) {
+  const paneState = pickPaneState({ hasSelection: !!conversationKey, loading, error: paneError, hasDetail: !!detail });
+  if (paneState === "loading") {
     return (
       <div className="flex h-full items-center justify-center">
-        {loading ? (
-          <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--color-text-tertiary)" }} />
-        ) : (
-          <p className="text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-            This conversation is no longer available.
-          </p>
-        )}
+        <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--color-text-tertiary)" }} />
+      </div>
+    );
+  }
+  if (paneState === "error") {
+    // F3: a failed fetch is retryable — distinct from a deleted thread.
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+          Couldn&apos;t load this conversation.
+        </p>
+        <Button variant="outline" size="sm" onClick={() => setDetailRetry((n) => n + 1)}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+  if (paneState !== "ready" || !detail) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
+          This conversation is no longer available.
+        </p>
       </div>
     );
   }
