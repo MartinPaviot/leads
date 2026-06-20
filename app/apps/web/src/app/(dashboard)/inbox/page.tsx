@@ -33,6 +33,7 @@ import { tomorrowMorning } from "@/lib/inbox/snooze-presets";
 import { MailboxRail } from "./_mailbox-rail";
 import { InboxListSkeleton } from "./_skeleton";
 import { pickListState } from "@/lib/inbox/list-state";
+import { createLoadGuard } from "@/lib/inbox/load-guard";
 import type { ConversationListItem, InboxLane, LaneCounts, MailboxSummary, SplitCount } from "./_types";
 import type { BundleSource } from "@/lib/inbox/bundle";
 import { registerShortcut } from "@/lib/hotkey-registry";
@@ -143,8 +144,21 @@ export default function InboxPage() {
     }
   }, []);
 
+  // F2: generation guard + abort controller for foreground loads (stale discard).
+  const loadGuardRef = useRef(createLoadGuard());
+  const abortRef = useRef<AbortController | null>(null);
+
   const loadLane = useCallback(
     async (lane: string, pageNum: number, append: boolean) => {
+      // F2: a foreground load mints a generation token and aborts the previous
+      // in-flight foreground fetch, so a slow earlier lane can't paint over a
+      // newer one. Appends are additive — they don't take a token or abort.
+      const token = append ? null : loadGuardRef.current.next();
+      if (!append) {
+        abortRef.current?.abort();
+        abortRef.current = new AbortController();
+      }
+      const live = () => token === null || loadGuardRef.current.isCurrent(token);
       if (append) setLoadingMore(true);
       else {
         setLoading(true);
@@ -156,7 +170,9 @@ export default function InboxPage() {
         const searchQuery = debouncedSearch ? `&q=${encodeURIComponent(debouncedSearch)}` : "";
         // B3: only sub-segment the attention lane (splits don't apply to a custom lane).
         const splitQuery = activeSplit && lane === "attention" ? `&split=${activeSplit}` : "";
-        const res = await fetch(`/api/inbox/conversations?lane=${lane}&page=${pageNum}${mailboxQuery}${searchQuery}${splitQuery}`);
+        const res = await fetch(`/api/inbox/conversations?lane=${lane}&page=${pageNum}${mailboxQuery}${searchQuery}${splitQuery}`, {
+          signal: append ? undefined : abortRef.current?.signal,
+        });
         if (!res.ok) throw new Error(`${res.status}`);
         const data = (await res.json()) as {
           conversations: ConversationListItem[];
@@ -171,6 +187,7 @@ export default function InboxPage() {
           catchUpCount?: number;
           lastSeen?: string | null;
         };
+        if (!live()) return; // a newer foreground load superseded this one — discard
         setMailboxConnected(data.mailboxConnected !== false);
         if (data.mailboxes) setMailboxes(data.mailboxes);
         setCustomLanes(data.customLanes ?? []);
@@ -186,12 +203,17 @@ export default function InboxPage() {
         setCounts(data.counts);
         setTotal(data.pagination.total);
         setConversations((prev) => (append ? [...prev, ...data.conversations] : data.conversations));
-      } catch {
+      } catch (err) {
+        if ((err as Error)?.name === "AbortError") return; // superseded — silent, no error/toast
         if (!append) setListError(true); // a foreground load failed -> error state, not empty
         toast("Couldn't load the inbox.", "error");
       } finally {
-        setLoading(false);
-        setLoadingMore(false);
+        // Only the live load owns the loading flags; a stale finally must not clear
+        // them out from under the newer load.
+        if (live()) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
       }
     },
     [toast, selectedMailbox, debouncedSearch, activeSplit],
