@@ -269,20 +269,21 @@ function UserMenu({
 
 export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tenantName, tenantLogoUrl, recentChats, onSignOut }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const pathname = usePathname();
 
-  // Auto-collapse on small screens so the sidebar doesn't eat the viewport
-  // on mobile (pre-launch audit: not responsive — full 240px rail squeezed
-  // content to ~150px at 390px). Desktop users can still toggle manually.
+  // Auto-collapse on small screens (mobile would otherwise squeeze content) AND on
+  // the inbox, where the inbox has its own folder column — collapsing the CRM rail
+  // to a thin icon strip gives the single-sidebar email-client frame (Upstream).
+  // Desktop users can still expand manually; it re-applies on the next navigation.
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
     const mq = window.matchMedia("(max-width: 768px)");
-    const apply = () => setCollapsed(mq.matches);
+    const apply = () => setCollapsed(mq.matches || !!pathname?.startsWith("/inbox"));
     apply();
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
-  }, []);
+  }, [pathname]);
   const [customObjectTypes, setCustomObjectTypes] = useState<CustomObjectType[]>([]);
-  const pathname = usePathname();
   const { theme, toggle: toggleTheme } = useTheme();
   const firstName = userName.split(" ")[0];
 
