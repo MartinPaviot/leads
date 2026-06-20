@@ -14,16 +14,22 @@ everything else overlays on), then the AI-output tabs, then folders, then cross-
 | 1 | Primary (Inbox) | DONE (behavior) | 99% behavior; visually empty (no primary mail in test account) |
 | 2 | Needs Reply | DONE | 99% — AI-draft queue + empty copy verbatim (visually empty: no drafts) |
 | 3 | Follow Ups | DONE | 99% — due-follow-up queue + empty copy verbatim (visually empty) |
-| 4 | Promotions | TODO (likely ~match) | — |
-| 5 | Social | TODO (likely ~match) | — |
-| 6 | Noise | TODO | — |
-| 7 | Starred | TODO | — |
-| 8 | Sent | TODO (~match) | — |
-| 9 | Drafts | TODO (~match) | — |
-| 10 | Scheduled | TODO (empty prod) | — |
-| 11 | All Mail | TODO (~match) | — |
-| 12 | Spam / Trash | TODO (missing) | — |
-| X | Cross-cutting: URL routes · per-folder header · compose-new · read-state | TODO | — |
+| 4 | Promotions | DONE (behavior) | now includes handled + noise-excluded; empty (no non-noise promo in account) |
+| 5 | Social | DONE (behavior) | same model; empty (no social mail) |
+| 6 | Noise | DONE | verified showing 3 (handled noise now surfaces) |
+| 7 | Starred | TODO — real gaps | star LEADING + per-row "Draft" badge + folder header |
+| 8 | Sent | ~match | empty-ish; sender "me" parity to check |
+| 9 | Drafts | ~match | empty (no drafts) |
+| 10 | Scheduled | ~match | empty on prod (CLE-11 undeployed) |
+| 11 | All Mail | ~match | shows 3 |
+| 12 | Spam / Trash | TODO — MISSING | need lanes + routes + actions (bigger build) |
+| X | Cross-cutting | TODO | URL routes (/inbox/[split]) · per-folder header · compose-new · read-state/unread |
+
+**Done this session: foundational category model + Tabs 1/2/3/4/5/6** (commits 036878eb,
+a77b3bb0). The category-tab reshape (handled mail surfaces, noise overrides) fixed 4/5/6
+together. Remaining real-gap work: Tab 7 Starred (star position + Draft badge + header),
+Tab 12 Spam/Trash (missing), and the cross-cutting items (routes, per-folder header,
+compose-new, read-state). See AUDIT-upstream-diff.md §G for severity/effort.
 
 ---
 
