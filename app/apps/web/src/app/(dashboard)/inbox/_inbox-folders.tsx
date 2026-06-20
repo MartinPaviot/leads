@@ -9,12 +9,12 @@
  * state through callbacks; it owns no data.
  */
 
-import { Inbox, AlarmClock, CheckCircle2, Bot, Send, Layers, Reply, Clock, Megaphone, Users, Plus, Mail } from "lucide-react";
+import { Inbox, AlarmClock, CheckCircle2, Bot, Send, Layers, Reply, Clock, Megaphone, Users, Plus, Mail, Star, FileText, SendHorizontal } from "lucide-react";
 import type { InboxLane, MailboxSummary } from "./_types";
 import type { SplitCount } from "@/lib/inbox/splits";
 import { colorForMailbox } from "@/lib/inbox/mailbox-color";
 
-type LaneId = InboxLane | "outbound" | "bundles";
+type LaneId = InboxLane | "outbound" | "bundles" | "starred" | "drafts" | "scheduled";
 
 const LANE_META: Record<LaneId, { label: string; icon: React.ReactNode }> = {
   attention: { label: "Inbox", icon: <Inbox size={15} /> },
@@ -23,6 +23,9 @@ const LANE_META: Record<LaneId, { label: string; icon: React.ReactNode }> = {
   handled: { label: "Handled", icon: <Bot size={15} /> },
   outbound: { label: "Sent", icon: <Send size={15} /> },
   bundles: { label: "Bundles", icon: <Layers size={15} /> },
+  starred: { label: "Starred", icon: <Star size={15} /> },
+  drafts: { label: "Drafts", icon: <FileText size={15} /> },
+  scheduled: { label: "Scheduled", icon: <SendHorizontal size={15} /> },
 };
 
 const SPLIT_ICON: Record<string, React.ReactNode> = {
@@ -91,6 +94,7 @@ export function InboxFolders({
   splitCounts,
   customLanes,
   bundleTotal,
+  starredCount,
   mailboxes,
   selectedMailbox,
   onSelectMailbox,
@@ -107,6 +111,8 @@ export function InboxFolders({
   splitCounts: SplitCount[];
   customLanes: Array<{ id: string; name: string; count: number }>;
   bundleTotal: number;
+  /** Count for the Starred folder (Upstream is:starred). */
+  starredCount: number;
   /** The user's connected mailboxes (the per-mailbox sub-segment shows with 2+). */
   mailboxes: MailboxSummary[];
   /** The focused mailbox id, or null for "All inboxes". */
@@ -161,6 +167,7 @@ export function InboxFolders({
         />
 
         <div className="my-1.5 border-t" style={{ borderColor: "var(--color-border-default)" }} />
+        {lane("starred", starredCount)}
         {lane("snoozed", counts.snoozed)}
         {lane("outbound")}
 

@@ -18,6 +18,7 @@ function sample(over: Partial<ConversationListItem> = {}): ConversationListItem 
     reasonSource: "reply",
     slaHoursOverdue: null,
     followup: null,
+    starred: false,
     importanceTier: 1,
     importanceFactors: ["recent reply"],
     labels: [],
@@ -69,6 +70,21 @@ describe("InboxRow (F1)", () => {
   it("renders the SLA-overdue chip when overdue", () => {
     render(<InboxRow item={sample({ slaHoursOverdue: 30 })} lane="attention" selected={false} multiSelected={false} hasSelection={false} onSelect={vi.fn()} />);
     expect(screen.getByText(/overdue/)).toBeTruthy();
+  });
+
+  it("star toggle: fires onToggleStar with the flipped state, without selecting the row", () => {
+    const onToggleStar = vi.fn();
+    const onSelect = vi.fn();
+    render(<InboxRow item={sample({ starred: false })} lane="attention" selected={false} multiSelected={false} hasSelection={false} onSelect={onSelect} onToggleStar={onToggleStar} />);
+    screen.getByLabelText("Star conversation").click();
+    expect(onToggleStar).toHaveBeenCalledWith("k1", true);
+    expect(onSelect).not.toHaveBeenCalled(); // stopPropagation
+  });
+
+  it("a starred row shows the filled star (always visible)", () => {
+    render(<InboxRow item={sample({ starred: true })} lane="attention" selected={false} multiSelected={false} hasSelection={false} onSelect={vi.fn()} onToggleStar={vi.fn()} />);
+    const star = screen.getByLabelText("Unstar conversation");
+    expect(star.className).toContain("opacity-100");
   });
 });
 

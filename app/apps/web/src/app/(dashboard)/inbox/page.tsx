@@ -48,7 +48,7 @@ import {
   type SelectionState,
 } from "@/lib/inbox/selection";
 
-type Tab = InboxLane | "outbound" | "bundles";
+type Tab = InboxLane | "outbound" | "bundles" | "starred" | "drafts" | "scheduled";
 
 /* ── CLE-14: page-action helpers (pure, shared) ── */
 
@@ -68,6 +68,9 @@ const TAB_LABELS: Record<Tab, string> = {
   handled: "Handled",
   outbound: "Outbound",
   bundles: "Bundles",
+  starred: "Starred",
+  drafts: "Drafts",
+  scheduled: "Scheduled",
 };
 
 
@@ -84,6 +87,7 @@ export default function InboxPage() {
   const [activeSplit, setActiveSplit] = useState<string | null>(null);
   const [splitCounts, setSplitCounts] = useState<SplitCount[]>([]);
   const [noiseCount, setNoiseCount] = useState(0);
+  const [starredCount, setStarredCount] = useState(0);
   // The inbox is personal; false once a lane load confirms the user has no
   // connected mailbox of their own. Defaults true to avoid flashing the
   // connect card before the first response.
@@ -181,6 +185,7 @@ export default function InboxPage() {
           customLanes?: Array<{ id: string; name: string; hideWhenEmpty: boolean; count: number }>;
           splits?: SplitCount[];
           noiseCount?: number;
+          starredCount?: number;
           bundles?: BundleSource[];
           catchUpCount?: number;
           lastSeen?: string | null;
@@ -191,6 +196,7 @@ export default function InboxPage() {
         setCustomLanes(data.customLanes ?? []);
         setSplitCounts(data.splits ?? []);
         setNoiseCount(data.noiseCount ?? 0);
+        setStarredCount(data.starredCount ?? 0);
         setBundles(data.bundles ?? []);
         setCatchUpCount(data.catchUpCount ?? 0);
         // First visit (no marker yet): stamp it once so future visits compute
@@ -357,7 +363,7 @@ export default function InboxPage() {
       setSelectedKey(next[Math.min(Math.max(idx, 0), next.length - 1)]?.key ?? null);
       setCounts((c) => {
         const updated = { ...c };
-        if (tab !== "outbound" && tab !== "bundles") updated[tab] = Math.max(0, updated[tab] - 1);
+        if (tab === "attention" || tab === "snoozed" || tab === "done" || tab === "handled") updated[tab] = Math.max(0, updated[tab] - 1);
         if (action === "done") updated.done += 1;
         if (action === "snooze") updated.snoozed += 1;
         if (action === "reopen") updated.attention += 1;
@@ -393,6 +399,18 @@ export default function InboxPage() {
     [conversations],
   );
 
+  // Star toggle (Upstream is:starred) — optimistic, owner-scoped persist. Stable so
+  // it doesn't break InboxRow's React.memo.
+  const handleToggleStar = useCallback((key: string, starred: boolean) => {
+    setConversations((prev) => prev.map((c) => (c.key === key ? { ...c, starred } : c)));
+    setStarredCount((n) => Math.max(0, n + (starred ? 1 : -1)));
+    void fetch("/api/inbox/star", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, starred }),
+    }).catch(() => {});
+  }, []);
+
   // Bulk triage the whole selection — reuses the per-key verb (a dedicated
   // /triage/bulk fan-out is residual). Optimistic; reports any failures.
   const handleBulkTriage = useCallback(
@@ -404,7 +422,7 @@ export default function InboxPage() {
       setSelection(EMPTY_SELECTION);
       setCounts((c) => {
         const updated = { ...c };
-        if (tab !== "outbound" && tab !== "bundles") updated[tab] = Math.max(0, updated[tab] - keys.length);
+        if (tab === "attention" || tab === "snoozed" || tab === "done" || tab === "handled") updated[tab] = Math.max(0, updated[tab] - keys.length);
         if (action === "done") updated.done += keys.length;
         if (action === "snooze") updated.snoozed += keys.length;
         return updated;
@@ -834,6 +852,7 @@ export default function InboxPage() {
           splitCounts={splitCounts}
           customLanes={customLanes}
           bundleTotal={bundleTotal}
+          starredCount={starredCount}
           mailboxes={mailboxes}
           selectedMailbox={selectedMailbox}
           onSelectMailbox={setSelectedMailbox}
@@ -1003,7 +1022,7 @@ export default function InboxPage() {
                 );
               return (
                 <ConversationList
-                  lane={customLaneId ? "attention" : tab === "outbound" || tab === "bundles" ? "attention" : tab}
+                  lane={customLaneId ? "attention" : tab === "snoozed" || tab === "done" || tab === "handled" ? tab : "attention"}
                   conversations={conversations}
                   selectedKey={selectedKey}
                   onSelect={setSelectedKey}
@@ -1019,6 +1038,7 @@ export default function InboxPage() {
                   showMailbox={mailboxes.length >= 2 && selectedMailbox === null}
                   hasQuery={!!debouncedSearch}
                   onClearSearch={() => setSearch("")}
+                  onToggleStar={handleToggleStar}
                 />
               );
             })()}
@@ -1027,7 +1047,7 @@ export default function InboxPage() {
             <div className="min-w-0 flex-1">
               <ConversationPane
                 conversationKey={selectedKey}
-                lane={customLaneId ? "attention" : tab === "outbound" || tab === "bundles" ? "attention" : tab}
+                lane={customLaneId ? "attention" : tab === "snoozed" || tab === "done" || tab === "handled" ? tab : "attention"}
                 replySignal={replySignal}
                 labelSignal={labelSignal}
                 onTriage={handleTriage}

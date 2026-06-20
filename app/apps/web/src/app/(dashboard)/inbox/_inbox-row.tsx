@@ -11,7 +11,7 @@
  */
 
 import { memo } from "react";
-import { AlarmClock, CheckSquare, Square } from "lucide-react";
+import { AlarmClock, CheckSquare, Square, Star } from "lucide-react";
 import { timeAgo } from "./_time-ago";
 import { reasonTooltip, type ConversationListItem, type InboxLane } from "./_types";
 import { dirOf } from "@/lib/inbox/text-direction";
@@ -37,6 +37,7 @@ export const InboxRow = memo(function InboxRow({
   onToggleSelect,
   onHoverStart,
   onHoverEnd,
+  onToggleStar,
 }: {
   item: ConversationListItem;
   lane: InboxLane;
@@ -50,6 +51,8 @@ export const InboxRow = memo(function InboxRow({
   // row (the row applies its own key), keeping React.memo effective.
   onHoverStart?: (key: string) => void;
   onHoverEnd?: () => void;
+  /** Toggle the conversation's star (Upstream is:starred). */
+  onToggleStar?: (key: string, starred: boolean) => void;
 }) {
   const c = item;
   const when = c.lastInboundAt ?? c.lastMessageAt;
@@ -113,8 +116,24 @@ export const InboxRow = memo(function InboxRow({
           </span>
         )}
       </div>
-      {/* Right cluster: SLA / follow-up chip · labels · time · mailbox dot. */}
+      {/* Right cluster: star · SLA / follow-up chip · labels · time · mailbox dot. */}
       <div className="flex shrink-0 items-center gap-2">
+        {onToggleStar && (
+          <span
+            role="button"
+            tabIndex={-1}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleStar(c.key, !c.starred);
+            }}
+            className={`shrink-0 cursor-pointer transition-opacity ${c.starred ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+            style={{ color: c.starred ? "var(--color-warning)" : "var(--color-text-muted)" }}
+            title={c.starred ? "Unstar" : "Star"}
+            aria-label={c.starred ? "Unstar conversation" : "Star conversation"}
+          >
+            <Star size={14} style={{ fill: c.starred ? "var(--color-warning)" : "none" }} />
+          </span>
+        )}
         {c.slaHoursOverdue != null && (
           <span
             className="flex items-center gap-1 rounded px-1 text-[10px] font-medium"

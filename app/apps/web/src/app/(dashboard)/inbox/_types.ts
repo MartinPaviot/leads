@@ -31,6 +31,8 @@ export interface ConversationListItem {
   /** B7: gentle-follow-up due time on an awaiting-their-reply thread; null otherwise.
    *  SLA-exclusive — never set together with slaHoursOverdue. */
   followup: FollowupDue | null;
+  /** Whether the user starred this conversation (Upstream is:starred). */
+  starred: boolean;
   /** Importance tier 1–4 (1 hottest) that sorts the attention lane + cited factors (INBOX-T04). */
   importanceTier: 1 | 2 | 3 | 4;
   importanceFactors: string[];

@@ -46,6 +46,7 @@ export function ConversationList({
   showMailbox = false,
   hasQuery = false,
   onClearSearch,
+  onToggleStar,
 }: {
   lane: InboxLane;
   conversations: ConversationListItem[];
@@ -64,6 +65,8 @@ export function ConversationList({
   hasQuery?: boolean;
   /** F3: clear the search from the no-results empty state. */
   onClearSearch?: () => void;
+  /** Toggle a conversation's star (Upstream is:starred). */
+  onToggleStar?: (key: string, starred: boolean) => void;
 }) {
   const selectedSet = new Set(selectedKeys);
   const hasSelection = selectedKeys.length > 0;
@@ -122,6 +125,7 @@ export function ConversationList({
           onToggleSelect={onToggleSelect}
           onHoverStart={armPrefetch}
           onHoverEnd={cancelPrefetch}
+          onToggleStar={onToggleStar}
         />
       ))}
 

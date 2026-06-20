@@ -14,6 +14,7 @@ function base(over: Record<string, unknown> = {}) {
     splitCounts: [{ id: "needs_reply", name: "Needs Reply", count: 4 }],
     customLanes: [],
     bundleTotal: 0,
+    starredCount: 0,
     mailboxes: [],
     selectedMailbox: null,
     onSelectMailbox: vi.fn(),

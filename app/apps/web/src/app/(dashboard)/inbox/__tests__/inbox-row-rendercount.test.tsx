@@ -35,6 +35,7 @@ function makeRows(n: number): ConversationListItem[] {
     reasonSource: "reply",
     slaHoursOverdue: null,
     followup: null,
+    starred: false,
     importanceTier: 1,
     importanceFactors: [],
     labels: [],

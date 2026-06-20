@@ -7,6 +7,7 @@ import { BUILT_IN_SPLITS, resolveCustomSplit } from "@/lib/inbox/splits";
 import { isFollowupDue } from "@/lib/inbox/followup-due";
 import { getUserSplits } from "@/lib/inbox/split-store";
 import { getNoiseOverrides } from "@/lib/inbox/noise-override-store";
+import { getStarredKeys } from "@/lib/inbox/starred-store";
 import { getMailboxIdentities } from "@/lib/inbox/mailbox-identity";
 import { loadConversationRows, contactNameMap } from "@/lib/inbox/load";
 import { getInboxScope, scopeConversationRows } from "@/lib/inbox/user-scope";
@@ -46,6 +47,7 @@ export async function GET(req: Request) {
     const userSplits = await getUserSplits(authCtx.userId);
     const BUILT_IN_SPLIT_IDS = new Set<string>(BUILT_IN_SPLITS.map((b) => b.id));
     const lastSeen = await getLastSeen(authCtx.userId);
+    const starredKeys = new Set(await getStarredKeys(authCtx.userId));
     const customLane = userLanes.find((l) => l.id === laneParam) ?? null;
     const toLaneCandidate = (row: {
       c: { fromAddress: string; subject: string };
@@ -138,6 +140,8 @@ export async function GET(req: Request) {
             parsedQuery!,
           ),
         )
+      : laneParam === "starred"
+        ? visible.filter(({ c }) => starredKeys.has(c.key)) // Upstream is:starred — across all lanes
       : customLane
         ? visible.filter((row) => laneMatches(toLaneCandidate(row), customLane))
         : splitParam
@@ -240,6 +244,7 @@ export async function GET(req: Request) {
         reasonSource: c.reasonSource,
         slaHoursOverdue: c.slaHoursOverdue,
         followup: c.followup,
+        starred: starredKeys.has(c.key),
         importanceTier: c.importanceTier,
         importanceFactors: c.importanceFactors,
         labels: applyLabelFilters(toLaneCandidate({ c, mb }), userFilters),
@@ -258,6 +263,7 @@ export async function GET(req: Request) {
       splits,
       noiseCount: visible.filter(({ c }) => c.noise).length,
       followupsDueCount: visible.filter(({ c }) => isFollowupDue(c.followup)).length,
+      starredCount: visible.filter(({ c }) => starredKeys.has(c.key)).length,
       pagination: { page, pageSize: PAGE_SIZE, total: inLane.length },
       mailboxConnected: scope.hasMailbox,
       mailboxes,
