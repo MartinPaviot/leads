@@ -28,7 +28,6 @@ import { BundlesView } from "./_bundles-view";
 import { CommandPalette } from "./_command-palette";
 import { buildInboxPaletteCommands, type PaletteCommand } from "@/lib/inbox/palette-commands";
 import { tomorrowMorning } from "@/lib/inbox/snooze-presets";
-import { MailboxRail } from "./_mailbox-rail";
 import { InboxFolders } from "./_inbox-folders";
 import { SplitStrip } from "./_split-strip";
 import { InboxListSkeleton } from "./_skeleton";
@@ -835,6 +834,9 @@ export default function InboxPage() {
           splitCounts={splitCounts}
           customLanes={customLanes}
           bundleTotal={bundleTotal}
+          mailboxes={mailboxes}
+          selectedMailbox={selectedMailbox}
+          onSelectMailbox={setSelectedMailbox}
           search={search}
           onSearch={setSearch}
           onSelectLane={(l) => {
@@ -882,13 +884,8 @@ export default function InboxPage() {
         </div>
       ) : (
         <div className="flex flex-1 overflow-hidden">
-          {mailboxes.length >= 2 && (
-            <MailboxRail
-              mailboxes={mailboxes}
-              selected={selectedMailbox}
-              onSelect={setSelectedMailbox}
-            />
-          )}
+          {/* The per-mailbox switcher moved into the folder sidebar (Mailboxes
+              sub-segment); the standalone rail is gone. */}
           <div
             ref={listRef}
             className={`overflow-y-auto ${selectedKey ? "w-[380px] shrink-0 border-r" : "flex-1"}`}

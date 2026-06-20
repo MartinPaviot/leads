@@ -9,9 +9,10 @@
  * state through callbacks; it owns no data.
  */
 
-import { Search, X, Inbox, AlarmClock, CheckCircle2, Bot, Send, Layers, Reply, Clock, Megaphone, Users, Plus } from "lucide-react";
-import type { InboxLane } from "./_types";
+import { Search, X, Inbox, AlarmClock, CheckCircle2, Bot, Send, Layers, Reply, Clock, Megaphone, Users, Plus, Mail } from "lucide-react";
+import type { InboxLane, MailboxSummary } from "./_types";
 import type { SplitCount } from "@/lib/inbox/splits";
+import { colorForMailbox } from "@/lib/inbox/mailbox-color";
 
 type LaneId = InboxLane | "outbound" | "bundles";
 
@@ -90,6 +91,9 @@ export function InboxFolders({
   splitCounts,
   customLanes,
   bundleTotal,
+  mailboxes,
+  selectedMailbox,
+  onSelectMailbox,
   search,
   onSearch,
   onSelectLane,
@@ -105,6 +109,11 @@ export function InboxFolders({
   splitCounts: SplitCount[];
   customLanes: Array<{ id: string; name: string; count: number }>;
   bundleTotal: number;
+  /** The user's connected mailboxes (the per-mailbox sub-segment shows with 2+). */
+  mailboxes: MailboxSummary[];
+  /** The focused mailbox id, or null for "All inboxes". */
+  selectedMailbox: string | null;
+  onSelectMailbox: (id: string | null) => void;
   search: string;
   onSearch: (q: string) => void;
   /** Select a built-in lane (clears custom lane + split). */
@@ -173,6 +182,30 @@ export function InboxFolders({
         <div className="my-1.5 border-t" style={{ borderColor: "var(--color-border-default)" }} />
         {lane("snoozed", counts.snoozed)}
         {lane("outbound")}
+
+        {/* Per-mailbox view (multi-mailbox users): scope the whole inbox to one
+            connected box, or All inboxes. A sidebar sub-segment, shown with 2+. */}
+        {mailboxes.length >= 2 && (
+          <>
+            <GroupLabel>Mailboxes</GroupLabel>
+            <FolderRow
+              icon={<Mail size={15} />}
+              label="All inboxes"
+              active={selectedMailbox === null}
+              onClick={() => onSelectMailbox(null)}
+            />
+            {mailboxes.map((m) => (
+              <FolderRow
+                key={m.id}
+                icon={<span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: colorForMailbox(m.id) }} />}
+                label={m.label || m.address}
+                count={m.attention}
+                active={selectedMailbox === m.id}
+                onClick={() => onSelectMailbox(m.id)}
+              />
+            ))}
+          </>
+        )}
 
         <div className="my-1.5 border-t" style={{ borderColor: "var(--color-border-default)" }} />
         {lane("done", counts.done)}
