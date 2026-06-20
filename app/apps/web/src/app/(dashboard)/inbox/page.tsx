@@ -13,7 +13,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
-import { Mail, AlertCircle } from "lucide-react";
+import { Inbox, Mail, AlertCircle } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -808,7 +809,18 @@ export default function InboxPage() {
   );
 
   return (
-    <div className="flex h-full animate-content-in">
+    <div className="flex h-full flex-col animate-content-in">
+      <PageHeader
+        icon={<Inbox size={16} />}
+        title="Inbox"
+        subtitle={
+          counts.attention > 0
+            ? `${counts.attention} conversation${counts.attention === 1 ? "" : "s"} need${counts.attention === 1 ? "s" : ""} your attention`
+            : "All caught up"
+        }
+      />
+
+      <div className="flex min-h-0 flex-1">
       {/* Left: mailbox folders + Splits (the Upstream IA). */}
       {mailboxConnected && (
         <InboxFolders
@@ -1003,6 +1015,7 @@ export default function InboxPage() {
         </div>
       )}
 
+      </div>
       </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={paletteCommands} />
