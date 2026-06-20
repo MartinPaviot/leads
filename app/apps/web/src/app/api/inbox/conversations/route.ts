@@ -57,8 +57,12 @@ export async function GET(req: Request) {
     const draftThreadIds = new Set<string>();
     const scheduledThreadIds = new Set<string>();
     if (scope.mailboxIds.size > 0) {
+      // NB: do NOT select hold_until — prod's outbound_emails lacks that column
+      // (schema is ahead of the prod DB; the worktree points at prod). A "held"
+      // row IS in its cancellable/scheduled window by construction (the worker
+      // releases it past holdUntil), so status alone is the right signal here.
       const rows = await db
-        .select({ threadId: outboundEmails.threadId, status: outboundEmails.status, holdUntil: outboundEmails.holdUntil })
+        .select({ threadId: outboundEmails.threadId, status: outboundEmails.status })
         .from(outboundEmails)
         .where(
           and(
@@ -68,11 +72,10 @@ export async function GET(req: Request) {
             inArray(outboundEmails.status, ["draft", "held"]),
           ),
         );
-      const nowMs = Date.now();
       for (const r of rows) {
         if (!r.threadId) continue;
         if (r.status === "draft") draftThreadIds.add(r.threadId);
-        else if (r.status === "held" && r.holdUntil && r.holdUntil.getTime() > nowMs) scheduledThreadIds.add(r.threadId);
+        else if (r.status === "held") scheduledThreadIds.add(r.threadId);
       }
     }
 
