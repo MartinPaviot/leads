@@ -48,7 +48,7 @@ import {
   type SelectionState,
 } from "@/lib/inbox/selection";
 
-type Tab = InboxLane | "outbound" | "bundles" | "starred" | "drafts" | "scheduled";
+type Tab = InboxLane | "outbound" | "bundles" | "starred" | "drafts" | "scheduled" | "all";
 
 /* ── CLE-14: page-action helpers (pure, shared) ── */
 
@@ -71,6 +71,7 @@ const TAB_LABELS: Record<Tab, string> = {
   starred: "Starred",
   drafts: "Drafts",
   scheduled: "Scheduled",
+  all: "All Mail",
 };
 
 
@@ -90,6 +91,7 @@ export default function InboxPage() {
   const [starredCount, setStarredCount] = useState(0);
   const [draftsCount, setDraftsCount] = useState(0);
   const [scheduledCount, setScheduledCount] = useState(0);
+  const [allMailCount, setAllMailCount] = useState(0);
   // The inbox is personal; false once a lane load confirms the user has no
   // connected mailbox of their own. Defaults true to avoid flashing the
   // connect card before the first response.
@@ -190,6 +192,7 @@ export default function InboxPage() {
           starredCount?: number;
           draftsCount?: number;
           scheduledCount?: number;
+          allMailCount?: number;
           bundles?: BundleSource[];
           catchUpCount?: number;
           lastSeen?: string | null;
@@ -203,6 +206,7 @@ export default function InboxPage() {
         setStarredCount(data.starredCount ?? 0);
         setDraftsCount(data.draftsCount ?? 0);
         setScheduledCount(data.scheduledCount ?? 0);
+        setAllMailCount(data.allMailCount ?? 0);
         setBundles(data.bundles ?? []);
         setCatchUpCount(data.catchUpCount ?? 0);
         // First visit (no marker yet): stamp it once so future visits compute
@@ -861,6 +865,7 @@ export default function InboxPage() {
           starredCount={starredCount}
           draftsCount={draftsCount}
           scheduledCount={scheduledCount}
+          allMailCount={allMailCount}
           mailboxes={mailboxes}
           selectedMailbox={selectedMailbox}
           onSelectMailbox={setSelectedMailbox}

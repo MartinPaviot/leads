@@ -17,6 +17,7 @@ function base(over: Record<string, unknown> = {}) {
     starredCount: 0,
     draftsCount: 0,
     scheduledCount: 0,
+    allMailCount: 0,
     mailboxes: [],
     selectedMailbox: null,
     onSelectMailbox: vi.fn(),

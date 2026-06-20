@@ -174,6 +174,8 @@ export async function GET(req: Request) {
         ? visible.filter(({ c }) => draftThreadIds.has(c.key)) // Upstream is:draft
       : laneParam === "scheduled"
         ? visible.filter(({ c }) => scheduledThreadIds.has(c.key)) // Upstream is:scheduled
+      : laneParam === "all"
+        ? visible // All Mail — every conversation, no lane filter (still owner-scoped)
       : customLane
         ? visible.filter((row) => laneMatches(toLaneCandidate(row), customLane))
         : splitParam
@@ -306,6 +308,7 @@ export async function GET(req: Request) {
       starredCount: visible.filter(({ c }) => starredKeys.has(c.key)).length,
       draftsCount: visible.filter(({ c }) => draftThreadIds.has(c.key)).length,
       scheduledCount: visible.filter(({ c }) => scheduledThreadIds.has(c.key)).length,
+      allMailCount: visible.length,
       pagination: { page, pageSize: PAGE_SIZE, total: inLane.length },
       mailboxConnected: scope.hasMailbox,
       mailboxes,

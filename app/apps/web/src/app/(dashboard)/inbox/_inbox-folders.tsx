@@ -9,12 +9,12 @@
  * state through callbacks; it owns no data.
  */
 
-import { Inbox, AlarmClock, CheckCircle2, Bot, Send, Layers, Reply, Clock, Megaphone, Users, Plus, Mail, Star, FileText, SendHorizontal } from "lucide-react";
+import { Inbox, AlarmClock, CheckCircle2, Bot, Send, Layers, Reply, Clock, Megaphone, Users, Plus, Mail, Star, FileText, SendHorizontal, Mails } from "lucide-react";
 import type { InboxLane, MailboxSummary } from "./_types";
 import type { SplitCount } from "@/lib/inbox/splits";
 import { colorForMailbox } from "@/lib/inbox/mailbox-color";
 
-type LaneId = InboxLane | "outbound" | "bundles" | "starred" | "drafts" | "scheduled";
+type LaneId = InboxLane | "outbound" | "bundles" | "starred" | "drafts" | "scheduled" | "all";
 
 const LANE_META: Record<LaneId, { label: string; icon: React.ReactNode }> = {
   attention: { label: "Inbox", icon: <Inbox size={15} /> },
@@ -26,6 +26,7 @@ const LANE_META: Record<LaneId, { label: string; icon: React.ReactNode }> = {
   starred: { label: "Starred", icon: <Star size={15} /> },
   drafts: { label: "Drafts", icon: <FileText size={15} /> },
   scheduled: { label: "Scheduled", icon: <SendHorizontal size={15} /> },
+  all: { label: "All Mail", icon: <Mails size={15} /> },
 };
 
 const SPLIT_ICON: Record<string, React.ReactNode> = {
@@ -97,6 +98,7 @@ export function InboxFolders({
   starredCount,
   draftsCount,
   scheduledCount,
+  allMailCount,
   mailboxes,
   selectedMailbox,
   onSelectMailbox,
@@ -115,9 +117,10 @@ export function InboxFolders({
   bundleTotal: number;
   /** Count for the Starred folder (Upstream is:starred). */
   starredCount: number;
-  /** Counts for the Drafts + Scheduled folders. */
+  /** Counts for the Drafts + Scheduled + All Mail folders. */
   draftsCount: number;
   scheduledCount: number;
+  allMailCount: number;
   /** The user's connected mailboxes (the per-mailbox sub-segment shows with 2+). */
   mailboxes: MailboxSummary[];
   /** The focused mailbox id, or null for "All inboxes". */
@@ -177,6 +180,7 @@ export function InboxFolders({
         {lane("outbound")}
         {lane("drafts", draftsCount)}
         {lane("scheduled", scheduledCount)}
+        {lane("all", allMailCount)}
 
         {/* Per-mailbox view (multi-mailbox users): scope the whole inbox to one
             connected box, or All inboxes. A sidebar sub-segment, shown with 2+. */}
