@@ -6,6 +6,7 @@
  */
 
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { buildRejectionCounterPrompt, type DominantInsight } from "@/lib/sequence-drafts/rejection-counter-prompt";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { llmCall } from "@/lib/ai/llm-call";
@@ -57,7 +58,7 @@ export type GeneratedSequence = z.infer<typeof generatedSequenceSchema>;
  */
 export async function generateSequence(
   ctx: ProspectContext,
-  options?: { stepCount?: number; meetingSlots?: string; tenantId?: string; evaluate?: boolean; knowledgeContext?: string }
+  options?: { stepCount?: number; meetingSlots?: string; tenantId?: string; evaluate?: boolean; knowledgeContext?: string; rejectionInsight?: DominantInsight | null }
 ): Promise<GeneratedSequence> {
   const model = getLLMModel();
   if (!model) throw new Error("No LLM API key configured");
@@ -67,7 +68,7 @@ export async function generateSequence(
   const stepCount = options?.stepCount || 5;
   const strategies = STEP_STRATEGIES.slice(0, stepCount);
 
-  const basePrompt = buildGenerationPrompt(ctx, methodology, signalAngle, strategies, options?.meetingSlots, options?.knowledgeContext);
+  const basePrompt = buildGenerationPrompt(ctx, methodology, signalAngle, strategies, options?.meetingSlots, options?.knowledgeContext, options?.rejectionInsight ?? null);
 
   // Standard generation (bulk campaigns)
   if (!options?.evaluate) {
@@ -209,14 +210,18 @@ export async function evaluateSequenceQuality(
   };
 }
 
-function buildGenerationPrompt(
+export function buildGenerationPrompt(
   ctx: ProspectContext,
   methodology: Methodology,
   signalAngle: (typeof SIGNAL_ANGLES)[string] | null,
   strategies: StepStrategy[],
   meetingSlots?: string,
   knowledgeContext?: string,
+  rejectionInsight?: DominantInsight | null,
 ): string {
+  // P0-6 — counter the dominant rejection reason for this sequence (if any),
+  // prefixed so it leads the prompt without touching the CRITICAL RULES.
+  const counterBlock = buildRejectionCounterPrompt(rejectionInsight ?? null);
   const contextBlock = formatContextForPrompt(ctx);
 
   const methodologyBlock = `METHODOLOGY: ${methodology.name}
@@ -263,7 +268,7 @@ function buildGenerationPrompt(
   const examples = getExamplesForMethodology(methodology.name);
   const examplesBlock = formatExamplesForPrompt(examples);
 
-  return `You are a world-class SDR at ${ctx.companyName || "our company"}. You write cold outreach that converts at 3x industry average because every email demonstrates you deeply understand the prospect's world. You never sound like a template. You never "follow up" — each email brings fresh value.
+  return `${counterBlock ? counterBlock + "\n\n" : ""}You are a world-class SDR at ${ctx.companyName || "our company"}. You write cold outreach that converts at 3x industry average because every email demonstrates you deeply understand the prospect's world. You never sound like a template. You never "follow up" — each email brings fresh value.
 
 ${contextBlock}
 

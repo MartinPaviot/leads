@@ -8,6 +8,7 @@ import { buildIntelligenceBrief, toResearchBriefContext, briefIsEmpty } from "@/
 import type { IntelligenceBrief } from "@/lib/campaign-engine/types";
 import { selectStrategy } from "@/lib/campaign-engine/select-strategy";
 import { withTimeout } from "@/lib/utils/with-timeout";
+import { extractDominantInsight, type DominantInsight } from "@/lib/sequence-drafts/rejection-counter-prompt";
 
 const TIMEOUT_BRIEF_MS = Number(process.env.GENERATE_BRIEF_TIMEOUT_MS ?? 8000);
 
@@ -79,6 +80,23 @@ export async function POST(req: Request) {
       );
     }
 
+    // P0-6 — load the per-sequence dominant rejection insight (fail-open,
+    // tenant-scoped; floor applied in extractDominantInsight) so generation
+    // counters the reason founders kept rejecting for.
+    let rejectionInsight: DominantInsight | null = null;
+    if (sequenceId) {
+      try {
+        const [seq] = await db
+          .select({ campaignConfig: sequences.campaignConfig })
+          .from(sequences)
+          .where(and(eq(sequences.id, sequenceId), eq(sequences.tenantId, authCtx.tenantId)))
+          .limit(1);
+        rejectionInsight = extractDominantInsight(seq?.campaignConfig);
+      } catch (err) {
+        console.warn("rejectionInsight load failed (fail-open):", err);
+      }
+    }
+
     let generated;
     let strategyUsed: string | null = null;
 
@@ -97,7 +115,7 @@ export async function POST(req: Request) {
     if (resolvedContactId) {
       const ctx = await buildProspectContext(resolvedContactId, authCtx.tenantId);
       if (!ctx) return Response.json({ error: "Contact not found" }, { status: 404 });
-      generated = await generateSequence(ctx, { stepCount: stepCount || 5 });
+      generated = await generateSequence(ctx, { stepCount: stepCount || 5, rejectionInsight });
     } else {
       // No contacts yet — generate template sequence from company context
       const { getTenantSettings } = await import("@/lib/config/tenant-settings");
@@ -148,7 +166,7 @@ export async function POST(req: Request) {
             : undefined,
       };
 
-      generated = await generateSequence(minimalCtx as any, { stepCount: stepCount || 5 });
+      generated = await generateSequence(minimalCtx as any, { stepCount: stepCount || 5, rejectionInsight });
     }
 
     let targetSequenceId = sequenceId;
