@@ -48,11 +48,17 @@ export async function GET() {
  * its detection plan via LLM, and kick off a backfill. Returns the
  * created row immediately; the backfill runs async via Inngest.
  *
- * Open to any authenticated tenant member — custom signals only add
- * columns to the accounts view (not destructive, not permission-gated
- * data). The LLM budget is already enforced by `tracedGenerateObject`
- * inside the generator, and the Inngest backfill is
- * concurrency-capped per signalId. */
+ * AUTH: any authenticated tenant member (no admin gate).
+ * Approved by Martin on 2026-04-22 (Option A, checkpoint review).
+ * Rationale: custom signals only add columns to the accounts view
+ * (not destructive, not permission-gated data).
+ *
+ * Budget enforcement chain:
+ *   1. checkRateLimit("llm", userId)              — this file, below
+ *   2. generateCustomSignalPlan -> tracedGenerateObject
+ *      -> enforceLlmBudget(tenantId)              — lib/traced-ai.ts
+ *      -> getTenantCost + llmMonthlyCostCapUsd     — lib/llm-budget.ts
+ *   3. Inngest backfill concurrency-capped per signalId */
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
   if (!authCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
