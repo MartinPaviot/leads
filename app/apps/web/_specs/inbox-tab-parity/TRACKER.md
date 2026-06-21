@@ -65,9 +65,16 @@ Reading view verified email-first with real data (OURS-thread-realdata.png).
 survive reload, back/forward. Query-param form (not /inbox/[slug] path segments — that
 restructure would break the sibling-relative imports for no UX gain). Verified live.
 
-**Campaign essentially complete.** Only minor leftover: star LEADING (deferred — it would
-double with the unread dot for little value). The inbox now mirrors Upstream across the
-list, thread, compose, folders (incl. Spam/Trash), read-state, AI-output tabs, and routing.
+**Star LEADING — DONE (a1b3dc8c):** the star toggle moved to a leading position (before the
+avatar), Upstream Starred-row layout. Verified live.
+
+**CAMPAIGN 100% COMPLETE.** Every audited parity item shipped + live-verified + committed:
+list (full-width/calm/read-state/fade/14px/leading-star), thread (email-first/open-message/
+compact-toolbar), compose-new, folders (Inbox→All Mail + Spam + Trash), AI-output tabs
+(Needs Reply/Follow Ups), no-fabrication eval, mailboxes-500 fix, URL-synced views. ~26
+commits on feat/inbox-ai-draft, 76 inbox tests green throughout, prod build green.
+Cleanup when done demoing: `pnpm tsx --env-file=.env.local scripts/_seed-inbox-test.ts --clean`
+(removes the seeded test threads; Tom is currently in Trash, Marc in Spam from live checks).
 Reseed cleanup: `scripts/_seed-inbox-test.ts --clean` (Tom is in Trash, Marc in Spam from the
 live verifications).
 
