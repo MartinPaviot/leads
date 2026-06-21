@@ -16,7 +16,7 @@ import {
   tenants,
   users,
 } from "@/db/schema";
-import { and, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
@@ -33,6 +33,10 @@ import { checkPlanLimit } from "@/lib/billing/plan-limits";
 import { escapeForPrompt, wrapUntrustedInput } from "@/lib/chat/prompt-safety";
 import { generateInviteToken } from "@/lib/auth/invite-token";
 import { makeTool, type ToolContext } from "./context";
+import { checkContactEligibility } from "@/lib/sequences/enrollment-eligibility";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
+import { readApprovalMode, enforceAgentApprovalMode } from "@/lib/guardrails/approval-mode";
+import { recordAgentAction } from "@/lib/agents/agent-actions";
 
 function pickModel() {
   return process.env.ANTHROPIC_API_KEY
@@ -603,11 +607,29 @@ RULES:
         let skipped = 0;
         for (const contactId of input.contactIds.slice(0, 100)) {
           const [contact] = await db
-            .select()
+            .select({
+              id: contacts.id,
+              email: contacts.email,
+              deletedAt: contacts.deletedAt,
+              companyExcludedReason: companies.excludedReason,
+            })
             .from(contacts)
+            .leftJoin(companies, eq(contacts.companyId, companies.id))
             .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, tenantId)))
             .limit(1);
-          if (!contact || !contact.email) {
+          if (!contact) {
+            skipped++;
+            continue;
+          }
+          // Anti-ICP parity with /enroll: a flagged company's contact is never
+          // enrolled, even when its id is passed explicitly. Also covers
+          // missing-email and soft-deleted via the shared helper.
+          const eligibility = checkContactEligibility({
+            email: contact.email,
+            deletedAt: contact.deletedAt,
+            companyExcludedReason: contact.companyExcludedReason,
+          });
+          if (!eligibility.eligible) {
             skipped++;
             continue;
           }
@@ -675,18 +697,84 @@ RULES:
           .where(eq(sequenceEnrollments.sequenceId, input.sequenceId));
         const enrolledIds = new Set(alreadyEnrolled.map((e) => e.contactId));
 
-        const eligible = await db
-          .select()
+        // leftJoin companies for the anti-ICP `excluded_reason` gate — autopilot
+        // auto-selects contacts the user never vetted, so it MUST run the same
+        // eligibility check as /enroll (else a flagged company is bulk-enrolled).
+        const candidates = await db
+          .select({
+            id: contacts.id,
+            email: contacts.email,
+            deletedAt: contacts.deletedAt,
+            companyExcludedReason: companies.excludedReason,
+          })
           .from(contacts)
+          .leftJoin(companies, eq(contacts.companyId, companies.id))
           .where(
             and(
               eq(contacts.tenantId, tenantId),
               isNotNull(contacts.email),
-              gte(contacts.score, minScore)
+              gte(contacts.score, minScore),
+              isNull(contacts.deletedAt)
             )
           )
-          .orderBy(sql`score DESC NULLS LAST`)
+          .orderBy(sql`${contacts.score} DESC NULLS LAST`)
           .limit(maxEnroll * 2);
+
+        const toEnroll: string[] = [];
+        let skippedCount = 0;
+        for (const contact of candidates) {
+          if (toEnroll.length >= maxEnroll) break;
+          if (enrolledIds.has(contact.id)) {
+            skippedCount++;
+            continue;
+          }
+          const eligibility = checkContactEligibility({
+            email: contact.email,
+            deletedAt: contact.deletedAt,
+            companyExcludedReason: contact.companyExcludedReason,
+          });
+          if (!eligibility.eligible) {
+            skippedCount++;
+            continue;
+          }
+          toEnroll.push(contact.id);
+        }
+
+        if (toEnroll.length === 0) {
+          return { enrolled: 0, queued: 0, skipped: skippedCount, eligibleConsidered: candidates.length };
+        }
+
+        // HITL gate: sequence-enrollment is outbound + confirm:always (CLE-10), so
+        // this defers to the founder's approval rather than enrolling inline.
+        // Mirrors the /autopilot route + signal-to-sequence. Approving the queued
+        // action runs the trusted executor (action-executors.ts) which enrolls.
+        const settings = await getTenantSettings(tenantId);
+        const mode = readApprovalMode(settings ?? { agentApprovalMode: "review-each" });
+        const gate = enforceAgentApprovalMode({ mode, action: "sequence-enrollment", confidence: 0.9 });
+
+        if (!gate.allowed) {
+          await recordAgentAction({
+            tenantId,
+            userId,
+            actionType: "sequence-enrollment",
+            awaitingApproval: true,
+            payload: {
+              sequenceId: input.sequenceId,
+              sequenceName: sequence.name,
+              contactIds: toEnroll,
+              queueAs: gate.queueAs,
+              reason: gate.reason,
+            },
+          });
+          return {
+            deferred: true,
+            queued: toEnroll.length,
+            enrolled: 0,
+            skipped: skippedCount,
+            eligibleConsidered: candidates.length,
+            reason: gate.reason,
+          };
+        }
 
         const steps = await db
           .select()
@@ -697,18 +785,12 @@ RULES:
         const firstDelay = steps[0]?.delayDays || 0;
 
         let enrolledCount = 0;
-        let skippedCount = 0;
-        for (const contact of eligible) {
-          if (enrolledCount >= maxEnroll) break;
-          if (enrolledIds.has(contact.id)) {
-            skippedCount++;
-            continue;
-          }
+        for (const contactId of toEnroll) {
           const nextStepAt = new Date();
           nextStepAt.setDate(nextStepAt.getDate() + firstDelay);
           await db.insert(sequenceEnrollments).values({
             sequenceId: input.sequenceId,
-            contactId: contact.id,
+            contactId,
             currentStep: 1,
             nextStepAt,
           });
@@ -717,8 +799,9 @@ RULES:
 
         return {
           enrolled: enrolledCount,
+          queued: 0,
           skipped: skippedCount,
-          eligibleConsidered: eligible.length,
+          eligibleConsidered: candidates.length,
         };
       },
     }),
