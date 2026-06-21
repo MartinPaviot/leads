@@ -421,6 +421,8 @@ describe("B7 /inbox — Generate nudge affordance (B3.2)", () => {
     detailResponse = () =>
       jsonRes({ ...FIXTURE_DETAIL, conversation: { ...FIXTURE_DETAIL.conversation, followup: dueFollowup } });
     await mountLoaded();
+    // Generate nudge now lives in the "⋮ More" overflow (Upstream-clean toolbar).
+    fireEvent.click(await screen.findByText("More"));
     const btn = await screen.findByText("Generate nudge");
     fireEvent.click(btn);
     await flush();

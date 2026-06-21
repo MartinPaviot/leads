@@ -51,6 +51,7 @@ import { ThreadAssignment } from "./_thread-assignment";
 import { AttachmentStrip } from "./_attachments";
 import { ThreadLabels } from "./_thread-labels";
 import { ThreadPresence } from "./_thread-presence";
+import { MoreMenu, type MoreMenuItem } from "@/components/ui/more-menu";
 import { shouldSummarize } from "@/lib/inbox/thread-summary-prep";
 import { initialsFor, avatarColorIndex } from "@/lib/inbox/sender-auth";
 import { parseWhen } from "@/lib/inbox/parse-when";
@@ -539,6 +540,31 @@ export function ConversationPane({
     (intel && ((intel.signals?.length ?? 0) > 0 || (intel.objections?.length ?? 0) > 0 || (intel.nextSteps?.length ?? 0) > 0) ? 1 : 0);
   const triageable = lane === "attention" || lane === "snoozed";
 
+  // Secondary thread actions collapsed behind a "⋮ More" overflow (Upstream-clean
+  // toolbar): the primary Generate-draft/Reply + Snooze/Done stay inline; Book
+  // meeting, the gentle nudge, and Stop sequence move here. Assignee/labels/presence
+  // are thread METADATA, not toolbar actions — they render in the header meta line.
+  const moreItems: MoreMenuItem[] = [];
+  if (detail.contact) {
+    moreItems.push({ label: "Book meeting", icon: <CalendarPlus size={14} />, onClick: () => setSchedOpen(true) });
+  }
+  if (detail.contact && proposedTime && !schedOpen) {
+    moreItems.push({
+      label: `Book ${proposedTime.phrase}`,
+      icon: <CalendarPlus size={14} />,
+      onClick: () => {
+        setPrefillWhen(toDatetimeLocal(proposedTime.start));
+        setSchedOpen(true);
+      },
+    });
+  }
+  if (detail.conversation.followup?.dueAt != null) {
+    moreItems.push({ label: "Generate nudge", icon: <AlarmClock size={14} />, onClick: () => void generateNudge(), disabled: drafting });
+  }
+  if (detail.enrollment) {
+    moreItems.push({ label: "Stop sequence", icon: <OctagonX size={14} />, onClick: () => void stopSequence(), disabled: stopping });
+  }
+
   return (
     <div className="flex h-full flex-col">
       {/* ── Header: who, subject, actions ── */}
@@ -620,6 +646,14 @@ export function ConversationPane({
           </div>
         </div>
 
+        {/* Thread metadata (Upstream-clean: not toolbar actions): assignee, shared
+            labels, live presence. Each renders only when it has something to show. */}
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <ThreadAssignment conversationKey={conv.key} />
+          <ThreadLabels conversationKey={conv.key} openSignal={labelSignal} />
+          <ThreadPresence conversationKey={conv.key} />
+        </div>
+
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
           {/* B1: where the thread is reply-worthy, the primary affordance is the
               voice-matched Generate-draft (Cmd/Ctrl+J runs the same flow). Reply
@@ -642,59 +676,9 @@ export function ConversationPane({
               {drafting ? "Drafting…" : "Reply"}
             </Button>
           )}
-          {/* B7: a gentle pre-drafted follow-up, only on awaiting-their-reply threads
-              with a due time (followup is non-null only when awaitingTheirReply). */}
-          {detail.conversation.followup?.dueAt != null && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={generateNudge}
-              disabled={drafting}
-              className="gap-1.5"
-              title="Draft a gentle follow-up — review before sending"
-            >
-              {drafting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlarmClock className="h-3.5 w-3.5" />}
-              Generate nudge
-            </Button>
-          )}
-          {detail.contact && (
-            <Button
-              variant={schedOpen ? "solid" : "outline"}
-              size="sm"
-              onClick={() => setSchedOpen((v) => !v)}
-              className="gap-1.5"
-            >
-              <CalendarPlus className="h-3.5 w-3.5" />
-              Book meeting
-            </Button>
-          )}
-          {detail.contact && proposedTime && !schedOpen && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setPrefillWhen(toDatetimeLocal(proposedTime.start));
-                setSchedOpen(true);
-              }}
-              className="gap-1.5"
-              title={`They proposed ${proposedTime.phrase}`}
-            >
-              <CalendarPlus className="h-3.5 w-3.5" />
-              Book {proposedTime.phrase}
-            </Button>
-          )}
-          {/* Assign to a teammate (INBOX-X01) — shows only when the workspace has 2+ members. */}
-          <ThreadAssignment conversationKey={conv.key} />
-          {/* Shared labels (INBOX-X04). */}
-          <ThreadLabels conversationKey={conv.key} openSignal={labelSignal} />
-          {/* Live presence (INBOX-X03) — who else is on this thread. */}
-          <ThreadPresence conversationKey={conv.key} />
-          {detail.enrollment && (
-            <Button variant="outline" size="sm" onClick={() => void stopSequence()} disabled={stopping} className="gap-1.5">
-              {stopping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <OctagonX className="h-3.5 w-3.5" />}
-              Stop sequence
-            </Button>
-          )}
+          {/* Secondary actions behind the overflow (Book meeting / nudge / stop
+              sequence). Assignee/labels/presence are in the header meta line above. */}
+          {moreItems.length > 0 && <MoreMenu label="More" items={moreItems} />}
           <div className="ml-auto flex items-center gap-2">
             {triageable && (
               <div className="relative" ref={snoozeRef}>
