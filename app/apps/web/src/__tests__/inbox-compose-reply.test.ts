@@ -14,7 +14,9 @@ describe("compose-reply (INBOX-C01/G08)", () => {
     expect(p).toContain("[1] anna@acme.ch:");
     expect(p.startsWith("Sign off as Martin.")).toBe(true);
     expect(p).toContain("What you know about them: Open deal: Proposal stage.");
-    expect(p).toContain("never imply the email has already been sent");
+    // The no-already-sent guardrail must be present (casing is incidental — it
+    // became a sentence-start "Never imply…" when the no-fabrication clause landed).
+    expect(p.toLowerCase()).toContain("never imply the email has already been sent");
   });
 
   it("maps + trims a generator result", async () => {
