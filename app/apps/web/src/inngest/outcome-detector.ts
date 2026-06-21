@@ -16,7 +16,8 @@ export const outcomeDetectorCron = inngest.createFunction(
   {
     id: "outcome-detector-cron",
     retries: 1,
-    triggers: [{ cron: "*/15 * * * *" }],
+    // Outcome tracking isn't latency-critical — every 30 min is plenty.
+    triggers: [{ cron: "*/30 * * * *" }],
   },
   async ({ step }: { step: any }) => {
     const now = new Date();

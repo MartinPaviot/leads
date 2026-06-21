@@ -43,7 +43,6 @@ import { playbookCapturePostCall } from "@/inngest/playbook-capture-post-call";
 import { playbookExtractFromActivity } from "@/inngest/playbook-extract-from-activity";
 import { sequenceDraftToOutbound } from "@/inngest/sequence-draft-to-outbound";
 import { signalScoreDaily } from "@/inngest/signal-score-daily";
-import { visitorPhoneEnrichRequest } from "@/inngest/visitor-phone-enrich-request";
 import { phoneTaskNotification } from "@/inngest/phone-task-notification";
 import { icpFitRecomputeTenant, icpFitRecomputeDaily } from "@/inngest/icp-fit-recompute";
 import { nightlyRelationshipGraphBuild, onDemandRelationshipGraphBuild } from "@/inngest/relationship-graph-builder";
@@ -66,7 +65,7 @@ import { dailyStallPrediction, onDemandStallPrediction } from "@/inngest/stall-p
 import { evaluateRealtimeSignals } from "@/inngest/realtime-signal-handler";
 import { agentTaskExecute, agentTaskCleanup } from "@/inngest/agent-task-runner";
 import { agentReactor, agentDailySweep } from "@/inngest/agent-reactor";
-import { agentActionDispatcher } from "@/inngest/agent-action-dispatcher";
+import { agentActionDispatcher, agentActionOnScheduled } from "@/inngest/agent-action-dispatcher";
 import { outcomeDetectorCron } from "@/inngest/outcome-detector";
 import { weeklyTrustRecalculation } from "@/inngest/trust-recalculator";
 // Campaign Engine 1000x
@@ -111,7 +110,9 @@ export const { GET, POST, PUT } = serve({
     cronCalendarSync,
     autoMeetingPrep,
     generateMeetingPrep,
-    scheduleRecallBots,
+    // Only register when Recall is configured — otherwise its 5-min cron
+    // no-ops (early-returns on missing RECALL_API_KEY) and burns quota.
+    ...(process.env.RECALL_API_KEY ? [scheduleRecallBots] : []),
     onOnboardingCompleted,
     processOutboundEmails,
     sendSingleEmail,
@@ -197,11 +198,9 @@ export const { GET, POST, PUT } = serve({
     // loop on single + bulk approve — without this, drafts sat in
     // `approved` forever and never sent. Fires on email.send.queued.
     sequenceDraftToOutbound,
-    // Stub producer: 5-min cron that scans identified visits and
-    // emits phone/enrich-requested for callable-but-phoneless contacts.
-    // Consumer (Apollo→Kaspr→Lusha waterfall) lives on
-    // feat/voice-cold-call — drop-in when that merges.
-    visitorPhoneEnrichRequest,
+    // visitor-phone-enrich stub unregistered: its consumer (the phone-enrich
+    // waterfall) lives on feat/voice-cold-call and isn't merged, so the 5-min
+    // cron fired into the void. Re-add the import + entry when that lands.
     // Consumer of phone/task-queued — inserts a notification per
     // tenant user so the agent sees the phone task and dials via
     // the existing softphone. Voice Phase 1 is pull-based so this
@@ -263,8 +262,10 @@ export const { GET, POST, PUT } = serve({
     // F001: Agent event loop — real-time autonomous decision reactor
     agentReactor,
     agentDailySweep,
-    // WS-7 completion: dispatcher that executes approved (and auto-grace)
-    // agent_actions through the safe paths. Without it, approve was a no-op.
+    // WS-7 completion: agent_actions execution. Primary path is
+    // event-driven (sleeps until due, no polling); the dispatcher is the
+    // low-frequency safety-net sweep. Without these, approve was a no-op.
+    agentActionOnScheduled,
     agentActionDispatcher,
     // F003: Outcome tracking — feedback loop for agent actions
     outcomeDetectorCron,

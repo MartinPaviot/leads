@@ -8,10 +8,12 @@
  *     to 'reversed' and record a negative trustScore event
  *   markAgentActionExecuted({ actionId }) → flip to 'executed'
  *
- * Email-send flow uses a 60-second scheduled dispatch. The Inngest
- * job `agent-action-dispatcher` runs every minute, picks up
- * `scheduled` rows whose `scheduledExecutionAt` has passed AND
- * `reversedAt IS NULL`, and executes the payload.
+ * Email-send flow uses a 60-second scheduled dispatch. Dispatch is
+ * event-driven: when a row becomes due (grace-send creation here, or
+ * approval in `approveAgentAction`), we emit `agent/action.scheduled`;
+ * the Inngest fn `agent-action-on-scheduled` sleeps until the time and
+ * executes that row. A 15-minute sweep (`agent-action-dispatcher`) is the
+ * backstop for any lost event, so emitting is best-effort (non-fatal).
  *
  * Errors are captured on the row (status='failed', errorMessage)
  * rather than thrown — the agent continues autonomously even when
@@ -23,6 +25,7 @@ import { agentActions } from "@/db/schema";
 import { and, eq, isNull, lte, sql } from "drizzle-orm";
 import { recordAutonomyEvent } from "@/lib/guardrails/trust-score";
 import logger from "@/lib/observability/logger";
+import { inngest } from "@/inngest/client";
 
 export const DEFAULT_EMAIL_GRACE_MS = 60_000;
 export const DEFAULT_WRITE_REVERSIBLE_MS = 24 * 60 * 60 * 1000; // 24 h
@@ -83,6 +86,29 @@ export async function recordAgentAction(
       executedAt,
     })
     .returning({ id: agentActions.id });
+
+  // PRIMARY dispatch trigger — only when the row is actually due-able: a
+  // grace send with an execution time. Awaiting-approval rows carry no
+  // time yet (approveAgentAction emits when it stamps one); immediate
+  // 'executed' writes never dispatch. Non-fatal: the */15 sweep backstops
+  // a lost emit.
+  if (status === "scheduled" && scheduledAt) {
+    await inngest
+      .send({
+        name: "agent/action.scheduled",
+        data: {
+          actionId: row.id,
+          tenantId: input.tenantId,
+          runAt: scheduledAt.toISOString(),
+        },
+      })
+      .catch((err) =>
+        logger.warn("agent-actions: schedule-event emit failed", {
+          actionId: row.id,
+          err: err instanceof Error ? err.message : String(err),
+        }),
+      );
+  }
 
   return { id: row.id };
 }
@@ -192,6 +218,24 @@ export async function approveAgentAction(params: {
     .update(agentActions)
     .set({ scheduledExecutionAt: now, updatedAt: now })
     .where(eq(agentActions.id, params.actionId));
+
+  // Trigger the event-driven dispatcher now that the action has a time.
+  // Non-fatal: the */15 sweep is the backstop.
+  await inngest
+    .send({
+      name: "agent/action.scheduled",
+      data: {
+        actionId: params.actionId,
+        tenantId: params.tenantId,
+        runAt: now.toISOString(),
+      },
+    })
+    .catch((err) =>
+      logger.warn("agent-actions: approve schedule-event emit failed", {
+        actionId: params.actionId,
+        err: err instanceof Error ? err.message : String(err),
+      }),
+    );
 
   // Positive trust signal — the user approved the agent's proposal as-is.
   await recordAutonomyEvent({

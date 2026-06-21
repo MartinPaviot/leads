@@ -15,7 +15,7 @@
 import { inngest } from "./client";
 import { db } from "@/db";
 import { outboundEmails, connectedMailboxes } from "@/db/schema";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, exists, sql } from "drizzle-orm";
 import { sendViaSmtp } from "@/lib/integrations/smtp-send";
 import { decryptSecret } from "@/lib/crypto/settings-encryption";
 import { logger } from "@/lib/observability/logger";
@@ -29,14 +29,38 @@ export const dispatchOutboundSmtp = inngest.createFunction(
     id: "dispatch-outbound-smtp",
     name: "Dispatch queued outbound via SMTP",
     retries: 1,
-    triggers: [{ cron: "*/2 * * * *" }],
+    // Event for immediacy + 15-minute cron backstop (next-day retry of
+    // daily-limit skips). concurrency:1 + the per-row atomic claim below make
+    // concurrent invocations (event + cron) safe — a row is sent once.
+    concurrency: [{ limit: 1 }],
+    triggers: [{ event: "outbound/queued" }, { cron: "*/15 * * * *" }],
   },
   async ({ step }) => {
     const queued = await step.run("find-queued", async () => {
+      // Only this transport's rows: tenants WITH an active custom-SMTP mailbox.
+      // Resend tenants are handled by processOutboundEmails — the two queries
+      // are disjoint (exists vs notExists on the same predicate) so a row is
+      // never picked up by both senders.
       return db
         .select()
         .from(outboundEmails)
-        .where(eq(outboundEmails.status, "queued"))
+        .where(
+          and(
+            eq(outboundEmails.status, "queued"),
+            exists(
+              db
+                .select({ one: sql`1` })
+                .from(connectedMailboxes)
+                .where(
+                  and(
+                    eq(connectedMailboxes.tenantId, outboundEmails.tenantId),
+                    eq(connectedMailboxes.provider, "smtp_custom"),
+                    eq(connectedMailboxes.status, "active"),
+                  ),
+                ),
+            ),
+          ),
+        )
         .limit(BATCH);
     });
     if (queued.length === 0) return { sent: 0, failed: 0, skipped: 0 };
@@ -47,23 +71,9 @@ export const dispatchOutboundSmtp = inngest.createFunction(
 
     for (const o of queued) {
       const result = await step.run(`send-${o.id}`, async () => {
-        // TEST-MODE GUARDRAIL — never reach a real prospect over SMTP while
-        // test mode is on. Fail the row with a clear reason instead.
-        if (!isRecipientAllowed(o.toAddress)) {
-          await db
-            .update(outboundEmails)
-            .set({
-              status: "failed",
-              failedAt: new Date(),
-              errorMessage: recipientBlockReason(o.toAddress),
-              updatedAt: new Date(),
-            })
-            .where(eq(outboundEmails.id, o.id));
-          return "failed";
-        }
-
-        // Resolve the tenant's active SMTP mailbox. If none, this tenant isn't
-        // on the IMAP/SMTP path — leave the row queued for its own sender.
+        // Resolve the tenant's active SMTP mailbox FIRST. No mailbox or over
+        // the daily limit ⇒ leave the row 'queued' for a later tick — do NOT
+        // claim it, so nothing is stranded in 'sending'.
         const [mb] = await db
           .select()
           .from(connectedMailboxes)
@@ -78,18 +88,52 @@ export const dispatchOutboundSmtp = inngest.createFunction(
         if (!mb || !mb.smtpHost || !mb.secretEncrypted) return "skipped";
         if ((mb.sentToday ?? 0) >= (mb.dailyLimit ?? 50)) return "skipped";
 
-        // CLE-13 (items 1 + 3): opt-out/suppression + sending-identity gate. This
-        // path had NO opt-out check before — the shared gate closes that gap
-        // (hard-bounce covered via the same email_optouts lookup). cap-hit leaves
-        // the row queued (treated as skipped) so it retries; every other block
-        // (opt-out / cold / managed) fails the row with the reason.
+        // Atomic claim: queued -> sending. 0 rows ⇒ a concurrent run already
+        // took it; skip without sending. This is what makes the event trigger
+        // safe — multiple concurrent invocations can't send the same row (#231).
+        const claimed = await db
+          .update(outboundEmails)
+          .set({ status: "sending", updatedAt: new Date() })
+          .where(and(eq(outboundEmails.id, o.id), eq(outboundEmails.status, "queued")))
+          .returning({ id: outboundEmails.id });
+        if (claimed.length === 0) return "skipped";
+
+        // TEST-MODE GUARDRAIL — never reach a real prospect over SMTP while
+        // test mode is on. Fail the (now-claimed) row with a clear reason.
+        if (!isRecipientAllowed(o.toAddress)) {
+          await db
+            .update(outboundEmails)
+            .set({
+              status: "failed",
+              failedAt: new Date(),
+              errorMessage: recipientBlockReason(o.toAddress),
+              updatedAt: new Date(),
+            })
+            .where(eq(outboundEmails.id, o.id));
+          return "failed";
+        }
+
+        // CLE-13 (items 1 + 3): opt-out/suppression + sending-identity gate, run
+        // AFTER the atomic claim. primary-cap-hit RE-QUEUES the claimed row (so a
+        // later pass retries once capacity frees) — mirroring the Resend worker;
+        // every other block (opt-out / cold / managed) fails it with the reason.
         const smtpGate = await evaluateSend({
           tenantId: o.tenantId,
           toAddress: o.toAddress,
           sentTodayFromPrimary: mb.sentToday ?? 0,
         });
         if (!smtpGate.send) {
-          if (smtpGate.code === "primary-cap-hit") return "skipped";
+          if (smtpGate.code === "primary-cap-hit") {
+            await db
+              .update(outboundEmails)
+              .set({
+                status: "queued",
+                errorMessage: smtpGate.reason,
+                updatedAt: new Date(),
+              })
+              .where(eq(outboundEmails.id, o.id));
+            return "skipped";
+          }
           await db
             .update(outboundEmails)
             .set({

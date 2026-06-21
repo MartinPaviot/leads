@@ -728,6 +728,14 @@ export const sendSequenceStep = inngest.createFunction(
       return email;
     });
 
+    // Wake the senders now (event-driven dispatch) instead of waiting for the
+    // 15-minute cron. step.sendEvent is durable — replayed, not re-fired, on
+    // retry. The senders claim atomically, so a duplicate wake is harmless.
+    await step.sendEvent("wake-outbound-sender", {
+      name: "outbound/queued",
+      data: { tenantId },
+    });
+
     await step.run("track-email-queued", async () => {
       await trackPipeline({
         traceId: enrollmentId,

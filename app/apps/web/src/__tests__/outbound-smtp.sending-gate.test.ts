@@ -36,6 +36,10 @@ vi.mock("drizzle-orm", () => ({
   and: (...args: any[]) => ({ op: "and", args }),
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sql: (...args: any[]) => ({ op: "sql", args }),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  exists: (q: any) => ({ op: "exists", q }),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  notExists: (q: any) => ({ op: "notExists", q }),
 }));
 
 vi.mock("@/db/schema", () => ({
@@ -59,6 +63,8 @@ function matchesRow(pred: any, row: Row): boolean {
     if (pred.col === "id") return row.id === pred.val;
     return false;
   }
+  // #231 transport routing: this tenant HAS an active custom-SMTP mailbox.
+  if (pred.op === "exists") return true;
   return false;
 }
 
@@ -87,8 +93,15 @@ vi.mock("@/db", () => ({
       set: (s: Record<string, unknown>) => ({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         where: (pred: any) => {
-          for (const r of store) if (matchesRow(pred, r)) Object.assign(r, s);
-          return Promise.resolve(undefined);
+          // Capture the rows that matched BEFORE mutating, so the atomic
+          // claim's .returning() reports exactly what it owns (#231). The
+          // claim predicate includes status='queued', so a row already
+          // 'sending' (claimed elsewhere) is not re-claimed.
+          const matched = store.filter((r) => matchesRow(pred, r));
+          for (const r of matched) Object.assign(r, s);
+          return Object.assign(Promise.resolve(undefined), {
+            returning: () => Promise.resolve(matched.map((r) => ({ id: r.id }))),
+          });
         },
       }),
     })),

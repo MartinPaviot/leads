@@ -5,7 +5,8 @@ import { eq, and, lte } from "drizzle-orm";
 
 /**
  * Cron: check for sequence enrollments whose next step is due.
- * Runs every 2 minutes. For each due enrollment, fires a
+ * Runs every 15 minutes (sequence cadence is day-scale — 2-minute
+ * resolution was pure waste). For each due enrollment, fires a
  * "sequence/step-due" event so the sendSequenceStep function picks it up.
  */
 export const cronTriggerSequenceSteps = inngest.createFunction(
@@ -16,7 +17,7 @@ export const cronTriggerSequenceSteps = inngest.createFunction(
     onFailure: async ({ error }) => {
       console.error("[DEAD LETTER] cron-trigger-sequence-steps failed:", error.message);
     },
-    triggers: [{ cron: "*/2 * * * *" }],
+    triggers: [{ cron: "*/15 * * * *" }],
     concurrency: [{ limit: 1 }],
   },
   async ({ step }) => {

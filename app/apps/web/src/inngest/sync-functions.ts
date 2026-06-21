@@ -873,13 +873,14 @@ export const onMicrosoftOAuthConnected = inngest.createFunction(
   }
 );
 
-/** Cron: sync emails every 15 minutes for all connected users */
+/** Cron: backstop email sync every 30 minutes for all connected users
+ *  (real-time inbound rides webhooks/force-sync; this is the catch-up sweep) */
 export const cronSyncEmails = inngest.createFunction(
   {
     id: "cron-sync-emails",
     name: "Cron: Sync All Email",
     retries: 1,
-    triggers: [{ cron: "*/15 * * * *" }],
+    triggers: [{ cron: "*/30 * * * *" }],
   },
   async ({ step }) => {
     // Find all users with Google or Microsoft OAuth connected

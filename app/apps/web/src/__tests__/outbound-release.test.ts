@@ -49,6 +49,10 @@ vi.mock("drizzle-orm", () => ({
   sql: (...args: any[]) => ({ op: "sql", args }),
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   inArray: (col: any, vals: any) => ({ op: "inArray", col, vals }),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  exists: (q: any) => ({ op: "exists", q }),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  notExists: (q: any) => ({ op: "notExists", q }),
 }));
 
 vi.mock("@/db/schema", () => ({
@@ -75,7 +79,12 @@ function matches(pred: any, row: Row): boolean {
     }
     return false;
   }
-  if (pred.op === "inArray") return false;
+  if (pred.op === "inArray") {
+    if (pred.col === "id") return (pred.vals as string[]).includes(row.id);
+    return false;
+  }
+  // #231 transport routing: this tenant has NO active custom-SMTP mailbox.
+  if (pred.op === "notExists") return true;
   return false;
 }
 
@@ -110,10 +119,13 @@ vi.mock("@/db", () => ({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         where: (pred: any) => {
           updateCalls.push({ set: s, where: pred });
-          for (const r of store) {
-            if (matches(pred, r)) Object.assign(r, s);
-          }
-          return Promise.resolve(undefined);
+          // Capture matched rows BEFORE mutating so the atomic claim's
+          // .returning() reports the ids it owns (#231).
+          const matched = store.filter((r) => matches(pred, r));
+          for (const r of matched) Object.assign(r, s);
+          return Object.assign(Promise.resolve(undefined), {
+            returning: () => Promise.resolve(matched.map((r) => ({ id: r.id }))),
+          });
         },
       }),
     })),
