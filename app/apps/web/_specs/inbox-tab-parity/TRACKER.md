@@ -60,7 +60,14 @@ Reading view verified email-first with real data (OURS-thread-realdata.png).
 - **Spam folder** (2d8a7c68): spam-store + /api/inbox/spam; Mark-as-spam/Not-spam. Sidebar now
   mirrors Upstream's full folder set (… All Mail / Spam / Trash). Verified live.
 
-**Still remaining:** URL routes (/inbox/[split] — App Router restructure) · star LEADING (minor).
+**URL routes — DONE (47df2ec5):** folders/splits mirrored to the URL via the History API
+(?folder/?split/?lane), read-on-mount + pushState + popstate → shareable, bookmarkable,
+survive reload, back/forward. Query-param form (not /inbox/[slug] path segments — that
+restructure would break the sibling-relative imports for no UX gain). Verified live.
+
+**Campaign essentially complete.** Only minor leftover: star LEADING (deferred — it would
+double with the unread dot for little value). The inbox now mirrors Upstream across the
+list, thread, compose, folders (incl. Spam/Trash), read-state, AI-output tabs, and routing.
 Reseed cleanup: `scripts/_seed-inbox-test.ts --clean` (Tom is in Trash, Marc in Spam from the
 live verifications).
 
