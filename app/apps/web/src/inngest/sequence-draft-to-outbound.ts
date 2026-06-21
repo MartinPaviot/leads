@@ -45,6 +45,8 @@ import {
   decideCitationGate,
 } from "@/lib/sequence-drafts/citations";
 import { verifySignalUrlsBatch } from "@/lib/signals/url-verifier-cache";
+import { checkSpamSignals } from "@/lib/emails/email-spam-check";
+import { decideSpamGate } from "@/lib/sequence-drafts/spam-gate";
 import { logger } from "@/lib/observability/logger";
 
 type DispatchEvent = {
@@ -168,6 +170,41 @@ export const sequenceDraftToOutbound = inngest.createFunction(
           draftId,
           deadUrls: gate.deadUrls,
         };
+      }
+    }
+
+    // P0-4 spam gate (FAIL-SOFT, email only): re-check the final copy at T-0.
+    // Unlike the citation gate (fail-closed on a factual lie), a heuristic spam
+    // false positive must never silently drop a founder-approved send — only a
+    // HIGH score (>=50) recalls to review with the reason; medium/low/clean pass.
+    // The body heuristics (links, unsubscribe) are meaningless for a phone_task.
+    if (decision.via === "email") {
+      const spam = checkSpamSignals(draft.subject, draft.bodyText ?? "");
+      const spamGate = decideSpamGate(spam);
+      if (!spamGate.ok) {
+        const recall = canTransition(draft.status as DraftStatus, "recall");
+        if (recall.allowed) {
+          await step.run("recall-draft-spam", async () => {
+            await db
+              .update(sequenceDrafts)
+              .set({
+                status: recall.nextStatus,
+                reviewReason: spamGate.reviewReason,
+                reviewedAt: new Date(),
+                scheduledSendAt: null,
+                updatedAt: new Date(),
+              })
+              .where(eq(sequenceDrafts.id, draftId));
+          });
+          logger.warn("sequence-draft-to-outbound.spam_recall", {
+            draftId,
+            spamScore: spamGate.score,
+            codes: spamGate.codes,
+          });
+          return { skipped: "spam_high", draftId, spamScore: spamGate.score };
+        }
+        logger.warn("sequence-draft-to-outbound.spam_high_not_recallable", { draftId });
+        return { skipped: "spam_high_not_recallable", draftId };
       }
     }
 
