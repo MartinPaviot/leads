@@ -54,3 +54,20 @@ app/apps/web/screenshots/
 
 # Supabase CLI scratch (linked-project state) — machine-local
 supabase/.temp/
+
+# ── Inbox/upstream/call-mode audit scratch (loose root screenshots) ──────
+# Throwaway eval shots from the inbox-parity + call-mode audits. Committed
+# deliverable contact sheets keep their own names (batch*, ai-ui-contact-sheet).
+/OURS-*.png
+/UP-*.png
+/before-*.png
+/after-*.png
+/inbox-*.png
+/PROD-*.png
+/state-*.png
+/starred*.png
+/callmode*.png
+# Heavy competitor-capture + merge-prep scratch (raw HTML/PNG/network dumps —
+# kept locally as evidence, far too large to belong in git history).
+/_research/upstream/
+/_research/raw/pr277-merge-prep/
