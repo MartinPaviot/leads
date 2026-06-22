@@ -11,6 +11,7 @@ import {
   primaryKey,
   boolean,
   varchar,
+  date,
 } from "drizzle-orm/pg-core";
 import { tenants, users, contacts } from "./core";
 
@@ -150,6 +151,12 @@ export const sequenceDrafts = pgTable(
       .$type<Array<Record<string, unknown>>>()
       .notNull()
       .default([]),
+    // P0-4 — pre-send spam-check signals (score 0-100, severity bucket, warnings).
+    spamScore: integer("spam_score"),
+    spamSeverity: text("spam_severity"),
+    spamWarnings: jsonb("spam_warnings").default([]),
+    // P1-15 — data-backed quality score (0-1) for cockpit prioritisation.
+    qualityScore: real("quality_score"),
     status: sequenceDraftStatusEnum("status")
       .notNull()
       .default("pending_approval"),
@@ -190,6 +197,12 @@ export const sequenceDrafts = pgTable(
     index("sequence_drafts_sequence_idx").on(
       table.sequenceId,
       table.generatedAt,
+    ),
+    // P1-15 — cockpit queue: highest-quality pending drafts first, per tenant.
+    index("sequence_drafts_quality_idx").on(
+      table.tenantId,
+      table.status,
+      table.qualityScore,
     ),
   ],
 );
@@ -316,6 +329,8 @@ export const outboundEmails = pgTable(
     bouncedAt: timestamp("bounced_at", { withTimezone: true }),
     failedAt: timestamp("failed_at", { withTimezone: true }),
     replyClassification: text("reply_classification"),
+    // P1-12 — the quality score the email was sent at, for the reply-rate back-test.
+    qualityScore: jsonb("quality_score"),
     replySnippet: text("reply_snippet"),
     errorMessage: text("error_message"),
     bounceType: text("bounce_type"),
@@ -334,6 +349,28 @@ export const outboundEmails = pgTable(
     // and the queued fetch cheap.
     index("outbound_hold_idx").on(table.status, table.holdUntil),
   ]
+);
+
+// P1-12 — nightly reply-rate calibration of the quality score. Aggregates only
+// (counts/rates/correlation) — no email bodies, GDPR-safe. One row per
+// (tenant, run_date), upserted by the back-test.
+export const personalizationCalibration = pgTable(
+  "personalization_calibration",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").notNull(),
+    runAt: timestamp("run_at", { withTimezone: true }).defaultNow().notNull(),
+    runDate: date("run_date").notNull(),
+    windowDays: integer("window_days").notNull().default(90),
+    buckets: jsonb("buckets").notNull(),
+    correlation: real("correlation"),
+    insufficientData: boolean("insufficient_data").notNull().default(false),
+    totalScored: integer("total_scored").notNull().default(0),
+  },
+  (table) => [
+    uniqueIndex("perso_calib_tenant_date_idx").on(table.tenantId, table.runDate),
+    index("perso_calib_tenant_idx").on(table.tenantId),
+  ],
 );
 
 export const warmupEmails = pgTable(
