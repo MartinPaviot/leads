@@ -5,6 +5,7 @@
 export * from "./schema/enums";
 export * from "./schema/auth";
 export * from "./schema/core";
+export * from "./schema/canonical";
 export * from "./schema/outbound";
 export * from "./schema/intelligence";
 export * from "./schema/agent";
