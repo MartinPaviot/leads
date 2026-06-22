@@ -32,6 +32,7 @@ import {
 import { and, eq } from "drizzle-orm";
 import { decideRouteMode, buildDraftRow } from "@/lib/sequence-drafts/router";
 import { buildProspectContext } from "@/lib/context/prospect-context";
+import { deriveSourcesFromContext, type DraftSource } from "@/lib/sequence-drafts/claims-from-context";
 import { personalizeStepEmail } from "@/lib/agents/sequence-generator";
 import { STEP_STRATEGIES } from "@/lib/scoring/outbound-methodologies";
 import { logger } from "@/lib/observability/logger";
@@ -213,6 +214,7 @@ export const routeSequenceStepToDraft = inngest.createFunction(
             reason: "missing_prospect_context" as const,
             subject: stepTemplate.subjectTemplate,
             body: stepTemplate.bodyTemplate,
+            sources: [] as DraftSource[],
           };
         }
         const strategy =
@@ -227,7 +229,7 @@ export const routeSequenceStepToDraft = inngest.createFunction(
           },
           strategy,
         );
-        return { ok: true as const, subject: out.subject, body: out.body };
+        return { ok: true as const, subject: out.subject, body: out.body, sources: deriveSourcesFromContext(ctx) };
       } catch (err) {
         logger.warn("route-sequence-step-to-draft.personalise_failed", {
           tenantId,
@@ -240,6 +242,7 @@ export const routeSequenceStepToDraft = inngest.createFunction(
           reason: "llm_threw" as const,
           subject: stepTemplate.subjectTemplate,
           body: stepTemplate.bodyTemplate,
+          sources: [] as DraftSource[],
         };
       }
     });
@@ -260,7 +263,7 @@ export const routeSequenceStepToDraft = inngest.createFunction(
       bodyText: personalised.body,
       stepNumber: enrollment.currentStep ?? 1,
       signalHint: signalHint ?? null,
-      personalizationSources: [],
+      personalizationSources: (personalised.sources ?? []) as unknown as Record<string, unknown>[],
     });
 
     const inserted = await step.run("insert-draft", async () => {

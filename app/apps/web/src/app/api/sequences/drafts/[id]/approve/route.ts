@@ -20,6 +20,8 @@ import { db } from "@/db";
 import { sequenceDrafts, sequenceEnrollments, sequenceSteps } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { canTransition } from "@/lib/sequence-drafts/state-machine";
+import { collectCitationUrls, decideCitationGate } from "@/lib/sequence-drafts/citations";
+import { verifySignalUrlsBatch } from "@/lib/signals/url-verifier-cache";
 import { inngest } from "@/inngest/client";
 import { logger } from "@/lib/observability/logger";
 
@@ -85,6 +87,24 @@ export async function POST(
       },
       { status: 409 },
     );
+  }
+
+  // P1-11 — re-verify cited URLs at APPROVAL, not just at send. Same fail-closed
+  // gate as the send bridge (shared helpers); the 7d url-verifier cache avoids a
+  // re-HEAD. No mutation happens before the gate, so a stale citation leaves the
+  // draft pending_approval for the founder to fix.
+  const citationUrls = collectCitationUrls(draft.personalizationSources);
+  if (citationUrls.length > 0) {
+    const raw = await verifySignalUrlsBatch(citationUrls);
+    const gate = decideCitationGate(
+      raw.map((r) => ({ url: r.url, verified: r.status === "verified", reason: r.reason })),
+    );
+    if (!gate.ok) {
+      return Response.json(
+        { error: "stale_citation", deadUrls: gate.deadUrls, reviewReason: gate.reviewReason },
+        { status: 409 },
+      );
+    }
   }
 
   // Atomic update : the WHERE clause re-asserts version so a parallel
