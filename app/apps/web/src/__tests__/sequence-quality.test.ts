@@ -69,8 +69,8 @@ describe("gradeGeneratedStep", () => {
 describe("gradeSequenceQuality", () => {
   const seq = (steps: unknown[]) => JSON.stringify({ sequenceName: "n", sequenceReasoning: "r", steps });
 
-  it("valid sequence -> perStep matches steps, score in [0,1]", () => {
-    const out = gradeSequenceQuality(
+  it("valid sequence -> perStep matches steps, score in [0,1]", async () => {
+    const out = await gradeSequenceQuality(
       seq([
         { stepNumber: 1, subject: "q", body: "Are you rethinking your sales ramp?", delayDays: 0 },
         { stepNumber: 2, subject: "q2", body: "Worth a 10-min look?", delayDays: 3 },
@@ -82,16 +82,16 @@ describe("gradeSequenceQuality", () => {
     expect(out.score).toBeGreaterThanOrEqual(0);
     expect(out.score).toBeLessThanOrEqual(1);
   });
-  it("invalid JSON -> pass:false score:0", () => {
-    const out = gradeSequenceQuality("not json", ctx, methodology("BASHO"));
+  it("invalid JSON -> pass:false score:0", async () => {
+    const out = await gradeSequenceQuality("not json", ctx, methodology("BASHO"));
     expect(out).toMatchObject({ pass: false, score: 0, feedback: "Invalid JSON output" });
   });
-  it("empty steps -> pass:false score:0", () => {
-    const out = gradeSequenceQuality(seq([]), ctx, methodology("BASHO"));
+  it("empty steps -> pass:false score:0", async () => {
+    const out = await gradeSequenceQuality(seq([]), ctx, methodology("BASHO"));
     expect(out).toMatchObject({ pass: false, score: 0 });
   });
-  it("feedback is per-step labelled", () => {
-    const out = gradeSequenceQuality(seq([{ stepNumber: 1, subject: "q", body: "", delayDays: 0 }]), ctx, methodology("BASHO"));
+  it("feedback is per-step labelled", async () => {
+    const out = await gradeSequenceQuality(seq([{ stepNumber: 1, subject: "q", body: "", delayDays: 0 }]), ctx, methodology("BASHO"));
     expect(out.feedback).toContain("Step 1:");
   });
 });

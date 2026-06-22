@@ -108,7 +108,7 @@ export async function generateSequence(
 
   // Attach per-step + sequence-level quality to the result (R7).
   const parsed = JSON.parse(result.output) as GeneratedSequence;
-  const finalEval = gradeSequenceQuality(result.output, ctx, methodology);
+  const finalEval = await gradeSequenceQuality(result.output, ctx, methodology);
   return {
     ...parsed,
     steps: parsed.steps.map((s) => {

@@ -9,6 +9,7 @@ import { gradeEmail, type EmailGradeResult } from "./email-quality-grader";
 import type { FRAMEWORKS } from "@/skills/outreach/knowledge/email-benchmarks";
 import type { ProspectContext } from "@/lib/context/prospect-context";
 import type { Methodology } from "@/lib/scoring/outbound-methodologies";
+import { judgePersonalization } from "./personalization-judge";
 
 /** getMethodology only ever returns these 4 names; map them to grader frameworks. */
 const METHODOLOGY_TO_FRAMEWORK: Record<string, keyof typeof FRAMEWORKS> = {
@@ -57,7 +58,18 @@ export interface SequenceQualityResult {
   pass: boolean;
   score: number;
   feedback: string;
-  perStep: Array<{ stepNumber: number; composite: number; dimensions: Record<string, number> }>;
+  perStep: Array<{
+    stepNumber: number;
+    composite: number;
+    dimensions: Record<string, number>;
+    semantic?: { groundedScore: number; skipped: boolean };
+  }>;
+}
+
+export interface GradeOpts {
+  /** Opt-in: run the semantic personalization judge as a 2nd stage (an LLM call
+   *  per step). Off in the bulk generation path; on for eval/calibration. */
+  semanticJudge?: boolean;
 }
 
 /**
@@ -65,11 +77,12 @@ export interface SequenceQualityResult {
  * evaluator-optimizer's evaluateFn ({ pass, score, feedback }) while also
  * carrying perStep for attaching qualityScore to the result.
  */
-export function gradeSequenceQuality(
+export async function gradeSequenceQuality(
   output: string,
   ctx: ProspectContext,
   methodology: Methodology,
-): SequenceQualityResult {
+  opts?: GradeOpts,
+): Promise<SequenceQualityResult> {
   let seq: { steps?: Array<{ subject: string; body: string; stepNumber: number }> };
   try {
     seq = JSON.parse(output);
@@ -79,19 +92,42 @@ export function gradeSequenceQuality(
   if (!seq.steps || seq.steps.length === 0) {
     return { pass: false, score: 0, feedback: "Empty sequence", perStep: [] };
   }
+  const steps = seq.steps;
 
-  const graded = seq.steps.map((s) => gradeGeneratedStep(s, ctx, methodology));
-  const composite = graded.reduce((a, g) => a + g.score, 0) / graded.length;
+  const graded = steps.map((s) => gradeGeneratedStep(s, ctx, methodology));
 
   // Per-dimension issues fed back to the regeneration prompt.
   const feedback = graded.flatMap((g) => g.issues.map((iss) => `Step ${g.stepNumber}: ${iss}`)).join("\n");
 
-  const perStep = graded.map((g) => ({
-    stepNumber: g.stepNumber,
-    composite: g.score,
-    dimensions: Object.fromEntries(g.dimensions.map((d) => [d.name, d.score])),
-  }));
+  // P1-12 — optional semantic 2nd stage: the LLM judge can only TIGHTEN the
+  // substring personalization score (min), never raise it — catches fake perso.
+  const perStep = await Promise.all(
+    graded.map(async (g, i) => {
+      const base = {
+        stepNumber: g.stepNumber,
+        composite: g.score,
+        dimensions: Object.fromEntries(g.dimensions.map((d) => [d.name, d.score])) as Record<string, number>,
+      };
+      if (!opts?.semanticJudge || g.score === 0) return base;
+      const sem = await judgePersonalization(steps[i].body, ctx.researchBrief);
+      if (sem.skipped) {
+        return { ...base, semantic: { groundedScore: sem.groundedScore, skipped: true } };
+      }
+      const detPerso = base.dimensions.personalization ?? 0;
+      const tightened = Math.min(detPerso, sem.groundedScore);
+      const totalW = g.dimensions.reduce((s, d) => s + d.weight, 0);
+      const composite =
+        g.dimensions.reduce((s, d) => s + (d.name === "personalization" ? tightened : d.score) * d.weight, 0) / totalW;
+      return {
+        ...base,
+        composite,
+        dimensions: { ...base.dimensions, personalization: tightened },
+        semantic: { groundedScore: sem.groundedScore, skipped: false },
+      };
+    }),
+  );
 
+  const composite = perStep.reduce((a, p) => a + p.composite, 0) / perStep.length;
   const threshold = passThresholdFor(methodology);
   return { pass: composite >= threshold, score: composite, feedback, perStep };
 }
