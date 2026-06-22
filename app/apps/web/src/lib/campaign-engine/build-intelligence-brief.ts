@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { intelligenceBriefs, companies, contacts } from "@/db/schema";
 import { eq, and, gt } from "drizzle-orm";
-import type { IntelligenceBrief } from "./types";
+import type { IntelligenceBrief, FirmographicFacts, FieldProvenance } from "./types";
 import type { ResearchBriefContext } from "@/lib/context/prospect-context";
 import { scrapeCompanyWebsite } from "./sources/website";
 import { fetchRecentNews } from "./sources/news";
@@ -60,6 +60,10 @@ export async function buildIntelligenceBrief(
   // fail-CLOSED (re-trying in fallback would burn more of an over-cap tenant).
   let sources: Awaited<ReturnType<typeof fetchAllSources>>;
   let synthesized: Awaited<ReturnType<typeof synthesizeBrief>>;
+  // P1-10 — verified firmographics, populated only on the agent path (the
+  // deterministic fallback has no Apollo waterfall). Null when no provider hit.
+  let firmographics: FirmographicFacts | null = null;
+  let firmographicProvenance: FieldProvenance[] = [];
 
   const runDeterministic = async () => {
     const s = await fetchAllSources(company.domain, contact?.linkedinUrl || null, company.name);
@@ -83,6 +87,11 @@ export async function buildIntelligenceBrief(
         enrichApollo: ({ domain }) => enrichFirmographics({ domain, companyName: company.name, tenantId }),
       });
       synthesized = r.synthesized;
+      // P1-10 — the agent's enrichApollo result, captured in the ledger.
+      if (r.collected.firmographics) {
+        firmographics = r.collected.firmographics.facts;
+        firmographicProvenance = r.collected.firmographics.provenance;
+      }
       sources = {
         website: r.collected.website,
         news: r.collected.news,
@@ -128,6 +137,9 @@ export async function buildIntelligenceBrief(
     sourcesAttempted: sources.attempted,
     sourcesSucceeded: sources.succeeded,
     sourceErrors: sources.errors,
+    // P1-10 — persisted so the prompt can cite verified firmographics with source.
+    firmographics,
+    firmographicProvenance,
     researchedAt: new Date(),
     expiresAt,
   };
@@ -183,6 +195,25 @@ export async function readCachedBrief(
   return getCachedBrief(tenantId, companyId, contactId);
 }
 
+/** True when firmographics carries at least one verifiable fact worth citing. */
+function firmographicsHaveSignal(f: FirmographicFacts | null): boolean {
+  if (!f) return false;
+  return (
+    f.employeeCount != null ||
+    f.sizeRange != null ||
+    f.fundingStage != null ||
+    f.totalFunding != null ||
+    f.annualRevenue != null ||
+    f.revenueRange != null ||
+    f.foundedYear != null ||
+    f.industry != null ||
+    f.investors.length > 0 ||
+    f.technologies.length > 0 ||
+    f.city != null ||
+    f.country != null
+  );
+}
+
 /** Map a full brief to the trimmed shape the generation prompt consumes. */
 export function toResearchBriefContext(b: IntelligenceBrief): ResearchBriefContext {
   return {
@@ -195,6 +226,11 @@ export function toResearchBriefContext(b: IntelligenceBrief): ResearchBriefConte
       quote: (p.quote ?? "").slice(0, 200),
     })),
     warmthSignals: (b.warmthSignals ?? []).map((w) => ({ type: w.type, detail: w.detail })),
+    // P1-10 — only attach when there's a real fact (so briefIsEmpty stays honest
+    // and the prompt's FIRMOGRAPHICS section never renders empty).
+    firmographics: firmographicsHaveSignal(b.firmographics)
+      ? { facts: b.firmographics as FirmographicFacts, provenance: b.firmographicProvenance ?? [] }
+      : undefined,
   };
 }
 
@@ -205,7 +241,8 @@ export function briefIsEmpty(c: ResearchBriefContext): boolean {
     c.painPoints.length === 0 &&
     !c.competitorDetected &&
     c.publicContent.length === 0 &&
-    c.warmthSignals.length === 0
+    c.warmthSignals.length === 0 &&
+    !c.firmographics
   );
 }
 
@@ -292,6 +329,8 @@ function rowToBrief(row: typeof intelligenceBriefs.$inferSelect): IntelligenceBr
     sourcesAttempted: row.sourcesAttempted || 0,
     sourcesSucceeded: row.sourcesSucceeded || 0,
     sourceErrors: (row.sourceErrors || []) as IntelligenceBrief["sourceErrors"],
+    firmographics: (row.firmographics ?? null) as FirmographicFacts | null,
+    firmographicProvenance: (row.firmographicProvenance ?? []) as FieldProvenance[],
     researchedAt: row.researchedAt.toISOString(),
     expiresAt: row.expiresAt.toISOString(),
   };

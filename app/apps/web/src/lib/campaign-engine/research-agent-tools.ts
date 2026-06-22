@@ -16,15 +16,25 @@ import { scrapeJobPostings } from "./sources/jobs";
 import { fetchRecentNews } from "./sources/news";
 import { detectTechStack } from "./sources/tech-stack";
 import { browsePage } from "./sources/browse-page";
-import type { NewsItem, JobPosting, TechEntry } from "./types";
+import type { NewsItem, JobPosting, TechEntry, FirmographicFacts, FieldProvenance } from "./types";
 
 const TOOL_TIMEOUT_MS = 8_000;
+
+/** P1-10 — what the enrichApollo tool returns and the ledger captures. */
+export type FirmographicResult = { facts: FirmographicFacts; provenance: FieldProvenance[] };
 
 export interface ToolLedger {
   attempted: number;
   succeeded: number;
   errors: Array<{ source: string; error: string }>;
-  collected: { news: NewsItem[]; jobs: JobPosting[]; techStack: TechEntry[]; website: WebsiteResult | null };
+  collected: {
+    news: NewsItem[];
+    jobs: JobPosting[];
+    techStack: TechEntry[];
+    website: WebsiteResult | null;
+    // P1-10 — verified firmographics captured for persistence (null until enriched).
+    firmographics: FirmographicResult | null;
+  };
   memo: Map<string, unknown>;
 }
 
@@ -33,7 +43,7 @@ export function newToolLedger(): ToolLedger {
     attempted: 0,
     succeeded: 0,
     errors: [],
-    collected: { news: [], jobs: [], techStack: [], website: null },
+    collected: { news: [], jobs: [], techStack: [], website: null, firmographics: null },
     memo: new Map(),
   };
 }
@@ -68,8 +78,9 @@ async function runTool<T>(
 export interface BuildToolsArgs {
   rootDomain: string | null;
   companyName: string;
-  /** P1-10 — conditional. When absent, the enrichApollo tool is NOT registered. */
-  enrichApollo?: (args: { domain: string | null }) => Promise<unknown>;
+  /** P1-10 — conditional. When absent, the enrichApollo tool is NOT registered.
+   *  Returns the firmographic facts + provenance (or null when no provider hit). */
+  enrichApollo?: (args: { domain: string | null }) => Promise<FirmographicResult | null>;
 }
 
 export function buildResearchTools(args: BuildToolsArgs, ledger: ToolLedger): ToolSet {
@@ -126,7 +137,12 @@ export function buildResearchTools(args: BuildToolsArgs, ledger: ToolLedger): To
     tools.enrichApollo = tool({
       description: "Enrich the company with firmographic + funding + people data (Apollo). Use for headcount, funding stage, and key contacts.",
       inputSchema: z.object({}),
-      execute: async () => runTool(ledger, "apollo", {}, () => enrichApollo({ domain: rootDomain })),
+      // P1-10 — capture the verified facts into the ledger so the brief can
+      // persist them with provenance (the model also sees them in the result).
+      execute: async () =>
+        runTool(ledger, "apollo", {}, () => enrichApollo({ domain: rootDomain }), (v) => {
+          ledger.collected.firmographics = v;
+        }),
     });
   }
 

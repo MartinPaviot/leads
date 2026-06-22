@@ -12,29 +12,11 @@
 
 import { enrichCompany } from "@/lib/providers/company-enrichment/waterfall";
 import type { EnrichedCompany } from "@/lib/providers/company-enrichment/types";
+import type { FirmographicFacts, FieldProvenance } from "../types";
 
-export interface FirmographicFacts {
-  industry: string | null;
-  description: string | null;
-  employeeCount: number | null;
-  sizeRange: string | null;
-  annualRevenue: number | null;
-  revenueRange: string | null;
-  foundedYear: number | null;
-  city: string | null;
-  state: string | null;
-  country: string | null;
-  fundingStage: string | null;
-  totalFunding: number | null;
-  investors: string[];
-  technologies: string[];
-}
-
-export interface FieldProvenance {
-  field: string;
-  provider: string;
-  atIso: string;
-}
+// Canonical home is `campaign-engine/types.ts` (avoids a prospect-context →
+// providers import cycle). Re-exported here so existing imports keep working.
+export type { FirmographicFacts, FieldProvenance } from "../types";
 
 const FIRMOGRAPHIC_FIELDS: ReadonlySet<string> = new Set([
   "industry", "description", "employeeCount", "sizeRange", "annualRevenue", "revenueRange",
@@ -76,6 +58,6 @@ export async function enrichFirmographics(args: {
   const facts = pickFirmographics(wf.data);
   const provenance: FieldProvenance[] = wf.provenance
     .filter((p) => FIRMOGRAPHIC_FIELDS.has(p.field as string))
-    .map((p) => ({ field: p.field as string, provider: p.provider, atIso: p.atIso }));
+    .map((p) => ({ field: p.field as keyof FirmographicFacts, provider: p.provider, atIso: p.atIso }));
   return { facts, provenance };
 }

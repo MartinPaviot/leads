@@ -50,3 +50,38 @@ describe("formatContextForPrompt — RESEARCH BRIEF section", () => {
     expect(out).not.toContain("RESEARCH BRIEF");
   });
 });
+
+describe("formatContextForPrompt — FIRMOGRAPHICS section (P1-10)", () => {
+  const facts = {
+    industry: "B2B SaaS", description: null, employeeCount: 120, sizeRange: null,
+    annualRevenue: null, revenueRange: null, foundedYear: 2019, city: "San Francisco",
+    state: "CA", country: "US", fundingStage: "Series B", totalFunding: 30_000_000,
+    investors: ["Sequoia", "a16z"], technologies: ["React", "Postgres"],
+  };
+
+  it("renders verified facts with [source: provider] citations", () => {
+    const out = formatContextForPrompt(
+      ctx({
+        researchBrief: rb({
+          firmographics: {
+            facts,
+            provenance: [
+              { field: "employeeCount", provider: "apollo", atIso: "2026-01-01" },
+              { field: "fundingStage", provider: "apollo", atIso: "2026-01-01" },
+            ],
+          },
+        }),
+      }),
+    );
+    expect(out).toContain("FIRMOGRAPHICS (verified");
+    expect(out).toContain("Headcount: 120 [source: apollo]");
+    expect(out).toContain("Funding: Series B ($30M total raised) [source: apollo]");
+    expect(out).toContain("Founded: 2019"); // no provenance → no source tag
+    expect(out).not.toContain("Founded: 2019 [source:");
+  });
+
+  it("no FIRMOGRAPHICS section when firmographics absent (no regression)", () => {
+    const out = formatContextForPrompt(ctx({ researchBrief: rb({ bestAngle: "x" }) }));
+    expect(out).not.toContain("FIRMOGRAPHICS");
+  });
+});

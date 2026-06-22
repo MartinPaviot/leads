@@ -36,6 +36,8 @@ function makeBrief(overrides: Partial<IntelligenceBrief> = {}): IntelligenceBrie
     sourcesAttempted: 4,
     sourcesSucceeded: 3,
     sourceErrors: [],
+    firmographics: null,
+    firmographicProvenance: [],
     researchedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
     ...overrides,

@@ -8,7 +8,8 @@ vi.mock("@/db/schema", () => ({ intelligenceBriefs: {}, companies: {}, contacts:
 vi.mock("@anthropic-ai/sdk", () => ({ default: class { messages = { create: vi.fn() }; } }));
 
 import { toResearchBriefContext, briefIsEmpty } from "@/lib/campaign-engine/build-intelligence-brief";
-import type { IntelligenceBrief } from "@/lib/campaign-engine/types";
+import type { IntelligenceBrief, FirmographicFacts } from "@/lib/campaign-engine/types";
+import { EMPTY_FIRMOGRAPHICS } from "@/lib/campaign-engine/types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function brief(over: Partial<IntelligenceBrief> = {}): IntelligenceBrief {
@@ -62,5 +63,37 @@ describe("briefIsEmpty", () => {
     expect(briefIsEmpty(toResearchBriefContext(brief({ bestAngle: "x" })))).toBe(false);
     expect(briefIsEmpty(toResearchBriefContext(brief({ painPoints: ["p"] })))).toBe(false);
     expect(briefIsEmpty(toResearchBriefContext(brief({ competitorDetected: "C" })))).toBe(false);
+  });
+});
+
+describe("toResearchBriefContext — P1-10 firmographics", () => {
+  const facts: FirmographicFacts = {
+    ...EMPTY_FIRMOGRAPHICS,
+    employeeCount: 120,
+    fundingStage: "Series B",
+    totalFunding: 30_000_000,
+  };
+
+  it("attaches firmographics when a verifiable fact exists, with provenance", () => {
+    const r = toResearchBriefContext(
+      brief({
+        firmographics: facts,
+        firmographicProvenance: [{ field: "employeeCount", provider: "apollo", atIso: "2026-01-01" }],
+      }),
+    );
+    expect(r.firmographics).toBeDefined();
+    expect(r.firmographics!.facts.employeeCount).toBe(120);
+    expect(r.firmographics!.provenance[0]).toMatchObject({ field: "employeeCount", provider: "apollo" });
+  });
+
+  it("omits firmographics when null or all-empty (so briefIsEmpty stays honest)", () => {
+    expect(toResearchBriefContext(brief({ firmographics: null })).firmographics).toBeUndefined();
+    expect(
+      toResearchBriefContext(brief({ firmographics: { ...EMPTY_FIRMOGRAPHICS } })).firmographics,
+    ).toBeUndefined();
+    // a brief with ONLY firmographics is not empty
+    expect(briefIsEmpty(toResearchBriefContext(brief({ firmographics: facts })))).toBe(false);
+    // a brief with all-empty firmographics IS empty
+    expect(briefIsEmpty(toResearchBriefContext(brief({ firmographics: { ...EMPTY_FIRMOGRAPHICS } })))).toBe(true);
   });
 });
