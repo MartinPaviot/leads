@@ -211,10 +211,12 @@ export default function InboxPage() {
   const abortRef = useRef<AbortController | null>(null);
 
   const loadLane = useCallback(
-    async (lane: string, pageNum: number, append: boolean) => {
+    async (lane: string, pageNum: number, append: boolean, silent = false) => {
       // F2: a foreground load mints a generation token and aborts the previous
       // in-flight foreground fetch, so a slow earlier lane can't paint over a
       // newer one. Appends are additive — they don't take a token or abort.
+      // `silent` = a background freshness refresh: refetch + swap, but show no
+      // loading skeleton and surface no error toast (it fires every ~25s).
       const token = append ? null : loadGuardRef.current.next();
       if (!append) {
         abortRef.current?.abort();
@@ -222,7 +224,7 @@ export default function InboxPage() {
       }
       const live = () => token === null || loadGuardRef.current.isCurrent(token);
       if (append) setLoadingMore(true);
-      else {
+      else if (!silent) {
         setLoading(true);
         setListError(false); // clear the foreground error as a fresh load begins
       }
@@ -290,6 +292,7 @@ export default function InboxPage() {
         setConversations((prev) => (append ? [...prev, ...data.conversations] : data.conversations));
       } catch (err) {
         if ((err as Error)?.name === "AbortError") return; // superseded — silent, no error/toast
+        if (silent) return; // a background freshness refresh fails quietly — keep the current list
         if (!append) setListError(true); // a foreground load failed -> error state, not empty
         toast("Couldn't load the inbox.", "error");
       } finally {
@@ -394,6 +397,34 @@ export default function InboxPage() {
     setSelection(EMPTY_SELECTION);
     void loadLane(param, 1, false);
   }, [tab, customLaneId, loadLane]);
+
+  // Real-time freshness: the inbox has no server push, so without this the open
+  // list never shows newly-arrived mail until a manual navigation/reload. Silently
+  // refetch page 1 of the live lane every 25s and whenever the tab regains focus.
+  // Gated to page 1 + not-loading + not the outbound view so it never collapses a
+  // "load more" or fights an in-flight optimistic triage (loadLane awaits
+  // pendingTriage before refetching, and `silent` suppresses the skeleton/toast).
+  const freshRef = useRef({ lane: customLaneId ?? tab, page, loading });
+  useEffect(() => {
+    freshRef.current = { lane: customLaneId ?? tab, page, loading };
+  });
+  useEffect(() => {
+    const refresh = () => {
+      const { lane, page: p, loading: l } = freshRef.current;
+      if (lane === "outbound" || p !== 1 || l) return;
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      void loadLane(lane, 1, false, true);
+    };
+    const id = window.setInterval(refresh, 25000);
+    const onFocus = () => refresh();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [loadLane]);
 
   // The Bundles tab hides itself when empty; if it empties while open (all
   // cleared), fall back to attention so the user isn't stranded on a dead tab.
@@ -996,7 +1027,7 @@ export default function InboxPage() {
         }
       />
 
-      <div className="flex min-h-0 flex-1">
+      <div className="inbox-shell flex min-h-0 flex-1">
       {/* Left: mailbox folders + Splits (the Upstream IA). */}
       {mailboxConnected && (
         <InboxFolders

@@ -873,13 +873,16 @@ export const onMicrosoftOAuthConnected = inngest.createFunction(
   }
 );
 
-/** Cron: sync emails every 15 minutes for all connected users */
+/** Cron: sync emails every 5 minutes for all connected users.
+ *  5m (was 15m) keeps the ingest floor tight; the inbox UI then surfaces the
+ *  newly-pulled mail within ~25s via its freshness poll. Sub-minute "instant"
+ *  needs Gmail users.watch + a Pub/Sub push route (additive follow-up). */
 export const cronSyncEmails = inngest.createFunction(
   {
     id: "cron-sync-emails",
     name: "Cron: Sync All Email",
     retries: 1,
-    triggers: [{ cron: "*/15 * * * *" }],
+    triggers: [{ cron: "*/5 * * * *" }],
   },
   async ({ step }) => {
     // Find all users with Google or Microsoft OAuth connected

@@ -176,6 +176,74 @@
 }
 
 /* ================================================================
+   INBOX FEEL (F1) — Upstream-grade calm, SCOPED to the inbox shell so
+   the rest of the app keeps its tokens. The inbox components already read
+   var(--color-*), so re-binding those vars on .inbox-shell re-skins only the
+   inbox. The recipe (measured from app.upstream.do, 2026-06-22):
+   single ink at opacity steps · hairline borders · soft navy shadows ·
+   tight tracking · a faint themed wash under translucent frosted chrome.
+   ================================================================ */
+.inbox-shell {
+  /* one ink (#1A1A2E) at opacity steps instead of distinct grays — calmer */
+  --color-text-secondary: rgba(26, 26, 46, 0.62);
+  --color-text-tertiary: rgba(26, 26, 46, 0.42);
+  --color-text-muted: rgba(26, 26, 46, 0.42);
+  --color-text-placeholder: rgba(26, 26, 46, 0.34);
+  /* hairline borders (cool, low-contrast) */
+  --color-border-default: rgba(26, 26, 46, 0.08);
+  --color-border-moderate: rgba(26, 26, 46, 0.08);
+  --color-border-hover: rgba(26, 26, 46, 0.14);
+  /* soft navy-tinted shadows (not hard black) */
+  --shadow-card: 0 1px 3px rgba(26, 26, 46, 0.06);
+  --shadow-panel: 0 10px 30px rgba(26, 26, 46, 0.12);
+  --shadow-floating: 0 0 0 1px rgba(26, 26, 46, 0.04), 0 6px 18px rgba(26, 26, 46, 0.10);
+  --inbox-cta-radius: 12px;
+  /* cohesive cool hover/selection so rows sit calmly on the themed ground */
+  --color-bg-hover: rgba(26, 26, 46, 0.035);
+  --color-bg-selected: rgba(44, 107, 237, 0.07);
+  letter-spacing: -0.014em;
+  /* A faint COOL ground (not pure white) + two soft themed glows + a top sheen,
+     so the white, backdrop-blurred chrome reads as frosted glass laid over a
+     colored surface — the signature Upstream depth. Kept low-saturation. */
+  background-color: #F1F4FA;
+  background-image:
+    radial-gradient(120% 80% at 0% 0%, rgba(44, 107, 237, 0.10) 0%, rgba(44, 107, 237, 0.03) 28%, rgba(44, 107, 237, 0) 55%),
+    radial-gradient(110% 90% at 100% 100%, rgba(108, 115, 228, 0.06) 0%, rgba(108, 115, 228, 0) 45%),
+    linear-gradient(13deg, rgba(255, 255, 255, 0.6) 0px, rgba(255, 255, 255, 0.2) 160px, rgba(255, 255, 255, 0) 340px);
+}
+/* frosted, translucent left rail — the themed wash glows through */
+.inbox-shell .inbox-rail {
+  background: rgba(255, 255, 255, 0.64);
+  backdrop-filter: blur(18px) saturate(1.06);
+  -webkit-backdrop-filter: blur(18px) saturate(1.06);
+}
+
+.dark .inbox-shell {
+  --color-text-secondary: rgba(237, 237, 245, 0.66);
+  --color-text-tertiary: rgba(237, 237, 245, 0.42);
+  --color-text-muted: rgba(237, 237, 245, 0.42);
+  --color-text-placeholder: rgba(237, 237, 245, 0.30);
+  --color-border-default: rgba(255, 255, 255, 0.08);
+  --color-border-moderate: rgba(255, 255, 255, 0.08);
+  --color-border-hover: rgba(255, 255, 255, 0.14);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-panel: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --shadow-floating: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(0, 0, 0, 0.45);
+  --color-bg-hover: rgba(255, 255, 255, 0.05);
+  --color-bg-selected: rgba(96, 165, 250, 0.12);
+  background-color: #0E0F16;
+  background-image:
+    radial-gradient(120% 80% at 0% 0%, rgba(96, 165, 250, 0.12) 0%, rgba(96, 165, 250, 0.035) 28%, rgba(96, 165, 250, 0) 55%),
+    radial-gradient(110% 90% at 100% 100%, rgba(108, 115, 228, 0.10) 0%, rgba(108, 115, 228, 0) 45%),
+    linear-gradient(13deg, rgba(255, 255, 255, 0.04) 0px, rgba(255, 255, 255, 0.012) 160px, rgba(255, 255, 255, 0) 340px);
+}
+.dark .inbox-shell .inbox-rail {
+  background: rgba(18, 19, 26, 0.58);
+  backdrop-filter: blur(18px) saturate(1.06);
+  -webkit-backdrop-filter: blur(18px) saturate(1.06);
+}
+
+/* ================================================================
    DARK MODE
    ================================================================ */
 .dark {

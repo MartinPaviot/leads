@@ -42,7 +42,10 @@ export function EmailBody({
   onTrust?: (email: string) => void;
 }) {
   const trusted = isImageSenderTrusted(trustedSenders ?? [], senderEmail ?? "");
-  const [loadRemote, setLoadRemote] = useState(trusted);
+  // Load remote images by default (through our IP-hiding proxy, like Gmail), so
+  // HTML mail renders with its images instead of empty boxes + a "blocked" prompt.
+  // `trusted` is now redundant for the default but kept for the per-sender memory.
+  const [loadRemote, setLoadRemote] = useState(true);
   const [showTrimmed, setShowTrimmed] = useState(false);
 
   // A trusted sender's images auto-load — the allowlist may arrive after mount (R02).
@@ -167,8 +170,23 @@ export function EmailBody({
     );
   }
 
+  // Inbound mail synced without an HTML part arrives as a degraded text body —
+  // [IMG:alt]/[LINK:url] markers from the html→text step + runaway blank lines.
+  // Strip the markers (there is no URL behind an [IMG:] to render) and collapse
+  // the gaps so it reads cleanly instead of as a wall of placeholders with
+  // monstrous spacing (the reported "écart monstrueux").
+  const cleanText = text
+    // The html→text step wraps lines, so the marker can be "[\nIMG: alt ]" /
+    // "[\nLINK: url ]" — tolerate any whitespace after "[" and around the value.
+    .replace(/\[\s*IMG:[^\]]*\]/gi, "")
+    .replace(/\[\s*LINK:\s*([^\]]+?)\s*\]/gi, " $1 ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+
   // Empty body — a clear, distinct state (not a load error), per INBOX-R09.
-  if (!text.trim()) {
+  if (!cleanText.trim()) {
     return (
       <div className="text-[13px] italic leading-relaxed" style={{ color: "var(--color-text-tertiary)" }}>
         (no content)
@@ -214,13 +232,13 @@ export function EmailBody({
     });
 
   // Fold the quoted reply / signature tail so the new content reads first (R05/R09).
-  const textFold = foldPlainTextReply(text);
+  const textFold = foldPlainTextReply(cleanText);
 
   return (
     <div
       className="whitespace-pre-wrap text-[13px] leading-relaxed"
       style={{ color: "var(--color-text-primary)", wordBreak: "break-word", overflowWrap: "anywhere" }}
-      dir={dirOf(text)}
+      dir={dirOf(cleanText)}
     >
       {renderText(textFold.visible)}
 
