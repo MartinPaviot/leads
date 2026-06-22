@@ -13,6 +13,8 @@
  * jsonb-shaped settings.
  */
 
+import { checkSpamSignals, type SpamWarning } from "@/lib/emails/email-spam-check";
+
 export type ApprovalMode = "manual" | "auto";
 
 /**
@@ -68,11 +70,18 @@ export interface DraftRowInsert {
   bodyText: string;
   triggerReason: string;
   personalizationSources: Array<Record<string, unknown>>;
+  // P0-4 — spam-trigger score computed at generation, surfaced in review.
+  spamScore: number;
+  spamSeverity: string;
+  spamWarnings: SpamWarning[];
   status: "pending_approval";
   version: 1;
 }
 
 export function buildDraftRow(args: BuildDraftArgs): DraftRowInsert {
+  // P0-4 — score spam triggers at generation (pure) so the review UI can
+  // colour-code the draft and the send gate has a precomputed signal.
+  const spam = checkSpamSignals(args.subject, args.bodyText);
   return {
     tenantId: args.tenantId,
     sequenceId: args.sequenceId,
@@ -84,6 +93,9 @@ export function buildDraftRow(args: BuildDraftArgs): DraftRowInsert {
     bodyText: args.bodyText,
     triggerReason: deriveTriggerReason(args.stepNumber, args.signalHint),
     personalizationSources: args.personalizationSources ?? [],
+    spamScore: spam.score,
+    spamSeverity: spam.severity,
+    spamWarnings: spam.warnings,
     status: "pending_approval",
     version: 1,
   };

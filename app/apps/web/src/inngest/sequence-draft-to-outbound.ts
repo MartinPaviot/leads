@@ -190,6 +190,10 @@ export const sequenceDraftToOutbound = inngest.createFunction(
               .set({
                 status: recall.nextStatus,
                 reviewReason: spamGate.reviewReason,
+                // P0-4 — persist the spam signals so the review UI shows why.
+                spamScore: spam.score,
+                spamSeverity: spam.severity,
+                spamWarnings: spam.warnings,
                 reviewedAt: new Date(),
                 scheduledSendAt: null,
                 updatedAt: new Date(),
