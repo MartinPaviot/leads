@@ -31,7 +31,7 @@ const briefOutputSchema = z.object({
     .nullable(),
   publicContent: z.array(
     z.object({
-      type: z.enum(["linkedin_post", "blog_post", "podcast", "talk", "tweet"]),
+      type: z.enum(["linkedin_post", "blog_post", "podcast", "talk", "tweet", "metric"]),
       title: z.string(),
       quote: z.string(),
       url: z.string(),
@@ -77,7 +77,7 @@ Then produce the structured dossier. Rules:
 - NEVER invent facts. Every field must be grounded in what the tools returned. If you didn't find something, leave it null/empty.
 - bestAngle: the single best outreach angle given their CURRENT situation.
 - painPoints: 1-5 inferred from jobs/tech/news, concrete not generic.
-- publicContent: only citable snippets you actually saw.
+- publicContent: citable snippets you actually saw. CRITICAL — also record every concrete VERIFIABLE FACT you read that an email could cite: specific numbers (client/project/user counts, headcount, %, revenue), named tools the prospect actually uses, and named initiatives/events. Use type "metric" for these, put the fact in "quote" (e.g. "3,848 projects across 110 countries"), and set "url" to the exact page you read it on. Only facts you literally saw in a tool result — never a plausible guess.
 - warmthSignals: only with real evidence.`;
 
 function buildSeedPrompt(a: RunResearchAgentArgs): string {

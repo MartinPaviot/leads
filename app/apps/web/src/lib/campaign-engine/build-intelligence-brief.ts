@@ -220,11 +220,18 @@ export function toResearchBriefContext(b: IntelligenceBrief): ResearchBriefConte
     bestAngle: b.bestAngle,
     painPoints: b.painPoints ?? [],
     competitorDetected: b.competitorDetected,
-    publicContent: (b.publicContent ?? []).slice(0, 2).map((p) => ({
-      type: p.type,
-      title: p.title,
-      quote: (p.quote ?? "").slice(0, 200),
-    })),
+    // Keep up to 6 (was 2) so VERIFIED crawled facts/metrics survive into the
+    // judge's fact sheet — otherwise a real "3,848 projects" the agent read but
+    // that fell past the 2-item cap reads as ungrounded and the fabrication gate
+    // wrongly strips it. "metric"-typed entries are prioritised over prose.
+    publicContent: [...(b.publicContent ?? [])]
+      .sort((a, c) => (a.type === "metric" ? -1 : 0) - (c.type === "metric" ? -1 : 0))
+      .slice(0, 6)
+      .map((p) => ({
+        type: p.type,
+        title: p.title,
+        quote: (p.quote ?? "").slice(0, 200),
+      })),
     warmthSignals: (b.warmthSignals ?? []).map((w) => ({ type: w.type, detail: w.detail })),
     // P1-10 — only attach when there's a real fact (so briefIsEmpty stays honest
     // and the prompt's FIRMOGRAPHICS section never renders empty).

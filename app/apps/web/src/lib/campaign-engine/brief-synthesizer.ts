@@ -54,7 +54,7 @@ Your output MUST be valid JSON matching this schema:
   "bestAngle": "One sentence: the single best outreach angle for this prospect",
   "competitorDetected": "competitor tool name or null",
   "communicationStyle": { "formality": "formal|casual|mixed", "preferredLength": "short|medium|long", "tone": "descriptive tone" } or null,
-  "publicContent": [{"type": "linkedin_post|blog_post|podcast|talk|tweet", "title": "...", "quote": "citable snippet", "url": "", "date": ""}],
+  "publicContent": [{"type": "linkedin_post|blog_post|podcast|talk|tweet|metric", "title": "...", "quote": "citable snippet, or for type=metric the verified fact e.g. '120 employees'", "url": "", "date": ""}],
   "warmthSignals": [{"type": "mutual_connection|shared_community|alumni|shared_investor|past_interaction", "detail": "..."}]
 }
 

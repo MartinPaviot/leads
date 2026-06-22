@@ -104,7 +104,9 @@ export interface LinkedInActivity {
 }
 
 export interface PublicContentPiece {
-  type: "linkedin_post" | "blog_post" | "podcast" | "talk" | "tweet";
+  // "metric" = a verified, citable FACT the agent read (a number/stat/named tool/
+  // initiative) — preserved so the fabrication judge grounds it instead of stripping it.
+  type: "linkedin_post" | "blog_post" | "podcast" | "talk" | "tweet" | "metric";
   title: string;
   quote: string;
   url: string;

@@ -24,7 +24,7 @@ function brief(over: Partial<IntelligenceBrief> = {}): IntelligenceBrief {
 }
 
 describe("toResearchBriefContext", () => {
-  it("trims publicContent to 2 and quote to 200 chars", () => {
+  it("keeps up to 6 publicContent and trims quote to 200 chars", () => {
     const long = "x".repeat(300);
     const r = toResearchBriefContext(
       brief({
@@ -36,8 +36,23 @@ describe("toResearchBriefContext", () => {
         ] as any,
       }),
     );
-    expect(r.publicContent).toHaveLength(2);
+    expect(r.publicContent).toHaveLength(3);
     expect(r.publicContent[0].quote).toHaveLength(200);
+  });
+
+  it("caps publicContent at 6 and prioritises verified 'metric' facts", () => {
+    const items = Array.from({ length: 7 }, (_, i) => ({
+      type: i === 6 ? "metric" : "blog_post",
+      title: `t${i}`,
+      quote: i === 6 ? "3,848 projects across 110 countries" : `q${i}`,
+      url: "",
+      date: "",
+    }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = toResearchBriefContext(brief({ publicContent: items as any }));
+    expect(r.publicContent).toHaveLength(6);
+    // the lone metric (last in input) is hoisted to the front so it survives the cap
+    expect(r.publicContent[0]).toMatchObject({ type: "metric", quote: "3,848 projects across 110 countries" });
   });
 
   it("maps angle / pains / competitor / warmth", () => {

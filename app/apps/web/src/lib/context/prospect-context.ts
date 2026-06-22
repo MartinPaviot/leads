@@ -390,7 +390,15 @@ export function formatContextForPrompt(ctx: ProspectContext): string {
     if (b.bestAngle) lines.push(`- Best angle: ${b.bestAngle}`);
     if (b.painPoints.length) lines.push(`- Pain points: ${b.painPoints.join("; ")}`);
     if (b.competitorDetected) lines.push(`- Competitor in use: ${b.competitorDetected}`);
-    for (const p of b.publicContent) lines.push(`- They said publicly (${p.type}): "${p.quote}"`);
+    for (const p of b.publicContent) {
+      // "metric" entries are verified facts the agent read — present them as
+      // citable facts, not as something the prospect "said publicly".
+      lines.push(
+        p.type === "metric"
+          ? `- Verified fact (citable): ${p.quote}`
+          : `- They said publicly (${p.type}): "${p.quote}"`,
+      );
+    }
     for (const w of b.warmthSignals) lines.push(`- Warm path: ${w.type} — ${w.detail}`);
     if (lines.length) sections.push(`RESEARCH BRIEF (use this angle first):\n${lines.join("\n")}`);
   }
