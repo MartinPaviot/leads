@@ -1,0 +1,11 @@
+AUCUNE migration de schéma Drizzle requise — les tables `context_graph_nodes` (colonne `entity_id` nullable déjà présente, db/schema/intelligence.ts:135), `context_graph_edges` et `embeddings` (créée en SQL brut par db/ensure-vector-index.ts:17, hors journal Drizzle) existent déjà en prod. P1-16 n'écrit que dans des colonnes existantes.
+
+COUPLAGE DÉPLOIEMENT (runner Drizzle cassé à idx 0012 — db:push en dev, db:migrate:apply custom sinon ; ne jamais auto-migrer prod depuis une branche non mergée) : sans objet ici puisqu'aucune migration. Rien à appliquer côté schéma.
+
+BACKFILL OPTIONNEL (hors MVP, flaggé) : les nœuds context_graph déjà ingérés ont entity_id=null (le bug R1 existait depuis l'origine). T1 ne corrige QUE le flux à venir. Pour rattacher l'historique, exécuter le UPDATE idempotent (design.md, section Data model) tenant par tenant sur la DB dev (leadsens-localdev) puis, après validation humaine, sur prod — JAMAIS automatiquement depuis la branche. Sans ce backfill, la mémoire par contact ne couvre que les épisodes ingérés après déploiement de T1 (acceptable pour la démo : ingérer 1-2 emails/meetings sur le contact de démo suffit à peupler).
+
+DATASETS : aucun dataset eval nouveau requis ; les tests Vitest mockent la DB. Le test E2E T7 nécessite un contact de démo avec ≥ 1 fait mémoire valide (ingérer un email mentionnant une objection avant le run).
+
+DÉPENDANCE RUNTIME : le rattachement embedding-merge (R1 chemin fuzzy) et le retrieval vectoriel nécessitent OPENAI_API_KEY (embeddings text-embedding-3-small) ET l'index HNSW (ensure-vector-index.ts doit avoir tourné une fois en prod). R1 dégrade proprement sans OPENAI_API_KEY (exact email + nom normalisé suffisent). Vérifier que ensureVectorIndex a bien créé l'index sur la DB cible avant la démo.
+
+PAS DE NOUVEAU PROVIDER : aucun store vectoriel externe, aucun nouveau modèle. Extraction sur claude-sonnet-4-6 déjà câblé, embeddings sur le provider OpenAI existant. Coût hot-path génération = 0 appel LLM/embedding nouveau (la mémoire est lue, pas extraite, dans le chemin de génération).
