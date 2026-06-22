@@ -6,6 +6,8 @@
  */
 
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { buildRejectionCounterPrompt, type DominantInsight } from "@/lib/sequence-drafts/rejection-counter-prompt";
+import { gradeSequenceQuality } from "@/lib/evals/sequence-quality";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { llmCall } from "@/lib/ai/llm-call";
@@ -48,7 +50,15 @@ const generatedSequenceSchema = z.object({
   ).describe("Array of 3-5 email steps"),
 });
 
-export type GeneratedSequence = z.infer<typeof generatedSequenceSchema>;
+export type GeneratedSequence = z.infer<typeof generatedSequenceSchema> & {
+  steps: Array<
+    z.infer<typeof generatedSequenceSchema>["steps"][number] & {
+      // P0-3 — data-backed quality score attached after the evaluator loop.
+      qualityScore?: { composite: number; dimensions: Record<string, number> };
+    }
+  >;
+  sequenceQuality?: { composite: number; passed: boolean; iterations: number };
+};
 
 /**
  * Generate a complete multi-step outreach sequence.
@@ -57,7 +67,7 @@ export type GeneratedSequence = z.infer<typeof generatedSequenceSchema>;
  */
 export async function generateSequence(
   ctx: ProspectContext,
-  options?: { stepCount?: number; meetingSlots?: string; tenantId?: string; evaluate?: boolean; knowledgeContext?: string }
+  options?: { stepCount?: number; meetingSlots?: string; tenantId?: string; evaluate?: boolean; knowledgeContext?: string; rejectionInsight?: DominantInsight | null }
 ): Promise<GeneratedSequence> {
   const model = getLLMModel();
   if (!model) throw new Error("No LLM API key configured");
@@ -67,25 +77,11 @@ export async function generateSequence(
   const stepCount = options?.stepCount || 5;
   const strategies = STEP_STRATEGIES.slice(0, stepCount);
 
-  const basePrompt = buildGenerationPrompt(ctx, methodology, signalAngle, strategies, options?.meetingSlots, options?.knowledgeContext);
+  const basePrompt = buildGenerationPrompt(ctx, methodology, signalAngle, strategies, options?.meetingSlots, options?.knowledgeContext, options?.rejectionInsight ?? null);
 
-  // Standard generation (bulk campaigns)
-  if (!options?.evaluate) {
-    const { object } = await tracedGenerateObject({
-      model,
-      schema: generatedSequenceSchema,
-      prompt: basePrompt,
-      temperature: 0.5,
-      _trace: {
-        agentId: "generate-sequence",
-        tenantId: options?.tenantId,
-        inputPreview: `Sequence for ${ctx.contact.fullName} at ${ctx.company?.name || "unknown"} (${methodology.name})`,
-      },
-    });
-    return object as GeneratedSequence;
-  }
-
-  // Evaluator-optimizer loop (preview/single sequence)
+  // P0-3 — always run the evaluator-optimizer loop (bulk AND preview) so every
+  // generated sequence is graded by the data-backed scorer (gradeEmail) before
+  // it becomes a draft. The bulk path used to skip all quality gating.
   const generateFn = async (feedback?: string) => {
     const prompt = feedback
       ? `${basePrompt}\n\nPREVIOUS ATTEMPT FEEDBACK — fix these issues:\n${feedback}`
@@ -99,20 +95,28 @@ export async function generateSequence(
       _trace: {
         agentId: "generate-sequence",
         tenantId: options?.tenantId,
-        inputPreview: `Sequence for ${ctx.contact.fullName} (eval loop)`,
+        inputPreview: `Sequence for ${ctx.contact.fullName} at ${ctx.company?.name || "unknown"} (${methodology.name})`,
       },
     });
     return { text: JSON.stringify(object), usage: { promptTokens: 0, completionTokens: 0 } };
   };
 
-  const evaluateFn = async (output: string) => {
-    return evaluateSequenceQuality(output, ctx, methodology);
-  };
+  const evaluateFn = async (output: string) => gradeSequenceQuality(output, ctx, methodology);
 
   const { evaluatorOptimizerLoop } = await import("@/lib/evals/flywheel");
   const result = await evaluatorOptimizerLoop(generateFn, evaluateFn, 2);
 
-  return JSON.parse(result.output) as GeneratedSequence;
+  // Attach per-step + sequence-level quality to the result (R7).
+  const parsed = JSON.parse(result.output) as GeneratedSequence;
+  const finalEval = gradeSequenceQuality(result.output, ctx, methodology);
+  return {
+    ...parsed,
+    steps: parsed.steps.map((s) => {
+      const ps = finalEval.perStep.find((p) => p.stepNumber === s.stepNumber);
+      return ps ? { ...s, qualityScore: { composite: ps.composite, dimensions: ps.dimensions } } : s;
+    }),
+    sequenceQuality: { composite: finalEval.score, passed: finalEval.pass, iterations: result.iterations },
+  } as GeneratedSequence;
 }
 
 /**
@@ -209,14 +213,18 @@ export async function evaluateSequenceQuality(
   };
 }
 
-function buildGenerationPrompt(
+export function buildGenerationPrompt(
   ctx: ProspectContext,
   methodology: Methodology,
   signalAngle: (typeof SIGNAL_ANGLES)[string] | null,
   strategies: StepStrategy[],
   meetingSlots?: string,
   knowledgeContext?: string,
+  rejectionInsight?: DominantInsight | null,
 ): string {
+  // P0-6 — counter the dominant rejection reason for this sequence (if any),
+  // prefixed so it leads the prompt without touching the CRITICAL RULES.
+  const counterBlock = buildRejectionCounterPrompt(rejectionInsight ?? null);
   const contextBlock = formatContextForPrompt(ctx);
 
   const methodologyBlock = `METHODOLOGY: ${methodology.name}
@@ -263,7 +271,7 @@ function buildGenerationPrompt(
   const examples = getExamplesForMethodology(methodology.name);
   const examplesBlock = formatExamplesForPrompt(examples);
 
-  return `You are a world-class SDR at ${ctx.companyName || "our company"}. You write cold outreach that converts at 3x industry average because every email demonstrates you deeply understand the prospect's world. You never sound like a template. You never "follow up" — each email brings fresh value.
+  return `${counterBlock ? counterBlock + "\n\n" : ""}You are a world-class SDR at ${ctx.companyName || "our company"}. You write cold outreach that converts at 3x industry average because every email demonstrates you deeply understand the prospect's world. You never sound like a template. You never "follow up" — each email brings fresh value.
 
 ${contextBlock}
 
@@ -300,8 +308,15 @@ CRITICAL RULES:
  * Build a personalization brief that tells the LLM exactly which
  * facts to weave into the email. This prevents generic output.
  */
-function buildPersonalizationBrief(ctx: ProspectContext): string {
+export function buildPersonalizationBrief(ctx: ProspectContext): string {
   const facts: string[] = [];
+
+  // P0-2 — research first: the cached brief's angle/pains/competitor lead the
+  // brief so the LLM opens on a researched fact, not a firmographic merge-tag.
+  const rb = ctx.researchBrief;
+  if (rb?.bestAngle) facts.push(`- ANGLE (from research): ${rb.bestAngle} — lead with this`);
+  if (rb?.painPoints?.length) facts.push(`- PAIN POINTS (from research): ${rb.painPoints.join("; ")}`);
+  if (rb?.competitorDetected) facts.push(`- COMPETITOR DETECTED: ${rb.competitorDetected} — position against it`);
 
   // Signal-based hooks
   if (ctx.bestSignal) {

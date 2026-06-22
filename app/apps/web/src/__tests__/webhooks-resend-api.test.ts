@@ -294,7 +294,7 @@ describe("POST /api/webhooks/resend — signed requests", () => {
     expect(res.status).toBe(200);
     expect(pauseEnrollment).toHaveBeenCalledWith("enr-1", "complained");
     expect(valuesFn).toHaveBeenCalledWith(
-      expect.objectContaining({ reason: "unsubscribe" })
+      expect.objectContaining({ reason: "complaint" })
     );
   });
 });

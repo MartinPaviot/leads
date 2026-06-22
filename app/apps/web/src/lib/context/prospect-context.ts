@@ -20,6 +20,18 @@ export interface ProspectSignal {
   dataSource?: string;
 }
 
+/**
+ * P0-2 — the trimmed slice of the cached intelligence brief that the
+ * generation prompt leads with. Populated read-only from the brief cache.
+ */
+export interface ResearchBriefContext {
+  bestAngle: string | null;
+  painPoints: string[];
+  competitorDetected: string | null;
+  publicContent: Array<{ type: string; title: string; quote: string }>;
+  warmthSignals: Array<{ type: string; detail: string }>;
+}
+
 export interface ProspectContext {
   // Contact
   contact: {
@@ -80,6 +92,9 @@ export interface ProspectContext {
     direction: string | null;
     occurredAt: string | null;
   }>;
+
+  // Research brief (P0-2 — read-only from the intelligence-brief cache)
+  researchBrief?: ResearchBriefContext;
 }
 
 /**
@@ -155,6 +170,25 @@ export async function buildProspectContext(
         amount: props.total_funding ? String(props.total_funding) : null,
         amountPrinted: props.total_funding_printed || null,
       };
+    }
+  }
+
+  // P0-2 — pull the CACHED research brief (read-only; never scrapes here) so
+  // generated copy can lead with the researched angle, not just firmographics.
+  // Dynamic import mirrors this file's style and avoids a static import cycle.
+  let researchBrief: ResearchBriefContext | undefined;
+  if (contact.companyId) {
+    try {
+      const { readCachedBrief, toResearchBriefContext, briefIsEmpty } = await import(
+        "@/lib/campaign-engine/build-intelligence-brief"
+      );
+      const cached = await readCachedBrief(tenantId, contact.companyId, contactId);
+      if (cached) {
+        const mapped = toResearchBriefContext(cached);
+        if (!briefIsEmpty(mapped)) researchBrief = mapped;
+      }
+    } catch {
+      // Non-critical — degrade to firmographic personalization.
     }
   }
 
@@ -266,6 +300,7 @@ export async function buildProspectContext(
     companyName: settings.onboardingCompanyName || "",
     previousEmails,
     recentActivities,
+    researchBrief,
   };
 }
 
@@ -292,6 +327,18 @@ export function formatContextForPrompt(ctx: ProspectContext): string {
 - Location: ${[ctx.company.city, ctx.company.state, ctx.company.country].filter(Boolean).join(", ") || "unknown"}
 - Founded: ${ctx.company.foundedYear || "unknown"}
 - Description: ${ctx.company.description || "N/A"}`);
+  }
+
+  // Research brief (P0-2 — lead with the researched angle)
+  if (ctx.researchBrief) {
+    const b = ctx.researchBrief;
+    const lines: string[] = [];
+    if (b.bestAngle) lines.push(`- Best angle: ${b.bestAngle}`);
+    if (b.painPoints.length) lines.push(`- Pain points: ${b.painPoints.join("; ")}`);
+    if (b.competitorDetected) lines.push(`- Competitor in use: ${b.competitorDetected}`);
+    for (const p of b.publicContent) lines.push(`- They said publicly (${p.type}): "${p.quote}"`);
+    for (const w of b.warmthSignals) lines.push(`- Warm path: ${w.type} — ${w.detail}`);
+    if (lines.length) sections.push(`RESEARCH BRIEF (use this angle first):\n${lines.join("\n")}`);
   }
 
   // Signals

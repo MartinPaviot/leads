@@ -166,7 +166,7 @@ export async function POST(req: Request) {
               .insert(emailOptouts)
               .values({
                 tenantId: outbound.tenantId,
-                emailAddress: outbound.toAddress,
+                emailAddress: outbound.toAddress.toLowerCase(),
                 reason: "bounce_hard",
               })
               .onConflictDoNothing();

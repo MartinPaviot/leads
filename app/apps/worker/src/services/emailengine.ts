@@ -78,6 +78,7 @@ export async function sendEmail(
     text?: string;
     inReplyTo?: string;
     references?: string;
+    headers?: Record<string, string>;
   }
 ): Promise<{ messageId: string; id: string; response: string }> {
   const body: Record<string, unknown> = {
@@ -87,12 +88,16 @@ export async function sendEmail(
     html: email.html,
   };
   if (email.text) body.text = email.text;
+  // Merge threading headers first, then any caller-supplied headers (e.g.
+  // List-Unsubscribe One-Click). Only attach body.headers when non-empty so
+  // a plain send still POSTs no headers key (compat).
+  const headers: Record<string, string> = {};
   if (email.inReplyTo) {
-    body.headers = {
-      "In-Reply-To": email.inReplyTo,
-      References: email.references || email.inReplyTo,
-    };
+    headers["In-Reply-To"] = email.inReplyTo;
+    headers["References"] = email.references || email.inReplyTo;
   }
+  if (email.headers) Object.assign(headers, email.headers);
+  if (Object.keys(headers).length > 0) body.headers = headers;
   return eeFetch(`/v1/account/${accountId}/submit`, {
     method: "POST",
     body,

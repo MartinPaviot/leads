@@ -30,6 +30,7 @@ import {
 import { and, eq, notInArray, inArray, desc } from "drizzle-orm";
 import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
 import { isCompanyEligible } from "@/lib/sequences/enrollment-eligibility";
+import { loadSuppressedEmails } from "@/lib/sequences/suppression";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
 import {
   enforceAgentApprovalMode,
@@ -122,9 +123,24 @@ export const signalAutoEnroll = inngest.createFunction(
     }
 
     // Filter to contacts with email
-    const enrollableContacts = companyContacts.filter((c: { id: string; email: string | null }) => c.email);
+    let enrollableContacts = companyContacts.filter((c: { id: string; email: string | null }) => c.email);
     if (enrollableContacts.length === 0) {
       return { skipped: true, reason: "No contacts with email addresses" };
+    }
+
+    // P0-5 — drop addresses on the tenant suppression-list (bounce/complaint/opt-out)
+    // BEFORE recording a doomed pending enrollment. step.run keeps it idempotent.
+    enrollableContacts = await step.run("filter-suppressed", async () => {
+      const suppressedSet = await loadSuppressedEmails(
+        tenantId,
+        enrollableContacts.map((c: { email: string | null }) => c.email),
+      );
+      return enrollableContacts.filter(
+        (c: { email: string | null }) => !(c.email && suppressedSet.has(c.email.toLowerCase())),
+      );
+    });
+    if (enrollableContacts.length === 0) {
+      return { skipped: true, reason: "All contacts suppressed (bounce/complaint/opt-out)" };
     }
 
     // 3. Find an active outbound sequence for this tenant whose

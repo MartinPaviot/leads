@@ -18,11 +18,15 @@ export type ContactEligibilityInput = {
   email: string | null;
   deletedAt: Date | null;
   companyExcludedReason: string | null;
+  // P0-5 — presence in the tenant's email_optouts (hard bounce / complaint /
+  // opt-out). Any non-null reason suppresses; null/undefined = not suppressed.
+  suppressedReason?: "hard_bounce" | "complaint" | "opt_out" | null;
 };
 
 export type EligibilityReason =
   | "deleted"
   | "no_email"
+  | "suppressed" // P0-5
   | "excluded_company";
 
 export type EligibilityResult =
@@ -39,6 +43,9 @@ export function checkContactEligibility(
 ): EligibilityResult {
   if (input.deletedAt) return { eligible: false, reason: "deleted" };
   if (!input.email) return { eligible: false, reason: "no_email" };
+  // Deliverability beats ICP: we already burned this address (bounce/complaint/
+  // opt-out), so never re-email it regardless of company fit. (P0-5)
+  if (input.suppressedReason) return { eligible: false, reason: "suppressed" };
   if (input.companyExcludedReason) {
     return { eligible: false, reason: "excluded_company" };
   }

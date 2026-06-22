@@ -10,6 +10,7 @@ import {
 } from "@/db/schema";
 import { eq, and, sql, isNull } from "drizzle-orm";
 import { checkContactEligibility } from "@/lib/sequences/enrollment-eligibility";
+import { isEmailSuppressed } from "@/lib/sequences/suppression";
 
 export async function POST(
   req: Request,
@@ -98,10 +99,13 @@ export async function POST(
         continue;
       }
 
+      // P0-5 — never enroll a burned address, even when passed explicitly.
+      const suppressed = await isEmailSuppressed(authCtx.tenantId, contact.email);
       const eligibility = checkContactEligibility({
         email: contact.email,
         deletedAt: contact.deletedAt,
         companyExcludedReason: contact.companyExcludedReason,
+        suppressedReason: suppressed ? "hard_bounce" : null,
       });
       if (!eligibility.eligible) {
         skipped++;

@@ -25,6 +25,7 @@ import { db } from "@/db";
 import { tasks, deals, companies, contacts, sequences, sequenceEnrollments } from "@/db/schema";
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { deliverInteractiveEmail } from "@/lib/emails/deliver-interactive";
+import { loadSuppressedEmails } from "@/lib/sequences/suppression";
 
 export interface ExecutableAction {
   id: string;
@@ -213,10 +214,15 @@ export async function executeAgentAction(
       // no tenantId column, so the contact FK is the only tenant anchor — the
       // executor is the trust boundary, exactly like create_deal / send_followup.
       const validContacts = await db
-        .select({ id: contacts.id })
+        .select({ id: contacts.id, email: contacts.email })
         .from(contacts)
         .where(and(inArray(contacts.id, target.contactIds), eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt)));
-      const validIds = new Set(validContacts.map((c) => c.id));
+      // P0-5 — the deferred executor is the REAL write for autopilot/signal
+      // enrollments; drop any address suppressed (bounce/complaint/opt-out).
+      const suppressedSet = await loadSuppressedEmails(tenantId, validContacts.map((c) => c.email));
+      const validIds = new Set(
+        validContacts.filter((c) => !(c.email && suppressedSet.has(c.email.toLowerCase()))).map((c) => c.id),
+      );
       let enrolled = 0;
       for (const contactId of target.contactIds) {
         if (!validIds.has(contactId)) continue; // not this tenant's, or soft-deleted

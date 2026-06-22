@@ -36,12 +36,14 @@ vi.mock("drizzle-orm", () => ({
   notInArray: () => ({ op: "notInArray" }),
   inArray: () => ({ op: "inArray" }),
   desc: () => ({ op: "desc" }),
+  sql: () => ({ op: "sql" }),
 }));
 
 vi.mock("@/db/schema", () => ({
   contacts: {}, companies: {}, deals: {}, sequences: {},
   sequenceEnrollments: { contactId: "contact_id", sequenceId: "sequence_id" },
   notifications: {}, users: {},
+  emailOptouts: { emailAddress: "email_address", tenantId: "tenant_id" },
 }));
 
 vi.mock("@/lib/analytics/pipeline-tracker", () => ({ trackPipeline: vi.fn().mockResolvedValue(undefined) }));
@@ -66,9 +68,10 @@ function selectResultFor(call: number): unknown[] {
     case 1: return [];
     case 2: return [{ excludedReason: null, deletedAt: null }];
     case 3: return [{ id: "c1", email: "x@a.com", firstName: "X" }];
-    case 4: return [{ id: "seq1", name: "Default", icpId: null, campaignConfig: null }];
-    case 5: return [{ properties: null }];
-    case 6: return [];
+    case 4: return []; // P0-5 loadSuppressedEmails — none suppressed
+    case 5: return [{ id: "seq1", name: "Default", icpId: null, campaignConfig: null }];
+    case 6: return [{ properties: null }];
+    case 7: return [];
     default: return [{ id: "u1" }];
   }
 }

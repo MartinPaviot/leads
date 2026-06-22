@@ -1,6 +1,7 @@
 import { Worker } from "bullmq";
 import { connection } from "../queues/index.js";
 import { sendEmail } from "../services/emailengine.js";
+import { buildUnsubscribeUrl } from "../services/unsubscribe.js";
 import { RateLimiter } from "../services/rate-limiter.js";
 import { RotationEngine } from "../services/rotation.js";
 import { sendQueue } from "../queues/index.js";
@@ -82,6 +83,12 @@ export function createSendWorker() {
           ? email.bodyHtml
           : email.bodyHtml + unsubFooter;
 
+        // RFC-8058 One-Click unsubscribe header — parity with the Inngest send
+        // path (email-send-worker.ts). Gmail/Yahoo bulk-sender rules require it;
+        // the mailto footer below is the human fallback, not a substitute.
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.elevay.com";
+        const unsubUrl = buildUnsubscribeUrl(appUrl, email.tenantId, email.toAddress);
+
         const result = await sendEmail(mailbox.eeAccountId, {
           from: { name: mailbox.displayName || "", address: mailbox.emailAddress },
           to: [{ address: email.toAddress }],
@@ -89,6 +96,10 @@ export function createSendWorker() {
           html: htmlWithFooter,
           text: email.bodyText || undefined,
           inReplyTo: email.inReplyTo || undefined,
+          headers: {
+            "List-Unsubscribe": `<${unsubUrl}>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
         });
 
         await db

@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { intelligenceBriefs, companies, contacts } from "@/db/schema";
 import { eq, and, gt } from "drizzle-orm";
 import type { IntelligenceBrief } from "./types";
+import type { ResearchBriefContext } from "@/lib/context/prospect-context";
 import { scrapeCompanyWebsite } from "./sources/website";
 import { fetchRecentNews } from "./sources/news";
 import { scrapeJobPostings } from "./sources/jobs";
@@ -129,6 +130,46 @@ async function getCachedBrief(
     .limit(1);
 
   return row ? rowToBrief(row) : null;
+}
+
+/**
+ * P0-2 — read-only cache accessor for the prospect-context wiring. NEVER
+ * scrapes; delegates to the TTL + tenant-scoped getCachedBrief. The generation
+ * path reads the brief through this so research can lead the copy without
+ * blocking on a cold scrape (that stays in buildIntelligenceBrief).
+ */
+export async function readCachedBrief(
+  tenantId: string,
+  companyId: string,
+  contactId: string | null,
+): Promise<IntelligenceBrief | null> {
+  return getCachedBrief(tenantId, companyId, contactId);
+}
+
+/** Map a full brief to the trimmed shape the generation prompt consumes. */
+export function toResearchBriefContext(b: IntelligenceBrief): ResearchBriefContext {
+  return {
+    bestAngle: b.bestAngle,
+    painPoints: b.painPoints ?? [],
+    competitorDetected: b.competitorDetected,
+    publicContent: (b.publicContent ?? []).slice(0, 2).map((p) => ({
+      type: p.type,
+      title: p.title,
+      quote: (p.quote ?? "").slice(0, 200),
+    })),
+    warmthSignals: (b.warmthSignals ?? []).map((w) => ({ type: w.type, detail: w.detail })),
+  };
+}
+
+/** True when the mapped brief carries nothing usable — don't inject it. */
+export function briefIsEmpty(c: ResearchBriefContext): boolean {
+  return (
+    !c.bestAngle &&
+    c.painPoints.length === 0 &&
+    !c.competitorDetected &&
+    c.publicContent.length === 0 &&
+    c.warmthSignals.length === 0
+  );
 }
 
 interface FetchResult {

@@ -4,8 +4,13 @@ import { sequences, sequenceSteps, contacts, companies } from "@/db/schema";
 import { eq, and, sql, isNull } from "drizzle-orm";
 import { buildProspectContext } from "@/lib/context/prospect-context";
 import { generateSequence } from "@/lib/agents/sequence-generator";
-import { buildIntelligenceBrief } from "@/lib/campaign-engine/build-intelligence-brief";
+import { buildIntelligenceBrief, toResearchBriefContext, briefIsEmpty } from "@/lib/campaign-engine/build-intelligence-brief";
+import type { IntelligenceBrief } from "@/lib/campaign-engine/types";
 import { selectStrategy } from "@/lib/campaign-engine/select-strategy";
+import { withTimeout } from "@/lib/utils/with-timeout";
+import { extractDominantInsight, type DominantInsight } from "@/lib/sequence-drafts/rejection-counter-prompt";
+
+const TIMEOUT_BRIEF_MS = Number(process.env.GENERATE_BRIEF_TIMEOUT_MS ?? 8000);
 
 /**
  * POST /api/campaigns/generate
@@ -64,8 +69,32 @@ export async function POST(req: Request) {
     // Kick off intelligence brief in background (non-blocking enrichment for future use)
     const contactForBrief = resolvedContactId;
     const companyForBrief = companyId || (resolvedContactId ? (await db.select({ companyId: contacts.companyId }).from(contacts).where(and(eq(contacts.id, resolvedContactId), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt))).limit(1))[0]?.companyId : null);
+    // P0-2 — AWAIT the research brief (bounded + fail-open) so generation can
+    // lead with it. Cache hit = instant; cold = bounded scrape; timeout/error =
+    // null -> firmographic flow. The brief NEVER blocks the response.
+    let resolvedBrief: IntelligenceBrief | null = null;
     if (companyForBrief) {
-      buildIntelligenceBrief(companyForBrief, authCtx.tenantId, contactForBrief || undefined).catch(() => {});
+      resolvedBrief = await withTimeout(
+        buildIntelligenceBrief(companyForBrief, authCtx.tenantId, contactForBrief || undefined),
+        TIMEOUT_BRIEF_MS,
+      );
+    }
+
+    // P0-6 — load the per-sequence dominant rejection insight (fail-open,
+    // tenant-scoped; floor applied in extractDominantInsight) so generation
+    // counters the reason founders kept rejecting for.
+    let rejectionInsight: DominantInsight | null = null;
+    if (sequenceId) {
+      try {
+        const [seq] = await db
+          .select({ campaignConfig: sequences.campaignConfig })
+          .from(sequences)
+          .where(and(eq(sequences.id, sequenceId), eq(sequences.tenantId, authCtx.tenantId)))
+          .limit(1);
+        rejectionInsight = extractDominantInsight(seq?.campaignConfig);
+      } catch (err) {
+        console.warn("rejectionInsight load failed (fail-open):", err);
+      }
     }
 
     let generated;
@@ -86,7 +115,7 @@ export async function POST(req: Request) {
     if (resolvedContactId) {
       const ctx = await buildProspectContext(resolvedContactId, authCtx.tenantId);
       if (!ctx) return Response.json({ error: "Contact not found" }, { status: 404 });
-      generated = await generateSequence(ctx, { stepCount: stepCount || 5 });
+      generated = await generateSequence(ctx, { stepCount: stepCount || 5, rejectionInsight });
     } else {
       // No contacts yet — generate template sequence from company context
       const { getTenantSettings } = await import("@/lib/config/tenant-settings");
@@ -131,9 +160,13 @@ export async function POST(req: Request) {
         },
         previousEmails: [],
         activities: [],
+        researchBrief:
+          resolvedBrief && !briefIsEmpty(toResearchBriefContext(resolvedBrief))
+            ? toResearchBriefContext(resolvedBrief)
+            : undefined,
       };
 
-      generated = await generateSequence(minimalCtx as any, { stepCount: stepCount || 5 });
+      generated = await generateSequence(minimalCtx as any, { stepCount: stepCount || 5, rejectionInsight });
     }
 
     let targetSequenceId = sequenceId;
@@ -185,6 +218,14 @@ export async function POST(req: Request) {
       sequenceName: generated.sequenceName,
       reasoning: generated.sequenceReasoning,
       steps: generated.steps,
+      quality: {
+        composite: generated.sequenceQuality?.composite ?? null,
+        passed: generated.sequenceQuality?.passed ?? null,
+        perStep: generated.steps.map((s: { stepNumber: number; qualityScore?: { composite: number } }) => ({
+          stepNumber: s.stepNumber,
+          composite: s.qualityScore?.composite ?? null,
+        })),
+      },
       methodology: {
         seniority: resolvedContactId ? "detected" : "VP",
         signalUsed: null,

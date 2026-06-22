@@ -178,11 +178,12 @@ export async function POST(req: Request) {
           updatedAt: new Date(),
         }).where(eq(outboundEmails.id, email.id));
 
-        // Add to global optout list
+        // Add to global optout list (P0-5: tag complaints distinctly from
+        // user-initiated unsubscribes for honest audit; presence is what gates).
         await db.insert(emailOptouts).values({
           tenantId: email.tenantId,
           emailAddress: email.toAddress.toLowerCase(),
-          reason: "unsubscribe",
+          reason: "complaint",
         }).onConflictDoNothing();
 
         // Pause enrollment
