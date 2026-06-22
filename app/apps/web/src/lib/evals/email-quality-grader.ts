@@ -143,22 +143,56 @@ export function gradeEmail(input: EmailGradeInput): EmailGradeResult {
   dimensions.push({ name: "personalization", score: personalizationScore, weight: 0.25, detail: personalizationHits.join(", ") || "none" });
 
   // 4. CTA clarity (weight: 0.15)
+  // A sharp diagnostic question is a great HOOK but a weak CTA on its own — it
+  // leaves the prospect no proposed next step. The leaders' best-converting emails
+  // pair the insight/question with ONE low-friction ask (a brief reply, a short
+  // 10-15 min exchange, a resource). So: reward a concrete low-friction ask (1.0),
+  // treat a question-only close as good-but-incomplete (0.75), penalise stacked
+  // asks (0.65) and no-CTA (0.3). This is what steers generation off soft CTAs.
   const lines = email.split("\n").filter((l) => l.trim().length > 0);
   const lastLines = lines.slice(-3).join(" ").toLowerCase();
+  const fullLower = email.toLowerCase();
+  const questionCount = (email.match(/\?/g) || []).length;
   const hasQuestion = lastLines.includes("?");
-  const hasSingleCTA = (email.match(/\?/g) || []).length <= 2;
-  let ctaScore = 0;
-  if (hasQuestion && hasSingleCTA) {
+  // Concrete, low-friction next-step asks (a proposed action, not a pure question).
+  const ASK_PATTERNS: RegExp[] = [
+    /\b\d{1,2}[\s-]?min(ute)?s?\b/,
+    /\b(quick|short|brief)\s+(call|chat|exchange|conversation|sync|word|look|note)\b/,
+    /\b(open|up)\s+(to|for)\b/,
+    /\bwould you be (open|up|interested|willing|game)\b/,
+    /\bworth\s+(a\s+)?(quick\s+)?(call|chat|exchange|conversation|reply|look|discussing|discuss|exploring|comparing|connecting|15)/,
+    /\bworth (discussing|exploring|a look|comparing notes|connecting|a conversation)\b/,
+    /\b(grab|hop on|jump on)\s+(a\s+)?(call|chat|coffee)\b/,
+    /\b(happy|glad) to (send|share|walk|show|put together)\b/,
+    /\b(want|like) me to (send|share|put together|pull)\b/,
+    /\bshould i (send|share|pull together)\b/,
+    /\b(reply|respond|let me know|shoot me|send me|point me)\b/,
+    /\b(fancy|keen|interested) (a |in )?\b/,
+    /\bwhat if we\b/,
+    /\b(pilot|trial|demo link|sandbox|free tier|2[\s-]?min(ute)? video)\b/,
+    /\bcompare notes\b/,
+  ];
+  const hasConcreteAsk = ASK_PATTERNS.some((re) => re.test(lastLines) || re.test(fullLower));
+  let ctaScore: number;
+  let ctaDetail: string;
+  if (questionCount >= 3) {
+    ctaScore = 0.65;
+    issues.push("Too many asks/questions — one low-friction CTA converts better");
+    ctaDetail = "stacked asks";
+  } else if (hasConcreteAsk) {
     ctaScore = 1.0;
-    strengths.push("Clear single CTA as question");
+    strengths.push("Clear, low-friction next-step CTA");
+    ctaDetail = "concrete low-friction ask";
   } else if (hasQuestion) {
-    ctaScore = 0.7;
-    issues.push("Multiple questions dilute CTA");
+    ctaScore = 0.75;
+    issues.push("Sharp question but no concrete next step — pair it with ONE low-friction ask (a brief reply or short exchange)");
+    ctaDetail = "diagnostic question, no ask";
   } else {
     ctaScore = 0.3;
-    issues.push("No question-based CTA in final lines");
+    issues.push("No CTA in the final lines");
+    ctaDetail = "no CTA";
   }
-  dimensions.push({ name: "cta_clarity", score: ctaScore, weight: 0.15, detail: hasQuestion ? "question CTA present" : "no question CTA" });
+  dimensions.push({ name: "cta_clarity", score: ctaScore, weight: 0.15, detail: ctaDetail });
 
   // 5. Subject line (weight: 0.10)
   let subjectScore = 0.5; // neutral if no subject

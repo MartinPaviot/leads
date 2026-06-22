@@ -8,7 +8,7 @@ describe("email-quality-grader: data-backed scoring", () => {
 
 Cloud infra companies that 3x engineering post-Series B usually hit a pipeline wall around month 4. The founder-led sales motion that closed your first 20 deals stops working at the volume your $18M round demands.
 
-With CloudNova scaling from 50 engineers, how are you thinking about outbound capacity keeping pace with the hiring plan?`,
+With CloudNova scaling from 50 engineers, how are you thinking about outbound capacity keeping pace with the hiring plan? Worth a quick exchange if it's on your radar.`,
       subjectLine: "post-Series B scaling wall",
       framework: "basho",
       prospectContext: { name: "Marc Laurent", company: "CloudNova", signal: "Series B $18M" },
@@ -16,6 +16,27 @@ With CloudNova scaling from 50 engineers, how are you thinking about outbound ca
 
     console.log("email-001 BASHO:", JSON.stringify({ score: result.score.toFixed(2), issues: result.issues, strengths: result.strengths }, null, 2));
     expect(result.score).toBeGreaterThan(0.8);
+  });
+
+  // CTA-strength fix: a concrete low-friction ask must out-score a diagnostic-only
+  // question (the soft-CTA tendency the blind eval + leaders research both flagged).
+  const ctaOf = (r: { dimensions: Array<{ name: string; score: number }> }) =>
+    r.dimensions.find((d) => d.name === "cta_clarity")!.score;
+  const ctxM = { name: "Marc", company: "CloudNova" };
+  const hook =
+    "Marc,\n\nCloud infra teams scaling post-Series B hit a pipeline wall around month 4 as founder-led sales stops covering the volume.\n\n";
+
+  it("cta_clarity: a concrete low-friction ask beats a diagnostic-only question", () => {
+    const diagnostic = gradeEmail({ email: hook + "How are you thinking about outbound capacity as you scale?", framework: "basho", prospectContext: ctxM });
+    const withAsk = gradeEmail({ email: hook + "How are you thinking about outbound capacity as you scale? Worth a quick 15-min exchange if it's on your radar.", framework: "basho", prospectContext: ctxM });
+    expect(ctaOf(diagnostic)).toBeCloseTo(0.75, 5);
+    expect(ctaOf(withAsk)).toBe(1.0);
+    expect(ctaOf(withAsk)).toBeGreaterThan(ctaOf(diagnostic));
+  });
+
+  it("cta_clarity: stacked asks are penalised", () => {
+    const stacked = gradeEmail({ email: hook + "Want a demo? Got 15 min Tuesday? Or should I send a deck?", framework: "basho", prospectContext: ctxM });
+    expect(ctaOf(stacked)).toBeCloseTo(0.65, 5);
   });
 
   it("email-001 BAD: detects violations in old mock", () => {
