@@ -53,6 +53,7 @@ import { recordingRetentionPurge } from "@/inngest/recording-retention";
 import { evictSignalUrlCache } from "@/inngest/signal-url-cache-evict";
 import { identifyVisit } from "@/inngest/identify-visit";
 import { weeklyEvalHarness } from "@/inngest/eval-harness-cron";
+import { personalizationBacktest } from "@/inngest/personalization-backtest";
 import { dailyTranscriptFreshnessAlert } from "@/inngest/transcript-freshness-alert";
 import { dailyCsHealthSnapshots } from "@/inngest/cs-health-cron";
 import { weeklyAnonymizedSignalAggregation } from "@/inngest/anonymized-signal-aggregation";
@@ -230,6 +231,8 @@ export const { GET, POST, PUT } = serve({
     identifyVisit,
     // Sprint-1 audit follow-up: weekly LLM eval harness — Mondays 02:00 UTC.
     weeklyEvalHarness,
+    // P1-12: nightly reply-rate back-test of the quality score — 03:00 UTC.
+    personalizationBacktest,
     // P0-4 follow-up : daily check for tenants whose Recall.ai bot
     // silently stopped indexing — drops a notification at severity
     // 1 (degraded) or 2 (silent) so the founder reconnects fast.

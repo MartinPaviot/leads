@@ -92,6 +92,8 @@ export async function GET(req: Request) {
       triggerReason: d.triggerReason,
       personalizationSources: d.personalizationSources,
       status: d.status,
+      // P1-15 — quality score for the cockpit queue prioritisation.
+      qualityScore: d.qualityScore ?? null,
       generatedAt: d.generatedAt?.toISOString(),
       reviewedAt: d.reviewedAt?.toISOString() ?? null,
       reviewedBy: d.reviewedBy ?? null,

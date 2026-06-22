@@ -1,3 +1,52 @@
+/**
+ * P1-10 — firmographic/funding facts projected from the company-enrichment
+ * waterfall (Apollo → registries → LLM). NO `raw` payload (R17). Colocated here
+ * (not in `sources/apollo-enrich.ts`) so `prospect-context.ts` can type the
+ * brief slice without importing `providers/*` — avoids an import cycle
+ * (design.md decision #1). `apollo-enrich.ts` re-exports these for back-compat.
+ */
+export interface FirmographicFacts {
+  industry: string | null;
+  description: string | null;
+  employeeCount: number | null;
+  sizeRange: string | null;
+  annualRevenue: number | null;
+  revenueRange: string | null;
+  foundedYear: number | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  fundingStage: string | null;
+  totalFunding: number | null;
+  investors: string[];
+  technologies: string[];
+}
+
+/** Per-field provenance — which provider supplied a given firmographic field. */
+export interface FieldProvenance {
+  field: keyof FirmographicFacts;
+  provider: string;
+  atIso: string;
+}
+
+/** All-empty firmographics — the zero value. Guard test asserts key parity. */
+export const EMPTY_FIRMOGRAPHICS: FirmographicFacts = {
+  industry: null,
+  description: null,
+  employeeCount: null,
+  sizeRange: null,
+  annualRevenue: null,
+  revenueRange: null,
+  foundedYear: null,
+  city: null,
+  state: null,
+  country: null,
+  fundingStage: null,
+  totalFunding: null,
+  investors: [],
+  technologies: [],
+};
+
 export interface IntelligenceBrief {
   id: string;
   tenantId: string;
@@ -18,6 +67,9 @@ export interface IntelligenceBrief {
   sourcesAttempted: number;
   sourcesSucceeded: number;
   sourceErrors: SourceError[];
+  // P1-10 — verified firmographics + per-field provenance (null when no provider hit).
+  firmographics: FirmographicFacts | null;
+  firmographicProvenance: FieldProvenance[];
   researchedAt: string;
   expiresAt: string;
 }

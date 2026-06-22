@@ -41,6 +41,9 @@ export const intelligenceBriefs = pgTable(
     sourcesAttempted: integer("sources_attempted").default(0),
     sourcesSucceeded: integer("sources_succeeded").default(0),
     sourceErrors: jsonb("source_errors").default([]),
+    // P1-10 — firmographic/funding facts + per-field provenance from the waterfall.
+    firmographics: jsonb("firmographics"),
+    firmographicProvenance: jsonb("firmographic_provenance").default([]),
     researchedAt: timestamp("researched_at", { withTimezone: true }).defaultNow().notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },

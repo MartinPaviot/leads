@@ -130,6 +130,10 @@ export async function GET(
       status: draft.status,
       triggerReason: draft.triggerReason,
       generatedAt: draft.generatedAt?.toISOString(),
+      // P0-4 — surfaced in the review "Deliverability check" section.
+      spamScore: draft.spamScore ?? null,
+      spamSeverity: draft.spamSeverity ?? null,
+      spamWarnings: draft.spamWarnings ?? [],
     },
     contact: contactRow
       ? {

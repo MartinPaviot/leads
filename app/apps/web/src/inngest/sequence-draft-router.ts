@@ -34,7 +34,8 @@ import { decideRouteMode, buildDraftRow } from "@/lib/sequence-drafts/router";
 import { buildProspectContext } from "@/lib/context/prospect-context";
 import { deriveSourcesFromContext, type DraftSource } from "@/lib/sequence-drafts/claims-from-context";
 import { personalizeStepEmail } from "@/lib/agents/sequence-generator";
-import { STEP_STRATEGIES } from "@/lib/scoring/outbound-methodologies";
+import { STEP_STRATEGIES, getMethodology } from "@/lib/scoring/outbound-methodologies";
+import { gradeGeneratedStep } from "@/lib/evals/sequence-quality";
 import { logger } from "@/lib/observability/logger";
 
 export const routeSequenceStepToDraft = inngest.createFunction(
@@ -215,6 +216,7 @@ export const routeSequenceStepToDraft = inngest.createFunction(
             subject: stepTemplate.subjectTemplate,
             body: stepTemplate.bodyTemplate,
             sources: [] as DraftSource[],
+            score: null as number | null,
           };
         }
         const strategy =
@@ -229,7 +231,19 @@ export const routeSequenceStepToDraft = inngest.createFunction(
           },
           strategy,
         );
-        return { ok: true as const, subject: out.subject, body: out.body, sources: deriveSourcesFromContext(ctx) };
+        // P1-15 — grade the draft (deterministic, pure) so the cockpit queue can
+        // prioritise by quality. Fail-open: a draft without a score still ships.
+        let score: number | null = null;
+        try {
+          score = gradeGeneratedStep(
+            { subject: out.subject, body: out.body, stepNumber: enrollment.currentStep ?? 1 },
+            ctx,
+            getMethodology(ctx.contact.seniority),
+          ).score;
+        } catch {
+          /* fail-open */
+        }
+        return { ok: true as const, subject: out.subject, body: out.body, sources: deriveSourcesFromContext(ctx), score };
       } catch (err) {
         logger.warn("route-sequence-step-to-draft.personalise_failed", {
           tenantId,
@@ -243,6 +257,7 @@ export const routeSequenceStepToDraft = inngest.createFunction(
           subject: stepTemplate.subjectTemplate,
           body: stepTemplate.bodyTemplate,
           sources: [] as DraftSource[],
+          score: null as number | null,
         };
       }
     });
@@ -264,6 +279,7 @@ export const routeSequenceStepToDraft = inngest.createFunction(
       stepNumber: enrollment.currentStep ?? 1,
       signalHint: signalHint ?? null,
       personalizationSources: (personalised.sources ?? []) as unknown as Record<string, unknown>[],
+      qualityScore: personalised.score,
     });
 
     const inserted = await step.run("insert-draft", async () => {

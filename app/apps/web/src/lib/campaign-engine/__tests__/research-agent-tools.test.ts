@@ -27,10 +27,42 @@ describe("buildResearchTools — conditional registration", () => {
   it("enrichApollo only when the impl is provided (no trompe-l'oeil stub)", () => {
     expect("enrichApollo" in buildResearchTools({ rootDomain: "x.com", companyName: "X" }, newToolLedger())).toBe(false);
     const withApollo = buildResearchTools(
-      { rootDomain: "x.com", companyName: "X", enrichApollo: async () => ({}) },
+      { rootDomain: "x.com", companyName: "X", enrichApollo: async () => null },
       newToolLedger(),
     );
     expect("enrichApollo" in withApollo).toBe(true);
+  });
+});
+
+describe("enrichApollo — P1-10 firmographics capture into the ledger", () => {
+  it("success stores facts+provenance into ledger.collected.firmographics", async () => {
+    const facts = {
+      industry: "SaaS", description: null, employeeCount: 120, sizeRange: null,
+      annualRevenue: null, revenueRange: null, foundedYear: 2019, city: "SF",
+      state: "CA", country: "US", fundingStage: "Series B", totalFunding: 30_000_000,
+      investors: ["Sequoia"], technologies: ["React"],
+    };
+    const provenance = [{ field: "employeeCount" as const, provider: "apollo", atIso: "2026-01-01" }];
+    const ledger = newToolLedger();
+    const tools = buildResearchTools(
+      { rootDomain: "x.com", companyName: "X", enrichApollo: async () => ({ facts, provenance }) },
+      ledger,
+    );
+    const r = await exec(tools.enrichApollo);
+    expect(r).toMatchObject({ ok: true });
+    expect(ledger.collected.firmographics).toEqual({ facts, provenance });
+    expect(ledger.succeeded).toBe(1);
+  });
+
+  it("null result leaves ledger.collected.firmographics null (no provider hit)", async () => {
+    const ledger = newToolLedger();
+    const tools = buildResearchTools(
+      { rootDomain: "x.com", companyName: "X", enrichApollo: async () => null },
+      ledger,
+    );
+    const r = await exec(tools.enrichApollo);
+    expect(r.ok).toBe(false);
+    expect(ledger.collected.firmographics).toBeNull();
   });
 });
 

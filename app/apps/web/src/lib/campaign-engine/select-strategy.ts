@@ -52,6 +52,8 @@ export async function selectStrategy(
     sourcesAttempted: briefRow.sourcesAttempted || 0,
     sourcesSucceeded: briefRow.sourcesSucceeded || 0,
     sourceErrors: (briefRow.sourceErrors || []) as IntelligenceBrief["sourceErrors"],
+    firmographics: (briefRow.firmographics ?? null) as IntelligenceBrief["firmographics"],
+    firmographicProvenance: (briefRow.firmographicProvenance ?? []) as IntelligenceBrief["firmographicProvenance"],
     researchedAt: briefRow.researchedAt.toISOString(),
     expiresAt: briefRow.expiresAt.toISOString(),
   };

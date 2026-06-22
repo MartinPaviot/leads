@@ -11,6 +11,7 @@ import { contacts, companies, activities, knowledgeEntries } from "@/db/schema";
 import { eq, and, desc, or } from "drizzle-orm";
 import { getTenantSettings, type KnowledgeEntry } from "@/lib/config/tenant-settings";
 import { isSignalFresh } from "@/lib/signals/freshness";
+import type { FirmographicFacts, FieldProvenance } from "@/lib/campaign-engine/types";
 
 export interface ProspectSignal {
   type: string;
@@ -30,6 +31,8 @@ export interface ResearchBriefContext {
   competitorDetected: string | null;
   publicContent: Array<{ type: string; title: string; quote: string }>;
   warmthSignals: Array<{ type: string; detail: string }>;
+  // P1-10 — verified firmographics + provenance (only set when a fact exists).
+  firmographics?: { facts: FirmographicFacts; provenance: FieldProvenance[] };
 }
 
 export interface ProspectContext {
@@ -304,6 +307,57 @@ export async function buildProspectContext(
   };
 }
 
+/** Compact a USD amount for the prompt (no decimals beyond one for billions). */
+function formatUsd(n: number): string {
+  if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`;
+  if (n >= 1_000_000) return `$${Math.round(n / 1_000_000)}M`;
+  if (n >= 1_000) return `$${Math.round(n / 1_000)}K`;
+  return `$${n}`;
+}
+
+/**
+ * P1-10 — render the verified firmographics block with `[source: provider]`
+ * citations. Only emits fields that exist; returns null when nothing is set
+ * (the caller skips the section). The source tag lets the citation gate
+ * (P1-11) and the perso judge (P1-12) verify the claim's provenance.
+ */
+function formatFirmographicsSection(fb: {
+  facts: FirmographicFacts;
+  provenance: FieldProvenance[];
+}): string | null {
+  const { facts, provenance } = fb;
+  const srcOf = (f: keyof FirmographicFacts): string => {
+    const p = provenance.find((x) => x.field === f);
+    return p ? ` [source: ${p.provider}]` : "";
+  };
+  const lines: string[] = [];
+
+  if (facts.employeeCount != null) lines.push(`- Headcount: ${facts.employeeCount}${srcOf("employeeCount")}`);
+  else if (facts.sizeRange) lines.push(`- Size: ${facts.sizeRange}${srcOf("sizeRange")}`);
+
+  if (facts.fundingStage) {
+    const amt = facts.totalFunding != null ? ` (${formatUsd(facts.totalFunding)} total raised)` : "";
+    lines.push(`- Funding: ${facts.fundingStage}${amt}${srcOf("fundingStage")}`);
+  } else if (facts.totalFunding != null) {
+    lines.push(`- Total funding: ${formatUsd(facts.totalFunding)}${srcOf("totalFunding")}`);
+  }
+  if (facts.investors.length) lines.push(`- Investors: ${facts.investors.slice(0, 5).join(", ")}${srcOf("investors")}`);
+
+  if (facts.annualRevenue != null) lines.push(`- Revenue: ${formatUsd(facts.annualRevenue)}${srcOf("annualRevenue")}`);
+  else if (facts.revenueRange) lines.push(`- Revenue: ${facts.revenueRange}${srcOf("revenueRange")}`);
+
+  if (facts.foundedYear != null) lines.push(`- Founded: ${facts.foundedYear}${srcOf("foundedYear")}`);
+
+  const loc = [facts.city, facts.state, facts.country].filter(Boolean).join(", ");
+  if (loc) lines.push(`- HQ: ${loc}${srcOf("city") || srcOf("country")}`);
+
+  if (facts.industry) lines.push(`- Industry: ${facts.industry}${srcOf("industry")}`);
+  if (facts.technologies.length) lines.push(`- Tech: ${facts.technologies.slice(0, 8).join(", ")}${srcOf("technologies")}`);
+
+  if (!lines.length) return null;
+  return `FIRMOGRAPHICS (verified — only cite a number if it appears here, and name the source):\n${lines.join("\n")}`;
+}
+
 /**
  * Format a ProspectContext into a structured text block for LLM prompts.
  */
@@ -339,6 +393,13 @@ export function formatContextForPrompt(ctx: ProspectContext): string {
     for (const p of b.publicContent) lines.push(`- They said publicly (${p.type}): "${p.quote}"`);
     for (const w of b.warmthSignals) lines.push(`- Warm path: ${w.type} — ${w.detail}`);
     if (lines.length) sections.push(`RESEARCH BRIEF (use this angle first):\n${lines.join("\n")}`);
+  }
+
+  // Firmographics (P1-10 — verified facts with per-field provenance). The model
+  // may only cite a number that appears here, and must attribute the source.
+  if (ctx.researchBrief?.firmographics) {
+    const fg = formatFirmographicsSection(ctx.researchBrief.firmographics);
+    if (fg) sections.push(fg);
   }
 
   // Signals
