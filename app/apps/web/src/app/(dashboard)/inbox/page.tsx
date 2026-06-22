@@ -1121,7 +1121,7 @@ export default function InboxPage() {
               sub-segment); the standalone rail is gone. */}
           <div
             ref={listRef}
-            className={`overflow-y-auto ${selectedKey ? "w-[380px] shrink-0 border-r" : "flex-1"}`}
+            className={`overflow-y-auto ${selectedKey ? "w-[260px] shrink-0 border-r" : "flex-1"}`}
             style={{ borderColor: "var(--color-border-default)" }}
           >
             {/* Capture review (INBOX-G02) — auto-captured interactions awaiting approval. */}
