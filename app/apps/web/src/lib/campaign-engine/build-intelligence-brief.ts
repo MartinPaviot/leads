@@ -10,6 +10,7 @@ import { detectTechStack } from "./sources/tech-stack";
 import { fetchLinkedInActivity } from "./sources/linkedin";
 import { synthesizeBrief } from "./brief-synthesizer";
 import { runResearchAgent } from "./research-agent";
+import { enrichFirmographics } from "./sources/apollo-enrich";
 
 /** True for the tenant-budget cap error thrown by enforceLlmBudget (traced-ai). */
 function isBudgetError(err: unknown): boolean {
@@ -77,6 +78,9 @@ export async function buildIntelligenceBrief(
         companyName: company.name,
         domain: company.domain,
         contact,
+        // P1-10 — Apollo/registry firmographics via the existing waterfall, as
+        // the agent's enrichApollo tool. The model folds funding/headcount in.
+        enrichApollo: ({ domain }) => enrichFirmographics({ domain, companyName: company.name, tenantId }),
       });
       synthesized = r.synthesized;
       sources = {
