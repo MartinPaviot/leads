@@ -8,6 +8,7 @@
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { buildRejectionCounterPrompt, type DominantInsight } from "@/lib/sequence-drafts/rejection-counter-prompt";
 import { gradeSequenceQuality } from "@/lib/evals/sequence-quality";
+import { judgeFabrication, decideFabricationGate } from "@/lib/evals/fabrication-gate";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { llmCall } from "@/lib/ai/llm-call";
@@ -106,9 +107,41 @@ export async function generateSequence(
   const { evaluatorOptimizerLoop } = await import("@/lib/evals/flywheel");
   const result = await evaluatorOptimizerLoop(generateFn, evaluateFn, 2);
 
+  // Final anti-fabrication gate. The deterministic gate inside the loop catches
+  // the empty-brief case for free; this ONE semantic pass on the cold open
+  // catches the harder "angle present but fact-poor" case — a number/tool the
+  // brief never recorded (e.g. an invented "700k users"). Bounded cost: one
+  // Haiku judge call + at most one corrective regeneration. Fail-open.
+  let finalOutput = result.output;
+  try {
+    const parsedForGate = JSON.parse(result.output) as GeneratedSequence;
+    const step1 = parsedForGate.steps?.[0];
+    if (step1 && process.env.ANTHROPIC_API_KEY) {
+      const prospect = {
+        name: ctx.contact?.fullName, title: ctx.contact?.title,
+        company: ctx.company?.name, domain: ctx.company?.domain,
+      };
+      const claims = await judgeFabrication(step1.body, ctx.researchBrief, prospect);
+      const fab = decideFabricationGate({ body: step1.body, brief: ctx.researchBrief, prospect, semanticClaims: claims });
+      if (fab.blocked) {
+        const corrected = await generateFn(
+          `CRITICAL — these specifics are NOT supported by the research and read as fabricated. Remove them or replace with a verified fact, and do NOT invent any new prospect-specific fact: ${fab.ungrounded.slice(0, 8).join("; ")}.`,
+        );
+        try {
+          const reparsed = JSON.parse(corrected.text) as GeneratedSequence;
+          if (reparsed.steps?.length) finalOutput = corrected.text;
+        } catch {
+          /* keep the loop's output if the corrective regen didn't parse */
+        }
+      }
+    }
+  } catch {
+    /* never block generation on the gate */
+  }
+
   // Attach per-step + sequence-level quality to the result (R7).
-  const parsed = JSON.parse(result.output) as GeneratedSequence;
-  const finalEval = await gradeSequenceQuality(result.output, ctx, methodology);
+  const parsed = JSON.parse(finalOutput) as GeneratedSequence;
+  const finalEval = await gradeSequenceQuality(finalOutput, ctx, methodology);
   return {
     ...parsed,
     steps: parsed.steps.map((s) => {
@@ -296,6 +329,7 @@ CRITICAL RULES:
 - Body: plain text, no HTML formatting, no bullet points in the email itself
 - Each step must have a DIFFERENT angle — never repeat the same value prop
 - Reference specific facts: company name, tech stack, funding, industry — not generic placeholders
+- NEVER INVENT FACTS. Only state a specific (a number, a named tool/vendor, a named initiative/event, a headcount/funding figure, a client count) if it appears verbatim in the RESEARCH BRIEF, FIRMOGRAPHICS, or BUYING SIGNALS above. If you have no verified specifics about this prospect, write a credible email built on their role and industry alone — do NOT fabricate a plausible-sounding stack or statistic. An invented detail a recipient knows is false destroys credibility instantly.
 - Personalization must be RELEVANT to the business problem: never reference sports teams, hometowns, alma maters, or personal trivia — if a fact doesn't change why this conversation is worth having, leave it out
 - Funding is never by itself a reason to reach out: only use what it IMPLIES (new stage, new priorities, budget cycle) or a congratulation that accompanies real value
 - Never present a static trait (e.g. being a YC company) as if it were news or a trigger

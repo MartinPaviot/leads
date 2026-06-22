@@ -9,7 +9,8 @@ import { gradeEmail, type EmailGradeResult } from "./email-quality-grader";
 import type { FRAMEWORKS } from "@/skills/outreach/knowledge/email-benchmarks";
 import type { ProspectContext } from "@/lib/context/prospect-context";
 import type { Methodology } from "@/lib/scoring/outbound-methodologies";
-import { judgePersonalization } from "./personalization-judge";
+import { judgePersonalization, type ClaimVerdict } from "./personalization-judge";
+import { decideFabricationGate } from "./fabrication-gate";
 
 /** getMethodology only ever returns these 4 names; map them to grader frameworks. */
 const METHODOLOGY_TO_FRAMEWORK: Record<string, keyof typeof FRAMEWORKS> = {
@@ -99,6 +100,17 @@ export async function gradeSequenceQuality(
   // Per-dimension issues fed back to the regeneration prompt.
   const feedback = graded.flatMap((g) => g.issues.map((iss) => `Step ${g.stepNumber}: ${iss}`)).join("\n");
 
+  // Prospect identity for the anti-fabrication gate's ground truth.
+  const prospect = {
+    name: ctx.contact?.fullName,
+    title: ctx.contact?.title,
+    company: ctx.company?.name,
+    domain: ctx.company?.domain,
+  };
+  // Anti-fabrication issues across steps — any one forces a regeneration
+  // (pass:false) regardless of composite, so invented specifics never ship.
+  const fabricationIssues: string[] = [];
+
   // P1-12 — optional semantic 2nd stage: the LLM judge can only TIGHTEN the
   // substring personalization score (min), never raise it — catches fake perso.
   const perStep = await Promise.all(
@@ -108,26 +120,44 @@ export async function gradeSequenceQuality(
         composite: g.score,
         dimensions: Object.fromEntries(g.dimensions.map((d) => [d.name, d.score])) as Record<string, number>,
       };
-      if (!opts?.semanticJudge || g.score === 0) return base;
-      const sem = await judgePersonalization(steps[i].body, ctx.researchBrief);
-      if (sem.skipped) {
-        return { ...base, semantic: { groundedScore: sem.groundedScore, skipped: true } };
+
+      let semClaims: ClaimVerdict[] | undefined;
+      let result: typeof base & { semantic?: { groundedScore: number; skipped: boolean } } = base;
+
+      if (opts?.semanticJudge && g.score !== 0) {
+        const sem = await judgePersonalization(steps[i].body, ctx.researchBrief);
+        semClaims = sem.claims;
+        if (sem.skipped) {
+          result = { ...base, semantic: { groundedScore: sem.groundedScore, skipped: true } };
+        } else {
+          const detPerso = base.dimensions.personalization ?? 0;
+          const tightened = Math.min(detPerso, sem.groundedScore);
+          const totalW = g.dimensions.reduce((s, d) => s + d.weight, 0);
+          const composite =
+            g.dimensions.reduce((s, d) => s + (d.name === "personalization" ? tightened : d.score) * d.weight, 0) / totalW;
+          result = {
+            ...base,
+            composite,
+            dimensions: { ...base.dimensions, personalization: tightened },
+            semantic: { groundedScore: sem.groundedScore, skipped: false },
+          };
+        }
       }
-      const detPerso = base.dimensions.personalization ?? 0;
-      const tightened = Math.min(detPerso, sem.groundedScore);
-      const totalW = g.dimensions.reduce((s, d) => s + d.weight, 0);
-      const composite =
-        g.dimensions.reduce((s, d) => s + (d.name === "personalization" ? tightened : d.score) * d.weight, 0) / totalW;
-      return {
-        ...base,
-        composite,
-        dimensions: { ...base.dimensions, personalization: tightened },
-        semantic: { groundedScore: sem.groundedScore, skipped: false },
-      };
+
+      // Anti-fabrication gate — deterministic always; semantic claims when judged.
+      const fab = decideFabricationGate({ body: steps[i].body, brief: ctx.researchBrief, prospect, semanticClaims: semClaims });
+      if (fab.blocked) {
+        fabricationIssues.push(
+          `Step ${g.stepNumber}: ${fab.reason}. Remove these — with no verified research behind them they read as fabricated. Keep the email credible but generic; never invent a fact about the prospect.`,
+        );
+      }
+      return result;
     }),
   );
 
   const composite = perStep.reduce((a, p) => a + p.composite, 0) / perStep.length;
   const threshold = passThresholdFor(methodology);
-  return { pass: composite >= threshold, score: composite, feedback, perStep };
+  const fabricated = fabricationIssues.length > 0;
+  const fullFeedback = [feedback, ...fabricationIssues].filter(Boolean).join("\n");
+  return { pass: composite >= threshold && !fabricated, score: composite, feedback: fullFeedback, perStep };
 }

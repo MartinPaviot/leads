@@ -39,6 +39,23 @@ export function formatBriefFacts(brief: ResearchBriefContext): string {
   for (const w of brief.warmthSignals ?? []) {
     if (w.detail) facts.push(`- Warm path: ${w.detail}`);
   }
+  // P1-10 — verified firmographics are facts the email MAY cite (and the judge
+  // must recognise as grounded, e.g. "180 employees", "uses Microsoft 365").
+  const f = brief.firmographics?.facts;
+  if (f) {
+    if (f.employeeCount != null) facts.push(`- Headcount: ${f.employeeCount}`);
+    else if (f.sizeRange) facts.push(`- Size: ${f.sizeRange}`);
+    if (f.fundingStage) facts.push(`- Funding stage: ${f.fundingStage}`);
+    if (f.totalFunding != null) facts.push(`- Total funding: ${f.totalFunding}`);
+    if (f.investors?.length) facts.push(`- Investors: ${f.investors.join(", ")}`);
+    if (f.annualRevenue != null) facts.push(`- Revenue: ${f.annualRevenue}`);
+    else if (f.revenueRange) facts.push(`- Revenue: ${f.revenueRange}`);
+    if (f.foundedYear != null) facts.push(`- Founded: ${f.foundedYear}`);
+    if (f.industry) facts.push(`- Industry: ${f.industry}`);
+    const loc = [f.city, f.state, f.country].filter(Boolean).join(", ");
+    if (loc) facts.push(`- HQ: ${loc}`);
+    if (f.technologies?.length) facts.push(`- Tech stack: ${f.technologies.join(", ")}`);
+  }
   return facts.join("\n");
 }
 
