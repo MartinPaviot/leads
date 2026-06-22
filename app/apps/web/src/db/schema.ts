@@ -18,3 +18,4 @@ export * from "./schema/voice";
 export * from "./schema/icp";
 export * from "./schema/proposals";
 export * from "./schema/tam";
+export * from "./schema/segments";
