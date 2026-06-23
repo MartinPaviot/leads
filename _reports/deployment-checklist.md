@@ -267,7 +267,7 @@ vercel --prod
 ```
 AUTH_SECRET=<generate-new-secret>
 AUTH_URL=https://<your-domain>
-DATABASE_URL=postgresql://postgres.wdgwytpaxuvgigqgzxrw:BzWGyxU9xGNbttIE@aws-1-eu-central-1.pooler.supabase.com:6543/postgres
+DATABASE_URL=postgresql://postgres.<project-ref>:<password>@<pooler-host>:5432/postgres
 ANTHROPIC_API_KEY=<your-key>
 OPENAI_API_KEY=<your-key>
 GOOGLE_CLIENT_ID=<your-client-id>

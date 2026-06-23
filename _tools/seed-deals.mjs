@@ -2,7 +2,7 @@ import pg from "pg";
 import crypto from "crypto";
 
 const client = new pg.Client({
-  connectionString: "postgresql://postgres.wdgwytpaxuvgigqgzxrw:BzWGyxU9xGNbttIE@aws-1-eu-central-1.pooler.supabase.com:6543/postgres"
+  connectionString: process.env.DATABASE_URL
 });
 
 await client.connect();
