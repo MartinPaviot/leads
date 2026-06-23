@@ -6,6 +6,7 @@ export * from "./schema/enums";
 export * from "./schema/auth";
 export * from "./schema/core";
 export * from "./schema/ledger";
+export * from "./schema/gates";
 export * from "./schema/outbound";
 export * from "./schema/intelligence";
 export * from "./schema/agent";
