@@ -2,11 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import pg from "pg";
 
 const client = new pg.Client({
-  connectionString: "postgresql://postgres.wdgwytpaxuvgigqgzxrw:BzWGyxU9xGNbttIE@aws-1-eu-central-1.pooler.supabase.com:6543/postgres"
+  connectionString: process.env.DATABASE_URL
 });
 
 const anthropic = new Anthropic({
-  apiKey: "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"
+  apiKey: process.env.ANTHROPIC_API_KEY
 });
 
 await client.connect();

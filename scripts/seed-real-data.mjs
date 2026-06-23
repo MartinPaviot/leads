@@ -8,7 +8,7 @@ const { Pool } = pg;
 
 const pool = new Pool({
   connectionString:
-    "postgresql://postgres.wdgwytpaxuvgigqgzxrw:BzWGyxU9xGNbttIE@aws-1-eu-central-1.pooler.supabase.com:6543/postgres",
+    process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
 });
 
