@@ -20,3 +20,4 @@ export * from "./schema/icp";
 export * from "./schema/icp-versions";
 export * from "./schema/proposals";
 export * from "./schema/tam";
+export * from "./schema/segments";
