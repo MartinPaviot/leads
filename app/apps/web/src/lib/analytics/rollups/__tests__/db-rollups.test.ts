@@ -1,6 +1,26 @@
 import { describe, it, expect } from "vitest";
-import { rowsToMetricEvents, type OutboundRollupRow } from "../db-rollups";
+import { rowsToMetricEvents, persistDailyRollups, getRollupSnapshots, type OutboundRollupRow } from "../db-rollups";
 import { computeRollups } from "../rollup";
+
+// Stub db: computeCampaignRollups uses select->from->leftJoin->where (outbound);
+// getRollupSnapshots uses select->from->where (snapshots, no leftJoin). The
+// insert path captures upserts.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function stubDb(opts: { outboundRows?: any[]; snapshotRows?: any[]; onUpsert?: (v: any) => void } = {}) {
+  return {
+    select: () => {
+      let isOutbound = false;
+      const chain: any = {
+        from: () => chain,
+        leftJoin: () => { isOutbound = true; return chain; },
+        where: () => Promise.resolve(isOutbound ? (opts.outboundRows ?? []) : (opts.snapshotRows ?? [])),
+      };
+      return chain;
+    },
+    insert: () => ({ values: (v: any) => ({ onConflictDoUpdate: async () => { opts.onUpsert?.(v); } }) }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any;
+}
 
 /**
  * Spec 29 — the outbound_emails -> MetricEvent mapping (the live-schema seam).
@@ -53,5 +73,29 @@ describe("rowsToMetricEvents", () => {
     expect(m.bounces).toBe(1);
     expect(m.replyRate).toBeCloseTo(0.5);
     expect(m.bounceRate).toBeCloseTo(0.5);
+  });
+});
+
+describe("persistDailyRollups", () => {
+  it("upserts one snapshot row per campaign with the day + finalized metrics", async () => {
+    const upserts: Array<Record<string, unknown>> = [];
+    const outboundRows = [
+      row({ id: "a", campaignId: "c1", sentAt: new Date(1) }),
+      row({ id: "b", campaignId: "c2", sentAt: new Date(1), repliedAt: new Date(2), replyClassification: "interested" }),
+    ];
+    const n = await persistDailyRollups("t1", "2026-06-24", { database: stubDb({ outboundRows, onUpsert: (v) => upserts.push(v) }) });
+    expect(n).toBe(2);
+    expect(upserts).toHaveLength(2);
+    expect(upserts.map((u) => u.scopeKey).sort()).toEqual(["c1", "c2"]);
+    expect(upserts.every((u) => u.dimension === "campaign" && u.day === "2026-06-24" && u.tenantId === "t1")).toBe(true);
+    expect(upserts.every((u) => u.metrics && typeof u.metrics === "object")).toBe(true);
+  });
+});
+
+describe("getRollupSnapshots", () => {
+  it("returns persisted snapshot rows for the tenant", async () => {
+    const snapshotRows = [{ dimension: "campaign", scopeKey: "c1", day: "2026-06-24", metrics: { sent: 3 } }];
+    const out = await getRollupSnapshots("t1", { dimension: "campaign", sinceDay: "2026-06-01", database: stubDb({ snapshotRows }) });
+    expect(out).toEqual(snapshotRows);
   });
 });

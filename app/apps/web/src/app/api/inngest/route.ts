@@ -3,6 +3,7 @@ import { inngest } from "@/inngest/client";
 import { enrichCompany, enrichBatch, sendSequenceStep, processReply } from "@/inngest/functions";
 import { syncEmails, syncCalendar, onGoogleOAuthConnected, onMicrosoftOAuthConnected, cronSyncEmails } from "@/inngest/sync-functions";
 import { dispatchOutboundSmtp } from "@/inngest/outbound-smtp-send";
+import { dailyRollup } from "@/inngest/daily-rollup";
 import { aiAutoFill } from "@/inngest/ai-autofill";
 import { executeWorkflow } from "@/inngest/workflow-engine";
 import { cronCalendarSync, autoMeetingPrep, generateMeetingPrep } from "@/inngest/meeting-functions";
@@ -100,6 +101,7 @@ export const { GET, POST, PUT } = serve({
     enrichBatch,
     sendSequenceStep,
     processReply,
+    dailyRollup,
     syncEmails,
     syncCalendar,
     onGoogleOAuthConnected,

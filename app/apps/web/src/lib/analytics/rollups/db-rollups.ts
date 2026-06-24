@@ -9,9 +9,9 @@
  */
 
 import { db as defaultDb } from "@/db";
-import { outboundEmails, sequenceEnrollments } from "@/db/schema";
+import { outboundEmails, sequenceEnrollments, metricRollupSnapshot } from "@/db/schema";
 import { and, eq, gte } from "drizzle-orm";
-import { computeRollups, type MetricEvent, type RollupResult } from "./rollup";
+import { computeRollups, type MetricEvent, type Metrics, type RollupResult } from "./rollup";
 
 const DEFAULT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 const POSITIVE = new Set(["positive", "interested", "meeting_request"]);
@@ -87,4 +87,52 @@ export async function computeCampaignRollups(
 
   const events = rowsToMetricEvents(rows as OutboundRollupRow[]);
   return computeRollups(events, { scope: { dimension: "campaign" } });
+}
+
+/**
+ * Persist a day's campaign rollups as one snapshot row per campaign (upsert on
+ * tenant+dimension+scope+day, so re-running the day is idempotent). Returns the
+ * number of campaigns snapshotted. Written by the daily-rollup cron.
+ */
+export async function persistDailyRollups(
+  tenantId: string,
+  day: string,
+  opts: { now?: number; database?: typeof defaultDb } = {},
+): Promise<number> {
+  const database = opts.database ?? defaultDb;
+  const result = await computeCampaignRollups(tenantId, { now: opts.now, database });
+  const entries = Object.entries(result.byScope);
+  for (const [scopeKey, metrics] of entries) {
+    await database
+      .insert(metricRollupSnapshot)
+      .values({ tenantId, dimension: "campaign", scopeKey, day, metrics })
+      .onConflictDoUpdate({
+        target: [metricRollupSnapshot.tenantId, metricRollupSnapshot.dimension, metricRollupSnapshot.scopeKey, metricRollupSnapshot.day],
+        set: { metrics, createdAt: new Date() },
+      });
+  }
+  return entries.length;
+}
+
+export interface RollupSnapshotRow {
+  dimension: string;
+  scopeKey: string;
+  day: string;
+  metrics: Metrics;
+}
+
+/** Read persisted snapshots for a tenant (optionally a dimension, since a day). */
+export async function getRollupSnapshots(
+  tenantId: string,
+  opts: { dimension?: string; sinceDay?: string; database?: typeof defaultDb } = {},
+): Promise<RollupSnapshotRow[]> {
+  const database = opts.database ?? defaultDb;
+  const conds = [eq(metricRollupSnapshot.tenantId, tenantId)];
+  if (opts.dimension) conds.push(eq(metricRollupSnapshot.dimension, opts.dimension));
+  if (opts.sinceDay) conds.push(gte(metricRollupSnapshot.day, opts.sinceDay));
+  const rows = await database
+    .select({ dimension: metricRollupSnapshot.dimension, scopeKey: metricRollupSnapshot.scopeKey, day: metricRollupSnapshot.day, metrics: metricRollupSnapshot.metrics })
+    .from(metricRollupSnapshot)
+    .where(and(...conds));
+  return rows as RollupSnapshotRow[];
 }

@@ -475,6 +475,30 @@ export const deliverabilityGuardState = pgTable("deliverability_guard_state", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
+/**
+ * Spec 29/32 — persisted daily rollup snapshots. One row per (tenant, dimension,
+ * scopeKey, day) holding the finalized Metrics jsonb, written by the daily-rollup
+ * cron. Gives queryable history for trends + benchmark drift and feeds spec-32
+ * regression-alerts (compare today's snapshot to the trailing baseline), instead
+ * of recomputing from outbound_emails on every read.
+ */
+export const metricRollupSnapshot = pgTable(
+  "metric_rollup_snapshot",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id),
+    dimension: text("dimension").notNull(), // 'campaign' | 'segment' | 'variant'
+    scopeKey: text("scope_key").notNull(), // campaignId / segmentId / variantId
+    day: date("day").notNull(), // snapshot date (UTC)
+    metrics: jsonb("metrics").notNull(), // the finalized Metrics object
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("rollup_snapshot_scope_day_idx").on(table.tenantId, table.dimension, table.scopeKey, table.day),
+    index("rollup_snapshot_tenant_day_idx").on(table.tenantId, table.day),
+  ]
+);
+
 export const meetingOptOuts = pgTable(
   "meeting_opt_outs",
   {
