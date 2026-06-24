@@ -11,6 +11,12 @@ import { REWRITE_PRESETS } from "@/lib/inbox/rewrite-presets";
 import { TRANSLATE_LANGUAGES } from "@/lib/inbox/translate-languages";
 import { pickDefaultFrom, mailboxDisplay, type SendableMailbox } from "@/lib/inbox/pick-from-mailbox";
 import { applySignature } from "@/lib/inbox/mailbox-signature";
+import {
+  draftStorageKey,
+  saveDraftToStorage,
+  loadDraftFromStorage,
+  clearDraftFromStorage,
+} from "@/lib/inbox/draft-storage";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -143,50 +149,7 @@ function EmailField({
 /*  Draft persistence helpers (localStorage)                           */
 /* ------------------------------------------------------------------ */
 
-const DRAFT_KEY = "elevay:email-draft";
-
-function saveDraftToStorage(data: {
-  to: string[];
-  cc: string[];
-  bcc: string[];
-  subject: string;
-  body: string;
-  contactId?: string;
-  dealId?: string;
-}) {
-  try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...data, savedAt: new Date().toISOString() }));
-  } catch {
-    // localStorage may be full or unavailable
-  }
-}
-
-function loadDraftFromStorage(): {
-  to: string[];
-  cc: string[];
-  bcc: string[];
-  subject: string;
-  body: string;
-  contactId?: string;
-  dealId?: string;
-  savedAt?: string;
-} | null {
-  try {
-    const raw = localStorage.getItem(DRAFT_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-function clearDraftFromStorage() {
-  try {
-    localStorage.removeItem(DRAFT_KEY);
-  } catch {
-    // noop
-  }
-}
+// Draft auto-save persistence lives in a pure, testable module.
 
 /* ------------------------------------------------------------------ */
 /*  Main component                                                     */
@@ -209,6 +172,14 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
   const [showBcc, setShowBcc] = useState(Boolean(draft.bcc));
   const [editSubject, setEditSubject] = useState(draft.subject);
   const [editBody, setEditBody] = useState(draft.body);
+
+  // Auto-save (per-context localStorage). storageKey is frozen for the panel's
+  // life from the OPENING draft, so editing recipients doesn't move the slot.
+  const storageKeyRef = useRef(draftStorageKey(draft));
+  const storageKey = storageKeyRef.current;
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const restoredRef = useRef(false);
 
   // Send state
   const [sending, setSending] = useState(false);
@@ -235,6 +206,56 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Restore a previously auto-saved draft for this context (run once, client
+  // only — avoids an SSR/hydration mismatch by restoring AFTER the first paint).
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    const saved = loadDraftFromStorage(storageKey);
+    if (!saved) return;
+    if (saved.body != null) setEditBody(saved.body);
+    if (saved.subject != null) setEditSubject(saved.subject);
+    if (saved.to?.length) setToEmails(saved.to);
+    if (saved.cc?.length) {
+      setCcEmails(saved.cc);
+      setShowCc(true);
+    }
+    if (saved.bcc?.length) {
+      setBccEmails(saved.bcc);
+      setShowBcc(true);
+    }
+    if (saved.savedAt) setDraftSavedAt(saved.savedAt);
+  }, [storageKey]);
+
+  // Debounced auto-save: persist the in-progress draft ~0.8s after the last
+  // edit so a refresh / navigate-away / the inbox's periodic re-render never
+  // loses typed text. An emptied draft clears its slot. Cleared on send.
+  useEffect(() => {
+    if (sent) return;
+    const hasContent = Boolean(editBody.trim() || editSubject.trim() || toEmails.length);
+    setDraftSaving(true);
+    const t = setTimeout(() => {
+      if (hasContent) {
+        saveDraftToStorage(storageKey, {
+          to: toEmails,
+          cc: ccEmails,
+          bcc: bccEmails,
+          subject: editSubject,
+          body: editBody,
+          contactId: draft.contactId,
+          dealId: draft.dealId,
+        });
+        setDraftSavedAt(new Date().toISOString());
+      } else {
+        clearDraftFromStorage(storageKey);
+        setDraftSavedAt(null);
+      }
+      setDraftSaving(false);
+    }, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toEmails, ccEmails, bccEmails, editSubject, editBody, sent, storageKey]);
 
   // Focus body on mount
   useEffect(() => {
@@ -293,9 +314,12 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
   }, [editBody, autoResize]);
 
   /* ── Save draft ─────────────────────────────────────────────── */
+  // Drafts now auto-save (debounced, per-context localStorage above); the
+  // explicit button is replaced by a passive "Draft saved" status. A manual
+  // flush stays available for the keyboard path / immediate feedback.
 
   function handleSaveDraft() {
-    saveDraftToStorage({
+    saveDraftToStorage(storageKey, {
       to: toEmails,
       cc: ccEmails,
       bcc: bccEmails,
@@ -304,7 +328,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
       contactId: draft.contactId,
       dealId: draft.dealId,
     });
-    toast("Draft saved.", "success");
+    setDraftSavedAt(new Date().toISOString());
   }
 
   /* ── Rewrite (INBOX-C04) ─────────────────────────────────────── */
@@ -433,7 +457,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
       const data = await res.json();
       const messageId = (data as { messageId?: string }).messageId || "";
 
-      clearDraftFromStorage();
+      clearDraftFromStorage(storageKey);
       setSent(true);
       toast("Email sent successfully.", "success");
       onSent?.(messageId);
@@ -845,16 +869,18 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
             </span>
           </div>
           <div className="flex items-center gap-2">
-            {/* Save draft */}
-            <Button
-              variant="outline"
-              size="sm"
+            {/* Auto-save status (drafts persist automatically; click = save now) */}
+            <button
+              type="button"
               onClick={handleSaveDraft}
-              icon={<Save size={12} />}
               disabled={sending || sent}
+              title="Drafts auto-save — click to save now"
+              className="flex items-center gap-1 text-[11px] disabled:opacity-50"
+              style={{ color: "var(--color-text-muted)" }}
             >
-              Save draft
-            </Button>
+              <Save size={12} />
+              {draftSaving ? "Saving…" : draftSavedAt ? "Draft saved" : "Draft"}
+            </button>
             {/* Send */}
             {sent ? (
               <span
