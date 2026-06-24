@@ -40,10 +40,14 @@ Branch: `feat/hydration-fidelity` (from main). R1 already shipped separately on
   - Test: `route-registry-warm.test.ts` — registry warmed at load + system skills
     present in payload. 2/2 green.
 
-- [ ] **T6 (R5) cs-today ARR exposure**
-  - Code: snapshot writer sets `arrExposureUsd`; soften header copy if null.
-  - Test: snapshot row carries arrExposureUsd from deal value.
-  - Verify: `/cs/today` badge renders + participates in sort.
+- [x] **T6 (R5) cs-today ARR exposure** — DONE. `cs-health-cron.ts` now computes
+  `arrExposureUsd` per account (`computeAccountArrExposure`: sum of OPEN deals'
+  `platformArr ?? value`; one-time projectAmount excluded — not ARR) and writes it
+  in the snapshot insert. Header copy left as-is: "risk × ARR" is now truthful for
+  accounts that have ARR; accounts with no open deals get null → badge self-hides
+  and the tie-break skips them (route already handles null).
+  - Test: `cs-health-arr.test.ts` — null when no deals; sums platformArr; legacy
+    value fallback; null when sum is 0. 4/4 green.
 
 - [x] **T7 (R3) opportunity deal split** — DONE. Storage confirmed: projectAmount/
   platformArr are real `deals` columns (core.ts:266-267); the route did `select()`
