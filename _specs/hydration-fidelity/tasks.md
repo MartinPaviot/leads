@@ -129,7 +129,16 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
   `ids` filter (route-companyid.test.ts, 3/3). Follow-ups (lower severity): auto-mode
   candidate avatar passes domain=null (never the real logo — needs companyDomain in
   the merge GET); curated fetch failure shows only a toast, no inline retry.
-- [ ] 10 opportunities · 12 sequences · 13 sequence-detail · 16 meetings · 17 meeting-detail
+- [x] **10 opportunities** — deals + analytics fetches swallowed failures into a
+  faked-empty state: a 500 on `/api/opportunities` rendered an empty board/table
+  (looked like no pipeline), and an analytics 500 silently removed the whole KPI
+  strip (gated on `analytics &&`). Added `dealsError`/`analyticsError` flags +
+  retries: the board/table shows a "Couldn't load your pipeline" retry when the
+  deals load fails, and the KPI strip shows a "Couldn't load pipeline metrics"
+  retry instead of vanishing. 22 opportunities tests green (no regression). Live
+  verify deferred (page too heavy to mount cheaply). Follow-up: create-modal
+  account/contact pickers still swallow fetch errors (empty dropdowns).
+- [ ] 12 sequences · 13 sequence-detail · 16 meetings · 17 meeting-detail
   · 19 tasks · 20 call-mode · 23 reports · 24 insights · 26 insights-pilae
   · 27 insights-playbook · 30 notes · 31 graph · 32 voice-of-customer · 35 tam-review
   · then T2 H2 settings.

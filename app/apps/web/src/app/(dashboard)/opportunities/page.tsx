@@ -196,6 +196,7 @@ export default function OpportunitiesPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [dealsError, setDealsError] = useState(false);
   const [loading, setLoading] = useState(true);
   const { stages: pipelineStages } = usePipelineStages();
 
@@ -217,6 +218,7 @@ export default function OpportunitiesPage() {
   // Analytics
   const [analyzing, setAnalyzing] = useState(false);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [analyticsError, setAnalyticsError] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(true);
 
   // Forecast
@@ -274,19 +276,28 @@ export default function OpportunitiesPage() {
   /* ── Data fetching ── */
 
   const fetchAnalytics = useCallback(async () => {
-    try { const r = await fetch("/api/pipeline/analytics"); if (r.ok) setAnalytics(await r.json()); }
-    catch (e) { console.warn("opportunities: analytics fetch failed", e); }
+    try {
+      setAnalyticsError(false);
+      const r = await fetch("/api/pipeline/analytics");
+      if (r.ok) setAnalytics(await r.json());
+      else setAnalyticsError(true);
+    }
+    catch (e) { console.warn("opportunities: analytics fetch failed", e); setAnalyticsError(true); }
   }, []);
 
   const fetchDeals = useCallback(async () => {
     try {
+      setDealsError(false);
       const params = new URLSearchParams();
       if (viewDeleted) params.set("deleted", "true");
       if (debouncedSearch) params.set("search", debouncedSearch);
       const qs = params.toString();
       const r = await fetch(`/api/opportunities${qs ? `?${qs}` : ""}`);
       if (r.ok) { const d = await r.json(); setDeals(d.deals || []); }
-    } catch (e) { console.warn("opportunities: deals fetch failed", e); }
+      // A 500 here previously rendered as an empty pipeline (board/table empty
+      // state). Flag it so the view shows a retry instead.
+      else setDealsError(true);
+    } catch (e) { console.warn("opportunities: deals fetch failed", e); setDealsError(true); }
     finally { setLoading(false); }
   }, [debouncedSearch, viewDeleted]);
 
@@ -1465,7 +1476,7 @@ export default function OpportunitiesPage() {
         )}
 
         {/* KPI Row — compact */}
-        {analytics && showAnalytics && (
+        {showAnalytics && analytics ? (
           <div className="mb-3 grid grid-cols-3 gap-2 md:grid-cols-6">
             <Card><CardBody className="px-2.5 py-2">
               <p className="text-[9px] uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>Pipeline</p>
@@ -1494,7 +1505,19 @@ export default function OpportunitiesPage() {
               </p>
             </CardBody></Card>
           </div>
-        )}
+        ) : showAnalytics && analyticsError ? (
+          <div className="mb-3 flex items-center gap-3 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+            <span>Couldn&apos;t load pipeline metrics.</span>
+            <button
+              type="button"
+              onClick={() => fetchAnalytics()}
+              className="rounded px-2 py-0.5 font-medium"
+              style={{ border: "1px solid var(--color-border-default)", color: "var(--color-text-secondary)" }}
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
 
         {/* Main view */}
         {loading ? (
@@ -1502,6 +1525,19 @@ export default function OpportunitiesPage() {
             {[{ name: "Lead", cards: 3 }, { name: "Qualification", cards: 2 }, { name: "Demo", cards: 2 }, { name: "Proposal", cards: 1 }, { name: "Negotiation", cards: 1 }, { name: "Won", cards: 1 }].map((s, idx) => (
               <KanbanColumnSkeleton key={s.name} name={s.name} cards={s.cards} index={idx} />
             ))}
+          </div>
+        ) : dealsError && deals.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+            <p className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>Couldn&apos;t load your pipeline</p>
+            <p className="text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>Something went wrong. Your deals are safe — try again.</p>
+            <button
+              type="button"
+              onClick={() => fetchDeals()}
+              className="rounded-lg px-3 py-1.5 text-[12px] font-semibold"
+              style={{ border: "1px solid var(--color-border-default)", color: "var(--color-text-secondary)" }}
+            >
+              Retry
+            </button>
           </div>
         ) : viewMode === "table" ? (
           /* ── TABLE VIEW ── */
