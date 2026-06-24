@@ -67,6 +67,8 @@ export default function MeetingsPage() {
   const [prepLoading, setPrepLoading] = useState<Record<string, boolean>>({});
   const [nextMeeting, setNextMeeting] = useState<NextMeetingInfo | null>(null);
   const [conflicts, setConflicts] = useState<ConflictInfo[]>([]);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [countdownStr, setCountdownStr] = useState<string>("");
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [weekStart, setWeekStart] = useState<Date>(() => weekStartOf(new Date()));
@@ -75,6 +77,7 @@ export default function MeetingsPage() {
   useEffect(() => {
     (async () => {
       try {
+        setLoadError(false);
         const res = await fetch("/api/meetings?daysBack=30&daysForward=21");
         if (res.ok) {
           const data = await res.json();
@@ -82,13 +85,17 @@ export default function MeetingsPage() {
           setCalendarConnected(data.calendarConnected !== false);
           setNextMeeting(data.nextMeeting || null);
           setConflicts(data.conflicts || []);
+        } else {
+          // A 500/error must not masquerade as "No meetings in view".
+          setLoadError(true);
         }
       } catch (e) {
         console.warn("meetings: list fetch failed", e);
+        setLoadError(true);
       }
       setLoading(false);
     })();
-  }, []);
+  }, [reloadKey]);
 
   useEffect(() => {
     fetch("/api/features")
@@ -216,7 +223,15 @@ export default function MeetingsPage() {
       </PageHeader>
 
       <div className="flex-1 overflow-auto px-4 py-6">
-        {!calendarConnected ? (
+        {loadError && meetings.length === 0 ? (
+          <EmptyState
+            variant="error"
+            title="Couldn't load your meetings"
+            description="Something went wrong loading your calendar. Try again."
+            actionLabel="Retry"
+            onAction={() => { setLoading(true); setReloadKey((k) => k + 1); }}
+          />
+        ) : !calendarConnected ? (
           <EmptyState
             icon={<Calendar size={24} />}
             title="Connect your calendar"
