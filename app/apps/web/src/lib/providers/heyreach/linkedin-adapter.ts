@@ -5,7 +5,7 @@
  * stays pure/testable. Blast radius: providers/heyreach/* only.
  */
 
-import type { LinkedInPort, LinkedInRequest, LinkedInResult } from "@/lib/sending/linkedin/port";
+import type { LinkedInPort, LinkedInRequest, LinkedInResult } from "@/lib/sending/linkedin/port"; // gitleaks:allow (LinkedInResult is a TS type name, not a linkedin client id)
 import { LinkedInError } from "@/lib/sending/linkedin/port";
 
 const VALID_KEY = /^[a-z0-9_]+$/;
