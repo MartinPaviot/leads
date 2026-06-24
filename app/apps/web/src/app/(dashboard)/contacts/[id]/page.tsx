@@ -97,6 +97,9 @@ export default function ContactDetailPage() {
   const [loading, setLoading] = useState(true);
   const [emailComposer, setEmailComposer] = useState<EmailComposerDraft | null>(null);
   const [buyerIntent, setBuyerIntent] = useState<BuyerIntentScore | null>(null);
+  const [activitiesError, setActivitiesError] = useState(false);
+  const [buyerIntentError, setBuyerIntentError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const { toast } = useToast();
 
   // K8 — PATCH a single field on the contact. Optimistic update with
@@ -395,24 +398,37 @@ export default function ContactDetailPage() {
           setContact(contactData);
         }
 
-        // Fetch activities
-        const actRes = await fetch(
-          `/api/activities?entityType=contact&entityId=${contactId}`
-        );
-        if (actRes.ok) {
-          const data = await actRes.json();
-          setActivities(data.activities || []);
+        // Fetch activities — independent lane: a failure flags an error state
+        // instead of rendering the same "No activity recorded" empty (which made
+        // a 500 indistinguishable from a contact with no history).
+        setActivitiesError(false);
+        try {
+          const actRes = await fetch(
+            `/api/activities?entityType=contact&entityId=${contactId}`
+          );
+          if (actRes.ok) {
+            const data = await actRes.json();
+            setActivities(data.activities || []);
+          } else {
+            setActivitiesError(true);
+          }
+        } catch {
+          setActivitiesError(true);
         }
 
-        // Fetch buyer intent score
+        // Fetch buyer intent score — independent lane with its own error flag so
+        // a 500 is distinguishable from a genuinely low-signal contact.
+        setBuyerIntentError(false);
         try {
           const intentRes = await fetch(`/api/contacts/${contactId}/buyer-intent`);
           if (intentRes.ok) {
             const intentData = await intentRes.json();
             setBuyerIntent(intentData.score || null);
+          } else {
+            setBuyerIntentError(true);
           }
         } catch {
-          // Non-critical
+          setBuyerIntentError(true);
         }
 
         // Fetch company names for all associated companies
@@ -448,7 +464,7 @@ export default function ContactDetailPage() {
       }
     }
     load();
-  }, [contactId]);
+  }, [contactId, reloadKey]);
 
   if (loading) return <DetailPageSkeleton avatar="circle" />;
 
@@ -526,7 +542,19 @@ export default function ContactDetailPage() {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
             Activity
           </h2>
-          {activities.length === 0 ? (
+          {activitiesError ? (
+            <div className="mt-4 flex items-center gap-3 text-sm" style={{ color: "var(--color-text-tertiary)" }}>
+              <span>Couldn&apos;t load this contact&apos;s activity.</span>
+              <button
+                type="button"
+                onClick={() => setReloadKey((k) => k + 1)}
+                className="rounded px-2 py-0.5 text-[12px] font-medium"
+                style={{ border: "1px solid var(--color-border-default)", color: "var(--color-text-secondary)" }}
+              >
+                Retry
+              </button>
+            </div>
+          ) : activities.length === 0 ? (
             <p className="mt-4 text-sm text-[var(--color-text-tertiary)]">
               No activity recorded for this contact.
             </p>
@@ -591,10 +619,27 @@ export default function ContactDetailPage() {
       {/* Right panel — details */}
       <div className="w-full shrink-0 border-t p-6 lg:w-[300px] lg:border-t-0 lg:border-l overflow-auto" style={{ borderColor: "var(--color-border-default)" }}>
         {/* Buyer Intent Score */}
-        {buyerIntent && <BuyerIntentCard data={buyerIntent} />}
+        {buyerIntent ? (
+          <BuyerIntentCard data={buyerIntent} />
+        ) : buyerIntentError ? (
+          <div
+            className="flex items-center justify-between gap-2 rounded-lg p-3 text-[12px]"
+            style={{ border: "1px solid var(--color-border-default)", color: "var(--color-text-tertiary)" }}
+          >
+            <span>Buyer intent unavailable</span>
+            <button
+              type="button"
+              onClick={() => setReloadKey((k) => k + 1)}
+              className="rounded px-2 py-0.5 font-medium"
+              style={{ border: "1px solid var(--color-border-default)", color: "var(--color-text-secondary)" }}
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
 
         {/* What the last call revealed about this person (role / disposition) */}
-        <ContactCallProfile properties={contact.properties} className={buyerIntent ? "mt-6" : undefined} entityId={contactId} />
+        <ContactCallProfile properties={contact.properties} className={(buyerIntent || buyerIntentError) ? "mt-6" : undefined} entityId={contactId} />
 
         <h3 className="mt-6 text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
           Contact details
@@ -673,7 +718,7 @@ export default function ContactDetailPage() {
                           href={`/accounts/${cid}`}
                           className="text-sm text-[var(--color-accent)] hover:underline"
                         >
-                          {co?.name || cid.slice(0, 8) + "..."}
+                          {co?.name || "View company"}
                         </Link>
                         {isPrimary && allCompanyIds.length > 1 && (
                           <span className="rounded bg-[var(--color-bg-tertiary)] px-1 py-0.5 text-[10px] text-[var(--color-text-tertiary)]">

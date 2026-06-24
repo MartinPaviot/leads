@@ -112,7 +112,16 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
   empty-fresh/empty-filtered/list + "don't error once rows loaded"). 34 contacts
   tests green. MINOR follow-up (not hydration): contacts route company-join filters
   by id ANY() without an explicit eq(companies.tenantId) — safe today, harden later.
-- [ ] 08 contact-detail · 09 contacts-merge
+- [x] **08 contact-detail** — 3 lanes swallowed failures into a faked empty/degraded
+  state; all made independent with their own error flag + a shared `reloadKey` retry:
+  (1) activities — failure rendered the same "No activity recorded" empty → now a
+  retryable error line; (2) buyer-intent — a 500 silently showed no card → now an
+  "unavailable" + retry chip (genuine null still self-hides); (3) associated
+  companies — a failed `/api/accounts/[id]` rendered a raw truncated UUID as the
+  name → now a neutral "View company" label. 10 contact-detail tests green (no
+  regression). Live verify (failing-fetch UI) deferred — page too heavy to mount
+  cheaply; pattern already covered by inbox/contacts tests.
+- [ ] 09 contacts-merge
   · 10 opportunities · 12 sequences · 13 sequence-detail · 16 meetings · 17 meeting-detail
   · 19 tasks · 20 call-mode · 23 reports · 24 insights · 26 insights-pilae
   · 27 insights-playbook · 30 notes · 31 graph · 32 voice-of-customer · 35 tam-review
