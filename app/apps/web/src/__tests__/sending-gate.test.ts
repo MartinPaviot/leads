@@ -56,7 +56,7 @@ vi.mock("@/db", () => ({
 
 // getTenantSettings + DEFAULTS — DEFAULTS mirrors tenant-settings.ts. Hoisted so
 // the vi.mock factory (also hoisted) can reference it without a TDZ error.
-const { DEFAULTS, settingsState } = vi.hoisted(() => ({
+const { DEFAULTS, settingsState, suppressionState } = vi.hoisted(() => ({
   DEFAULTS: {
     sendingMailboxMode: "primary-with-caps" as const,
     sendingDailyCapPrimary: 20,
@@ -66,6 +66,14 @@ const { DEFAULTS, settingsState } = vi.hoisted(() => ({
     throwOnSettings: boolean;
     settingsToReturn: Record<string, unknown> | null;
   },
+  // Spec-22 DB suppression is mocked at the module boundary so the gate test
+  // stays decoupled from the suppression table's query shape. null = not suppressed.
+  suppressionState: { hit: null as null | { entry: { type: string; level: string } } },
+}));
+
+vi.mock("@/lib/suppression/db-store", () => ({
+  isSuppressedDb: vi.fn(async () => suppressionState.hit),
+  drizzleSuppressionLoader: vi.fn(() => async () => []),
 }));
 vi.mock("@/lib/config/tenant-settings", () => ({
   DEFAULTS,
@@ -83,6 +91,7 @@ beforeEach(() => {
   throwOnSelect = false;
   settingsState.throwOnSettings = false;
   settingsState.settingsToReturn = { ...DEFAULTS };
+  suppressionState.hit = null;
 });
 
 describe("isSuppressed", () => {
@@ -112,6 +121,25 @@ describe("evaluateSend — opt-out precedence (item 3)", () => {
     const r = await evaluateSend({ tenantId: "t1", toAddress: "x@a.com", sentTodayFromPrimary: 0 });
     expect(r.send).toBe(false);
     if (!r.send) expect(r.code).toBe("opted_out");
+  });
+});
+
+describe("evaluateSend — spec-22 broader suppression", () => {
+  it("a domain/typed suppression hit blocks with code 'suppressed'", async () => {
+    suppressionState.hit = { entry: { type: "competitor", level: "domain" } };
+    const r = await evaluateSend({ tenantId: "t1", toAddress: "x@competitor.com", sentTodayFromPrimary: 0 });
+    expect(r.send).toBe(false);
+    if (!r.send) {
+      expect(r.code).toBe("suppressed");
+      expect(r.reason).toContain("competitor");
+    }
+  });
+
+  it("address-level opt-out still takes precedence over the spec-22 check", async () => {
+    optoutRows = [{ tenantId: "t1", emailAddress: "x@a.com" }];
+    suppressionState.hit = { entry: { type: "manual_dnc", level: "address" } };
+    const r = await evaluateSend({ tenantId: "t1", toAddress: "x@a.com", sentTodayFromPrimary: 0 });
+    if (!r.send) expect(r.code).toBe("opted_out"); // opt-out checked first
   });
 });
 

@@ -30,13 +30,17 @@ import {
   enforceSendingIdentity,
   type SendingBlockReason,
 } from "@/lib/guardrails/sending-identity";
+import {
+  isSuppressedDb,
+  drizzleSuppressionLoader,
+} from "@/lib/suppression/db-store";
 
 /** Why the gate refused a send (or that it allows). */
 export type SendingGateOutcome =
   | { send: true; reason: string }
   | {
       send: false;
-      code: SendingBlockReason | "opted_out";
+      code: SendingBlockReason | "opted_out" | "suppressed";
       reason: string;
     };
 
@@ -131,6 +135,21 @@ export async function evaluateSend(
         send: false,
         code: "opted_out",
         reason: "Recipient is on the opt-out list",
+      };
+    }
+
+    // Spec 22 — broader suppression on top of the address-level opt-out above:
+    // domain-level + typed (competitor / existing-customer / manual DNC) +
+    // global scope. Empty table = no-op; any thrown query fails closed (catch).
+    const supHit = await isSuppressedDb(
+      { email: args.toAddress, tenantId: args.tenantId },
+      drizzleSuppressionLoader(),
+    );
+    if (supHit) {
+      return {
+        send: false,
+        code: "suppressed",
+        reason: `Recipient suppressed (${supHit.entry.type}, ${supHit.entry.level})`,
       };
     }
 
