@@ -4,6 +4,13 @@ import { customSkillTemplates } from "@/db/schema";
 import { eq, and, or, sql } from "drizzle-orm";
 import { listAvailableSkills, forkSkill } from "@/skills/custom/executor";
 import { listSkills } from "@/skills/registry";
+import { registerAllSkills } from "@/skills/register-all";
+
+// Warm the in-memory skill registry on first load of this route. listSkills()
+// reads a Map that is ONLY populated by registerAllSkills(); previously that ran
+// solely inside /api/skills/[slug], so a cold process hitting this route first
+// rendered an empty "System" section + an empty Explore tab. Idempotent.
+registerAllSkills();
 
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();
