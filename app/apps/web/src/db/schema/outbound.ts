@@ -519,6 +519,37 @@ export const regressionAlert = pgTable(
   (table) => [index("regression_alert_tenant_active_idx").on(table.tenantId, table.active)]
 );
 
+/**
+ * Spec 31 — weekly-optimizer proposal audit. One row per (tenant, week, agent
+ * proposalId) so a same-week re-run upserts (idempotent). Persists every
+ * proposal the weekly review produced PLUS its deterministic route/decision —
+ * the gated queue a human reviews. `applied` is only ever true when the apply
+ * flag is on AND the campaign is autonomous; observe-mode rows are all gated.
+ */
+export const optimizerProposal = pgTable(
+  "optimizer_proposal",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id),
+    week: text("week").notNull(), // the run day (yyyy-mm-dd, UTC)
+    proposalId: text("proposal_id").notNull(), // agent-assigned proposal id
+    type: text("type").notNull(), // pause|scale|copy_adjust|icp_adjust|cadence_adjust
+    target: text("target").notNull(), // campaign id
+    rationale: text("rationale").notNull(),
+    risk: text("risk").notNull(), // low|medium|high
+    citedMetric: jsonb("cited_metric"), // CitedMetric | null
+    significanceVerdict: text("significance_verdict"), // winner|... | null
+    route: text("route").notNull(), // auto_apply|gated|watch
+    applied: boolean("applied").notNull().default(false),
+    reason: text("reason").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("optimizer_proposal_dedup_idx").on(table.tenantId, table.week, table.proposalId),
+    index("optimizer_proposal_tenant_created_idx").on(table.tenantId, table.createdAt),
+  ]
+);
+
 export const meetingOptOuts = pgTable(
   "meeting_opt_outs",
   {
