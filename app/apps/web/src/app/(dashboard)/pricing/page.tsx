@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Check, Zap } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { tierState } from "@/lib/billing/pricing-tier";
 
 interface Tier {
   name: string;
@@ -22,7 +23,7 @@ const tiers: Tier[] = [
     price: "$0",
     priceNote: "14 days",
     description: "Try Elevay with your real data. No credit card required.",
-    cta: "Current Plan",
+    cta: "Get started free",
     priceEnvKey: null,
     highlighted: false,
     features: [
@@ -63,6 +64,27 @@ const tiers: Tier[] = [
 
 export default function PricingPage() {
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
+  // The tenant's real plan, so the right tier is marked "Current Plan" instead
+  // of the value being hardcoded to Free Trial. null = unknown (still loading or
+  // the fetch failed) → no tier is marked current (never render a wrong marker).
+  const [currentPlan, setCurrentPlan] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/billing/subscription");
+        if (!res.ok) return;
+        const data = (await res.json()) as { plan?: string };
+        if (!cancelled && data?.plan) setCurrentPlan(data.plan);
+      } catch {
+        // Network failure — leave the plan unknown rather than guess.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleCheckout(tier: Tier) {
     if (!tier.priceEnvKey) return;
@@ -97,7 +119,9 @@ export default function PricingPage() {
       </div>
 
       <div className="mt-12 grid grid-cols-1 gap-5 md:grid-cols-3">
-        {tiers.map((tier) => (
+        {tiers.map((tier) => {
+          const ts = tierState(tier.name, currentPlan, tier.cta);
+          return (
           <div
             key={tier.name}
             className="relative flex flex-col rounded-xl p-6"
@@ -128,14 +152,14 @@ export default function PricingPage() {
             </p>
 
             <Button
-              variant={tier.highlighted ? "gradient" : "outline"}
+              variant={ts.isCurrent ? "outline" : tier.highlighted ? "gradient" : "outline"}
               className="mt-6 w-full"
-              onClick={() => handleCheckout(tier)}
-              disabled={!tier.priceEnvKey || loadingTier === tier.name}
+              onClick={() => { if (ts.isUpgrade) handleCheckout(tier); }}
+              disabled={ts.disabled || (ts.isUpgrade && !tier.priceEnvKey) || loadingTier === tier.name}
               loading={loadingTier === tier.name}
-              icon={tier.highlighted && loadingTier !== tier.name ? <Zap size={14} /> : undefined}
+              icon={ts.isUpgrade && tier.highlighted && loadingTier !== tier.name ? <Zap size={14} /> : undefined}
             >
-              {tier.cta}
+              {ts.label}
             </Button>
 
             <div className="my-6 h-px" style={{ background: "var(--color-border-default)" }} />
@@ -151,7 +175,8 @@ export default function PricingPage() {
               ))}
             </ul>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

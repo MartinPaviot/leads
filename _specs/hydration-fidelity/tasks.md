@@ -26,10 +26,15 @@ Branch: `feat/hydration-fidelity` (from main). R1 already shipped separately on
     wired; absent → no companyId filter. 2/2 green.
   - Verify (live, deferred): open an account with known contacts → count + rows match.
 
-- [ ] **T4 (R6) pricing current plan**
-  - Code: `pricing/page.tsx` fetches `/api/billing/subscription`, marks current tier.
-  - Test: tier-derivation unit test (plan → currentTier).
-  - Verify: as a non-trial tenant, "Current Plan" lands on the right tier.
+- [x] **T4 (R6) pricing current plan** — DONE. `pricing/page.tsx` fetches
+  `/api/billing/subscription` on mount and drives each tier's button via
+  `tierState()` (lib/billing/pricing-tier.ts): the matching tier shows
+  "Current Plan" (disabled), strictly-lower tiers "Included" (owned, disabled),
+  higher tiers keep their upgrade CTA. Unknown plan (loading/failed) → no current
+  marker. Removed the hardcoded `cta:"Current Plan"` on Free Trial.
+  - Test: `pricing-tier.test.ts` — key mapping, ordering, current/owned/upgrade,
+    unknown-plan safety. 7/7 green. Page logic lives in a lib (no page named
+    exports — nextjs-page-export-build-gap). Verify (live, deferred).
 
 - [x] **T5 (R4) skills registry warm** — DONE. `api/settings/skills/route.ts`
   now calls `registerAllSkills()` at module load (mirrors /api/skills/[slug]).
