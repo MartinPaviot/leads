@@ -12,6 +12,7 @@ import { db } from "@/db";
 import { outboundEmails } from "@/db/schema";
 import { gte } from "drizzle-orm";
 import { runWeeklyReviewForTenant } from "@/lib/analytics/optimizer/db-review";
+import { notifyTenant, optimizerProposalsCopy } from "@/lib/notify/db-notify";
 
 export const weeklyOptimizer = inngest.createFunction(
   {
@@ -40,6 +41,12 @@ export const weeklyOptimizer = inngest.createFunction(
       )) as { proposals: unknown[]; decisions: Array<{ applied: boolean }> };
       proposalsPersisted += result.proposals.length;
       gated += result.decisions.filter((d) => !d.applied).length;
+      // Spec 28 (notify) — tell the tenant a reviewed proposal queue is waiting.
+      if (result.proposals.length > 0) {
+        await step.run(`notify-proposals-${tenantId}`, () =>
+          notifyTenant(tenantId, optimizerProposalsCopy(result.proposals.length, week)),
+        );
+      }
     }
 
     return { week, tenants: tenantIds.length, proposalsPersisted, gated };
