@@ -64,12 +64,16 @@ async function main() {
     ON CONFLICT (tenant_id, level, value) DO NOTHING
     RETURNING id`;
 
-  // 4. meeting_opt_outs -> opt_out address.
+  // 4. meeting_opt_outs -> opt_out address. The tenant is derived from the
+  // linked activity (prod's meeting_opt_outs predates a tenant_id column), and
+  // created_at uses now() to avoid the opted_out_at/created_at column drift
+  // across environments.
   const meetings = await sql`
     INSERT INTO suppression (id, tenant_id, level, value, type, reason, permanent, status, source, created_at)
-    SELECT gen_random_uuid()::text, mo.tenant_id, 'address', lower(mo.attendee_email),
-           'opt_out', 'meeting_opt_out', true, 'active', 'meeting_optouts_backfill', COALESCE(mo.opted_out_at, now())
+    SELECT gen_random_uuid()::text, a.tenant_id, 'address', lower(mo.attendee_email),
+           'opt_out', 'meeting_opt_out', true, 'active', 'meeting_optouts_backfill', now()
     FROM meeting_opt_outs mo
+    JOIN activities a ON a.id = mo.activity_id
     WHERE mo.attendee_email IS NOT NULL AND length(trim(mo.attendee_email)) > 0
     ON CONFLICT (tenant_id, level, value) DO NOTHING
     RETURNING id`;
