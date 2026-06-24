@@ -64,9 +64,10 @@ SELECT (excluded_reason IS NOT NULL) AS excluded, (deleted_at IS NOT NULL) AS de
 
 ## 5. Locked decisions
 
-- **Migration indices**: committed high-water = `0090`; parallel session holds an
-  untracked `0091_contact_lawful_basis.sql`. Spec 35 uses **0092 / 0093 / 0094**
-  (targeting_status / suppression-columns / permanence-trigger). Re-check at merge.
+- **Migration indices**: committed high-water was `0090` at audit time; `main`
+  has since advanced to `0091_contact_lawful_basis` + `0092_enrollment_lock`, so
+  spec 35 now uses **0093 / 0094 / 0095** (targeting_status / suppression-columns
+  / permanence-trigger). Re-check at merge (main may advance further).
 - **Rollout guard**: env `TARGETING_GATE_ENABLED` (default **off**). Check-3
   (targeting/SAFE_MODE) is inert until flipped on (T14), after the T13 backfill —
   honours "no change to real outreach behavior". Suppression checks are NOT

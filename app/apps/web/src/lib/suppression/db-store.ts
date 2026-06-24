@@ -144,7 +144,7 @@ export async function addSuppressionDb(
     .onConflictDoUpdate({
       target: [suppression.tenantId, suppression.level, suppression.value],
       // Re-assert active; strengthen type/permanent/reason/cool-off. Setting
-      // status='active' is allowed on frozen rows by the 0094 trigger.
+      // status='active' is allowed on frozen rows by the 0095 trigger.
       set: {
         type: entry.type,
         permanent: entry.permanent,

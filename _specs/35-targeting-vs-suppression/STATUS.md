@@ -49,7 +49,7 @@ tests green (pure logic, db-store, gate check-3, 5 chokepoints, panel UI).
   — project ref (localdev vs prod) is unverifiable, and memory
   `reference_prod-schema-behind-drizzle` warns it may point at prod. Per the hard
   rule (never migrate prod from an unmerged branch) these are NOT run here. Run on
-  a CONFIRMED `leadsens-localdev` URL: apply 0092-0094, run
+  a CONFIRMED `leadsens-localdev` URL: apply 0093-0095, run
   `scripts/backfill-targeting-and-dnc.ts`, run the SQL-level trigger test.
 - **T14 live eval**: flip `TARGETING_GATE_ENABLED=on` (after backfill), Playwright
   E1-E12 + a design-review pass. Needs the dev server + human OAuth (memory
@@ -63,5 +63,6 @@ tests green (pure logic, db-store, gate check-3, 5 chokepoints, panel UI).
 
 ## Migrations to apply (dev, then ops-gated prod)
 
-`0092_targeting_status.sql`, `0093_suppression_status_source.sql`,
-`0094_suppression_permanence.sql` — all additive + idempotent.
+`0093_targeting_status.sql`, `0094_suppression_status_source.sql`,
+`0095_suppression_permanence.sql` — all additive + idempotent. (Renumbered from
+0092-0094 after `main` advanced to `0092_enrollment_lock`; re-check at merge.)

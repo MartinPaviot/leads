@@ -422,7 +422,7 @@ export const suppression = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }), // cool-off for non-permanent bounces
     // Spec 35 — lifecycle + provenance. `status` lets an admin deactivate a
     // reversible entry (manual_dnc / existing_customer / hard_bounce) while the
-    // row + history survive; opt_out/complaint are frozen by a DB trigger (0094).
+    // row + history survive; opt_out/complaint are frozen by a DB trigger (0095).
     // `source` is the ingestion origin; created_by/deactivated_by are actors for
     // the audit trail (full history lives in the signed audit log via logAudit).
     status: text("status").notNull().default("active"), // 'active' | 'inactive'
