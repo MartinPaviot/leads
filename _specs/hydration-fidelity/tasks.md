@@ -18,11 +18,13 @@ Branch: `feat/hydration-fidelity` (from main). R1 already shipped separately on
   - Verify: open `/settings/notifications`, save a webhook, reload → input pre-filled,
     "Connected" badge shows.
 
-- [ ] **T3 (R2) account contacts**
-  - Code: `api/contacts/route.ts` GET honors `companyId`; account page uses the
-    account payload's contacts.
-  - Test: GET with `companyId` filters to that company (tenant-scoped).
-  - Verify: open an account with known contacts → count + rows match.
+- [x] **T3 (R2) account contacts** — DONE (`feat/hydration-fidelity`).
+  - Code: `api/contacts/route.ts` GET now honors `?companyId` (direct
+    `contacts.companyId` column; mirrors `accounts/[id]/route.ts:65`). The account
+    page already calls `/api/contacts?companyId=<id>`, so it now shows the right set.
+  - Test: `route-companyid.test.ts` — companyId present → `eq(contacts.companyId)`
+    wired; absent → no companyId filter. 2/2 green.
+  - Verify (live, deferred): open an account with known contacts → count + rows match.
 
 - [ ] **T4 (R6) pricing current plan**
   - Code: `pricing/page.tsx` fetches `/api/billing/subscription`, marks current tier.

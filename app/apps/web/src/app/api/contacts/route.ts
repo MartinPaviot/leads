@@ -45,9 +45,16 @@ export async function GET(req: Request) {
     // the Archive view (only soft-deleted, for review + restore). Search runs
     // server-side so it spans ALL contacts, not just the current 50-row page.
     const showDeleted = url.searchParams.get("deleted") === "true";
+    // Optional account filter. The account-detail page requests THIS account's
+    // contacts via `?companyId=<id>`; without honoring it the route returned the
+    // tenant's first 50 contacts regardless of account, so "Contacts at this
+    // account" showed the wrong set. `contacts.companyId` is a direct column
+    // (db/schema/core.ts). drizzle `and()` drops the undefined when absent.
+    const companyId = url.searchParams.get("companyId")?.trim() || undefined;
     const baseWhere = and(
       eq(contacts.tenantId, authCtx.tenantId),
       showDeleted ? isNotNull(contacts.deletedAt) : isNull(contacts.deletedAt),
+      companyId ? eq(contacts.companyId, companyId) : undefined,
     )!;
 
     let searchWhere: SQL = baseWhere;
