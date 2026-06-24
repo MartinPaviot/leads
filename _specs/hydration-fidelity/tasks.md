@@ -138,7 +138,12 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
   retry instead of vanishing. 22 opportunities tests green (no regression). Live
   verify deferred (page too heavy to mount cheaply). Follow-up: create-modal
   account/contact pickers still swallow fetch errors (empty dropdowns).
-- [ ] 12 sequences · 13 sequence-detail · 16 meetings · 17 meeting-detail
+- [x] **12 sequences** — list fetch swallowed failures (catch console.warn; success
+  only on res.ok), so a 500 left sequences=[] and showed "No campaigns yet" (looked
+  like an empty account). Added `loadError` + a retryable error EmptyState branch
+  (genuine-empty CTA preserved). 18 sequences tests green. Left as safe-default minor:
+  sending-mode fetch swallow (default testMode:false), header "0" flash pre-load.
+- [ ] 13 sequence-detail · 16 meetings · 17 meeting-detail
   · 19 tasks · 20 call-mode · 23 reports · 24 insights · 26 insights-pilae
   · 27 insights-playbook · 30 notes · 31 graph · 32 voice-of-customer · 35 tam-review
   · then T2 H2 settings.

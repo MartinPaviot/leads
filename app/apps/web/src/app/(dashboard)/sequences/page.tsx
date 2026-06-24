@@ -41,6 +41,7 @@ export default function CampaignsPage() {
   const { toast } = useToast();
   const [sequences, setSequences] = useState<Sequence[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   // Per-row pending state so we can disable both buttons + show a
   // spinner during the in-flight approve/reject without flicker.
@@ -53,13 +54,18 @@ export default function CampaignsPage() {
 
   const fetchSequences = useCallback(async () => {
     try {
+      setLoadError(false);
       const res = await fetch("/api/sequences");
       if (res.ok) {
         const data = await res.json();
         setSequences(data.sequences || []);
+      } else {
+        // A failed load must not masquerade as an empty account ("No campaigns yet").
+        setLoadError(true);
       }
     } catch (e) {
       console.warn("sequences: list fetch failed", e);
+      setLoadError(true);
     }
     setLoading(false);
   }, []);
@@ -226,6 +232,14 @@ export default function CampaignsPage() {
               <div key={i} className="h-20 animate-pulse rounded-lg" style={{ background: "var(--color-bg-hover)" }} />
             ))}
           </div>
+        ) : loadError && sequences.length === 0 ? (
+          <EmptyState
+            variant="error"
+            title="Couldn't load your campaigns"
+            description="Something went wrong loading your campaigns. They're safe — try again."
+            actionLabel="Retry"
+            onAction={() => { setLoading(true); fetchSequences(); }}
+          />
         ) : sequences.length === 0 ? (
           <EmptyState
             icon={<Zap size={24} />}
