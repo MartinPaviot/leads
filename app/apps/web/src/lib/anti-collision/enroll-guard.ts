@@ -11,6 +11,7 @@
 
 import { acquireEnrollmentLock, releaseEnrollmentLock, DEFAULT_LOCK_TTL_MS } from "./collision";
 import { collisionLockForTenant } from "./db-lock";
+import { recordCollisionRow } from "./db-collision-log";
 import { db } from "@/db";
 import { sequenceEnrollments } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -46,13 +47,17 @@ export async function guardEnrollment(args: {
     const won = await acquireEnrollmentLock(contactId, enrollmentId, {
       lock: collisionLockForTenant(tenantId),
       ttlMs: ttlMs ?? DEFAULT_LOCK_TTL_MS,
-      recordCollision: (rec) => {
+      recordCollision: async (rec) => {
         collidedWith = rec.heldBy;
-        // Observable in logs without a new table; persistence is a follow-up.
+        const enforced = isAntiCollisionEnforced();
         console.warn(
           `[anti-collision] contact ${contactId} held by enrollment ${rec.heldBy}; ` +
-            `blocked enrollment ${enrollmentId} (enforced=${isAntiCollisionEnforced()})`,
+            `blocked enrollment ${enrollmentId} (enforced=${enforced})`,
         );
+        // Observe-phase persistence (spec 14): record the would-have-blocked
+        // event so the collision rate is measurable before flipping to enforce.
+        // Best-effort — recordCollisionRow swallows its own errors.
+        await recordCollisionRow(tenantId, rec, enforced);
       },
     });
     if (won) return { proceed: true, collidedWith: null, recordedOnly: false };
