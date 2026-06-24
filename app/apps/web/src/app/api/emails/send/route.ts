@@ -4,7 +4,8 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { requireCapabilityForRequest } from "@/lib/auth/permissions";
 import { deliverInteractiveEmail } from "@/lib/emails/deliver-interactive";
 import { logger } from "@/lib/observability/logger";
-import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
+import { recipientBlockReason } from "@/lib/emails/recipient-guardrail";
+import { isInteractiveRecipientSendable } from "@/lib/guardrails/sending-gate";
 
 /* ------------------------------------------------------------------ */
 /*  POST /api/emails/send  — the composer's send button               */
@@ -60,9 +61,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  // Test-mode guardrail (PR #89): block real prospects while OUTBOUND_TEST_MODE
-  // is on, even for a deliberate manual composer send.
-  if (!isRecipientAllowed(parsed.to)) {
+  // Test-mode guardrail: block COLD recipients (strangers) so a campaign can't
+  // blast real prospects while testing — but allow a WARM recipient (someone who
+  // already corresponds with the tenant, i.e. the person you're replying to) so
+  // the founder can answer their own inbox. deliver-interactive re-checks the
+  // same rule. (deliver-interactive also re-runs this as defence in depth.)
+  if (!(await isInteractiveRecipientSendable(authCtx.tenantId, parsed.to))) {
     return NextResponse.json({ error: recipientBlockReason(parsed.to) }, { status: 403 });
   }
 

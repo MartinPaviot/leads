@@ -113,7 +113,7 @@ vi.mock("@/lib/targeting/status", () => ({
   })),
 }));
 
-import { evaluateSend, isSuppressed, isColdRecipient, emailBracketLikePattern } from "@/lib/guardrails/sending-gate";
+import { evaluateSend, isSuppressed, isColdRecipient, emailBracketLikePattern, isInteractiveRecipientSendable } from "@/lib/guardrails/sending-gate";
 
 beforeEach(() => {
   optoutRows = [];
@@ -126,8 +126,34 @@ beforeEach(() => {
   targetingState.targetingStatus = "targeted";
   targetingState.accountKey = null;
   delete process.env.TARGETING_GATE_ENABLED;
+  delete process.env.OUTBOUND_TEST_MODE;
+  delete process.env.OUTBOUND_TEST_ALLOWLIST;
   lawfulState.result = { allowed: true };
   guardState.tripped = false;
+});
+
+describe("isInteractiveRecipientSendable — reply to your inbox in test mode", () => {
+  it("test mode OFF → any recipient is sendable (even cold)", async () => {
+    process.env.OUTBOUND_TEST_MODE = "off";
+    activityRows = []; // cold
+    expect(await isInteractiveRecipientSendable("t1", "stranger@acme.io")).toBe(true);
+  });
+  it("test mode ON + WARM (prior correspondence) → sendable (a reply works)", async () => {
+    process.env.OUTBOUND_TEST_MODE = "on";
+    activityRows = [{ tenantId: "t1", from: "paul@pilae.ch" }]; // warm
+    expect(await isInteractiveRecipientSendable("t1", "paul@pilae.ch")).toBe(true);
+  });
+  it("test mode ON + COLD stranger → blocked", async () => {
+    process.env.OUTBOUND_TEST_MODE = "on";
+    activityRows = []; // cold
+    expect(await isInteractiveRecipientSendable("t1", "stranger@acme.io")).toBe(false);
+  });
+  it("test mode ON + allowlisted address → sendable without a warm lookup", async () => {
+    process.env.OUTBOUND_TEST_MODE = "on";
+    process.env.OUTBOUND_TEST_ALLOWLIST = "ok@team.com";
+    activityRows = []; // cold, but allowlisted wins
+    expect(await isInteractiveRecipientSendable("t1", "ok@team.com")).toBe(true);
+  });
 });
 
 describe("isSuppressed", () => {

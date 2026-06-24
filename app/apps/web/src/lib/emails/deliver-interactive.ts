@@ -35,8 +35,8 @@ import { shouldUseOwnerSmtp } from "@/lib/emails/owner-smtp-decision";
 import { checkPlanLimit } from "@/lib/billing/plan-limits";
 import { trackUsage } from "@/lib/billing/billing";
 import { logger } from "@/lib/observability/logger";
-import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
-import { evaluateSend } from "@/lib/guardrails/sending-gate";
+import { recipientBlockReason } from "@/lib/emails/recipient-guardrail";
+import { evaluateSend, isInteractiveRecipientSendable } from "@/lib/guardrails/sending-gate";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FALLBACK_FROM = process.env.INVITE_FROM_ADDRESS || "Elevay <outbound@resend.dev>";
@@ -141,11 +141,13 @@ export async function deliverInteractiveEmail(
   const { tenantId, to, subject, body } = input;
   const toLower = to.toLowerCase().trim();
 
-  // 0. Test-mode guardrail (defense in depth at the chokepoint). Every caller
-  // also pre-checks, but enforcing it here guarantees NO interactive send path
-  // — present or future — can reach a real prospect while OUTBOUND_TEST_MODE is
-  // on. See lib/emails/recipient-guardrail.ts.
-  if (!isRecipientAllowed(to)) {
+  // 0. Test-mode guardrail (defense in depth at the chokepoint). In test mode we
+  // block COLD recipients (strangers) so a campaign can't blast real prospects —
+  // but a WARM recipient (someone the tenant already corresponds with, e.g. the
+  // sender you're replying to) is always allowed, so the founder can answer their
+  // own inbox. The autonomous worker keeps the strict allowlist. When test mode
+  // is OFF, isRecipientAllowed() returns true and this never blocks.
+  if (!(await isInteractiveRecipientSendable(tenantId, to))) {
     return { ok: false, code: "test_mode", error: recipientBlockReason(to) };
   }
 

@@ -44,6 +44,7 @@ import {
 } from "@/lib/targeting/status";
 import { evaluateLawfulBasisForSend } from "@/lib/compliance/lawful-basis/db-gate";
 import { guardTrippedForTenant } from "@/lib/deliverability/db-guard";
+import { isRecipientAllowed } from "@/lib/emails/recipient-guardrail";
 
 /** Spec 35 — SAFE_MODE targeting gate rollout guard (default off; flipped on at
  *  T14 after the targeting backfill so no currently-allowed send breaks). */
@@ -112,6 +113,22 @@ export async function isColdRecipient(
     )
     .limit(1);
   return !row; // no prior activity -> cold
+}
+
+/**
+ * Test-mode recipient check for INTERACTIVE / human-initiated sends (composer,
+ * reply, RSVP). Allow an allowlisted OR a WARM recipient (prior correspondence —
+ * e.g. the person you're replying to), block only a COLD stranger. When test mode
+ * is OFF, `isRecipientAllowed` returns true so everything passes. This lets the
+ * founder answer their own inbox while a campaign still can't blast cold
+ * prospects (the autonomous worker keeps the strict allowlist, not this).
+ */
+export async function isInteractiveRecipientSendable(
+  tenantId: string,
+  toAddress: string,
+): Promise<boolean> {
+  if (isRecipientAllowed(toAddress)) return true;
+  return !(await isColdRecipient(tenantId, toAddress));
 }
 
 /**
