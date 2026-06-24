@@ -11,6 +11,7 @@ import { Resend } from "resend";
 import { buildUnsubscribeUrl } from "@/lib/emails/unsubscribe-token";
 import { signTrackingId } from "@/lib/emails/tracking-token";
 import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
+import { sendViaMailbox } from "@/lib/emails/mailbox-transport";
 import { checkPlanLimit } from "@/lib/billing/plan-limits";
 import { trackUsage } from "@/lib/billing/billing";
 import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
@@ -215,7 +216,7 @@ export const processOutboundEmails = inngest.createFunction(
       const tenantIds = [...new Set(sendableEmails.map((e) => e.tenantId))];
       const map: Record<
         string,
-        { id: string; emailAddress: string; displayName: string | null; dailyLimit: number; sentToday: number; status: string | null; sendWindowStart: string; sendWindowEnd: string; sendDays: string[]; timezone: string | null }
+        { id: string; emailAddress: string; displayName: string | null; dailyLimit: number; sentToday: number; status: string | null; sendWindowStart: string; sendWindowEnd: string; sendDays: string[]; timezone: string | null; provider: string; smtpHost: string | null; smtpPort: number | null; secretEncrypted: string | null }
       > = {};
 
       for (const tid of tenantIds) {
@@ -250,6 +251,10 @@ export const processOutboundEmails = inngest.createFunction(
             sendWindowEnd: mb.sendWindowEnd || "18:00",
             sendDays: (mb.sendDays as string[]) || ["mon", "tue", "wed", "thu", "fri"],
             timezone: tenantTimezone,
+            provider: mb.provider,
+            smtpHost: mb.smtpHost,
+            smtpPort: mb.smtpPort,
+            secretEncrypted: mb.secretEncrypted,
           };
         }
 
@@ -274,6 +279,10 @@ export const processOutboundEmails = inngest.createFunction(
             sendWindowEnd: best.sendWindowEnd || "18:00",
             sendDays: (best.sendDays as string[]) || ["mon", "tue", "wed", "thu", "fri"],
             timezone: tenantTimezone,
+            provider: best.provider,
+            smtpHost: best.smtpHost,
+            smtpPort: best.smtpPort,
+            secretEncrypted: best.secretEncrypted,
           };
         }
       }
@@ -456,9 +465,10 @@ export const processOutboundEmails = inngest.createFunction(
           const textWithFooter = (email.bodyText || "") +
             `\n\n---\nSent via Elevay\nUnsubscribe: ${unsubUrl}`;
 
-          const { data, error } = await resend.emails.send({
-            from: fromAddress,
-            to: [email.toAddress],
+          // Transport: the owner's own SMTP for smtp_custom mailboxes (rides
+          // their domain — no Resend domain-verification needed), else Resend.
+          const sendResult = await sendViaMailbox(mailbox, {
+            to: email.toAddress,
             subject: email.subject,
             html: processedHtml,
             text: textWithFooter,
@@ -468,13 +478,13 @@ export const processOutboundEmails = inngest.createFunction(
             },
           });
 
-          if (error) {
+          if (!sendResult.ok) {
             await db
               .update(outboundEmails)
               .set({
                 status: "failed",
                 failedAt: new Date(),
-                errorMessage: error.message,
+                errorMessage: sendResult.error,
                 updatedAt: new Date(),
               })
               .where(eq(outboundEmails.id, email.id));
@@ -488,7 +498,7 @@ export const processOutboundEmails = inngest.createFunction(
             .set({
               status: "sent",
               sentAt: new Date(),
-              messageId: data?.id || null,
+              messageId: sendResult.messageId,
               fromAddress,
               updatedAt: new Date(),
             })
@@ -505,7 +515,7 @@ export const processOutboundEmails = inngest.createFunction(
             outboundEmailId: email.id,
             stage: "email_sent",
             sourceSystem: "inngest",
-            metadata: { messageId: data?.id, via: "resend" },
+            metadata: { messageId: sendResult.messageId, via: sendResult.via },
           });
 
           // Update mailbox sent count

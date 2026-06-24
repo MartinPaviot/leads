@@ -35,6 +35,8 @@ export interface OutgoingMessage {
    * email the attendee itself, so we send the REQUEST ourselves.
    */
   icsInvite?: { method: "REQUEST" | "PUBLISH" | "CANCEL" | "REPLY"; content: string; filename?: string };
+  /** Extra RFC headers (e.g. List-Unsubscribe for CAN-SPAM on the queue path). */
+  headers?: Record<string, string>;
 }
 
 function makeTransport(c: SmtpCreds) {
@@ -79,6 +81,7 @@ export async function sendViaSmtp(
       subject: msg.subject,
       html: msg.html,
       text: msg.text || stripHtml(msg.html || ""),
+      headers: msg.headers,
       inReplyTo: msg.inReplyTo || undefined,
       references: msg.references || msg.inReplyTo || undefined,
       icalEvent: msg.icsInvite
