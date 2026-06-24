@@ -21,6 +21,7 @@ import {
   type GoalSpec,
 } from "@/lib/voice/campaign";
 import { getTenantSettings, hasUsableIcp } from "@/lib/config/tenant-settings";
+import { accessibilityScoreFromPhoneType } from "@/lib/voice/reachability";
 import { getRoleVerification } from "@/lib/contacts/role-status";
 import { inngest } from "@/inngest/client";
 
@@ -97,7 +98,12 @@ async function todayQueue(tenantId: string, ownerId: string) {
     phone: r.phone ?? "",
     score: r.score ?? 0,
     intentScore: Math.min(1, (r.score ?? 0) / 100),
-    accessibilityScore: 0.7,
+    // Real per-contact reachability (was hardcoded 0.7 for everyone), so the
+    // cockpit's reachability pill + summary reflect phone quality. Same mapping
+    // as the buildQueue path (lib/voice/reachability.ts).
+    accessibilityScore: accessibilityScoreFromPhoneType(
+      (r.properties as Record<string, unknown> | null)?.phoneType as string | undefined,
+    ),
     dealValueWeight: 1,
     // Attempts so far — lets the cockpit partition the day's list into the
     // "Callbacks due" (>0) vs "New to call" (=0) by-day system views (T5).

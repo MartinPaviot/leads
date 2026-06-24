@@ -169,6 +169,15 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
   EmptyState (rendered before the empty states). 9 tasks tests green. Defensive
   follow-up: tasks route resolves entity names by id=ANY without eq(tenantId)
   (safe today — ids come from tenant-scoped tasks).
-- [ ] 20 call-mode · 23 reports · 24 insights · 26 insights-pilae
+- [x] **20 call-mode** — the default campaign queue hardcoded accessibilityScore=0.7
+  for every contact, so the reachability pill + ReachabilitySummary + "numéro non
+  qualifié" gap line ran off a constant. Extracted the buildQueue mapping into
+  `lib/voice/reachability.ts` (accessibilityScoreFromPhoneType) and used it in the
+  campaign route from the contact's real `properties.phoneType` (queue.ts untouched —
+  no hot-path risk). Test: reachability mapping (3/3). 33 voice/call-mode tests green.
+  Follow-ups (heavier/by-design): campaign queue still emits localTime/tz='' (needs
+  company-props query + tz/quiet-hours helpers); live transcript/levers depend on the
+  Phase-1.5 streaming bridge (honest empty state today).
+- [ ] 23 reports · 24 insights · 26 insights-pilae
   · 27 insights-playbook · 30 notes · 31 graph · 32 voice-of-customer · 35 tam-review
   · then T2 H2 settings.
