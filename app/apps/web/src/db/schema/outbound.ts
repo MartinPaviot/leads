@@ -400,6 +400,34 @@ export const emailOptouts = pgTable(
   ]
 );
 
+/**
+ * Spec 22 — compliance/deliverability suppression list (send/enroll hot path).
+ * Broader than email_optouts: domain-level + typed (competitor / existing-
+ * customer / manual DNC) + global scope. `tenant_id` NULL = global (applies to
+ * every workspace; RLS allows NULL-tenant rows). One row per (scope, level,
+ * value). The DB-backed lookup (lib/suppression/db-store.ts) reuses the pure
+ * spec-22 logic. Additive to the existing email_optouts opt-out/bounce check.
+ */
+export const suppression = pgTable(
+  "suppression",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    // NULL = global scope; otherwise the owning workspace.
+    tenantId: text("tenant_id").references(() => tenants.id),
+    level: text("level").notNull(), // 'address' | 'domain'
+    value: text("value").notNull(), // normalized email or domain
+    type: text("type").notNull(), // opt_out | hard_bounce | manual_dnc | competitor | existing_customer
+    reason: text("reason"),
+    permanent: boolean("permanent").notNull().default(true),
+    expiresAt: timestamp("expires_at", { withTimezone: true }), // cool-off for non-permanent bounces
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    // NULLS NOT DISTINCT enforced in the migration so global rows dedup too.
+    uniqueIndex("suppression_scope_value_idx").on(table.tenantId, table.level, table.value),
+  ]
+);
+
 export const meetingOptOuts = pgTable(
   "meeting_opt_outs",
   {
