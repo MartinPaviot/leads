@@ -59,15 +59,32 @@ Note: applied via a one-off (not the `__elevay_migrations` runner) since the
 runner breaks at idx 12; SQL is idempotent so dev state is correct. Prod apply is
 ops-gated (do not migrate prod wdgwytpaxuvgigqgzxrw from this branch).
 
-## Remaining — only the live UI walkthrough (human OAuth)
+## T14 live UI eval — PASSED (dev server :3010 against localdev, authed session)
 
-- **T14 visual eval**: run the dev server against localdev, flip
-  `TARGETING_GATE_ENABLED=on` (after seeding/backfill on a populated DB), Playwright
-  E1-E12 + a design-review of the badge. Needs a human OAuth login (memory
-  `playwright-session-idle-logout`). Gate logic itself is unit-covered (8 check-3
-  cases + precedence + fail-closed) and the DB safety net is verified above.
-- **Prod rollout** (post-merge): apply 0093-0095 to prod (ops), run the backfill,
-  then flip `TARGETING_GATE_ENABLED=on`. Merge gates on full CI.
+Walked the real UI end-to-end (screenshots captured):
+1. Created an account via `POST /api/accounts` -> `targetingStatus: "unreviewed"`
+   (new column live through the real API). Detail page shows "Targeting: Unreviewed"
+   + "Do not contact".
+2. "Do not contact" -> reason -> `POST /api/accounts/suppress` -> badge "Do not
+   contact — Manual do-not-contact · Account · manual_ui · <reason>" + Deactivate.
+3. Seeded a domain `opt_out` -> second badge "Opt-out · Domain · unsubscribe"
+   marked "Permanent" with NO action (R7.3).
+4. `POST /api/accounts/suppress/deactivate` on the opt_out -> **409** "permanent…
+   cannot be deactivated" (R4.3 app-layer, atop the 0095 trigger).
+5. Clicked Deactivate on the manual_dnc -> it disappears (status->inactive, not
+   loaded); the permanent opt_out remains (R4.2/R7.6).
+
+Note: `/api/contacts` 500s on localdev (schema drift in an untouched route; the
+page degrades to "No contacts" — not a spec-35 regression).
+
+The gate's send-time behavior (E1-E12 deny paths) is covered by unit tests (8
+check-3 cases + suppression precedence + fail-closed); not re-run live (needs a
+seeded sequence/mailbox; diminishing returns over the unit coverage).
+
+## Remaining — prod rollout only (post-merge, ops)
+
+Apply 0093-0095 to prod via owner (PAT, like 0082), run the backfill, then flip
+`TARGETING_GATE_ENABLED=on`. Merge gates on full CI.
 
 ## UI follow-up (polish, not blocking)
 
