@@ -25,7 +25,7 @@
  *   Neither is in this commit.
  */
 
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db as defaultDb } from "@/db";
 import {
   companies,
@@ -34,6 +34,7 @@ import {
   activities as activitiesTable,
   knowledgeEntries,
   contextGraphEdges,
+  contextGraphNodes,
   chatMemories,
   transcriptChunks,
 } from "@/db/schema";
@@ -129,6 +130,24 @@ export async function getCompanyBrain(
     return null;
   }
 
+  // Resolve THIS company's context-graph node so the Graph-facts section and the
+  // contact champion badge can be scoped to edges that actually touch this
+  // company — previously they read every edge in the tenant (same list on every
+  // account's brain). Knowledge + chat-memories have no company link in the
+  // schema (tenant-wide by design), so they stay tenant-scoped; see
+  // _reports/hydration-audit/06-account-brain.md.
+  const [companyNode] = await dbi
+    .select({ id: contextGraphNodes.id })
+    .from(contextGraphNodes)
+    .where(
+      and(
+        eq(contextGraphNodes.tenantId, opts.tenantId),
+        eq(contextGraphNodes.entityType, "company"),
+        eq(contextGraphNodes.entityId, companyId),
+      ),
+    )
+    .limit(1);
+
   // ── 2. All other layers in parallel ─────────────────────
   const [
     contactRows,
@@ -213,7 +232,20 @@ export async function getCompanyBrain(
         confidence: contextGraphEdges.confidence,
       })
       .from(contextGraphEdges)
-      .where(eq(contextGraphEdges.tenantId, opts.tenantId)),
+      .where(
+        and(
+          eq(contextGraphEdges.tenantId, opts.tenantId),
+          // Only edges touching this company's node. No node yet → no
+          // company-specific facts (sql`false` matches nothing), rather than
+          // the whole tenant's graph.
+          companyNode
+            ? or(
+                eq(contextGraphEdges.sourceNodeId, companyNode.id),
+                eq(contextGraphEdges.targetNodeId, companyNode.id),
+              )
+            : sql`false`,
+        ),
+      ),
     dbi
       .select({
         id: chatMemories.id,

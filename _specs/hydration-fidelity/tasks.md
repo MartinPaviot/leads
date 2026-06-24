@@ -94,7 +94,17 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
   now returns 500 on error and the drawer shows a retry bar while keeping self-hide
   on a genuinely empty queue. Capture route confirmed tenant-scoped (no leak).
   Test: `capture-review.test.tsx` (error/empty/data). 80 inbox tests green.
-- [ ] 06 account-brain · 07 contacts · 08 contact-detail · 09 contacts-merge
+- [x] **06 account-brain** — Graph-facts section + the contact champion badge were
+  filtered tenant-only (showed every tenant edge identically on every account's
+  brain). Now scoped to the company's context-graph node (`get-brain.ts`: resolve
+  the company node, filter edges where source/target = that node, else nothing).
+  Knowledge + Memories have NO company link in the schema (tenant-wide by design),
+  so they cannot be mechanically scoped — left as-is + documented in code.
+  **PRODUCT DECISION for the founder:** relabel those two sections "Workspace
+  knowledge/memories" or drop them from the company brain (they read as
+  company-specific today but aren't). Test: get-brain graph-scope test + 35 existing
+  renumbered for the added node query. 36 green.
+- [ ] 07 contacts · 08 contact-detail · 09 contacts-merge
   · 10 opportunities · 12 sequences · 13 sequence-detail · 16 meetings · 17 meeting-detail
   · 19 tasks · 20 call-mode · 23 reports · 24 insights · 26 insights-pilae
   · 27 insights-playbook · 30 notes · 31 graph · 32 voice-of-customer · 35 tam-review

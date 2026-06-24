@@ -76,6 +76,12 @@ vi.mock("@/db/schema", () => ({
     confidence: "confidence",
     tenantId: "tenant_id",
   },
+  contextGraphNodes: {
+    id: "id",
+    tenantId: "tenant_id",
+    entityType: "entity_type",
+    entityId: "entity_id",
+  },
   chatMemories: {
     id: "id",
     tenantId: "tenant_id",
@@ -208,9 +214,10 @@ describe("getCompanyBrain — meetings derived from activities", () => {
     selectChainMock.mockImplementation(() => {
       call++;
       if (call === 1) return chainOf([COMPANY_ROW]); // company
-      if (call === 2) return chainOf([]); // contacts
-      if (call === 3) return chainOf([]); // deals
-      if (call === 4)
+      if (call === 2) return chainOf([]); // company graph node
+      if (call === 3) return chainOf([]); // contacts
+      if (call === 4) return chainOf([]); // deals
+      if (call === 5)
         return chainOf([
           {
             id: "act-meeting",
@@ -231,10 +238,10 @@ describe("getCompanyBrain — meetings derived from activities", () => {
             entityId: "co-1",
           },
         ]);
-      if (call === 5) return chainOf([]); // knowledge
-      if (call === 6) return chainOf([]); // edges
-      if (call === 7) return chainOf([]); // memories
-      if (call === 8) return chainOf([]); // transcript chunks (meetingIds non-empty)
+      if (call === 6) return chainOf([]); // knowledge
+      if (call === 7) return chainOf([]); // edges
+      if (call === 8) return chainOf([]); // memories
+      if (call === 9) return chainOf([]); // transcript chunks (meetingIds non-empty)
       return chainOf([]);
     });
 
@@ -257,9 +264,10 @@ describe("getCompanyBrain — truncation flags", () => {
     selectChainMock.mockImplementation(() => {
       call++;
       if (call === 1) return chainOf([COMPANY_ROW]); // company
-      if (call === 2) return chainOf([]); // contacts
-      if (call === 3) return chainOf([]); // deals
-      if (call === 4)
+      if (call === 2) return chainOf([]); // company graph node
+      if (call === 3) return chainOf([]); // contacts
+      if (call === 4) return chainOf([]); // deals
+      if (call === 5)
         // 6 rows when cap = 5 → query asks for cap+1=6 → 6 rows
         return chainOf(
           Array.from({ length: 6 }, (_, i) => ({
@@ -272,9 +280,9 @@ describe("getCompanyBrain — truncation flags", () => {
             entityId: "co-1",
           })),
         );
-      if (call === 5) return chainOf([]); // knowledge
-      if (call === 6) return chainOf([]); // edges
-      if (call === 7) return chainOf([]); // memories
+      if (call === 6) return chainOf([]); // knowledge
+      if (call === 7) return chainOf([]); // edges
+      if (call === 8) return chainOf([]); // memories
       return chainOf([]);
     });
 
@@ -294,8 +302,9 @@ describe("getCompanyBrain — deal property metadata coercion", () => {
     selectChainMock.mockImplementation(() => {
       call++;
       if (call === 1) return chainOf([COMPANY_ROW]); // company
-      if (call === 2) return chainOf([]); // contacts
-      if (call === 3)
+      if (call === 2) return chainOf([]); // company graph node
+      if (call === 3) return chainOf([]); // contacts
+      if (call === 4)
         return chainOf([
           {
             id: "deal-1",
@@ -311,10 +320,10 @@ describe("getCompanyBrain — deal property metadata coercion", () => {
             },
           },
         ]);
-      if (call === 4) return chainOf([]); // activities
-      if (call === 5) return chainOf([]); // knowledge
-      if (call === 6) return chainOf([]); // edges
-      if (call === 7) return chainOf([]); // memories
+      if (call === 5) return chainOf([]); // activities
+      if (call === 6) return chainOf([]); // knowledge
+      if (call === 7) return chainOf([]); // edges
+      if (call === 8) return chainOf([]); // memories
       return chainOf([]);
     });
 
@@ -339,5 +348,34 @@ describe("getCompanyBrain — deal property metadata coercion", () => {
     // Stall fields default to null/[] when no prediction
     expect(d.stallProbability).toBeNull();
     expect(d.stallIndicators).toEqual([]);
+  });
+});
+
+describe("getCompanyBrain — graph facts scoped to the company (P1 06)", () => {
+  it("loads graph edges only once the company has a node, then returns them", async () => {
+    let call = 0;
+    selectChainMock.mockImplementation(() => {
+      call++;
+      if (call === 1) return chainOf([COMPANY_ROW]); // company
+      if (call === 2) return chainOf([{ id: "node-co-1" }]); // company graph node (found)
+      if (call === 3) return chainOf([]); // contacts
+      if (call === 4) return chainOf([]); // deals
+      if (call === 5) return chainOf([]); // activities
+      if (call === 6) return chainOf([]); // knowledge
+      if (call === 7)
+        // edges scoped to the company node
+        return chainOf([
+          { sourceId: "node-co-1", targetId: "node-x", relationType: "champion", fact: "F", confidence: 0.9 },
+        ]);
+      if (call === 8) return chainOf([]); // memories
+      return chainOf([]);
+    });
+
+    const brain = await getCompanyBrain(
+      "co-1",
+      { tenantId: "tenant-A" },
+      { predictStallsFn: stallStub, scoreBuyerIntentFn: intentStub as any },
+    );
+    expect(brain!.contextGraphEdges).toHaveLength(1);
   });
 });
