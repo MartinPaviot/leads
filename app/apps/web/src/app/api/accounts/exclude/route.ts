@@ -84,6 +84,8 @@ export async function POST(req: Request) {
           ? {
               excludedReason: null,
               excludedAt: null,
+              // Spec 35 D5 dual-write: re-including makes the account targetable.
+              targetingStatus: "targeted" as const,
               // Drop the historical note key; keep the rest of properties.
               properties: sql`(COALESCE(${companies.properties}, '{}'::jsonb)) - 'excluded_note'`,
               updatedAt: sql`now()`,
@@ -91,6 +93,8 @@ export async function POST(req: Request) {
           : {
               excludedReason: reason,
               excludedAt: sql`now()`,
+              // Spec 35 D5 dual-write: excluding = reversible targeting removal.
+              targetingStatus: "archived" as const,
               ...(note
                 ? {
                     properties: sql`COALESCE(${companies.properties}, '{}'::jsonb) || ${JSON.stringify(

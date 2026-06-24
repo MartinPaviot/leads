@@ -38,13 +38,23 @@ import {
   loadEmailStatus,
   isEmailKnownUnsendable,
 } from "@/lib/contacts/email/db-status";
+import {
+  loadAccountGateContext,
+  type TargetingStatus,
+} from "@/lib/targeting/status";
+
+/** Spec 35 — SAFE_MODE targeting gate rollout guard (default off; flipped on at
+ *  T14 after the targeting backfill so no currently-allowed send breaks). */
+function targetingGateEnabled(): boolean {
+  return (process.env.TARGETING_GATE_ENABLED ?? "off").trim().toLowerCase() === "on";
+}
 
 /** Why the gate refused a send (or that it allows). */
 export type SendingGateOutcome =
   | { send: true; reason: string }
   | {
       send: false;
-      code: SendingBlockReason | "opted_out" | "suppressed" | "invalid_email";
+      code: SendingBlockReason | "opted_out" | "suppressed" | "invalid_email" | "not_targeted";
       reason: string;
     };
 
@@ -112,6 +122,18 @@ export interface EvaluateSendArgs {
    * read). Optional — the gate reads them itself when omitted.
    */
   settings?: TenantSettings | null;
+  // ── Spec 35 (all optional — legacy callers keep working) ──
+  /** Recipient's company id; resolves account-scope suppression + targeting. */
+  companyId?: string | null;
+  /** Recipient's contact id; used to resolve companyId when not given. */
+  contactId?: string | null;
+  /** Pre-resolved targeting_status (a cron may batch-resolve it). */
+  targetingStatus?: TargetingStatus;
+  /** Pre-resolved account key (canonical identity_key) for account-scope suppression. */
+  accountKey?: string | null;
+  /** True for human-initiated sends (composer, meeting follow-up): exempt from
+   *  the SAFE_MODE targeting gate (D6). NEVER exempt from suppression. */
+  interactive?: boolean;
 }
 
 /**
@@ -142,11 +164,24 @@ export async function evaluateSend(
       };
     }
 
-    // Spec 22 — broader suppression on top of the address-level opt-out above:
-    // domain-level + typed (competitor / existing-customer / manual DNC) +
-    // global scope. Empty table = no-op; any thrown query fails closed (catch).
+    // Spec 35 — resolve account context once (targeting_status + account key).
+    // One indexed company read; fail-closed internally (unreviewed / null). Used
+    // by the account-scope suppression below and the SAFE_MODE gate further down.
+    const needsContext =
+      args.targetingStatus === undefined || args.accountKey === undefined;
+    const ctx =
+      needsContext && (args.companyId || args.contactId)
+        ? await loadAccountGateContext(args.tenantId, args.companyId, args.contactId)
+        : { targetingStatus: args.targetingStatus ?? "unreviewed", accountKey: args.accountKey ?? null };
+    const targetingStatus = args.targetingStatus ?? ctx.targetingStatus;
+    const accountKey = args.accountKey ?? ctx.accountKey;
+
+    // Spec 22 + 35 — broader suppression on top of the address-level opt-out:
+    // domain-level + ACCOUNT-level (account key) + typed (competitor /
+    // existing-customer / manual DNC / complaint) + global scope. Empty table =
+    // no-op; any thrown query fails closed (catch).
     const supHit = await isSuppressedDb(
-      { email: args.toAddress, tenantId: args.tenantId },
+      { email: args.toAddress, accountKey, tenantId: args.tenantId },
       drizzleSuppressionLoader(),
     );
     if (supHit) {
@@ -175,6 +210,21 @@ export async function evaluateSend(
       args.settings !== undefined
         ? args.settings
         : await getTenantSettings(args.tenantId);
+
+    // Spec 35 — SAFE_MODE default-deny targeting gate. Runs AFTER suppression
+    // (suppression overrides targeting) and only when the rollout guard is on.
+    // Interactive human sends are exempt (D6); suppression already applied above.
+    // safeModeEnabled defaults true (fail-closed); unresolved account =
+    // 'unreviewed' = deny. Short-circuits before the cold-recipient lookup.
+    if (targetingGateEnabled() && (settings?.safeModeEnabled ?? true) && !args.interactive) {
+      if (targetingStatus !== "targeted") {
+        return {
+          send: false,
+          code: "not_targeted",
+          reason: `Account is ${targetingStatus}; SAFE_MODE allows only targeted accounts.`,
+        };
+      }
+    }
 
     // CLE-13 FOLLOWUPS #4: a genuinely-absent settings object (caller passed
     // null) cannot tell us the mode — so fall back to the protective DEFAULTS

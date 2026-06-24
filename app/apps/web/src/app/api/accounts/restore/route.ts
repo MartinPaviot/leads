@@ -59,7 +59,14 @@ export async function POST(req: Request) {
 
       const result = await db
         .update(companies)
-        .set({ deletedAt: null, updatedAt: sql`now()` })
+        // Spec 35 D5 dual-write: un-archiving makes the account targetable again,
+        // unless it is still excluded (then it stays archived). Suppression is
+        // never touched here — that survives restore (R6.1).
+        .set({
+          deletedAt: null,
+          targetingStatus: sql`CASE WHEN ${companies.excludedReason} IS NULL THEN 'targeted'::targeting_status ELSE 'archived'::targeting_status END`,
+          updatedAt: sql`now()`,
+        })
         .where(scope)
         .returning({ id: companies.id });
 

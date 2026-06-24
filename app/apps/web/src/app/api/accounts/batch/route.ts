@@ -117,7 +117,8 @@ export async function DELETE(req: Request) {
 
       const result = await db
         .update(companies)
-        .set({ deletedAt, updatedAt: deletedAt })
+        // Spec 35 D5 dual-write: soft-delete archives the account (reversible).
+        .set({ deletedAt, targetingStatus: "archived", updatedAt: deletedAt })
         .where(tenantScope)
         .returning({ id: companies.id });
 
