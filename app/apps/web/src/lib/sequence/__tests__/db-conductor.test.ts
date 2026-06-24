@@ -6,6 +6,7 @@ import {
   buildDefinition,
   buildEngineEnrollment,
   applyVars,
+  businessAwareDueAt,
 } from "../db-conductor";
 
 /**
@@ -73,6 +74,24 @@ describe("buildDefinition", () => {
     expect(def.steps.map((s) => s.kind)).toEqual(["email", "linkedin", "wait"]);
     expect(def.steps[1].delayMs).toBe(3 * DAY);
     expect(def.steps[2].delayMs).toBe(0);
+  });
+});
+
+describe("businessAwareDueAt (legacy weekend-skip parity)", () => {
+  const now = Date.UTC(2026, 5, 26, 12, 0, 0); // a fixed instant
+  it("passes the calendar dueAt through when skipWeekends is off", () => {
+    const due = now + 2 * DAY;
+    expect(businessAwareDueAt(now, due, false).getTime()).toBe(due);
+  });
+  it("passes a past/zero dueAt through unchanged even when skipping weekends", () => {
+    expect(businessAwareDueAt(now, now - 1000, true).getTime()).toBe(now - 1000);
+    expect(businessAwareDueAt(now, now, true).getTime()).toBe(now);
+  });
+  it("lands on a weekday and never before the calendar date when skipping weekends", () => {
+    const due = now + 2 * DAY;
+    const out = businessAwareDueAt(now, due, true);
+    expect(out.getTime()).toBeGreaterThanOrEqual(due);
+    expect([0, 6]).not.toContain(out.getDay()); // never a Sun/Sat
   });
 });
 
