@@ -88,22 +88,42 @@ export default function InsightsPage() {
   const [alerts, setAlerts] = useState<AlertsData | null>(null);
   const [briefs, setBriefs] = useState<DealBriefSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [expandedBrief, setExpandedBrief] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/dashboard/pipeline?period=30").then((r) => r.json()),
-      fetch("/api/dashboard/alerts").then((r) => r.json()),
-      fetch("/api/dashboard/briefs?max=5").then((r) => r.json()),
-    ])
-      .then(([p, a, b]) => {
+    let cancelled = false;
+    setLoadError(false);
+    (async () => {
+      try {
+        // Independent lanes: one failing no longer nulls the others (it just
+        // leaves that lane empty). Previously a single `.catch(console.error)`
+        // swallowed everything and the page rendered 0/$0K with sections hidden.
+        const [pRes, aRes, bRes] = await Promise.all([
+          fetch("/api/dashboard/pipeline?period=30"),
+          fetch("/api/dashboard/alerts"),
+          fetch("/api/dashboard/briefs?max=5"),
+        ]);
+        if (!pRes.ok && !aRes.ok && !bRes.ok) throw new Error("all insights lanes failed");
+        const [p, a, b] = await Promise.all([
+          pRes.ok ? pRes.json() : null,
+          aRes.ok ? aRes.json() : null,
+          bRes.ok ? bRes.json() : { briefs: [] },
+        ]);
+        if (cancelled) return;
         setPipeline(p);
         setAlerts(a);
-        setBriefs(b.briefs || []);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
+        setBriefs(b?.briefs || []);
+      } catch (e) {
+        if (!cancelled) setLoadError(true);
+        console.error("insights load failed", e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [reloadKey]);
 
   if (loading) {
     return (
@@ -118,6 +138,28 @@ export default function InsightsPage() {
                 style={{ background: "var(--color-bg-secondary)" }}
               />
             ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError && !pipeline && !alerts && briefs.length === 0) {
+    return (
+      <div className="flex h-full flex-col">
+        <PageHeader title="Insights" />
+        <div className="flex-1 p-5">
+          <div className="flex flex-col items-start gap-3 rounded-lg p-6" style={{ border: "1px solid var(--color-border-default)" }}>
+            <p className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>Couldn&apos;t load insights</p>
+            <p className="text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>Something went wrong. Your data is safe — try again.</p>
+            <button
+              type="button"
+              onClick={() => { setLoading(true); setReloadKey((k) => k + 1); }}
+              className="rounded-lg px-3 py-1.5 text-[12px] font-semibold"
+              style={{ border: "1px solid var(--color-border-default)", color: "var(--color-text-secondary)" }}
+            >
+              Retry
+            </button>
           </div>
         </div>
       </div>

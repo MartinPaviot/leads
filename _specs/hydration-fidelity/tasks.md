@@ -178,6 +178,21 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
   Follow-ups (heavier/by-design): campaign queue still emits localTime/tz='' (needs
   company-props query + tz/quiet-hours helpers); live transcript/levers depend on the
   Phase-1.5 streaming bridge (honest empty state today).
-- [ ] 23 reports · 24 insights · 26 insights-pilae
+- [~] **23 reports — DEFERRED (needs a decision, not a quick fix).** The analytics
+  (RevenueForecast, CohortInsights, AI report) are all H1/faithful. The one defect:
+  "Recent Reports" history lives in browser localStorage (`elevay-report-history`,
+  fixed key) — shared across tenants/users on the same machine, survives logout.
+  Proper fix = server-backed per-tenant history (a feature) OR scope the key by user
+  id; the page has NO session/user context today, so either needs new plumbing.
+  Not the swallowed-fetch pattern — flagged rather than rushed. Minor: revenue-goal
+  route tenant-scoping unverified; analytics fetch-once (staleness).
+- [x] **24 insights** — a single `.catch(console.error)` over the 3-lane Promise.all
+  swallowed all failures (page showed 0/$0K, Alerts+Briefs hidden — a 500 looked
+  like an empty tenant). Restructured to independent lanes (per-lane r.ok → that lane
+  empty, others unaffected) + a `loadError` that renders a page-level retry when ALL
+  lanes fail. No existing insights test (client page); change is contained to
+  page.tsx, proven pattern. Follow-up (lower): written empty states for Alerts/Briefs
+  sections (they still self-hide when genuinely empty).
+- [ ] 26 insights-pilae
   · 27 insights-playbook · 30 notes · 31 graph · 32 voice-of-customer · 35 tam-review
   · then T2 H2 settings.
