@@ -300,12 +300,13 @@ export function ConversationPane({
         subject: detail.preparedDraft.subject || `Re: ${conv.subject}`,
         body: detail.preparedDraft.body,
         contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined,
+        threadId: conversationKey ?? undefined, draftId: detail.preparedDraft.id,
       });
       return;
     }
     const lastInbound = [...conv.messages].reverse().find((m) => m.direction === "inbound");
     if (!lastInbound?.body) {
-      setComposer({ to: replyTo, subject: `Re: ${conv.subject}`, body: "", contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined });
+      setComposer({ to: replyTo, subject: `Re: ${conv.subject}`, body: "", contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined, threadId: conversationKey ?? undefined });
       return;
     }
     setDrafting(true);
@@ -329,10 +330,11 @@ export function ConversationPane({
         subject: brief?.subject ?? `Re: ${conv.subject}`,
         body: brief?.body ?? "",
         contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined,
+        threadId: conversationKey ?? undefined,
       });
       if (!brief) toast("Couldn't suggest a reply — opening a blank composer.", "warning");
     } catch {
-      setComposer({ to: replyTo, subject: `Re: ${conv.subject}`, body: "", contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined });
+      setComposer({ to: replyTo, subject: `Re: ${conv.subject}`, body: "", contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined, threadId: conversationKey ?? undefined });
       toast("Couldn't suggest a reply — opening a blank composer.", "warning");
     } finally {
       setDrafting(false);
@@ -363,11 +365,12 @@ export function ConversationPane({
           subject: data.subject?.trim() || c?.subject || `Re: ${conv.subject}`,
           body: text,
           contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined,
+          threadId: c?.threadId ?? conversationKey ?? undefined, draftId: c?.draftId,
         }));
       } else {
         // Fail-closed (R1.6): never fabricate. Leave an open composer's body
         // untouched; if none is open, open a blank one so the user can still write.
-        setComposer((c) => c ?? { to: replyTo, subject: `Re: ${conv.subject}`, body: "", contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined });
+        setComposer((c) => c ?? { to: replyTo, subject: `Re: ${conv.subject}`, body: "", contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined, threadId: conversationKey ?? undefined });
         toast("Couldn't draft a reply — opening a blank composer.", "warning");
       }
     } catch {

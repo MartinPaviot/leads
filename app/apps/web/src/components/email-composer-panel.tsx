@@ -32,6 +32,12 @@ export interface EmailComposerDraft {
   dealId?: string;
   /** A2: the seeded send-from mailbox (the thread's own box on a reply). */
   mailboxId?: string;
+  /** Conversation key/threadId — attaches a DB draft to the thread so it shows
+   *  in the Drafts folder + reloads on reopen. */
+  threadId?: string;
+  /** Existing DB draft id when opened from a prepared/saved draft — so auto-save
+   *  UPDATES that row instead of creating a new one. */
+  draftId?: string;
 }
 
 interface EmailComposerPanelProps {
@@ -180,6 +186,17 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const [draftSaving, setDraftSaving] = useState(false);
   const restoredRef = useRef(false);
+  // DB-backed draft (Drafts folder, cross-device). Only when there's a contact
+  // to scope by — a blank/contact-less compose stays localStorage-only. Seeded
+  // from a reopened prepared/saved draft so auto-save UPDATES that row.
+  const serverDraftIdRef = useRef<string | null>(draft.draftId ?? null);
+  // True once the USER actually edits (not the AI suggestion / signature /
+  // restore). Gates the DB upsert so the Drafts folder isn't flooded with
+  // untouched auto-suggested replies. A reopened existing draft counts as edited.
+  const userEditedRef = useRef(Boolean(draft.draftId));
+  const markEdited = useCallback(() => {
+    userEditedRef.current = true;
+  }, []);
 
   // Send state
   const [sending, setSending] = useState(false);
@@ -247,15 +264,46 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
           dealId: draft.dealId,
         });
         setDraftSavedAt(new Date().toISOString());
+        // Mirror to the DB so the draft lands in the Drafts folder + survives
+        // across devices — but only once the user actually edited (not a raw AI
+        // suggestion), and only with a contact to scope by. localStorage above
+        // is the instant cache for the contact-less / untouched cases.
+        if (draft.contactId && userEditedRef.current) {
+          void fetch("/api/inbox/drafts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: serverDraftIdRef.current,
+              contactId: draft.contactId,
+              threadId: draft.threadId ?? null,
+              to: toEmails.join(", "),
+              subject: editSubject,
+              bodyHtml: editBody,
+              bodyText: editBody,
+              mailboxId: fromMailboxId ?? null,
+            }),
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d: { id?: string } | null) => {
+              if (d?.id) serverDraftIdRef.current = d.id;
+            })
+            .catch(() => {});
+        }
       } else {
         clearDraftFromStorage(storageKey);
         setDraftSavedAt(null);
+        // Emptied → discard the DB draft too.
+        if (serverDraftIdRef.current) {
+          const id = serverDraftIdRef.current;
+          serverDraftIdRef.current = null;
+          void fetch(`/api/inbox/drafts/${id}`, { method: "DELETE" }).catch(() => {});
+        }
       }
       setDraftSaving(false);
     }, 800);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toEmails, ccEmails, bccEmails, editSubject, editBody, sent, storageKey]);
+  }, [toEmails, ccEmails, bccEmails, editSubject, editBody, sent, storageKey, fromMailboxId]);
 
   // Focus body on mount
   useEffect(() => {
@@ -458,6 +506,13 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
       const messageId = (data as { messageId?: string }).messageId || "";
 
       clearDraftFromStorage(storageKey);
+      // Consume the DB draft so it leaves the Drafts folder (the send wrote its
+      // own 'sent' row). Idempotent + best-effort.
+      if (serverDraftIdRef.current) {
+        const id = serverDraftIdRef.current;
+        serverDraftIdRef.current = null;
+        void fetch(`/api/inbox/drafts/${id}/consume`, { method: "POST" }).catch(() => {});
+      }
       setSent(true);
       toast("Email sent successfully.", "success");
       onSent?.(messageId);
@@ -596,13 +651,13 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
         <EmailField
           label="To"
           emails={toEmails}
-          onChange={setToEmails}
+          onChange={(v) => { markEdited(); setToEmails(v); }}
           placeholder="recipient@example.com"
         />
 
         {/* Cc / Bcc — fields when open, compact toggles otherwise */}
-        {showCc && <EmailField label="Cc" emails={ccEmails} onChange={setCcEmails} />}
-        {showBcc && <EmailField label="Bcc" emails={bccEmails} onChange={setBccEmails} />}
+        {showCc && <EmailField label="Cc" emails={ccEmails} onChange={(v) => { markEdited(); setCcEmails(v); }} />}
+        {showBcc && <EmailField label="Bcc" emails={bccEmails} onChange={(v) => { markEdited(); setBccEmails(v); }} />}
         <div
           className="flex items-center gap-3 px-4 py-1.5"
           style={{ borderBottom: "0.5px solid var(--color-border-default)" }}
@@ -638,7 +693,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
           </span>
           <input
             value={editSubject}
-            onChange={(e) => setEditSubject(e.target.value)}
+            onChange={(e) => { markEdited(); setEditSubject(e.target.value); }}
             className="flex-1 bg-transparent text-[13px] outline-none"
             style={{ color: "var(--color-text-primary)" }}
             placeholder="Subject line"
@@ -815,7 +870,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
           <textarea
             ref={bodyRef}
             value={editBody}
-            onChange={(e) => setEditBody(e.target.value)}
+            onChange={(e) => { markEdited(); setEditBody(e.target.value); }}
             onInput={autoResize}
             className="h-full w-full resize-none bg-transparent text-[13px] leading-relaxed outline-none"
             style={{
