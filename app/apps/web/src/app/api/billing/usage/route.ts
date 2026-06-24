@@ -1,6 +1,7 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { subscriptions, usageEvents } from "@/db/billing-schema";
+import { connectedMailboxes } from "@/db/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
 
 /** Default empty usage response when billing tables are unavailable */
@@ -16,6 +17,7 @@ function emptyUsage() {
       contact_enriched: 0,
       ai_query: 0,
     },
+    mailboxCount: 0,
   });
 }
 
@@ -82,6 +84,19 @@ export async function GET() {
       usageMap = {};
     }
 
+    // Connected-mailbox count — a current-state count (not a usage metric).
+    // The billing "Mailboxes" meter previously hardcoded this to 0.
+    let mailboxCount = 0;
+    try {
+      const [m] = await db
+        .select({ c: sql<number>`count(*)::int` })
+        .from(connectedMailboxes)
+        .where(eq(connectedMailboxes.tenantId, tenantId));
+      mailboxCount = Number(m?.c ?? 0);
+    } catch {
+      mailboxCount = 0;
+    }
+
     return Response.json({
       periodStart: periodStart.toISOString(),
       periodEnd:
@@ -92,6 +107,7 @@ export async function GET() {
         contact_enriched: usageMap.contact_enriched ?? 0,
         ai_query: usageMap.ai_query ?? 0,
       },
+      mailboxCount,
     });
   } catch (error) {
     console.error("Failed to fetch usage:", error);

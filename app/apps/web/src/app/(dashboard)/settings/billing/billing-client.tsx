@@ -36,6 +36,7 @@ interface UsageData {
     contact_enriched: number;
     ai_query: number;
   };
+  mailboxCount?: number;
 }
 
 const PLAN_LABELS: Record<string, string> = {
@@ -436,7 +437,7 @@ export default function BillingClient() {
               <UsageMeter
                 icon={<Inbox size={15} />}
                 label="Mailboxes"
-                current={0}
+                current={usage?.mailboxCount ?? 0}
                 limit={limits.mailboxes}
               />
             </div>

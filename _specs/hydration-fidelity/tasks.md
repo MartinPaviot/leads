@@ -60,7 +60,13 @@ Branch: `feat/hydration-fidelity` (from main). R1 already shipped separately on
   payload so getDealAmountDisplay computes the real split.
   - Test: `route-split.test.ts` — GET returns projectAmount/platformArr. 1/1 green.
 
-- [ ] **T8 (R8) billing mailboxes meter** — LOW (dev-only). Real count into the meter.
+- [x] **T8 (R8) billing mailboxes meter** — DONE. `/api/billing/usage` now returns
+  a tenant-scoped `mailboxCount` (tolerant of a missing table); the meter reads
+  `usage?.mailboxCount ?? 0` instead of a hardcoded 0. (Page still dev-only.)
+  - Test: `usage-mailbox-count.test.ts` — count surfaced, not 0. 1/1 green.
+
+**All P0 (R1–R8) shipped.** R1 on `fix/deliverability-tenant-leak`; R2–R8 on
+`feat/hydration-fidelity`. None merged.
 
 ## P1 — H2 → H1 per-lane degradation (spine order)
 
