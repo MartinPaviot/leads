@@ -458,6 +458,31 @@ export const enrollmentLock = pgTable("enrollment_lock", {
 });
 
 /**
+ * Spec 14 — observe-phase collision log. One row each time the enrollment guard
+ * turned a contact away (lost the lock). `enforced` records whether the block was
+ * actually applied: in observe mode (ANTI_COLLISION_ENFORCE off) it is false, so
+ * a row means "we WOULD have blocked this double-enrollment" — the measurable
+ * signal the founder reads before flipping to enforce. Written best-effort from
+ * guardEnrollment's recordCollision sink (never blocks enrollment).
+ */
+export const enrollmentCollision = pgTable(
+  "enrollment_collision",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id),
+    contactId: text("contact_id").notNull(),
+    blockedEnrollmentId: text("blocked_enrollment_id").notNull(),
+    heldBy: text("held_by"), // incumbent enrollment, null if it expired between acquire and read
+    enforced: boolean("enforced").notNull().default(false), // was enforcement on at the time
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("enrollment_collision_tenant_created_idx").on(table.tenantId, table.createdAt),
+    index("enrollment_collision_contact_idx").on(table.contactId),
+  ]
+);
+
+/**
  * Spec 27 — deliverability guard state, one row per scope (a tenant's sending
  * health for the first slice; `scope` is forward-compatible with per-domain).
  * The pure guard (lib/deliverability/guard.ts) computes health from send/bounce
