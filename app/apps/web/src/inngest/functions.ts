@@ -1,6 +1,7 @@
 import { inngest } from "./client";
 import { db } from "@/db";
 import { releaseEnrollmentById } from "@/lib/anti-collision/enroll-guard";
+import { isSequenceEngineV2Enabled, tickEnrollmentV2 } from "@/lib/sequence/db-conductor";
 import { companies, contacts, sequenceSteps, sequenceEnrollments, activities, outboundEmails, emailOptouts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { addBusinessDays } from "@/lib/util/business-days";
@@ -503,6 +504,13 @@ export const sendSequenceStep = inngest.createFunction(
   },
   async ({ event, step }: { event: { data: { enrollmentId: string } }; step: any }) => {
     const { enrollmentId } = event.data;
+
+    // Spec 25 — opt-in V2 conductor (the pure engine over the live schema).
+    // Flag OFF (default) keeps the legacy path below; ON routes this tick to the
+    // engine. Wrapped in a step so Inngest memoizes it like the rest.
+    if (isSequenceEngineV2Enabled()) {
+      return await step.run("sequence-engine-v2", () => tickEnrollmentV2(enrollmentId));
+    }
 
     const enrollment = await step.run("fetch-enrollment", async () => {
       const [e] = await db
