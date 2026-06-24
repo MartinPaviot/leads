@@ -20,6 +20,7 @@ import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { formatDealAmount } from "@/lib/deals/amount";
+import { bookingsTotals } from "./_bookings-totals";
 import { AlertTriangle, CheckCircle2, Circle, Target } from "lucide-react";
 
 type PilaeData = {
@@ -43,7 +44,6 @@ type PilaeData = {
 };
 
 const POLL_MS = 60_000;
-const BOOKINGS_TARGET_CENTS = 100_000_000; // 1 000 000 € target (in cents)
 
 export default function PilaeDashboardPage() {
   const [data, setData] = useState<PilaeData | null>(null);
@@ -82,14 +82,23 @@ export default function PilaeDashboardPage() {
       <div className="flex-1 overflow-y-auto p-6">
         {error && (
           <div
-            className="mb-4 rounded border p-3 text-[12px]"
+            className="mb-4 flex items-center justify-between gap-3 rounded border p-3 text-[12px]"
             style={{
               borderColor: "var(--color-error)",
               color: "var(--color-error)",
               background: "var(--color-bg-card)",
             }}
           >
-            {error}
+            <span>{error}</span>
+            <button
+              type="button"
+              onClick={fetchData}
+              disabled={loading}
+              className="shrink-0 rounded border px-2 py-1 font-medium disabled:opacity-50"
+              style={{ borderColor: "var(--color-error)", color: "var(--color-error)" }}
+            >
+              {loading ? "Retrying…" : "Retry"}
+            </button>
           </div>
         )}
         {data && (
@@ -117,28 +126,10 @@ function BookingsPanel({
 }: {
   bookings: PilaeData["bookings"];
 }) {
-  // Sum across stages keeping project and platform addressable so a
-  // future panel can break them down further. NEVER silently blend.
-  const projectTotal = bookings.reduce(
-    (acc, b) => acc + b.projectBookings,
-    0,
-  );
-  const platformTotal = bookings.reduce(
-    (acc, b) => acc + b.platformArr,
-    0,
-  );
-  // Legacy-bag bookings: contribute to "Bookings" total but called
-  // out separately so the founder can chase deals that haven't been
-  // re-tagged into the split.
-  const legacyTotal =
-    bookings.reduce((acc, b) => acc + b.totalBookings, 0) -
-    projectTotal -
-    platformTotal;
-  const totalBookings = projectTotal + platformTotal + legacyTotal;
-  const pctOfTarget = Math.min(
-    100,
-    Math.round((totalBookings / BOOKINGS_TARGET_CENTS) * 100),
-  );
+  // Pure totals decision (project + platform never blended; legacy folded
+  // but surfaced). `hasBookings` drives the written empty state below.
+  const { projectTotal, platformTotal, legacyTotal, totalBookings, pctOfTarget, hasBookings } =
+    bookingsTotals(bookings);
 
   return (
     <Card>
@@ -149,41 +140,55 @@ function BookingsPanel({
         >
           Bookings vs target
         </h3>
-        <p
-          className="mt-1 text-2xl font-semibold"
-          style={{ color: "var(--color-text-primary)" }}
-        >
-          {formatDealAmount(totalBookings)}
-        </p>
-        <p
-          className="text-[11px]"
-          style={{ color: "var(--color-text-secondary)" }}
-        >
-          {pctOfTarget}% of 1 M€ — never blended with ARR in reporting
-        </p>
-        <div
-          className="mt-3 h-2 w-full overflow-hidden rounded-full"
-          style={{ background: "var(--color-bg-card)" }}
-        >
+        {!hasBookings ? (
+          // Written empty state (was H2: silently rendered "—" + a 0% bar).
+          // Mirrors the Funnel/Capacity panels' stated empty copy.
           <div
-            className="h-full rounded-full transition-all"
-            style={{
-              width: `${pctOfTarget}%`,
-              background: "var(--color-accent)",
-            }}
-          />
-        </div>
-        <div className="mt-4 space-y-2">
-          <Row label="Project bookings" amount={projectTotal} />
-          <Row label="Platform ARR (sub-category)" amount={platformTotal} />
-          {legacyTotal > 0 && (
-            <Row
-              label="Legacy untagged (re-split needed)"
-              amount={legacyTotal}
-              muted
-            />
-          )}
-        </div>
+            className="mt-4 flex items-center gap-2 text-[12px]"
+            style={{ color: "var(--color-text-tertiary)" }}
+          >
+            <Circle size={14} />
+            <span>No bookings yet — deals with a project or platform amount appear here.</span>
+          </div>
+        ) : (
+          <>
+            <p
+              className="mt-1 text-2xl font-semibold"
+              style={{ color: "var(--color-text-primary)" }}
+            >
+              {formatDealAmount(totalBookings)}
+            </p>
+            <p
+              className="text-[11px]"
+              style={{ color: "var(--color-text-secondary)" }}
+            >
+              {pctOfTarget}% of 1 M€ — never blended with ARR in reporting
+            </p>
+            <div
+              className="mt-3 h-2 w-full overflow-hidden rounded-full"
+              style={{ background: "var(--color-bg-card)" }}
+            >
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${pctOfTarget}%`,
+                  background: "var(--color-accent)",
+                }}
+              />
+            </div>
+            <div className="mt-4 space-y-2">
+              <Row label="Project bookings" amount={projectTotal} />
+              <Row label="Platform ARR (sub-category)" amount={platformTotal} />
+              {legacyTotal > 0 && (
+                <Row
+                  label="Legacy untagged (re-split needed)"
+                  amount={legacyTotal}
+                  muted
+                />
+              )}
+            </div>
+          </>
+        )}
       </CardBody>
     </Card>
   );

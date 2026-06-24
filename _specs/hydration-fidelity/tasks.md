@@ -193,6 +193,19 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
   lanes fail. No existing insights test (client page); change is contained to
   page.tsx, proven pattern. Follow-up (lower): written empty states for Alerts/Briefs
   sections (they still self-hide when genuinely empty).
-- [ ] 26 insights-pilae
-  · 27 insights-playbook · 30 notes · 31 graph · 32 voice-of-customer · 35 tam-review
+- [x] **26 insights-pilae** — single-endpoint page (GET /api/insights/pilae, one
+  fetch → 3 panels). Two H2 defects fixed page-local (no route change): (a) the
+  Bookings panel had no written empty state — with zero deals it rendered
+  `formatDealAmount(0)` = "—" + a 0% target bar (amount.ts:73); now a stated
+  "No bookings yet — deals with a project or platform amount appear here." mirroring
+  the Funnel/Capacity panels. (b) the error banner had no recovery; added a Retry
+  button (`onClick={fetchData}`, disabled+"Retrying…" while loading). Extracted the
+  pure totals decision to `_bookings-totals.ts` (`bookingsTotals` — project/platform
+  never blended, legacy folded+surfaced, pct clamped, `hasBookings`) + 6 unit tests.
+  Anti-creep-pilae green (only scans lib/ai + lib/sequences, not the page tree).
+  Did NOT split the route into 3 independent lanes: it's one endpoint on one DB
+  connection — "independent per-lane degradation" there is theoretical (a panel can't
+  fail while siblings succeed), and stale data already survives a poll failure
+  (`data` retained, banner shown). Insane-refactor avoided per "ne fais rien d'insensé".
+- [ ] 27 insights-playbook · 30 notes · 31 graph · 32 voice-of-customer · 35 tam-review
   · then T2 H2 settings.
