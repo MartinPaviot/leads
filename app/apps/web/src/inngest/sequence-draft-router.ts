@@ -43,6 +43,7 @@ import {
   persistShadowSample,
   isCopyEnginePrimaryEnabled,
 } from "@/lib/copy/personalization/db-shadow";
+import { resolveTenantCopyLang } from "@/lib/copy/assets/db-store";
 import { logger } from "@/lib/observability/logger";
 
 export const routeSequenceStepToDraft = inngest.createFunction(
@@ -271,6 +272,11 @@ export const routeSequenceStepToDraft = inngest.createFunction(
       }
     });
 
+    // 5a) Resolve the copy language from the tenant's populated voice guide (the
+    // founder's real language), so the cutover/shadow target it instead of a
+    // hardcoded "en". Defaults to "en" when nothing is configured.
+    const copyLang = await step.run("resolve-copy-lang", () => resolveTenantCopyLang(tenantId));
+
     // 5b) Spec 19/20 CUTOVER — when COPY_ENGINE_PRIMARY is on, the grounded copy
     // engine becomes the primary draft, but ONLY when it produced a genuinely
     // grounded (high-personalization) message; otherwise we keep the legacy
@@ -279,9 +285,9 @@ export const routeSequenceStepToDraft = inngest.createFunction(
     const primary = await step.run("copy-engine-primary", async () => {
       if (!isCopyEnginePrimaryEnabled()) return null;
       try {
-        const out = await generateCopyMessage(contact.id, tenantId, { lang: "en" });
+        const out = await generateCopyMessage(contact.id, tenantId, { lang: copyLang });
         if (out.ran && out.message && out.message.personalization_level === "high") {
-          await persistShadowSample(tenantId, contact.id, "en", out.message, out.evidenceCount ?? 0);
+          await persistShadowSample(tenantId, contact.id, copyLang, out.message, out.evidenceCount ?? 0);
           return { subject: out.message.subject ?? personalised.subject, body: out.message.body };
         }
       } catch (err) {
@@ -331,7 +337,7 @@ export const routeSequenceStepToDraft = inngest.createFunction(
     await step.run("copy-shadow", () =>
       isCopyEnginePrimaryEnabled()
         ? null
-        : generateShadowCopy(contact.id, tenantId, { lang: "en" }).catch(() => null),
+        : generateShadowCopy(contact.id, tenantId, { lang: copyLang }).catch(() => null),
     );
 
     // 7) Park the enrollment — clear nextStepAt so the cron predicate

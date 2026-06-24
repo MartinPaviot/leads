@@ -1,7 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { DrizzleAssetStore, copyContextForTenant } from "../db-store";
+import { DrizzleAssetStore, copyContextForTenant, resolveTenantCopyLang } from "../db-store";
 import { copyAssetBlock, copyVoiceGuide } from "@/db/schema";
 import type { AssetBlock, VoiceGuide } from "../resolve";
+
+// Stub for resolveTenantCopyLang: select().from().where().orderBy().limit().
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function langStub(rows: any[], opts: { throws?: boolean } = {}) {
+  return {
+    select: () => ({
+      from: () => ({
+        where: () => ({ orderBy: () => ({ limit: async () => { if (opts.throws) throw new Error("db down"); return rows; } }) }),
+      }),
+    }),
+  } as any;
+}
 
 // Stub db: loadAssets/loadVoiceGuides do select().from(table).where(); putAsset/
 // putVoiceGuide do update().set().where() (supersede) then insert().values().
@@ -82,5 +94,20 @@ describe("copyContextForTenant", () => {
     const ctx = await copyContextForTenant("t1", { lang: "en" }, stubDb({ assets: [], guides: [] }));
     expect(ctx.assets).toEqual({});
     expect(ctx.voice).toBeNull();
+  });
+});
+
+describe("resolveTenantCopyLang", () => {
+  it("returns the lang of the tenant's current voice guide", async () => {
+    expect(await resolveTenantCopyLang("t1", langStub([{ lang: "fr" }]))).toBe("fr");
+    expect(await resolveTenantCopyLang("t1", langStub([{ lang: "en" }]))).toBe("en");
+  });
+
+  it("defaults to en when no voice guide is configured", async () => {
+    expect(await resolveTenantCopyLang("t1", langStub([]))).toBe("en");
+  });
+
+  it("fails safe to en on a db error", async () => {
+    expect(await resolveTenantCopyLang("t1", langStub([], { throws: true }))).toBe("en");
   });
 });

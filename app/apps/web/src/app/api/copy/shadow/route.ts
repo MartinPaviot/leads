@@ -1,5 +1,6 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { generateShadowCopy } from "@/lib/copy/personalization/db-shadow";
+import { resolveTenantCopyLang } from "@/lib/copy/assets/db-store";
 import type { Lang } from "@/lib/copy/personalization/generate-message";
 
 /**
@@ -17,7 +18,8 @@ export async function POST(request: Request) {
   if (!body.contactId || typeof body.contactId !== "string") {
     return Response.json({ error: "contactId is required" }, { status: 400 });
   }
-  const lang: Lang = body.lang === "fr" ? "fr" : "en";
+  // Explicit lang wins; otherwise resolve from the tenant's populated voice guide.
+  const lang: Lang = body.lang === "fr" || body.lang === "en" ? body.lang : await resolveTenantCopyLang(authCtx.tenantId);
 
   try {
     const result = await generateShadowCopy(body.contactId, authCtx.tenantId, { lang, campaignId: body.campaignId ?? null });

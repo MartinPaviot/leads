@@ -8,7 +8,7 @@
 
 import { db as defaultDb } from "@/db";
 import { copyAssetBlock, copyVoiceGuide } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { AssetStore } from "./store";
 import {
   resolveAssetSet,
@@ -118,4 +118,24 @@ export async function copyContextForTenant(
   const resolvedAssets = resolveAssetSet(assets, { tenantId, campaignId: scope.campaignId ?? null, lang: scope.lang });
   const guide = resolveVoiceGuide(guides, { tenantId, lang: scope.lang });
   return copyContext(resolvedAssets, guide);
+}
+
+/**
+ * Resolve the language the copy engine should generate in for a tenant: the lang
+ * of the tenant's most-recent current voice guide (i.e. the one the founder
+ * actually populated). Falls back to "en" when nothing is configured. Lets the
+ * cutover/shadow target the founder's real language instead of a hardcoded "en".
+ */
+export async function resolveTenantCopyLang(tenantId: string, database: typeof defaultDb = defaultDb): Promise<Lang> {
+  try {
+    const [row] = await database
+      .select({ lang: copyVoiceGuide.lang })
+      .from(copyVoiceGuide)
+      .where(and(eq(copyVoiceGuide.tenantId, tenantId), eq(copyVoiceGuide.isCurrent, true)))
+      .orderBy(desc(copyVoiceGuide.createdAt))
+      .limit(1);
+    return row?.lang === "fr" ? "fr" : "en";
+  } catch {
+    return "en";
+  }
 }
