@@ -32,6 +32,7 @@ vi.mock("drizzle-orm", () => {
     sql,
     isNull: vi.fn(() => ({ _isNull: true })),
     isNotNull: vi.fn(() => ({ _isNotNull: true })),
+    inArray: vi.fn((col: unknown, vals: unknown) => ({ _inArray: [col, vals] })),
   };
 });
 
@@ -48,7 +49,7 @@ vi.mock("@/lib/contacts/recency", () => ({ recencyBucketSql: () => ({}) }));
 vi.mock("@/lib/search/industry-family", () => ({ classifyIndustryFamilies: vi.fn(async () => ({})), familiesToIndustries: vi.fn(() => []) }));
 
 import { getAuthContext } from "@/lib/auth/auth-utils";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 const route = await import("@/app/api/contacts/route");
 
@@ -69,5 +70,13 @@ describe("GET /api/contacts — companyId filter (R2)", () => {
     expect(res.status).toBe(200);
     const calledWithCompanyId = vi.mocked(eq).mock.calls.some((c) => c[0] === "contacts.companyId");
     expect(calledWithCompanyId).toBe(false);
+  });
+
+  it("filters by an explicit ids list when ?ids is provided (merge page — P1 09)", async () => {
+    vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" } as never);
+    const res = await route.GET(new Request("http://localhost/api/contacts?ids=a,b,c"));
+    expect(res.status).toBe(200);
+    // Exactly the preselected ids reach the where clause — not the tenant's first 50.
+    expect(vi.mocked(inArray)).toHaveBeenCalledWith("contacts.id", ["a", "b", "c"]);
   });
 });
