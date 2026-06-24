@@ -499,6 +499,26 @@ export const metricRollupSnapshot = pgTable(
   ]
 );
 
+/**
+ * Spec 32 — regression-alert state. One row per `${scope}:${metric}` so a firing
+ * regression is alerted ONCE (dedup) and resolved when it recovers. Written by
+ * the daily-rollup cron's regression pass over the snapshot history. `active`
+ * flags a currently-firing alert; absent/active=false = not firing.
+ */
+export const regressionAlert = pgTable(
+  "regression_alert",
+  {
+    key: text("key").primaryKey(), // `${scope}:${metric}`
+    tenantId: text("tenant_id").references(() => tenants.id),
+    scope: text("scope").notNull(), // campaignId
+    metric: text("metric").notNull(),
+    alert: jsonb("alert").notNull(), // the Alert object
+    active: boolean("active").notNull().default(true),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [index("regression_alert_tenant_active_idx").on(table.tenantId, table.active)]
+);
+
 export const meetingOptOuts = pgTable(
   "meeting_opt_outs",
   {

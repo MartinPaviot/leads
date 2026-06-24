@@ -10,6 +10,7 @@ import { db } from "@/db";
 import { outboundEmails } from "@/db/schema";
 import { gte } from "drizzle-orm";
 import { persistDailyRollups } from "@/lib/analytics/rollups/db-rollups";
+import { evaluateTenantRegressions } from "@/lib/analytics/alerts/db-evaluate";
 
 export const dailyRollup = inngest.createFunction(
   {
@@ -31,11 +32,15 @@ export const dailyRollup = inngest.createFunction(
     });
 
     let campaignsSnapshotted = 0;
+    let regressionsFired = 0;
     for (const tenantId of tenantIds) {
       const n = await step.run(`snapshot-${tenantId}`, () => persistDailyRollups(tenantId, today));
       campaignsSnapshotted += n;
+      // Spec 32 — regression pass over the fresh snapshot history (fire-once/dedup/resolve).
+      const events = await step.run(`regressions-${tenantId}`, () => evaluateTenantRegressions(tenantId));
+      regressionsFired += (events as Array<{ status: string }>).filter((e) => e.status === "firing").length;
     }
 
-    return { day: today, tenants: tenantIds.length, campaignsSnapshotted };
+    return { day: today, tenants: tenantIds.length, campaignsSnapshotted, regressionsFired };
   },
 );
