@@ -6,6 +6,7 @@ import { companies, contacts, sequenceSteps, sequenceEnrollments, activities, ou
 import { eq, and, sql } from "drizzle-orm";
 import { addBusinessDays } from "@/lib/util/business-days";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
+import { enqueueOutbound } from "@/lib/emails/outbound-hold";
 import { pauseEnrollment } from "@/lib/sequences/enrollment";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { anthropic } from "@/lib/ai/ai-provider";
@@ -709,34 +710,33 @@ export const sendSequenceStep = inngest.createFunction(
       return { enrollmentId, sent: false, reason: "Opted out" };
     }
 
-    // Create outbound email record (draft or queued depending on autopilot)
-    const outboundEmail = await step.run("create-outbound-email", async () => {
-      const [email] = await db
-        .insert(outboundEmails)
-        .values({
-          tenantId,
-          enrollmentId,
-          contactId: enrollment.contactId,
-          stepNumber: enrollment.currentStep,
-          fromAddress: "pending@rotation", // Will be set by send worker
-          toAddress: contact.email!,
-          subject,
-          bodyHtml: `<div>${body.replace(/\n/g, "<br>")}</div>`,
-          bodyText: body,
-          status: "queued", // Goes straight to queue — review queue can intercept if needed
-          queuedAt: new Date(),
-          // Tag personalisation fallbacks with a `[fallback:...]`
-          // prefix so the review-queue UI can flag them visibly and
-          // analytics can distinguish them from genuine send errors
-          // (the latter set `errorMessage` without this prefix when
-          // status flips to "failed").
-          errorMessage: personalisationFallbackReason
-            ? `[fallback:${personalisationFallbackReason}] sent with template-only personalisation`
-            : null,
-        })
-        .returning();
-      return email;
-    });
+    // Create outbound email record. Routes through the enqueueOutbound seam so
+    // the tenant's CLE-11 undo window applies: window 0 → status "queued"
+    // (byte-identical to before — the send worker sets fromAddress from the
+    // rotation, so we let it default to "pending@rotation"); window>0 → "held"
+    // + holdUntil, released by the send worker after the window or canceled by
+    // an undo. The `[fallback:...]` tag rides through via errorMessage.
+    const undoSettings = await getTenantSettings(tenantId);
+    const outboundEmail = await step.run("create-outbound-email", async () =>
+      enqueueOutbound({
+        tenantId,
+        enrollmentId,
+        contactId: enrollment.contactId,
+        stepNumber: enrollment.currentStep,
+        to: contact.email!,
+        subject,
+        bodyHtml: `<div>${body.replace(/\n/g, "<br>")}</div>`,
+        bodyText: body,
+        // Tag personalisation fallbacks with a `[fallback:...]` prefix so the
+        // review-queue UI can flag them visibly and analytics can distinguish
+        // them from genuine send errors (the latter set `errorMessage` without
+        // this prefix when status flips to "failed").
+        errorMessage: personalisationFallbackReason
+          ? `[fallback:${personalisationFallbackReason}] sent with template-only personalisation`
+          : null,
+        settings: undoSettings,
+      }),
+    );
 
     await step.run("track-email-queued", async () => {
       await trackPipeline({

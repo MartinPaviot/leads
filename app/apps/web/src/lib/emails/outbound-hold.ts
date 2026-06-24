@@ -75,6 +75,12 @@ export interface EnqueueOutboundInput {
    * shape; the jsonb column accepts it as-is.
    */
   qualityScore?: unknown;
+  /**
+   * Optional `error_message` passthrough. NOT an error — sendSequenceStep tags a
+   * `[fallback:...]` prefix here so the review-queue UI can flag template-only
+   * personalisation. Preserved when that path routes through this seam.
+   */
+  errorMessage?: string | null;
   /** Tenant settings — read for the window. */
   settings: Pick<TenantSettings, "outboundUndoWindowSeconds"> | null | undefined;
 }
@@ -122,6 +128,7 @@ export async function enqueueOutbound(
       bodyText: input.bodyText ?? null,
       messageId: input.messageId ?? null,
       qualityScore: input.qualityScore ?? null,
+      errorMessage: input.errorMessage ?? null,
       status: held ? "held" : "queued",
       queuedAt: held ? null : new Date(),
       holdUntil,

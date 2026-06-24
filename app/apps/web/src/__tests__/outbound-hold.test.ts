@@ -111,6 +111,17 @@ describe("CLE-11 enqueueOutbound", () => {
     expect(inserts[0].values.qualityScore).toBeNull();
   });
 
+  it("CLE-11 activation: errorMessage passthrough rides through (sendSequenceStep [fallback:] tag)", async () => {
+    const tag = "[fallback:no_signal] sent with template-only personalisation";
+    await enqueueOutbound({ ...base, errorMessage: tag, settings: { outboundUndoWindowSeconds: 30 } });
+    expect(inserts[0].values.errorMessage).toBe(tag);
+  });
+
+  it("CLE-11 activation: errorMessage defaults to null when unset", async () => {
+    await enqueueOutbound({ ...base, settings: { outboundUndoWindowSeconds: 0 } });
+    expect(inserts[0].values.errorMessage).toBeNull();
+  });
+
   it("E-7: an insert returning no row throws (no phantom send)", async () => {
     // Force the insert to return nothing.
     const dbMod = await import("@/db");
