@@ -1,10 +1,11 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { companies, deals, contacts, activities } from "@/db/schema";
-import { and, eq, desc, sql, isNull } from "drizzle-orm";
+import { companies, deals, contacts, activities, suppression } from "@/db/schema";
+import { and, eq, desc, sql, isNull, or, inArray } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/permissions";
 import { logAudit } from "@/lib/infra/audit-log";
 import { cascadeSoftDeleteCompany, CASCADE_TYPES, type CascadeType } from "@/lib/accounts/cascade-delete";
+import { normalizeDomain } from "@/lib/suppression/suppression";
 
 export async function GET(
   req: Request,
@@ -133,6 +134,35 @@ export async function GET(
     })
     .slice(0, 50);
 
+  // Spec 35 — active account/domain-scope suppressions for the read-only badge.
+  // Account scope is keyed by identity_key (fallback id); domain scope by the
+  // normalized domain. Global (NULL tenant) rows are visible to every workspace.
+  const acctKeys = [account.identityKey, account.id].filter((x): x is string => !!x);
+  const dom = normalizeDomain(account.domain);
+  const supConds = [
+    acctKeys.length ? and(eq(suppression.level, "account"), inArray(suppression.value, acctKeys)) : undefined,
+    dom ? and(eq(suppression.level, "domain"), eq(suppression.value, dom)) : undefined,
+  ].filter(Boolean);
+  const accountSuppressions = supConds.length
+    ? await db
+        .select({
+          type: suppression.type,
+          level: suppression.level,
+          value: suppression.value,
+          reason: suppression.reason,
+          source: suppression.source,
+          createdAt: suppression.createdAt,
+        })
+        .from(suppression)
+        .where(
+          and(
+            or(isNull(suppression.tenantId), eq(suppression.tenantId, authCtx.tenantId)),
+            eq(suppression.status, "active"),
+            or(...supConds),
+          ),
+        )
+    : [];
+
   return Response.json({
     account: {
       id: account.id,
@@ -145,6 +175,9 @@ export async function GET(
       score: account.score,
       scoreReasons: account.scoreReasons,
       properties: account.properties,
+      // Spec 35 — reversible targeting state + irreversible suppression badge.
+      targetingStatus: account.targetingStatus,
+      suppressions: accountSuppressions,
     },
     deals: accountDeals,
     contacts: accountContacts,

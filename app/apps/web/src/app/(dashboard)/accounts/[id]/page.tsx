@@ -19,6 +19,7 @@ import { DetailPageSkeleton } from "@/components/ui/skeleton";
 import { OwnerSelect } from "@/components/owner-select";
 import { useToast } from "@/components/ui/toast";
 import { displayScore } from "@/lib/util/ui-utils";
+import { TargetingSuppressionPanel, type SuppressionBadge } from "./_targeting-suppression-panel";
 
 /* ── CLE-07: page-action helpers (pure, shared) ── */
 
@@ -52,6 +53,9 @@ interface Account {
   scoreReasons: string[] | null;
   ownerId: string | null;
   properties: Record<string, unknown> | null;
+  // Spec 35 — reversible targeting state + read-only suppression badges.
+  targetingStatus: string | null;
+  suppressions?: SuppressionBadge[];
 }
 
 interface Deal {
@@ -100,6 +104,17 @@ export default function AccountDetailPage() {
       }
     }
     load();
+  }, [accountId]);
+
+  // Spec 35 — re-fetch the account (targeting_status + suppression badges) after
+  // a manual DNC add / deactivate so the panel reflects the new state.
+  const reloadAccount = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/accounts/${accountId}`);
+      if (res.ok) setAccount((await res.json()).account);
+    } catch {
+      /* non-fatal */
+    }
   }, [accountId]);
 
   async function reassignAccountOwner(ownerId: string | null) {
@@ -338,6 +353,16 @@ export default function AccountDetailPage() {
           >
             View brain
           </Link>
+        </div>
+
+        {/* Spec 35 — targeting status + read-only suppression badge + manual DNC */}
+        <div className="mt-4">
+          <TargetingSuppressionPanel
+            companyId={account.id}
+            targetingStatus={account.targetingStatus}
+            suppressions={account.suppressions ?? []}
+            onChange={reloadAccount}
+          />
         </div>
 
         {/* AI Intelligence Brief */}
