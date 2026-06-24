@@ -151,7 +151,13 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
   ready/launched campaigns; (c) the poll got a catch (was an unhandled rejection on
   failure). Test: status route emailStats opened/replied + 404 (2/2). Page changes
   (load-populate + poll catch) — no existing page test; live verify deferred.
-- [ ] 16 meetings · 17 meeting-detail
+- [x] **16 meetings** — list fetch swallowed failures, so a 500 fell through to the
+  "No meetings in view" empty state (error masked as no-meetings). Added `loadError`
+  + `reloadKey`; a retryable error EmptyState now renders FIRST (robust regardless
+  of calendarConnected), preserving the connect/empty states. 33 meetings tests
+  green. By-design/minor left: notetaker copy gated on a deploy-wide env flag;
+  per-provider calendar partial-failure not surfaced (allSettled).
+- [ ] 17 meeting-detail
   · 19 tasks · 20 call-mode · 23 reports · 24 insights · 26 insights-pilae
   · 27 insights-playbook · 30 notes · 31 graph · 32 voice-of-customer · 35 tam-review
   · then T2 H2 settings.
