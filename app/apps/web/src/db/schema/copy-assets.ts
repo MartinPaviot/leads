@@ -27,6 +27,32 @@ export const copyAssetBlock = pgTable(
   ],
 );
 
+/**
+ * Spec 19/20 — copy-engine shadow samples. Each row is a grounded message the copy
+ * engine produced for a contact, stored for comparison against the live draft path
+ * (the shadow never replaces a live send). `personalizationLevel` high = grounded +
+ * cited; low = segment fallback. Written behind COPY_ENGINE_SHADOW.
+ */
+export const copyShadowSample = pgTable(
+  "copy_shadow_sample",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id),
+    contactId: text("contact_id").notNull(),
+    lang: text("lang").notNull(),
+    personalizationLevel: text("personalization_level").notNull(), // high | low
+    subject: text("subject"),
+    body: text("body").notNull(),
+    flags: jsonb("flags").notNull().default([]),
+    evidenceCount: integer("evidence_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("copy_shadow_sample_tenant_created_idx").on(table.tenantId, table.createdAt),
+    index("copy_shadow_sample_contact_idx").on(table.contactId),
+  ],
+);
+
 export const copyVoiceGuide = pgTable(
   "copy_voice_guide",
   {
