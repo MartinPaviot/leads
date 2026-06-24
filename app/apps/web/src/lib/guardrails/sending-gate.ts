@@ -34,13 +34,17 @@ import {
   isSuppressedDb,
   drizzleSuppressionLoader,
 } from "@/lib/suppression/db-store";
+import {
+  loadEmailStatus,
+  isEmailKnownUnsendable,
+} from "@/lib/contacts/email/db-status";
 
 /** Why the gate refused a send (or that it allows). */
 export type SendingGateOutcome =
   | { send: true; reason: string }
   | {
       send: false;
-      code: SendingBlockReason | "opted_out" | "suppressed";
+      code: SendingBlockReason | "opted_out" | "suppressed" | "invalid_email";
       reason: string;
     };
 
@@ -150,6 +154,20 @@ export async function evaluateSend(
         send: false,
         code: "suppressed",
         reason: `Recipient suppressed (${supHit.entry.type}, ${supHit.entry.level})`,
+      };
+    }
+
+    // Spec 17 — email-verification gate. SAFE rollout: block only KNOWN-invalid
+    // addresses (the contact's email_status === 'invalid'); NULL/unverified,
+    // valid, risky, catch_all, unknown all pass. Blocking on NULL would halt
+    // every send until the verification job runs (AC2 is the eventual state).
+    // Empty/absent contact = NULL = no-op; any thrown query fails closed (catch).
+    const emailStatus = await loadEmailStatus(args.tenantId, args.toAddress);
+    if (isEmailKnownUnsendable(emailStatus)) {
+      return {
+        send: false,
+        code: "invalid_email",
+        reason: `Recipient email is verified ${emailStatus} (undeliverable)`,
       };
     }
 
