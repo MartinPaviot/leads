@@ -42,19 +42,32 @@ account tests green, tsc green |
 Verification totals: tsc green (whole web app); 77 spec-35 tests + 42 account
 tests green (pure logic, db-store, gate check-3, 5 chokepoints, panel UI).
 
-## Remaining — BLOCKED on confirmed-localdev DB + human OAuth
+## DB-level verified on localdev (`DATABASE_URL_LOCALDEV`, project mrxxeuozlzgwsuojebad)
 
-- **DB-level (T9 trigger test, T13 backfill run, migrations 0092-0094)**: the
-  worktree `.env.local` DATABASE_URL is a Supabase pooler with dbname `postgres`
-  — project ref (localdev vs prod) is unverifiable, and memory
-  `reference_prod-schema-behind-drizzle` warns it may point at prod. Per the hard
-  rule (never migrate prod from an unmerged branch) these are NOT run here. Run on
-  a CONFIRMED `leadsens-localdev` URL: apply 0093-0095, run
-  `scripts/backfill-targeting-and-dnc.ts`, run the SQL-level trigger test.
-- **T14 live eval**: flip `TARGETING_GATE_ENABLED=on` (after backfill), Playwright
-  E1-E12 + a design-review pass. Needs the dev server + human OAuth (memory
-  `playwright-session-idle-logout`: re-auth is human-only). Merge on PASS;
-  prod migration ops-gated.
+`DATABASE_URL` = prod (wdgwytpaxuvgigqgzxrw); `DATABASE_URL_LOCALDEV` is the dev DB.
+Applied to localdev (idempotent): `0089_suppression` (prereq — localdev was behind),
+`0093/0094/0095`. Verified via rolled-back transactions (zero residue):
+
+- T9 permanence trigger: opt_out DELETE blocked, opt_out status-weaken blocked,
+  opt_out benign reason-edit allowed; complaint DELETE blocked; manual_dnc
+  deactivate + delete allowed (R4.1/R4.2/R4.3).
+- T13 backfill: runs clean + idempotent (localdev has no seed data -> 0 rows
+  migrated); targeting CASE verified clean->targeted, excluded->archived,
+  deleted->archived (R8.6).
+
+Note: applied via a one-off (not the `__elevay_migrations` runner) since the
+runner breaks at idx 12; SQL is idempotent so dev state is correct. Prod apply is
+ops-gated (do not migrate prod wdgwytpaxuvgigqgzxrw from this branch).
+
+## Remaining — only the live UI walkthrough (human OAuth)
+
+- **T14 visual eval**: run the dev server against localdev, flip
+  `TARGETING_GATE_ENABLED=on` (after seeding/backfill on a populated DB), Playwright
+  E1-E12 + a design-review of the badge. Needs a human OAuth login (memory
+  `playwright-session-idle-logout`). Gate logic itself is unit-covered (8 check-3
+  cases + precedence + fail-closed) and the DB safety net is verified above.
+- **Prod rollout** (post-merge): apply 0093-0095 to prod (ops), run the backfill,
+  then flip `TARGETING_GATE_ENABLED=on`. Merge gates on full CI.
 
 ## UI follow-up (polish, not blocking)
 
