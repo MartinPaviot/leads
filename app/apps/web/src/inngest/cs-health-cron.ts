@@ -148,6 +148,34 @@ async function computeAccountHealth(
   return { usage, sentiment, engagement, velocity, support };
 }
 
+/**
+ * ARR exposure (USD) for an account = the recurring revenue at risk across its
+ * OPEN deals. Uses `platformArr` (the ARR-eligible recurring booking) when a
+ * deal carries the bookings≠ARR split, else falls back to the legacy `value`.
+ * `projectAmount` (one-time project bookings) is intentionally excluded — it is
+ * not ARR. Returns null when the account has no open deals so the `/cs/today`
+ * badge self-hides and the "risk × ARR" sort tie-break is skipped for it.
+ */
+export async function computeAccountArrExposure(
+  tenantId: string,
+  accountId: string,
+): Promise<number | null> {
+  const rows = await db
+    .select({ value: deals.value, platformArr: deals.platformArr })
+    .from(deals)
+    .where(
+      and(
+        eq(deals.tenantId, tenantId),
+        eq(deals.companyId, accountId),
+        sql`${deals.stage} NOT IN ('won', 'lost')`,
+      ),
+    );
+  if (rows.length === 0) return null;
+  let total = 0;
+  for (const r of rows) total += r.platformArr ?? r.value ?? 0;
+  return total > 0 ? total : null;
+}
+
 export const dailyCsHealthSnapshots = inngest.createFunction(
   {
     id: "daily-cs-health-snapshots",
@@ -181,6 +209,9 @@ export const dailyCsHealthSnapshots = inngest.createFunction(
             const inputs = await computeAccountHealth(tenantId, a.id);
             const result = computeHealthScore(inputs);
             const action = defaultNextActionFor(result.weakestAxes[0] ?? "engagement");
+            // ARR exposure powers the "/cs/today" badge + the "risk × ARR" sort
+            // tie-break (route.ts). The column existed but was never written.
+            const arrExposureUsd = await computeAccountArrExposure(tenantId, a.id);
 
             // Upsert via "delete today's row, insert fresh" pattern.
             // The unique index (account_id, computed_at) prevents
@@ -197,6 +228,7 @@ export const dailyCsHealthSnapshots = inngest.createFunction(
                 riskLevel: result.riskLevel,
                 suggestedAction: action.action,
                 suggestedActionReason: action.reason,
+                arrExposureUsd,
               })
               .onConflictDoNothing();
             totalSnapshots++;
