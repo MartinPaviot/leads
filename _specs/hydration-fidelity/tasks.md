@@ -157,7 +157,13 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
   of calendarConnected), preserving the connect/empty states. 33 meetings tests
   green. By-design/minor left: notetaker copy gated on a deploy-wide env flag;
   per-provider calendar partial-failure not surfaced (allSettled).
-- [ ] 17 meeting-detail
-  · 19 tasks · 20 call-mode · 23 reports · 24 insights · 26 insights-pilae
+- [x] **17 meeting-detail** — fetchMeeting swallowed non-OK/network failures, so a
+  500 from the notes route rendered the same "Meeting not found." as a real 404.
+  Now distinguishes them: a 5xx/network failure flags `loadError` → "Couldn't load
+  this meeting" + Retry; a genuine 404 keeps "Meeting not found.". 27 meeting-detail
+  tests green. Follow-up (heavier, not done): upcoming-meeting prep is generated into
+  local state only and not persisted/re-hydrated on reload — needs prep persistence
+  (POST /api/meetings/prep doesn't store it; notes route doesn't return it).
+- [ ] 19 tasks · 20 call-mode · 23 reports · 24 insights · 26 insights-pilae
   · 27 insights-playbook · 30 notes · 31 graph · 32 voice-of-customer · 35 tam-review
   · then T2 H2 settings.

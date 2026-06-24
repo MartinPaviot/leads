@@ -239,6 +239,7 @@ export default function MeetingDetailPage() {
   const dataRef = useRef<MeetingData | null>(null);
   dataRef.current = data;
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [processingPostCall, setProcessingPostCall] = useState(false);
   const [pasteText, setPasteText] = useState("");
@@ -272,9 +273,15 @@ export default function MeetingDetailPage() {
 
   const fetchMeeting = useCallback(async () => {
     try {
+      setLoadError(false);
       const res = await fetch(`/api/meetings/${meetingId}/notes`);
       if (res.ok) setData(await res.json());
-    } catch { /* silent */ }
+      // A 5xx / non-404 response is a real error (show a retry); only a 404 is a
+      // genuine "not found". Previously both rendered "Meeting not found".
+      else if (res.status !== 404) setLoadError(true);
+    } catch {
+      setLoadError(true);
+    }
     setLoading(false);
   }, [meetingId]);
 
@@ -771,7 +778,16 @@ export default function MeetingDetailPage() {
         <Button variant="ghost" onClick={() => router.push("/meetings")} className="mb-4">
           <ArrowLeft className="h-4 w-4 mr-2" /> Back to Meetings
         </Button>
-        <p className="text-gray-500">Meeting not found.</p>
+        {loadError ? (
+          <div className="flex flex-col items-start gap-2">
+            <p className="text-gray-500">Couldn&apos;t load this meeting.</p>
+            <Button variant="outline" size="sm" onClick={() => { setLoading(true); fetchMeeting(); }}>
+              Retry
+            </Button>
+          </div>
+        ) : (
+          <p className="text-gray-500">Meeting not found.</p>
+        )}
       </div>
     );
   }
