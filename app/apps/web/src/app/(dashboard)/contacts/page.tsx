@@ -33,6 +33,7 @@ import { phoneRegionLabel, PHONE_REGION_NONE, PHONE_REGION_UNKNOWN } from "@/lib
 import { FiltersPanel, panelActiveCount, type PanelSection } from "@/components/ui/filters-panel";
 import { seniorityLabel, compareSeniority } from "@/lib/contacts/seniority";
 import { recencyLabel, RECENCY_BUCKETS } from "@/lib/contacts/recency";
+import { contactsListView } from "./_list-view";
 
 function LinkedInIcon({ size = 13 }: { size?: number }) {
   return (
@@ -227,9 +228,11 @@ export default function ContactsPage() {
    *  - page>1, append=true  → infinite-scroll load (appends below)
    *  Any filter change recreates this callback, which re-runs the fetch
    *  effect below and resets the list to page 1. */
+  const [listError, setListError] = useState(false);
   const fetchContacts = useCallback(async (page = 1, append = false) => {
+    const firstPage = page === 1 && !append;
     try {
-      if (page === 1 && !append) setLoading(true);
+      if (firstPage) { setLoading(true); setListError(false); }
       else setLoadingMore(true);
       const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
       for (const [k, v] of serializeContactFilters()) params.set(k, v);
@@ -244,9 +247,14 @@ export default function ContactsPage() {
         if (data.filterOptions?.titles) setServerTitleOptions(data.filterOptions.titles);
         if (data.filterOptions?.industries) setServerIndustryOptions(data.filterOptions.industries);
         if (data.filterCounts) setServerFilterCounts(data.filterCounts);
+      } else if (firstPage) {
+        // A failed first-page load must NOT masquerade as an empty tenant
+        // (the "No contacts yet" import CTA). Flag it so the list shows a retry.
+        setListError(true);
       }
     } catch (e) {
       console.warn("contacts: list fetch failed", e);
+      if (firstPage) setListError(true);
     } finally { setLoading(false); setLoadingMore(false); }
   }, [serializeContactFilters]);
 
@@ -856,6 +864,20 @@ export default function ContactsPage() {
     return sortDir === "asc" ? cmp : -cmp;
   });
 
+  // Which body the list renders. Extracted + tested in ./_list-view.ts so the
+  // "a failed load must not look like an empty tenant" rule is pinned.
+  const hasActiveContactFilter =
+    !!debouncedSearch ||
+    smartFilters.length > 0 ||
+    Object.values(columnFilters).some((s) => isColumnFilterActive(s));
+  const listView = contactsListView({
+    loading,
+    listError,
+    loadedCount: contacts.length,
+    filteredCount: filteredContacts.length,
+    hasActiveFilter: hasActiveContactFilter,
+  });
+
   // Header checkbox state: checked when every visible row is selected (the
   // selection may hold MORE than the visible rows after a select-all-matching),
   // indeterminate when only part of it is.
@@ -1323,39 +1345,40 @@ export default function ContactsPage() {
       )}
 
       <div ref={scrollContainerRef} className="flex-1 overflow-auto">
-        {loading ? (
+        {listView === "loading" ? (
           <TableSkeleton rows={5} cols={10 + customFields.length} />
-        ) : filteredContacts.length === 0 ? (
-          /* K15 — fresh-tenant empty state offers two clear paths to
-             value: import what the user already has, or have us go
-             enrich the TAM accounts they just built. The "search returned
-             nothing" case keeps the simpler search-clear CTA. Key off whether
-             a search/filter is actually active (not `contacts.length === 0`,
-             which is also true on a search miss — that wrongly showed the
-             import CTA for a query that simply matched nothing). */
-          !debouncedSearch &&
-          smartFilters.length === 0 &&
-          !Object.values(columnFilters).some((s) => isColumnFilterActive(s)) ? (
-            <EmptyState
-              icon={<Users size={28} />}
-              title="No contacts yet"
-              description="Get your first contacts in two clicks — import a CSV you already have, or let Elevay find decision-makers at your TAM accounts."
-              actionLabel="Import CSV"
-              onAction={() => setShowSmartImport(true)}
-              actionVariant="gradient"
-              secondaryActionLabel="Find contacts at top accounts"
-              onSecondaryAction={() => router.push("/accounts?sort=score&dir=desc")}
-            />
-          ) : (
-            <EmptyState
-              icon={<Users size={28} />}
-              title="No matching contacts"
-              description="Try adjusting your search query, or clear it to see your full list."
-              actionLabel="Clear search"
-              onAction={() => setSearchQuery("")}
-              actionVariant="outline"
-            />
-          )
+        ) : listView === "error" ? (
+          /* A failed first-page load — show a retry, NEVER the empty-tenant CTA
+             (which made a 500 look like "you have no contacts"). */
+          <EmptyState
+            variant="error"
+            title="Couldn't load contacts"
+            description="Something went wrong loading your contacts. They're safe — try again."
+            actionLabel="Retry"
+            onAction={() => fetchContacts(1, false)}
+          />
+        ) : listView === "empty-fresh" ? (
+          /* K15 — fresh-tenant empty state: import a CSV the user already has,
+             or go enrich the TAM accounts they just built. */
+          <EmptyState
+            icon={<Users size={28} />}
+            title="No contacts yet"
+            description="Get your first contacts in two clicks — import a CSV you already have, or let Elevay find decision-makers at your TAM accounts."
+            actionLabel="Import CSV"
+            onAction={() => setShowSmartImport(true)}
+            actionVariant="gradient"
+            secondaryActionLabel="Find contacts at top accounts"
+            onSecondaryAction={() => router.push("/accounts?sort=score&dir=desc")}
+          />
+        ) : listView === "empty-filtered" ? (
+          <EmptyState
+            icon={<Users size={28} />}
+            title="No matching contacts"
+            description="Try adjusting your search query, or clear it to see your full list."
+            actionLabel="Clear search"
+            onAction={() => setSearchQuery("")}
+            actionVariant="outline"
+          />
         ) : (
           <>
           <table className="ls-table" data-selecting={selectedRows.size > 0 ? "true" : undefined}>

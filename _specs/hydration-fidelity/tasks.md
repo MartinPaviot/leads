@@ -104,7 +104,15 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
   knowledge/memories" or drop them from the company brain (they read as
   company-specific today but aren't). Test: get-brain graph-scope test + 35 existing
   renumbered for the added node query. 36 green.
-- [ ] 07 contacts · 08 contact-detail · 09 contacts-merge
+- [x] **07 contacts** — a swallowed first-page list-fetch failure left contacts=[]
+  → rendered the fresh-tenant "No contacts yet" import CTA, so a 500 looked like an
+  empty tenant. Loader now flags `listError` on a failed first page; the view
+  decision is extracted to `_list-view.ts` (`contactsListView`) and the body renders
+  a retryable error EmptyState instead. Test: `list-view.test.ts` (loading/error/
+  empty-fresh/empty-filtered/list + "don't error once rows loaded"). 34 contacts
+  tests green. MINOR follow-up (not hydration): contacts route company-join filters
+  by id ANY() without an explicit eq(companies.tenantId) — safe today, harden later.
+- [ ] 08 contact-detail · 09 contacts-merge
   · 10 opportunities · 12 sequences · 13 sequence-detail · 16 meetings · 17 meeting-detail
   · 19 tasks · 20 call-mode · 23 reports · 24 insights · 26 insights-pilae
   · 27 insights-playbook · 30 notes · 31 graph · 32 voice-of-customer · 35 tam-review
