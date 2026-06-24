@@ -30,6 +30,7 @@ import { releaseEnrollment } from "@/lib/anti-collision/enroll-guard";
 import { buildProspectContext } from "@/lib/context/prospect-context";
 import { personalizeStepEmail } from "@/lib/agents/sequence-generator";
 import { STEP_STRATEGIES } from "@/lib/scoring/outbound-methodologies";
+import { guardTrippedForTenant } from "@/lib/deliverability/db-guard";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -203,7 +204,9 @@ export async function tickEnrollmentV2(enrollmentId: string, database: typeof de
       });
     },
     sendLinkedIn: async () => { /* spec-24 dispatch — out of scope for this slice */ },
-    isGuardTripped: async () => false, // spec-27 — follow-up
+    // Spec 27 — deliverability guard: pauses the sequence when the tenant's
+    // bounce/spam rate breaches threshold (no-op below the min sample / when healthy).
+    isGuardTripped: async () => guardTrippedForTenant(tenantId, { now }),
     newId: () => crypto.randomUUID(),
     now: () => now,
   });

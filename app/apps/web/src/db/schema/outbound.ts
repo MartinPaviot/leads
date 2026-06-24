@@ -457,6 +457,24 @@ export const enrollmentLock = pgTable("enrollment_lock", {
   acquiredAt: timestamp("acquired_at", { withTimezone: true }).defaultNow(),
 });
 
+/**
+ * Spec 27 — deliverability guard state, one row per scope (a tenant's sending
+ * health for the first slice; `scope` is forward-compatible with per-domain).
+ * The pure guard (lib/deliverability/guard.ts) computes health from send/bounce
+ * events; this persists the active/paused decision + cool-off ramp so the
+ * conductor's isGuardTripped port (and any send path) can read it. Absent row =
+ * active (no-op), so it never blocks a healthy tenant.
+ */
+export const deliverabilityGuardState = pgTable("deliverability_guard_state", {
+  scope: text("scope").primaryKey(),
+  tenantId: text("tenant_id").references(() => tenants.id),
+  status: text("status").notNull().default("active"), // 'active' | 'paused'
+  pausedAt: timestamp("paused_at", { withTimezone: true }),
+  pauseReason: text("pause_reason"),
+  rampLevel: real("ramp_level").notNull().default(1),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
 export const meetingOptOuts = pgTable(
   "meeting_opt_outs",
   {
