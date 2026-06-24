@@ -11,6 +11,7 @@ import {
 import { eq, and, sql, isNull } from "drizzle-orm";
 import { checkContactEligibility } from "@/lib/sequences/enrollment-eligibility";
 import { isEmailSuppressed } from "@/lib/sequences/suppression";
+import { guardEnrollment, releaseEnrollment } from "@/lib/anti-collision/enroll-guard";
 
 export async function POST(
   req: Request,
@@ -129,6 +130,20 @@ export async function POST(
         continue;
       }
 
+      // Spec 14 — anti-collision: a contact may be in ONE active sequence across
+      // all campaigns. Holder = `${sequenceId}:${contactId}` so re-enrolling the
+      // same contact into the same sequence is idempotent; a different sequence
+      // collides. Record-only unless ANTI_COLLISION_ENFORCE is on; fails open.
+      const guard = await guardEnrollment({
+        tenantId: authCtx.tenantId,
+        contactId,
+        enrollmentId: `${id}:${contactId}`,
+      });
+      if (!guard.proceed) {
+        skipped++;
+        continue;
+      }
+
       const nextStepAt = new Date();
       nextStepAt.setDate(nextStepAt.getDate() + firstStepDelay);
 
@@ -199,6 +214,13 @@ export async function PUT(
       .update(sequenceEnrollments)
       .set({ status: status as "active" | "paused" | "completed" })
       .where(eq(sequenceEnrollments.id, enrollmentId));
+
+    // Spec 14 — free the anti-collision lock when the enrollment terminates, so
+    // the contact can be re-enrolled. Paused keeps the lock (still "in" a
+    // sequence); the 30-day TTL self-heals if release is ever missed.
+    if (status === "completed") {
+      await releaseEnrollment(authCtx.tenantId, enrollment.contactId);
+    }
 
     return Response.json({ success: true, enrollmentId, status });
   } catch (error) {
