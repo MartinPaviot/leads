@@ -67,6 +67,14 @@ export interface EnqueueOutboundInput {
    * WITHOUT losing its select-then-insert idempotency (CLE-11 activation, #1).
    */
   messageId?: string | null;
+  /**
+   * Optional `quality_score` jsonb payload (the composite the email shipped at,
+   * for the nightly back-test — P1-12). Passed straight through so a quality-
+   * bearing inserter (sequence-draft-to-outbound) keeps its column when routed
+   * through this seam. Typed `unknown` to avoid coupling the seam to the evals
+   * shape; the jsonb column accepts it as-is.
+   */
+  qualityScore?: unknown;
   /** Tenant settings — read for the window. */
   settings: Pick<TenantSettings, "outboundUndoWindowSeconds"> | null | undefined;
 }
@@ -113,6 +121,7 @@ export async function enqueueOutbound(
       bodyHtml: input.bodyHtml,
       bodyText: input.bodyText ?? null,
       messageId: input.messageId ?? null,
+      qualityScore: input.qualityScore ?? null,
       status: held ? "held" : "queued",
       queuedAt: held ? null : new Date(),
       holdUntil,

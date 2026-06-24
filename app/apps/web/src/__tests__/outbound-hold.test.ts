@@ -100,6 +100,17 @@ describe("CLE-11 enqueueOutbound", () => {
     expect(inserts[0].values.messageId).toBeNull();
   });
 
+  it("CLE-11 activation: qualityScore jsonb is written through (preserves the back-test column)", async () => {
+    const qs = { composite: 0.82, framework: "PAS" };
+    await enqueueOutbound({ ...base, qualityScore: qs, settings: { outboundUndoWindowSeconds: 30 } });
+    expect(inserts[0].values.qualityScore).toEqual(qs);
+  });
+
+  it("CLE-11 activation: qualityScore defaults to null when unset", async () => {
+    await enqueueOutbound({ ...base, settings: { outboundUndoWindowSeconds: 0 } });
+    expect(inserts[0].values.qualityScore).toBeNull();
+  });
+
   it("E-7: an insert returning no row throws (no phantom send)", async () => {
     // Force the insert to return nothing.
     const dbMod = await import("@/db");

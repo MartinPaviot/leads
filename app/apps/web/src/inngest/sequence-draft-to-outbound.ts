@@ -48,6 +48,8 @@ import { verifySignalUrlsBatch } from "@/lib/signals/url-verifier-cache";
 import { checkSpamSignals } from "@/lib/emails/email-spam-check";
 import { decideSpamGate } from "@/lib/sequence-drafts/spam-gate";
 import { toQualityScoreColumn } from "@/lib/evals/quality-score-column";
+import { enqueueOutbound } from "@/lib/emails/outbound-hold";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 import { logger } from "@/lib/observability/logger";
 
 type DispatchEvent = {
@@ -385,27 +387,29 @@ export const sequenceDraftToOutbound = inngest.createFunction(
       };
     }
 
-    const [created] = await step.run("insert-outbound", async () =>
-      db
-        .insert(outboundEmails)
-        .values({
-          tenantId,
-          enrollmentId: draft.enrollmentId,
-          contactId: recipientContactId,
-          mailboxId: mailbox?.id || null,
-          fromAddress:
-            mailbox?.emailAddress || "Elevay <outbound@resend.dev>",
-          toAddress: recipientEmail,
-          subject: draft.subject,
-          bodyHtml: draft.bodyHtml,
-          bodyText: draft.bodyText,
-          messageId: dedupKey,
-          status: "queued",
-          queuedAt: new Date(),
-          // P1-12 — the composite the email shipped at, for the nightly back-test.
-          qualityScore: toQualityScoreColumn(draft.qualityScore),
-        })
-        .returning({ id: outboundEmails.id }),
+    // CLE-11 activation #1: route the approved-draft send through the
+    // enqueueOutbound seam. With outboundUndoWindowSeconds=0 (default) this is
+    // a byte-identical queued insert; with a window>0 it writes status:"held"
+    // + holdUntil, and the email-send-worker cron releases it (held→queued)
+    // once the window elapses — or an undo cancels it first. The draft:<id>
+    // dedup key is preserved via messageId, so retries stay idempotent.
+    const settings = await getTenantSettings(tenantId);
+    const created = await step.run("insert-outbound", async () =>
+      enqueueOutbound({
+        tenantId,
+        enrollmentId: draft.enrollmentId,
+        contactId: recipientContactId,
+        mailboxId: mailbox?.id || null,
+        fromAddress: mailbox?.emailAddress || "Elevay <outbound@resend.dev>",
+        to: recipientEmail,
+        subject: draft.subject,
+        bodyHtml: draft.bodyHtml,
+        bodyText: draft.bodyText,
+        messageId: dedupKey,
+        // P1-12 — the composite the email shipped at, for the nightly back-test.
+        qualityScore: toQualityScoreColumn(draft.qualityScore),
+        settings,
+      }),
     );
 
     await step.run("mark-sent", async () => {

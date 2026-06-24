@@ -58,31 +58,34 @@ export async function GET(req: Request) {
       isUnread(readMap[c.key], c.lastInboundAt ?? c.lastMessageAt);
 
     // Drafts / Scheduled (Upstream is:draft / is:scheduled). A reply draft
-    // (status="draft") or a held send (status="held" + future holdUntil) is
-    // attached to an existing thread but excluded from the conversation loader
-    // (sentAt is null). Query their threadIds so the folders can mark + filter
-    // the conversations that carry one — owner-scoped to the user's mailboxes.
+    // (status="draft") or a held send (status="held" + future holdUntil — the
+    // CLE-11 undo window) is attached to an existing thread but excluded from
+    // the conversation loader (sentAt is null). Query their threadIds so the
+    // folders can mark + filter the conversations that carry one — owner-scoped
+    // to the user's mailboxes.
     const draftThreadIds = new Set<string>();
     const scheduledThreadIds = new Set<string>();
     if (scope.mailboxIds.size > 0) {
-      // Drafts = unsent status="draft" rows. NB: query ONLY "draft" — prod's
-      // outbound_status enum lacks "held" and the hold_until column (the CLE-11
-      // scheduled-send feature isn't deployed to prod; the Drizzle schema is ahead
-      // of the prod DB, which the worktree points at). So Scheduled stays empty on
-      // prod (no held sends exist there) rather than 500-ing the whole inbox.
+      // Both unsent lifecycle states in one scan. "held" is the CLE-11
+      // undo-window send — migration 0077 is applied to prod, so the enum value
+      // + the hold_until column exist; it surfaces under Scheduled until the
+      // email-send-worker cron releases it (held→queued→sent) or an undo cancels
+      // it. (Pre-0077 this query was forced to "draft"-only to avoid a 500.)
       const rows = await db
-        .select({ threadId: outboundEmails.threadId })
+        .select({ threadId: outboundEmails.threadId, status: outboundEmails.status })
         .from(outboundEmails)
         .where(
           and(
             eq(outboundEmails.tenantId, authCtx.tenantId),
             inArray(outboundEmails.mailboxId, [...scope.mailboxIds]),
             isNotNull(outboundEmails.threadId),
-            eq(outboundEmails.status, "draft"),
+            inArray(outboundEmails.status, ["draft", "held"]),
           ),
         );
       for (const r of rows) {
-        if (r.threadId) draftThreadIds.add(r.threadId);
+        if (!r.threadId) continue;
+        if (r.status === "held") scheduledThreadIds.add(r.threadId);
+        else draftThreadIds.add(r.threadId);
       }
     }
 
