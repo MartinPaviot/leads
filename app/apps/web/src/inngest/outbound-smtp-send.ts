@@ -87,6 +87,7 @@ export const dispatchOutboundSmtp = inngest.createFunction(
           tenantId: o.tenantId,
           toAddress: o.toAddress,
           sentTodayFromPrimary: mb.sentToday ?? 0,
+          contactId: o.contactId, // spec 35 — account-scope suppression + targeting
         });
         if (!smtpGate.send) {
           if (smtpGate.code === "primary-cap-hit") return "skipped";

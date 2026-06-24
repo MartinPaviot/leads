@@ -375,6 +375,7 @@ export const processOutboundEmails = inngest.createFunction(
           tenantId: email.tenantId,
           toAddress: email.toAddress,
           sentTodayFromPrimary: mailbox.sentToday,
+          contactId: email.contactId, // spec 35 — account-scope suppression + targeting
         });
         if (!sendGate.send) {
           if (sendGate.code === "primary-cap-hit") {
@@ -675,6 +676,7 @@ export const sendSingleEmail = inngest.createFunction(
       tenantId: email.tenantId,
       toAddress: email.toAddress,
       sentTodayFromPrimary: primaryToday,
+      contactId: email.contactId, // spec 35 — account-scope suppression + targeting
     });
     if (!singleGate.send) {
       if (singleGate.code === "primary-cap-hit") {

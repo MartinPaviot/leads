@@ -132,6 +132,7 @@ export async function POST(
         tenantId: authCtx.tenantId,
         toAddress: e,
         sentTodayFromPrimary: 0,
+        interactive: true, // human-initiated follow-up: exempt from targeting gate (D6)
       }),
     })),
   );
