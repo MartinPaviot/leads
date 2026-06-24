@@ -11,6 +11,8 @@ import { outboundEmails } from "@/db/schema";
 import { gte } from "drizzle-orm";
 import { persistDailyRollups } from "@/lib/analytics/rollups/db-rollups";
 import { evaluateTenantRegressions } from "@/lib/analytics/alerts/db-evaluate";
+import { notifyTenant, regressionAlertCopy } from "@/lib/notify/db-notify";
+import type { AlertEvent } from "@/lib/analytics/alerts/alerts";
 
 export const dailyRollup = inngest.createFunction(
   {
@@ -37,8 +39,17 @@ export const dailyRollup = inngest.createFunction(
       const n = await step.run(`snapshot-${tenantId}`, () => persistDailyRollups(tenantId, today));
       campaignsSnapshotted += n;
       // Spec 32 — regression pass over the fresh snapshot history (fire-once/dedup/resolve).
-      const events = await step.run(`regressions-${tenantId}`, () => evaluateTenantRegressions(tenantId));
-      regressionsFired += (events as Array<{ status: string }>).filter((e) => e.status === "firing").length;
+      const events = (await step.run(`regressions-${tenantId}`, () =>
+        evaluateTenantRegressions(tenantId),
+      )) as AlertEvent[];
+      const firing = events.filter((e) => e.status === "firing");
+      regressionsFired += firing.length;
+      // Spec 28 (notify) — surface each NEW regression as an in-app notification.
+      if (firing.length > 0) {
+        await step.run(`notify-regressions-${tenantId}`, async () => {
+          for (const e of firing) await notifyTenant(tenantId, regressionAlertCopy(e.alert));
+        });
+      }
     }
 
     return { day: today, tenants: tenantIds.length, campaignsSnapshotted, regressionsFired };
