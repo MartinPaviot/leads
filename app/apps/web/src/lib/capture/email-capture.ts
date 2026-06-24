@@ -14,14 +14,21 @@
  * that accounts/contacts already read for "last interaction", and is embedded
  * for chat/RAG.
  *
- * Scope (deliberate): captures inbound we can confidently attribute — a tracked
- * thread reply, a known contact, or a known company domain. A sender at a
- * company ALREADY in the CRM gets their contact auto-created in every mode but
- * "disabled" (the CRM-graph rule: that is exactly the interaction the product
- * promises to capture); senders at unknown companies create contacts only when
- * the tenant opted in via contactCreationMode. Inbound from a wholly-unknown
- * sender is left for a future cold-inbound triage increment rather than
- * auto-creating contact spam or inserting orphan activities.
+ * Scope: every HUMAN inbound is captured (zero-entry capture — the product
+ * promise). A real person who emails you has their contact auto-created in
+ * every mode but "disabled" — a business-domain sender under their company,
+ * a personal/free-mail sender (gmail, outlook, …) as a company-less contact
+ * (we never fabricate a "Gmail" account). Previously "selective" silently
+ * DROPPED any unknown human sender (no contact, no known company → no
+ * activity), so a colleague's or cold prospect's mail never reached the inbox
+ * at all — the inbox is the `email_received` activity log, not a raw-mailbox
+ * mirror, so a dropped email is invisible forever.
+ *
+ * Machine-sent gate (unchanged): a noreply@/newsletter/automated sender is
+ * never promoted to a person-contact (no fabricated contact, no
+ * `contact/created` → enrich/qualify/"Hot inbound" fan-out). It is captured
+ * only when its domain is ALREADY a known company (attached there); an unknown
+ * machine sender is still left unresolved rather than spamming the inbox.
  *
  * Since the IMAP/Gmail pull-sync unification, ALL inbound paths run through
  * this seam — webhook, 15-min cron, force-sync — so attribution and dedup
@@ -35,7 +42,6 @@ import { recordCapturedActivity, getCaptureApprovalMode } from "@/lib/capture/ap
 import {
   getTenantSettings,
   buildIgnoredDomains,
-  shouldAutoCreateContact,
 } from "@/lib/config/tenant-settings";
 import { embedEntity } from "@/lib/ai/embeddings";
 import { ingestEpisode } from "@/lib/ai/context-graph";
@@ -260,43 +266,44 @@ export async function captureInboundEmail(
   const ignoredDomains = buildIgnoredDomains(settings, ownDomain);
   const domain = senderEmail.split("@")[1]?.toLowerCase().replace(/^www\./, "") || "";
 
-  // For a known/business domain with no contact yet: attach to the company,
-  // and auto-create the contact only when the tenant opted in for inbound.
+  // Capture-completeness: a real person who emails you is the exact interaction
+  // the product promises to capture, so a HUMAN inbound from an unknown sender
+  // is captured by default — its contact auto-created — unless the tenant set
+  // contactCreationMode "disabled". A business-domain sender is graphed under
+  // their company (resolved or auto-created); a personal/free-mail sender
+  // (gmail, outlook, …) becomes a company-less contact rather than fabricating
+  // a "Gmail" account. The machine-sent gate is unchanged: an automated sender
+  // is never promoted to a contact — it is attached to its company only when
+  // that company is already known, otherwise left unresolved.
   let companyId: string | null = contact?.companyId ?? null;
-  if (!contact && domain && !ignoredDomains.has(domain)) {
-    const [existingCo] = await db
-      .select({ id: companies.id })
-      .from(companies)
-      .where(
-        and(
-          eq(companies.tenantId, tenantId),
-          eq(companies.domain, domain),
-          isNull(companies.deletedAt),
-        ),
-      )
-      .limit(1);
-    let resolvedCompanyId: string | null = existingCo?.id ?? null;
+  if (!contact && senderEmail) {
+    // A "business" domain is one we'd graph as a company: present, and not a
+    // personal/free-mail or do-not-track domain (those stay company-less).
+    const isBusinessDomain = !!domain && !ignoredDomains.has(domain);
 
-    // CRM-graph rule: a sender at a company ALREADY in the CRM is the exact
-    // interaction the product promises to capture — create the contact under
-    // that account even in "selective" mode (only "disabled" opts out).
-    // Senders at unknown companies still require an explicit opt-in mode.
-    //
-    // Machine-sent gate: a `noreply@`/newsletter/automated sender is never
-    // promoted to a first-class person-contact (no fabricated "Noreply"
-    // contact, no `contact/created` → no enrich/qualify/"Hot inbound" fan-out).
-    // The activity is still captured below — attached to the company when the
-    // domain is already known, otherwise left unresolved. A sender that
-    // resolves to an EXISTING contact is unaffected (this branch only runs for
-    // unknown senders), so a known human is captured even if one message of
-    // theirs happens to be automated.
+    let resolvedCompanyId: string | null = null;
+    if (isBusinessDomain) {
+      const [existingCo] = await db
+        .select({ id: companies.id })
+        .from(companies)
+        .where(
+          and(
+            eq(companies.tenantId, tenantId),
+            eq(companies.domain, domain),
+            isNull(companies.deletedAt),
+          ),
+        )
+        .limit(1);
+      resolvedCompanyId = existingCo?.id ?? null;
+    }
+
     const createContact =
-      !classification.isMachineSent &&
-      (shouldAutoCreateContact(settings.contactCreationMode, "inbound") ||
-        (!!existingCo && settings.contactCreationMode !== "disabled"));
+      !classification.isMachineSent && settings.contactCreationMode !== "disabled";
 
     if (createContact) {
-      if (!resolvedCompanyId) {
+      // Business domain → ensure the company exists so the contact is graphed
+      // under an account. Personal/free-mail → leave the contact company-less.
+      if (isBusinessDomain && !resolvedCompanyId) {
         const base = domain.split(".")[0] || domain;
         const [newCo] = await db
           .insert(companies)
@@ -332,6 +339,8 @@ export async function captureInboundEmail(
         })
         .catch(() => {});
     } else {
+      // Machine-sent (or "disabled"): attach to the known company if any,
+      // else this stays unresolved and is dropped below.
       companyId = resolvedCompanyId;
     }
   }

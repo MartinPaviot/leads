@@ -119,13 +119,40 @@ describe("captureInboundEmail — attribution matrix", () => {
     expect(sent.some((e) => e.name === "contact/created")).toBe(true);
   });
 
-  it("unknown sender at an unknown company in selective mode -> no orphan, nothing created", async () => {
+  it("unknown HUMAN sender at an unknown business domain in selective mode -> company + contact auto-created, captured", async () => {
+    // Capture-completeness: a real person who emails you is captured by default
+    // (was the silent-drop defect — colleague/cold-prospect mail never reached
+    // the inbox). Business domain → company auto-created + contact graphed under it.
     selectQueue = [
       [], // dedup
       [], // no contact
       [], // no company by domain
     ];
     const r = await captureInboundEmail(baseInput);
+    expect(r.captured).toBe(true);
+    expect(r.contactCreated).toBe(true);
+    expect(inserts).toHaveLength(2); // company THEN contact
+    expect((inserts[0].table as { __t: string }).__t).toBe("companies");
+    expect((inserts[1].table as { __t: string }).__t).toBe("contacts");
+    expect(inserts[1].values.email).toBe("anna@romandco.ch");
+    expect(sent.some((e) => e.name === "company/created")).toBe(true);
+    expect(sent.some((e) => e.name === "contact/created")).toBe(true);
+    const activity = recordCapturedActivity.mock.calls[0][0] as { activity: { entityType: string } };
+    expect(activity.activity.entityType).toBe("contact");
+  });
+
+  it("unknown MACHINE sender at an unknown domain -> still unresolved, dropped (no contact spam)", async () => {
+    selectQueue = [
+      [], // dedup
+      [], // no contact
+      [], // no company by domain
+    ];
+    const r = await captureInboundEmail({
+      ...baseInput,
+      fromHeader: "Weekly Digest <noreply@unknownco.io>",
+      subject: "Your weekly digest",
+      text: "Here are this week's updates.",
+    });
     expect(r.captured).toBe(false);
     expect(r.reason).toBe("unresolved_sender");
     expect(inserts).toHaveLength(0);
@@ -148,15 +175,21 @@ describe("captureInboundEmail — attribution matrix", () => {
     expect(activity.activity.entityId).toBe("co-77");
   });
 
-  it("freemail sender domain never resolves to a company", async () => {
+  it("freemail HUMAN sender in selective mode -> company-less contact created, captured (never a 'Gmail' company)", async () => {
     selectQueue = [
       [], // dedup
       [], // no contact
-      // NOTE: no company select should even run for an ignored domain
+      // NOTE: no company select runs for an ignored/free-mail domain
     ];
     const r = await captureInboundEmail({ ...baseInput, fromHeader: "Bob <bob@gmail.com>" });
-    expect(r.captured).toBe(false);
-    expect(r.reason).toBe("unresolved_sender");
+    expect(r.captured).toBe(true);
+    expect(r.contactCreated).toBe(true);
+    expect(inserts).toHaveLength(1); // contact only — no company fabricated
+    expect((inserts[0].table as { __t: string }).__t).toBe("contacts");
+    expect(inserts[0].values.companyId).toBeNull();
+    expect(inserts[0].values.email).toBe("bob@gmail.com");
+    expect(sent.some((e) => e.name === "company/created")).toBe(false);
+    expect(sent.some((e) => e.name === "contact/created")).toBe(true);
   });
 
   it("duplicate messageId -> skipped (covers legacy gmailMessageId dedup key)", async () => {
