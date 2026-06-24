@@ -11,6 +11,9 @@
 
 import { acquireEnrollmentLock, releaseEnrollmentLock, DEFAULT_LOCK_TTL_MS } from "./collision";
 import { collisionLockForTenant } from "./db-lock";
+import { db } from "@/db";
+import { sequenceEnrollments } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 /** Enforcement flag. Default OFF — record-only until the lock is proven live. */
 export function isAntiCollisionEnforced(): boolean {
@@ -68,5 +71,24 @@ export async function releaseEnrollment(tenantId: string | null, contactId: stri
     await releaseEnrollmentLock(contactId, { lock: collisionLockForTenant(tenantId) });
   } catch {
     /* best-effort; the TTL self-heals a stuck lock */
+  }
+}
+
+/**
+ * Release by enrollment id — resolves the enrollment's contact, then frees the
+ * lock. For terminal-status sites that hold only the enrollmentId. The DELETE
+ * keys on the globally-unique contactId, so tenant binding is unneeded here.
+ * Never throws (best-effort; the 30-day TTL self-heals if this is ever missed).
+ */
+export async function releaseEnrollmentById(enrollmentId: string): Promise<void> {
+  try {
+    const [row] = await db
+      .select({ contactId: sequenceEnrollments.contactId })
+      .from(sequenceEnrollments)
+      .where(eq(sequenceEnrollments.id, enrollmentId))
+      .limit(1);
+    if (row?.contactId) await releaseEnrollment(null, row.contactId);
+  } catch {
+    /* best-effort */
   }
 }

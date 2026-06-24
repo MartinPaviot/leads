@@ -20,6 +20,7 @@
  */
 
 import { inngest } from "./client";
+import { releaseEnrollmentById } from "@/lib/anti-collision/enroll-guard";
 import { db } from "@/db";
 import {
   contacts,
@@ -147,6 +148,7 @@ export const routeSequenceStepToDraft = inngest.createFunction(
           .set({ status: "completed" })
           .where(eq(sequenceEnrollments.id, enrollmentId));
       });
+      await releaseEnrollmentById(enrollmentId); // Spec 14 — free the anti-collision lock on terminal.
       return { enrollmentId, skipped: "no more steps", terminal: true };
     }
 
@@ -201,6 +203,7 @@ export const routeSequenceStepToDraft = inngest.createFunction(
           .set({ status: "unsubscribed" })
           .where(eq(sequenceEnrollments.id, enrollmentId));
       });
+      await releaseEnrollmentById(enrollmentId); // Spec 14 — free the anti-collision lock on terminal.
       return { enrollmentId, skipped: "recipient opted out" };
     }
 

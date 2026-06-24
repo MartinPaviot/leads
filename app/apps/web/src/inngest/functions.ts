@@ -1,5 +1,6 @@
 import { inngest } from "./client";
 import { db } from "@/db";
+import { releaseEnrollmentById } from "@/lib/anti-collision/enroll-guard";
 import { companies, contacts, sequenceSteps, sequenceEnrollments, activities, outboundEmails, emailOptouts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { addBusinessDays } from "@/lib/util/business-days";
@@ -567,6 +568,7 @@ export const sendSequenceStep = inngest.createFunction(
           .set({ status: "completed" })
           .where(eq(sequenceEnrollments.id, enrollmentId));
       });
+      await releaseEnrollmentById(enrollmentId); // Spec 14 — free the anti-collision lock on terminal.
       return { enrollmentId, sent: false, reason: "No more steps" };
     }
 
@@ -958,6 +960,7 @@ Also determine:
             .set({ status: "unsubscribed" })
             .where(eq(sequenceEnrollments.id, enrollmentId));
         });
+        await releaseEnrollmentById(enrollmentId); // Spec 14 — free the anti-collision lock on terminal.
 
         // Add to global opt-out list so ALL future sequences are blocked
         await step.run("add-to-optout", async () => {

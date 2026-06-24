@@ -24,7 +24,15 @@ vi.mock("../db-lock", () => ({
   })),
 }));
 
-import { guardEnrollment, releaseEnrollment, isAntiCollisionEnforced } from "../enroll-guard";
+// releaseEnrollmentById resolves a contactId from the enrollment row.
+const dbState = vi.hoisted(() => ({ rows: [{ contactId: "c1" }] as Array<{ contactId: string }> }));
+vi.mock("@/db", () => ({
+  db: { select: () => ({ from: () => ({ where: () => ({ limit: async () => dbState.rows }) }) }) },
+}));
+vi.mock("@/db/schema", () => ({ sequenceEnrollments: { id: "id", contactId: "contact_id" } }));
+vi.mock("drizzle-orm", () => ({ eq: (col: unknown, val: unknown) => ({ col, val }) }));
+
+import { guardEnrollment, releaseEnrollment, releaseEnrollmentById, isAntiCollisionEnforced } from "../enroll-guard";
 
 const ORIG = process.env.ANTI_COLLISION_ENFORCE;
 beforeEach(() => {
@@ -88,5 +96,16 @@ describe("guardEnrollment", () => {
 describe("releaseEnrollment", () => {
   it("never throws", async () => {
     await expect(releaseEnrollment("t1", "c1")).resolves.toBeUndefined();
+  });
+});
+
+describe("releaseEnrollmentById", () => {
+  it("resolves the enrollment's contact and releases (never throws)", async () => {
+    dbState.rows = [{ contactId: "c1" }];
+    await expect(releaseEnrollmentById("enr1")).resolves.toBeUndefined();
+  });
+  it("no-ops when the enrollment is gone", async () => {
+    dbState.rows = [];
+    await expect(releaseEnrollmentById("missing")).resolves.toBeUndefined();
   });
 });

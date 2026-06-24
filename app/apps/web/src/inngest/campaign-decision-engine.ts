@@ -7,6 +7,7 @@
  */
 
 import { inngest } from "./client";
+import { releaseEnrollmentById } from "@/lib/anti-collision/enroll-guard";
 import { db } from "@/db";
 import {
   sequenceEnrollments,
@@ -224,6 +225,7 @@ Generate the email content if action is "send_email". Keep it under 80 words.`,
           .set({ status: "completed" })
           .where(eq(sequenceEnrollments.id, enrollmentId));
       });
+      await releaseEnrollmentById(enrollmentId); // Spec 14 — free the anti-collision lock on terminal.
       return { result: "stopped", reasoning: decision.reasoning };
     }
 

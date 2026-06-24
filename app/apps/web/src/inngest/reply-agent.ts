@@ -12,6 +12,7 @@
  */
 
 import { inngest } from "./client";
+import { releaseEnrollmentById } from "@/lib/anti-collision/enroll-guard";
 import { db } from "@/db";
 import {
   sequenceEnrollments,
@@ -136,6 +137,7 @@ INTELLIGENCE BRIEF:
           .set({ status: "completed" })
           .where(eq(sequenceEnrollments.id, enrollmentId));
       });
+      await releaseEnrollmentById(enrollmentId); // Spec 14 — free the anti-collision lock on terminal.
       await updateTrustScore(tenantId, "email_negative_reply").catch(() => {});
       return { result: "closed", reasoning: reply.reasoning };
     }
