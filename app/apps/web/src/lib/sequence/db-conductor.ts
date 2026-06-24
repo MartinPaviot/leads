@@ -26,8 +26,18 @@ import { isEmailKnownUnsendable } from "@/lib/contacts/email/db-status";
 import { isSuppressed as isOptoutSuppressed } from "@/lib/guardrails/sending-gate";
 import { isSuppressedDb, drizzleSuppressionLoader } from "@/lib/suppression/db-store";
 import { releaseEnrollment } from "@/lib/anti-collision/enroll-guard";
+import { buildProspectContext } from "@/lib/context/prospect-context";
+import { personalizeStepEmail } from "@/lib/agents/sequence-generator";
+import { STEP_STRATEGIES } from "@/lib/scoring/outbound-methodologies";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Substitute {{firstName}}-style template vars. */
+export function applyVars(text: string, vars: Record<string, string>): string {
+  let out = text ?? "";
+  for (const [k, v] of Object.entries(vars)) out = out.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), v);
+  return out;
+}
 
 /** The flag. Default OFF — the old runtime stays primary until this is flipped. */
 export function isSequenceEngineV2Enabled(): boolean {
@@ -114,7 +124,7 @@ export async function tickEnrollmentV2(enrollmentId: string, database: typeof de
   if (!row) return { enrollmentId, ran: false, reason: "not found" };
   if (row.status !== "active") return { enrollmentId, ran: false, reason: `not active (${row.status})` };
 
-  const [contact] = await database.select({ id: contacts.id, email: contacts.email, tenantId: contacts.tenantId, emailStatus: contacts.emailStatus }).from(contacts).where(eq(contacts.id, row.contactId)).limit(1);
+  const [contact] = await database.select({ id: contacts.id, email: contacts.email, tenantId: contacts.tenantId, emailStatus: contacts.emailStatus, firstName: contacts.firstName, lastName: contacts.lastName, title: contacts.title }).from(contacts).where(eq(contacts.id, row.contactId)).limit(1);
   if (!contact?.email) return { enrollmentId, ran: false, reason: "no contact email" };
   const tenantId = contact.tenantId;
 
@@ -140,7 +150,31 @@ export async function tickEnrollmentV2(enrollmentId: string, database: typeof de
     pullVariant: async (step) => {
       const sr = stepRows.find((s) => s.id === step.id);
       if (!sr) return null;
-      return { id: step.id, subject: sr.subjectTemplate, body: sr.bodyTemplate };
+      const fullName = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
+      const vars = {
+        firstName: contact.firstName ?? "",
+        lastName: contact.lastName ?? "",
+        fullName,
+        title: contact.title ?? "",
+      };
+      let subject = applyVars(sr.subjectTemplate, vars);
+      let body = applyVars(sr.bodyTemplate, vars);
+      // LLM personalization parity with the legacy path (spec-19/sequence-generator).
+      // personalizeStepEmail already falls back to the template when no model is
+      // configured; we also fall back (template-only) on any throw.
+      try {
+        const ctx = await buildProspectContext(contact.id, tenantId);
+        if (ctx) {
+          const stepNumber = stepNumberByStepId.get(step.id) ?? enrollment.currentStepIndex + 1;
+          const strategy = STEP_STRATEGIES.find((s) => s.stepNumber === stepNumber) ?? STEP_STRATEGIES[0];
+          const out = await personalizeStepEmail(ctx, { subject, body }, strategy, tenantId);
+          subject = out.subject;
+          body = out.body;
+        }
+      } catch {
+        /* template-only fallback — keep the substituted subject/body */
+      }
+      return { id: step.id, subject, body };
     },
     sendEmail: async (step, _contactId, variant) => {
       const stepNumber = stepNumberByStepId.get(step.id) ?? (enrollment.currentStepIndex + 1);

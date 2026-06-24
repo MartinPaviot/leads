@@ -5,6 +5,7 @@ import {
   toLiveStatus,
   buildDefinition,
   buildEngineEnrollment,
+  applyVars,
 } from "../db-conductor";
 
 /**
@@ -49,6 +50,15 @@ describe("status mapping", () => {
     expect(toLiveStatus("paused")).toBe("paused");
     expect(toLiveStatus("completed")).toBe("completed");
     expect(toLiveStatus("active")).toBe("active");
+  });
+});
+
+describe("applyVars", () => {
+  it("replaces every occurrence of each {{var}} and leaves unknown tokens", () => {
+    expect(applyVars("Hi {{firstName}}, {{firstName}} — re {{title}}", { firstName: "Sam", title: "CTO" }))
+      .toBe("Hi Sam, Sam — re CTO");
+    expect(applyVars("Hi {{missing}}", { firstName: "Sam" })).toBe("Hi {{missing}}");
+    expect(applyVars("", { firstName: "Sam" })).toBe("");
   });
 });
 
