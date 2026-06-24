@@ -8,10 +8,17 @@
  *   - isEligible  -> spec-17 (contact.email_status)
  *   - isSuppressed-> spec-22 (suppression) + email_optouts
  *   - releaseLock -> spec-14 (releaseEnrollment)
- *   - pullVariant -> the sequence_steps template (LLM personalization parity is a
- *                    documented follow-up; the slot/variant store is spec-20)
- *   - sendEmail   -> queue an outbound_emails row (the email-send-worker sends it)
- *   - isGuardTripped -> false (spec-27 deliverability guard is a follow-up)
+ *   - pullVariant -> sequence_steps template + spec-19 LLM personalization, with
+ *                    legacy-parity fallback tagging (records WHY it fell back)
+ *   - sendEmail   -> enqueueOutbound (CLE-11 undo window) + trackPipeline + a
+ *                    sequence_step_sent activity (legacy-parity side-effects)
+ *   - isGuardTripped -> spec-27 deliverability guard
+ *
+ * BEST-OF-BOTH: V2's gating (17 eligibility / 22 suppression / 27 guard) is a strict
+ * superset of legacy's, and its engine is the pure core; this file now also routes
+ * V2's side-effects through the SAME prod seams legacy uses (undo window, pipeline
+ * tracking, audit activity, weekend-skip scheduling) — so flipping SEQUENCE_ENGINE_V2
+ * is an upgrade with no regression, and the legacy body can be retired afterward.
  *
  * Step idempotency rides on outbound existence: a step whose outbound row already
  * exists maps to `sent`, so the engine never re-sends it.
@@ -31,8 +38,29 @@ import { buildProspectContext } from "@/lib/context/prospect-context";
 import { personalizeStepEmail } from "@/lib/agents/sequence-generator";
 import { STEP_STRATEGIES } from "@/lib/scoring/outbound-methodologies";
 import { guardTrippedForTenant } from "@/lib/deliverability/db-guard";
+// Best-of-both parity: route V2's send + scheduling through the SAME production
+// seams the legacy sendSequenceStep uses, so flipping SEQUENCE_ENGINE_V2 is an
+// upgrade with no regression on the undo window / observability / audit / weekends.
+import { enqueueOutbound } from "@/lib/emails/outbound-hold";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
+import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
+import { addBusinessDays } from "@/lib/util/business-days";
+import { activities } from "@/db/schema";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Weekend-aware next-step scheduling, matching legacy sendSequenceStep. The engine
+ * computes a calendar dueAt; when the tenant skips weekends (default), convert the
+ * engine's day-delay into business days from `now` so a follow-up never lands on a
+ * Saturday. Pure → unit-tested.
+ */
+export function businessAwareDueAt(now: number, dueAt: number, skipWeekends: boolean): Date {
+  if (!skipWeekends || dueAt <= now) return new Date(dueAt);
+  const days = Math.round((dueAt - now) / DAY_MS);
+  if (days <= 0) return new Date(dueAt);
+  return addBusinessDays(new Date(now), days);
+}
 
 /** Substitute {{firstName}}-style template vars. */
 export function applyVars(text: string, vars: Record<string, string>): string {
@@ -126,9 +154,15 @@ export async function tickEnrollmentV2(enrollmentId: string, database: typeof de
   if (!row) return { enrollmentId, ran: false, reason: "not found" };
   if (row.status !== "active") return { enrollmentId, ran: false, reason: `not active (${row.status})` };
 
-  const [contact] = await database.select({ id: contacts.id, email: contacts.email, tenantId: contacts.tenantId, emailStatus: contacts.emailStatus, firstName: contacts.firstName, lastName: contacts.lastName, title: contacts.title }).from(contacts).where(eq(contacts.id, row.contactId)).limit(1);
+  const [contact] = await database.select({ id: contacts.id, email: contacts.email, tenantId: contacts.tenantId, companyId: contacts.companyId, emailStatus: contacts.emailStatus, firstName: contacts.firstName, lastName: contacts.lastName, title: contacts.title }).from(contacts).where(eq(contacts.id, row.contactId)).limit(1);
   if (!contact?.email) return { enrollmentId, ran: false, reason: "no contact email" };
   const tenantId = contact.tenantId;
+  // Full tenant settings — read once for the undo window (enqueueOutbound) + the
+  // weekend-skip scheduling, both legacy parity.
+  const fullSettings = await getTenantSettings(tenantId).catch(() => null);
+  // Captured by pullVariant, read by sendEmail to tag template-only fallbacks
+  // (legacy `[fallback:...]` observability). Reset per step inside pullVariant.
+  let lastFallbackReason: string | null = null;
 
   // Spec 25 parity — respect manual-approval mode. The legacy sendSequenceStep
   // bails on manual so routeSequenceStepToDraft writes a draft; that draft router
@@ -159,6 +193,7 @@ export async function tickEnrollmentV2(enrollmentId: string, database: typeof de
     acquireLock: async () => true, // already enrolled; advance never acquires.
     releaseLock: async () => releaseEnrollment(tenantId, contact.id),
     pullVariant: async (step) => {
+      lastFallbackReason = null;
       const sr = stepRows.find((s) => s.id === step.id);
       if (!sr) return null;
       const fullName = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
@@ -172,7 +207,9 @@ export async function tickEnrollmentV2(enrollmentId: string, database: typeof de
       let body = applyVars(sr.bodyTemplate, vars);
       // LLM personalization parity with the legacy path (spec-19/sequence-generator).
       // personalizeStepEmail already falls back to the template when no model is
-      // configured; we also fall back (template-only) on any throw.
+      // configured; we also fall back (template-only) on any throw. Legacy parity:
+      // record WHY we fell back so sendEmail can tag the outbound (review-queue
+      // visibility) instead of silently shipping a template-only email.
       try {
         const ctx = await buildProspectContext(contact.id, tenantId);
         if (ctx) {
@@ -181,27 +218,64 @@ export async function tickEnrollmentV2(enrollmentId: string, database: typeof de
           const out = await personalizeStepEmail(ctx, { subject, body }, strategy, tenantId);
           subject = out.subject;
           body = out.body;
+        } else {
+          lastFallbackReason = "missing_prospect_context";
         }
       } catch {
+        lastFallbackReason = "llm_personalize_threw";
         /* template-only fallback — keep the substituted subject/body */
       }
       return { id: step.id, subject, body };
     },
     sendEmail: async (step, _contactId, variant) => {
       const stepNumber = stepNumberByStepId.get(step.id) ?? (enrollment.currentStepIndex + 1);
-      await database.insert(outboundEmails).values({
+      const subject = variant.subject ?? "";
+      const body = variant.body ?? "";
+      // Legacy parity: route through enqueueOutbound so the tenant's CLE-11 undo
+      // window applies (queued vs held+holdUntil). NOT best-effort — the row IS
+      // the send, so a failure must surface (the engine treats a throw as un-sent).
+      const result = await enqueueOutbound({
         tenantId,
         enrollmentId,
         contactId: contact.id,
         stepNumber,
-        fromAddress: "pending@rotation",
-        toAddress: contact.email!,
-        subject: variant.subject ?? "",
-        bodyHtml: `<div>${(variant.body ?? "").replace(/\n/g, "<br>")}</div>`,
-        bodyText: variant.body ?? "",
-        status: "queued",
-        queuedAt: new Date(),
+        to: contact.email!,
+        subject,
+        bodyHtml: `<div>${body.replace(/\n/g, "<br>")}</div>`,
+        bodyText: body,
+        errorMessage: lastFallbackReason
+          ? `[fallback:${lastFallbackReason}] sent with template-only personalisation`
+          : null,
+        settings: fullSettings ?? undefined,
       });
+      // Analytics + audit parity (best-effort — observability must not fail a send).
+      await trackPipeline({
+        traceId: enrollmentId,
+        tenantId,
+        companyId: contact.companyId ?? null,
+        contactId: contact.id,
+        enrollmentId,
+        outboundEmailId: result.id,
+        stage: "email_queued",
+        sourceSystem: "inngest",
+        metadata: { step: stepNumber, subject },
+      }).catch(() => {});
+      await database
+        .insert(activities)
+        .values({
+          tenantId,
+          actorType: "system",
+          actorId: null,
+          entityType: "contact",
+          entityId: contact.id,
+          activityType: "sequence_step_sent",
+          channel: "email",
+          direction: "outbound",
+          summary: `Sequence step ${stepNumber}: ${subject}`,
+          rawContent: body,
+          metadata: { sequenceId: row.sequenceId, stepNumber, enrollmentId, outboundEmailId: result.id, to: contact.email },
+        })
+        .catch(() => {});
     },
     sendLinkedIn: async () => { /* spec-24 dispatch — out of scope for this slice */ },
     // Spec 27 — deliverability guard: pauses the sequence when the tenant's
@@ -211,13 +285,16 @@ export async function tickEnrollmentV2(enrollmentId: string, database: typeof de
     now: () => now,
   });
 
-  // Persist the engine result back to the live row.
+  // Persist the engine result back to the live row. Legacy parity: weekend-aware
+  // nextStepAt for an active enrollment; null once terminal (completed/halted).
+  const liveStatus = toLiveStatus(next.status);
+  const skipWeekends = (fullSettings as { sequencesSkipWeekends?: boolean } | null)?.sequencesSkipWeekends !== false;
   await database
     .update(sequenceEnrollments)
     .set({
-      status: toLiveStatus(next.status),
+      status: liveStatus,
       currentStep: next.currentStepIndex + 1,
-      nextStepAt: new Date(next.dueAt),
+      nextStepAt: liveStatus === "active" ? businessAwareDueAt(now, next.dueAt, skipWeekends) : null,
       lastStepAt: new Date(now),
     })
     .where(eq(sequenceEnrollments.id, enrollmentId));
