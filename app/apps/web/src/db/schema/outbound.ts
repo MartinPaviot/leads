@@ -428,6 +428,24 @@ export const suppression = pgTable(
   ]
 );
 
+/**
+ * Spec 14 — anti-collision enrollment lock. A contact may be in exactly ONE
+ * active sequence at a time across every campaign. `contact_id` is the lock key
+ * (globally unique UUID) and PRIMARY KEY, so acquire is atomic via
+ * INSERT ... ON CONFLICT (contact_id) DO UPDATE ... WHERE expired-or-same-holder
+ * — exactly one of two racing enrollments wins (AC4). `expires_at` is a TTL
+ * safety net so a crashed enrollment self-heals. lib/anti-collision/db-lock.ts
+ * is the cross-process CollisionLock over this table (the InMemory/Redis impls
+ * don't work across serverless invocations; the DB does).
+ */
+export const enrollmentLock = pgTable("enrollment_lock", {
+  contactId: text("contact_id").primaryKey(),
+  tenantId: text("tenant_id").references(() => tenants.id),
+  enrollmentId: text("enrollment_id").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  acquiredAt: timestamp("acquired_at", { withTimezone: true }).defaultNow(),
+});
+
 export const meetingOptOuts = pgTable(
   "meeting_opt_outs",
   {
