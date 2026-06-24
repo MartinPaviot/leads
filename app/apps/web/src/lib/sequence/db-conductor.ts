@@ -9,7 +9,8 @@
  *   - isSuppressed-> spec-22 (suppression) + email_optouts
  *   - releaseLock -> spec-14 (releaseEnrollment)
  *   - pullVariant -> sequence_steps template + spec-19 LLM personalization, with
- *                    legacy-parity fallback tagging (records WHY it fell back)
+ *                    legacy-parity fallback tagging, AND the spec-19/20 grounded
+ *                    copy cutover (primary when high) behind COPY_ENGINE_PRIMARY
  *   - sendEmail   -> enqueueOutbound (CLE-11 undo window) + trackPipeline + a
  *                    sequence_step_sent activity (legacy-parity side-effects)
  *   - isGuardTripped -> spec-27 deliverability guard
@@ -38,6 +39,8 @@ import { buildProspectContext } from "@/lib/context/prospect-context";
 import { personalizeStepEmail } from "@/lib/agents/sequence-generator";
 import { STEP_STRATEGIES } from "@/lib/scoring/outbound-methodologies";
 import { guardTrippedForTenant } from "@/lib/deliverability/db-guard";
+import { generateCopyMessage, persistShadowSample, isCopyEnginePrimaryEnabled } from "@/lib/copy/personalization/db-shadow";
+import { resolveTenantCopyLang } from "@/lib/copy/assets/db-store";
 // Best-of-both parity: route V2's send + scheduling through the SAME production
 // seams the legacy sendSequenceStep uses, so flipping SEQUENCE_ENGINE_V2 is an
 // upgrade with no regression on the undo window / observability / audit / weekends.
@@ -224,6 +227,23 @@ export async function tickEnrollmentV2(enrollmentId: string, database: typeof de
       } catch {
         lastFallbackReason = "llm_personalize_threw";
         /* template-only fallback — keep the substituted subject/body */
+      }
+      // Spec 19/20 CUTOVER (V2 path) — when COPY_ENGINE_PRIMARY is on, the grounded
+      // copy engine becomes the primary copy, but ONLY when high-personalization;
+      // else keep the legacy personalisation above. Never degrades. Best-effort.
+      if (isCopyEnginePrimaryEnabled()) {
+        try {
+          const lang = await resolveTenantCopyLang(tenantId);
+          const out = await generateCopyMessage(contact.id, tenantId, { lang });
+          if (out.ran && out.message && out.message.personalization_level === "high") {
+            await persistShadowSample(tenantId, contact.id, lang, out.message, out.evidenceCount ?? 0);
+            subject = out.message.subject ?? subject;
+            body = out.message.body;
+            lastFallbackReason = null; // grounded copy is not a template fallback
+          }
+        } catch {
+          /* keep the legacy personalisation */
+        }
       }
       return { id: step.id, subject, body };
     },
