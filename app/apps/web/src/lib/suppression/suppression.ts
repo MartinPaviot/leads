@@ -14,9 +14,12 @@ export type SuppressionType =
   | "hard_bounce"
   | "manual_dnc"
   | "competitor"
-  | "existing_customer";
+  | "existing_customer"
+  | "complaint"; // spec 35 — spam complaint; permanent like opt_out
 
-export type SuppressionLevel = "address" | "domain";
+// 'account' (spec 35) suppresses a whole company; its `value` is the company's
+// canonical identity_key (survives re-import / TAM rebuild), not a domain.
+export type SuppressionLevel = "address" | "domain" | "account";
 
 /** "global" or a tenantId. */
 export const GLOBAL_SCOPE = "global";
@@ -155,6 +158,8 @@ export function addSuppression(store: SuppressionStore, entry: SuppressionEntry)
 export interface SuppressionTarget {
   email?: string | null;
   domain?: string | null;
+  /** Spec 35 — the contact's company canonical identity_key, for account-scope. */
+  accountKey?: string | null;
   tenantId?: string;
 }
 
@@ -182,11 +187,14 @@ export function isSuppressed(
 ): SuppressionHit | null {
   const email = normalizeEmail(target.email);
   const domain = normalizeDomain(target.domain) ?? domainOfEmail(target.email);
+  const accountKey = target.accountKey?.trim() || null;
   const scopes = target.tenantId ? [GLOBAL_SCOPE, target.tenantId] : [GLOBAL_SCOPE];
 
   const candidates: Array<[SuppressionLevel, string]> = [];
   if (email) candidates.push(["address", email]);
   if (domain) candidates.push(["domain", domain]);
+  // Account-scope (spec 35): value is the company identity_key, used verbatim.
+  if (accountKey) candidates.push(["account", accountKey]);
 
   for (const [level, value] of candidates) {
     for (const scope of scopes) {

@@ -261,6 +261,13 @@ export interface TenantSettings {
   /** When false (default), cold outreach from the primary inbox is
    *  blocked and routed to the scaling-path prompt instead. */
   sendingAllowColdOnPrimary?: boolean;
+  /**
+   * Spec 35 — SAFE_MODE. When true (the default), autonomous outbound is
+   * default-deny: only accounts with targeting_status='targeted' are eligible
+   * (the send gate's check-3, behind the TARGETING_GATE_ENABLED rollout guard).
+   * Interactive human sends are exempt; suppression always applies regardless.
+   */
+  safeModeEnabled?: boolean;
   /** AES-GCM ciphertext of the Instantly Hypergrowth API key, encrypted
    *  with ELEVAY_APP_SECRET. Present only when the tenant has connected
    *  Instantly via `external-connected`. */
@@ -476,6 +483,7 @@ export const DEFAULTS: Required<Pick<
   | "sendingMailboxMode"
   | "sendingDailyCapPrimary"
   | "sendingAllowColdOnPrimary"
+  | "safeModeEnabled"
   | "trustScore"
   | "agentMemoryPanelDiscovered"
   | "auditRetentionPolicy"
@@ -490,6 +498,7 @@ export const DEFAULTS: Required<Pick<
   sendingMailboxMode: "primary-with-caps",
   sendingDailyCapPrimary: 20,
   sendingAllowColdOnPrimary: false,
+  safeModeEnabled: true,
   trustScore: 0.0,
   agentMemoryPanelDiscovered: false,
   auditRetentionPolicy: "7y",

@@ -10,7 +10,7 @@
 
 import { db as defaultDb } from "@/db";
 import { suppression } from "@/db/schema";
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import {
   InMemorySuppressionStore,
   isSuppressed,
@@ -65,10 +65,12 @@ export function drizzleSuppressionLoader(database: typeof defaultDb = defaultDb)
   return async (target) => {
     const email = normalizeEmail(target.email);
     const domain = normalizeDomain(target.domain) ?? domainOfEmail(target.email);
+    const accountKey = target.accountKey?.trim() || null; // spec 35 — verbatim identity_key
 
     const valueMatch = [
       email ? and(eq(suppression.level, "address"), eq(suppression.value, email)) : undefined,
       domain ? and(eq(suppression.level, "domain"), eq(suppression.value, domain)) : undefined,
+      accountKey ? and(eq(suppression.level, "account"), eq(suppression.value, accountKey)) : undefined,
     ].filter(Boolean);
     if (valueMatch.length === 0) return [];
 
@@ -76,10 +78,12 @@ export function drizzleSuppressionLoader(database: typeof defaultDb = defaultDb)
       ? or(isNull(suppression.tenantId), eq(suppression.tenantId, target.tenantId))
       : isNull(suppression.tenantId);
 
+    // spec 35 — only ACTIVE rows suppress; a deactivated manual_dnc/existing_customer
+    // simply is not loaded (no need to teach the pure module about status).
     const rows = await database
       .select()
       .from(suppression)
-      .where(and(scopeMatch, or(...valueMatch)));
+      .where(and(scopeMatch, eq(suppression.status, "active"), or(...valueMatch)));
     return (rows as SuppressionRow[]).map(rowToEntry);
   };
 }
@@ -105,8 +109,23 @@ export async function suppressedDb(target: SuppressionTarget, loader: Suppressio
   return (await isSuppressedDb(target, loader, now)) !== null;
 }
 
-/** Persist a suppression entry (idempotent upsert on scope+level+value). Used by 26/27 ingestion. */
-export async function addSuppressionDb(entry: SuppressionEntry, database: typeof defaultDb = defaultDb): Promise<void> {
+/** Provenance for a suppression write (spec 35 — for the audit trail). */
+export interface SuppressionMeta {
+  source?: string | null; // unsubscribe | resend_webhook | reply_classifier | dsar | manual_ui | migration
+  createdBy?: string | null;
+}
+
+/**
+ * Persist a suppression entry (idempotent upsert on scope+level+value). Used by
+ * 26/27 ingestion, the manual-DNC UI, and the T0 backfill. Re-adding re-asserts
+ * the suppression as ACTIVE and never weakens it (the permanence trigger blocks
+ * any frozen-row weakening at the DB level). Callers should `logAudit` alongside.
+ */
+export async function addSuppressionDb(
+  entry: SuppressionEntry,
+  meta: SuppressionMeta = {},
+  database: typeof defaultDb = defaultDb,
+): Promise<void> {
   const tenantId = entry.scope === GLOBAL_SCOPE ? null : entry.scope;
   await database
     .insert(suppression)
@@ -118,9 +137,134 @@ export async function addSuppressionDb(entry: SuppressionEntry, database: typeof
       reason: entry.reason,
       permanent: entry.permanent,
       expiresAt: entry.expiresAt ? new Date(entry.expiresAt) : null,
+      status: "active",
+      source: meta.source ?? null,
+      createdBy: meta.createdBy ?? null,
     })
     .onConflictDoUpdate({
       target: [suppression.tenantId, suppression.level, suppression.value],
-      set: { type: entry.type, permanent: entry.permanent, reason: entry.reason ?? null, expiresAt: entry.expiresAt ? new Date(entry.expiresAt) : null },
+      // Re-assert active; strengthen type/permanent/reason/cool-off. Setting
+      // status='active' is allowed on frozen rows by the 0094 trigger.
+      set: {
+        type: entry.type,
+        permanent: entry.permanent,
+        reason: entry.reason ?? null,
+        expiresAt: entry.expiresAt ? new Date(entry.expiresAt) : null,
+        status: "active",
+        deactivatedAt: null,
+        deactivatedBy: null,
+        ...(meta.source ? { source: meta.source } : {}),
+      },
     });
+}
+
+/** Reasons that can never be deactivated (the DB trigger enforces this too). */
+const FROZEN_TYPES: ReadonlySet<string> = new Set(["opt_out", "complaint"]);
+
+/**
+ * Admin deactivation of a reversible suppression (manual_dnc / existing_customer
+ * / hard_bounce). Refuses opt_out/complaint at the app layer (R4.1/R4.3) before
+ * the DB trigger would; keeps the row + full history (status -> 'inactive').
+ * Returns true if a row was deactivated, false if none matched.
+ */
+export async function deactivateSuppressionDb(
+  args: { tenantId: string | null; level: SuppressionLevel; value: string; deactivatedBy?: string | null },
+  database: typeof defaultDb = defaultDb,
+): Promise<boolean> {
+  const tenantScope = args.tenantId === null ? isNull(suppression.tenantId) : eq(suppression.tenantId, args.tenantId);
+  const [row] = await database
+    .select({ type: suppression.type })
+    .from(suppression)
+    .where(and(tenantScope, eq(suppression.level, args.level), eq(suppression.value, args.value)))
+    .limit(1);
+  if (!row) return false;
+  if (FROZEN_TYPES.has(row.type)) {
+    throw new Error("suppression_permanent_immutable");
+  }
+  await database
+    .update(suppression)
+    .set({ status: "inactive", deactivatedAt: new Date(), deactivatedBy: args.deactivatedBy ?? null })
+    .where(and(tenantScope, eq(suppression.level, args.level), eq(suppression.value, args.value)));
+  return true;
+}
+
+/** Read-only consent check for re-application paths (restore/import/TAM). Fail-closed. */
+export async function isConsentSuppressed(
+  tenantId: string,
+  target: { email?: string | null; domain?: string | null; accountKey?: string | null },
+  database: typeof defaultDb = defaultDb,
+): Promise<boolean> {
+  try {
+    return await suppressedDb({ ...target, tenantId }, drizzleSuppressionLoader(database));
+  } catch {
+    return true; // fail-closed: treat as suppressed rather than risk re-contacting
+  }
+}
+
+/** Candidate identity for batch consent filtering. */
+export interface ConsentCandidate {
+  email?: string | null;
+  domain?: string | null;
+  accountKey?: string | null;
+}
+
+/**
+ * Batch variant for import/build paths: one query loads every active suppression
+ * matching any candidate's (level,value), then filters in memory. Returns the
+ * candidates that are NOT consent-suppressed. Fail-closed: on a query error,
+ * returns [] (skip all) so a guard outage never resurrects a suppressed identity.
+ */
+export async function filterConsentSuppressed<T extends ConsentCandidate>(
+  tenantId: string,
+  candidates: T[],
+  database: typeof defaultDb = defaultDb,
+  now: number = Date.now(),
+): Promise<T[]> {
+  if (candidates.length === 0) return candidates;
+  try {
+    const emails = [...new Set(candidates.map((c) => normalizeEmail(c.email)).filter((x): x is string => !!x))];
+    const domains = [
+      ...new Set(
+        candidates
+          .map((c) => normalizeDomain(c.domain) ?? domainOfEmail(c.email))
+          .filter((x): x is string => !!x),
+      ),
+    ];
+    const accountKeys = [...new Set(candidates.map((c) => c.accountKey?.trim() || null).filter((x): x is string => !!x))];
+
+    const valueMatch = [
+      emails.length ? and(eq(suppression.level, "address"), inArray(suppression.value, emails)) : undefined,
+      domains.length ? and(eq(suppression.level, "domain"), inArray(suppression.value, domains)) : undefined,
+      accountKeys.length ? and(eq(suppression.level, "account"), inArray(suppression.value, accountKeys)) : undefined,
+    ].filter(Boolean);
+    if (valueMatch.length === 0) return candidates;
+
+    const rows = (await database
+      .select()
+      .from(suppression)
+      .where(
+        and(
+          or(isNull(suppression.tenantId), eq(suppression.tenantId, tenantId)),
+          eq(suppression.status, "active"),
+          or(...valueMatch),
+        ),
+      )) as SuppressionRow[];
+
+    const live = rows.filter((r) => r.permanent || (ms(r.expiresAt) ?? 0) > now);
+    const addr = new Set(live.filter((r) => r.level === "address").map((r) => r.value));
+    const dom = new Set(live.filter((r) => r.level === "domain").map((r) => r.value));
+    const acct = new Set(live.filter((r) => r.level === "account").map((r) => r.value));
+
+    return candidates.filter((c) => {
+      const e = normalizeEmail(c.email);
+      if (e && addr.has(e)) return false;
+      const d = normalizeDomain(c.domain) ?? domainOfEmail(c.email);
+      if (d && dom.has(d)) return false;
+      const a = c.accountKey?.trim() || null;
+      if (a && acct.has(a)) return false;
+      return true;
+    });
+  } catch {
+    return []; // fail-closed
+  }
 }
