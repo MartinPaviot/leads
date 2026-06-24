@@ -14,21 +14,21 @@
  * that accounts/contacts already read for "last interaction", and is embedded
  * for chat/RAG.
  *
- * Scope: every HUMAN inbound is captured (zero-entry capture — the product
- * promise). A real person who emails you has their contact auto-created in
- * every mode but "disabled" — a business-domain sender under their company,
- * a personal/free-mail sender (gmail, outlook, …) as a company-less contact
- * (we never fabricate a "Gmail" account). Previously "selective" silently
- * DROPPED any unknown human sender (no contact, no known company → no
- * activity), so a colleague's or cold prospect's mail never reached the inbox
- * at all — the inbox is the `email_received` activity log, not a raw-mailbox
- * mirror, so a dropped email is invisible forever.
+ * Scope: every inbound is captured + VISIBLE in the inbox (zero-entry capture —
+ * the product promise), but a stranger emailing you is NEVER auto-promoted to a
+ * CRM contact/account. We only graph a sender we can confidently attribute to an
+ * EXISTING prospect: a known contact, or a HUMAN at a company ALREADY in the CRM
+ * (a sourced/known account — the CRM-graph rule, contact created under it).
+ * Everyone else — internal colleagues (own domain), vendors, recruiters,
+ * companies you applied to, cold strangers — is captured as an UNATTRIBUTED
+ * activity (entityType "unassigned", empty id): it shows in the inbox but
+ * pollutes neither the pipeline nor the accounts/contacts list. We NEVER auto-
+ * create a company from inbound. (This replaced an over-eager auto-create that
+ * turned colleagues + applied-to companies into phantom contacts/accounts.)
  *
- * Machine-sent gate (unchanged): a noreply@/newsletter/automated sender is
- * never promoted to a person-contact (no fabricated contact, no
- * `contact/created` → enrich/qualify/"Hot inbound" fan-out). It is captured
- * only when its domain is ALREADY a known company (attached there); an unknown
- * machine sender is still left unresolved rather than spamming the inbox.
+ * Machine-sent (noreply@/newsletter/automated) is likewise never promoted to a
+ * person-contact; it attaches to its company only when that company is already
+ * known, otherwise it too is captured unattributed.
  *
  * Since the IMAP/Gmail pull-sync unification, ALL inbound paths run through
  * this seam — webhook, 15-min cron, force-sync — so attribution and dedup
@@ -265,88 +265,70 @@ export async function captureInboundEmail(
   const ownDomain = (settings.companyDomain || "").toLowerCase().replace(/^www\./, "");
   const ignoredDomains = buildIgnoredDomains(settings, ownDomain);
   const domain = senderEmail.split("@")[1]?.toLowerCase().replace(/^www\./, "") || "";
+  const isOwnDomain = !!ownDomain && domain === ownDomain;
 
-  // Capture-completeness: a real person who emails you is the exact interaction
-  // the product promises to capture, so a HUMAN inbound from an unknown sender
-  // is captured by default — its contact auto-created — unless the tenant set
-  // contactCreationMode "disabled". A business-domain sender is graphed under
-  // their company (resolved or auto-created); a personal/free-mail sender
-  // (gmail, outlook, …) becomes a company-less contact rather than fabricating
-  // a "Gmail" account. The machine-sent gate is unchanged: an automated sender
-  // is never promoted to a contact — it is attached to its company only when
-  // that company is already known, otherwise left unresolved.
+  // Inbound is captured + VISIBLE in the inbox, but a stranger emailing you is
+  // NEVER auto-promoted to a CRM contact/account. We only graph a sender we can
+  // confidently attribute to an EXISTING prospect: a known contact (resolved
+  // above), or a HUMAN at a company ALREADY in the CRM (a sourced/known account
+  // — the CRM-graph rule). Everyone else — internal colleagues (own domain),
+  // vendors, recruiters, companies you applied to, cold strangers — is captured
+  // as an UNATTRIBUTED activity (entityType "unassigned"): it shows in the inbox
+  // but pollutes neither the pipeline nor the accounts/contacts list, until a
+  // real signal qualifies them. We NEVER auto-create a company from inbound.
+  // (This reverses the over-eager auto-create that turned colleagues + applied-
+  // to companies into phantom accounts.)
   let companyId: string | null = contact?.companyId ?? null;
-  if (!contact && senderEmail) {
-    // A "business" domain is one we'd graph as a company: present, and not a
-    // personal/free-mail or do-not-track domain (those stay company-less).
-    const isBusinessDomain = !!domain && !ignoredDomains.has(domain);
-
-    let resolvedCompanyId: string | null = null;
-    if (isBusinessDomain) {
-      const [existingCo] = await db
-        .select({ id: companies.id })
-        .from(companies)
-        .where(
-          and(
-            eq(companies.tenantId, tenantId),
-            eq(companies.domain, domain),
-            isNull(companies.deletedAt),
-          ),
-        )
-        .limit(1);
-      resolvedCompanyId = existingCo?.id ?? null;
-    }
-
-    const createContact =
-      !classification.isMachineSent && settings.contactCreationMode !== "disabled";
-
-    if (createContact) {
-      // Business domain → ensure the company exists so the contact is graphed
-      // under an account. Personal/free-mail → leave the contact company-less.
-      if (isBusinessDomain && !resolvedCompanyId) {
-        const base = domain.split(".")[0] || domain;
-        const [newCo] = await db
-          .insert(companies)
-          .values({ tenantId, name: base.charAt(0).toUpperCase() + base.slice(1), domain })
-          .returning({ id: companies.id });
-        resolvedCompanyId = newCo.id;
+  if (!contact && senderEmail && domain && !isOwnDomain && !ignoredDomains.has(domain)) {
+    const [existingCo] = await db
+      .select({ id: companies.id })
+      .from(companies)
+      .where(
+        and(
+          eq(companies.tenantId, tenantId),
+          eq(companies.domain, domain),
+          isNull(companies.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (existingCo) {
+      companyId = existingCo.id;
+      // A HUMAN sender at a company already in the CRM is a real prospect
+      // contact — create them under that account (unless creation is disabled).
+      // Machine-sent stays attached to the company, never promoted to a person.
+      if (!classification.isMachineSent && settings.contactCreationMode !== "disabled") {
+        const nm = extractNameFromHeader(input.fromHeader || "");
+        const [newContact] = await db
+          .insert(contacts)
+          .values({
+            tenantId,
+            firstName: nm.firstName || null,
+            lastName: nm.lastName || null,
+            email: senderEmail,
+            companyId: existingCo.id,
+          })
+          .returning({ id: contacts.id, companyId: contacts.companyId });
+        contact = newContact;
+        contactCreated = true;
+        companyId = newContact.companyId;
         void inngest
-          .send({ name: "company/created", data: { companyId: newCo.id, tenantId } })
+          .send({
+            name: "contact/created",
+            // Origin tag so the qualify handler runs the inbound relationship
+            // gate before any "Hot inbound" notification.
+            data: { contactId: newContact.id, tenantId, source: "inbound_email" },
+          })
           .catch(() => {});
       }
-      const nm = extractNameFromHeader(input.fromHeader || "");
-      const [newContact] = await db
-        .insert(contacts)
-        .values({
-          tenantId,
-          firstName: nm.firstName || null,
-          lastName: nm.lastName || null,
-          email: senderEmail,
-          companyId: resolvedCompanyId,
-        })
-        .returning({ id: contacts.id, companyId: contacts.companyId });
-      contact = newContact;
-      contactCreated = true;
-      companyId = newContact.companyId;
-      void inngest
-        .send({
-          name: "contact/created",
-          // Tag the origin so the qualify handler runs the inbound relationship
-          // gate (prospect vs vendor/recruiter) before any "Hot inbound"
-          // notification — and so sourced/imported contacts never masquerade as
-          // inbound. See _specs/inbound-lead-recognition/.
-          data: { contactId: newContact.id, tenantId, source: "inbound_email" },
-        })
-        .catch(() => {});
-    } else {
-      // Machine-sent (or "disabled"): attach to the known company if any,
-      // else this stays unresolved and is dropped below.
-      companyId = resolvedCompanyId;
     }
   }
 
-  // Require a contact or a known company — never insert an orphan activity.
-  let entityType: "contact" | "company";
+  // Entity for the activity. Known contact → contact; known company → company;
+  // otherwise UNATTRIBUTED ("unassigned" sentinel, empty id) — captured so the
+  // mail is visible in the inbox, but excluded from every entity-scoped view
+  // (account timeline, contacts list, pipeline) which all filter entityType to
+  // contact/company/deal. No orphan-activity migration needed.
+  let entityType: "contact" | "company" | "unassigned";
   let entityId: string;
   if (contact) {
     entityType = "contact";
@@ -355,7 +337,8 @@ export async function captureInboundEmail(
     entityType = "company";
     entityId = companyId;
   } else {
-    return { captured: false, reason: "unresolved_sender" };
+    entityType = "unassigned";
+    entityId = "";
   }
 
   const mode = getCaptureApprovalMode(settings as unknown as Record<string, unknown>);
@@ -428,7 +411,9 @@ export async function captureInboundEmail(
   // Make the inbound searchable in chat/RAG + memory graph (non-blocking,
   // and only once the activity is actually live — not while pending review).
   if (res.applied && input.text) {
-    if (process.env.OPENAI_API_KEY) {
+    // Skip entity-keyed embedding for an unattributed capture (no entity to
+    // anchor it to); the episode below still makes it searchable in chat/RAG.
+    if (process.env.OPENAI_API_KEY && entityType !== "unassigned" && entityId) {
       const toEmbed = `Email: ${input.subject || ""}\nFrom: ${input.fromHeader}\n\n${input.text.slice(0, 5000)}`;
       void embedEntity(tenantId, entityType, `${entityId}-email-${messageId ?? occurredAt.getTime()}`, toEmbed).catch(() => {});
     }
