@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { contacts, companies, activities } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth/auth-utils";
-import { and, eq, sql, isNull, isNotNull, type SQL } from "drizzle-orm";
+import { and, eq, sql, isNull, isNotNull, inArray, type SQL } from "drizzle-orm";
 import { matchIndustries } from "@/lib/search/industry-match";
 import { inngest } from "@/inngest/client";
 import { embedEntity, contactToText } from "@/lib/ai/embeddings";
@@ -51,10 +51,19 @@ export async function GET(req: Request) {
     // account" showed the wrong set. `contacts.companyId` is a direct column
     // (db/schema/core.ts). drizzle `and()` drops the undefined when absent.
     const companyId = url.searchParams.get("companyId")?.trim() || undefined;
+    // Optional explicit-ids filter. Callers that already know which contacts they
+    // want (e.g. the merge page resolving preselected ids) pass `?ids=a,b,c` and
+    // get exactly those — enriched (companyDomain etc.) — instead of the tenant's
+    // first 50. Without it, preselected ids beyond row 50 were silently dropped.
+    const idsParam = url.searchParams.get("ids")?.trim();
+    const ids = idsParam
+      ? idsParam.split(",").map((s) => s.trim()).filter(Boolean)
+      : null;
     const baseWhere = and(
       eq(contacts.tenantId, authCtx.tenantId),
       showDeleted ? isNotNull(contacts.deletedAt) : isNull(contacts.deletedAt),
       companyId ? eq(contacts.companyId, companyId) : undefined,
+      ids && ids.length > 0 ? inArray(contacts.id, ids) : undefined,
     )!;
 
     let searchWhere: SQL = baseWhere;

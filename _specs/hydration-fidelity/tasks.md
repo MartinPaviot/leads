@@ -121,8 +121,15 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
   name → now a neutral "View company" label. 10 contact-detail tests green (no
   regression). Live verify (failing-fetch UI) deferred — page too heavy to mount
   cheaply; pattern already covered by inbox/contacts tests.
-- [ ] 09 contacts-merge
-  · 10 opportunities · 12 sequences · 13 sequence-detail · 16 meetings · 17 meeting-detail
+- [x] **09 contacts-merge** — curated mode fetched `/api/contacts` (first 50), so a
+  preselected id past row 50 was silently dropped, falsely tripping "Need at least
+  2 valid contacts". Added an `?ids=a,b,c` filter to the contacts route (enriched,
+  tenant-scoped via `inArray(contacts.id, ids)`) and the merge page now fetches
+  exactly the preselected contacts by id (pageSize = selection size). Test: route
+  `ids` filter (route-companyid.test.ts, 3/3). Follow-ups (lower severity): auto-mode
+  candidate avatar passes domain=null (never the real logo — needs companyDomain in
+  the merge GET); curated fetch failure shows only a toast, no inline retry.
+- [ ] 10 opportunities · 12 sequences · 13 sequence-detail · 16 meetings · 17 meeting-detail
   · 19 tasks · 20 call-mode · 23 reports · 24 insights · 26 insights-pilae
   · 27 insights-playbook · 30 notes · 31 graph · 32 voice-of-customer · 35 tam-review
   · then T2 H2 settings.

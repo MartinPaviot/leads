@@ -96,7 +96,12 @@ export default function ContactsMergePage() {
 
   const loadCurated = useCallback(async () => {
     try {
-      const res = await fetch("/api/contacts");
+      // Fetch exactly the preselected contacts by id (enriched), not the tenant's
+      // first 50 — otherwise an id past row 50 was dropped, falsely tripping the
+      // "Need at least 2 valid contacts" guard below.
+      const res = await fetch(
+        `/api/contacts?ids=${encodeURIComponent(preselectedIds.join(","))}&pageSize=${Math.min(200, Math.max(1, preselectedIds.length))}`,
+      );
       if (!res.ok) {
         toast("Failed to load contacts.", "error");
         return;
