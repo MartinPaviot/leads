@@ -1,5 +1,6 @@
 import { inngest } from "./client";
 import { db } from "@/db";
+import { guardEnrollment } from "@/lib/anti-collision/enroll-guard";
 import { tenants, tasks, activities, outboundEmails, contacts, companies, sequenceEnrollments } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { sendNotification } from "@/lib/emails/notifications";
@@ -177,24 +178,28 @@ export const executeWorkflow = inngest.createFunction(
               const enrollContactId = (triggerData.contactId || action.params.contactId) as string | undefined;
 
               if (seqId && enrollContactId) {
-                await db.insert(sequenceEnrollments).values({
-                  sequenceId: seqId,
-                  contactId: enrollContactId,
-                  status: "active",
-                  currentStep: 1,
-                  enrolledAt: new Date(),
-                  nextStepAt: new Date(), // first step fires immediately
-                });
+                // Spec 14 — anti-collision (record-only unless ANTI_COLLISION_ENFORCE).
+                const ac = await guardEnrollment({ tenantId, contactId: enrollContactId, enrollmentId: `${seqId}:${enrollContactId}` });
+                if (ac.proceed) {
+                  await db.insert(sequenceEnrollments).values({
+                    sequenceId: seqId,
+                    contactId: enrollContactId,
+                    status: "active",
+                    currentStep: 1,
+                    enrolledAt: new Date(),
+                    nextStepAt: new Date(), // first step fires immediately
+                  });
 
-                await db.insert(activities).values({
-                  tenantId,
-                  actorType: "system",
-                  actorId: null,
-                  entityType: "contact",
-                  entityId: enrollContactId,
-                  activityType: "system_event",
-                  summary: `Auto-enrolled in sequence via workflow "${workflow.name}"`,
-                });
+                  await db.insert(activities).values({
+                    tenantId,
+                    actorType: "system",
+                    actorId: null,
+                    entityType: "contact",
+                    entityId: enrollContactId,
+                    activityType: "system_event",
+                    summary: `Auto-enrolled in sequence via workflow "${workflow.name}"`,
+                  });
+                }
               }
               break;
             }

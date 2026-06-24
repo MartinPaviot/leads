@@ -1,4 +1,5 @@
 import { inngest } from "./client";
+import { guardEnrollment } from "@/lib/anti-collision/enroll-guard";
 import { db } from "@/db";
 import {
   companies,
@@ -320,6 +321,10 @@ export const prepareCampaign = inngest.createFunction(
       for (const contact of eligibleContacts) {
         if (enrolledSet.has(contact.id)) continue;
         if (!contact.email) continue;
+
+        // Spec 14 — anti-collision (record-only unless ANTI_COLLISION_ENFORCE).
+        const ac = await guardEnrollment({ tenantId, contactId: contact.id, enrollmentId: `${sequenceId}:${contact.id}` });
+        if (!ac.proceed) continue;
 
         // Enroll
         const nextStepAt = new Date();

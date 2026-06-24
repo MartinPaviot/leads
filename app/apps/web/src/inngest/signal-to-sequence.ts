@@ -17,6 +17,7 @@
  */
 
 import { inngest } from "./client";
+import { guardEnrollment } from "@/lib/anti-collision/enroll-guard";
 import { db } from "@/db";
 import {
   contacts,
@@ -281,6 +282,9 @@ export const signalAutoEnroll = inngest.createFunction(
     let enrolled = 0;
     await step.run("enroll-contacts", async () => {
       for (const contact of toEnroll) {
+        // Spec 14 — anti-collision (record-only unless ANTI_COLLISION_ENFORCE).
+        const ac = await guardEnrollment({ tenantId, contactId: contact.id, enrollmentId: `${activeSequence.id}:${contact.id}` });
+        if (!ac.proceed) continue;
         await db.insert(sequenceEnrollments).values({
           sequenceId: activeSequence.id,
           contactId: contact.id,
