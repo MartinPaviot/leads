@@ -108,19 +108,25 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTask, setNewTask] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
   const [sortMode, setSortMode] = useState<SortMode>("priority");
 
   const fetchTasks = useCallback(async () => {
     try {
+      setLoadError(false);
       const res = await fetch("/api/tasks");
       if (res.ok) {
         const data = await res.json();
         setTasks(data.tasks || []);
+      } else {
+        // A 500/401 must not masquerade as "No tasks yet".
+        setLoadError(true);
       }
     } catch (e) {
       console.warn("tasks: list fetch failed", e);
+      setLoadError(true);
     } finally { setLoading(false); }
   }, []);
 
@@ -513,6 +519,14 @@ export default function TasksPage() {
           <div className="space-y-2">
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-11 w-full" />)}
           </div>
+        ) : loadError && tasks.length === 0 ? (
+          <EmptyState
+            variant="error"
+            title="Couldn't load your tasks"
+            description="Something went wrong loading your tasks. They're safe — try again."
+            actionLabel="Retry"
+            onAction={() => { setLoading(true); fetchTasks(); }}
+          />
         ) : tasks.length === 0 ? (
           <EmptyState
             icon={<CheckSquare size={24} />}

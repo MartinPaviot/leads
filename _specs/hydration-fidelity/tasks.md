@@ -164,6 +164,11 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
   tests green. Follow-up (heavier, not done): upcoming-meeting prep is generated into
   local state only and not persisted/re-hydrated on reload — needs prep persistence
   (POST /api/meetings/prep doesn't store it; notes route doesn't return it).
-- [ ] 19 tasks · 20 call-mode · 23 reports · 24 insights · 26 insights-pilae
+- [x] **19 tasks** — fetchTasks swallowed failures → tasks=[] → "No tasks yet" (a
+  500/401 looked like an empty account). Added `loadError` + a retryable error
+  EmptyState (rendered before the empty states). 9 tasks tests green. Defensive
+  follow-up: tasks route resolves entity names by id=ANY without eq(tenantId)
+  (safe today — ids come from tenant-scoped tasks).
+- [ ] 20 call-mode · 23 reports · 24 insights · 26 insights-pilae
   · 27 insights-playbook · 30 notes · 31 graph · 32 voice-of-customer · 35 tam-review
   · then T2 H2 settings.
