@@ -51,7 +51,7 @@ export async function GET(
   }
 
   // Email stats
-  let emailStats = { draft: 0, queued: 0, sent: 0, total: 0 };
+  let emailStats = { draft: 0, queued: 0, sent: 0, opened: 0, replied: 0, total: 0 };
   if (config.status === "ready" || config.status === "launched") {
     const counts = await db
       .select({
@@ -74,6 +74,23 @@ export async function GET(
       if (row.status === "queued") emailStats.queued = c;
       if (row.status === "sent" || row.status === "delivered") emailStats.sent += c;
     }
+
+    // Engagement counts so the launched Opened/Replied tiles aren't structurally
+    // zero (the status breakdown above never produced them).
+    const [engagement] = await db
+      .select({
+        opened: sql<number>`count(*) filter (where ${outboundEmails.openedAt} is not null)`,
+        replied: sql<number>`count(*) filter (where ${outboundEmails.repliedAt} is not null)`,
+      })
+      .from(outboundEmails)
+      .where(
+        and(
+          eq(outboundEmails.tenantId, authCtx.tenantId),
+          eq(outboundEmails.campaignId, sequenceId)
+        )
+      );
+    emailStats.opened = Number(engagement?.opened ?? 0);
+    emailStats.replied = Number(engagement?.replied ?? 0);
   }
 
   return Response.json({

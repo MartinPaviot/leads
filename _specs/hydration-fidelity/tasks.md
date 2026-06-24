@@ -143,7 +143,15 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
   like an empty account). Added `loadError` + a retryable error EmptyState branch
   (genuine-empty CTA preserved). 18 sequences tests green. Left as safe-default minor:
   sending-mode fetch swallow (default testMode:false), header "0" flash pre-load.
-- [ ] 13 sequence-detail · 16 meetings · 17 meeting-detail
+- [x] **13 sequence-detail** — launched campaign tiles (Queued/Sent/Opened/Replied)
+  rendered hardcoded 0 on initial load: `emailStats` was only set by the preparing-
+  poll (which stops on launch). Fixed end-to-end: (a) the status route now also
+  computes opened/replied (`count(*) filter` over outboundEmails, deliverability
+  pattern); (b) fetchSequence hydrates emailStats once from the status endpoint for
+  ready/launched campaigns; (c) the poll got a catch (was an unhandled rejection on
+  failure). Test: status route emailStats opened/replied + 404 (2/2). Page changes
+  (load-populate + poll catch) — no existing page test; live verify deferred.
+- [ ] 16 meetings · 17 meeting-detail
   · 19 tasks · 20 call-mode · 23 reports · 24 insights · 26 insights-pilae
   · 27 insights-playbook · 30 notes · 31 graph · 32 voice-of-customer · 35 tam-review
   · then T2 H2 settings.

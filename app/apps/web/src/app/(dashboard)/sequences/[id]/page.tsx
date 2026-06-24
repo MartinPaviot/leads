@@ -122,6 +122,21 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
         if (config) {
           setCampaignStatus(config.status || "idle");
           setCampaignStats(config.stats || {});
+          // emailStats is otherwise only set by the preparing-poll, which stops
+          // on launch — so an already-launched campaign opened fresh showed
+          // hardcoded 0 in the Queued/Sent/Opened/Replied tiles. Hydrate them
+          // once from the live status endpoint.
+          if (config.status === "ready" || config.status === "launched") {
+            try {
+              const sres = await fetch(`/api/campaigns/${id}/status`);
+              if (sres.ok) {
+                const sdata = await sres.json();
+                if (sdata.emailStats) setEmailStats(sdata.emailStats);
+              }
+            } catch {
+              /* tiles fall back to 0 */
+            }
+          }
         }
         // Auto-open wizard if campaign is draft and not yet prepared
         const seq = data.sequence;
@@ -142,16 +157,22 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
   useEffect(() => {
     if (campaignStatus !== "preparing") return;
     const interval = setInterval(async () => {
-      const res = await fetch(`/api/campaigns/${id}/status`);
-      if (res.ok) {
-        const data = await res.json();
-        setCampaignStatus(data.status);
-        setCampaignStats(data.stats || {});
-        setEmailStats(data.emailStats || {});
-        if (data.status === "ready" || data.status === "launched") {
-          clearInterval(interval);
-          fetchSequence();
+      try {
+        const res = await fetch(`/api/campaigns/${id}/status`);
+        if (res.ok) {
+          const data = await res.json();
+          setCampaignStatus(data.status);
+          setCampaignStats(data.stats || {});
+          setEmailStats(data.emailStats || {});
+          if (data.status === "ready" || data.status === "launched") {
+            clearInterval(interval);
+            fetchSequence();
+          }
         }
+      } catch (e) {
+        // Transient poll failure — keep polling rather than throwing an
+        // unhandled rejection; the next tick re-tries.
+        console.warn("sequence-detail: status poll failed", e);
       }
     }, 3000);
     return () => clearInterval(interval);
