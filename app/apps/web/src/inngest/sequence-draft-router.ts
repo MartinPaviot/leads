@@ -37,7 +37,12 @@ import { deriveSourcesFromContext, type DraftSource } from "@/lib/sequence-draft
 import { personalizeStepEmail } from "@/lib/agents/sequence-generator";
 import { STEP_STRATEGIES, getMethodology } from "@/lib/scoring/outbound-methodologies";
 import { gradeGeneratedStep } from "@/lib/evals/sequence-quality";
-import { generateShadowCopy } from "@/lib/copy/personalization/db-shadow";
+import {
+  generateShadowCopy,
+  generateCopyMessage,
+  persistShadowSample,
+  isCopyEnginePrimaryEnabled,
+} from "@/lib/copy/personalization/db-shadow";
 import { logger } from "@/lib/observability/logger";
 
 export const routeSequenceStepToDraft = inngest.createFunction(
@@ -266,6 +271,30 @@ export const routeSequenceStepToDraft = inngest.createFunction(
       }
     });
 
+    // 5b) Spec 19/20 CUTOVER — when COPY_ENGINE_PRIMARY is on, the grounded copy
+    // engine becomes the primary draft, but ONLY when it produced a genuinely
+    // grounded (high-personalization) message; otherwise we keep the legacy
+    // personalisation. This guarantees the cutover never DEGRADES copy — grounded
+    // when grounded, legacy otherwise. The chosen sample is persisted for audit.
+    const primary = await step.run("copy-engine-primary", async () => {
+      if (!isCopyEnginePrimaryEnabled()) return null;
+      try {
+        const out = await generateCopyMessage(contact.id, tenantId, { lang: "en" });
+        if (out.ran && out.message && out.message.personalization_level === "high") {
+          await persistShadowSample(tenantId, contact.id, "en", out.message, out.evidenceCount ?? 0);
+          return { subject: out.message.subject ?? personalised.subject, body: out.message.body };
+        }
+      } catch (err) {
+        logger.warn("route-sequence-step-to-draft.copy_engine_primary_failed", {
+          tenantId, enrollmentId, err: err instanceof Error ? err.message : String(err),
+        });
+      }
+      return null; // fall back to the legacy personalisation
+    });
+
+    const finalSubject = primary?.subject ?? personalised.subject;
+    const finalBody = primary?.body ?? personalised.body;
+
     // 6) Build + insert the draft. Body is stored both as plain text
     // (for inline editing in the UI) and as HTML (so the eventual
     // sender doesn't have to re-render). For now we put the same
@@ -277,9 +306,9 @@ export const routeSequenceStepToDraft = inngest.createFunction(
       stepId: stepTemplate.id,
       enrollmentId,
       contactId: contact.id,
-      subject: personalised.subject,
-      bodyHtml: personalised.body, // see comment above
-      bodyText: personalised.body,
+      subject: finalSubject,
+      bodyHtml: finalBody, // see comment above
+      bodyText: finalBody,
       stepNumber: enrollment.currentStep ?? 1,
       signalHint: signalHint ?? null,
       personalizationSources: (personalised.sources ?? []) as unknown as Record<string, unknown>[],
@@ -297,9 +326,12 @@ export const routeSequenceStepToDraft = inngest.createFunction(
     // 6b) Spec 19/20 shadow — generate the grounded copy engine's version of this
     // draft for side-by-side comparison in the review queue. Gated by
     // COPY_ENGINE_SHADOW (a cheap no-op when off — no context build, no LLM) and
-    // fully best-effort: it stores a copy_shadow_sample, never touches this draft.
+    // fully best-effort. Skipped when COPY_ENGINE_PRIMARY is on, since the primary
+    // step above already ran the engine + persisted a sample (no double-run).
     await step.run("copy-shadow", () =>
-      generateShadowCopy(contact.id, tenantId, { lang: "en" }).catch(() => null),
+      isCopyEnginePrimaryEnabled()
+        ? null
+        : generateShadowCopy(contact.id, tenantId, { lang: "en" }).catch(() => null),
     );
 
     // 7) Park the enrollment — clear nextStepAt so the cron predicate

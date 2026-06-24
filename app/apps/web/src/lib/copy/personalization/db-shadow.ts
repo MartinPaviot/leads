@@ -95,17 +95,23 @@ export interface ShadowOutcome {
   evidenceCount?: number;
 }
 
+/** Whether the grounded copy engine is the PRIMARY draft path (cutover). Default OFF. */
+export function isCopyEnginePrimaryEnabled(): boolean {
+  const v = process.env.COPY_ENGINE_PRIMARY;
+  return v === "1" || v === "true";
+}
+
 /**
- * Generate one grounded shadow sample for a contact and persist it. Loads the
- * tenant's assets+voice (spec-18) + the prospect's evidence, runs generateMessage,
- * stores the result. Returns ran:false when disabled or no context.
+ * Core: run the copy engine for a contact and return the message — NO flag gate,
+ * NO persist. Used by both the shadow (gated + persisted) and the primary cutover
+ * (where the high-personalization message becomes the live draft). Returns
+ * ran:false only when the prospect context is missing.
  */
-export async function generateShadowCopy(
+export async function generateCopyMessage(
   contactId: string,
   tenantId: string,
   opts: { lang?: Lang; campaignId?: string | null; generate?: ShadowGenerate; database?: typeof defaultDb } = {},
 ): Promise<ShadowOutcome> {
-  if (!isCopyShadowEnabled()) return { ran: false, reason: "copy_shadow_disabled" };
   const database = opts.database ?? defaultDb;
   const lang: Lang = opts.lang ?? "en";
 
@@ -129,8 +135,24 @@ export async function generateShadowCopy(
     winningFormats: copyCtx.voice?.formats,
   });
 
-  await persistShadowSample(tenantId, contactId, lang, message, evidence.length, database);
   return { ran: true, message, evidenceCount: evidence.length };
+}
+
+/**
+ * Generate one grounded shadow sample for a contact and persist it (behind
+ * COPY_ENGINE_SHADOW). Returns ran:false when disabled or no context.
+ */
+export async function generateShadowCopy(
+  contactId: string,
+  tenantId: string,
+  opts: { lang?: Lang; campaignId?: string | null; generate?: ShadowGenerate; database?: typeof defaultDb } = {},
+): Promise<ShadowOutcome> {
+  if (!isCopyShadowEnabled()) return { ran: false, reason: "copy_shadow_disabled" };
+  const out = await generateCopyMessage(contactId, tenantId, opts);
+  if (out.ran && out.message) {
+    await persistShadowSample(tenantId, contactId, opts.lang ?? "en", out.message, out.evidenceCount ?? 0, opts.database ?? defaultDb);
+  }
+  return out;
 }
 
 /** Persist a shadow sample (best-effort — a logging failure must not surface as a sample error). */

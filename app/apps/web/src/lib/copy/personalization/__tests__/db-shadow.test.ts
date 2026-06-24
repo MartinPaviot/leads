@@ -10,14 +10,26 @@ vi.mock("@/lib/context/prospect-context", () => ({
 }));
 
 import { copyAssetBlock } from "@/db/schema";
-import { buildAgentPrompt, personalizationRunAgent, generateShadowCopy } from "../db-shadow";
+import { buildAgentPrompt, personalizationRunAgent, generateShadowCopy, generateCopyMessage, isCopyEnginePrimaryEnabled } from "../db-shadow";
 import type { PersonalizationAgentInput } from "../generate-message";
 
 const ORIG = process.env.COPY_ENGINE_SHADOW;
+const ORIG_PRIMARY = process.env.COPY_ENGINE_PRIMARY;
 afterEach(() => {
   if (ORIG === undefined) delete process.env.COPY_ENGINE_SHADOW;
   else process.env.COPY_ENGINE_SHADOW = ORIG;
+  if (ORIG_PRIMARY === undefined) delete process.env.COPY_ENGINE_PRIMARY;
+  else process.env.COPY_ENGINE_PRIMARY = ORIG_PRIMARY;
 });
+
+const highCtx = () =>
+  ({
+    contact: { id: "c1", seniority: "vp", firstName: "Sam", lastName: "Lee", fullName: "Sam Lee", email: "s@x.com", title: "VP", departments: [], linkedinUrl: null, score: null, scoreReasons: [] },
+    funding: { stage: null, amount: null, amountPrinted: null },
+    technologies: [],
+    bestSignal: null,
+    researchBrief: { bestAngle: null, painPoints: [], competitorDetected: null, warmthSignals: [], publicContent: [{ type: "linkedin_post", title: "t", quote: "We just shipped X" }] },
+  }) as unknown;
 
 const agentInput = (over: Partial<PersonalizationAgentInput> = {}): PersonalizationAgentInput => ({
   kind: "grounded-personalization",
@@ -98,5 +110,39 @@ describe("generateShadowCopy", () => {
     expect(res.message?.body).toContain("shipped X");
     expect(res.evidenceCount).toBe(1);
     expect(inserted).toMatchObject({ tenantId: "t1", contactId: "c1", lang: "en", personalizationLevel: "high" });
+  });
+});
+
+describe("isCopyEnginePrimaryEnabled", () => {
+  it("off by default, on for 1/true", () => {
+    delete process.env.COPY_ENGINE_PRIMARY;
+    expect(isCopyEnginePrimaryEnabled()).toBe(false);
+    process.env.COPY_ENGINE_PRIMARY = "1";
+    expect(isCopyEnginePrimaryEnabled()).toBe(true);
+    process.env.COPY_ENGINE_PRIMARY = "true";
+    expect(isCopyEnginePrimaryEnabled()).toBe(true);
+    process.env.COPY_ENGINE_PRIMARY = "off";
+    expect(isCopyEnginePrimaryEnabled()).toBe(false);
+  });
+});
+
+describe("generateCopyMessage (no flag gate — the cutover core)", () => {
+  it("runs the engine and returns a high-personalization message even when the shadow flag is OFF, without persisting", async () => {
+    delete process.env.COPY_ENGINE_SHADOW; // generateCopyMessage ignores it
+    ctxState.ctx = highCtx();
+    let inserted = false;
+    const res = await generateCopyMessage("c1", "t1", {
+      database: stubDb({ assets: [{ id: "a1", tenantId: "t1", campaignId: null, lang: "en", kind: "positioning", content: "We cut onboarding time.", version: 1, isCurrent: true, createdAt: new Date() }], onInsert: () => (inserted = true) }),
+      generate: async () => JSON.stringify({ line: "Saw you just shipped X, relevant to onboarding speed.", citedIds: ["pc-0"] }),
+    });
+    expect(res.ran).toBe(true);
+    expect(res.message?.personalization_level).toBe("high");
+    expect(inserted).toBe(false); // core does NOT persist; the shadow/primary wrappers do
+  });
+
+  it("reports no_prospect_context when the context is missing", async () => {
+    ctxState.ctx = null;
+    const res = await generateCopyMessage("c1", "t1", { database: stubDb() });
+    expect(res).toEqual({ ran: false, reason: "no_prospect_context" });
   });
 });
