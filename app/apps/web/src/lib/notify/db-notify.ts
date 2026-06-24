@@ -2,17 +2,18 @@
  * Spec 28 (notify half, in-app) — deliver system alerts to a tenant's recipients
  * as in-app notifications. The analytics cluster (spec-32 regression alerts,
  * spec-31 optimizer proposals) persists its findings but, until now, only
- * console.warn'd them — nobody was actually told. This is the key-free delivery
- * path (Slack/CRM webhooks are the external-credential variant, deferred until a
- * SLACK_WEBHOOK_URL exists). Reuses the existing notifications table + the
- * admin-preferred recipient resolver. Pure copy helpers are unit-tested; the
- * insert is exercised against a stub db.
+ * console.warn'd them — nobody was actually told. In-app is the always-on,
+ * key-free path; Slack is layered on env-gated (SLACK_WEBHOOK_URL) and best-effort.
+ * HubSpot/CRM sync is the separate spec-28 half. Reuses the existing notifications
+ * table + the admin-preferred recipient resolver. Pure copy helpers are
+ * unit-tested; the insert is exercised against a stub db.
  */
 
 import { db as defaultDb } from "@/db";
 import { notifications, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { resolveTenantRecipients } from "@/lib/notifications/resolve-recipients";
+import { isSlackConfigured, postSlackWebhook } from "@/lib/notify/slack/webhook-client";
 import type { Alert } from "@/lib/analytics/alerts/alerts";
 
 export interface NotifyPayload {
@@ -23,13 +24,16 @@ export interface NotifyPayload {
 export interface NotifyResult {
   delivered: number;
   source: "admin" | "all_users" | "none";
+  /** Whether the message also went to Slack (env-gated; false when no webhook). */
+  slack: boolean;
 }
 
 /**
- * Insert one `system` notification per resolved recipient (admin-preferred, all-
- * users fallback). Returns how many rows were written + which path resolved. A
- * tenant with no users is a no-op (delivered 0). Best-effort: callers run this
- * inside a cron step, so a throw is retried with the rest of the step.
+ * Deliver a system notification to a tenant: one `system` in-app notification per
+ * resolved recipient (admin-preferred, all-users fallback) AND — when a Slack
+ * webhook is configured — a Slack post. Slack is independent of in-app recipients
+ * (it targets the founder's channel) and best-effort (a Slack outage never fails
+ * the caller). A tenant with no users still posts to Slack but writes no in-app row.
  */
 export async function notifyTenant(
   tenantId: string,
@@ -37,6 +41,13 @@ export async function notifyTenant(
   opts: { database?: typeof defaultDb } = {},
 ): Promise<NotifyResult> {
   const database = opts.database ?? defaultDb;
+
+  // Slack (env-gated, best-effort) — independent of in-app recipients. `*..*` is
+  // Slack mrkdwn bold, not an emoji.
+  const slack = isSlackConfigured()
+    ? await postSlackWebhook(`*${payload.title}*\n${payload.body}`).catch(() => false)
+    : false;
+
   const recipients = await resolveTenantRecipients({
     tenantId,
     deps: {
@@ -44,7 +55,7 @@ export async function notifyTenant(
         database.select({ id: users.id, role: users.role }).from(users).where(eq(users.tenantId, tid)),
     },
   });
-  if (recipients.userIds.length === 0) return { delivered: 0, source: "none" };
+  if (recipients.userIds.length === 0) return { delivered: 0, source: "none", slack };
 
   await database.insert(notifications).values(
     recipients.userIds.map((uid) => ({
@@ -57,7 +68,7 @@ export async function notifyTenant(
       entityId: null,
     })),
   );
-  return { delivered: recipients.userIds.length, source: recipients.source };
+  return { delivered: recipients.userIds.length, source: recipients.source, slack };
 }
 
 // ── copy helpers (pure) ──

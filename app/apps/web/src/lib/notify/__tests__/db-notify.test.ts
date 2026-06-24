@@ -23,7 +23,7 @@ describe("notifyTenant", () => {
     const res = await notifyTenant("t1", { title: "T", body: "B" }, {
       database: stubDb({ users: [{ id: "u1", role: "admin" }, { id: "u2", role: "member" }], onInsert: (r) => (inserted = r) }),
     });
-    expect(res).toEqual({ delivered: 1, source: "admin" });
+    expect(res).toEqual({ delivered: 1, source: "admin", slack: false });
     expect(inserted).toHaveLength(1);
     expect(inserted[0]).toMatchObject({ tenantId: "t1", userId: "u1", type: "system", title: "T", body: "B" });
   });
@@ -32,7 +32,7 @@ describe("notifyTenant", () => {
     const res = await notifyTenant("t1", { title: "T", body: "B" }, {
       database: stubDb({ users: [{ id: "u1", role: "member" }, { id: "u2", role: "member" }] }),
     });
-    expect(res).toEqual({ delivered: 2, source: "all_users" });
+    expect(res).toEqual({ delivered: 2, source: "all_users", slack: false });
   });
 
   it("is a no-op for a tenant with no users", async () => {
@@ -40,7 +40,7 @@ describe("notifyTenant", () => {
     const res = await notifyTenant("t1", { title: "T", body: "B" }, {
       database: stubDb({ users: [], onInsert: () => (called = true) }),
     });
-    expect(res).toEqual({ delivered: 0, source: "none" });
+    expect(res).toEqual({ delivered: 0, source: "none", slack: false });
     expect(called).toBe(false);
   });
 });
