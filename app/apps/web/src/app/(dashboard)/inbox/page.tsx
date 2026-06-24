@@ -413,13 +413,13 @@ export default function InboxPage() {
     // stays fresh like a classic mail client instead of waiting for the */5 cron.
     // POST /api/email/sync only INGESTS inbound (Gmail rides its own push; IMAP/
     // custom + Outlook get a force pull) — it never sends. Debounced + gated to the
-    // visible tab so it costs at most one pull per ~20s per active viewer; the 25s
-    // DB refresh below then surfaces what the pull wrote.
+    // visible tab so it costs at most one pull per ~12s per active viewer; the 15s
+    // DB refresh below then surfaces what the pull wrote → new mail shows in ~15s.
     let lastSync = 0;
     const triggerMailSync = () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       const now = Date.now();
-      if (now - lastSync < 20000) return;
+      if (now - lastSync < 12000) return;
       lastSync = now;
       void fetch("/api/email/sync", { method: "POST" }).catch(() => {});
     };
@@ -430,8 +430,8 @@ export default function InboxPage() {
       void loadLane(lane, 1, false, true);
     };
     triggerMailSync(); // sync on open
-    const syncId = window.setInterval(triggerMailSync, 30000);
-    const id = window.setInterval(refresh, 25000);
+    const syncId = window.setInterval(triggerMailSync, 15000);
+    const id = window.setInterval(refresh, 15000);
     const onFocus = () => {
       triggerMailSync();
       refresh();
