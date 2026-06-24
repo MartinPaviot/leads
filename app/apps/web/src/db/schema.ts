@@ -10,6 +10,7 @@ export * from "./schema/gates";
 export * from "./schema/agent-run";
 export * from "./schema/canonical";
 export * from "./schema/outbound";
+export * from "./schema/copy-assets";
 export * from "./schema/intelligence";
 export * from "./schema/agent";
 export * from "./schema/campaign";
