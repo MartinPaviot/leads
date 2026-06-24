@@ -73,11 +73,28 @@ export type SendingGateOutcome =
  * Unknown / none / lookup error -> cold (EC-6: treat unknown as cold, the
  * safest rail — blocked on the default mode).
  */
+/**
+ * Build the LIKE pattern that matches the RFC `Name <addr>` / `<addr>` header
+ * forms for the (lowercased) address, escaping LIKE metacharacters (`_` `%`,
+ * and the escape `\`) so the match is literal. Exported for unit coverage.
+ */
+export function emailBracketLikePattern(email: string): string {
+  const e = email.toLowerCase().trim();
+  return `%<${e.replace(/([\\%_])/g, "\\$1")}>%`;
+}
+
 export async function isColdRecipient(
   tenantId: string,
   email: string,
 ): Promise<boolean> {
   const e = email.toLowerCase().trim();
+  // Match the bare address AND the RFC `Name <addr>` / `<addr>` forms. Inbound
+  // capture stores the FULL `From` header in metadata (e.g.
+  // `"Paul Madelénat" <paul@x.com>`), so an exact `= e` compare missed every
+  // reply recipient and wrongly marked them COLD — which then tripped the
+  // cold-on-primary rail and blocked plain replies. Case-insensitive; LIKE
+  // metacharacters in the address are escaped so the match is literal.
+  const bracket = emailBracketLikePattern(e);
   const [row] = await db
     .select({ n: sql<number>`1` })
     .from(activities)
@@ -85,7 +102,12 @@ export async function isColdRecipient(
       and(
         eq(activities.tenantId, tenantId),
         eq(activities.channel, "email"),
-        sql`(metadata->>'to' = ${e} OR metadata->>'from' = ${e})`,
+        sql`(
+          lower(metadata->>'to') = ${e}
+          OR lower(metadata->>'from') = ${e}
+          OR lower(metadata->>'to') LIKE ${bracket}
+          OR lower(metadata->>'from') LIKE ${bracket}
+        )`,
       ),
     )
     .limit(1);
