@@ -56,7 +56,7 @@ vi.mock("@/db", () => ({
 
 // getTenantSettings + DEFAULTS — DEFAULTS mirrors tenant-settings.ts. Hoisted so
 // the vi.mock factory (also hoisted) can reference it without a TDZ error.
-const { DEFAULTS, settingsState, suppressionState } = vi.hoisted(() => ({
+const { DEFAULTS, settingsState, suppressionState, emailStatusState } = vi.hoisted(() => ({
   DEFAULTS: {
     sendingMailboxMode: "primary-with-caps" as const,
     sendingDailyCapPrimary: 20,
@@ -69,11 +69,18 @@ const { DEFAULTS, settingsState, suppressionState } = vi.hoisted(() => ({
   // Spec-22 DB suppression is mocked at the module boundary so the gate test
   // stays decoupled from the suppression table's query shape. null = not suppressed.
   suppressionState: { hit: null as null | { entry: { type: string; level: string } } },
+  // Spec-17 email status — likewise mocked at the boundary. null = unverified.
+  emailStatusState: { status: null as string | null },
 }));
 
 vi.mock("@/lib/suppression/db-store", () => ({
   isSuppressedDb: vi.fn(async () => suppressionState.hit),
   drizzleSuppressionLoader: vi.fn(() => async () => []),
+}));
+// Keep the REAL isEmailKnownUnsendable (pure); only stub the DB read.
+vi.mock("@/lib/contacts/email/db-status", async (orig) => ({
+  ...(await orig<typeof import("@/lib/contacts/email/db-status")>()),
+  loadEmailStatus: vi.fn(async () => emailStatusState.status),
 }));
 vi.mock("@/lib/config/tenant-settings", () => ({
   DEFAULTS,
@@ -92,6 +99,7 @@ beforeEach(() => {
   settingsState.throwOnSettings = false;
   settingsState.settingsToReturn = { ...DEFAULTS };
   suppressionState.hit = null;
+  emailStatusState.status = null;
 });
 
 describe("isSuppressed", () => {
@@ -140,6 +148,42 @@ describe("evaluateSend — spec-22 broader suppression", () => {
     suppressionState.hit = { entry: { type: "manual_dnc", level: "address" } };
     const r = await evaluateSend({ tenantId: "t1", toAddress: "x@a.com", sentTodayFromPrimary: 0 });
     if (!r.send) expect(r.code).toBe("opted_out"); // opt-out checked first
+  });
+});
+
+describe("evaluateSend — spec-17 email-verification gate (SAFE: known-invalid only)", () => {
+  it("blocks a KNOWN-invalid recipient with code 'invalid_email'", async () => {
+    emailStatusState.status = "invalid";
+    activityRows = [{ tenantId: "t1", to: "x@a.com" }]; // warm, would otherwise send
+    const r = await evaluateSend({ tenantId: "t1", toAddress: "x@a.com", sentTodayFromPrimary: 0 });
+    expect(r.send).toBe(false);
+    if (!r.send) {
+      expect(r.code).toBe("invalid_email");
+      expect(r.reason).toContain("invalid");
+    }
+  });
+
+  it("does NOT block when status is null (unverified) — no-op until the job runs", async () => {
+    emailStatusState.status = null;
+    activityRows = [{ tenantId: "t1", to: "x@a.com" }];
+    const r = await evaluateSend({ tenantId: "t1", toAddress: "x@a.com", sentTodayFromPrimary: 0 });
+    expect(r.send).toBe(true);
+  });
+
+  it("does NOT block 'risky' / 'catch_all' / 'unknown' — only 'invalid' is terminal", async () => {
+    activityRows = [{ tenantId: "t1", to: "x@a.com" }];
+    for (const status of ["risky", "catch_all", "unknown", "valid"]) {
+      emailStatusState.status = status;
+      const r = await evaluateSend({ tenantId: "t1", toAddress: "x@a.com", sentTodayFromPrimary: 0 });
+      expect(r.send).toBe(true);
+    }
+  });
+
+  it("suppression (spec-22) takes precedence over the invalid-email check", async () => {
+    suppressionState.hit = { entry: { type: "competitor", level: "domain" } };
+    emailStatusState.status = "invalid";
+    const r = await evaluateSend({ tenantId: "t1", toAddress: "x@competitor.com", sentTodayFromPrimary: 0 });
+    if (!r.send) expect(r.code).toBe("suppressed"); // suppression checked first
   });
 });
 

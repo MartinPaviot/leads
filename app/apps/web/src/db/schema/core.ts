@@ -199,6 +199,11 @@ export const contacts = pgTable(
     identityKey: text("identity_key"),
     vendorIds: jsonb("vendor_ids").default({}),
     canonicalFields: jsonb("canonical_fields").default({}),
+    // Spec 17 — email deliverability verification status: valid / risky /
+    // invalid / catch_all / unknown. NULL = not yet verified. The pre-send gate
+    // blocks KNOWN-invalid; strict valid-only is the eventual state once the
+    // verification job (findAndVerifyEmail) populates this.
+    emailStatus: text("email_status"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
