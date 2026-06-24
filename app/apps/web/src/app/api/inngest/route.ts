@@ -4,6 +4,7 @@ import { enrichCompany, enrichBatch, sendSequenceStep, processReply } from "@/in
 import { syncEmails, syncCalendar, onGoogleOAuthConnected, onMicrosoftOAuthConnected, cronSyncEmails } from "@/inngest/sync-functions";
 import { dispatchOutboundSmtp } from "@/inngest/outbound-smtp-send";
 import { dailyRollup } from "@/inngest/daily-rollup";
+import { weeklyOptimizer } from "@/inngest/weekly-optimizer";
 import { aiAutoFill } from "@/inngest/ai-autofill";
 import { executeWorkflow } from "@/inngest/workflow-engine";
 import { cronCalendarSync, autoMeetingPrep, generateMeetingPrep } from "@/inngest/meeting-functions";
@@ -102,6 +103,9 @@ export const { GET, POST, PUT } = serve({
     sendSequenceStep,
     processReply,
     dailyRollup,
+    // Spec 31 — weekly optimization review: grounded proposals into the
+    // gated queue (observe-only; nothing auto-applied).
+    weeklyOptimizer,
     syncEmails,
     syncCalendar,
     onGoogleOAuthConnected,
