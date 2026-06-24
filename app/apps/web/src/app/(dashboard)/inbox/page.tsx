@@ -409,17 +409,37 @@ export default function InboxPage() {
     freshRef.current = { lane: customLaneId ?? tab, page, loading };
   });
   useEffect(() => {
+    // Pull new mail from the connected mailbox(es) while the inbox is open, so it
+    // stays fresh like a classic mail client instead of waiting for the */5 cron.
+    // POST /api/email/sync only INGESTS inbound (Gmail rides its own push; IMAP/
+    // custom + Outlook get a force pull) — it never sends. Debounced + gated to the
+    // visible tab so it costs at most one pull per ~20s per active viewer; the 25s
+    // DB refresh below then surfaces what the pull wrote.
+    let lastSync = 0;
+    const triggerMailSync = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastSync < 20000) return;
+      lastSync = now;
+      void fetch("/api/email/sync", { method: "POST" }).catch(() => {});
+    };
     const refresh = () => {
       const { lane, page: p, loading: l } = freshRef.current;
       if (lane === "outbound" || p !== 1 || l) return;
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       void loadLane(lane, 1, false, true);
     };
+    triggerMailSync(); // sync on open
+    const syncId = window.setInterval(triggerMailSync, 30000);
     const id = window.setInterval(refresh, 25000);
-    const onFocus = () => refresh();
+    const onFocus = () => {
+      triggerMailSync();
+      refresh();
+    };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onFocus);
     return () => {
+      window.clearInterval(syncId);
       window.clearInterval(id);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onFocus);

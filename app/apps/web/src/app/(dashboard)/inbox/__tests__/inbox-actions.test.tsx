@@ -469,3 +469,12 @@ describe("CLE-14 /inbox — off-page degradation", () => {
     expect(r.error).toBe("action_not_registered");
   });
 });
+
+describe("/inbox — stays fresh while open (sync-on-open)", () => {
+  it("force-pulls new mail (POST /api/email/sync) when the inbox opens", async () => {
+    await mountLoaded();
+    // The open inbox triggers an ingest-only force sync so IMAP/custom mailboxes
+    // (no push) stay fresh like a classic mail client, instead of waiting for the cron.
+    expect(callsTo("/api/email/sync", "POST").length).toBeGreaterThanOrEqual(1);
+  });
+});
