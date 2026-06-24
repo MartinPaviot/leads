@@ -31,11 +31,14 @@ Branch: `feat/hydration-fidelity` (from main). R1 already shipped separately on
   - Test: tier-derivation unit test (plan → currentTier).
   - Verify: as a non-trial tenant, "Current Plan" lands on the right tier.
 
-- [ ] **T5 (R4) skills registry warm**
-  - Code: `api/settings/skills/route.ts` warms registry before `listSkills()`;
-    maps real system-skill fields.
-  - Test: GET returns system skills with steps/guidelines populated.
-  - Verify: fresh server → `/skills` System + Explore populated.
+- [x] **T5 (R4) skills registry warm** — DONE. `api/settings/skills/route.ts`
+  now calls `registerAllSkills()` at module load (mirrors /api/skills/[slug]).
+  NOTE: the audit's secondary "thin detail / map steps/guidelines" claim was a
+  misread — `SkillDefinition` (skills/types.ts) has NO steps/constraints/params/
+  guidelines (those are custom-skill-only DB fields), so `hasSteps:false` is
+  correct for code-defined system skills. The real defect was the empty registry.
+  - Test: `route-registry-warm.test.ts` — registry warmed at load + system skills
+    present in payload. 2/2 green.
 
 - [ ] **T6 (R5) cs-today ARR exposure**
   - Code: snapshot writer sets `arrExposureUsd`; soften header copy if null.
