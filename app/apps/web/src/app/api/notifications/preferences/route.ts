@@ -10,11 +10,28 @@ export async function GET() {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [prefs] = await db
-    .select()
-    .from(notificationPreferences)
-    .where(eq(notificationPreferences.userId, authCtx.appUserId))
-    .limit(1);
+  // Per-user notification preferences AND the tenant-level Slack webhook. The
+  // webhook lives on tenants.settings.slackWebhookUrl (PUT persists it there),
+  // NOT on the per-user preferences row — GET previously omitted it, so the
+  // /settings/notifications webhook input + "Connected" badge rehydrated blank on
+  // every reload. Read both so the saved webhook round-trips.
+  const [[prefs], [tenantRow]] = await Promise.all([
+    db
+      .select()
+      .from(notificationPreferences)
+      .where(eq(notificationPreferences.userId, authCtx.appUserId))
+      .limit(1),
+    db
+      .select({ settings: tenants.settings })
+      .from(tenants)
+      .where(eq(tenants.id, authCtx.tenantId))
+      .limit(1),
+  ]);
+
+  const slackWebhook =
+    ((tenantRow?.settings as Record<string, unknown> | null)?.slackWebhookUrl as
+      | string
+      | null) ?? null;
 
   if (!prefs) {
     // Return defaults
@@ -33,6 +50,7 @@ export async function GET() {
         new_contact: { email: false, inApp: true },
         system: { email: true, inApp: true },
       },
+      slackWebhook,
     });
   }
 
@@ -40,6 +58,7 @@ export async function GET() {
     emailEnabled: prefs.emailEnabled,
     inAppEnabled: prefs.inAppEnabled,
     preferences: prefs.preferences,
+    slackWebhook,
   });
 }
 
