@@ -113,7 +113,7 @@ vi.mock("@/lib/targeting/status", () => ({
   })),
 }));
 
-import { evaluateSend, isSuppressed, isColdRecipient } from "@/lib/guardrails/sending-gate";
+import { evaluateSend, isSuppressed, isColdRecipient, emailBracketLikePattern } from "@/lib/guardrails/sending-gate";
 
 beforeEach(() => {
   optoutRows = [];
@@ -147,6 +147,17 @@ describe("isColdRecipient", () => {
   });
   it("cold (unknown) when no activity", async () => {
     expect(await isColdRecipient("t1", "x@a.com")).toBe(true);
+  });
+});
+
+describe("emailBracketLikePattern (reply-recipient header match)", () => {
+  it("wraps the lowercased address in angle brackets so `Name <addr>` headers match", () => {
+    // Inbound capture stores `from` as the full header; the bare `= e` compare
+    // missed it → reply recipient wrongly cold → cold-on-primary blocked the reply.
+    expect(emailBracketLikePattern("Paul.Madelenat@Pilae.CH")).toBe("%<paul.madelenat@pilae.ch>%");
+  });
+  it("escapes LIKE metacharacters (_ %) so the match is literal", () => {
+    expect(emailBracketLikePattern("a_b%c@x.com")).toBe("%<a\\_b\\%c@x.com>%");
   });
 });
 
