@@ -37,6 +37,7 @@
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",
     "drizzle-orm": "^0.45.2",
+    "drizzle-zod": "^0.8.3",
     "framer-motion": "^12.40.0",
     "googleapis": "^171.4.0",
     "ical.js": "^2.0.0",

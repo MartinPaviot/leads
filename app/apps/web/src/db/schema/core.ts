@@ -12,6 +12,7 @@ import {
   boolean,
   varchar,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { activityTypeEnum, channelEnum, directionEnum, sentimentEnum, dealStageEnum } from "./enums";
 
 // === CORE TABLES ===
@@ -92,6 +93,17 @@ export const companies = pgTable(
     // from properties.source for the accounts "Source" column + filters.
     lastEnrichedAt: timestamp("last_enriched_at", { withTimezone: true }),
     sourceSystem: text("source_system"),
+    // Canonical data model (spec 00, _specs/00-canonical-data-model).
+    // identityKey: registry-first dedup key (fr:<siren> · ch:<uid> ·
+    // d:<domain> · n:<name>), unique per tenant; never derived from a vendor
+    // id. vendorIds: side map { provider: id } kept OUT of identity (replaces
+    // ad-hoc properties.apollo_id). canonicalFields: precedence-resolved
+    // projection { field: { value, provider, observedAt } }, recomputed on
+    // every account_field_source write; the winning value is mirrored onto the
+    // scalar columns above so existing readers benefit.
+    identityKey: text("identity_key"),
+    vendorIds: jsonb("vendor_ids").default({}),
+    canonicalFields: jsonb("canonical_fields").default({}),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
@@ -99,6 +111,11 @@ export const companies = pgTable(
   (table) => [
     index("companies_tenant_id_idx").on(table.tenantId),
     index("companies_domain_idx").on(table.domain),
+    // One canonical record per real legal entity per tenant (AC3). Partial:
+    // ignores unkeyed + soft-deleted rows.
+    uniqueIndex("companies_identity_key_idx")
+      .on(table.tenantId, table.identityKey)
+      .where(sql`identity_key is not null and deleted_at is null`),
     index("companies_logo_resolved_at_idx").on(table.logoResolvedAt),
     index("companies_excluded_at_idx").on(table.excludedAt),
     index("companies_priority_score_idx").on(
@@ -176,6 +193,12 @@ export const contacts = pgTable(
     // TAM freshness + origin (tam-lifecycle) — same semantics as companies.
     lastEnrichedAt: timestamp("last_enriched_at", { withTimezone: true }),
     sourceSystem: text("source_system"),
+    // Canonical data model (spec 00). identityKey: email-first dedup key
+    // (e:<email> · li:<linkedin> · nc:<name>@<companyId>), unique per tenant.
+    // vendorIds + canonicalFields: same semantics as companies.
+    identityKey: text("identity_key"),
+    vendorIds: jsonb("vendor_ids").default({}),
+    canonicalFields: jsonb("canonical_fields").default({}),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
@@ -184,6 +207,9 @@ export const contacts = pgTable(
     index("contacts_tenant_id_idx").on(table.tenantId),
     index("contacts_company_id_idx").on(table.companyId),
     index("contacts_email_idx").on(table.email),
+    uniqueIndex("contacts_identity_key_idx")
+      .on(table.tenantId, table.identityKey)
+      .where(sql`identity_key is not null and deleted_at is null`),
     index("contacts_tenant_last_enriched_idx").on(
       table.tenantId,
       table.lastEnrichedAt,
