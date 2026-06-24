@@ -134,6 +134,10 @@ export default function InboxPage() {
   // Search (INBOX-Q04): debounced so each keystroke doesn't refetch.
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  // The header search field shrinks on narrow windows; only show the full
+  // operator-hint placeholder where it actually fits (≥ lg), else "Search mail"
+  // so it never clips. Starts false → matches SSR, set on mount (no hydration gap).
+  const [wideSearch, setWideSearch] = useState(false);
   // F3: the last foreground load rejected — drives the list error state so a failed
   // load shows a Retry, not a misleading empty lane (only meaningful when count===0).
   const [listError, setListError] = useState(false);
@@ -312,6 +316,15 @@ export default function InboxPage() {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
     return () => clearTimeout(t);
   }, [search]);
+
+  // Track whether the search field is wide enough (≥ lg) for the full hint.
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setWideSearch(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   // Minimal lane creator (INBOX-T01): name + a sender-domain clause. Selecting the
   // new lane triggers the load effect, which refreshes customLanes from the route.
@@ -1060,7 +1073,7 @@ export default function InboxPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search mail — from: subject: is:unread"
+                placeholder={wideSearch ? "Search mail — from: subject: is:unread" : "Search mail"}
                 className="w-full rounded-md border py-1.5 pl-8 pr-8 text-[13px] outline-none"
                 style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-page)", color: "var(--color-text-primary)" }}
               />
@@ -1074,11 +1087,15 @@ export default function InboxPage() {
         )}
       </PageHeader>
 
-      <div className="inbox-shell flex min-h-0 flex-1">
+      {/* @container: the single-pane breakpoint keys off the inbox area's OWN
+          width (≈ viewport − global sidebar), not the viewport — so a thread
+          stays 3-column only while the reading pane is actually comfortable
+          (≥ ~600px) on any monitor, and collapses to single-pane otherwise. */}
+      <div className="inbox-shell @container flex min-h-0 flex-1">
       {/* Left: mailbox folders + Splits (the Upstream IA). Hidden when a thread
-          is open on a narrow/half-screen window so the reader goes single-pane. */}
+          is open and the inbox area is too narrow for 3 columns (single-pane). */}
       {mailboxConnected && (
-        <div className={selectedKey ? "hidden shrink-0 lg:flex" : "flex shrink-0"}>
+        <div className={selectedKey ? "hidden shrink-0 @min-[1100px]:flex" : "flex shrink-0"}>
         <InboxFolders
           tab={customLaneId ? "attention" : tab}
           customLaneId={customLaneId}
@@ -1122,7 +1139,7 @@ export default function InboxPage() {
       {/* Second nav axis: the split-tab strip (attention lane only). Hidden in
           the narrow single-pane reader so the open thread stands alone. */}
       {mailboxConnected && tab === "attention" && !customLaneId && (
-        <div className={selectedKey ? "hidden lg:block" : "block"}>
+        <div className={selectedKey ? "hidden @min-[1100px]:block" : "block"}>
           <SplitStrip splits={splitCounts} noiseCount={noiseCount} active={activeSplit} onSelect={setActiveSplit} />
         </div>
       )}
@@ -1151,7 +1168,7 @@ export default function InboxPage() {
               sub-segment); the standalone rail is gone. */}
           <div
             ref={listRef}
-            className={`overflow-y-auto ${selectedKey ? "hidden border-r lg:block lg:w-[260px] lg:shrink-0" : "flex-1"}`}
+            className={`overflow-y-auto ${selectedKey ? "hidden border-r @min-[1100px]:block @min-[1100px]:w-[260px] @min-[1100px]:shrink-0" : "flex-1"}`}
             style={{ borderColor: "var(--color-border-default)" }}
           >
             {/* Capture review (INBOX-G02) — auto-captured interactions awaiting approval. */}
@@ -1272,11 +1289,12 @@ export default function InboxPage() {
           </div>
           {selectedKey && (
             <div className="flex min-w-0 flex-1 flex-col">
-              {/* Single-pane back control: shown only on narrow widths where the
-                  list + rail are hidden. At lg+ the master-detail list is the way back. */}
+              {/* Single-pane back control: shown only when the inbox area is too
+                  narrow for the list (which is then hidden). In 3-column mode the
+                  master-detail list is itself the way back. */}
               <button
                 onClick={() => setSelectedKey(null)}
-                className="flex shrink-0 items-center gap-1 border-b px-3 py-2 text-[13px] font-medium lg:hidden"
+                className="flex shrink-0 items-center gap-1 border-b px-3 py-2 text-[13px] font-medium @min-[1100px]:hidden"
                 style={{ borderColor: "var(--color-border-default)", color: "var(--color-text-secondary)" }}
               >
                 <ChevronLeft size={15} /> Inbox
