@@ -84,6 +84,12 @@ export async function GET(
       name: deal.name,
       stage: deal.stage,
       value: deal.value,
+      // Split-booking fields (bookings≠ARR). The detail page renders a
+      // project-bookings / platform-ARR breakdown via getDealAmountDisplay,
+      // which keys off these; omitting them kept isSplit permanently false, so
+      // the split never showed even for split deals. Both are real columns.
+      projectAmount: deal.projectAmount,
+      platformArr: deal.platformArr,
       summary: deal.summary,
       expectedCloseDate: deal.expectedCloseDate?.toISOString() || null,
       properties: deal.properties,

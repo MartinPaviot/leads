@@ -42,10 +42,11 @@ Branch: `feat/hydration-fidelity` (from main). R1 already shipped separately on
   - Test: snapshot row carries arrExposureUsd from deal value.
   - Verify: `/cs/today` badge renders + participates in sort.
 
-- [ ] **T7 (R3) opportunity deal split** — investigate storage first.
-  - Code: surface projectAmount/platformArr OR remove dead split UI.
-  - Test: split renders when both present; single value otherwise.
-  - Verify: a split deal shows both lines.
+- [x] **T7 (R3) opportunity deal split** — DONE. Storage confirmed: projectAmount/
+  platformArr are real `deals` columns (core.ts:266-267); the route did `select()`
+  (all columns) but omitted them from the response. Added both to the `deal`
+  payload so getDealAmountDisplay computes the real split.
+  - Test: `route-split.test.ts` — GET returns projectAmount/platformArr. 1/1 green.
 
 - [ ] **T8 (R8) billing mailboxes meter** — LOW (dev-only). Real count into the meter.
 
