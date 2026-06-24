@@ -121,3 +121,25 @@ describe("ingestion — AC3 opt-out permanent, bounce per policy", () => {
     expect(suppressed({ email: "x@y.com", tenantId: "ws1" }, store, 10 ** 13)).toBe(true);
   });
 });
+
+describe("spec 35 — account scope + complaint type", () => {
+  it("suppresses by account key (identity_key), independent of email/domain", () => {
+    const store = new InMemorySuppressionStore();
+    addSuppression(store, entry({ scope: "ws1", level: "account", value: "fr:552100554", type: "manual_dnc" }));
+    expect(suppressed({ accountKey: "fr:552100554", tenantId: "ws1" }, store)).toBe(true);
+    expect(suppressed({ accountKey: "fr:000", tenantId: "ws1" }, store)).toBe(false);
+  });
+
+  it("an account-scope hit blocks a contact with an otherwise-clean email", () => {
+    const store = new InMemorySuppressionStore();
+    addSuppression(store, entry({ scope: "ws1", level: "account", value: "acct1", type: "existing_customer" }));
+    expect(suppressed({ email: "clean@x.com", accountKey: "acct1", tenantId: "ws1" }, store)).toBe(true);
+    expect(suppressed({ email: "clean@x.com", accountKey: "acct2", tenantId: "ws1" }, store)).toBe(false);
+  });
+
+  it("complaint is a valid permanent suppression type", () => {
+    const store = new InMemorySuppressionStore();
+    addSuppression(store, entry({ scope: "ws1", level: "address", value: "c@d.com", type: "complaint" }));
+    expect(isSuppressed({ email: "c@d.com", tenantId: "ws1" }, store)?.entry.type).toBe("complaint");
+  });
+});

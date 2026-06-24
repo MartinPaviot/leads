@@ -56,11 +56,12 @@ vi.mock("@/db", () => ({
 
 // getTenantSettings + DEFAULTS — DEFAULTS mirrors tenant-settings.ts. Hoisted so
 // the vi.mock factory (also hoisted) can reference it without a TDZ error.
-const { DEFAULTS, settingsState, suppressionState, emailStatusState } = vi.hoisted(() => ({
+const { DEFAULTS, settingsState, suppressionState, emailStatusState, targetingState } = vi.hoisted(() => ({
   DEFAULTS: {
     sendingMailboxMode: "primary-with-caps" as const,
     sendingDailyCapPrimary: 20,
     sendingAllowColdOnPrimary: false,
+    safeModeEnabled: true,
   },
   settingsState: { throwOnSettings: false } as {
     throwOnSettings: boolean;
@@ -71,6 +72,8 @@ const { DEFAULTS, settingsState, suppressionState, emailStatusState } = vi.hoist
   suppressionState: { hit: null as null | { entry: { type: string; level: string } } },
   // Spec-17 email status — likewise mocked at the boundary. null = unverified.
   emailStatusState: { status: null as string | null },
+  // Spec-35 targeting context — mocked at the boundary.
+  targetingState: { targetingStatus: "targeted" as "unreviewed" | "targeted" | "archived", accountKey: null as string | null },
 }));
 
 vi.mock("@/lib/suppression/db-store", () => ({
@@ -89,6 +92,13 @@ vi.mock("@/lib/config/tenant-settings", () => ({
     return settingsState.settingsToReturn;
   }),
 }));
+// Spec-35 targeting context mocked at the boundary.
+vi.mock("@/lib/targeting/status", () => ({
+  loadAccountGateContext: vi.fn(async () => ({
+    targetingStatus: targetingState.targetingStatus,
+    accountKey: targetingState.accountKey,
+  })),
+}));
 
 import { evaluateSend, isSuppressed, isColdRecipient } from "@/lib/guardrails/sending-gate";
 
@@ -100,6 +110,9 @@ beforeEach(() => {
   settingsState.settingsToReturn = { ...DEFAULTS };
   suppressionState.hit = null;
   emailStatusState.status = null;
+  targetingState.targetingStatus = "targeted";
+  targetingState.accountKey = null;
+  delete process.env.TARGETING_GATE_ENABLED;
 });
 
 describe("isSuppressed", () => {
@@ -277,5 +290,73 @@ describe("evaluateSend — uses caller-supplied settings without re-reading", ()
     });
     expect(r.send).toBe(false);
     if (!r.send) expect(r.code).toBe("cold-on-primary-blocked");
+  });
+});
+
+describe("evaluateSend — spec-35 SAFE_MODE targeting gate (check-3)", () => {
+  // A warm, under-cap recipient so only the targeting gate decides send vs deny.
+  const warm = { tenantId: "t1", toAddress: "warm@a.com", sentTodayFromPrimary: 1, contactId: "c1" };
+  beforeEach(() => {
+    activityRows = [{ tenantId: "t1", to: "warm@a.com" }]; // warm
+  });
+
+  it("guard ON + SAFE_MODE + unreviewed account -> not_targeted", async () => {
+    process.env.TARGETING_GATE_ENABLED = "on";
+    targetingState.targetingStatus = "unreviewed";
+    const r = await evaluateSend(warm);
+    expect(r.send).toBe(false);
+    if (!r.send) expect(r.code).toBe("not_targeted");
+  });
+
+  it("guard ON + SAFE_MODE + archived account -> not_targeted", async () => {
+    process.env.TARGETING_GATE_ENABLED = "on";
+    targetingState.targetingStatus = "archived";
+    const r = await evaluateSend(warm);
+    expect(r.send).toBe(false);
+    if (!r.send) expect(r.code).toBe("not_targeted");
+  });
+
+  it("guard ON + SAFE_MODE + targeted account -> send", async () => {
+    process.env.TARGETING_GATE_ENABLED = "on";
+    targetingState.targetingStatus = "targeted";
+    const r = await evaluateSend(warm);
+    expect(r.send).toBe(true);
+  });
+
+  it("guard OFF (default) -> targeting not enforced even for unreviewed", async () => {
+    targetingState.targetingStatus = "unreviewed"; // env unset by beforeEach
+    const r = await evaluateSend(warm);
+    expect(r.send).toBe(true);
+  });
+
+  it("interactive sends are exempt from the targeting gate (D6)", async () => {
+    process.env.TARGETING_GATE_ENABLED = "on";
+    targetingState.targetingStatus = "unreviewed";
+    const r = await evaluateSend({ ...warm, interactive: true });
+    expect(r.send).toBe(true);
+  });
+
+  it("SAFE_MODE OFF -> targeting not enforced (D4)", async () => {
+    process.env.TARGETING_GATE_ENABLED = "on";
+    targetingState.targetingStatus = "unreviewed";
+    settingsState.settingsToReturn = { ...DEFAULTS, safeModeEnabled: false };
+    const r = await evaluateSend(warm);
+    expect(r.send).toBe(true);
+  });
+
+  it("suppression beats targeting (R5.4) — suppressed unreviewed -> 'suppressed', not 'not_targeted'", async () => {
+    process.env.TARGETING_GATE_ENABLED = "on";
+    targetingState.targetingStatus = "unreviewed";
+    suppressionState.hit = { entry: { type: "manual_dnc", level: "account" } };
+    const r = await evaluateSend(warm);
+    expect(r.send).toBe(false);
+    if (!r.send) expect(r.code).toBe("suppressed");
+  });
+
+  it("pre-resolved targetingStatus arg is honored without a context lookup", async () => {
+    process.env.TARGETING_GATE_ENABLED = "on";
+    const r = await evaluateSend({ ...warm, targetingStatus: "archived", accountKey: null });
+    expect(r.send).toBe(false);
+    if (!r.send) expect(r.code).toBe("not_targeted");
   });
 });
