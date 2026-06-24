@@ -1,4 +1,5 @@
 import { db } from "@/db";
+import { guardEnrollment } from "@/lib/anti-collision/enroll-guard";
 import {
   activities,
   comments,
@@ -652,6 +653,10 @@ RULES:
             continue;
           }
 
+          // Spec 14 — anti-collision (record-only unless ANTI_COLLISION_ENFORCE).
+          const ac = await guardEnrollment({ tenantId, contactId, enrollmentId: `${input.sequenceId}:${contactId}` });
+          if (!ac.proceed) { skipped++; continue; }
+
           const nextStepAt = new Date();
           nextStepAt.setDate(nextStepAt.getDate() + firstDelay);
           await db.insert(sequenceEnrollments).values({
@@ -793,6 +798,9 @@ RULES:
 
         let enrolledCount = 0;
         for (const contactId of toEnroll) {
+          // Spec 14 — anti-collision (record-only unless ANTI_COLLISION_ENFORCE).
+          const ac = await guardEnrollment({ tenantId, contactId, enrollmentId: `${input.sequenceId}:${contactId}` });
+          if (!ac.proceed) { skippedCount++; continue; }
           const nextStepAt = new Date();
           nextStepAt.setDate(nextStepAt.getDate() + firstDelay);
           await db.insert(sequenceEnrollments).values({

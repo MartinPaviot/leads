@@ -23,6 +23,7 @@
  */
 
 import { db } from "@/db";
+import { guardEnrollment } from "@/lib/anti-collision/enroll-guard";
 import { tenants, tasks, activities, outboundEmails, contacts, companies, deals, sequenceEnrollments, sequences } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -541,6 +542,12 @@ export async function executeWorkflowStep(
 
         if (!sequenceId) {
           return { success: false, result: { error: `Sequence not found: ${resolvedConfig.sequenceName || resolvedConfig.sequenceId}` } };
+        }
+
+        // Spec 14 — anti-collision (record-only unless ANTI_COLLISION_ENFORCE).
+        const ac = await guardEnrollment({ tenantId, contactId, enrollmentId: `${sequenceId}:${contactId}` });
+        if (!ac.proceed) {
+          return { success: true, result: { sequenceId, contactId, enrolled: false, reason: "anti_collision" } };
         }
 
         await db.insert(sequenceEnrollments).values({

@@ -22,6 +22,7 @@
  */
 
 import { db } from "@/db";
+import { guardEnrollment } from "@/lib/anti-collision/enroll-guard";
 import { tasks, deals, companies, contacts, sequences, sequenceEnrollments } from "@/db/schema";
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { deliverInteractiveEmail } from "@/lib/emails/deliver-interactive";
@@ -233,6 +234,9 @@ export async function executeAgentAction(
           .where(and(eq(sequenceEnrollments.sequenceId, target.sequenceId), eq(sequenceEnrollments.contactId, contactId)))
           .limit(1);
         if (existing) continue;
+        // Spec 14 — anti-collision (record-only unless ANTI_COLLISION_ENFORCE).
+        const ac = await guardEnrollment({ tenantId, contactId, enrollmentId: `${target.sequenceId}:${contactId}` });
+        if (!ac.proceed) continue;
         await db.insert(sequenceEnrollments).values({
           sequenceId: target.sequenceId,
           contactId,

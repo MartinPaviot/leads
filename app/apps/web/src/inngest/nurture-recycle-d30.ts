@@ -21,6 +21,7 @@
  */
 
 import { inngest } from "./client";
+import { guardEnrollment } from "@/lib/anti-collision/enroll-guard";
 import { db } from "@/db";
 import {
   contacts,
@@ -154,6 +155,12 @@ export const nurtureRecycleD30 = inngest.createFunction(
           });
           if (!decision.recycle) {
             skipped[decision.reason] = (skipped[decision.reason] ?? 0) + 1;
+            continue;
+          }
+          // Spec 14 — anti-collision (record-only unless ANTI_COLLISION_ENFORCE).
+          const ac = await guardEnrollment({ tenantId: t.id, contactId: c.contactId, enrollmentId: `${nurture.id}:${c.contactId}` });
+          if (!ac.proceed) {
+            skipped["anti_collision"] = (skipped["anti_collision"] ?? 0) + 1;
             continue;
           }
           await db.insert(sequenceEnrollments).values({
