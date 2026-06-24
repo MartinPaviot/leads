@@ -1,0 +1,19 @@
+title = "leadsens gitleaks config"
+
+# Keep the FULL default ruleset active (never disable secret scanning) and add
+# a narrowly-scoped allowlist for a known false positive.
+[extend]
+useDefault = true
+
+# False positive: the default `linkedin-client-id` rule matches a 14-char token
+# near "linkedin", which collides with TypeScript type identifiers such as
+# `LinkedInResult` / `LinkedInRequest` in the spec-24 LinkedIn / HeyReach ports
+# (e.g. `import type { LinkedInPort, LinkedInRequest, LinkedInResult }`). These
+# are type names, never credentials. Scoped to lines containing those exact
+# identifiers so genuine secrets are still detected.
+[allowlist]
+description = "TypeScript LinkedIn* type-name identifiers false-positive the linkedin-client-id rule"
+regexTarget = "line"
+regexes = [
+  '''LinkedIn(Port|Request|Result|Contact|Error|Outcome|Adapter|Deps|ActionType|ActionEvent|DailyLimits|IdempotencyStore|RefuseReason|Client)''',
+]
