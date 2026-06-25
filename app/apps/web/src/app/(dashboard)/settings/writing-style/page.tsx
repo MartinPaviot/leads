@@ -10,7 +10,7 @@
  * (user_preferences); the draft engine prepends buildWritingStylePrompt(style).
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PenLine, Loader2, Sparkles, RotateCcw, Plus, Trash2, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -47,6 +47,7 @@ export default function WritingStylePage() {
   const [voiceOptions, setVoiceOptions] = useState<VoiceOption[]>([]);
   const [tone, setTone] = useState<VoiceTone>("neutral");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [proposal, setProposal] = useState<StyleProposal>({ status: "idle" });
@@ -54,27 +55,46 @@ export default function WritingStylePage() {
   const [previewEmail, setPreviewEmail] = useState("");
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const [wsRes, voiceRes, derRes] = await Promise.all([
+        fetch("/api/inbox/writing-style"),
+        fetch("/api/inbox/voice"),
+        fetch("/api/inbox/writing-style/derive"),
+      ]);
+      if (!wsRes.ok) {
+        // Writing-style is load-bearing — the form can't render without it. The
+        // old Promise.all rejected on this and the .catch swallowed it, leaving
+        // `style` null → an INFINITE spinner (loading||!style) with no error.
+        setLoadError(true);
+        return;
+      }
+      const ws = (await wsRes.json()) as { style: WritingStyle; defaultPrompt: string };
+      setStyle(ws.style);
+      setDefaultPrompt(ws.defaultPrompt);
+      // voice + derive are best-effort: default on failure, never block the page.
+      if (voiceRes.ok) {
+        const voice = (await voiceRes.json()) as { options?: VoiceOption[]; voice?: { tone?: VoiceTone } };
+        setVoiceOptions(voice.options ?? []);
+        if (voice.voice?.tone) setTone(voice.voice.tone);
+      }
+      if (derRes.ok) {
+        const der = (await derRes.json()) as { proposal?: StyleProposal };
+        if (der.proposal) setProposal(der.proposal);
+      }
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
   useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      fetch("/api/inbox/writing-style").then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status}`)))),
-      fetch("/api/inbox/voice").then((r) => (r.ok ? r.json() : { options: [], voice: { tone: "neutral" } })),
-      fetch("/api/inbox/writing-style/derive").then((r) => (r.ok ? r.json() : { proposal: { status: "idle" } })),
-    ])
-      .then(([ws, voice, der]) => {
-        if (cancelled) return;
-        setStyle(ws.style as WritingStyle);
-        setDefaultPrompt(ws.defaultPrompt as string);
-        setVoiceOptions((voice.options ?? []) as VoiceOption[]);
-        if (voice.voice?.tone) setTone(voice.voice.tone as VoiceTone);
-        if (der.proposal) setProposal(der.proposal as StyleProposal);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
     return () => {
-      cancelled = true;
       if (pollRef.current) clearTimeout(pollRef.current);
     };
   }, []);
@@ -205,6 +225,20 @@ export default function WritingStylePage() {
     } catch {
       toast("Couldn't preview the audience.", "error");
     }
+  }
+
+  if (loadError) {
+    return (
+      <div role="alert" className="mx-auto max-w-2xl p-6">
+        <h1 className="flex items-center gap-2 text-[16px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+          <PenLine size={16} /> Writing Style &amp; Tone
+        </h1>
+        <p className="mt-2 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+          Couldn&apos;t load your writing style. This is not a reset — the request failed.
+        </p>
+        <Button size="sm" onClick={() => void load()} className="mt-3">Retry</Button>
+      </div>
+    );
   }
 
   if (loading || !style) {

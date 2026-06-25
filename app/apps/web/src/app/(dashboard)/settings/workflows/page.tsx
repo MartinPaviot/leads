@@ -146,13 +146,15 @@ export default function WorkflowsPage() {
 
   useEffect(() => {
     fetch("/api/settings/workflows")
-      .then((r) => (r.ok ? r.json() : { workflows: [] }))
+      // Was `r.ok ? r.json() : { workflows: [] }` — a 500 silently became an
+      // empty list. Reject so the error banner shows instead of "no workflows".
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Failed to load workflows"))))
       .then((data) => setWorkflows(data.workflows || []))
       .catch(() => setError("Failed to load workflows"))
       .finally(() => setLoading(false));
   }, []);
 
-  async function persist(updated: WorkflowDef[]) {
+  async function persist(updated: WorkflowDef[]): Promise<boolean> {
     setSaving(true);
     setError("");
     try {
@@ -165,9 +167,13 @@ export default function WorkflowsPage() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || "Failed to save");
       }
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save workflow changes");
-      // Don't revert local state — let user retry from current draft
+      // The editor (saveDraft) keeps local state so the user can retry; the
+      // one-click toggle/delete callers revert on a false return so the row
+      // doesn't show a state that never persisted.
+      return false;
     } finally {
       setSaving(false);
     }
@@ -257,16 +263,22 @@ export default function WorkflowsPage() {
     setDraft(emptyDraft());
   }
 
-  function toggleWorkflow(id: string) {
+  async function toggleWorkflow(id: string) {
+    const previous = workflows;
     const updated = workflows.map((w) => (w.id === id ? { ...w, enabled: !w.enabled } : w));
     setWorkflows(updated);
-    persist(updated);
+    const ok = await persist(updated);
+    // Was fire-and-forget: a failed save left the toggle visually flipped even
+    // though it never persisted (silent stale divergence). Revert on failure.
+    if (!ok) setWorkflows(previous);
   }
 
-  function deleteWorkflow(id: string) {
+  async function deleteWorkflow(id: string) {
+    const previous = workflows;
     const updated = workflows.filter((w) => w.id !== id);
     setWorkflows(updated);
-    persist(updated);
+    const ok = await persist(updated);
+    if (!ok) setWorkflows(previous);
   }
 
   async function parseNl() {
@@ -294,20 +306,13 @@ export default function WorkflowsPage() {
         const parsed = JSON.parse(jsonMatch[0]) as NlParsedResult;
         setNlResult(parsed);
       } else {
-        // Fallback: build a basic workflow from the description
-        setNlResult({
-          name: nlInput.slice(0, 40),
-          trigger: { type: "deal_stage_changed" },
-          actions: [{ type: "send_notification", params: { title: nlInput } }],
-        });
+        // Was a silent fallback to a canned send_notification workflow, so the
+        // user believed their description was parsed when the model returned
+        // nothing usable. Surface it instead.
+        setNlError("Couldn't turn that into a workflow. Try rephrasing, or build it manually below.");
       }
     } catch {
-      // Fallback: create a sensible default
-      setNlResult({
-        name: nlInput.slice(0, 40),
-        trigger: { type: "deal_stage_changed" },
-        actions: [{ type: "send_notification", params: { title: nlInput } }],
-      });
+      setNlError("Couldn't reach the workflow parser. Try again, or build it manually below.");
     } finally {
       setNlParsing(false);
     }

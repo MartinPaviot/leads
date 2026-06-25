@@ -9,17 +9,22 @@ interface PipelineStage {
   name: string;
   description: string;
   category: "in_progress" | "done";
+  // The /settings/stages page renders an aiFillMode selector + a WIP limit per
+  // stage and treats aiFillMode as required. The defaults below omitted both, so
+  // a fresh tenant's stages loaded with no AI-fill selection highlighted.
+  aiFillMode?: "auto" | "suggest" | "off";
+  wipLimit?: number | null;
 }
 
 const DEFAULT_STAGES: PipelineStage[] = [
-  { id: "lead", name: "Lead", description: "Initial contact with a potential prospect", category: "in_progress" },
-  { id: "qualification", name: "Qualification", description: "Initial meeting booked", category: "in_progress" },
-  { id: "demo", name: "Demo", description: "Demo scheduled", category: "in_progress" },
-  { id: "trial", name: "Trial", description: "Prospect expressed interest in trial", category: "in_progress" },
-  { id: "proposal", name: "Proposal", description: "Prospect is ready to work through terms", category: "in_progress" },
-  { id: "negotiation", name: "Negotiation", description: "Negotiating contract terms", category: "in_progress" },
-  { id: "won", name: "Won", description: "Agreement signed", category: "done" },
-  { id: "lost", name: "Lost", description: "Deal lost", category: "done" },
+  { id: "lead", name: "Lead", description: "Initial contact with a potential prospect", category: "in_progress", aiFillMode: "suggest", wipLimit: null },
+  { id: "qualification", name: "Qualification", description: "Initial meeting booked", category: "in_progress", aiFillMode: "suggest", wipLimit: null },
+  { id: "demo", name: "Demo", description: "Demo scheduled", category: "in_progress", aiFillMode: "suggest", wipLimit: null },
+  { id: "trial", name: "Trial", description: "Prospect expressed interest in trial", category: "in_progress", aiFillMode: "suggest", wipLimit: null },
+  { id: "proposal", name: "Proposal", description: "Prospect is ready to work through terms", category: "in_progress", aiFillMode: "suggest", wipLimit: null },
+  { id: "negotiation", name: "Negotiation", description: "Negotiating contract terms", category: "in_progress", aiFillMode: "suggest", wipLimit: null },
+  { id: "won", name: "Won", description: "Agreement signed", category: "done", aiFillMode: "suggest", wipLimit: null },
+  { id: "lost", name: "Lost", description: "Deal lost", category: "done", aiFillMode: "suggest", wipLimit: null },
 ];
 
 export async function GET() {

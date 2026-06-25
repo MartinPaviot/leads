@@ -20,17 +20,28 @@ export default function ProfileSettingsPage() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    fetch("/api/settings/profile")
-      .then((r) => r.json())
-      .then((data) => {
+    (async () => {
+      try {
+        const r = await fetch("/api/settings/profile");
+        if (!r.ok) {
+          // Was `.then(r => r.json())` with no status check: a 500's error body
+          // parsed into empty fields, so the form rendered blank with no error.
+          setError("Failed to load profile");
+          setLoaded(true);
+          return;
+        }
+        const data = await r.json();
         setFirstName(data.firstName || "");
         setLastName(data.lastName || "");
         setEmail(data.email || "");
         setLanguage(data.language || "en");
         setTimezone(data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone);
         setLoaded(true);
-      })
-      .catch(() => { setError("Failed to load profile"); setLoaded(true); });
+      } catch {
+        setError("Failed to load profile");
+        setLoaded(true);
+      }
+    })();
   }, []);
 
   async function handleSave() {
