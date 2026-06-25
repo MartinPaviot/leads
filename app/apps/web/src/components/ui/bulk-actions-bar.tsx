@@ -42,10 +42,14 @@ export function BulkActionsBar({
         borderColor: "var(--color-border-default)",
       }}
     >
-      <span className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+      <span className="shrink-0 text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
         {count} selected
       </span>
-      <div className="ml-auto flex items-center gap-1.5">
+      {/* flex-1 + flex-wrap so the actions stay reachable on a narrow / zoomed
+          viewport (founder runs half-screen + 200% zoom): instead of overflowing
+          off the right edge with no scroll, the buttons wrap onto the next line.
+          On a wide viewport everything still fits on one right-aligned row. */}
+      <div className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
         {primary}
         {actions.map((a, i) => (
           <button
