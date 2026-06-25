@@ -293,3 +293,28 @@ per-page defects + fixes: `_reports/hydration-audit/_settings-p1-worklist.md`.
 
 Auth (T01–T07) action-driven, marketing/legal (T08–T15) static-by-design — all H0/H1,
 zero defects per `_rollup-t3.md`. Nothing to fix.
+
+## H1 re-verification (2026-06-25) — the audit was over-generous on 4/7
+
+Re-verified the 7 product pages rated H1 via the `verify-h1-product-pages` workflow
+(7 hostile Explore agents vs CURRENT code) — being intransigeant rather than trusting
+the ratings. **18 meeting-upload · 21 outbound-mode · 25 hot-to-call = confirmed H1.**
+The other 4 were actually H2 (same error-as-empty / swallowed-save class) and are now FIXED:
+- [x] **04 accounts** — `loadAccounts` did a bare `return` on `!res.ok` (page.tsx:729) → a
+  500 on the first page rendered "No accounts" (masked an empty library). Added `loadError`
+  (scoped to the initial, non-append load) + a retryable `EmptyState variant="error"` before
+  the empty states. Also guarded `refetchLoadedAccounts` from overwriting the loaded list
+  with a partial reload when a page fetch fails. (high-traffic core page)
+- [x] **15 proposals** — `loadList` had a bare `if (res.ok)` with no else → a 500 left
+  templates empty. Added an else/catch `setNotice(...)` mirroring the existing openTemplate
+  notice pattern.
+- [x] **28 knowledge** — `fetchEntries` swallowed failures → "no knowledge" empty masked a
+  500. Added `loadError` + an error early-return with Retry.
+- [x] **34 objects** (`/objects/[type]`) — `fetchRecords` only handled `res.ok`/404, so a 500
+  fell through to "Object type not found". Added `loadError` (distinct error+Retry state) and
+  wired `toast` into all mutation handlers (save/delete/bulk-delete/inline-edit), which
+  previously failed silently.
+  
+Verified: accounts/proposals/knowledge page tests 54/54 green; objects has no test (tsc only).
+Kept `toast` OUT of every useCallback dep array (the opp infinite-loop lesson —
+[[reference_test-and-tsc-gotchas]]).

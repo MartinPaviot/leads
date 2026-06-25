@@ -31,19 +31,25 @@ function definePageAction<P>(a: PageAction<P>): PageAction {
 export default function KnowledgePage() {
   const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [query, setQuery] = useState("");
 
   const fetchEntries = useCallback(async () => {
+    setLoadError(false);
     try {
       const res = await fetch("/api/settings/knowledge");
       if (res.ok) {
         const data = await res.json();
         setEntries(data.knowledge || []);
+      } else {
+        // Was a silent swallow: a 500 left entries empty → the "no knowledge"
+        // empty state, masking a backend failure as an empty workspace.
+        setLoadError(true);
       }
     } catch {
-      // Silent fail — entries will be empty
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -280,6 +286,26 @@ export default function KnowledgePage() {
               style={{ background: "var(--color-bg-hover)" }}
             />
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex h-full flex-col">
+        <PageHeader icon={<BookOpen size={16} />} title="Knowledge" />
+        <div role="alert" className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+          <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+            Couldn&apos;t load your knowledge base. This is not an empty workspace — the request failed.
+          </p>
+          <button
+            onClick={() => { setLoading(true); fetchEntries(); }}
+            className="rounded-md px-3 py-1.5 text-[12px] font-medium"
+            style={{ border: "1px solid var(--color-border-default)", color: "var(--color-accent)" }}
+          >
+            Retry
+          </button>
         </div>
       </div>
     );

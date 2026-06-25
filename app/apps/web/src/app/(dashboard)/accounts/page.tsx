@@ -192,6 +192,7 @@ export default function AccountsPage() {
   const { locale } = useLocale();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalAccounts, setTotalAccounts] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -719,14 +720,21 @@ export default function AccountsPage() {
    *  it reloads all pages that were previously loaded so the user
    *  doesn't lose their scroll position / loaded data. */
   const fetchAccounts = useCallback(async (page = 1, append = false) => {
+    const isInitial = page === 1 && !append;
     try {
-      if (page === 1 && !append) setLoading(true);
+      if (isInitial) { setLoading(true); setLoadError(false); }
       else setLoadingMore(true);
       const params = listFilterParams();
       params.set("pageSize", "200");
       params.set("page", String(page));
       const res = await fetch(`/api/accounts?${params.toString()}`);
-      if (!res.ok) return;
+      if (!res.ok) {
+        // Was a bare return: a 500 on the first page left accounts=[] and
+        // rendered the "No accounts" empty state, masking a backend failure as
+        // an empty library. (An append/load-more failure just stops paging.)
+        if (isInitial) setLoadError(true);
+        return;
+      }
       const data = await res.json();
       if (data.facets) setServerFacets(data.facets);
       if (data.facetCounts) setServerFacetCounts(data.facetCounts);
@@ -743,6 +751,7 @@ export default function AccountsPage() {
       setTotalPages(pagination?.totalPages ?? 1);
     } catch (e) {
       console.warn("accounts: list fetch failed", e);
+      if (isInitial) setLoadError(true);
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -755,12 +764,13 @@ export default function AccountsPage() {
     try {
       const pagesToLoad = Math.max(currentPage, 1);
       let all: Account[] = [];
+      let failed = false;
       for (let p = 1; p <= pagesToLoad; p++) {
         const params = listFilterParams();
         params.set("pageSize", "200");
         params.set("page", String(p));
         const res = await fetch(`/api/accounts?${params.toString()}`);
-        if (!res.ok) break;
+        if (!res.ok) { failed = true; break; }
         const data = await res.json();
         const batch: Account[] = data.accounts || data.items || [];
         all = [...all, ...batch];
@@ -770,7 +780,9 @@ export default function AccountsPage() {
           setTotalPages(pagination?.totalPages ?? 1);
         }
       }
-      setAccounts(all);
+      // Don't replace the loaded list with a partial reload when a page failed —
+      // that would silently drop rows. Keep what's on screen.
+      if (!failed) setAccounts(all);
     } catch (e) {
       console.warn("accounts: refetch failed", e);
     }
@@ -2585,6 +2597,14 @@ export default function AccountsPage() {
             rows={8}
             // +4 for built-in TAM signals + N for custom signals.
             cols={9 + DEFAULT_SIGNALS.filter((s) => visibleCategories.has(`signal:${s.key}`)).length + EXTRA_COLUMNS.filter((c) => visibleCategories.has(c.key)).length + customSignals.filter((c) => !hiddenCategories.has(customSignalKey(c.id))).length + signalTypeColumns.filter((t) => !hiddenCategories.has(signalTypeKey(t))).length + customFields.filter((f) => !hiddenCategories.has(customFieldKey(f.id))).length}
+          />
+        ) : loadError ? (
+          <EmptyState
+            variant="error"
+            title="Couldn't load your accounts"
+            description="Something went wrong fetching your accounts. This is not an empty library."
+            actionLabel="Retry"
+            onAction={() => fetchAccounts()}
           />
         ) : mergedAccounts.length === 0 ? (
           debouncedSearch ? (

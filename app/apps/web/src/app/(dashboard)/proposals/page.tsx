@@ -124,10 +124,19 @@ export default function ProposalsPage() {
   const editsRef = useRef(edits); editsRef.current = edits;
 
   const loadList = useCallback(async () => {
-    const res = await fetch("/api/proposals/templates");
-    if (res.ok) {
-      const d = (await res.json()) as { templates: TemplateRow[] };
-      setTemplates(d.templates ?? []);
+    try {
+      const res = await fetch("/api/proposals/templates");
+      if (res.ok) {
+        const d = (await res.json()) as { templates: TemplateRow[] };
+        setTemplates(d.templates ?? []);
+      } else {
+        // Was a bare `if (res.ok)` with no else: a 500 left templates empty,
+        // indistinguishable from a workspace with no templates. Mirror the
+        // openTemplate notice pattern (line ~141).
+        setNotice("Could not load your templates. Please refresh or try again.");
+      }
+    } catch {
+      setNotice("Could not load your templates. Please refresh or try again.");
     }
   }, []);
 

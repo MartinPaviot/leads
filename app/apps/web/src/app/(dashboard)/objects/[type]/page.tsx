@@ -35,6 +35,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Toggle } from "@/components/ui/input";
+import { useToast } from "@/components/ui/toast";
 
 // ── Icon map (same as settings page) ──
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number }>> = {
@@ -71,11 +72,13 @@ interface CustomRecord {
 export default function CustomObjectRecordsPage() {
   const params = useParams<{ type: string }>();
   const router = useRouter();
+  const { toast } = useToast();
   const type = params.type;
 
   const [objectType, setObjectType] = useState<ObjectTypeDef | null>(null);
   const [records, setRecords] = useState<CustomRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showDetail, setShowDetail] = useState<CustomRecord | null>(null);
   const [saving, setSaving] = useState(false);
@@ -101,6 +104,7 @@ export default function CustomObjectRecordsPage() {
   const inlineInputRef = useRef<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(null);
 
   const fetchRecords = useCallback(async () => {
+    setLoadError(false);
     try {
       const res = await fetch(`/api/custom-objects/${type}`);
       if (res.ok) {
@@ -109,9 +113,14 @@ export default function CustomObjectRecordsPage() {
         setRecords(data.records || []);
       } else if (res.status === 404) {
         router.push("/");
+      } else {
+        // A 500/network error used to fall through, leaving objectType null →
+        // the "Object type not found" state, masking a backend failure as a
+        // missing object type. Distinguish it.
+        setLoadError(true);
       }
     } catch {
-      console.error("Failed to fetch records");
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -174,6 +183,8 @@ export default function CustomObjectRecordsPage() {
             records.map((r) => (r.id === showDetail.id ? data.record : r))
           );
           setShowCreate(false);
+        } else {
+          toast(`Couldn't update this ${objectType?.nameSingular ?? "record"}.`, "error");
         }
       } else {
         // Create
@@ -186,10 +197,12 @@ export default function CustomObjectRecordsPage() {
           const data = await res.json();
           setRecords([data.record, ...records]);
           setShowCreate(false);
+        } else {
+          toast(`Couldn't create this ${objectType?.nameSingular ?? "record"}.`, "error");
         }
       }
     } catch {
-      console.error("Failed to save record");
+      toast("Couldn't save the record.", "error");
     } finally {
       setSaving(false);
     }
@@ -204,9 +217,11 @@ export default function CustomObjectRecordsPage() {
         setRecords(records.filter((r) => r.id !== id));
         setDeleteConfirm(null);
         setShowDetail(null);
+      } else {
+        toast("Couldn't delete the record.", "error");
       }
     } catch {
-      console.error("Failed to delete record");
+      toast("Couldn't delete the record.", "error");
     }
   }
 
@@ -223,9 +238,11 @@ export default function CustomObjectRecordsPage() {
         setRecords(records.filter((r) => !selectedIds.has(r.id)));
         setSelectedIds(new Set());
         setConfirmBulkDelete(false);
+      } else {
+        toast("Couldn't delete the selected records.", "error");
       }
     } catch {
-      console.error("Failed to bulk delete records");
+      toast("Couldn't delete the selected records.", "error");
     } finally {
       setBulkDeleting(false);
     }
@@ -272,9 +289,11 @@ export default function CustomObjectRecordsPage() {
       if (res.ok) {
         const data = await res.json();
         setRecords(records.map((r) => (r.id === recordId ? data.record : r)));
+      } else {
+        toast("Couldn't save your edit.", "error");
       }
     } catch {
-      console.error("Failed to inline-edit record");
+      toast("Couldn't save your edit.", "error");
     }
     setInlineEditCell(null);
   }
@@ -620,6 +639,20 @@ export default function CustomObjectRecordsPage() {
             ))}
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <EmptyState
+          variant="error"
+          title="Couldn't load this object type"
+          description="Something went wrong. This is not the same as the object type not existing — the request failed."
+          actionLabel="Retry"
+          onAction={() => { setLoading(true); fetchRecords(); }}
+        />
       </div>
     );
   }
