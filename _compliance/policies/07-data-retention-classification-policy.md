@@ -31,7 +31,7 @@ Where a record contains mixed levels, the highest applicable level governs.
 | Data type | Classification | Retention period | Deletion mechanism |
 | --- | --- | --- | --- |
 | CRM data (contacts, companies, deals, notes, tasks, sequences, chat threads) | Customer PII | Life of contract + 30 days after cancellation | `data-retention-purge` Inngest cron (daily, 03:00 UTC) cascading-deletes all tenant tables for tenants with `plan = canceled` older than 30 days |
-| Call recordings (Twilio, opt-in via `VOICE_RECORDING_ENABLED`) | Customer PII | 90 days (retention job being implemented; target completion tracked in the risk register) | Scheduled deletion of Twilio recordings older than 90 days; tenant purge removes call rows |
+| Call recordings (Twilio, double opt-in: `VOICE_RECORDING_ENABLED` deployment switch + `callRecordingEnabled` workspace toggle; audible disclosure mandatory in two-party-consent regions) | Customer PII | 90 days (`recording-retention-purge` Inngest cron, daily 04:00 UTC; tenant override `recordingRetentionDays`, min 7) | Scheduled deletion of Twilio recordings older than 90 days; tenant purge removes call rows |
 | Call transcripts (Deepgram output stored in Postgres) | Customer PII | Life of contract | Deleted by `data-retention-purge` with the rest of the tenant data |
 | Audit log (activities with `activity_type = system_event` and `metadata.audit = true`, see `lib/audit-log.ts`) | Internal / Confidential | 7 years | Explicitly excluded from the tenant purge (`purgeNonAuditActivities`); deleted only after the 7-year window |
 | Database backups | Customer PII | Provider window (Supabase managed daily backups + PITR where enabled) | Aged out automatically by Supabase; no manual backup copies are kept |

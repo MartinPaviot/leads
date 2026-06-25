@@ -33,6 +33,7 @@ import {
   ClipboardList,
   MoveHorizontal,
   History,
+  Disc,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -104,6 +105,15 @@ interface VoiceConfig {
     capReached: boolean;
     hardCeilingReached: boolean;
   } | null;
+  /** Call-recording state (see /api/calls/config). Absent on older payloads. */
+  recording?: {
+    /** Deployment kill-switch (VOICE_RECORDING_ENABLED) is on. */
+    available: boolean;
+    /** Workspace opted in (callRecordingEnabled). */
+    enabled: boolean;
+    /** A disclosure MP3 is configured — required to record in CH/FR. */
+    disclosureConfigured: boolean;
+  };
 }
 
 type SoftphoneState =
@@ -316,6 +326,9 @@ export default function CallModePage() {
   });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [softphone, setSoftphone] = useState<SoftphoneState>({ kind: "idle" });
+  // Whether the in-progress call is being recorded — set from /api/calls/start's
+  // resolved decision, drives the live "REC" indicator. Reset between calls.
+  const [recordingActive, setRecordingActive] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptChunk[]>([]);
   const [loading, setLoading] = useState(true);
   const [amdDetected, setAmdDetected] = useState<string | null>(null);
@@ -574,6 +587,7 @@ export default function CallModePage() {
       setAmdDetected(null);
       setVoicemailDropping(false);
       setVoicemailDropped(false);
+      setRecordingActive(false);
       try {
         const res = await fetch("/api/calls/start", {
           method: "POST",
@@ -607,6 +621,7 @@ export default function CallModePage() {
           return;
         }
         const data = await res.json();
+        setRecordingActive(data.recording === true);
         setSoftphone({
           kind: "dialing",
           callId: data.callId,
@@ -1476,6 +1491,31 @@ export default function CallModePage() {
   // top-up only draws from this audience, so the rep must SEE it's narrowed.
   const sprint = campaign ? readSprintAudience(campaign.targetFilter) : null;
 
+  const rec = config?.recording;
+  const handleToggleRecording = async () => {
+    if (!rec?.available) return;
+    const next = !rec.enabled;
+    // Optimistic — flip locally, roll back on failure.
+    setConfig((c) => (c?.recording ? { ...c, recording: { ...c.recording, enabled: next } } : c));
+    try {
+      const res = await fetch("/api/calls/recording-setting", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      toast(
+        next ? "Enregistrement des appels activé." : "Enregistrement des appels désactivé.",
+        "success",
+      );
+    } catch {
+      setConfig((c) =>
+        c?.recording ? { ...c, recording: { ...c.recording, enabled: !next } } : c,
+      );
+      toast("Impossible de modifier l'enregistrement.", "error");
+    }
+  };
+
   return (
     <CallModeShell
       subtitle={campaign ? `Goal: ${campaign.name} - ${campaign.dailyQuota} calls/day, retry up to ${campaign.maxAttempts}x over ${campaign.windowDays}d` : undefined}
@@ -1504,6 +1544,36 @@ export default function CallModePage() {
                 prospectE164={selected?.phone}
                 onBuyNumber={handleBuyNumber}
               />
+            )}
+            {config?.configured && rec && (
+              <button
+                type="button"
+                onClick={handleToggleRecording}
+                disabled={!rec.available}
+                title={
+                  !rec.available
+                    ? "Enregistrement indisponible : activez VOICE_RECORDING_ENABLED côté déploiement (Settings → Voice)."
+                    : rec.enabled && !rec.disclosureConfigured
+                      ? "Activé, mais aucune annonce de consentement configurée (VOICE_DISCLOSURE_AUDIO_URL) — les appels CH/FR ne seront pas enregistrés."
+                      : rec.enabled
+                        ? "Les appels sont enregistrés. L'annonce de consentement est jouée en zone CH/FR avant toute capture."
+                        : "Activer l'enregistrement des conversations."
+                }
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  rec.enabled
+                    ? "border-red-300 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+                    : "border-border bg-muted text-muted-foreground hover:text-foreground"
+                } ${!rec.available ? "cursor-not-allowed opacity-50" : ""}`}
+              >
+                <Disc size={13} className={rec.enabled ? "text-red-600 dark:text-red-400" : ""} />
+                <span>{rec.enabled ? "Enregistrement" : "Enregistrer"}</span>
+                {rec.enabled && !rec.disclosureConfigured && (
+                  <span
+                    className="h-1.5 w-1.5 rounded-full bg-amber-500"
+                    aria-label="Annonce de consentement manquante"
+                  />
+                )}
+              </button>
             )}
             {campaign && (
               <Button variant="outline" size="sm" onClick={() => setEditingPlan(true)}>
@@ -1764,6 +1834,19 @@ export default function CallModePage() {
                           <span className="tabular-nums tracking-tight">{selected.phone}</span>
                         </span>
                       )}
+                      {recordingActive &&
+                        (softphone.kind === "dialing" ||
+                          softphone.kind === "ringing" ||
+                          softphone.kind === "connected") && (
+                          <span
+                            className="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-red-600 dark:text-red-400"
+                            style={{ background: "rgba(239,68,68,.10)" }}
+                            title="Cet appel est enregistré (annonce de consentement jouée en zone CH/FR)."
+                          >
+                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
+                            REC
+                          </span>
+                        )}
                     </div>
                   </div>
                 </div>
@@ -2374,6 +2457,10 @@ function FromNumberRow(props: {
 function CallDebrief({ callId }: { callId: string | null }) {
   const [debrief, setDebrief] = useState<{ wentWell: string[]; toImprove: string[] } | null>(null);
   const [phase, setPhase] = useState<"loading" | "ready" | "none">("loading");
+  // Proxied recording URL (/api/calls/[id]/recording) once the async
+  // recording-status webhook has written it onto the row. Null when the call
+  // wasn't recorded or the audio was purged by retention.
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!callId) {
@@ -2390,7 +2477,9 @@ function CallDebrief({ callId }: { callId: string | null }) {
           const d = (await res.json()) as {
             processingState?: string;
             debrief?: { wentWell?: string[]; toImprove?: string[] } | null;
+            recordingUrl?: string | null;
           };
+          if (d.recordingUrl) setRecordingUrl(d.recordingUrl);
           const db = d.debrief;
           const count = (db?.wentWell?.length ?? 0) + (db?.toImprove?.length ?? 0);
           if (count > 0) {
@@ -2420,7 +2509,9 @@ function CallDebrief({ callId }: { callId: string | null }) {
     };
   }, [callId]);
 
-  if (phase === "none") return null;
+  // Keep the card alive for the recording player even when there's no written
+  // debrief (e.g. a recorded call with no coaching points).
+  if (phase === "none" && !recordingUrl) return null;
 
   return (
     <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
@@ -2465,6 +2556,18 @@ function CallDebrief({ callId }: { callId: string | null }) {
           )}
         </div>
       ) : null}
+      {recordingUrl && (
+        <div className="mt-3">
+          <div className="mb-1 flex items-center gap-1.5">
+            <Disc size={12} className="text-zinc-500" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+              Enregistrement
+            </span>
+          </div>
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <audio controls preload="none" src={recordingUrl} className="h-8 w-full" />
+        </div>
+      )}
     </div>
   );
 }

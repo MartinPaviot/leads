@@ -37,7 +37,7 @@ Elevay both performs and powers B2B outreach; workforce use of these capabilitie
 - Outreach to prospects relies on **legitimate interest** for B2B contact data (Article 6(1)(f)): business-role contact details, professional context, and a clear opt-out path in every message.
 - **Suppression lists are always honored:** the `email_optouts` table blocks email sends and the `do_not_call_list` blocks voice calls. Workforce members must never work around a suppression entry, and opt-out requests are recorded promptly.
 - Enrichment data is sourced only through the approved vendors in `_compliance/subprocessors.md` (see Policy 09 for the GDPR exposure review of enrichment vendors).
-- Call recording is opt-in (`VOICE_RECORDING_ENABLED`) and subject to the 90-day retention rule (Policy 07); recordings are never made where local law requires consent that has not been obtained.
+- Call recording is double opt-in — the deployment kill-switch (`VOICE_RECORDING_ENABLED`) AND a per-workspace toggle (`callRecordingEnabled`, flipped in Call Mode) must both be on — and subject to the 90-day retention rule (Policy 07). In two-party-consent regions an audible disclosure (`VOICE_DISCLOSURE_AUDIO_URL`) is mandatory; without it those calls are not recorded. Recordings are never made where local law requires consent that has not been obtained (enforced in `lib/voice/recording-policy.ts`).
 
 ## 5. Enforcement
 
