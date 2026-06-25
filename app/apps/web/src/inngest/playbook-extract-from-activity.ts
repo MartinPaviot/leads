@@ -24,6 +24,7 @@
  */
 
 import { inngest } from "./client";
+import { isFeatureEnabled } from "@/lib/config/feature-gate";
 import { db } from "@/db";
 import { activities, deals, contacts } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -58,6 +59,9 @@ export const playbookExtractFromActivity = inngest.createFunction(
     triggers: [{ event: "coaching/post-interaction" }],
   },
   async ({ event, step }: { event: PostInteractionEvent; step: any }) => {
+    if (!isFeatureEnabled(process.env.PLAYBOOK_EXTRACT_ENABLED)) {
+      return { skipped: "PLAYBOOK_EXTRACT_ENABLED=off" };
+    }
     const { tenantId, activityId } = event.data;
 
     const model = getLLMModel();

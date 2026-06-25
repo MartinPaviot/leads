@@ -8,6 +8,7 @@
  */
 
 import { inngest } from "./client";
+import { isFeatureEnabled } from "@/lib/config/feature-gate";
 import { db } from "@/db";
 import {
   activities,
@@ -44,6 +45,9 @@ export const analyzeOutgoingEmail = inngest.createFunction(
       };
     };
   }) => {
+    if (!isFeatureEnabled(process.env.COACHING_ENABLED)) {
+      return { skipped: "COACHING_ENABLED=off" };
+    }
     const { tenantId, emailId, dealId, contactId, userId } = event.data;
 
     // Load the email draft
@@ -175,6 +179,9 @@ export const postInteractionCoaching = inngest.createFunction(
       };
     };
   }) => {
+    if (!isFeatureEnabled(process.env.COACHING_ENABLED)) {
+      return { skipped: "COACHING_ENABLED=off" };
+    }
     const { tenantId, activityId, userId } = event.data;
 
     const [activity] = await db
@@ -268,6 +275,9 @@ export const analyzeDealEvent = inngest.createFunction(
       };
     };
   }) => {
+    if (!isFeatureEnabled(process.env.COACHING_ENABLED)) {
+      return { skipped: "COACHING_ENABLED=off" };
+    }
     const { tenantId, dealId, eventType, userId, previousStage, newStage } = event.data;
 
     if (eventType !== "stage_changed") return { skipped: "only stage changes coached" };
@@ -336,6 +346,9 @@ export const weeklyPerformanceSnapshot = inngest.createFunction(
     triggers: [{ cron: "0 8 * * 1" }], // Mondays 8am UTC
   },
   async ({ step }: { step: any }) => {
+    if (!isFeatureEnabled(process.env.COACHING_ENABLED)) {
+      return { skipped: "COACHING_ENABLED=off" };
+    }
     const allUsers = await step.run("list-users", async () => {
       return db.select({ id: users.id, tenantId: users.tenantId }).from(users);
     });
