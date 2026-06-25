@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { activities, deals, tasks, sequenceEnrollments, companies, contacts, outboundEmails } from "@/db/schema";
 import { sql, eq, and, gte, lte, ne, desc, isNull, isNotNull } from "drizzle-orm";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
+import { notExcludedAsLeadSql } from "@/lib/inbound/lead-status-sql";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -260,11 +261,7 @@ export async function GET() {
             eq(outboundEmails.status, "sent"),
             gte(outboundEmails.sentAt, new Date(Date.now() - 7 * 86400000)),
             isNotNull(outboundEmails.contactId),
-            sql`COALESCE(CASE
-              WHEN (${contacts.properties} -> 'leadFeedback' ->> 'isLead') = 'false' THEN false
-              WHEN (${contacts.properties} -> 'leadFeedback' ->> 'isLead') = 'true'  THEN true
-              WHEN (${contacts.properties} -> 'leadRelationship' ->> 'isInboundLead') = 'false' THEN false
-              ELSE true END, true)`
+            notExcludedAsLeadSql(contacts.properties)
           )
         ),
       // Top deals at risk (stalled 7+ days)

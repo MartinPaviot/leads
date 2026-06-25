@@ -9,8 +9,9 @@
  */
 
 import { db as defaultDb } from "@/db";
-import { outboundEmails, sequenceEnrollments, metricRollupSnapshot } from "@/db/schema";
-import { and, eq, gte } from "drizzle-orm";
+import { outboundEmails, sequenceEnrollments, contacts, metricRollupSnapshot } from "@/db/schema";
+import { and, eq, gte, isNotNull } from "drizzle-orm";
+import { notExcludedAsLeadSql } from "@/lib/inbound/lead-status-sql";
 import { computeRollups, type MetricEvent, type Metrics, type RollupResult } from "./rollup";
 
 const DEFAULT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -83,7 +84,19 @@ export async function computeCampaignRollups(
     })
     .from(outboundEmails)
     .leftJoin(sequenceEnrollments, eq(outboundEmails.enrollmentId, sequenceEnrollments.id))
-    .where(and(eq(outboundEmails.tenantId, tenantId), gte(outboundEmails.sentAt, since)));
+    .leftJoin(contacts, eq(contacts.id, outboundEmails.contactId))
+    // Campaign rollups must reflect PROSPECT outreach: drop contact-less self-
+    // test/plumbing sends and contacts ruled not-a-lead, so they don't inflate
+    // sent/reply/bounce rates feeding A/B significance, the weekly optimizer and
+    // regression alerts. Mirrors the dashboard-summary KPI gate.
+    .where(
+      and(
+        eq(outboundEmails.tenantId, tenantId),
+        gte(outboundEmails.sentAt, since),
+        isNotNull(outboundEmails.contactId),
+        notExcludedAsLeadSql(contacts.properties),
+      ),
+    );
 
   const events = rowsToMetricEvents(rows as OutboundRollupRow[]);
   return computeRollups(events, { scope: { dimension: "campaign" } });

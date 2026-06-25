@@ -1,8 +1,9 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { db } from "@/db";
-import { activities, companies, contacts, notes } from "@/db/schema";
-import { eq, and, desc, or, isNull } from "drizzle-orm";
+import { activities, companies, contacts, notes, outboundEmails, sequenceEnrollments } from "@/db/schema";
+import { eq, and, desc, or, isNull, inArray } from "drizzle-orm";
+import { shouldSurfaceInboundEvent } from "@/lib/home/up-next";
 
 /**
  * Voice of Customer API — extracts feature requests, pain points,
@@ -57,12 +58,41 @@ export async function GET() {
       firstName: contacts.firstName,
       lastName: contacts.lastName,
       companyId: contacts.companyId,
+      email: contacts.email,
+      properties: contacts.properties,
     }).from(contacts)
       .where(and(eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)));
     const contactMap = new Map(allContacts.map((c) => [c.id, {
       name: [c.firstName, c.lastName].filter(Boolean).join(" "),
       companyId: c.companyId,
+      email: c.email ?? null,
+      properties: (c.properties as Record<string, unknown> | null) ?? null,
     }]));
+
+    // Prospect gate for inbound email: only email_received from a contact we've
+    // engaged (sent/enrolled) or confirmed as a lead — and never machine-sent —
+    // is a real customer interaction. Newsletters, bots, vendor receipts and
+    // stray correspondents would otherwise inflate totalInteractions AND pollute
+    // the extracted themes fed to the LLM. meeting_completed/call_completed are
+    // always genuine and pass through untouched.
+    const inboundContactIds = [
+      ...new Set(
+        recentActivities
+          .filter((a) => a.activityType === "email_received" && a.entityType === "contact" && a.entityId)
+          .map((a) => a.entityId as string),
+      ),
+    ];
+    const engagedContactIds = new Set<string>();
+    if (inboundContactIds.length) {
+      const [sentRows, enrollRows] = await Promise.all([
+        db.selectDistinct({ id: outboundEmails.contactId }).from(outboundEmails)
+          .where(and(eq(outboundEmails.tenantId, authCtx.tenantId), inArray(outboundEmails.contactId, inboundContactIds))),
+        db.selectDistinct({ id: sequenceEnrollments.contactId }).from(sequenceEnrollments)
+          .where(inArray(sequenceEnrollments.contactId, inboundContactIds)),
+      ]);
+      for (const r of sentRows) if (r.id) engagedContactIds.add(r.id);
+      for (const r of enrollRows) if (r.id) engagedContactIds.add(r.id);
+    }
 
     // Prepare content for LLM extraction
     const contentItems = [];
@@ -73,6 +103,22 @@ export async function GET() {
       const structuredNotes = meta.structuredNotes as Record<string, unknown> | undefined;
 
       const contact = activity.entityType === "contact" ? contactMap.get(activity.entityId) : null;
+
+      // Drop inbound email noise before it's counted or sent to the LLM.
+      if (activity.activityType === "email_received") {
+        if (
+          !shouldSurfaceInboundEvent({
+            entityType: activity.entityType,
+            fromHeader: typeof meta.from === "string" ? meta.from : null,
+            contactEmail: contact?.email ?? null,
+            contactProperties: contact?.properties ?? null,
+            engaged: !!(activity.entityId && engagedContactIds.has(activity.entityId)),
+          })
+        ) {
+          continue;
+        }
+      }
+
       const companyName = contact?.companyId ? companyMap.get(contact.companyId) :
         activity.entityType === "company" ? companyMap.get(activity.entityId) : null;
 
