@@ -104,6 +104,13 @@ export interface UnipileAccountInfo {
   object?: string;
   id: string;
   type?: string;
+  /** Display name of the connected account (the seat owner). */
+  name?: string;
+  /** Provider connection params; for LinkedIn the `im` block carries the seat's
+   * premium tier (premiumFeatures) + public identifier (verified live shape). */
+  connection_params?: {
+    im?: { username?: string; publicIdentifier?: string; premiumFeatures?: string[] };
+  };
   /** Account status message: OK | CREDENTIALS | ERROR | STOPPED | … */
   sources?: Array<{ status?: string }>;
   [k: string]: unknown;
@@ -112,6 +119,34 @@ export interface UnipileAccountInfo {
 /** GET /accounts/{id} — used by the status?() health probe. */
 export function getUnipileAccount(cfg: UnipileConfig, accountId: string): Promise<UnipileAccountInfo> {
   return unipileFetch<UnipileAccountInfo>(cfg, "GET", `/accounts/${encodeURIComponent(accountId)}`);
+}
+
+export interface UnipileSeatInfo {
+  /** 'classic' | 'sales_navigator' | 'recruiter' — the search/InMail api selector. */
+  seatType: string;
+  displayName: string | null;
+  profileUrl: string | null;
+}
+
+/**
+ * Derive the seat's premium tier + identity from a Unipile account. Verified
+ * against the live GET /accounts/{id} shape: connection_params.im.premiumFeatures
+ * carries ["sales_navigator"] / ["recruiter"], `name` is the display name, and
+ * publicIdentifier is the /in/<handle> segment. Pure — unit-tested; the connect
+ * webhook persists the result so a self-serve seat isn't stuck on the 'classic'
+ * default. (The promise that "Sales Navigator is detected automatically".)
+ */
+export function seatInfoFromAccount(info: UnipileAccountInfo): UnipileSeatInfo {
+  const im = info.connection_params?.im;
+  const features = (im?.premiumFeatures ?? []).map((f) => String(f).toLowerCase());
+  const seatType = features.includes("sales_navigator")
+    ? "sales_navigator"
+    : features.includes("recruiter")
+      ? "recruiter"
+      : "classic";
+  const displayName = info.name ?? im?.username ?? null;
+  const profileUrl = im?.publicIdentifier ? `https://www.linkedin.com/in/${im.publicIdentifier}` : null;
+  return { seatType, displayName, profileUrl };
 }
 
 export interface UnipileUserProfile {
