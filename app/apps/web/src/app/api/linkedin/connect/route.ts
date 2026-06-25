@@ -62,8 +62,9 @@ export async function POST(req: Request) {
     );
   }
 
-  const body = (await req.json().catch(() => ({}))) as { reconnectAccountId?: string };
+  const body = (await req.json().catch(() => ({}))) as { reconnectAccountId?: string; origin?: string };
   const isReconnect = typeof body.reconnectAccountId === "string" && body.reconnectAccountId.length > 0;
+  const fromOnboarding = body.origin === "onboarding";
 
   // Resolve the row we will attach the connection to.
   let row: { id: string; unipileAccountId: string | null };
@@ -94,9 +95,15 @@ export async function POST(req: Request) {
     }
   }
 
-  const publicBase = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+  // .trim() is load-bearing: the prod NEXT_PUBLIC_APP_URL carries a trailing
+  // newline, which would otherwise corrupt the notify_url/redirect URLs.
+  const publicBase = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").trim().replace(/\/+$/, "");
   const notifyUrl = `${publicBase}/api/linkedin/unipile/account-webhook?token=${encodeURIComponent(cfg.webhookSecret)}`;
   const expiresOn = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  // Context-aware redirect: a connect started in onboarding returns there, not
+  // Settings (which would drop the founder out of the flow).
+  const redirectBase = fromOnboarding ? `${publicBase}/home?onboarding=1` : `${publicBase}/settings/sending-infrastructure`;
+  const redirectSep = redirectBase.includes("?") ? "&" : "?";
 
   try {
     const { url } = await createHostedAuthLink(cfg, {
@@ -106,8 +113,8 @@ export async function POST(req: Request) {
       expiresOn,
       notifyUrl,
       name: row.id, // echoed back as `name` → we match the callback to this row
-      successRedirectUrl: `${publicBase}/settings/sending-infrastructure?linkedin=connected`,
-      failureRedirectUrl: `${publicBase}/settings/sending-infrastructure?linkedin=failed`,
+      successRedirectUrl: `${redirectBase}${redirectSep}linkedin=connected`,
+      failureRedirectUrl: `${redirectBase}${redirectSep}linkedin=failed`,
       reconnectAccount: isReconnect ? row.unipileAccountId ?? undefined : undefined,
     });
     return NextResponse.json({ ok: true, url, accountId: row.id });
