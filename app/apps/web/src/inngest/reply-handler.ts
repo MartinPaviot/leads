@@ -23,6 +23,8 @@ import { buildProspectContext, formatContextForPrompt } from "@/lib/context/pros
 import { getAvailableSlots, formatSlotsForEmail } from "@/lib/integrations/meeting-booking";
 import { updateTrustScore } from "@/lib/campaign-engine/trust-score";
 import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
+import { notifyTenant } from "@/lib/notify/db-notify";
+import { buildHotLeadNotification } from "@/lib/notify/hot-lead-message";
 
 function getLLMModel() {
   if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-6");
@@ -129,7 +131,24 @@ export const handleReplyIntelligently = inngest.createFunction(
 
     // Route based on classification
     if (classification === "interested" || classification === "meeting_request") {
-      // ── Positive reply: propose meeting ──
+      // ── Positive reply: alert the founder (hot lead) FIRST, then propose meeting ──
+      // Spec 28 (A5): surface "someone said yes" in-app + Slack via the live
+      // notifyTenant path. Best-effort + its own step so a notify failure never
+      // blocks the draft generation below; "someone said yes" must reach the founder
+      // even if the auto-reply LLM later fails.
+      await step.run("notify-hot-lead", async () => {
+        const notification = buildHotLeadNotification({
+          firstName: contact.firstName,
+          lastName: contact.lastName,
+          email: contact.email,
+          title: contact.title,
+          classification,
+          replyText: replyContent,
+          reason,
+        });
+        return notifyTenant(tenantId, notification).catch(() => ({ delivered: 0, source: "none" as const, slack: false }));
+      });
+
       const meetingSlots = await step.run("get-slots", async () => {
         // Use the first user ID we can find (tenant owner) — simplified
         const { users } = await import("@/db/schema");
