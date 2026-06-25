@@ -33,3 +33,11 @@ Entrée : `app/apps/web/src/app/(dashboard)/opportunities/[id]/page.tsx`.
 1. Deal-amounts split is permanently dead UI: page.tsx:831-852 renders Project bookings / Platform ARR / Total via getDealAmountDisplay, but app/api/opportunities/[id]/route.ts:82-98 returns only `value` (no projectAmount/platformArr), so isSplit is always false — the split (the documented bookings≠ARR feature) never shows on this page (H4)
 2. Intel lanes swallow fetch errors as console.warn only (page.tsx:234,248,261 for score/at-risk/win-loss; 221 for timeline/health/auto-progress) — a 500 from any of these leaves the lane silently blank with no written error or retry, below the Home-page bar of independent degradation
 3. Several data lanes have no per-lane loading state (win-prob, health, stall-risk, narrative) — they pop in after the page skeleton resolves with no intermediate skeleton/spinner, so on slow networks the right rail and banners appear empty before populating
+
+## Résolution (P1 11 residue)
+
+- **Defect #1 (dead split):** FIXED earlier as R3/T7 (`e3562ed3`) — the route now returns `projectAmount`/`platformArr` so `isSplit` can be true. Done.
+- **Defect #2 (intel lanes swallow errors):** PARTIALLY FIXED, sensibly scoped. The core intel fetch (`fetchIntel`: timeline/health/auto-progress) now surfaces a failure via the page's existing `toast` ("Couldn't load deal intelligence. Refresh to retry.") in two cases: the network-catch, and when ALL THREE core lanes return `!res.ok` (a real backend failure vs sparse intel). A partial failure still self-hides that one lane — no toast spam. The 3 best-effort deal-intel lanes (score/at-risk/win-loss) keep self-hiding: they are optional AI enrichments, and toasting each would spam on a global 500. This makes the most impactful failure visible without bolting 6 error states onto an 850-line page (that surface/risk would be the "insensé" we avoid).
+- **Defect #3 (no per-lane loading state):** NOT changed — documented P2 follow-up. The page-level skeleton covers the initial load; per-lane skeletons for the enrichment cards are a polish item, deferred.
+
+Verdict after fix: the dead split (the H4) is wired, and the core intel failure is now visible. Per-lane loading (#3) and the 3 optional enrichment swallows remain documented P2 follow-ups. tsc clean.
