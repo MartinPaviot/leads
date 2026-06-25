@@ -151,6 +151,12 @@ export default function DealDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  // Keep a stable ref to `toast` so data-fetch callbacks can surface failures
+  // WITHOUT listing `toast` in their dep arrays. `toast` is useCallback-stable in
+  // production, but a re-created test mock would otherwise make it a changing dep
+  // → the callback is recreated every render → its fetch effect loops forever.
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
   const dealId = params.id as string;
   const [deal, setDeal] = useState<Deal | null>(null);
   const [timeline, setTimeline] = useState<Activity[]>([]);
@@ -222,15 +228,15 @@ export default function DealDetailPage() {
         // sparse intel. Surface it (the lanes otherwise self-hide, so a 500
         // would look identical to a deal with no intelligence yet). A partial
         // failure still self-hides that one lane — no toast spam.
-        toast("Couldn't load deal intelligence. Refresh to retry.", "error");
+        toastRef.current("Couldn't load deal intelligence. Refresh to retry.", "error");
       }
     } catch (e) {
       console.warn("opps-detail: intel fetch failed", e);
-      toast("Couldn't load deal intelligence. Refresh to retry.", "error");
+      toastRef.current("Couldn't load deal intelligence. Refresh to retry.", "error");
     } finally {
       setIntelLoaded(true);
     }
-  }, [dealId, toast]);
+  }, [dealId]);
 
   // Fetch deal intelligence (win probability, stall risk, win/loss)
   const fetchDealIntel = useCallback(async (currentDeal: Deal) => {
