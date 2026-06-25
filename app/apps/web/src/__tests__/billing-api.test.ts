@@ -19,6 +19,7 @@ let _stripeHandle: unknown = {
 vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: vi.fn(),
   withAuthRLS: vi.fn(async (handler) => { const ctx = await (await import("@/lib/auth/auth-utils")).getAuthContext(); if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 }); return handler(ctx); }),
+  requireAdmin: (ctx: { role?: string } | null) => (ctx?.role === "admin" ? null : Response.json({ error: "Admin only" }, { status: 403 })),
 }));
 
 vi.mock("@/db", () => ({
