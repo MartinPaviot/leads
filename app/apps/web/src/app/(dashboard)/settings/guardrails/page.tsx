@@ -95,10 +95,12 @@ export default function GuardrailsSettingsPage() {
   const [approvalMode, setApprovalMode] = useState<ApprovalModeV2 | null>(null);
   const [sending, setSending] = useState<SendingInfraPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const [workspaceRes, sendingRes] = await Promise.all([
         fetch("/api/settings/workspace"),
@@ -107,12 +109,18 @@ export default function GuardrailsSettingsPage() {
       if (workspaceRes.ok) {
         const payload = (await workspaceRes.json()) as { agentApprovalMode?: ApprovalModeV2 };
         setApprovalMode(payload.agentApprovalMode ?? "review-each");
+      } else {
+        // The catch only fires on a network throw; a 500 here left approvalMode
+        // null → inactive buttons with no error. Surface the non-throw failure.
+        setLoadError(true);
+        toast("Couldn't load guardrails", "error");
       }
       if (sendingRes.ok) {
         setSending((await sendingRes.json()) as SendingInfraPayload);
       }
     } catch (err) {
       console.warn("guardrails: load failed", err);
+      setLoadError(true);
       toast("Couldn't load guardrails", "error");
     } finally {
       setLoading(false);
@@ -191,6 +199,17 @@ export default function GuardrailsSettingsPage() {
         title="Guardrails"
         subtitle="Explicit trust calibration before any autonomous action."
       />
+
+      {loadError && (
+        <div
+          role="alert"
+          className="mb-4 flex items-center gap-3 rounded-lg p-3 text-[12px]"
+          style={{ background: "var(--color-error-soft, rgba(220,38,38,0.08))", color: "var(--color-error, #b91c1c)" }}
+        >
+          <span>Couldn&apos;t load your guardrails — the controls below may show defaults, not your saved configuration.</span>
+          <button onClick={() => void load()} className="ml-auto shrink-0 font-medium underline">Retry</button>
+        </div>
+      )}
 
       <div className="space-y-4">
         {/* ── Approval mode ── */}
