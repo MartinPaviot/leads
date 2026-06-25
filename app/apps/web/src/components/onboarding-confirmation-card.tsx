@@ -13,6 +13,7 @@ import {
   JOB_SENIORITIES,
   JOB_DEPARTMENTS,
 } from "@/lib/config/icp-constants";
+import { LinkedInConnect } from "@/app/(dashboard)/settings/sending-infrastructure/_linkedin-connect";
 
 /**
  * WS-2 v2 onboarding confirmation card — collapses v1's welcome +
@@ -563,6 +564,12 @@ export function OnboardingConfirmationCard({
           </a>
         </CardBody>
       </Card>
+
+      {/* Zone 4 — optional: connect LinkedIn / Sales Navigator (spec 36).
+          Non-blocking — the founder can build their pipeline without a seat.
+          Reuses the self-contained settings card; origin drives the post-auth
+          redirect back into onboarding. */}
+      <LinkedInConnect origin="onboarding" />
 
       <div className="pt-2">
         <Button

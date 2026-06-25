@@ -35,7 +35,7 @@ const STATUS_LABEL: Record<string, string> = {
   disabled: "Disabled",
 };
 
-export function LinkedInConnect() {
+export function LinkedInConnect({ origin }: { origin?: "onboarding" | "settings" } = {}) {
   const { toast } = useToast();
   const [data, setData] = useState<StatusPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,7 +70,10 @@ export function LinkedInConnect() {
         const res = await fetch("/api/linkedin/connect", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(reconnectAccountId ? { reconnectAccountId } : {}),
+          body: JSON.stringify({
+            ...(reconnectAccountId ? { reconnectAccountId } : {}),
+            ...(origin ? { origin } : {}),
+          }),
         });
         const body = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
         if (!res.ok || !body.url) {
@@ -85,7 +88,7 @@ export function LinkedInConnect() {
         setBusy(false);
       }
     },
-    [toast],
+    [toast, origin],
   );
 
   const account = data?.account ?? null;
