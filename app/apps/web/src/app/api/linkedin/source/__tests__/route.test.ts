@@ -33,6 +33,10 @@ vi.mock("@/lib/sending/linkedin/graph-sync", () => ({
   rematchStoredRelations: vi.fn(async () => ({ seats: 1, matched: 0, edgesCreated: 0, edgesUpdated: 0 })),
 }));
 
+// ICP→Sales-Nav resolver (#2) — mocked; it has its own unit test.
+const resolveIcpToSalesNavQuery = vi.fn();
+vi.mock("@/lib/linkedin/icp-to-salesnav", () => ({ resolveIcpToSalesNavQuery: (...a: unknown[]) => resolveIcpToSalesNavQuery(...a) }));
+
 import { getAuthContext } from "@/lib/auth/auth-utils";
 const route = await import("@/app/api/linkedin/source/route");
 
@@ -45,6 +49,11 @@ beforeEach(() => {
   seatRows = [];
   readUnipileConfig.mockReturnValue(CFG);
   sourceFromSalesNav.mockResolvedValue({ searched: 50, accountsUpserted: 40, contactsUpserted: 45, skippedNoIdentity: 5 });
+  resolveIcpToSalesNavQuery.mockResolvedValue({
+    body: { api: "sales_navigator", category: "people", industry: { include: [4] } },
+    report: [{ type: "INDUSTRY", label: "software", id: "4", matched: "Software Development" }],
+    usable: true,
+  });
 });
 
 describe("POST /api/linkedin/source", () => {
@@ -99,5 +108,30 @@ describe("POST /api/linkedin/source", () => {
     seatRows = [{ id: "a1", status: "connected", unipileAccountId: "acc-1", seatType: "sales_navigator", userId: "u1" }];
     sourceFromSalesNav.mockRejectedValue(new Error("unipile down"));
     expect((await post({ keywords: "x" })).status).toBe(502);
+  });
+
+  it("resolves ICP criteria to a Sales-Nav body and returns the resolution report (#2)", async () => {
+    authed();
+    seatRows = [{ id: "a1", status: "connected", unipileAccountId: "acc-1", seatType: "sales_navigator", userId: "u1" }];
+    const res = await post({ industries: ["software"], locations: "France, United States", jobTitles: ["Founder"] });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.ok).toBe(true);
+    expect(json.resolution).toHaveLength(1);
+    // comma-string -> array parsing reached the resolver
+    const icpArg = resolveIcpToSalesNavQuery.mock.calls[0][2];
+    expect(icpArg.industries).toEqual(["software"]);
+    expect(icpArg.locations).toEqual(["France", "United States"]);
+    // the resolved structured body (not url/keywords) is what gets sourced
+    expect(sourceFromSalesNav.mock.calls[0][0].query).toMatchObject({ industry: { include: [4] } });
+  });
+
+  it("422 when the ICP criteria resolve to nothing usable", async () => {
+    authed();
+    seatRows = [{ id: "a1", status: "connected", unipileAccountId: "acc-1", seatType: "sales_navigator", userId: "u1" }];
+    resolveIcpToSalesNavQuery.mockResolvedValue({ body: { api: "sales_navigator", category: "people" }, report: [{ type: "JOB_TITLE", label: "wizard", id: null, matched: null }], usable: false });
+    const res = await post({ jobTitles: ["wizard"] });
+    expect(res.status).toBe(422);
+    expect(sourceFromSalesNav).not.toHaveBeenCalled();
   });
 });

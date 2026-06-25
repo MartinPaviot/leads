@@ -6,6 +6,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { readUnipileConfig, type LinkedInSearchApi, type LinkedInSearchCategory } from "@/lib/providers/unipile/http";
 import { sourceFromSalesNav } from "@/lib/linkedin/sales-nav-sourcing";
 import { rematchStoredRelations } from "@/lib/sending/linkedin/graph-sync";
+import { resolveIcpToSalesNavQuery } from "@/lib/linkedin/icp-to-salesnav";
 import logger from "@/lib/observability/logger";
 
 /**
@@ -66,12 +67,27 @@ export async function POST(req: Request) {
     keywords?: string;
     category?: LinkedInSearchCategory;
     maxResults?: number;
+    industries?: string[] | string;
+    locations?: string[] | string;
+    jobTitles?: string[] | string;
+    networkDistance?: number[];
   };
+  // Accept arrays OR comma-separated strings for the ICP criteria.
+  const asList = (v: string[] | string | undefined): string[] =>
+    Array.isArray(v)
+      ? v.map((s) => String(s).trim()).filter(Boolean)
+      : typeof v === "string"
+        ? v.split(",").map((s) => s.trim()).filter(Boolean)
+        : [];
   const url = typeof body.url === "string" ? body.url.trim() : "";
   const keywords = typeof body.keywords === "string" ? body.keywords.trim() : "";
-  if (!url && !keywords) {
+  const industries = asList(body.industries);
+  const locations = asList(body.locations);
+  const jobTitles = asList(body.jobTitles);
+  const hasStructured = industries.length > 0 || locations.length > 0 || jobTitles.length > 0;
+  if (!url && !keywords && !hasStructured) {
     return NextResponse.json(
-      { error: "Provide a Sales Navigator search URL or keywords." },
+      { error: "Provide a Sales Navigator search URL, keywords, or ICP criteria (industries / locations / titles)." },
       { status: 400 },
     );
   }
@@ -82,12 +98,43 @@ export async function POST(req: Request) {
     seat.seatType === "sales_navigator" ? "sales_navigator" : seat.seatType === "recruiter" ? "recruiter" : "classic";
   const category: LinkedInSearchCategory = body.category === "companies" ? "companies" : "people";
   const maxResults = Math.min(500, Math.max(1, Number(body.maxResults) || 100));
+  const networkDistance = Array.isArray(body.networkDistance)
+    ? body.networkDistance.map(Number).filter((n) => Number.isFinite(n))
+    : undefined;
 
   try {
+    // Precedence: a pasted Sales-Nav URL wins; else resolve the ICP criteria to
+    // LinkedIn filter IDs (#2); else free-text keywords.
+    let query: { api: LinkedInSearchApi; category: LinkedInSearchCategory; [k: string]: unknown };
+    let resolution: unknown = undefined;
+    if (url) {
+      query = { api, category, url };
+    } else if (hasStructured) {
+      const resolved = await resolveIcpToSalesNavQuery(
+        cfg,
+        seat.unipileAccountId,
+        { industries, locations, jobTitles, keywords: keywords || undefined, networkDistance },
+        { api, category },
+      );
+      if (!resolved.usable) {
+        return NextResponse.json(
+          {
+            error: "Couldn't resolve any of those ICP filters on LinkedIn. Try different industry/location/title wording, or paste a Sales Navigator URL.",
+            resolution: resolved.report,
+          },
+          { status: 422 },
+        );
+      }
+      query = resolved.body;
+      resolution = resolved.report;
+    } else {
+      query = { api, category, keywords };
+    }
+
     const result = await sourceFromSalesNav({
       tenantId: authCtx.tenantId,
       unipileAccountId: seat.unipileAccountId,
-      query: { api, category, ...(url ? { url } : {}), ...(keywords ? { keywords } : {}) },
+      query,
       maxResults,
     });
     // Light up warm paths on the freshly-sourced contacts from the seat's stored
@@ -99,7 +146,7 @@ export async function POST(req: Request) {
     } catch (e) {
       logger.warn("linkedin/source: warm-path rematch failed (non-fatal)", { e });
     }
-    return NextResponse.json({ ok: true, ...result, warmEdges });
+    return NextResponse.json({ ok: true, ...result, warmEdges, ...(resolution ? { resolution } : {}) });
   } catch (err) {
     logger.error("linkedin/source: sourcing failed", { tenantId: authCtx.tenantId, err });
     return NextResponse.json(
