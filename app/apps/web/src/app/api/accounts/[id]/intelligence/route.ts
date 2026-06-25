@@ -153,7 +153,7 @@ ${activitiesSummary || "None"}
 ${graphContext}
 
 Be specific — reference names, dates, and amounts. Focus on: relationship status, key risk or opportunity, and the single most impactful next action.`,
-      maxTokens: 250,
+      maxOutputTokens: 700,
       _meta: { tenantId: authCtx.tenantId, feature: "entity-intelligence" },
     });
 

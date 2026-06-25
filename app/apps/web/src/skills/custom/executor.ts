@@ -161,8 +161,7 @@ export async function executeCustomSkill(
     const response = await generateText({
       model,
       prompt,
-      // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
-      maxTokens: 4000,
+      maxOutputTokens: 4000,
       temperature: 0.3,
     });
 

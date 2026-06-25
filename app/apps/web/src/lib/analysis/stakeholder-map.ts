@@ -494,8 +494,7 @@ ${stakeholderSummary}
 ${gapSummary}
 
 Strategy (2-3 sentences, no bullet points):`,
-      // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
-      maxTokens: 200,
+      maxOutputTokens: 512,
       temperature: 0.3,
       _trace: { agentId: "stakeholder-strategy", tenantId },
     });
