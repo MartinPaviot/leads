@@ -8,6 +8,12 @@ export const tamBuilderInputSchema = z.object({
     organization_locations: z.array(z.string()).optional(),
     organization_not_locations: z.array(z.string()).optional(),
     currently_using_any_of_technology_uids: z.array(z.string()).optional(),
+    // Funding/firmographic narrowing (spec 36 — supported by apollo-client
+    // OrgSearchParams; spread straight into searchOrganizations). The Elevay ICP
+    // gates on raised-date (<2y) + a seed/Series-A funding-amount band.
+    latest_funding_date_range: z.object({ min: z.string().optional(), max: z.string().optional() }).optional(),
+    total_funding_range: z.object({ min: z.number().optional(), max: z.number().optional() }).optional(),
+    revenue_range: z.object({ min: z.number().optional(), max: z.number().optional() }).optional(),
   }),
   // Zod v4 requires `.default()` to receive a value that satisfies the
   // schema strictly, so we pass full defaults via a thunk to keep the
@@ -62,6 +68,8 @@ const scoredCompanySchema = z.object({
 const watchlistPersonSchema = z.object({
   apolloId: z.string(),
   name: z.string().nullable(),
+  firstName: z.string().nullable(),
+  lastName: z.string().nullable(),
   email: z.string().nullable(),
   title: z.string().nullable(),
   seniority: z.string().nullable(),

@@ -144,6 +144,8 @@ export async function tamBuilderHandler(
         watchlist.push({
           apolloId: person.id,
           name: person.name,
+          firstName: person.first_name,
+          lastName: person.last_name,
           email: person.email,
           title: person.title,
           seniority: person.seniority,
