@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { MessageCircle, ChevronDown, ChevronRight, BarChart3, Loader2, Lightbulb, AlertTriangle, Heart, Shield, Crosshair } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -31,25 +31,32 @@ const categoryConfig: Record<string, { label: string; color: string; icon: typeo
 export default function VoiceOfCustomerPage() {
   const [themes, setThemes] = useState<VoCTheme[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [totalInteractions, setTotalInteractions] = useState(0);
   const [expandedTheme, setExpandedTheme] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/voice-of-customer");
-        if (res.ok) {
-          const data = await res.json();
-          setThemes(data.insights || []);
-          setTotalInteractions(data.totalInteractions || 0);
-        }
-      } catch {
-        // Silent fail
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const res = await fetch("/api/voice-of-customer");
+      if (res.ok) {
+        const data = await res.json();
+        setThemes(data.insights || []);
+        setTotalInteractions(data.totalInteractions || 0);
+      } else {
+        // A 500 (LLM parse failure) or a thrown fetch used to fall through to
+        // the "No customer insights yet" empty state, hiding the failure.
+        setLoadError(true);
       }
-      setLoading(false);
-    })();
+    } catch {
+      setLoadError(true);
+    }
+    setLoading(false);
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const filteredThemes = filterCategory
     ? themes.filter((t) => t.category === filterCategory)
@@ -83,7 +90,15 @@ export default function VoiceOfCustomerPage() {
       />
 
       <div className="flex-1 overflow-auto px-4 py-6">
-        {themes.length === 0 ? (
+        {loadError ? (
+          <EmptyState
+            variant="error"
+            title="Couldn't analyze your conversations"
+            description="Something went wrong extracting customer themes. This is not an empty inbox."
+            actionLabel="Retry"
+            onAction={load}
+          />
+        ) : themes.length === 0 ? (
           <EmptyState
             icon={<MessageCircle size={24} />}
             title="No customer insights yet"

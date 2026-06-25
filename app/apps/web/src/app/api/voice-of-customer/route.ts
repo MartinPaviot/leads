@@ -102,7 +102,7 @@ export async function GET() {
     }
 
     if (contentItems.length === 0) {
-      return Response.json({ insights: [], message: "No customer interactions found yet" });
+      return Response.json({ insights: [], totalInteractions: 0, message: "No customer interactions found yet" });
     }
 
     // Use LLM to extract voice of customer insights
@@ -110,7 +110,10 @@ export async function GET() {
     const openaiKey = process.env.OPENAI_API_KEY;
 
     if (!anthropicKey && !openaiKey) {
-      return Response.json({ insights: [], message: "No LLM API key configured" });
+      // Return the real interaction count so the subtitle reads "0 themes from
+      // N interactions" (we have data, just couldn't analyze it) rather than
+      // understating to 0 and looking like an empty tenant.
+      return Response.json({ insights: [], totalInteractions: contentItems.length, message: "No LLM API key configured" });
     }
 
     const prompt = `Analyze these customer interactions and extract Voice of Customer insights. Group by theme.
@@ -168,7 +171,7 @@ Only include themes with actual evidence from the data. Don't fabricate. Sort by
 
       return Response.json({ insights: themes, totalInteractions: contentItems.length });
     } catch (error) {
-      return Response.json({ error: `Analysis failed: ${String(error)}`, insights: [] }, { status: 500 });
+      return Response.json({ error: `Analysis failed: ${String(error)}`, insights: [], totalInteractions: contentItems.length }, { status: 500 });
     }
   } catch (error) {
     return Response.json({ error: String(error) }, { status: 500 });
