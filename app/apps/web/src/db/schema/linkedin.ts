@@ -106,6 +106,38 @@ export const linkedinProviderIdentity = pgTable(
 );
 
 /**
+ * Spec 36 (T9) — a connected seat's 1st-degree relations (network snapshot).
+ * Captured once on connect + refreshed periodically, so matching a sourced
+ * contact to "who on the team is already connected" is instant + survives
+ * without re-pulling. Each relation's provider_id (Unipile member_id, ACoAA…)
+ * pre-populates the send target — a later send skips the per-contact resolve.
+ * profile_url is normalized via linkedinPath (the same key contacts dedup on).
+ */
+export const linkedinRelation = pgTable(
+  "linkedin_relation",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").references(() => tenants.id).notNull(),
+    /** Whose network this relation belongs to. */
+    linkedinAccountId: text("linkedin_account_id").references(() => linkedinAccount.id).notNull(),
+    /** Unipile member_id (ACoAA…) — the viewer-scoped provider_id / send target. */
+    providerId: text("provider_id").notNull(),
+    /** Normalized via linkedinPath — the match key against contacts.linkedin_url. */
+    profileUrl: text("profile_url").notNull(),
+    publicIdentifier: text("public_identifier"),
+    displayName: text("display_name"),
+    headline: text("headline"),
+    /** Always '1st' for a relations-list entry (kept explicit for the graph). */
+    connectionDegree: text("connection_degree").notNull().default("1st"),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("linkedin_relation_account_provider_uniq").on(t.linkedinAccountId, t.providerId),
+    index("linkedin_relation_tenant_profile_idx").on(t.tenantId, t.profileUrl),
+  ],
+);
+
+/**
  * Durable LinkedInActionEvent persistence. Backs actionsToday (the COUNT the
  * daily-limit gate needs, linkedin.ts:45) and makes LinkedIn touches visible to
  * spec-14 overlap + spec-29 rollups. `idempotency_key` unique = the spec-24

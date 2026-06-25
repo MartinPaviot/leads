@@ -12,8 +12,16 @@ export const PROVIDER_RANK: Record<string, number> = {
   sirene: 80, // official FR registry (INSEE)
   insee: 80,
   pappers: 78, // FR registry aggregator
+  // LinkedIn is the source of truth for its own fields (linkedin_url, current
+  // title/headline) — ranked just above Apollo so LinkedIn wins the fields it
+  // actually writes, while Apollo still wins everything LinkedIn never writes
+  // (email, funding, firmographics). spec 36.
+  unipile: 55,
+  linkedin: 55,
   apollo: 50, // vendor enrichment
   apollo_search: 48,
+  heyreach: 35, // LinkedIn sending only — not an enrichment source of truth
+
   tam: 45, // sourcing pipeline
   csv: 40, // bulk import
   inbound: 40, // captured inbound

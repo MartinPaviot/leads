@@ -138,6 +138,95 @@ export function getUnipileUserProfile(cfg: UnipileConfig, identifier: string, ac
   );
 }
 
+export type LinkedInSearchApi = "classic" | "sales_navigator" | "recruiter";
+export type LinkedInSearchCategory = "people" | "companies";
+
+/** A LinkedIn/Sales-Nav search result (verified shape, people category). */
+export interface LinkedInSearchResult {
+  id?: string;
+  type?: string;
+  first_name?: string;
+  last_name?: string;
+  name?: string;
+  headline?: string;
+  summary?: string;
+  industry?: string;
+  location?: string;
+  public_identifier?: string;
+  public_profile_url?: string;
+  profile_url?: string;
+  member_urn?: string;
+  network_distance?: string;
+  premium?: boolean;
+  current_positions?: Array<{ company?: string; company_name?: string; role?: string; title?: string; [k: string]: unknown }>;
+  recent_posts_count?: number;
+  shared_connections_count?: number;
+  [k: string]: unknown;
+}
+
+export interface LinkedInSearchPage {
+  items: LinkedInSearchResult[];
+  cursor: string | null;
+  /** paging.total_count — the TAM size estimate for this query. */
+  total: number | null;
+}
+
+/**
+ * POST /linkedin/search — one page. `api: "sales_navigator"` requires a Sales
+ * Navigator seat (the founder's has it). Filters beyond `keywords` are LinkedIn
+ * numeric ids resolved via GET /linkedin/search/parameters (follow-up); this
+ * covers keyword/category + the paste-a-search-URL variant via `url`.
+ */
+export async function searchLinkedIn(
+  cfg: UnipileConfig,
+  accountId: string,
+  body: { api: LinkedInSearchApi; category?: LinkedInSearchCategory; keywords?: string; url?: string; [k: string]: unknown },
+  opts: { cursor?: string | null; limit?: number } = {},
+): Promise<LinkedInSearchPage> {
+  const q = `account_id=${encodeURIComponent(accountId)}&limit=${opts.limit ?? 25}${opts.cursor ? `&cursor=${encodeURIComponent(opts.cursor)}` : ""}`;
+  const j = await unipileFetch<{ items?: LinkedInSearchResult[]; cursor?: string | null; paging?: { total_count?: number } }>(
+    cfg,
+    "POST",
+    `/linkedin/search?${q}`,
+    body,
+  );
+  return { items: j.items ?? [], cursor: j.cursor ?? null, total: j.paging?.total_count ?? null };
+}
+
+/** A 1st-degree relation as returned by GET /users/relations (verified shape). */
+export interface UnipileRelation {
+  /** Unipile member id (ACoAA…) — the viewer-scoped provider_id / send target. */
+  member_id?: string;
+  member_urn?: string;
+  first_name?: string;
+  last_name?: string;
+  headline?: string;
+  public_identifier?: string;
+  public_profile_url?: string;
+  [k: string]: unknown;
+}
+
+export interface UnipileRelationsPage {
+  items: UnipileRelation[];
+  cursor: string | null;
+}
+
+/**
+ * GET /users/relations — one page of a connected account's 1st-degree relations.
+ * Cursor-paginated (envelope {object, items, cursor}; no paging object). Every
+ * item is implicitly 1st-degree. Caller loops until cursor is null.
+ */
+export async function listUnipileRelations(
+  cfg: UnipileConfig,
+  accountId: string,
+  cursor?: string | null,
+  limit = 100,
+): Promise<UnipileRelationsPage> {
+  const q = `account_id=${encodeURIComponent(accountId)}&limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+  const j = await unipileFetch<{ items?: UnipileRelation[]; cursor?: string | null }>(cfg, "GET", `/users/relations?${q}`);
+  return { items: j.items ?? [], cursor: j.cursor ?? null };
+}
+
 /**
  * Constant-time check that the inbound webhook/notify request carries our
  * shared secret in `?token=`. Fail-closed: no secret configured → reject.
