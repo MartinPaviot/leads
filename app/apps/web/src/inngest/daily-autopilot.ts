@@ -90,16 +90,29 @@ export const dailyAutopilot = inngest.createFunction(
     for (const t of allTenants) {
       const summary = await step.run(`autopilot-${t.id}`, async () => {
         try {
-          return await runAutopilotForTenant(t.id, deps);
+          const s = await runAutopilotForTenant(t.id, deps);
+          // B6.1 telemetry — the per-run cost signal. `prepared` is the LLM-call
+          // lower bound and is structurally ≤ `budget`; alert if that ever inverts.
+          logger.info("daily-autopilot.tenant_done", {
+            tenantId: t.id, budget: s.budget, selected: s.selected,
+            prepared: s.prepared, enrolled: s.enrolled, drafted: s.drafted,
+            errors: s.errors, skipped: s.skipped ?? null,
+            overBudget: s.prepared > s.budget,
+          });
+          return s;
         } catch (err) {
           logger.warn("daily-autopilot.tenant_failed", { tenantId: t.id, err: err instanceof Error ? err.message : String(err) });
-          return { tenantId: t.id, budget: 0, selected: 0, enrolled: 0, drafted: 0 } as TenantAutopilotSummary;
+          return { tenantId: t.id, budget: 0, selected: 0, prepared: 0, enrolled: 0, drafted: 0, errors: 1 } as TenantAutopilotSummary;
         }
       });
       perTenant.push(summary);
     }
 
-    const totals = perTenant.reduce((acc, s) => ({ enrolled: acc.enrolled + s.enrolled, drafted: acc.drafted + s.drafted }), { enrolled: 0, drafted: 0 });
+    const totals = perTenant.reduce(
+      (acc, s) => ({ prepared: acc.prepared + s.prepared, enrolled: acc.enrolled + s.enrolled, drafted: acc.drafted + s.drafted, errors: acc.errors + s.errors }),
+      { prepared: 0, enrolled: 0, drafted: 0, errors: 0 },
+    );
+    logger.info("daily-autopilot.run_done", { tenants: allTenants.length, ...totals });
     return { enabled: true, tenants: allTenants.length, ...totals, perTenant };
   },
 );

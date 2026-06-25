@@ -94,3 +94,36 @@ describe("runAutopilotForTenant — enroll loop", () => {
     expect(s).toMatchObject({ selected: 3, enrolled: 1, drafted: 0 });
   });
 });
+
+describe("runAutopilotForTenant — cost bound + fault isolation (B6.1)", () => {
+  it("prepared (the LLM-call count) never exceeds the budget", async () => {
+    const { deps: d } = deps({
+      getConfig: async () => ({ configBudget: 2, maxEmailsPerDay: null, approvalMode: "auto-high-confidence" }),
+      loadCandidates: async () => pool([cand("a", 9), cand("b", 8), cand("d", 7), cand("e", 6)]),
+    });
+    const s = await runAutopilotForTenant("t1", d);
+    expect(s.prepared).toBe(2);
+    expect(s.prepared).toBeLessThanOrEqual(s.budget);
+  });
+
+  it("isolates a mid-loop prepare failure — the other prospects still enroll", async () => {
+    const prepare = vi.fn().mockRejectedValueOnce(new Error("llm hiccup")).mockResolvedValue({});
+    const { deps: d, enroll } = deps({ prepare });
+    const s = await runAutopilotForTenant("t1", d); // 3 candidates, the first (top score) fails prepare
+    expect(s).toMatchObject({ selected: 3, prepared: 2, enrolled: 2, errors: 1 });
+    expect(enroll).toHaveBeenCalledTimes(2); // a failed prepare short-circuits before enroll
+  });
+
+  it("trips the breaker after N consecutive failures — stops burning calls", async () => {
+    const prepare = vi.fn().mockRejectedValue(new Error("budget exhausted"));
+    const { deps: d } = deps({
+      prepare,
+      maxConsecutiveErrors: 2,
+      getConfig: async () => ({ configBudget: 100, maxEmailsPerDay: null, approvalMode: "auto-high-confidence" }),
+      loadCandidates: async () => pool([cand("a", 9), cand("b", 8), cand("d", 7), cand("e", 6)]),
+    });
+    const s = await runAutopilotForTenant("t1", d);
+    expect(s).toMatchObject({ selected: 4, prepared: 0, enrolled: 0, errors: 2 });
+    expect(prepare).toHaveBeenCalledTimes(2); // bailed after 2 of 4, didn't process the rest
+  });
+});

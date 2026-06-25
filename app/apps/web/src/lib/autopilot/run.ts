@@ -26,8 +26,12 @@ export interface TenantAutopilotSummary {
   tenantId: string;
   budget: number;
   selected: number;
+  /** Successful prepare() calls — the per-run LLM-call lower bound. Structurally ≤ budget. */
+  prepared: number;
   enrolled: number;
   drafted: number;
+  /** Per-prospect prepare/enroll failures that were isolated (the run continued). */
+  errors: number;
   skipped?: AutopilotSkip;
 }
 
@@ -55,10 +59,16 @@ export interface RunAutopilotDeps {
   }) => Promise<{ outcome: EnrollOutcome }>;
   /** Candidate pool buffer over the budget (so exclusions don't starve it). Default 4, capped 1000. */
   poolMultiplier?: number;
+  /**
+   * Consecutive prepare/enroll failures before the per-tenant loop bails. A run of
+   * back-to-back errors means the tenant is broken (LLM budget exhausted, sequence
+   * deleted mid-run, …) — keep going and we just burn calls. Default 5.
+   */
+  maxConsecutiveErrors?: number;
 }
 
 export async function runAutopilotForTenant(tenantId: string, deps: RunAutopilotDeps): Promise<TenantAutopilotSummary> {
-  const base = { tenantId, budget: 0, selected: 0, enrolled: 0, drafted: 0 };
+  const base = { tenantId, budget: 0, selected: 0, prepared: 0, enrolled: 0, drafted: 0, errors: 0 };
 
   // 1. Warmup-aware capacity → budget (clamped to capacity + the legacy floor − spent).
   const capacity = await deps.loadCapacity(tenantId);
@@ -86,13 +96,28 @@ export async function runAutopilotForTenant(tenantId: string, deps: RunAutopilot
   const action = decideAutopilotEnrollment(cfg.approvalMode, { autopilotAutoEnroll: cfg.autopilotAutoEnroll });
 
   // 5. Per prospect (bounded by selected ⊆ budget): refresh+ground, then enroll/draft.
+  // Each prospect is fault-isolated: one failure (LLM hiccup, transient db) is
+  // counted and skipped, not allowed to abort the tenant. A run of consecutive
+  // failures trips the breaker — the tenant is broken, stop burning calls.
+  const maxConsecutive = deps.maxConsecutiveErrors ?? 5;
+  let prepared = 0;
   let enrolled = 0;
   let drafted = 0;
+  let errors = 0;
+  let consecutive = 0;
   for (const p of selected) {
-    await deps.prepare(tenantId, p.contactId, p.companyId);
-    const r = await deps.enroll({ tenantId, contactId: p.contactId, sequenceId, action, draftPayload: { companyId: p.companyId } });
-    if (r.outcome === "enrolled") enrolled++;
-    else if (r.outcome === "drafted") drafted++;
+    try {
+      await deps.prepare(tenantId, p.contactId, p.companyId);
+      prepared++;
+      const r = await deps.enroll({ tenantId, contactId: p.contactId, sequenceId, action, draftPayload: { companyId: p.companyId } });
+      if (r.outcome === "enrolled") enrolled++;
+      else if (r.outcome === "drafted") drafted++;
+      consecutive = 0;
+    } catch {
+      errors++;
+      consecutive++;
+      if (consecutive >= maxConsecutive) break;
+    }
   }
-  return { tenantId, budget: budget.email, selected: selected.length, enrolled, drafted };
+  return { tenantId, budget: budget.email, selected: selected.length, prepared, enrolled, drafted, errors };
 }
