@@ -50,7 +50,7 @@ export async function POST(req: Request) {
   if (query.length > 600) return Response.json({ error: "query too long (max 600 chars)" }, { status: 400 });
 
   const model = process.env.ANTHROPIC_API_KEY
-    ? anthropic("claude-sonnet-4-6")
+    ? anthropic("claude-haiku-4-5-20251001")
     : process.env.OPENAI_API_KEY
       ? openai("gpt-4o-mini")
       : null;
