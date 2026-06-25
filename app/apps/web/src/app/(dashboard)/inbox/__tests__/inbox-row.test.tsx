@@ -38,16 +38,22 @@ function sample(over: Partial<ConversationListItem> = {}): ConversationListItem 
 }
 
 describe("InboxRow (F1)", () => {
-  it("renders an UNREAD row bold (Upstream), subject medium, snippet, on one 14px line", () => {
-    const { container } = render(<InboxRow item={sample({ unread: true })} lane="attention" selected={false} multiSelected={false} hasSelection={false} onSelect={vi.fn()} />);
-    // Upstream: unread → sender bold + subject medium; read → both normal.
+  it("comfortable (default): unread row shows bold sender, medium subject, preview", () => {
+    render(<InboxRow item={sample({ unread: true })} lane="attention" selected={false} multiSelected={false} hasSelection={false} onSelect={vi.fn()} />);
+    // Outlook 2-line: line 1 sender (bold when unread), line 2 subject (medium) + preview.
     const sender = screen.getByText("Jane Doe");
     expect(sender.className).toMatch(/font-bold/);
     const subject = screen.getByText("Re: pricing question");
     expect(subject.className).toMatch(/font-medium/);
     expect(screen.getByText("Thanks — can you confirm the annual number?")).toBeTruthy();
-    // The whole primary line is a single 14px clipped row (soft right-edge fade).
+  });
+
+  it("compact: collapses to one masked single line (sender · subject · snippet)", () => {
+    const { container } = render(<InboxRow item={sample({ unread: true })} lane="attention" selected={false} multiSelected={false} hasSelection={false} onSelect={vi.fn()} density="compact" />);
+    // One 14px clipped row with the soft right-edge fade.
     expect(container.querySelector(".text-\\[14px\\].overflow-hidden")).toBeTruthy();
+    expect(screen.getByText("Jane Doe").className).toMatch(/font-bold/);
+    expect(screen.getByText("Re: pricing question").className).toMatch(/font-medium/);
   });
 
   it("renders a READ row in normal weight (no unread emphasis)", () => {

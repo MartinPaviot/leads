@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { type ConversationListItem, type InboxLane } from "./_types";
 import { prefetchDetail } from "@/lib/inbox/detail-cache";
-import { InboxRow } from "./_inbox-row";
+import { InboxRow, type InboxDensity } from "./_inbox-row";
 
 const EMPTY_COPY: Record<InboxLane, { title: string; description: string }> = {
   attention: {
@@ -64,6 +64,7 @@ export function ConversationList({
   onClearSearch,
   onToggleStar,
   activeSplit = null,
+  density = "comfortable",
 }: {
   lane: InboxLane;
   conversations: ConversationListItem[];
@@ -86,6 +87,8 @@ export function ConversationList({
   onToggleStar?: (key: string, starred: boolean) => void;
   /** Active split id — drives the per-split resting empty copy (Upstream parity). */
   activeSplit?: string | null;
+  /** Outlook-style display density (comfortable 2-line / compact 1-line). */
+  density?: InboxDensity;
 }) {
   const selectedSet = new Set(selectedKeys);
   const hasSelection = selectedKeys.length > 0;
@@ -133,7 +136,9 @@ export function ConversationList({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto">
+    // No own scroller — the parent list column owns overflow, so scroll position
+    // survives opening/closing a thread (single source of truth for restore).
+    <div className="flex flex-col">
       {conversations.map((c) => (
         <InboxRow
           key={c.key}
@@ -148,6 +153,7 @@ export function ConversationList({
           onHoverStart={armPrefetch}
           onHoverEnd={cancelPrefetch}
           onToggleStar={onToggleStar}
+          density={density}
         />
       ))}
 
