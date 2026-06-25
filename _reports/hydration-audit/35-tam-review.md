@@ -17,3 +17,10 @@ Entrée : `app/apps/web/src/app/(dashboard)/tam/review/page.tsx`.
 1. Error masked as empty: load() returns on !res.ok and has an empty catch (app/apps/web/src/app/(dashboard)/tam/review/page.tsx:45,49), so a 500 from the proposals route renders as the 'No pending proposals' empty state with no error banner — silent failure looks like success.
 2. No independent error degradation for the list/count, unlike the Home reference bar which writes an empty/error state per lane; the GET path has zero error UI (page.tsx:131-138 note banner is only fed by decide(), not load()).
 3. Stale data risk: proposals load once on mount with no refetch on focus/visibility/interval (page.tsx:56-58), so approvals/refreshes enqueued by the living-TAM loops won't appear until a manual reload.
+
+## Résolution (P1 35 — fixed)
+
+- **Defect #1 + #2 (error masked as empty, no error UI for the GET):** added a `loadError` state. `load()` now sets it on `!res.ok` (replacing the bare `return`) and on a thrown fetch, reset on entry. The list area renders a `role="alert"` error block ("Couldn't load proposals … This is not an empty queue.") with a Retry button (`onClick={load}`) BEFORE the "No pending proposals" empty state, matching the page's bespoke card styling in the error tone. A 500 no longer reads as a cleared review queue. The `decide()` action path already degraded correctly ("Action failed.") and is unchanged.
+- **Defect #3 (stale once-on-mount):** deliberately NOT changed in this pass. Proper freshness here means a focus/visibility refetch (the living-TAM loops enqueue asynchronously); that is a sensible follow-up but distinct from the error-state masking bug. Flagged, not rushed — adding a poll loop without measuring the loop cadence would be premature. The manual Retry now at least gives the operator a one-click refresh.
+
+Verdict after fix: **H1** for the load/empty/error distinction (both the list and the count surface a real error now). Freshness (#3) remains a documented follow-up. tam-proposals lib already tested; the page change is contained to page.tsx; tsc clean.

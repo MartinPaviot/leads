@@ -228,4 +228,25 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
   Deliberately NO focus/poll refresh: notes are user-authored, addNote already
   refetches, no external mutation source. tsc clean; 65 tests green
   (entity-badge 6 + inbox-notes + route-capability).
-- [ ] 31 graph · 32 voice-of-customer · 35 tam-review · then T2 H2 settings.
+- [x] **31 graph** — two error-state fixes (heavy SVG client page, no harness):
+  (1) `fetchGraph` swallowed failures (empty catch) so a 500 rendered "No graph
+  data yet"; added `loadError` (set on `!graphRes.ok`/catch) → the empty branch now
+  shows a retryable `EmptyState variant="error"`. (2) `sendFeedback` silently
+  no-oped on failure; added `feedbackError` (edge id) → a `role="alert"` "Couldn't
+  save your feedback" line under the failed edge's vote buttons. Per-lane skeletons
+  (#3) left as a flagged non-fix (graph meaningless without nodes). tsc clean.
+- [x] **32 voice-of-customer** — (1) error/empty conflation: refactored the fetch
+  into a `load` callback with `loadError` (set on `!res.ok` 500 / throw) → retryable
+  error EmptyState before the "No customer insights yet" empty. (2) subtitle
+  understatement: route now returns `totalInteractions` on the no-key and parse-error
+  paths (was success-only), so "0 themes from N interactions" is truthful. (3) the
+  LLM re-emitted-attribution risk is flagged as a grounding-redesign follow-up, NOT
+  done here (would be an insane refactor to fold into an error-state pass). tsc clean.
+- [x] **35 tam-review** — load() swallowed `!res.ok` (bare return) + empty catch, so a
+  500 rendered the "No pending proposals" empty state. Added `loadError` → a
+  `role="alert"` error card with a Retry button (matching the page's bespoke styling)
+  before the empty state. decide() already degraded correctly (unchanged). Freshness
+  (once-on-mount, no focus refetch) flagged as a follow-up, not rushed. tsc clean.
+- [ ] **then T2 H2 settings pages** (S01–S38) + remaining non-spine pages
+  (04, 05, 11, 14, 15, 18, 21, 22, 25, 28, 29, 33, 34, 36, T01–T15) — sweep for the
+  same swallowed-fetch / error-as-empty class, uncompromising.
