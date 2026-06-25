@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: vi.fn(),
   withAuthRLS: vi.fn(async (handler) => { const ctx = await (await import("@/lib/auth/auth-utils")).getAuthContext(); if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 }); return handler(ctx); }),
+  requireAdmin: (ctx: { role?: string } | null) => (ctx?.role === "admin" ? null : Response.json({ error: "Admin only" }, { status: 403 })),
 }));
 
 vi.mock("@/db", () => ({
@@ -43,6 +44,9 @@ const authCtx = {
   appUserId: "u1",
   role: "member" as const,
 };
+// gdpr/export is admin-only (full-workspace export); the export GET tests
+// authenticate as admin. Member -> 403 is covered in admin-get-gates.test.ts.
+const adminCtx = { ...authCtx, role: "admin" as const };
 
 function jsonReq(body?: unknown, method: string = "DELETE") {
   return new Request("http://localhost/api/account", {
@@ -115,7 +119,7 @@ describe("GET /api/gdpr/export", () => {
   });
 
   it("404 when app-level user row not found", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue(authCtx);
+    vi.mocked(getAuthContext).mockResolvedValue(adminCtx);
     // First .from().where() resolves to []  → no user
     const whereFn = vi.fn().mockResolvedValue([]);
     const fromFn = vi.fn().mockReturnValue({ where: whereFn });
@@ -126,7 +130,7 @@ describe("GET /api/gdpr/export", () => {
   });
 
   it("happy path: returns JSON download with all tenant data + counts", async () => {
-    vi.mocked(getAuthContext).mockResolvedValue(authCtx);
+    vi.mocked(getAuthContext).mockResolvedValue(adminCtx);
 
     // 1st select: users → returns the user row
     const userWhere = vi.fn().mockResolvedValue([
