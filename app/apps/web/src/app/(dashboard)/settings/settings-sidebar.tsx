@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   ArrowLeft,
   User,
@@ -24,6 +24,7 @@ import {
   Lock,
   Shield,
   Search,
+  Menu,
   X,
   Layers,
   DollarSign,
@@ -132,6 +133,20 @@ export default function SettingsSidebar({
   // Sections with zero matching items collapse so the user only sees
   // hits. Empty query renders the full nav unchanged.
   const [filter, setFilter] = useState("");
+  // Narrow / zoomed viewports (founder runs half-screen + 200% zoom): the
+  // 240px nav rail + content don't both fit, so below the container breakpoint
+  // the nav becomes a slide-in drawer and content goes full-width.
+  const [navOpen, setNavOpen] = useState(false);
+  const filterInputRef = useRef<HTMLInputElement>(null);
+  // While the drawer is open: Escape closes it, and focus moves into it (the
+  // filter input) so keyboard / screen-reader users have an entry point.
+  useEffect(() => {
+    if (!navOpen) return;
+    filterInputRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setNavOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [navOpen]);
   const visibleSections = settingsNav
     .filter((s) => !s.adminOnly || isAdmin)
     .map((s) => {
@@ -146,10 +161,23 @@ export default function SettingsSidebar({
     .filter((s) => s.items.length > 0);
 
   return (
-    <div className="flex h-full min-h-0">
-      {/* Settings sidebar */}
+    <div className="@container relative flex h-full min-h-0">
+      {/* Narrow: tap the backdrop to dismiss the nav drawer. */}
+      {navOpen && (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Close settings menu"
+          onClick={() => setNavOpen(false)}
+          className="absolute inset-0 z-20 bg-black/30 @min-[680px]:hidden"
+        />
+      )}
+      {/* Settings nav — an inline rail at ≥680px of the shell's OWN width; a
+          slide-in drawer below that, so the content keeps the full width
+          (founder runs half-screen + 200% zoom ≈ 400px shell). */}
       <aside
-        className="flex w-[var(--sidebar-width)] flex-shrink-0 flex-col overflow-y-auto px-2 py-3"
+        id="settings-nav-drawer"
+        className={`absolute inset-y-0 left-0 z-30 flex w-[var(--sidebar-width)] flex-shrink-0 flex-col overflow-y-auto px-2 py-3 transition-transform duration-200 @min-[680px]:static @min-[680px]:z-auto @min-[680px]:shadow-none @min-[680px]:transition-none ${navOpen ? "translate-x-0 shadow-xl" : "-translate-x-full @min-[680px]:translate-x-0"}`}
         style={{ borderRight: "1px solid var(--color-border-default)", background: "var(--color-bg-card)" }}
       >
         <Link
@@ -166,6 +194,7 @@ export default function SettingsSidebar({
         <div className="relative mb-2">
           <Search size={12} className="absolute left-2.5 top-2" style={{ color: "var(--color-text-muted)" }} aria-hidden="true" />
           <input
+            ref={filterInputRef}
             type="text"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
@@ -213,6 +242,7 @@ export default function SettingsSidebar({
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={() => setNavOpen(false)}
                     className="flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] font-medium transition-all duration-150"
                     style={{
                       background: isActive ? "var(--color-accent-soft)" : "transparent",
@@ -236,8 +266,25 @@ export default function SettingsSidebar({
         ))}
       </aside>
 
-      <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl py-10">{children}</div>
+      <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
+        {/* Narrow-only bar to open the nav drawer (the rail is hidden). */}
+        <div
+          className="flex shrink-0 items-center gap-2 border-b px-4 py-2 @min-[680px]:hidden"
+          style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
+        >
+          <button
+            type="button"
+            onClick={() => setNavOpen(true)}
+            aria-label="Open settings menu"
+            aria-expanded={navOpen}
+            aria-controls="settings-nav-drawer"
+            className="flex items-center gap-2 rounded-md px-2 py-1 text-[13px] font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
+            style={{ color: "var(--color-text-secondary)" }}
+          >
+            <Menu size={15} /> Settings menu
+          </button>
+        </div>
+        <div className="mx-auto w-full max-w-2xl px-4 py-10 @min-[680px]:px-0">{children}</div>
       </main>
     </div>
   );
