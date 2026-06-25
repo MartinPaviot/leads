@@ -49,6 +49,7 @@ import { visitorPhoneEnrichRequest } from "@/inngest/visitor-phone-enrich-reques
 import { phoneTaskNotification } from "@/inngest/phone-task-notification";
 import { icpFitRecomputeTenant, icpFitRecomputeDaily } from "@/inngest/icp-fit-recompute";
 import { nightlyRelationshipGraphBuild, onDemandRelationshipGraphBuild } from "@/inngest/relationship-graph-builder";
+import { syncLinkedInRelationsForSeat } from "@/inngest/linkedin-relations-sync";
 import { customSignalBackfill } from "@/inngest/custom-signal-backfill";
 import { dataRetentionPurge } from "@/inngest/data-retention";
 import { recordingRetentionPurge } from "@/inngest/recording-retention";
@@ -224,6 +225,8 @@ export const { GET, POST, PUT } = serve({
     // Relationship graph: KNOWS edges for warm-intro discovery
     nightlyRelationshipGraphBuild,
     onDemandRelationshipGraphBuild,
+    // Spec 36 (T9): LinkedIn relations -> warm-path KNOWS edges, on connect/reconnect.
+    syncLinkedInRelationsForSeat,
     // Custom TAM signals — user-defined boolean chips, backfilled
     // over the full TAM via the three-tier detector.
     customSignalBackfill,

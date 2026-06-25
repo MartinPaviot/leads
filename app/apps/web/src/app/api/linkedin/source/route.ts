@@ -5,6 +5,7 @@ import { linkedinAccount } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 import { readUnipileConfig, type LinkedInSearchApi, type LinkedInSearchCategory } from "@/lib/providers/unipile/http";
 import { sourceFromSalesNav } from "@/lib/linkedin/sales-nav-sourcing";
+import { rematchStoredRelations } from "@/lib/sending/linkedin/graph-sync";
 import logger from "@/lib/observability/logger";
 
 /**
@@ -89,7 +90,16 @@ export async function POST(req: Request) {
       query: { api, category, ...(url ? { url } : {}), ...(keywords ? { keywords } : {}) },
       maxResults,
     });
-    return NextResponse.json({ ok: true, ...result });
+    // Light up warm paths on the freshly-sourced contacts from the seat's stored
+    // relation snapshot (no Unipile calls). Best-effort — never fail the source.
+    let warmEdges = 0;
+    try {
+      const warm = await rematchStoredRelations(authCtx.tenantId);
+      warmEdges = warm.edgesCreated + warm.edgesUpdated;
+    } catch (e) {
+      logger.warn("linkedin/source: warm-path rematch failed (non-fatal)", { e });
+    }
+    return NextResponse.json({ ok: true, ...result, warmEdges });
   } catch (err) {
     logger.error("linkedin/source: sourcing failed", { tenantId: authCtx.tenantId, err });
     return NextResponse.json(

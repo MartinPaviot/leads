@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { linkedinAccount } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { readUnipileConfig, verifyWebhookToken } from "@/lib/providers/unipile/http";
+import { inngest } from "@/inngest/client";
 import logger from "@/lib/observability/logger";
 
 /**
@@ -61,6 +62,11 @@ export async function POST(req: Request) {
           updatedAt: new Date(),
         })
         .where(where);
+      // Build the warm-path graph from this seat's network (event-driven, off
+      // the hot path). Best-effort: a send failure must not fail the callback.
+      await inngest
+        .send({ name: "linkedin/relations.sync", data: { seatId: name, unipileAccountId: accountId } })
+        .catch((e) => logger.warn("linkedin account-webhook: relations.sync send failed", { e }));
       return Response.json({ ok: true });
     }
 
