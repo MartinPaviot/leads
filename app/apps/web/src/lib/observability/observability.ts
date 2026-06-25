@@ -14,6 +14,7 @@ import { db } from "@/db";
 import { agentTraces } from "@/db/schema";
 import { eq, and, gte, desc, sql, count } from "drizzle-orm";
 import { trackTokenUsage } from "../billing/cost-tracker";
+import { computeCallCostUsd } from "../ai/model-pricing";
 import logger from "./logger";
 
 // ─── Agent Registry ──────────────────────────────────────────
@@ -52,17 +53,14 @@ interface TraceResult {
 
 // ─── Cost Estimation ─────────────────────────────────────────
 
-const MODEL_COSTS: Record<string, { input: number; output: number }> = {
-  "claude-sonnet-4-6": { input: 3.0 / 1_000_000, output: 15.0 / 1_000_000 },
-  "claude-sonnet": { input: 3.0 / 1_000_000, output: 15.0 / 1_000_000 },
-  "gpt-4o-mini": { input: 0.15 / 1_000_000, output: 0.6 / 1_000_000 },
-  "text-embedding-3-small": { input: 0.02 / 1_000_000, output: 0 },
-};
-
+/**
+ * Single source of truth for cost: delegate to model-pricing so Haiku/Opus are
+ * priced at their own tier. The old local map fell every unknown model back to
+ * Sonnet — over-counting Haiku 3.75x and under-counting Opus 5x in
+ * agent_traces.estimated_cost. Unknown model -> 0 (don't fabricate a cost).
+ */
 function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-  const key = Object.keys(MODEL_COSTS).find((k) => model.includes(k)) || "claude-sonnet";
-  const rates = MODEL_COSTS[key];
-  return inputTokens * rates.input + outputTokens * rates.output;
+  return computeCallCostUsd(model, inputTokens, outputTokens) ?? 0;
 }
 
 // ─── Trace Recording ─────────────────────────────────────────
