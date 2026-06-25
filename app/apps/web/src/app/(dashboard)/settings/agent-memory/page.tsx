@@ -72,13 +72,23 @@ const CATEGORY_LABEL: Record<MemoryCategory, string> = {
 export default function AgentMemoryPage() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const res = await fetch("/api/agent-memory");
-      if (!res.ok) return;
+      if (!res.ok) {
+        // Was a bare return: snapshot stayed null and the page rendered blank
+        // below the header (no error, no empty state) — a 500 looked like an
+        // empty memory.
+        setLoadError(true);
+        return;
+      }
       setSnapshot((await res.json()) as Snapshot);
+    } catch {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -135,6 +145,19 @@ export default function AgentMemoryPage() {
             <CardBody>
               <div className="flex items-center gap-2 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
                 <Loader2 size={12} className="animate-spin" /> Building snapshot…
+              </div>
+            </CardBody>
+          </Card>
+        )}
+
+        {loadError && !loading && (
+          <Card>
+            <CardBody>
+              <div role="alert" className="flex items-center gap-3 text-[12px]" style={{ color: "var(--color-error, #b91c1c)" }}>
+                <span>Couldn&apos;t load the agent memory snapshot. This is not an empty memory — the request failed.</span>
+                <button onClick={() => void load()} className="ml-auto shrink-0 font-medium underline" style={{ color: "var(--color-accent)" }}>
+                  Retry
+                </button>
               </div>
             </CardBody>
           </Card>
