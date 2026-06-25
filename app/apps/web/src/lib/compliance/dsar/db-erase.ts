@@ -14,7 +14,7 @@
 
 import { db as defaultDb } from "@/db";
 import { contacts, outboundEmails, activities, suppression } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { eraseSubject, type EraseDeps, type EraseReport } from "./erase";
 import { addSuppressionDb } from "@/lib/suppression/db-store";
 import { normalizeEmail, GLOBAL_SCOPE } from "@/lib/suppression/suppression";
@@ -87,10 +87,15 @@ export async function eraseSubjectLive(
     },
     hasDoNotResurrect: async () => {
       if (!email) return false;
+      // Mirror addSuppressionDb's scope mapping: a falsy tenantId is written as a
+      // GLOBAL_SCOPE row with tenant_id = NULL, so read it with isNull (eq(col, NULL)
+      // never matches). Without this, the marker write/read could disagree and
+      // idempotentNoop would silently always be false.
+      const scopeCond = tenantId ? eq(suppression.tenantId, tenantId) : isNull(suppression.tenantId);
       const [row] = await database
         .select({ id: suppression.value })
         .from(suppression)
-        .where(and(eq(suppression.tenantId, tenantId), eq(suppression.level, "address"), eq(suppression.value, email), eq(suppression.source, DSAR_SOURCE)))
+        .where(and(scopeCond, eq(suppression.level, "address"), eq(suppression.value, email), eq(suppression.source, DSAR_SOURCE)))
         .limit(1);
       return !!row;
     },

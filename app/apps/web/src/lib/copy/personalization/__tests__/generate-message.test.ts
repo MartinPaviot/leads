@@ -54,6 +54,16 @@ describe("generateMessage — AC1 grounded happy path", () => {
     expect(runAgent).toHaveBeenCalledOnce();
   });
 
+  it("normalizes an empty/whitespace model subject to undefined so the cutover falls back to the legacy subject (no blank-subject clobber)", async () => {
+    // The cutover sites do `engine.subject ?? legacySubject`. `??` only catches
+    // null/undefined, so a "" model subject would clobber a good legacy subject
+    // with a blank line. The engine must hand back undefined for empty/whitespace.
+    expect((await generateMessage(baseDeps({ runAgent: goodAgent("Grounded line.", ["e1"], "") }))).subject).toBeUndefined();
+    expect((await generateMessage(baseDeps({ runAgent: goodAgent("Grounded line.", ["e1"], "   ") }))).subject).toBeUndefined();
+    // A real subject is trimmed, never blanked.
+    expect((await generateMessage(baseDeps({ runAgent: goodAgent("Grounded line.", ["e1"], "  Quick idea  ") }))).subject).toBe("Quick idea");
+  });
+
   it("only passes sufficient-confidence evidence to the agent (AC1 retrieval floor)", async () => {
     const runAgent = goodAgent("Grounded line about the seed.", ["e1"]);
     await generateMessage(baseDeps({ runAgent }));

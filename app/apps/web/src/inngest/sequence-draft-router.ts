@@ -218,7 +218,7 @@ export const routeSequenceStepToDraft = inngest.createFunction(
     // approver sees the same content the auto-mode would produce.
     const personalised = await step.run("personalise", async () => {
       try {
-        const ctx = await buildProspectContext(contact.id, "default");
+        const ctx = await buildProspectContext(contact.id, tenantId);
         if (!ctx) {
           return {
             ok: false as const,

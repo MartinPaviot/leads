@@ -89,7 +89,9 @@ export interface GenerateMessageDeps {
   minConfidence?: number;
 }
 
-const DEFAULT_MIN_CONFIDENCE = 0.6;
+/** Evidence confidence floor for grounding. Exported so the evidence adapter can
+ *  keep model-synthesized prose strictly below it (never-invent). */
+export const DEFAULT_MIN_CONFIDENCE = 0.6;
 /** Always banned regardless of the injected voice (AC5: no em-dashes). */
 const ALWAYS_BANNED = ["—", "–", "--"];
 /** Informal FR pronouns — a vouvoiement violation (AC3). */
@@ -179,7 +181,10 @@ export async function generateMessage(deps: GenerateMessageDeps): Promise<Messag
   const cited = new Set(result.value.citedIds);
   return {
     body: assembleBody(deps.assets, result.value.line.trim()),
-    subject: result.value.subject,
+    // Normalize an empty/whitespace model subject to undefined so the cutover sites'
+    // `message.subject ?? legacySubject` falls back to the legacy subject instead of
+    // clobbering it with a blank line. A high-personalization BODY is still shipped.
+    subject: result.value.subject?.trim() || undefined,
     evidence: usable.filter((c) => cited.has(c.id)),
     personalization_level: "high",
     roleClass: deps.roleClass,

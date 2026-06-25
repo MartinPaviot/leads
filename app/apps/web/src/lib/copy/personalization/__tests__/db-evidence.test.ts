@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { prospectContextToEvidence } from "../db-evidence";
+import { DEFAULT_MIN_CONFIDENCE } from "../generate-message";
 import type { ProspectContext } from "@/lib/context/prospect-context";
 
 // The adapter only reads researchBrief.publicContent/warmthSignals, funding,
@@ -14,15 +15,18 @@ const ctx = (over: Partial<ProspectContext> = {}): ProspectContext =>
   }) as unknown as ProspectContext;
 
 describe("prospectContextToEvidence", () => {
-  it("maps public content quotes as the highest-confidence evidence", () => {
+  it("emits LLM-SYNTHESIZED prose (public content) BELOW the grounding floor — never-invent", () => {
     const ev = prospectContextToEvidence(
       ctx({ researchBrief: { bestAngle: null, painPoints: [], competitorDetected: null, warmthSignals: [], publicContent: [{ type: "linkedin_post", title: "t", quote: "We just shipped X" }] } }),
     );
-    expect(ev[0]).toMatchObject({ id: "pc-0", source: "linkedin_post", confidence: 0.85 });
+    expect(ev[0]).toMatchObject({ id: "pc-0", source: "linkedin_post" });
     expect(ev[0].fact).toBe("We just shipped X");
+    // The whole point: a non-verbatim-verified quote must NOT be groundable, so the
+    // engine can never cite a hallucinated "fact".
+    expect(ev[0].confidence).toBeLessThan(DEFAULT_MIN_CONFIDENCE);
   });
 
-  it("maps funding, signal, tech and warmth with descending confidence", () => {
+  it("provider facts (funding, tech) ground; synthesized prose (signal, warmth) does not", () => {
     const ev = prospectContextToEvidence(
       ctx({
         funding: { stage: "Series A", amount: null, amountPrinted: "$12M" },
@@ -33,10 +37,13 @@ describe("prospectContextToEvidence", () => {
     );
     const byId = Object.fromEntries(ev.map((e) => [e.id, e]));
     expect(byId.funding.fact).toContain("Series A");
-    expect(byId.signal.fact).toBe("Hiring 5 AEs");
     expect(byId.tech.fact).toContain("Salesforce");
-    expect(byId["warmth-0"].fact).toBe("Both ex-Stripe");
-    expect(byId.funding.confidence).toBeGreaterThan(byId["warmth-0"].confidence);
+    // provider-verified → groundable
+    expect(byId.funding.confidence).toBeGreaterThanOrEqual(DEFAULT_MIN_CONFIDENCE);
+    expect(byId.tech.confidence).toBeGreaterThanOrEqual(DEFAULT_MIN_CONFIDENCE);
+    // model-synthesized prose → sub-floor (won't ground)
+    expect(byId.signal.confidence).toBeLessThan(DEFAULT_MIN_CONFIDENCE);
+    expect(byId["warmth-0"].confidence).toBeLessThan(DEFAULT_MIN_CONFIDENCE);
   });
 
   it("NEVER emits inferred items (pain points / bestAngle) as evidence", () => {
