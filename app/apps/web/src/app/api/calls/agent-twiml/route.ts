@@ -17,7 +17,8 @@ import { calls } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { buildAgentTwiml, buildFallbackTwiml } from "@/lib/voice/twilio";
 import { validateTwilioSignature } from "@/lib/voice/twilio-signature";
-import { requiresTwoPartyConsent } from "@/lib/voice/number-selector";
+import { resolveCallRecording } from "@/lib/voice/recording-policy";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 import { logger } from "@/lib/observability/logger";
 
 function xml(body: string) {
@@ -58,37 +59,54 @@ export async function POST(req: Request) {
   // Confirm the call row exists + belongs to a real start, and stamp the agent
   // leg SID so recording-status can resolve this call.
   const [callRow] = await db
-    .select({ id: calls.id })
+    .select({ id: calls.id, tenantId: calls.tenantId })
     .from(calls)
     .where(eq(calls.id, callId))
     .limit(1);
   if (!callRow) {
     return xml(await buildFallbackTwiml({ message: "Call not found." }));
   }
+
+  // Recording decision — deployment + workspace opt-in + a lawful disclosure.
+  // The disclosure <Play> only goes into the TwiML when we will actually
+  // record in a consent region, so we never announce-without-capturing nor
+  // capture-without-announcing.
+  const settings = await getTenantSettings(callRow.tenantId);
+  const recording = resolveCallRecording({
+    toNumber,
+    workspaceEnabled: settings.callRecordingEnabled === true,
+  });
+
   if (agentCallSid) {
     await db
       .update(calls)
-      .set({ twilioCallSid: agentCallSid, updatedAt: new Date() })
+      .set({
+        twilioCallSid: agentCallSid,
+        recordingConsent: recording.consent,
+        updatedAt: new Date(),
+      })
       .where(eq(calls.id, callId));
   }
-
-  const requiresConsent = requiresTwoPartyConsent(toNumber);
-  const disclosureUrl =
-    requiresConsent && process.env.VOICE_RECORDING_ENABLED === "true"
-      ? process.env.VOICE_DISCLOSURE_AUDIO_URL ?? undefined
-      : undefined;
 
   const transcriptionCallbackUrl = `${publicBase}/api/calls/transcription?callId=${callId}`;
   const dialStatusCallbackUrl = `${publicBase}/api/calls/dial-status?callId=${callId}`;
   const recordingStatusUrl = `${publicBase}/api/calls/recording-status`;
+
+  // The disclosure is whispered TO THE PROSPECT via <Number url> (not played on
+  // this agent leg, which would announce to the rep). Only when recording in a
+  // consent region (recording.disclosureUrl is set).
+  const disclosureWhisperUrl = recording.disclosureUrl
+    ? `${publicBase}/api/calls/disclosure-whisper?u=${encodeURIComponent(recording.disclosureUrl)}`
+    : undefined;
 
   const twiml = await buildAgentTwiml({
     toNumber,
     fromNumber,
     transcriptionCallbackUrl,
     dialStatusCallbackUrl,
-    disclosureUrl,
+    disclosureWhisperUrl,
     recordingStatusUrl,
+    record: recording.record,
   });
   return xml(twiml);
 }

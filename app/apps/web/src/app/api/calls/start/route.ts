@@ -19,6 +19,8 @@ import {
   requiresTwoPartyConsent,
   resolveFromNumber,
 } from "@/lib/voice/number-selector";
+import { resolveCallRecording } from "@/lib/voice/recording-policy";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 import { checkQuietHours, resolveTimezone } from "@/lib/voice/quiet-hours";
 import { getTenantUsage } from "@/lib/voice/usage-cap";
 import { logger } from "@/lib/observability/logger";
@@ -168,9 +170,16 @@ export async function POST(req: Request) {
 
     // 6. Two-party-consent region?
     const requiresConsent = requiresTwoPartyConsent(contact.phone);
-    const disclosureUrl = requiresConsent
-      ? process.env.VOICE_DISCLOSURE_AUDIO_URL ?? undefined
-      : undefined;
+
+    // 6b. Recording decision — deployment + workspace opt-in + a lawful
+    // disclosure. Resolved here (same policy the agent-twiml webhook re-runs)
+    // so the consent stamp on the row and the live "recording" indicator the
+    // browser shows agree with the TwiML that will actually play.
+    const settings = await getTenantSettings(authCtx.tenantId);
+    const recording = resolveCallRecording({
+      toNumber: contact.phone,
+      workspaceEnabled: settings.callRecordingEnabled === true,
+    });
 
     // 7. Insert the call row so it survives any provider failure
     const [callRow] = await db
@@ -184,7 +193,7 @@ export async function POST(req: Request) {
         fromNumber: fromNumber.e164,
         toNumber: contact.phone,
         twoPartyConsentRegion: requiresConsent,
-        recordingConsent: requiresConsent ? "pending" : "n_a",
+        recordingConsent: recording.consent,
         scriptContext: input.scriptContext ?? null,
       })
       .returning({ id: calls.id });
@@ -192,9 +201,8 @@ export async function POST(req: Request) {
     // 8. Issue the capability token. We do NOT place the prospect call here:
     // the rep's browser (Twilio Voice SDK) connects as the AGENT leg, and the
     // App-SID voiceUrl (/api/calls/agent-twiml) dials the prospect and bridges
-    // the two — so the rep's mic reaches the prospect. `disclosureUrl` is
-    // resolved there from the live params; nothing to place server-side.
-    void disclosureUrl;
+    // the two — so the rep's mic reaches the prospect. The disclosure +
+    // record decision are re-resolved there from the live params.
     try {
       const token = await provider.signWebRtcToken({
         userId: authCtx.appUserId,
@@ -209,6 +217,9 @@ export async function POST(req: Request) {
         toNumber: contact.phone,
         twoPartyConsentRegion: requiresConsent,
         recordingConsentRequired: requiresConsent,
+        // Whether THIS call will be recorded — drives the live indicator in
+        // Call Mode (no separate fetch needed).
+        recording: recording.record,
       });
     } catch (err) {
       const code =

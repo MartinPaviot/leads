@@ -12,6 +12,7 @@ import { phoneNumberPool } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { isVoiceConfigured } from "@/lib/voice";
 import { getTenantUsage } from "@/lib/voice/usage-cap";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 
 export async function GET() {
   return withAuthRLS(async (authCtx) => {
@@ -30,11 +31,22 @@ export async function GET() {
         ),
       );
     const usage = configured ? await getTenantUsage(authCtx.tenantId) : null;
+    const settings = await getTenantSettings(authCtx.tenantId);
     return Response.json({
       configured,
       ready: configured && pool.length > 0,
       pool,
       usage,
+      // Call recording state for the Call Mode header toggle.
+      //  - available: deployment kill-switch VOICE_RECORDING_ENABLED is on.
+      //  - enabled: workspace opted in (callRecordingEnabled).
+      //  - disclosureConfigured: a disclosure MP3 exists — REQUIRED to record
+      //    in two-party-consent markets (CH/FR), so the UI can warn when off.
+      recording: {
+        available: process.env.VOICE_RECORDING_ENABLED === "true",
+        enabled: settings.callRecordingEnabled === true,
+        disclosureConfigured: !!process.env.VOICE_DISCLOSURE_AUDIO_URL,
+      },
     });
   });
 }
