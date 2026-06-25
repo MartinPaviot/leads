@@ -39,6 +39,7 @@ import { db } from "@/db";
 import { activities, contacts, companies, outboundEmails } from "@/db/schema";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { recordCapturedActivity, getCaptureApprovalMode } from "@/lib/capture/approval";
+import { canDetectReplyFromThread } from "@/lib/capture/reply-detect-guard";
 import {
   getTenantSettings,
   buildIgnoredDomains,
@@ -142,7 +143,10 @@ export async function detectSequenceReply(opts: {
   replySubject?: string | null;
   replierEmail?: string | null;
 }): Promise<boolean> {
-  if (!opts.threadId || !opts.contactId) return false;
+  // Match by threadId; the contact is resolved from the matched outbound below
+  // (`outbound.contactId`). Do NOT require opts.contactId — an unresolved-sender
+  // reply (contactId=null) on a tracked thread is still a real reply.
+  if (!canDetectReplyFromThread(opts)) return false;
 
   const [outbound] = await db
     .select({
