@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Network } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 
 /**
@@ -40,6 +41,10 @@ export function LinkedInConnect({ origin }: { origin?: "onboarding" | "settings"
   const [data, setData] = useState<StatusPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  // Sales-Nav sourcing (v1: paste a search URL or type keywords).
+  const [sourceQuery, setSourceQuery] = useState("");
+  const [sourcing, setSourcing] = useState(false);
+  const [sourceResult, setSourceResult] = useState<{ accounts: number; contacts: number } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -91,6 +96,41 @@ export function LinkedInConnect({ origin }: { origin?: "onboarding" | "settings"
     [toast, origin],
   );
 
+  // v1 sourcing: paste a Sales-Nav search URL (precise targeting via LinkedIn's
+  // own UI) or type keywords; POST to /api/linkedin/source, which runs the
+  // search as this seat and upserts canonical accounts/contacts (provider=unipile).
+  const runSource = useCallback(async () => {
+    const q = sourceQuery.trim();
+    if (!q) return;
+    setSourcing(true);
+    setSourceResult(null);
+    try {
+      const isUrl = /^https?:\/\//i.test(q);
+      const res = await fetch("/api/linkedin/source", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(isUrl ? { url: q } : { keywords: q }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        accountsUpserted?: number;
+        contactsUpserted?: number;
+        error?: string;
+      };
+      if (!res.ok) {
+        toast(body.error ?? "LinkedIn sourcing failed", "error");
+        return;
+      }
+      const accounts = body.accountsUpserted ?? 0;
+      const contacts = body.contactsUpserted ?? 0;
+      setSourceResult({ accounts, contacts });
+      toast(`Sourced ${accounts} account${accounts === 1 ? "" : "s"} and ${contacts} contact${contacts === 1 ? "" : "s"} from LinkedIn.`, "success");
+    } catch {
+      toast("LinkedIn sourcing failed", "error");
+    } finally {
+      setSourcing(false);
+    }
+  }, [sourceQuery, toast]);
+
   const account = data?.account ?? null;
   const connected = account?.status === "connected";
   const needsReconnect = account?.status === "reconnect_required" || account?.status === "checkpoint";
@@ -128,20 +168,56 @@ export function LinkedInConnect({ origin }: { origin?: "onboarding" | "settings"
               </span>
             </div>
           ) : connected ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <span
-                className="rounded-full px-2 py-0.5 text-[11px]"
-                style={{ background: "rgba(22,163,74,.1)", color: "rgb(22,163,74)" }}
-              >
-                {STATUS_LABEL.connected}
-              </span>
-              <span className="text-[12px]" style={{ color: "var(--color-text-primary)" }}>
-                {account?.displayName ?? account?.profileUrl ?? "LinkedIn seat"}
-                {account?.seatType && account.seatType !== "classic" ? ` · ${account.seatType.replace("_", " ")}` : ""}
-              </span>
-              <Button size="sm" variant="outline" onClick={() => void connect(account?.id)} disabled={busy}>
-                Reconnect
-              </Button>
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <span
+                  className="rounded-full px-2 py-0.5 text-[11px]"
+                  style={{ background: "rgba(22,163,74,.1)", color: "rgb(22,163,74)" }}
+                >
+                  {STATUS_LABEL.connected}
+                </span>
+                <span className="text-[12px]" style={{ color: "var(--color-text-primary)" }}>
+                  {account?.displayName ?? account?.profileUrl ?? "LinkedIn seat"}
+                  {account?.seatType && account.seatType !== "classic" ? ` · ${account.seatType.replace("_", " ")}` : ""}
+                </span>
+                <Button size="sm" variant="outline" onClick={() => void connect(account?.id)} disabled={busy}>
+                  Reconnect
+                </Button>
+              </div>
+
+              <div className="rounded-md p-3" style={{ border: "1px solid var(--color-border)" }}>
+                <label className="text-[12px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
+                  Source your TAM from Sales Navigator
+                </label>
+                <p className="mt-0.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                  Build a precise search in Sales Navigator, then paste its URL here — or type keywords. Results
+                  land in Accounts &amp; Contacts, deduped against your existing CRM, and matched to your network
+                  for warm intros.
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <Input
+                    value={sourceQuery}
+                    onChange={(e) => setSourceQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void runSource();
+                    }}
+                    placeholder="Paste a Sales Navigator search URL, or type keywords"
+                    disabled={sourcing}
+                  />
+                  <Button size="sm" onClick={() => void runSource()} disabled={sourcing || !sourceQuery.trim()}>
+                    {sourcing ? "Sourcing…" : "Source"}
+                  </Button>
+                </div>
+                {sourceResult && (
+                  <p className="mt-2 text-[11px]" style={{ color: "var(--color-text-secondary)" }}>
+                    Added {sourceResult.accounts} account{sourceResult.accounts === 1 ? "" : "s"} +{" "}
+                    {sourceResult.contacts} contact{sourceResult.contacts === 1 ? "" : "s"}.{" "}
+                    <a href="/accounts" style={{ color: "var(--color-accent)" }}>
+                      View in Accounts
+                    </a>
+                  </p>
+                )}
+              </div>
             </div>
           ) : needsReconnect ? (
             <div className="flex flex-wrap items-center gap-3">

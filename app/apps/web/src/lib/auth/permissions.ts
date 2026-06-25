@@ -289,6 +289,9 @@ const ROUTE_CAPABILITY_RULES: readonly RouteCapRule[] = [
   // NOTE scoped to /connect only — the public Unipile webhooks under
   // /api/linkedin/unipile/* are token-verified and must NOT require a session.
   { prefix: "/api/linkedin/connect", write: "outbound:send" },
+  // Source a TAM from YOUR connected Sales-Nav seat = member self-serve (same
+  // posture as connect; the per-tenant seat cap, not the role, gates spend).
+  { prefix: "/api/linkedin/source", write: "outbound:send" },
   { prefix: "/api/sequences", write: "sequences:write", del: "sequences:delete" },
   { prefix: "/api/meetings", write: "deals:write" }, // notes / follow-up = member
   { prefix: "/api/contacts", write: "contacts:write", del: "contacts:delete" },
