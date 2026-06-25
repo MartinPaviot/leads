@@ -17,6 +17,7 @@ import { runLinkedInAction } from "./linkedin";
 import { buildLinkedInPort } from "./factory";
 import { makeLinkedInPersistence } from "./db-store";
 import { effectiveDailyCap, type LinkedInSendingAccount, type LinkedInAccountStatus } from "./capacity";
+import { isLinkedInTargetAllowed } from "./recipient-guardrail";
 import type { TargetResolver } from "@/lib/providers/unipile/linkedin-adapter";
 import type { HeyReachClient } from "@/lib/providers/heyreach/linkedin-adapter";
 
@@ -101,6 +102,8 @@ export async function dispatchLinkedInAction(p: DispatchLinkedInParams): Promise
     port,
     isSuppressed: p.isSuppressed,
     isCollisionLocked: p.isCollisionLocked,
+    // Defence-in-depth test-mode guardrail — holds no matter the trigger.
+    isAllowedTarget: (c) => isLinkedInTargetAllowed(c.profileUrl),
     actionsToday: persistence.actionsToday,
     idempotency: persistence.idempotency,
     meter: p.meter ?? ((_op, fn) => fn()),

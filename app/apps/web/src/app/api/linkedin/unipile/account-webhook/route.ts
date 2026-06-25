@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { linkedinAccount } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { readUnipileConfig, verifyWebhookToken } from "@/lib/providers/unipile/http";
 import logger from "@/lib/observability/logger";
 
@@ -54,6 +54,10 @@ export async function POST(req: Request) {
           connectedAt: new Date(),
           lastHealthAt: new Date(),
           healthDetail: {},
+          // Start the warmup ramp on FIRST connect; preserve it on reconnect
+          // (a returning seat keeps its ramp progress). Without this a fresh seat
+          // reads as fully warmed and would act at the steady cap on day one.
+          warmupStartedAt: sql`coalesce(${linkedinAccount.warmupStartedAt}, now())`,
           updatedAt: new Date(),
         })
         .where(where);

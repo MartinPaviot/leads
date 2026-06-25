@@ -19,7 +19,8 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { tenants, users, contacts } from "./core";
+import { sql } from "drizzle-orm";
+import { tenants, contacts } from "./core";
 
 /**
  * The connected LinkedIn seat (the founder's Sales-Nav account). The Unipile
@@ -32,8 +33,10 @@ export const linkedinAccount = pgTable(
   {
     id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
     tenantId: text("tenant_id").references(() => tenants.id).notNull(),
-    /** Whose LinkedIn seat — the warm-path "via user" + sequence sender. */
-    userId: text("user_id").references(() => users.id).notNull(),
+    /** Whose LinkedIn seat — the warm-path "via user" + sequence sender. Auth-space
+     * id (matches connect/route.ts authCtx.userId + connected_mailboxes.userId); no
+     * FK, per the auth-space-id convention (auth_user, not the app users table). */
+    userId: text("user_id").notNull(),
     /** Adapter behind the LinkedInPort: 'unipile' (default) | 'heyreach'. */
     provider: text("provider").notNull().default("unipile"),
     /** Unipile account_id; null until the hosted-auth callback persists it. */
@@ -62,6 +65,13 @@ export const linkedinAccount = pgTable(
   (t) => [
     index("linkedin_account_tenant_idx").on(t.tenantId),
     index("linkedin_account_tenant_status_idx").on(t.tenantId, t.status),
+    // Per-member send lookup (step -> owner -> seat) + warm-path attribution.
+    index("linkedin_account_tenant_user_idx").on(t.tenantId, t.userId),
+    // Product rule: at most one CONNECTED seat per member per tenant. Partial
+    // unique (free-text status, so a SQL partial index — no enum migration).
+    uniqueIndex("linkedin_account_one_connected_per_user")
+      .on(t.tenantId, t.userId)
+      .where(sql`status = 'connected'`),
   ],
 );
 

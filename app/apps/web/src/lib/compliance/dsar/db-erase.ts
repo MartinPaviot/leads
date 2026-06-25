@@ -13,7 +13,7 @@
  */
 
 import { db as defaultDb } from "@/db";
-import { contacts, outboundEmails, activities, suppression } from "@/db/schema";
+import { contacts, outboundEmails, activities, suppression, linkedinProviderIdentity, linkedinActionEvent } from "@/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { eraseSubject, type EraseDeps, type EraseReport } from "./erase";
 import { addSuppressionDb } from "@/lib/suppression/db-store";
@@ -61,6 +61,10 @@ export async function eraseSubjectLive(
     eraseCanonical: async () => {
       await database.delete(outboundEmails).where(and(eq(outboundEmails.tenantId, tenantId), eq(outboundEmails.contactId, contactId)));
       await database.delete(activities).where(and(eq(activities.tenantId, tenantId), eq(activities.entityType, "contact"), eq(activities.entityId, contactId)));
+      // spec-36: the contact's LinkedIn personal data — the viewer-scoped
+      // provider_id cache + the action log (both contact-keyed, EU-hosted).
+      await database.delete(linkedinProviderIdentity).where(and(eq(linkedinProviderIdentity.tenantId, tenantId), eq(linkedinProviderIdentity.contactId, contactId)));
+      await database.delete(linkedinActionEvent).where(and(eq(linkedinActionEvent.tenantId, tenantId), eq(linkedinActionEvent.contactId, contactId)));
       await database.delete(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, contactId)));
     },
     // Enrichment/provider cache erasure is a follow-up (no contact-keyed cache table today).
@@ -106,6 +110,10 @@ export async function eraseSubjectLive(
       if (c) residual.push("contacts");
       const [o] = await database.select({ id: outboundEmails.id }).from(outboundEmails).where(and(eq(outboundEmails.tenantId, tenantId), eq(outboundEmails.contactId, contactId))).limit(1);
       if (o) residual.push("outbound_emails");
+      const [lpi] = await database.select({ id: linkedinProviderIdentity.id }).from(linkedinProviderIdentity).where(and(eq(linkedinProviderIdentity.tenantId, tenantId), eq(linkedinProviderIdentity.contactId, contactId))).limit(1);
+      if (lpi) residual.push("linkedin_provider_identity");
+      const [lae] = await database.select({ id: linkedinActionEvent.id }).from(linkedinActionEvent).where(and(eq(linkedinActionEvent.tenantId, tenantId), eq(linkedinActionEvent.contactId, contactId))).limit(1);
+      if (lae) residual.push("linkedin_action_event");
       return residual;
     },
     audit: async (report) => {

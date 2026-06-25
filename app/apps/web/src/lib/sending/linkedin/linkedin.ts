@@ -11,7 +11,7 @@ import type { LinkedInPort, LinkedInRequest, LinkedInResult, LinkedInContact } f
 import { LinkedInError } from "./port";
 import { withinDailyLimit, type LinkedInDailyLimits } from "./limits";
 
-export type LinkedInRefuseReason = "suppressed" | "collision-locked" | "no-profile" | "daily-limit";
+export type LinkedInRefuseReason = "suppressed" | "collision-locked" | "no-profile" | "daily-limit" | "not-allowlisted";
 
 export interface LinkedInActionEvent {
   stepId: string;
@@ -41,6 +41,10 @@ export interface LinkedInDeps {
   isSuppressed: (contact: LinkedInContact) => boolean;
   /** spec-14 — true iff the contact is locked by another active enrollment. */
   isCollisionLocked: (contact: LinkedInContact) => boolean;
+  /** spec-36 test-mode guardrail — false iff the target profile is not allowlisted.
+   * Optional + defaults to allowed, so existing callers/tests are unaffected; the
+   * live dispatch always injects it (defence in depth, no matter the trigger). */
+  isAllowedTarget?: (contact: LinkedInContact) => boolean;
   /** Actions of this type already taken today by the sender account (AC2). */
   actionsToday: (senderAccountId: string, action: LinkedInRequest["action"]) => Promise<number> | number;
   idempotency: LinkedInIdempotencyStore;
@@ -71,6 +75,7 @@ export async function runLinkedInAction(req: LinkedInRequest, deps: LinkedInDeps
   if (deps.isSuppressed(req.contact)) return { acted: false, refusedReason: "suppressed" };
   if (deps.isCollisionLocked(req.contact)) return { acted: false, refusedReason: "collision-locked" };
   if (!req.contact.profileUrl || !req.contact.profileUrl.trim()) return { acted: false, refusedReason: "no-profile" };
+  if (deps.isAllowedTarget && !deps.isAllowedTarget(req.contact)) return { acted: false, refusedReason: "not-allowlisted" };
 
   // AC2 — per-sender-account daily limit.
   const done = await deps.actionsToday(req.senderAccountId, req.action);

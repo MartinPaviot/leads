@@ -283,6 +283,12 @@ const ROUTE_CAPABILITY_RULES: readonly RouteCapRule[] = [
   // ── MEMBER write surfaces (explicit so they are not accidentally
   //    default-deny under a high-risk prefix). ──
   { prefix: "/api/emails/send", write: "outbound:send" },
+  // Connect/reconnect YOUR OWN LinkedIn seat = member self-serve (spend is gated
+  // by the per-tenant seat cap, not the role). Explicit so it isn't caught by a
+  // future high-risk default-deny; viewers (no outbound:send) still can't connect.
+  // NOTE scoped to /connect only — the public Unipile webhooks under
+  // /api/linkedin/unipile/* are token-verified and must NOT require a session.
+  { prefix: "/api/linkedin/connect", write: "outbound:send" },
   { prefix: "/api/sequences", write: "sequences:write", del: "sequences:delete" },
   { prefix: "/api/meetings", write: "deals:write" }, // notes / follow-up = member
   { prefix: "/api/contacts", write: "contacts:write", del: "contacts:delete" },

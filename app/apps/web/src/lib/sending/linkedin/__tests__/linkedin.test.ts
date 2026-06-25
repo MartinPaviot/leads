@@ -75,6 +75,11 @@ describe("runLinkedInAction — AC3 hard preconditions", () => {
   it("refuses a contact with no profileUrl (identity)", async () => {
     expect((await runLinkedInAction(req({ contact: { id: "c1", profileUrl: "" } }), deps())).refusedReason).toBe("no-profile");
   });
+  it("refuses a non-allowlisted target (spec-36 test-mode guardrail, no port call)", async () => {
+    const d = deps({ isAllowedTarget: () => false });
+    expect((await runLinkedInAction(req(), d)).refusedReason).toBe("not-allowlisted");
+    expect(d.port.connect).not.toHaveBeenCalled();
+  });
 });
 
 describe("runLinkedInAction — AC2 daily limit gate", () => {
