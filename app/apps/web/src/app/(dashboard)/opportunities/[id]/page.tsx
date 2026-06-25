@@ -217,12 +217,20 @@ export default function DealDetailPage() {
         setSuggestion(d.suggestion || null);
         setCurrentStageFromSuggestion(d.currentStage || null);
       }
+      if (!timelineRes.ok && !healthRes.ok && !progressRes.ok) {
+        // All three core intel lanes down = a real backend failure, not just
+        // sparse intel. Surface it (the lanes otherwise self-hide, so a 500
+        // would look identical to a deal with no intelligence yet). A partial
+        // failure still self-hides that one lane — no toast spam.
+        toast("Couldn't load deal intelligence. Refresh to retry.", "error");
+      }
     } catch (e) {
       console.warn("opps-detail: intel fetch failed", e);
+      toast("Couldn't load deal intelligence. Refresh to retry.", "error");
     } finally {
       setIntelLoaded(true);
     }
-  }, [dealId]);
+  }, [dealId, toast]);
 
   // Fetch deal intelligence (win probability, stall risk, win/loss)
   const fetchDealIntel = useCallback(async (currentDeal: Deal) => {
