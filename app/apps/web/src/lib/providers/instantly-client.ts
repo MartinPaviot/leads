@@ -271,3 +271,158 @@ export async function sendViaInstantly(
     };
   }
 }
+
+/* ------------------------------------------------------------------ */
+/*  Warmup (spec 21) — confirmed Instantly API v2 surface:             */
+/*    POST /api/v2/accounts/warmup/enable   → async background job     */
+/*    POST /api/v2/accounts/warmup/disable  → async background job     */
+/*    GET  /api/v2/accounts/{email}         → warmup_status + score    */
+/*    POST /api/v2/accounts/warmup-analytics→ landed_inbox/spam/health */
+/*    GET  /api/v2/background-jobs/{id}      → poll enable/disable      */
+/*  Reads feed the pure readiness gate (sending/identity/warmup-       */
+/*  readiness.ts). No live call here without a decrypted key.          */
+/* ------------------------------------------------------------------ */
+
+/** A background-job handle returned by enable/disable-warmup. */
+export interface InstantlyJobResult {
+  ok: boolean;
+  status: number;
+  jobId?: string;
+  errorMessage?: string;
+}
+
+async function postWarmupToggle(
+  options: InstantlyClientOptions,
+  action: "enable" | "disable",
+  emails: string[],
+): Promise<InstantlyJobResult> {
+  const base = options.baseUrl ?? DEFAULT_BASE_URL;
+  try {
+    const res = await fetchWithTimeout(
+      `${base}/api/v2/accounts/warmup/${action}`,
+      { method: "POST", headers: buildHeaders(options.apiKey), body: JSON.stringify({ emails }) },
+      TIMEOUT_MS,
+    );
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      return { ok: false, status: res.status, errorMessage: body.slice(0, 300) || `HTTP ${res.status}` };
+    }
+    const data = (await res.json().catch(() => ({}))) as { id?: string };
+    return { ok: true, status: res.status, jobId: data.id };
+  } catch (err) {
+    return { ok: false, status: 0, errorMessage: err instanceof Error ? err.message : "unknown fetch error" };
+  }
+}
+
+/** Enable warmup for up to 100 mailbox emails. Returns the async job id to poll. */
+export function enableInstantlyWarmup(options: InstantlyClientOptions, emails: string[]): Promise<InstantlyJobResult> {
+  return postWarmupToggle(options, "enable", emails.slice(0, 100));
+}
+
+/** Disable warmup for up to 100 mailbox emails. Returns the async job id to poll. */
+export function disableInstantlyWarmup(options: InstantlyClientOptions, emails: string[]): Promise<InstantlyJobResult> {
+  return postWarmupToggle(options, "disable", emails.slice(0, 100));
+}
+
+/** One mailbox's live warmup health: warmup_status (1=active/-1=banned/-2=spam/-3=suspended/0=paused) + stat_warmup_score (0-100). */
+export interface InstantlyAccountWarmup {
+  ok: boolean;
+  status: number;
+  /** Instantly warmup_status, or null when absent from the response. */
+  warmupStatus?: number | null;
+  /** Instantly stat_warmup_score (0-100), or null when absent. */
+  warmupScore?: number | null;
+  /** Raw account object (defensive — exact field set confirmed against the first live response). */
+  account?: Record<string, unknown>;
+  errorMessage?: string;
+}
+
+/** Read one mailbox's warmup status + score (GET /api/v2/accounts/{email}). */
+export async function getInstantlyAccount(options: InstantlyClientOptions, email: string): Promise<InstantlyAccountWarmup> {
+  const base = options.baseUrl ?? DEFAULT_BASE_URL;
+  try {
+    const res = await fetchWithTimeout(
+      `${base}/api/v2/accounts/${encodeURIComponent(email)}`,
+      { method: "GET", headers: buildHeaders(options.apiKey) },
+      TIMEOUT_MS,
+    );
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      return { ok: false, status: res.status, errorMessage: body.slice(0, 300) || `HTTP ${res.status}` };
+    }
+    const account = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const warmupStatus = typeof account.warmup_status === "number" ? account.warmup_status : null;
+    const warmupScore = typeof account.stat_warmup_score === "number" ? account.stat_warmup_score : null;
+    return { ok: true, status: res.status, warmupStatus, warmupScore, account };
+  } catch (err) {
+    return { ok: false, status: 0, errorMessage: err instanceof Error ? err.message : "unknown fetch error" };
+  }
+}
+
+/** Per-email warmup analytics aggregate (the richer signal: inbox vs span placement). */
+export interface WarmupAnalyticsAggregate {
+  sent?: number;
+  landed_inbox?: number;
+  landed_spam?: number;
+  received?: number;
+  health_score?: number;
+}
+
+export interface InstantlyWarmupAnalytics {
+  ok: boolean;
+  status: number;
+  /** aggregate_data keyed by email. */
+  aggregate?: Record<string, WarmupAnalyticsAggregate>;
+  errorMessage?: string;
+}
+
+/** Batch warmup analytics for up to 100 emails (POST /api/v2/accounts/warmup-analytics). */
+export async function getInstantlyWarmupAnalytics(options: InstantlyClientOptions, emails: string[]): Promise<InstantlyWarmupAnalytics> {
+  const base = options.baseUrl ?? DEFAULT_BASE_URL;
+  try {
+    const res = await fetchWithTimeout(
+      `${base}/api/v2/accounts/warmup-analytics`,
+      { method: "POST", headers: buildHeaders(options.apiKey), body: JSON.stringify({ emails: emails.slice(0, 100) }) },
+      TIMEOUT_MS,
+    );
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      return { ok: false, status: res.status, errorMessage: body.slice(0, 300) || `HTTP ${res.status}` };
+    }
+    const data = (await res.json().catch(() => ({}))) as { aggregate_data?: Record<string, WarmupAnalyticsAggregate> };
+    return { ok: true, status: res.status, aggregate: data.aggregate_data ?? {} };
+  } catch (err) {
+    return { ok: false, status: 0, errorMessage: err instanceof Error ? err.message : "unknown fetch error" };
+  }
+}
+
+/** A background job's progress (poll enable/disable-warmup to completion). */
+export interface InstantlyJobStatus {
+  ok: boolean;
+  status: number;
+  /** "pending" | "in-progress" | "success" | "failed". */
+  jobStatus?: string;
+  /** 0..100. */
+  progress?: number;
+  errorMessage?: string;
+}
+
+/** Poll a background job (GET /api/v2/background-jobs/{id}). */
+export async function getInstantlyBackgroundJob(options: InstantlyClientOptions, jobId: string): Promise<InstantlyJobStatus> {
+  const base = options.baseUrl ?? DEFAULT_BASE_URL;
+  try {
+    const res = await fetchWithTimeout(
+      `${base}/api/v2/background-jobs/${encodeURIComponent(jobId)}`,
+      { method: "GET", headers: buildHeaders(options.apiKey) },
+      TIMEOUT_MS,
+    );
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      return { ok: false, status: res.status, errorMessage: body.slice(0, 300) || `HTTP ${res.status}` };
+    }
+    const data = (await res.json().catch(() => ({}))) as { status?: string; progress?: number };
+    return { ok: true, status: res.status, jobStatus: data.status, progress: data.progress };
+  } catch (err) {
+    return { ok: false, status: 0, errorMessage: err instanceof Error ? err.message : "unknown fetch error" };
+  }
+}
