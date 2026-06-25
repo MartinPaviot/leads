@@ -1243,7 +1243,8 @@ export async function runDimensionJudges(
   const model = judgeModel.includes("gpt") && process.env.OPENAI_API_KEY
     ? openai(judgeModel)
     : process.env.ANTHROPIC_API_KEY
-      ? anthropic("claude-sonnet-4-6")
+      // Dimension grader is a scoring task — Haiku at 0.21x Sonnet, same grades.
+      ? anthropic("claude-haiku-4-5-20251001")
       : null;
 
   if (!model) {
