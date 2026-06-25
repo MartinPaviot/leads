@@ -155,6 +155,19 @@ export interface TenantSettings {
   /** When true (default), sequence step delays skip Saturdays and Sundays. */
   sequencesSkipWeekends?: boolean;
 
+  // ── Daily autopilot (spec 37) ──
+  /**
+   * Per-tenant daily enrollment target for the signal-ranked autopilot cron
+   * (inngest/daily-autopilot.ts). The Monaco-style "100 mails/day/client"
+   * dial. Default 100 (see DEFAULTS). This is a *ceiling*, not a floor: the
+   * actual budget is clamped down to the warmup-safe capacity of the managed
+   * pool (`resolveAutopilotBudget`), so a cold pool sends far fewer. Only
+   * consumed when the deployment flag `DAILY_AUTOPILOT_ENABLED` is on; with
+   * the flag off the cron no-ops and this value is inert. Set 0 to pause the
+   * autopilot for a tenant without touching the global flag.
+   */
+  dailyAutopilotBudget?: number;
+
   // ── Custom schema ──
   customFields?: CustomFieldDef[];
   pipelineStages?: PipelineStageDef[];
@@ -496,6 +509,7 @@ export const DEFAULTS: Required<Pick<
   | "trustScore"
   | "agentMemoryPanelDiscovered"
   | "auditRetentionPolicy"
+  | "dailyAutopilotBudget"
 >> = {
   aiTone: "Direct",
   salesMotion: "Founder-led sales",
@@ -511,6 +525,9 @@ export const DEFAULTS: Required<Pick<
   trustScore: 0.0,
   agentMemoryPanelDiscovered: false,
   auditRetentionPolicy: "7y",
+  // Spec 37 — the Monaco "100/day" dial; clamped down to warmup-safe pool
+  // capacity at run time, and inert unless DAILY_AUTOPILOT_ENABLED is on.
+  dailyAutopilotBudget: 100,
 };
 
 // ── Per-request cache ──
