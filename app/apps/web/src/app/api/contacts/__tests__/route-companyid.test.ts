@@ -68,7 +68,10 @@ describe("GET /api/contacts — companyId filter (R2)", () => {
     vi.mocked(getAuthContext).mockResolvedValue({ userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" } as never);
     const res = await route.GET(new Request("http://localhost/api/contacts"));
     expect(res.status).toBe(200);
-    const calledWithCompanyId = vi.mocked(eq).mock.calls.some((c) => c[0] === "contacts.companyId");
+    // `eq`'s first arg is a Drizzle Column at the type level; the runtime mock
+    // makes it the string "contacts.companyId". Cast to unknown so the runtime
+    // identity check type-checks (was a latent TS2367 on the branch).
+    const calledWithCompanyId = vi.mocked(eq).mock.calls.some((c) => (c[0] as unknown) === "contacts.companyId");
     expect(calledWithCompanyId).toBe(false);
   });
 
