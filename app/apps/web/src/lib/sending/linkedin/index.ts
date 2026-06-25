@@ -29,3 +29,16 @@ export {
   type LinkedInOutcome,
   runLinkedInAction,
 } from "./linkedin";
+
+export {
+  type LinkedInAccountStatus,
+  type LinkedInSendingAccount,
+  type LinkedInActionsToday,
+  type LinkedInActionCapacity,
+  type LinkedInCapacityReport,
+  daysIntoWarmup,
+  isWarming,
+  effectiveDailyCap,
+  getLinkedInSendableCapacity,
+  canActLinkedIn,
+} from "./capacity";
